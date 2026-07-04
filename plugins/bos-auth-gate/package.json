@@ -1,0 +1,25 @@
+{
+  "name": "@aqua/plugin-bos-auth-gate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal BOS auth gate — gates `/business-os/*` on a real session and reads lead user state (HC slot, captures) from public-funnel for personalisation. Pure middleware-decision helper + a `me` endpoint; foundation wires the actual middleware.ts match. Soft-gate via NEXT_PUBLIC_DEV_BYPASS.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/gate.test.ts",
+    "test": "tsx --test src/__smoke__/gate.test.ts"
+  },
+  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
+    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

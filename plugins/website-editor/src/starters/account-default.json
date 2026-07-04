@@ -1,0 +1,33 @@
+{
+  "variantId": "account-default",
+  "role": "account",
+  "title": "Your account",
+  "description": "Card-grid hub linking to Orders, Profile, Affiliates, and Preferences.",
+  "blocks": [
+    {
+      "id": "blk_acct_section",
+      "type": "section",
+      "props": { "padding": "lg" },
+      "children": [
+        {
+          "id": "blk_acct_heading",
+          "type": "heading",
+          "props": { "level": 1, "text": "Your account" }
+        },
+        {
+          "id": "blk_acct_grid",
+          "type": "card-grid",
+          "props": {
+            "columns": 2,
+            "cards": [
+              { "title": "Orders", "description": "Recent purchases + tracking", "href": "/orders" },
+              { "title": "Profile", "description": "Name, email, address", "href": "/account/profile" },
+              { "title": "Affiliates", "description": "Refer + earn", "href": "/affiliates" },
+              { "title": "Preferences", "description": "Email + notifications", "href": "/account/preferences" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "variantId": "affiliates-default",
+  "role": "affiliates",
+  "title": "Affiliates portal",
+  "description": "Affiliates landing — heading, performance stats, login + signup-href customised to /affiliate-signup.",
+  "blocks": [
+    {
+      "id": "blk_aff_section",
+      "type": "section",
+      "props": { "padding": "xl", "align": "center" },
+      "children": [
+        {
+          "id": "blk_aff_heading",
+          "type": "heading",
+          "props": { "level": 1, "text": "Affiliate portal" }
+        },
+        {
+          "id": "blk_aff_stats",
+          "type": "stats-bar",
+          "props": {
+            "stats": [
+              { "label": "Active affiliates", "value": "—" },
+              { "label": "Conversion", "value": "—" },
+              { "label": "Lifetime payouts", "value": "—" }
+            ]
+          }
+        },
+        {
+          "id": "blk_aff_form",
+          "type": "login-form",
+          "props": {
+            "submitLabel": "Sign in",
+            "signupHref": "/affiliate-signup",
+            "signupLabel": "Apply to join the program"
+          }
+        }
+      ]
+    }
+  ]
+}

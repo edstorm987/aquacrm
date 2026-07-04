@@ -1,0 +1,438 @@
+@import "tailwindcss";
+
+/* Default brand variables. Each tenant's <ThemeInjector> overrides these
+   at the page root. The marketing landing page uses the defaults. */
+:root {
+  --brand-primary: #0EA5A4;
+  --brand-secondary: #1F2937;
+  --brand-accent: #F97316;
+  --brand-font-heading: ui-sans-serif, system-ui, sans-serif;
+  --brand-font-body: ui-sans-serif, system-ui, sans-serif;
+  --brand-radius: 12px;
+  --brand-bg: #FAFAFA;
+  --brand-surface: #FFFFFF;
+  --brand-ink: #0F172A;
+}
+
+/* Was `html, body { height: 100% }` — that capped the body to one
+   viewport and broke `position: sticky` on the marketing chrome
+   (stickybar + nav un-stuck after the hero). Switching to min-height
+   keeps full-bleed layouts working AND lets the document scroll
+   naturally so sticky elements pin against the viewport. */
+html, body { min-height: 100%; }
+
+body {
+  background: var(--brand-bg);
+  color: var(--brand-ink);
+  font-family: var(--brand-font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--brand-font-heading);
+}
+
+/* ─────────── Accessibility · global focus ring ─────────────────────────
+   Every interactive element gets a visible 2px brand-coloured ring on
+   keyboard focus. Mouse users keep the no-ring behaviour because we use
+   :focus-visible (not :focus). Plugins inherit this for free — no per-
+   plugin focus styling needed.
+
+   Falls back to currentColor when --brand-accent isn't injected (so the
+   public marketing page + login also light up). */
+:where(a, button, input, select, textarea, [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--brand-accent, currentColor);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Hide visually but keep accessible to screen readers. */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Show only when focused (used by SkipToContent). */
+.focus-visible\:not-sr-only:focus-visible {
+  position: static !important;
+  width: auto; height: auto;
+  padding: revert; margin: revert;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Inline-skeleton keyframes — used by storefront blocks rendering
+   outside Tailwind's reach (they apply `animation: aqua-pulse ...`
+   inline). Mirrors Tailwind's animate-pulse for parity. */
+@keyframes aqua-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Reduced-motion respect — kill the pulse animation when the user
+   has prefers-reduced-motion set. Tailwind's animate-pulse already
+   honours this, but our inline-keyframes class needs an explicit
+   override. */
+@media (prefers-reduced-motion: reduce) {
+  .aqua-skeleton, [style*="aqua-pulse"] {
+    animation: none !important;
+  }
+  .animate-pulse {
+    animation: none !important;
+  }
+}
+
+/* ─────────── Plugin admin baseline ────────────────────────────────────
+   The 9 plugins ship with prefixed CSS class names (`affiliates-*`,
+   `ecom-*`, `forms-*`, `fulfillment-*`, `hr-*`, `memberships-*`,
+   `marketing-*`, `crm-*`, `finance-*`) but no actual CSS rules — the
+   styles never shipped (audit `04-ux-audit.md`). Until each plugin's
+   CSS lands proper, this block provides a polished, brand-aware
+   baseline for all of them at once via attribute-suffix selectors.
+   Touch min, win max — every plugin admin page becomes legible without
+   editing one line of plugin code. */
+
+/* List header — flex row with title + actions. */
+[class$="-list-header"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+[class$="-list-header"] h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgba(0, 0, 0, 0.9);
+  margin: 0;
+}
+[class$="-list-header"] p {
+  font-size: 0.8125rem;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 0.25rem 0 0;
+}
+
+/* List actions — search + filters + new-button row. */
+[class$="-list-actions"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+[class$="-list-actions"] input[type="search"],
+[class$="-list-actions"] input[type="text"],
+[class$="-list-actions"] select {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--brand-surface, #fff);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.875rem;
+  min-height: 36px;
+}
+
+/* Card grid — responsive 1/2/3-up. */
+[class$="-grid"],
+[class$="-product-grid"] {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+@media (min-width: 768px) {
+  [class$="-grid"],
+  [class$="-product-grid"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  [class$="-grid"],
+  [class$="-product-grid"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Card — anything ending in `-card` (or `-card-<status>`). */
+[class*="-card"] {
+  background: var(--brand-surface, #fff);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--brand-radius, 12px);
+  padding: 1rem;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+[class*="-card"] h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+/* Pills (status chips). */
+[class*="-pill"] {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+}
+[class*="-pill-active"], [class*="-pill-published"], [class*="-pill-paid"] {
+  background: rgb(220, 252, 231);
+  color: rgb(22, 101, 52);
+}
+[class*="-pill-pending"], [class*="-pill-draft"], [class*="-pill-trialing"] {
+  background: rgb(254, 243, 199);
+  color: rgb(120, 53, 15);
+}
+[class*="-pill-suspended"], [class*="-pill-canceled"], [class*="-pill-failed"], [class*="-pill-overdue"] {
+  background: rgb(254, 226, 226);
+  color: rgb(127, 29, 29);
+}
+[class*="-pill-archived"], [class*="-pill-removed"] {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* Meta text. */
+[class*="-meta"] {
+  font-size: 0.8125rem;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 0.25rem 0;
+}
+
+/* Buttons — anything containing `-button`. */
+[class*="-button"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--brand-surface, #fff);
+  color: rgba(0, 0, 0, 0.85);
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 36px;
+  transition: background 120ms ease;
+}
+[class*="-button"]:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+[class*="-button-primary"] {
+  background: var(--brand-primary);
+  color: #fff;
+  border-color: transparent;
+}
+[class*="-button-primary"]:hover {
+  opacity: 0.92;
+  background: var(--brand-primary);
+}
+[class*="-button"]:disabled,
+[class*="-button"][disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Form fields. */
+[class$="-field"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+[class$="-field"] > span {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.7);
+}
+[class$="-field"] input,
+[class$="-field"] select,
+[class$="-field"] textarea {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--brand-surface, #fff);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  min-height: 40px;
+  width: 100%;
+}
+[class$="-field"] textarea { min-height: 96px; }
+[class$="-field"] input[aria-invalid="true"] {
+  border-color: rgb(220, 38, 38);
+}
+[class$="-field-row"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  [class$="-field-row"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Errors / alerts inside plugin admin. */
+[class$="-error"] {
+  font-size: 0.8125rem;
+  color: rgb(185, 28, 28);
+  background: rgb(254, 226, 226);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+}
+
+/* Modals. Plugins declare `<div className="...-modal" role="dialog">` */
+[class$="-modal"] {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+[class$="-modal-card"],
+[class$="-modal"] form {
+  background: var(--brand-surface, #fff);
+  border-radius: var(--brand-radius, 12px);
+  padding: 1.5rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+@media (max-width: 640px) {
+  /* Mobile fullscreen modals. */
+  [class$="-modal-card"],
+  [class$="-modal"] form {
+    max-width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+}
+[class$="-modal-actions"] {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Tap targets — bump small inline buttons to a11y-friendly size on
+   touch devices. */
+@media (pointer: coarse) {
+  button:not([class*="-pill"]), a:not([class*="-pill"]):not([class*="-meta"]) {
+    min-height: 44px;
+  }
+}
+
+/* Empty-state helper for plugins (consumed via the inline pattern;
+   matches our shared <EmptyState>). */
+[class$="-empty"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  border-radius: var(--brand-radius, 12px);
+  background: rgba(0, 0, 0, 0.02);
+  color: rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+[class$="-empty"] h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+  color: rgba(0, 0, 0, 0.8);
+}
+[class$="-empty"] p {
+  font-size: 0.8125rem;
+  margin: 0;
+  max-width: 28rem;
+}
+
+/* Reset List. */
+[class$="-list"] ul,
+[class$="-list"] ol {
+  list-style: none;
+  padding: 0;
+}
+
+/* T1 R035 — Sidebar collapse toggle. The desktop <aside> carries
+   data-collapsed="true|false"; collapsed mode shrinks to ~56px and
+   hides text labels in favour of first-letter pills + native title=
+   tooltips. Mobile slide-over is excluded via data-sidebar-mobile. */
+.mm-sidebar-collapsible {
+  width: 15rem; /* 240px — matches prior w-60 */
+  transition: width 140ms ease;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) {
+  width: 3.5rem; /* 56px */
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-tenant,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-heading,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-label,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-badge,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-extra {
+  display: none;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+/* Collapsed sidebar: force-open every <details> panel so the items
+   (icons) stay visible even if the operator collapsed the section
+   while expanded. Hiding the <summary> via .mm-sidebar-heading rule
+   above already removes the chevron + count. */
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) details.mm-sidebar-panel > ul {
+  display: flex !important;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Workspaces — when a workspace is active on the sidebar
+   (data-workspace="<id>"), hide every element tagged with
+   data-workspaces; the per-workspace rules below re-show only the
+   ones whose data-workspaces list contains the active id.
+   data-workspaces uses space-separated tokens so the ~= matcher
+   (whole-token match) works correctly. */
+aside[aria-label="Primary navigation"][data-workspace] [data-workspaces] {
+  display: none !important;
+}
+aside[aria-label="Primary navigation"][data-workspace="aqua-hq"]   [data-workspaces~="aqua-hq"],
+aside[aria-label="Primary navigation"][data-workspace="finance"]   [data-workspaces~="finance"],
+aside[aria-label="Primary navigation"][data-workspace="marketing"] [data-workspaces~="marketing"],
+aside[aria-label="Primary navigation"][data-workspace="people"]    [data-workspaces~="people"],
+aside[aria-label="Primary navigation"][data-workspace="ops"]       [data-workspaces~="ops"],
+aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspaces~="growth"] {
+  display: block !important;
+}

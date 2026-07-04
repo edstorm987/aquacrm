@@ -1,0 +1,46 @@
+# dependencies
+node_modules
+.DS_Store
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+coverage
+
+# next.js
+.next
+out
+
+# production
+build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local file-backend state
+.data
+
+# R8 milesymedia stitch — public/_milesy/ is a build artefact copied
+# from `04-the-final-portal/milesymedia website/` by
+# `scripts/prepare-milesy.mjs`. Source lives in the static-site
+# folder; this is the materialised mirror Next.js serves.
+public/_milesy/
