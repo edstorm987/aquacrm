@@ -1,0 +1,32 @@
+{
+  "name": "@aqua/plugin-ai-builder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal AI page builder — operator types a description, Claude returns a BlockTree[] using the website-editor's 58-block library + 18 cross-plugin block ids. Per-install Anthropic API key; prompt caching enabled on the static block-library system prompt for cost.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/ai-builder.test.ts",
+    "test": "tsx --test src/__smoke__/ai-builder.test.ts"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "next": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

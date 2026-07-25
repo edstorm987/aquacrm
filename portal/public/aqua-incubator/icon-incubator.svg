@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Aqua incubator mark">
+  <rect width="256" height="256" rx="56" fill="#10100f"/>
+  <path d="M128 42 C80 76 58 112 58 150 c0 38 30 66 70 66 s70-28 70-66 c0-38-22-74-70-108Z" fill="#c9a76a"/>
+  <path d="M82 152 c34-10 58-31 76-65 c10 21 16 43 16 62 c0 25-18 43-46 43 c-22 0-39-12-46-40Z" fill="#f8f3e9" opacity=".9"/>
+  <path d="M87 155 c33-4 66-24 87-55" fill="none" stroke="#0ea5a4" stroke-width="10" stroke-linecap="round"/>
+</svg>

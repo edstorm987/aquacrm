@@ -1,0 +1,25 @@
+{
+  "name": "@aqua/plugin-support-desk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Per-client support tickets. End-customers raise tickets via a storefront support-form block; agency-side inbox triages. Lightweight helpdesk shape — Ticket + TicketMessage thread + status state machine + auto-assign by tag + activity events. Soft-pairs forms (alternate ingest path) and ecommerce (order.shipped follow-up subscriber).",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/support-desk.test.ts",
+    "test": "tsx --test src/__smoke__/support-desk.test.ts"
+  },
+  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
+    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

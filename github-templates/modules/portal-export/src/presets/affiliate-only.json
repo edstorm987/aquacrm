@@ -1,0 +1,42 @@
+{
+  "id": "affiliate-only",
+  "label": "Affiliate only",
+  "description": "Referral dashboard + payout management. Plugins: website-editor + affiliates + client-crm.",
+  "icon": "#10B981",
+  "installedPlugins": [
+    "website-editor",
+    "affiliates",
+    "client-crm"
+  ],
+  "portalVariants": {
+    "login": "affiliate-login-v1",
+    "affiliates": "affiliate-dashboard-v1"
+  },
+  "starterContent": {
+    "pages": [
+      {
+        "pageId": "home",
+        "title": "Affiliates",
+        "rootBlocks": [
+          { "id": "signup", "type": "affiliate-signup", "props": {} },
+          { "id": "leaderboard", "type": "affiliate-leaderboard", "props": { "limit": 10 } }
+        ]
+      },
+      {
+        "pageId": "dashboard",
+        "title": "Dashboard",
+        "rootBlocks": [
+          { "id": "meter", "type": "affiliate-payout-meter", "props": {} }
+        ]
+      }
+    ]
+  },
+  "defaultBrand": {
+    "primaryColor": "#10B981",
+    "secondaryColor": "#ECFDF5",
+    "fontHeading": "ui-sans-serif, system-ui",
+    "fontBody": "ui-sans-serif, system-ui",
+    "borderRadius": "8px"
+  },
+  "recommendedPhase": "live"
+}

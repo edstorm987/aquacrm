@@ -1,0 +1,44 @@
+{
+  "variantId": "login-default",
+  "role": "login",
+  "title": "Login",
+  "description": "Minimal sign-in surface — heading, lede, login form.",
+  "blocks": [
+    {
+      "id": "blk_login_default_section",
+      "type": "section",
+      "props": {
+        "padding": "xl",
+        "align": "center",
+        "background": "var(--theme-background)"
+      },
+      "children": [
+        {
+          "id": "blk_login_default_heading",
+          "type": "heading",
+          "props": {
+            "level": 1,
+            "text": "Welcome back"
+          }
+        },
+        {
+          "id": "blk_login_default_text",
+          "type": "text",
+          "props": {
+            "html": "<p>Sign in to your portal to continue.</p>"
+          }
+        },
+        {
+          "id": "blk_login_default_form",
+          "type": "login-form",
+          "props": {
+            "submitLabel": "Sign in",
+            "showRememberMe": true,
+            "showForgotPassword": true,
+            "signupHref": "/signup"
+          }
+        }
+      ]
+    }
+  ]
+}

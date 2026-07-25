@@ -1,0 +1,207 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@built-ins/*": [
+        "./src/built-ins/*"
+      ],
+      "@aqua/plugin-affiliates": [
+        "./src/built-ins/modules/affiliates/index.ts"
+      ],
+      "@aqua/plugin-affiliates/server": [
+        "./src/built-ins/modules/affiliates/src/server/index.ts"
+      ],
+      "@aqua/plugin-affiliates/types": [
+        "./src/built-ins/modules/affiliates/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-affiliates/*": [
+        "./src/built-ins/modules/affiliates/src/*"
+      ],
+      "@aqua/plugin-agency-finance": [
+        "./src/built-ins/modules/agency-finance/index.ts"
+      ],
+      "@aqua/plugin-agency-finance/server": [
+        "./src/built-ins/modules/agency-finance/src/server/index.ts"
+      ],
+      "@aqua/plugin-agency-finance/types": [
+        "./src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-agency-finance/*": [
+        "./src/built-ins/modules/agency-finance/src/*"
+      ],
+      "@aqua/plugin-agency-hr": [
+        "./src/built-ins/modules/agency-hr/index.ts"
+      ],
+      "@aqua/plugin-agency-hr/server": [
+        "./src/built-ins/modules/agency-hr/src/server/index.ts"
+      ],
+      "@aqua/plugin-agency-hr/types": [
+        "./src/built-ins/modules/agency-hr/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-agency-hr/*": [
+        "./src/built-ins/modules/agency-hr/src/*"
+      ],
+      "@aqua/plugin-agency-marketing": [
+        "./src/built-ins/modules/agency-marketing/index.ts"
+      ],
+      "@aqua/plugin-agency-marketing/server": [
+        "./src/built-ins/modules/agency-marketing/src/server/index.ts"
+      ],
+      "@aqua/plugin-agency-marketing/types": [
+        "./src/built-ins/modules/agency-marketing/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-agency-marketing/*": [
+        "./src/built-ins/modules/agency-marketing/src/*"
+      ],
+      "@aqua/plugin-bos-auth-gate": [
+        "./src/built-ins/modules/bos-auth-gate/index.ts"
+      ],
+      "@aqua/plugin-bos-auth-gate/server": [
+        "./src/built-ins/modules/bos-auth-gate/src/server/index.ts"
+      ],
+      "@aqua/plugin-bos-auth-gate/types": [
+        "./src/built-ins/modules/bos-auth-gate/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-bos-auth-gate/*": [
+        "./src/built-ins/modules/bos-auth-gate/src/*"
+      ],
+      "@aqua/plugin-client-crm": [
+        "./src/built-ins/modules/client-crm/index.ts"
+      ],
+      "@aqua/plugin-client-crm/server": [
+        "./src/built-ins/modules/client-crm/src/server/index.ts"
+      ],
+      "@aqua/plugin-client-crm/types": [
+        "./src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-client-crm/*": [
+        "./src/built-ins/modules/client-crm/src/*"
+      ],
+      "@aqua/plugin-ecommerce": [
+        "./src/built-ins/modules/ecommerce/index.ts"
+      ],
+      "@aqua/plugin-ecommerce/server": [
+        "./src/built-ins/modules/ecommerce/src/server/index.ts"
+      ],
+      "@aqua/plugin-ecommerce/types": [
+        "./src/built-ins/modules/ecommerce/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-ecommerce/*": [
+        "./src/built-ins/modules/ecommerce/src/*"
+      ],
+      "@aqua/plugin-email-sender": [
+        "./src/built-ins/modules/email-sender/index.ts"
+      ],
+      "@aqua/plugin-email-sender/server": [
+        "./src/built-ins/modules/email-sender/src/server/index.ts"
+      ],
+      "@aqua/plugin-email-sender/types": [
+        "./src/built-ins/modules/email-sender/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-email-sender/*": [
+        "./src/built-ins/modules/email-sender/src/*"
+      ],
+      "@aqua/plugin-fulfillment": [
+        "./src/built-ins/modules/fulfillment/index.ts"
+      ],
+      "@aqua/plugin-fulfillment/server": [
+        "./src/built-ins/modules/fulfillment/src/server/index.ts"
+      ],
+      "@aqua/plugin-fulfillment/types": [
+        "./src/built-ins/modules/fulfillment/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-fulfillment/*": [
+        "./src/built-ins/modules/fulfillment/src/*"
+      ],
+      "@aqua/plugin-leads-pipeline": [
+        "./src/built-ins/modules/leads-pipeline/index.ts"
+      ],
+      "@aqua/plugin-leads-pipeline/server": [
+        "./src/built-ins/modules/leads-pipeline/src/server/index.ts"
+      ],
+      "@aqua/plugin-leads-pipeline/types": [
+        "./src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-leads-pipeline/*": [
+        "./src/built-ins/modules/leads-pipeline/src/*"
+      ],
+      "@aqua/plugin-memberships": [
+        "./src/built-ins/modules/memberships/index.ts"
+      ],
+      "@aqua/plugin-memberships/server": [
+        "./src/built-ins/modules/memberships/src/server/index.ts"
+      ],
+      "@aqua/plugin-memberships/types": [
+        "./src/built-ins/modules/memberships/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-memberships/*": [
+        "./src/built-ins/modules/memberships/src/*"
+      ],
+      "@aqua/plugin-public-funnel": [
+        "./src/built-ins/modules/public-funnel/index.ts"
+      ],
+      "@aqua/plugin-public-funnel/server": [
+        "./src/built-ins/modules/public-funnel/src/server/index.ts"
+      ],
+      "@aqua/plugin-public-funnel/types": [
+        "./src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-public-funnel/*": [
+        "./src/built-ins/modules/public-funnel/src/*"
+      ],
+      "@aqua/plugin-website-editor": [
+        "./src/built-ins/modules/website-editor/index.ts"
+      ],
+      "@aqua/plugin-website-editor/components": [
+        "./src/built-ins/modules/website-editor/src/components/index.ts"
+      ],
+      "@aqua/plugin-website-editor/server": [
+        "./src/built-ins/modules/website-editor/src/server/index.ts"
+      ],
+      "@aqua/plugin-website-editor/types": [
+        "./src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts"
+      ],
+      "@aqua/plugin-website-editor/*": [
+        "./src/built-ins/modules/website-editor/src/*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "_attic",
+    "src/_attic",
+    "scripts",
+    "src/**/__smoke__"
+  ]
+}

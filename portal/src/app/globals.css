@@ -1,0 +1,953 @@
+@import "tailwindcss";
+
+/* Default brand variables. Each tenant's <ThemeInjector> overrides these
+   at the page root. The marketing landing page uses the defaults. */
+:root {
+  --brand-primary: #0EA5A4;
+  --brand-secondary: #1F2937;
+  --brand-accent: #F97316;
+  --brand-font-heading: ui-sans-serif, system-ui, sans-serif;
+  --brand-font-body: ui-sans-serif, system-ui, sans-serif;
+  --brand-radius: 12px;
+  --brand-bg: #FAFAFA;
+  --brand-surface: #FFFFFF;
+  --brand-ink: #0F172A;
+}
+
+/* Was `html, body { height: 100% }` — that capped the body to one
+   viewport and broke `position: sticky` on the marketing chrome
+   (stickybar + nav un-stuck after the hero). Switching to min-height
+   keeps full-bleed layouts working AND lets the document scroll
+   naturally so sticky elements pin against the viewport. */
+html, body { min-height: 100%; }
+
+body {
+  background: var(--brand-bg);
+  color: var(--brand-ink);
+  font-family: var(--brand-font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--brand-font-heading);
+}
+
+/* ─────────── Accessibility · global focus ring ─────────────────────────
+   Every interactive element gets a visible 2px brand-coloured ring on
+   keyboard focus. Mouse users keep the no-ring behaviour because we use
+   :focus-visible (not :focus). Plugins inherit this for free — no per-
+   plugin focus styling needed.
+
+   Falls back to currentColor when --brand-accent isn't injected (so the
+   public marketing page + login also light up). */
+:where(a, button, input, select, textarea, [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--brand-accent, currentColor);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Hide visually but keep accessible to screen readers. */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Show only when focused (used by SkipToContent). */
+.focus-visible\:not-sr-only:focus-visible {
+  position: static !important;
+  width: auto; height: auto;
+  padding: revert; margin: revert;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Inline-skeleton keyframes — used by storefront blocks rendering
+   outside Tailwind's reach (they apply `animation: aqua-pulse ...`
+   inline). Mirrors Tailwind's animate-pulse for parity. */
+@keyframes aqua-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Reduced-motion respect — kill the pulse animation when the user
+   has prefers-reduced-motion set. Tailwind's animate-pulse already
+   honours this, but our inline-keyframes class needs an explicit
+   override. */
+@media (prefers-reduced-motion: reduce) {
+  .aqua-skeleton, [style*="aqua-pulse"] {
+    animation: none !important;
+  }
+  .animate-pulse {
+    animation: none !important;
+  }
+}
+
+/* ─────────── Plugin admin baseline ────────────────────────────────────
+   The 9 plugins ship with prefixed CSS class names (`affiliates-*`,
+   `ecom-*`, `forms-*`, `fulfillment-*`, `hr-*`, `memberships-*`,
+   `marketing-*`, `crm-*`, `finance-*`) but no actual CSS rules — the
+   styles never shipped (audit `04-ux-audit.md`). Until each plugin's
+   CSS lands proper, this block provides a polished, brand-aware
+   baseline for all of them at once via attribute-suffix selectors.
+   Touch min, win max — every plugin admin page becomes legible without
+   editing one line of plugin code. */
+
+/* List header — flex row with title + actions. */
+[class$="-list-header"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+[class$="-list-header"] h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgba(0, 0, 0, 0.9);
+  margin: 0;
+}
+[class$="-list-header"] p {
+  font-size: 0.8125rem;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 0.25rem 0 0;
+}
+
+/* List actions — search + filters + new-button row. */
+[class$="-list-actions"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+[class$="-list-actions"] input[type="search"],
+[class$="-list-actions"] input[type="text"],
+[class$="-list-actions"] select {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--brand-surface, #fff);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.875rem;
+  min-height: 36px;
+}
+
+/* Card grid — responsive 1/2/3-up. */
+[class$="-grid"],
+[class$="-product-grid"] {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+@media (min-width: 768px) {
+  [class$="-grid"],
+  [class$="-product-grid"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  [class$="-grid"],
+  [class$="-product-grid"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Card — anything ending in `-card` (or `-card-<status>`). */
+[class*="-card"]:not(svg) {
+  background: var(--brand-surface, #fff);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--brand-radius, 12px);
+  padding: 1rem;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+[class*="-card"]:not(svg) h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+/* Lucide names such as `lucide-credit-card` are icons, not admin cards. */
+svg[class*="-card"] {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  transition: none !important;
+}
+
+/* Pills (status chips). */
+[class*="-pill"] {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+}
+[class*="-pill-active"], [class*="-pill-published"], [class*="-pill-paid"] {
+  background: rgb(220, 252, 231);
+  color: rgb(22, 101, 52);
+}
+[class*="-pill-pending"], [class*="-pill-draft"], [class*="-pill-trialing"] {
+  background: rgb(254, 243, 199);
+  color: rgb(120, 53, 15);
+}
+[class*="-pill-suspended"], [class*="-pill-canceled"], [class*="-pill-failed"], [class*="-pill-overdue"] {
+  background: rgb(254, 226, 226);
+  color: rgb(127, 29, 29);
+}
+[class*="-pill-archived"], [class*="-pill-removed"] {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* Meta text. */
+[class*="-meta"] {
+  font-size: 0.8125rem;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 0.25rem 0;
+}
+
+/* Buttons — anything containing `-button`. */
+[class*="-button"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--brand-surface, #fff);
+  color: rgba(0, 0, 0, 0.85);
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 36px;
+  transition: background 120ms ease;
+}
+[class*="-button"]:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+[class*="-button-primary"] {
+  background: var(--brand-primary);
+  color: #fff;
+  border-color: transparent;
+}
+[class*="-button-primary"]:hover {
+  opacity: 0.92;
+  background: var(--brand-primary);
+}
+[class*="-button"]:disabled,
+[class*="-button"][disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Form fields. */
+[class$="-field"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+[class$="-field"] > span {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.7);
+}
+[class$="-field"] input,
+[class$="-field"] select,
+[class$="-field"] textarea {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--brand-surface, #fff);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  min-height: 40px;
+  width: 100%;
+}
+[class$="-field"] textarea { min-height: 96px; }
+[class$="-field"] input[aria-invalid="true"] {
+  border-color: rgb(220, 38, 38);
+}
+[class$="-field-row"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  [class$="-field-row"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Errors / alerts inside plugin admin. */
+[class$="-error"] {
+  font-size: 0.8125rem;
+  color: rgb(185, 28, 28);
+  background: rgb(254, 226, 226);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+}
+
+/* Modals. Plugins declare `<div className="...-modal" role="dialog">` */
+[class$="-modal"] {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+[class$="-modal-card"],
+[class$="-modal"] form {
+  background: var(--brand-surface, #fff);
+  border-radius: var(--brand-radius, 12px);
+  padding: 1.5rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+@media (max-width: 640px) {
+  /* Mobile fullscreen modals. */
+  [class$="-modal-card"],
+  [class$="-modal"] form {
+    max-width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+}
+[class$="-modal-actions"] {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Tap targets — bump small inline buttons to a11y-friendly size on
+   touch devices. */
+@media (pointer: coarse) {
+  button:not([class*="-pill"]), a:not([class*="-pill"]):not([class*="-meta"]) {
+    min-height: 44px;
+  }
+}
+
+/* Empty-state helper for plugins (consumed via the inline pattern;
+   matches our shared <EmptyState>). */
+[class$="-empty"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  border-radius: var(--brand-radius, 12px);
+  background: rgba(0, 0, 0, 0.02);
+  color: rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+[class$="-empty"] h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+  color: rgba(0, 0, 0, 0.8);
+}
+[class$="-empty"] p {
+  font-size: 0.8125rem;
+  margin: 0;
+  max-width: 28rem;
+}
+
+/* Reset List. */
+[class$="-list"] ul,
+[class$="-list"] ol {
+  list-style: none;
+  padding: 0;
+}
+
+/* T1 R035 — Sidebar collapse toggle. The desktop <aside> carries
+   data-collapsed="true|false"; collapsed mode shrinks to ~56px and
+   hides text labels in favour of first-letter pills + native title=
+   tooltips. Mobile slide-over is excluded via data-sidebar-mobile. */
+.mm-sidebar-collapsible {
+  width: 15rem; /* 240px — matches prior w-60 */
+  transition: width 140ms ease;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) {
+  width: 3.5rem; /* 56px */
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-tenant,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-heading,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-label,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-badge,
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-extra {
+  display: none;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+/* Collapsed sidebar: force-open every <details> panel so the items
+   (icons) stay visible even if the operator collapsed the section
+   while expanded. Hiding the <summary> via .mm-sidebar-heading rule
+   above already removes the chevron + count. */
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) details.mm-sidebar-panel > ul {
+  display: flex !important;
+}
+aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Workspaces — when a workspace is active on the sidebar
+   (data-workspace="<id>"), hide every element tagged with
+   data-workspaces; the per-workspace rules below re-show only the
+   ones whose data-workspaces list contains the active id.
+   data-workspaces uses space-separated tokens so the ~= matcher
+   (whole-token match) works correctly. */
+aside[aria-label="Primary navigation"][data-workspace] [data-workspaces] {
+  display: none !important;
+}
+aside[aria-label="Primary navigation"][data-workspace="aqua-hq"]   [data-workspaces~="aqua-hq"],
+aside[aria-label="Primary navigation"][data-workspace="finance"]   [data-workspaces~="finance"],
+aside[aria-label="Primary navigation"][data-workspace="marketing"] [data-workspaces~="marketing"],
+aside[aria-label="Primary navigation"][data-workspace="people"]    [data-workspaces~="people"],
+aside[aria-label="Primary navigation"][data-workspace="ops"]       [data-workspaces~="ops"],
+aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspaces~="growth"] {
+  display: block !important;
+}
+
+/* Standalone auth pages. These routes no longer load the public website
+   stylesheet, so keep their chrome here with the portal globals. */
+.mm-auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 20px 96px;
+  background:
+    radial-gradient(ellipse 60% 40% at 0% 30%, rgba(201, 167, 106, 0.08), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 100% 70%, rgba(110, 175, 175, 0.07), transparent 70%),
+    #FAF7EE;
+}
+.mm-auth-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+  width: 100%;
+  max-width: 1080px;
+  align-items: center;
+}
+@media (min-width: 880px) {
+  .mm-auth-split {
+    grid-template-columns: 1.05fr 1fr;
+    gap: 64px;
+  }
+}
+.mm-auth-brand-panel {
+  display: none;
+  padding: 8px 0;
+  max-width: 460px;
+}
+@media (min-width: 880px) {
+  .mm-auth-brand-panel { display: block; }
+}
+.mm-auth-brand-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #B89254;
+  font-weight: 700;
+  margin-bottom: 24px;
+  padding: 6px 14px;
+  background: rgba(201, 167, 106, 0.10);
+  border: 1px solid rgba(201, 167, 106, 0.25);
+  border-radius: 999px;
+}
+.mm-auth-brand-headline {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 44px;
+  line-height: 1.08;
+  letter-spacing: 0;
+  margin: 0 0 18px;
+  color: #14120E;
+  font-weight: 500;
+}
+.mm-auth-brand-tagline {
+  font-size: 16px;
+  line-height: 1.55;
+  color: #4A4439;
+  margin: 0 0 28px;
+  max-width: 32ch;
+}
+.mm-auth-brand-points {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+  color: #6B635A;
+}
+.mm-auth-brand-points li {
+  position: relative;
+  padding-left: 18px;
+}
+.mm-auth-brand-points li::before {
+  content: ".";
+  position: absolute;
+  left: 4px;
+  color: #C9A76A;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+}
+.mm-auth-brand-foot {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8A8377;
+}
+.mm-auth-card {
+  width: 100%;
+  max-width: 480px;
+  background: #FFF;
+  border: 1px solid rgba(20, 18, 14, 0.07);
+  border-radius: 18px;
+  padding: 40px 36px 30px;
+  box-shadow:
+    0 1px 2px rgba(20, 18, 14, 0.04),
+    0 24px 64px -16px rgba(20, 18, 14, 0.14);
+  margin: 0 auto;
+}
+.mm-auth-card-head {
+  text-align: center;
+  margin-bottom: 26px;
+  position: relative;
+}
+.mm-auth-card-head h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 32px;
+  line-height: 1.15;
+  letter-spacing: 0;
+  margin: 6px 0 8px;
+  color: #14120E;
+  font-weight: 500;
+}
+.mm-auth-card-head p {
+  color: #6B635A;
+  font-size: 14px;
+  margin: 0;
+}
+.mm-auth-foot {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(20, 18, 14, 0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #6B635A;
+}
+.mm-auth-foot a {
+  color: #C9A76A;
+  text-decoration: none;
+  font-weight: 600;
+}
+.mm-auth-foot a:hover { text-decoration: underline; }
+.mm-dev-bypass {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  background: rgba(20, 18, 14, 0.04);
+  border: 1px solid rgba(20, 18, 14, 0.08);
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: #6B635A !important;
+  font-weight: 500;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.mm-dev-bypass:hover {
+  background: rgba(20, 18, 14, 0.08);
+  border-color: rgba(20, 18, 14, 0.14);
+  text-decoration: none !important;
+}
+.mm-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+.mm-input-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.mm-input-label > span {
+  color: #4A4439;
+  font-weight: 500;
+}
+.mm-input-label > span > .mm-input-label-aside {
+  color: #8A8377;
+  font-weight: 400;
+}
+.mm-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(20, 18, 14, 0.14);
+  border-radius: 10px;
+  background: #FDFCF8;
+  font-size: 15px;
+  color: #14120E;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.mm-input:focus {
+  outline: none;
+  border-color: #C9A76A;
+  background: #FFF;
+  box-shadow: 0 0 0 3px rgba(201, 167, 106, 0.18);
+}
+.mm-btn-primary {
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 10px;
+  background: #14120E;
+  color: #FFF;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  margin-top: 4px;
+}
+.mm-btn-primary:hover:not(:disabled) {
+  background: #2A2520;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(20, 18, 14, 0.18);
+}
+.mm-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.mm-btn-google {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(20, 18, 14, 0.12);
+  background: #FFF;
+  font-size: 14px;
+  font-weight: 500;
+  color: #14120E;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.mm-btn-google:hover {
+  background: #FAF7EE;
+  border-color: rgba(20, 18, 14, 0.22);
+}
+.mm-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(20, 18, 14, 0.4);
+}
+.mm-or-divider::before,
+.mm-or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(20, 18, 14, 0.08);
+}
+.mm-form-error {
+  font-size: 13px;
+  color: #B91C1C;
+  background: rgba(185, 28, 28, 0.05);
+  border: 1px solid rgba(185, 28, 28, 0.15);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.mm-form-success {
+  font-size: 13px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #065F46;
+  padding: 10px 12px;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+.mm-form-success a {
+  color: #065F46;
+  font-weight: 600;
+}
+.mm-form-link {
+  text-align: center;
+  font-size: 13px;
+  color: #6B635A;
+  margin-top: 2px;
+}
+.mm-form-link a,
+.mm-form-link button {
+  color: #C9A76A;
+  font-weight: 600;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+.mm-form-link a:hover,
+.mm-form-link button:hover { text-decoration: underline; }
+.mm-form-toggle {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(20, 18, 14, 0.55);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.mm-form-toggle:hover { color: #14120E; }
+
+.mm-dev-shell {
+  padding-top: 48px;
+  padding-bottom: 72px;
+}
+.mm-dev-card {
+  width: min(100%, 760px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 253, 248, 0.98)),
+    #FFF;
+  border: 1px solid rgba(201, 167, 106, 0.34);
+  border-radius: 24px;
+  padding: 34px;
+  box-shadow:
+    0 1px 2px rgba(20, 18, 14, 0.04),
+    0 28px 90px -28px rgba(20, 18, 14, 0.24);
+}
+.mm-dev-hero {
+  text-align: center;
+  padding: 30px 28px;
+  border: 1px solid rgba(20, 18, 14, 0.08);
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse 70% 90% at 50% 0%, rgba(201, 167, 106, 0.14), transparent 68%),
+    #FFF;
+}
+.mm-dev-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #B89254;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.mm-dev-eyebrow::before,
+.mm-dev-eyebrow::after {
+  content: "";
+  width: 22px;
+  height: 1px;
+  background: rgba(184, 146, 84, 0.48);
+}
+.mm-dev-hero h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(38px, 6vw, 64px);
+  line-height: 0.96;
+  color: #14120E;
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.mm-dev-hero p {
+  max-width: 34rem;
+  margin: 18px auto 0;
+  color: #6B635A;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.mm-pov-form {
+  margin-top: 24px;
+}
+.mm-pov-btn {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid rgba(20, 18, 14, 0.10);
+  border-radius: 18px;
+  background: #14120E;
+  color: #FFF;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 18px 42px -24px rgba(20, 18, 14, 0.65);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.mm-pov-btn:hover {
+  background: #241F18;
+  transform: translateY(-1px);
+  box-shadow: 0 24px 56px -28px rgba(20, 18, 14, 0.75);
+}
+.mm-pov-btn:active {
+  transform: translateY(0);
+}
+.mm-pov-avatar {
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #C9A76A, #F3DFC0);
+  color: #14120E;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.mm-pov-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mm-pov-btn-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #FFF;
+}
+.mm-pov-btn-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.68);
+  overflow-wrap: anywhere;
+}
+.mm-pov-btn-sees {
+  font-size: 12px;
+  color: rgba(243, 223, 192, 0.84);
+}
+.mm-pov-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #F3DFC0;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.mm-dev-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.mm-dev-details > div {
+  padding: 14px 16px;
+  border: 1px solid rgba(20, 18, 14, 0.08);
+  border-radius: 14px;
+  background: rgba(250, 247, 238, 0.7);
+}
+.mm-dev-detail-label {
+  display: block;
+  color: #8A8377;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+.mm-dev-detail-value {
+  color: #2A2520;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.mm-dev-foot {
+  margin-top: 24px;
+}
+.mm-dev-foot > span {
+  color: #8A8377;
+}
+
+@media (max-width: 640px) {
+  .mm-auth-shell {
+    align-items: flex-start;
+    padding: 28px 16px 56px;
+  }
+  .mm-auth-card {
+    padding: 30px 22px 24px;
+    border-radius: 16px;
+  }
+  .mm-auth-card-head h1 {
+    font-size: 28px;
+  }
+  .mm-auth-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .mm-dev-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+  .mm-dev-hero {
+    padding: 24px 18px;
+  }
+  .mm-pov-btn {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .mm-pov-action {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+  .mm-dev-details {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@aqua/plugin-ga4",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal GA4 read-only connector — runReport calls into Google Analytics Data API v1beta for `touchpoints/7d` (sessions + conversions). Per-tenant 15-min cache for rate-limit safety. Service-account JSON stored in credentials-vault.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/ga4.test.ts",
+    "test": "tsx --test src/__smoke__/ga4.test.ts"
+  },
+  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
+    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

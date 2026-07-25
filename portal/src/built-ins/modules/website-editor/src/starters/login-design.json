@@ -1,0 +1,63 @@
+{
+  "variantId": "login-design",
+  "role": "login",
+  "title": "Login (design-forward)",
+  "description": "Marketing-style split layout — hero column + login form column. Used when the agency is in the design phase and wants the portal to feel like a marketing surface.",
+  "blocks": [
+    {
+      "id": "blk_login_design_section",
+      "type": "section",
+      "props": { "padding": "xl", "background": "var(--theme-background)" },
+      "children": [
+        {
+          "id": "blk_login_design_row",
+          "type": "row",
+          "props": { "gap": "lg", "wrap": "stack-on-mobile" },
+          "children": [
+            {
+              "id": "blk_login_design_col_hero",
+              "type": "column",
+              "props": { "width": "60%", "align": "center" },
+              "children": [
+                {
+                  "id": "blk_login_design_heading",
+                  "type": "heading",
+                  "props": { "level": 1, "text": "Your portal, reimagined." }
+                },
+                {
+                  "id": "blk_login_design_text",
+                  "type": "text",
+                  "props": {
+                    "html": "<p>A bespoke surface designed by us, customised by you. Sign in to continue.</p>"
+                  }
+                },
+                {
+                  "id": "blk_login_design_logos",
+                  "type": "logo-grid",
+                  "props": { "logos": [] }
+                }
+              ]
+            },
+            {
+              "id": "blk_login_design_col_form",
+              "type": "column",
+              "props": { "width": "40%" },
+              "children": [
+                {
+                  "id": "blk_login_design_form",
+                  "type": "login-form",
+                  "props": {
+                    "submitLabel": "Sign in",
+                    "showRememberMe": true,
+                    "showForgotPassword": true,
+                    "showSocialAuth": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

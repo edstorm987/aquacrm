@@ -1,0 +1,25 @@
+{
+  "name": "@aqua/plugin-integrations",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Per-client + per-agency integrations registry. Records connection intent + config-shape for Stripe / Mailchimp / Google / Meta / Slack / Zapier / custom-webhook. Credentials referenced via @aqua/plugin-credentials-vault — this plugin does NOT decrypt; it stores a credentialsRef. Manual verify only; real OAuth + outbound auth wiring is a T6 prod gate. Ships a placeholder webhook log (ring-buffer; no real receivers).",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/integrations.test.ts",
+    "test": "tsx --test src/__smoke__/integrations.test.ts"
+  },
+  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
+    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

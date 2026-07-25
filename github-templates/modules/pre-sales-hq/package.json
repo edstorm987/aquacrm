@@ -1,0 +1,25 @@
+{
+  "name": "@aqua/plugin-pre-sales-hq",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal pre-sales console — Discovery-call prep, proposal tracking, Re-Nurturing cadence over the lead pipeline. Soft-pairs with @aqua/plugin-client-crm and @aqua/plugin-kanban.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/pre-sales.test.ts",
+    "test": "tsx --test src/__smoke__/pre-sales.test.ts"
+  },
+  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
+    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

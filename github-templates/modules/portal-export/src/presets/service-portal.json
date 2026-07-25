@@ -1,0 +1,43 @@
+{
+  "id": "service-portal",
+  "label": "Service portal",
+  "description": "Agency-team-driven service brief + deliverable feedback. Plugins: website-editor + fulfillment client-side surface + forms + client-crm.",
+  "icon": "#0EA5E9",
+  "installedPlugins": [
+    "website-editor",
+    "fulfillment",
+    "forms",
+    "client-crm"
+  ],
+  "portalVariants": {
+    "login": "service-login-v1",
+    "account": "service-account-v1"
+  },
+  "starterContent": {
+    "pages": [
+      {
+        "pageId": "home",
+        "title": "Project hub",
+        "rootBlocks": [
+          { "id": "hero", "type": "hero-block", "props": { "eyebrow": "Welcome", "headline1": "Your project.", "headline2": "All in one place.", "body": "Briefs, deliverables, conversations.", "ctaPrimary": "Open the brief" } },
+          { "id": "phases", "type": "phase-progress", "props": { "showCurrentOnly": false } }
+        ]
+      },
+      {
+        "pageId": "feedback",
+        "title": "Feedback",
+        "rootBlocks": [
+          { "id": "form", "type": "form-render", "props": { "formId": "feedback-default", "showThankYouInline": true } }
+        ]
+      }
+    ]
+  },
+  "defaultBrand": {
+    "primaryColor": "#0EA5E9",
+    "secondaryColor": "#F0F9FF",
+    "fontHeading": "ui-sans-serif, system-ui",
+    "fontBody": "ui-sans-serif, system-ui",
+    "borderRadius": "6px"
+  },
+  "recommendedPhase": "development"
+}

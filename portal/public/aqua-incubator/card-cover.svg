@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" role="img" aria-label="Warm abstract card cover">
+  <rect width="900" height="520" fill="#fffaf0"/>
+  <path d="M0 380 C180 260 300 305 445 210 C575 126 710 120 900 42 L900 520 L0 520 Z" fill="#c9a76a" opacity=".32"/>
+  <path d="M88 394 C230 296 362 300 498 210 C620 130 744 118 842 76" fill="none" stroke="#8b6238" stroke-width="12" stroke-linecap="round" opacity=".28"/>
+  <circle cx="650" cy="175" r="90" fill="#0ea5a4" opacity=".18"/>
+</svg>

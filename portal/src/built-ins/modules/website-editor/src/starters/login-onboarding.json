@@ -1,0 +1,48 @@
+{
+  "variantId": "login-onboarding",
+  "role": "login",
+  "title": "Login (onboarding)",
+  "description": "Welcome-first variant for clients in the onboarding phase. Adds a hero + steps banner above the login form.",
+  "blocks": [
+    {
+      "id": "blk_login_onb_section",
+      "type": "section",
+      "props": {
+        "padding": "xl",
+        "align": "center",
+        "background": "linear-gradient(180deg, var(--theme-primary, #2563eb) 0%, var(--theme-background, #ffffff) 100%)"
+      },
+      "children": [
+        {
+          "id": "blk_login_onb_hero",
+          "type": "hero",
+          "props": {
+            "title": "Welcome — your portal is almost ready",
+            "subtitle": "Sign in to track onboarding progress and submit your brief.",
+            "align": "center"
+          }
+        },
+        {
+          "id": "blk_login_onb_stats",
+          "type": "stats-bar",
+          "props": {
+            "stats": [
+              { "label": "Brief", "value": "step 1" },
+              { "label": "Design", "value": "step 2" },
+              { "label": "Launch", "value": "step 3" }
+            ]
+          }
+        },
+        {
+          "id": "blk_login_onb_form",
+          "type": "login-form",
+          "props": {
+            "submitLabel": "Sign in",
+            "showRememberMe": true,
+            "showForgotPassword": true
+          }
+        }
+      ]
+    }
+  ]
+}

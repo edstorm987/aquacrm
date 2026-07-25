@@ -1,0 +1,32 @@
+{
+  "name": "@aqua/plugin-ops",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal ops plugin — production health dashboard. Surfaces uptime per deployment, error rate (Sentry), slow routes (Vercel Analytics fallback), and a cost snapshot (Stripe / Postmark). v1 ships fixture data; provider integrations are stubbed and gated on per-install creds — wired one-by-one as keys land.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/ops.test.ts",
+    "test": "tsx --test src/__smoke__/ops.test.ts"
+  },
+  "peerDependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

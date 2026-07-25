@@ -1,0 +1,32 @@
+{
+  "name": "@aqua/plugin-leads-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal leads-pipeline plugin — CSV contact import, single-shot email campaigns, lead/contact domain. Auto-binds to the leads-kind pipeline created by T1's foundation seed (R034). Agency-scoped (scopePolicy: 'agency'), opt-in (core: false). v1 covers Lead+Contact CRUD, idempotent CSV import, declarative AudienceFilter, send-now Campaign dispatch via the email-sender plugin's queue, and a public-funnel.lead.captured subscriber. Drip sequences, open-rate tracking, A/B campaigns, lead scoring are post-ship.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/leads-pipeline.test.ts",
+    "test": "tsx --test src/__smoke__/leads-pipeline.test.ts"
+  },
+  "peerDependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

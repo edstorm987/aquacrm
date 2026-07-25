@@ -1,0 +1,25 @@
+{
+  "name": "@aqua/plugin-public-funnel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal public funnel — wires Health Check (and future Resources tools) completion to a `lead` user creation + auto-signin + drop into Business OS. Idempotent on email; captures source metadata (HC slot, tool input) for BOS personalisation.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/funnel.test.ts",
+    "test": "tsx --test src/__smoke__/funnel.test.ts"
+  },
+  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
+    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

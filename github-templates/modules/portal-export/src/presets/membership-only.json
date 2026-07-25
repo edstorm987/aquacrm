@@ -1,0 +1,42 @@
+{
+  "id": "membership-only",
+  "label": "Membership only",
+  "description": "Gated content + recurring billing + member directory. Plugins: website-editor + memberships + client-crm.",
+  "icon": "#7C3AED",
+  "installedPlugins": [
+    "website-editor",
+    "memberships",
+    "client-crm"
+  ],
+  "portalVariants": {
+    "login": "members-login-v1",
+    "account": "members-account-v1"
+  },
+  "starterContent": {
+    "pages": [
+      {
+        "pageId": "home",
+        "title": "Members",
+        "rootBlocks": [
+          { "id": "paywall", "type": "membership-paywall", "props": { "requirePlanIds": [] } },
+          { "id": "tiers", "type": "membership-tier-grid", "props": {} }
+        ]
+      },
+      {
+        "pageId": "join",
+        "title": "Join",
+        "rootBlocks": [
+          { "id": "signup", "type": "membership-signup", "props": {} }
+        ]
+      }
+    ]
+  },
+  "defaultBrand": {
+    "primaryColor": "#7C3AED",
+    "secondaryColor": "#F5F3FF",
+    "fontHeading": "ui-sans-serif, system-ui",
+    "fontBody": "ui-sans-serif, system-ui",
+    "borderRadius": "10px"
+  },
+  "recommendedPhase": "live"
+}

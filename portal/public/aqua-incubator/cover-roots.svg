@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Warm abstract growth lines">
+  <rect width="1600" height="900" fill="#f8f3e9"/>
+  <path d="M0 700 C260 560 420 620 640 460 C820 330 1010 320 1240 210 C1390 140 1500 90 1600 40 L1600 900 L0 900 Z" fill="#d8b36a" opacity=".25"/>
+  <path d="M120 690 C360 530 510 590 690 430 C870 270 1040 280 1260 170" fill="none" stroke="#8b6238" stroke-width="18" stroke-linecap="round" opacity=".28"/>
+  <path d="M260 780 C520 640 730 680 920 500 C1110 325 1320 290 1510 170" fill="none" stroke="#0ea5a4" stroke-width="10" stroke-linecap="round" opacity=".22"/>
+  <circle cx="1240" cy="250" r="170" fill="#ffffff" opacity=".35"/>
+  <circle cx="980" cy="390" r="90" fill="#c9a76a" opacity=".22"/>
+</svg>

@@ -1,0 +1,147 @@
+import "server-only";
+// Founder seed (T1 R024 — chapter `04-founder-password-rotation.md`).
+//
+// Earlier (chapter #122 unify-3) this module hardcoded a 3-char dev
+// password and bypassed `validatePassword` via a direct `mutate`. R024 ships
+// the ship-gate fix: founder credentials live in env, the seed honours
+// `validatePassword`, and production refuses to start with weak or
+// default values.
+//
+// Behaviour:
+//
+//   - `FOUNDER_EMAIL` — defaults to `edwardhallam07@gmail.com` for
+//     dev convenience. Required to differ from default in production.
+//   - `FOUNDER_PASSWORD` — no default. Missing → log a warning + skip
+//     the seed (rather than create an unauthenticated founder).
+//   - `FOUNDER_AGENCY_NAME` — defaults to "Milesy Media".
+//   - Production guard: when `NODE_ENV === "production"`, refuse to
+//     seed when password length < 12 OR email is the dev default.
+//     Throws — fail-closed startup error rather than silent insecure
+//     seed.
+
+import { ensureHydrated } from "@/server/storage";
+import { bootstrapAgency } from "@/server/agencyBootstrap";
+import { getAgencyBySlug } from "@/server/tenants";
+import { createUser, getUser, updateUser } from "@/server/users";
+
+export const FOUNDER_AGENCY_SLUG = "milesymedia";
+export const DEFAULT_FOUNDER_EMAIL = "edwardhallam07@gmail.com";
+export const DEFAULT_FOUNDER_AGENCY_NAME = "Milesymedia";
+export const FOUNDER_NAME = "Ed Hallam";
+export const FOUNDER_USERNAME = "Ed";
+
+export const FOUNDER_EMAIL = (process.env.FOUNDER_EMAIL ?? DEFAULT_FOUNDER_EMAIL).trim();
+
+function readFounderAgencyName(): string {
+  const v = process.env.FOUNDER_AGENCY_NAME;
+  return v && v.trim() ? v.trim() : DEFAULT_FOUNDER_AGENCY_NAME;
+}
+
+interface PolicyCheck {
+  ok: boolean;
+  reason?: string;
+}
+
+// Exported for the smoke. Pure — takes explicit inputs so the test
+// can drive every branch without process.env mutation.
+export function checkFounderPolicy(input: {
+  email: string;
+  password: string | undefined;
+  nodeEnv: string | undefined;
+}): PolicyCheck {
+  if (!input.password) {
+    return { ok: false, reason: "FOUNDER_PASSWORD not set — skipping founder seed." };
+  }
+  if (input.nodeEnv === "production") {
+    if (input.password.length < 12) {
+      return { ok: false, reason: "FOUNDER_PASSWORD must be ≥12 chars in production." };
+    }
+    if (input.email.trim().toLowerCase() === DEFAULT_FOUNDER_EMAIL) {
+      return { ok: false, reason: "FOUNDER_EMAIL is the dev default — set a real address before deploying." };
+    }
+  }
+  return { ok: true };
+}
+
+let seedPromise: Promise<void> | null = null;
+
+export function seedFounder(): Promise<void> {
+  if (!seedPromise) seedPromise = run();
+  return seedPromise;
+}
+
+async function run(): Promise<void> {
+  await ensureHydrated();
+
+  const existing = getUser(FOUNDER_EMAIL);
+  if (existing) {
+    if (existing.username !== FOUNDER_USERNAME) {
+      updateUser(existing.email, { username: FOUNDER_USERNAME }, { role: existing.role, clientId: existing.clientId });
+    }
+    return;
+  }
+
+  const password = process.env.FOUNDER_PASSWORD;
+  const policy = checkFounderPolicy({
+    email: FOUNDER_EMAIL,
+    password,
+    nodeEnv: process.env.NODE_ENV,
+  });
+  if (!policy.ok) {
+    if (process.env.NODE_ENV === "production") {
+      // Fail-closed in production — never silent-skip when the operator
+      // intended to seed and got it wrong.
+      throw new Error(`[founderSeed] ${policy.reason}`);
+    }
+    // Dev / test: warn + skip. Operators sign in with their own
+    // signed-up agency instead.
+    // eslint-disable-next-line no-console
+    console.warn(`[founderSeed] ${policy.reason}`);
+    return;
+  }
+
+  const agencyName = readFounderAgencyName();
+
+  let agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
+  if (!agency) {
+    const result = await bootstrapAgency({
+      name: agencyName,
+      slug: FOUNDER_AGENCY_SLUG,
+      ownerEmail: FOUNDER_EMAIL,
+    });
+    agency = result.agency;
+  }
+
+  // No more direct-mutate bypass. createUser runs validatePassword,
+  // hashes, and emits user.signed_up — same path signup uses.
+  const founder = createUser({
+    email: FOUNDER_EMAIL,
+    username: FOUNDER_USERNAME,
+    password: password!,
+    role: "agency-owner",
+    agencyId: agency.id,
+    name: FOUNDER_NAME,
+  });
+
+  // R026: seed AquaOasis Demo + make Ed a master. Idempotent — second
+  // run short-circuits on the slug check. Wrapped so a seed failure
+  // doesn't tank the founder-seed (the demo agency is nice-to-have,
+  // not load-bearing).
+  try {
+    const { seedAquaOasisDemo, addUserAgencyMembership } = await import("./aquaOasisSeed");
+    const { agency: aquaAgency } = await seedAquaOasisDemo(founder.id);
+    addUserAgencyMembership(founder.id, aquaAgency.id);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[founderSeed] AquaOasis Demo seed failed — switcher will only show Milesy Media:",
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
+
+// Test helper — purely for the smoke to reset the module-level cache
+// between invocations. Not for prod use.
+export function _resetFounderSeedForTests(): void {
+  seedPromise = null;
+}

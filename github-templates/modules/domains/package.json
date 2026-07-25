@@ -1,0 +1,32 @@
+{
+  "name": "@aqua/plugin-domains",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal domains plugin — attach + verify custom domains on Vercel projects via the Vercel REST API. Mirrors 02's lib/vercel/server.ts; ships standalone as the per-Live-client custom-domain story per architecture extension chapter (per-client portals deploy as their own Vercel project, attach their own domain).",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/domains.test.ts",
+    "test": "tsx --test src/__smoke__/domains.test.ts"
+  },
+  "peerDependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "id": "skincare-brand",
+  "label": "Skincare brand",
+  "description": "Felicia's pattern. Full storefront + member account + affiliate dashboard. Plugins: website-editor + ecommerce + memberships + affiliates + client-crm + forms.",
+  "icon": "#F97316",
+  "installedPlugins": [
+    "website-editor",
+    "ecommerce",
+    "memberships",
+    "affiliates",
+    "client-crm",
+    "forms"
+  ],
+  "portalVariants": {
+    "login": "skincare-login-v1",
+    "account": "skincare-account-v1",
+    "orders": "skincare-orders-v1",
+    "affiliates": "skincare-affiliates-v1"
+  },
+  "starterContent": {
+    "pages": [
+      {
+        "pageId": "home",
+        "title": "Home",
+        "rootBlocks": [
+          { "id": "hero", "type": "hero-block", "props": { "eyebrow": "Heritage skincare", "headline1": "Pure. Sacred.", "headline2": "Alive.", "body": "Real ingredients sourced direct from farmers, made for skin that demands honesty.", "ctaPrimary": "Shop the ritual", "ctaSecondary": "Read the story" } },
+          { "id": "featured", "type": "featured-products", "props": { "eyebrow": "Featured", "headline": "Start your ritual.", "tagline": "Three products. One for every skin need." } },
+          { "id": "story", "type": "brand-story", "props": { "headline": "Made with respect for tradition." } },
+          { "id": "newsletter", "type": "newsletter-signup", "props": { "headline": "Join the circle", "body": "Drops, recipes, and field notes from the founder." } }
+        ]
+      },
+      {
+        "pageId": "shop",
+        "title": "Shop",
+        "rootBlocks": [
+          { "id": "shop-grid", "type": "product-grid", "props": { "showFilters": true } }
+        ]
+      },
+      {
+        "pageId": "membership",
+        "title": "Membership",
+        "rootBlocks": [
+          { "id": "tiers", "type": "membership-tier-grid", "props": {} },
+          { "id": "signup", "type": "membership-signup", "props": {} }
+        ]
+      }
+    ]
+  },
+  "defaultBrand": {
+    "primaryColor": "#F97316",
+    "secondaryColor": "#FFF7ED",
+    "accentColor": "#7C3AED",
+    "fontHeading": "Playfair Display, ui-serif, Georgia",
+    "fontBody": "ui-sans-serif, system-ui",
+    "borderRadius": "8px"
+  },
+  "recommendedPhase": "live"
+}

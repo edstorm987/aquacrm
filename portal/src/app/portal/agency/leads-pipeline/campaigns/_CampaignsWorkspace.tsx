@@ -1,0 +1,446 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
+
+interface CampaignRow {
+  id: string;
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText?: string;
+  status: "draft" | "scheduled" | "sending" | "sent";
+  recipients: number;
+  sentCount: number;
+  sentAt?: number;
+  createdAt: number;
+  audienceFilter: {
+    tags?: string[];
+    sourcedFrom?: string[];
+    notContactedSinceMs?: number;
+    pipelineColumn?: string;
+  };
+}
+
+interface CampaignsWorkspaceProps {
+  campaigns: CampaignRow[];
+  availableTags: string[];
+  availableSources: string[];
+  pipelineColumns: string[];
+  emailSenderReady: boolean;
+}
+
+const EMPTY_FORM = {
+  name: "",
+  subject: "",
+  bodyText: "",
+  tags: "",
+  sourcedFrom: "",
+  pipelineColumn: "",
+};
+
+export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady }: CampaignsWorkspaceProps) {
+  const router = useRouter();
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [audienceCount, setAudienceCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const draftCount = campaigns.filter(c => c.status === "draft").length;
+  const sentCount = campaigns.filter(c => c.status === "sent").length;
+  const totalSent = campaigns.reduce((sum, c) => sum + c.sentCount, 0);
+
+  const audienceFilter = useMemo(() => ({
+    tags: splitList(form.tags),
+    sourcedFrom: splitList(form.sourcedFrom),
+    pipelineColumn: form.pipelineColumn || undefined,
+  }), [form.tags, form.sourcedFrom, form.pipelineColumn]);
+
+  async function previewAudience() {
+    setBusy("preview");
+    setNotice(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/portal/leads-pipeline/campaigns/preview-audience", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(audienceFilter),
+      });
+      const data = await res.json() as { ok: boolean; error?: string; count?: number };
+      if (!data.ok) throw new Error(data.error ?? "Could not preview audience.");
+      setAudienceCount(data.count ?? 0);
+      setNotice(`${data.count ?? 0} lead${data.count === 1 ? "" : "s"} match this audience.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function createCampaign(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy("create");
+    setNotice(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/portal/leads-pipeline/campaigns", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          subject: form.subject,
+          bodyHtml: textToHtml(form.bodyText),
+          bodyText: form.bodyText,
+          audienceFilter,
+        }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string; campaign?: CampaignRow };
+      if (!data.ok) throw new Error(data.error ?? "Could not create campaign.");
+      setNotice(`Campaign "${data.campaign?.name ?? form.name}" saved as a draft.`);
+      setForm(EMPTY_FORM);
+      setAudienceCount(null);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendCampaign(id: string) {
+    setBusy(`send:${id}`);
+    setNotice(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/portal/leads-pipeline/campaigns/send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string; campaign?: CampaignRow };
+      if (!data.ok) throw new Error(data.error ?? "Could not send campaign.");
+      setNotice(`Sent ${data.campaign?.sentCount ?? 0}/${data.campaign?.recipients ?? 0} emails.`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function updateCampaign(id: string, draft: CampaignDraft) {
+    setBusy(`update:${id}`);
+    setNotice(null);
+    setError(null);
+    try {
+      const audienceFilter = {
+        tags: splitList(draft.tags),
+        sourcedFrom: splitList(draft.sourcedFrom),
+        pipelineColumn: draft.pipelineColumn || undefined,
+      };
+      const res = await fetch(`/api/portal/leads-pipeline/campaigns?id=${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: draft.name,
+          subject: draft.subject,
+          bodyHtml: textToHtml(draft.bodyText),
+          bodyText: draft.bodyText,
+          audienceFilter,
+        }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string; campaign?: CampaignRow };
+      if (!data.ok) throw new Error(data.error ?? "Could not update campaign.");
+      setNotice(`Campaign "${data.campaign?.name ?? draft.name}" updated.`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <main data-testid="leads-pipeline-campaigns" className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Outreach</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">Campaigns</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">
+            Write a simple email blast, choose the leads it should go to, preview the audience, then send when the list is right.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/portal/agency/pipelines/leads" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
+            Leads board
+          </Link>
+          <Link href="/portal/agency/leads-pipeline/contacts" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
+            Contacts
+          </Link>
+        </div>
+      </header>
+
+      <WorkflowSteps active="outreach" />
+
+      <section className="grid gap-3 md:grid-cols-4">
+        <Stat label="Campaigns" value={String(campaigns.length)} />
+        <Stat label="Drafts" value={String(draftCount)} />
+        <Stat label="Sent campaigns" value={String(sentCount)} />
+        <Stat label="Emails queued" value={String(totalSent)} />
+      </section>
+
+      {(notice || error) && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+          {error ?? notice}
+        </div>
+      )}
+
+      {!emailSenderReady && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Email outbox setup needs attention before campaigns can send. Drafts and audience previews still work.
+        </div>
+      )}
+
+      <form onSubmit={createCampaign} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-3">
+            <Field label="Campaign name" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="July website audit follow-up" required />
+            <Field label="Subject" value={form.subject} onChange={v => setForm(f => ({ ...f, subject: v }))} placeholder="Quick idea for your website" required />
+            <label className="text-xs font-medium text-black/60">
+              Email body
+              <textarea
+                value={form.bodyText}
+                onChange={e => setForm(f => ({ ...f, bodyText: e.target.value }))}
+                required
+                rows={7}
+                className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm text-black/80"
+                placeholder={"Hi {{name}},\n\nI had a quick look at {{company}} and spotted a few easy wins...\n\nEd"}
+              />
+            </label>
+          </div>
+
+          <aside className="rounded-lg border border-black/10 bg-black/[0.02] p-3">
+            <h2 className="text-sm font-semibold text-black/85">Audience</h2>
+            <Field label="Tags" value={form.tags} onChange={v => setForm(f => ({ ...f, tags: v }))} placeholder={availableTags.slice(0, 3).join(", ") || "warm, local-business"} />
+            <Field label="Sources" value={form.sourcedFrom} onChange={v => setForm(f => ({ ...f, sourcedFrom: v }))} placeholder={availableSources.slice(0, 2).join(", ") || "sheet-upload"} />
+            <label className="mt-3 block text-xs font-medium text-black/60">
+              Pipeline stage
+              <select
+                value={form.pipelineColumn}
+                onChange={e => setForm(f => ({ ...f, pipelineColumn: e.target.value }))}
+                className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Any stage</option>
+                {pipelineColumns.map(col => <option key={col} value={col}>{col}</option>)}
+              </select>
+            </label>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={previewAudience} disabled={busy === "preview"} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03] disabled:opacity-50">
+                {busy === "preview" ? "Checking..." : "Preview audience"}
+              </button>
+              <button type="submit" disabled={busy === "create"} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-50">
+                {busy === "create" ? "Saving..." : "Save draft"}
+              </button>
+            </div>
+            {audienceCount !== null && (
+              <p className="mt-3 rounded-md bg-white px-3 py-2 text-xs text-black/65">
+                Audience preview: <strong>{audienceCount}</strong> matching lead{audienceCount === 1 ? "" : "s"}.
+              </p>
+            )}
+          </aside>
+        </div>
+      </form>
+
+      <section className="rounded-xl border border-black/10 bg-white/70 p-4 shadow-sm">
+        <h2 className="text-base font-semibold text-black/85">Campaign history</h2>
+        <div className="mt-3 grid gap-3">
+          {campaigns.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-black/10 p-6 text-center text-sm text-black/45">
+              No campaigns yet.
+            </div>
+          ) : campaigns.map(campaign => (
+            <article key={campaign.id} className="rounded-lg border border-black/10 bg-white p-3 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-semibold text-black/90">{campaign.name}</h3>
+                  <p className="mt-1 truncate text-xs text-black/50">{campaign.subject}</p>
+                </div>
+                <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium capitalize text-black/55">{campaign.status}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-black/55">
+                <span>{campaign.recipients} recipients</span>
+                <span>{campaign.sentCount} sent</span>
+                {campaign.sentAt && <span>Sent {new Date(campaign.sentAt).toLocaleDateString()}</span>}
+              </div>
+              {campaign.status !== "sent" && campaign.status !== "sending" && (
+                <CampaignEditor
+                  campaign={campaign}
+                  pipelineColumns={pipelineColumns}
+                  busy={busy === `update:${campaign.id}`}
+                  onSave={draft => updateCampaign(campaign.id, draft)}
+                />
+              )}
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-black/10 pt-3">
+                {campaign.status !== "sent" && campaign.status !== "sending" && (
+                  <button
+                    type="button"
+                    onClick={() => sendCampaign(campaign.id)}
+                    disabled={busy === `send:${campaign.id}`}
+                    className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {busy === `send:${campaign.id}` ? "Sending..." : "Send campaign"}
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+interface CampaignDraft {
+  name: string;
+  subject: string;
+  bodyText: string;
+  tags: string;
+  sourcedFrom: string;
+  pipelineColumn: string;
+}
+
+function CampaignEditor({
+  campaign,
+  pipelineColumns,
+  busy,
+  onSave,
+}: {
+  campaign: CampaignRow;
+  pipelineColumns: string[];
+  busy: boolean;
+  onSave: (draft: CampaignDraft) => void;
+}) {
+  const [draft, setDraft] = useState<CampaignDraft>({
+    name: campaign.name,
+    subject: campaign.subject,
+    bodyText: campaign.bodyText ?? htmlToText(campaign.bodyHtml),
+    tags: (campaign.audienceFilter.tags ?? []).join(", "),
+    sourcedFrom: (campaign.audienceFilter.sourcedFrom ?? []).join(", "),
+    pipelineColumn: campaign.audienceFilter.pipelineColumn ?? "",
+  });
+
+  return (
+    <details className="mt-3 rounded-lg border border-black/10 bg-black/[0.02] p-3">
+      <summary className="cursor-pointer text-xs font-medium text-black/65">Edit draft</summary>
+      <div className="mt-3 grid gap-3">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Campaign name" value={draft.name} onChange={value => setDraft(d => ({ ...d, name: value }))} required />
+          <Field label="Subject" value={draft.subject} onChange={value => setDraft(d => ({ ...d, subject: value }))} required />
+          <Field label="Tags" value={draft.tags} onChange={value => setDraft(d => ({ ...d, tags: value }))} placeholder="warm, follow-up" />
+          <Field label="Sources" value={draft.sourcedFrom} onChange={value => setDraft(d => ({ ...d, sourcedFrom: value }))} placeholder="sheet-upload, manual" />
+        </div>
+        <label className="text-xs font-medium text-black/60">
+          Pipeline stage
+          <select
+            value={draft.pipelineColumn}
+            onChange={e => setDraft(d => ({ ...d, pipelineColumn: e.target.value }))}
+            className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Any stage</option>
+            {pipelineColumns.map(col => <option key={col} value={col}>{col}</option>)}
+          </select>
+        </label>
+        <label className="text-xs font-medium text-black/60">
+          Email body
+          <textarea
+            value={draft.bodyText}
+            onChange={e => setDraft(d => ({ ...d, bodyText: e.target.value }))}
+            rows={5}
+            className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/80"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => onSave(draft)}
+          disabled={busy}
+          className="w-fit rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03] disabled:opacity-50"
+        >
+          {busy ? "Saving..." : "Save changes"}
+        </button>
+      </div>
+    </details>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="block text-xs font-medium text-black/60">
+      {label}
+      <input
+        required={required}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm text-black/80"
+      />
+    </label>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-black/10 bg-white px-4 py-3 shadow-sm">
+      <div className="text-xs font-medium text-black/45">{label}</div>
+      <div className="mt-1 text-xl font-semibold text-black/90">{value}</div>
+    </div>
+  );
+}
+
+function splitList(value: string): string[] {
+  return value.split(",").map(item => item.trim()).filter(Boolean);
+}
+
+function textToHtml(value: string): string {
+  return value
+    .split(/\n{2,}/)
+    .map(paragraph => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function htmlToText(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#039;/g, "'")
+    .trim();
+}

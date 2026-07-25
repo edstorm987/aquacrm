@@ -1,0 +1,25 @@
+{
+  "name": "@aqua/plugin-agency-ops",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aqua portal agency operations console — recurring tasks (cron-like cadence with roll-forward on completion), per-system status board (green/amber/red tiles + manual check), incident log. Distinct from the monitoring `ops` plugin which surfaces Sentry/uptime/Grafana.",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./index.ts",
+    "./server": "./src/server/index.ts",
+    "./types": "./src/lib/aquaPluginTypes.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx --test src/__smoke__/agency-ops.test.ts",
+    "test": "tsx --test src/__smoke__/agency-ops.test.ts"
+  },
+  "peerDependencies": { "next": "^16.0.0", "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/node": "^22.0.0", "@types/react": "^19.0.0",
+    "tsx": "^4.21.0", "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}
