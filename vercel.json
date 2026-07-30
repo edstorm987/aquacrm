@@ -1,7 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "installCommand": "npm --prefix portal install --legacy-peer-deps",
-  "buildCommand": "npm --prefix portal run build",
-  "outputDirectory": "portal/.next"
-}
