@@ -19,7 +19,7 @@ export async function generateMetadata({
   const brand = getAuthBrand(params.brand);
   return {
     title: `Forgot password · ${brand.name}`,
-    description: `Recover access to your ${brand.name} client workspace.`,
+    description: `Recover access to your ${brand.name} workspace.`,
   };
 }
 

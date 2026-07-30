@@ -10,5 +10,6 @@ Standalone product landing page for AquaCRM.
 
 Open `http://localhost:3035`.
 
-The product sign-in routes to the AquaCRM application on port `3032`. Bespoke
-software enquiries route back to AquaOasis-Web on port `3034`.
+The product sign-in routes to the AquaCRM application on port `3032` using
+the dedicated `aquacrm` authentication brand. The public website and sign-in
+surface are standalone AquaCRM experiences.

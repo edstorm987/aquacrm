@@ -817,6 +817,10 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   --auth-accent: #1B8585;
   background: #DCEBE8;
 }
+.mm-auth-shell[data-auth-brand="aquacrm"] {
+  --auth-accent: #12646A;
+  background: #E7F0EE;
+}
 .mm-auth-shell[data-auth-brand="zimante"] {
   --auth-accent: #D7A85D;
   background: #E6E0D4;
@@ -853,6 +857,11 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
     linear-gradient(135deg, rgba(2, 19, 29, 0.96), rgba(13, 90, 94, 0.88)),
     #06212A;
 }
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-auth-brand-panel {
+  background:
+    radial-gradient(circle at 82% 16%, rgba(244, 201, 130, 0.20), transparent 34%),
+    linear-gradient(145deg, #06131F, #0B303B 68%, #12646A);
+}
 .mm-auth-shell[data-auth-brand="zimante"] .mm-auth-brand-panel {
   background:
     linear-gradient(135deg, rgba(14, 26, 23, 0.98), rgba(36, 53, 48, 0.94)),
@@ -862,6 +871,10 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   background: #65C7C3;
   color: #06212A;
 }
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-auth-brand-mark span {
+  background: #F4C982;
+  color: #102033;
+}
 .mm-auth-shell[data-auth-brand="zimante"] .mm-auth-brand-mark span {
   background: #D7A85D;
   color: #17211F;
@@ -870,6 +883,10 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 .mm-auth-shell[data-auth-brand="aqua"] .mm-auth-brand-points li::before {
   color: #8DE0DB;
 }
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-auth-brand-eyebrow,
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-auth-brand-points li::before {
+  color: #9BD8D2;
+}
 .mm-auth-shell[data-auth-brand="zimante"] .mm-auth-brand-eyebrow,
 .mm-auth-shell[data-auth-brand="zimante"] .mm-auth-brand-points li::before {
   color: #D7A85D;
@@ -877,6 +894,10 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 .mm-auth-shell[data-auth-brand="aqua"] .mm-auth-home-link,
 .mm-auth-shell[data-auth-brand="aqua"] .mm-auth-foot a {
   color: #17686A;
+}
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-auth-home-link,
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-auth-foot a {
+  color: #12646A;
 }
 .mm-auth-shell[data-auth-brand="zimante"] .mm-auth-home-link,
 .mm-auth-shell[data-auth-brand="zimante"] .mm-auth-foot a {
@@ -887,6 +908,12 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 }
 .mm-auth-shell[data-auth-brand="aqua"] .mm-btn-primary:hover:not(:disabled) {
   background: #1B8585;
+}
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-btn-primary {
+  background: #102033;
+}
+.mm-auth-shell[data-auth-brand="aquacrm"] .mm-btn-primary:hover:not(:disabled) {
+  background: #12646A;
 }
 .mm-auth-shell[data-auth-brand="zimante"] .mm-btn-primary {
   background: #17211F;

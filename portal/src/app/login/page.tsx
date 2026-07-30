@@ -29,8 +29,8 @@ export async function generateMetadata({
   const params = await searchParams;
   const brand = getAuthBrand(params.brand);
   return {
-    title: `Client sign in · ${brand.name}`,
-    description: `Secure access to your ${brand.name} client workspace.`,
+    title: `Sign in · ${brand.name}`,
+    description: `Secure access to your ${brand.name} workspace.`,
   };
 }
 
@@ -88,7 +88,7 @@ export default async function LoginPage({
           </Link>
           <div className="mm-auth-card-head">
             <h1>Welcome back</h1>
-            <p>Sign in to your {brand.name} client workspace.</p>
+            <p>Sign in to your {brand.name} workspace.</p>
           </div>
           <LoginForm googleEnabled={isGoogleOAuthConfigured()} />
           <div className="mm-auth-foot">
