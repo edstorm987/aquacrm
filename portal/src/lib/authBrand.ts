@@ -28,7 +28,7 @@ export function getAuthBrand(value: string | undefined): AuthBrand {
       ],
       homeUrl:
         process.env.NEXT_PUBLIC_AQUACRM_WEBSITE_URL ??
-        "http://localhost:3035",
+        "/",
     };
   }
 

@@ -37,6 +37,18 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: new URL(".", import.meta.url).pathname,
   },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: "/",
+          destination: "/aquacrm-site/index.html",
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
