@@ -21,7 +21,7 @@ const SECURITY_HEADERS = [
       "font-src 'self' data: https:",
       "connect-src 'self' https: wss:",
       // /embed/login must be iframe-able by client-owned domains.
-      "frame-src 'self' https:",
+      `frame-src 'self'${process.env.NODE_ENV === "production" ? "" : " http://localhost:3030 http://localhost:3031 http://localhost:3033 http://localhost:3034 http://localhost:3035"} https:`,
       "frame-ancestors 'self' https:",
       "object-src 'none'",
       "base-uri 'self'",

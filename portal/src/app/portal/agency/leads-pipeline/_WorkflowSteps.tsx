@@ -6,7 +6,7 @@ export function WorkflowSteps({
   active,
   contactsHref = "/portal/agency/leads-pipeline/contacts",
   boardHref = "/portal/agency/pipelines/leads",
-  campaignsHref = "/portal/agency/leads-pipeline/campaigns",
+  campaignsHref = "/portal/agency/marketing",
 }: {
   active: WorkflowStepKey;
   contactsHref?: string;
@@ -14,7 +14,7 @@ export function WorkflowSteps({
   campaignsHref?: string;
 }) {
   return (
-    <section className="grid gap-2 rounded-xl border border-black/10 bg-white/70 p-3 shadow-sm md:grid-cols-3">
+    <nav aria-label="Sales workflow" className="grid border-y border-black/10 md:grid-cols-3 md:divide-x md:divide-black/10">
       <WorkflowStep
         active={active === "import"}
         href={contactsHref}
@@ -33,7 +33,7 @@ export function WorkflowSteps({
         label="3. Outreach"
         description="Send campaigns to the right leads."
       />
-    </section>
+    </nav>
   );
 }
 
@@ -51,14 +51,14 @@ function WorkflowStep({
   return (
     <Link
       href={href}
-      className={`rounded-lg border px-3 py-2 transition ${
+      className={`px-3 py-3 transition ${
         active
-          ? "border-brand bg-brand/10"
-          : "border-black/10 bg-white hover:bg-black/[0.03]"
+          ? "bg-brand/[0.07]"
+          : "hover:bg-black/[0.025]"
       }`}
     >
       <div className={`text-xs font-semibold ${active ? "text-brand" : "text-black/70"}`}>{label}</div>
-      <div className="mt-1 text-xs leading-5 text-black/50">{description}</div>
+      <div className="mt-0.5 text-xs leading-5 text-black/45">{description}</div>
     </Link>
   );
 }

@@ -52,7 +52,9 @@ export default async function ClientPluginCatchAll({ params, searchParams }: Rou
   };
   return (
     <ErrorBoundary label={`${install.pluginId}${page.path ? `/${page.path}` : ""}`}>
-      <Component {...props} />
+      <div className="plugin-page-shell" data-plugin-id={install.pluginId}>
+        <Component {...props} />
+      </div>
     </ErrorBoundary>
   );
 }

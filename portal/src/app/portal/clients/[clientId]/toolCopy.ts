@@ -33,7 +33,7 @@ export const TOOL_COPY: Record<string, { name: string; description: string }> = 
   },
   "agency-finance": {
     name: "Finance",
-    description: "Invoices, payments, plans, expenses, lock-ins, and revenue reporting.",
+    description: "Invoices, payments, plans, expenses, deposits, and income reporting.",
   },
   "agency-hr": {
     name: "Team",
@@ -49,7 +49,7 @@ export const TOOL_COPY: Record<string, { name: string; description: string }> = 
   },
   "bos-auth-gate": {
     name: "Client sign-in",
-    description: "Private access, dev bypass, and secure handoff into the client workspace.",
+    description: "Private sign-in and secure handoff into the client workspace.",
   },
 };
 

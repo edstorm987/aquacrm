@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { getActiveAgencyId, requireRole } from "@/lib/server/auth";
-import { createUser, getUser, listUsersForAgency } from "@/server/users";
+import { createUser, getUser, getUserById, listUsersForAgency, updateUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import type { Role, ServerUser } from "@/server/types";
+import { getTradingCompany } from "@/server/tradingCompanies";
 
 const STAFF_ROLES: Role[] = ["agency-manager", "agency-staff"];
 
@@ -13,6 +14,7 @@ interface Body {
   username?: unknown;
   role?: unknown;
   password?: unknown;
+  companyIds?: unknown;
 }
 
 function publicUser(user: ServerUser) {
@@ -22,6 +24,7 @@ function publicUser(user: ServerUser) {
     email: user.email,
     username: user.username,
     role: user.role,
+    companyIds: user.companyIds ?? [],
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };
@@ -66,6 +69,9 @@ export async function POST(req: NextRequest) {
   const username = typeof body.username === "string" ? body.username.trim() : undefined;
   const role = typeof body.role === "string" ? body.role as Role : "agency-staff";
   const password = typeof body.password === "string" ? body.password : "";
+  const requestedCompanyIds = Array.isArray(body.companyIds)
+    ? body.companyIds.filter((value): value is string => typeof value === "string")
+    : [];
 
   if (!name || name.length < 2) {
     return NextResponse.json({ ok: false, error: "Name must be at least 2 characters." }, { status: 400 });
@@ -85,6 +91,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const agencyId = getActiveAgencyId(session);
+    const companyIds = requestedCompanyIds.filter(id => Boolean(getTradingCompany(agencyId, id))).slice(0, 30);
     const user = createUser({
       name,
       email,
@@ -93,6 +100,7 @@ export async function POST(req: NextRequest) {
       role,
       agencyId,
     });
+    const assignedUser = companyIds.length ? updateUser(user.email, { companyIds }) ?? user : user;
 
     logActivity({
       agencyId,
@@ -104,11 +112,26 @@ export async function POST(req: NextRequest) {
       metadata: { userId: user.id, role },
     });
 
-    return NextResponse.json({ ok: true, user: publicUser(user) }, { status: 201 });
+    return NextResponse.json({ ok: true, user: publicUser(assignedUser) }, { status: 201 });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "Could not create user." },
       { status: 400 },
     );
   }
+}
+
+export async function PATCH(req: NextRequest) {
+  await ensureHydrated();
+  const session = await requireRole(["agency-owner", "agency-manager"]);
+  const body = await req.json().catch(() => null) as { userId?: string; companyIds?: string[] } | null;
+  const target = body?.userId ? getUserById(body.userId) : null;
+  if (!target || target.agencyId !== session.agencyId || !target.role.startsWith("agency-")) {
+    return NextResponse.json({ ok: false, error: "Staff user not found." }, { status: 404 });
+  }
+  const validCompanyIds = Array.isArray(body?.companyIds)
+    ? body.companyIds.filter((value): value is string => typeof value === "string" && Boolean(getTradingCompany(session.agencyId, value))).slice(0, 30)
+    : [];
+  const updated = updateUser(target.email, { companyIds: validCompanyIds });
+  return NextResponse.json({ ok: true, user: updated ? publicUser(updated) : null });
 }

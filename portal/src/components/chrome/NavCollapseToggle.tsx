@@ -91,8 +91,8 @@ export function NavSideTab() {
         <polyline points="9 7 4 12 9 17" />
         <polyline points="15 7 20 12 15 17" />
       </svg>
-      {/* Folded state — morphs into the "M" chatbot mark */}
-      <span className="mm-nav-side-tab-mark" aria-hidden>M</span>
+      {/* Folded state — morphs into the AquaCRM mark. */}
+      <span className="mm-nav-side-tab-mark" aria-hidden>A</span>
     </button>
   );
 }

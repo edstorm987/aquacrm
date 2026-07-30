@@ -22,7 +22,7 @@ export {
 export type { EcommerceFoundation } from "./foundationAdapter";
 
 export { OrderService } from "./orders";
-export type { ServerOrder, ServerOrderItem, OrderStatus } from "./orders";
+export type { ServerOrder, ServerOrderItem, OrderStatus, UpdateOrderPatch } from "./orders";
 
 export { BillingService, PLANS } from "./billing";
 export type { Plan, PlanId, Subscription, SubscriptionStatus } from "./billing";

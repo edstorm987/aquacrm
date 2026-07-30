@@ -1,9 +1,8 @@
 import crypto from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { put } from "@vercel/blob";
+import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
@@ -73,24 +72,21 @@ export async function POST(req: Request) {
   const id = makeId();
   const filename = safeName(file.name);
   const pathname = `clients/${session.agencyId}/${clientId}/${id}-${filename}`;
-  let storageProvider: "vercel-blob" | "local";
-  let storageKey: string;
-
-  if (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID || process.env.VERCEL_OIDC_TOKEN) {
-    const blob = await put(pathname, file, {
-      access: "private",
-      addRandomSuffix: false,
+  const relativeKey = join(session.agencyId, clientId, `${id}-${filename}`);
+  let stored;
+  try {
+    stored = await storePrivateUpload({
+      pathname,
+      file,
       contentType: file.type,
+      localDirectory: "client-uploads",
+      localKey: relativeKey,
     });
-    storageProvider = "vercel-blob";
-    storageKey = blob.url;
-  } else {
-    const relativeKey = join(session.agencyId, clientId, `${id}-${filename}`);
-    const absolutePath = join(process.cwd(), ".data", "client-uploads", relativeKey);
-    await mkdir(dirname(absolutePath), { recursive: true });
-    await writeFile(absolutePath, Buffer.from(await file.arrayBuffer()));
-    storageProvider = "local";
-    storageKey = relativeKey;
+  } catch (error) {
+    if (error instanceof PrivateUploadStorageError) {
+      return NextResponse.json({ ok: false, error: error.message, code: error.code }, { status: 503 });
+    }
+    throw error;
   }
 
   const meta = (client.metadata ?? {}) as { files?: ClientFileRef[] };
@@ -104,8 +100,8 @@ export async function POST(req: Request) {
     uploadedAt: Date.now(),
     size: file.size,
     contentType: file.type,
-    storageProvider,
-    storageKey,
+    storageProvider: stored.storageProvider,
+    storageKey: stored.storageKey,
   };
   files.unshift(ref);
   const updated = updateClient(session.agencyId, clientId, { metadata: { files } });

@@ -9,9 +9,8 @@
 //
 // Prerequisites:
 //   1. `cd 04\ the\ final\ portal/portal && npm run dev` (port 3030).
-//   2. Either `NEXT_PUBLIC_DEV_BYPASS=1` is set (no auth needed) OR you're
-//      ok with the script logging in as the demo owner via the
-//      seed-demo credentials.
+//   2. Provide a real owner account through AQUA_OWNER_EMAIL and
+//      AQUA_OWNER_PASSWORD so the script can sign in normally.
 //
 // Run from `04-the-final-portal/plugins/fulfillment/`:
 //   node src/__smoke__/lifecycle.http.mjs
@@ -19,8 +18,11 @@
 // Exit code 0 on success, 1 on first assertion failure.
 
 const BASE = process.env.AQUA_BASE ?? "http://localhost:3030";
-const DEMO_OWNER_EMAIL = process.env.AQUA_OWNER_EMAIL ?? "demo@aqua.dev";
-const DEMO_OWNER_PASSWORD = process.env.AQUA_OWNER_PASSWORD ?? "demo-aqua-2026";
+const OWNER_EMAIL = process.env.AQUA_OWNER_EMAIL;
+const OWNER_PASSWORD = process.env.AQUA_OWNER_PASSWORD;
+if (!OWNER_EMAIL || !OWNER_PASSWORD) {
+  throw new Error("Set AQUA_OWNER_EMAIL and AQUA_OWNER_PASSWORD to a real agency owner account.");
+}
 
 let cookie = "";
 let failures = 0;
@@ -60,25 +62,18 @@ function assertOk(condition, label) {
   log(label, !!condition);
 }
 
-// ─── 1. Seed demo (idempotent) ────────────────────────────────────────────
+// ─── 1. Sign in as an agency owner ────────────────────────────────────────
 
 console.log(`\n→ Lifecycle HTTP smoke (target ${BASE})\n`);
 
-let r = await http("/api/dev/seed-demo", { method: "POST" });
-assertOk(r.status === 200 && r.body?.ok, "seed-demo returns ok");
-const seededAgencyId = r.body?.agency?.id;
-assertOk(seededAgencyId, "seed-demo returns agency id");
-
-// ─── 2. Log in as demo owner ──────────────────────────────────────────────
-
-r = await http("/api/auth/login", {
+let r = await http("/api/auth/login", {
   method: "POST",
-  body: JSON.stringify({ email: DEMO_OWNER_EMAIL, password: DEMO_OWNER_PASSWORD }),
+  body: JSON.stringify({ email: OWNER_EMAIL, password: OWNER_PASSWORD }),
 });
 assertOk(r.status === 200, "login returns 200");
 assertOk(cookie.startsWith("lk_session_v1="), "session cookie set");
 
-// ─── 3. List phases for this agency ───────────────────────────────────────
+// ─── 2. List phases for this agency ───────────────────────────────────────
 
 r = await http("/api/portal/fulfillment/phases");
 assertOk(r.status === 200, "GET /phases returns 200");
@@ -86,7 +81,7 @@ const phases = r.body?.phases ?? r.body;
 assertOk(Array.isArray(phases) && phases.length === 6, `phases.length === 6 (got ${phases?.length})`);
 const phaseByStage = Object.fromEntries(phases.map(p => [p.stage, p]));
 
-// ─── 4. Create a fresh client at the discovery phase ──────────────────────
+// ─── 3. Create a fresh client at the discovery phase ──────────────────────
 
 r = await http("/api/portal/fulfillment/clients", {
   method: "POST",

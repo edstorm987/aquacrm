@@ -39,6 +39,7 @@ import {
   applyDiscountHandler,
   deleteDiscountHandler,
   deleteProductHandler,
+  downloadOrderHandler,
   getOrderHandler,
   getProductHandler,
   issueGiftCardHandler,
@@ -57,6 +58,7 @@ import {
   stripeCheckoutHandler,
   stripeWebhookHandler,
   updateOrderStatusHandler,
+  updateOrderHandler,
   upsertDiscountHandler,
   upsertProductHandler,
 } from "./handlers";
@@ -71,7 +73,9 @@ export const apiRoutes: readonly PluginApiRoute[] = [
   // Orders
   { path: "orders", methods: ["GET"], handler: listOrdersHandler },
   { path: "orders/get", methods: ["GET"], handler: getOrderHandler },
+  { path: "orders", methods: ["PATCH"], handler: updateOrderHandler },
   { path: "orders/status", methods: ["POST"], handler: updateOrderStatusHandler },
+  { path: "orders/download", methods: ["GET"], handler: downloadOrderHandler },
 
   // Stripe
   { path: "stripe/checkout", methods: ["POST"], handler: stripeCheckoutHandler },

@@ -59,6 +59,8 @@ export interface ActivityLogPort {
 // ─── Event bus ─────────────────────────────────────────────────────────────
 
 export type LeadsEventName =
+  | "leads.prospect.created"
+  | "leads.prospect.updated"
   | "leads.lead.created"
   | "leads.lead.updated"
   | "leads.lead.archived"
@@ -107,10 +109,13 @@ export interface EmailEnqueueInput {
 
 export interface EmailEnqueueResult {
   messageId: string;
+  delivered?: boolean;
+  error?: string;
 }
 
 export interface EmailEnqueuePort {
   enqueue(input: EmailEnqueueInput): Promise<EmailEnqueueResult> | EmailEnqueueResult;
+  send?(input: EmailEnqueueInput): Promise<EmailEnqueueResult> | EmailEnqueueResult;
 }
 
 // ─── Pipeline port (adapter onto T1 R034 foundation pipelines) ───────────

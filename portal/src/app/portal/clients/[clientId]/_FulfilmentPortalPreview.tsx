@@ -9,14 +9,21 @@ import {
   FileText,
   Mail,
   Monitor,
+  PackagePlus,
+  Plus,
   Save,
   Send,
   Smartphone,
   Sparkles,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ClientApproval, ClientApprovalType } from "@/app/api/tenants/client-approvals/route";
+import {
+  PORTAL_PRODUCT_CATALOG,
+  type PortalProductSelection,
+} from "@/lib/portalProducts";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -27,6 +34,8 @@ export interface CustomerPortalPreviewInitial {
   servicePlan?: string;
   planSummary?: string;
   planIncludes?: string[];
+  products?: PortalProductSelection[];
+  experienceHeadline?: string;
   billingCadence?: string;
   welcomeNote?: string;
   supportEmail?: string;
@@ -55,8 +64,8 @@ const MODES: Array<{
   description: string;
 }> = [
   { id: "onboarding", label: "Onboarding", description: "Collect details and inspiration" },
-  { id: "designing", label: "Designing", description: "Share direction and gather feedback" },
-  { id: "developed-launch", label: "Build & launch", description: "Preview, test, and approve launch" },
+  { id: "designing", label: "In progress", description: "Share the work and gather feedback" },
+  { id: "developed-launch", label: "Review & delivery", description: "Review, refine, and approve delivery" },
   { id: "maintenance", label: "Live care", description: "Support and monitor the live product" },
 ];
 
@@ -77,6 +86,9 @@ export function FulfilmentPortalPreview({
   const [servicePlan, setServicePlan] = useState(initial.servicePlan ?? "");
   const [planSummary, setPlanSummary] = useState(initial.planSummary ?? "");
   const [planIncludes, setPlanIncludes] = useState((initial.planIncludes ?? []).join("\n"));
+  const [products, setProducts] = useState<PortalProductSelection[]>(initial.products ?? []);
+  const [experienceHeadline, setExperienceHeadline] = useState(initial.experienceHeadline ?? "");
+  const [customProductName, setCustomProductName] = useState("");
   const [billingCadence, setBillingCadence] = useState(initial.billingCadence ?? "As agreed");
   const [welcomeNote, setWelcomeNote] = useState(initial.welcomeNote ?? "");
   const [supportEmail, setSupportEmail] = useState(initial.supportEmail ?? "");
@@ -106,7 +118,7 @@ export function FulfilmentPortalPreview({
   const readiness = [
     { label: "Portal", ready: Boolean(portalBuiltAt), value: portalBuiltAt ? "Ready" : "Create it" },
     { label: "Customer email", ready: Boolean(loginEmail.trim()), value: loginEmail.trim() ? "Ready" : "Missing" },
-    { label: "Plan", ready: Boolean(servicePlan.trim()), value: servicePlan.trim() ? "Ready" : "Missing" },
+    { label: "Products", ready: products.length > 0, value: products.length ? `${products.length} selected` : "Choose products" },
     {
       label: "Billing",
       ready: (initial.outstandingInvoiceCount ?? 0) === 0 || Boolean(billingUrl.trim()),
@@ -156,6 +168,8 @@ export function FulfilmentPortalPreview({
           servicePlan,
           planSummary,
           planIncludes,
+          products,
+          experienceHeadline,
           billingCadence,
           welcomeNote,
           supportEmail,
@@ -188,7 +202,7 @@ export function FulfilmentPortalPreview({
         setAccessStatus(payload.sent ? "sent" : payload.devAccessUrl ? "prepared" : null);
         setMessage(payload.sent
           ? `Access sent to ${payload.username}.`
-          : `Access is ready for ${payload.username}. Email delivery is not connected locally, so use the private test link below.`);
+          : `Access is ready for ${payload.username}. Email delivery is not connected in this local workspace, so use the private one-time sign-in link below.`);
         setDevAccessUrl(payload.devAccessUrl ?? null);
       } else if (action === "build-portal") {
         setMessage("Portal created. Review the live preview, then send access when you are happy.");
@@ -205,7 +219,25 @@ export function FulfilmentPortalPreview({
   async function copyAccessLink() {
     if (!devAccessUrl) return;
     await navigator.clipboard.writeText(devAccessUrl);
-    setMessage("Private test link copied.");
+    setMessage("Private one-time sign-in link copied.");
+  }
+
+  function toggleProduct(product: PortalProductSelection) {
+    const selected = products.some(item => item.catalogKey === product.catalogKey);
+    edit(
+      setProducts,
+      selected
+        ? products.filter(item => item.catalogKey !== product.catalogKey)
+        : [...products, product],
+    );
+  }
+
+  function addCustomProduct() {
+    const name = customProductName.trim();
+    if (!name) return;
+    const id = `custom-${Date.now().toString(36)}`;
+    edit(setProducts, [...products, { id, name, description: "A tailored Milesymedia service.", deliverables: [] }]);
+    setCustomProductName("");
   }
 
   async function requestApproval(type: ClientApprovalType) {
@@ -220,8 +252,8 @@ export function FulfilmentPortalPreview({
           action: "request",
           type,
           detail: type === "design"
-            ? "Please review the latest design direction and confirm that we can move into the build."
-            : "Please review the latest build and confirm that it is ready for launch.",
+            ? "Please review the latest direction and confirm that the work can move forward."
+            : "Please review the latest work and confirm that it is ready for final delivery.",
         }),
       });
       const payload = await response.json() as {
@@ -232,7 +264,7 @@ export function FulfilmentPortalPreview({
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Could not request approval.");
       setApprovals(payload.approvals ?? approvals);
       setPreviewVersion(Date.now());
-      setMessage(`${type === "design" ? "Design" : "Launch"} approval is now waiting in the client portal.`);
+      setMessage(`${type === "design" ? "Direction" : "Delivery"} approval is now waiting in the client portal.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not request approval.");
     } finally {
@@ -251,27 +283,18 @@ export function FulfilmentPortalPreview({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!portalBuiltAt && (
-            <button
-              type="button"
-              onClick={() => void submit("build-portal")}
-              disabled={busy !== null}
-              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#1b1a18] px-4 text-sm font-medium text-white disabled:opacity-50"
+          {portalBuiltAt ? (
+            <a
+              href={previewHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-4 text-sm font-medium text-black/70"
             >
-              <Sparkles size={15} aria-hidden="true" />
-              {busy === "build" ? "Creating..." : "Create client portal"}
-            </button>
-          )}
-          <a
-            href={previewHref}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-4 text-sm font-medium text-black/70"
-          >
-            <Eye size={15} aria-hidden="true" />
-            Open full preview
-            <ArrowUpRight size={13} aria-hidden="true" />
-          </a>
+              <Eye size={15} aria-hidden="true" />
+              Open full preview
+              <ArrowUpRight size={13} aria-hidden="true" />
+            </a>
+          ) : null}
         </div>
       </header>
 
@@ -284,7 +307,7 @@ export function FulfilmentPortalPreview({
           detail={accessStatus === "sent"
             ? "Access sent"
             : accessStatus === "prepared"
-              ? "Local access prepared"
+              ? "Sign-in link prepared"
               : loginEmail
                 ? "Access can be sent"
                 : "Add customer email"}
@@ -307,7 +330,28 @@ export function FulfilmentPortalPreview({
               </div>
             </div>
             <div ref={desktopHostRef} className="flex min-h-[560px] w-full justify-center overflow-hidden p-3 sm:p-5">
-              {previewWidth === "desktop" ? (
+              {!portalBuiltAt ? (
+                <div className="flex w-full max-w-xl flex-col items-center justify-center px-6 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#9b7a3e]/25 bg-[#f8f4ec] text-[#725724]">
+                    <PackagePlus size={20} aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-5 text-xl font-semibold tracking-tight text-black/85">
+                    No client portal yet
+                  </h3>
+                  <p className="mt-2 max-w-md text-sm leading-6 text-black/50">
+                    This client can stay as a simple record. When they need a private home for updates, files, billing, or support, create it here.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void submit("build-portal")}
+                    disabled={busy !== null}
+                    className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md bg-[#1b1a18] px-4 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    <Sparkles size={15} aria-hidden="true" />
+                    {busy === "build" ? "Creating..." : "Create client portal"}
+                  </button>
+                </div>
+              ) : previewWidth === "desktop" ? (
                 <div
                   className="relative w-full overflow-hidden rounded-md border border-black/10 bg-white shadow-[0_18px_55px_rgba(25,22,17,0.14)]"
                   style={{ height: `${820 * desktopScale}px` }}
@@ -403,6 +447,97 @@ export function FulfilmentPortalPreview({
             </Field>
 
             <div className="mt-5 grid gap-4 border-t border-black/10 pt-5">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Products & services</p>
+                <p className="mt-1 text-xs leading-5 text-black/48">
+                  The portal changes its language, actions and delivery journey around what this customer bought.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                {PORTAL_PRODUCT_CATALOG.map(product => {
+                  const selected = products.some(item => item.catalogKey === product.catalogKey);
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => toggleProduct(product)}
+                      aria-pressed={selected}
+                      className={[
+                        "flex items-start gap-3 rounded-md border p-3 text-left transition",
+                        selected ? "border-[#9b7a3e]/45 bg-[#f7f1e6]" : "border-black/10 bg-white hover:bg-black/[0.025]",
+                      ].join(" ")}
+                    >
+                      <span className={[
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                        selected ? "border-[#9b7a3e] bg-[#9b7a3e] text-white" : "border-black/15 text-transparent",
+                      ].join(" ")}>
+                        <Check size={12} aria-hidden="true" />
+                      </span>
+                      <span>
+                        <span className="block text-sm font-medium text-black/75">{product.name}</span>
+                        <span className="mt-0.5 block text-[11px] leading-4 text-black/42">{product.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <Field label="Add a custom product" htmlFor="portal-custom-product">
+                <div className="grid grid-cols-[1fr_44px] gap-2">
+                  <input
+                    id="portal-custom-product"
+                    value={customProductName}
+                    onChange={event => setCustomProductName(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addCustomProduct();
+                      }
+                    }}
+                    className={CONTROL}
+                    placeholder="e.g. Campaign launch"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomProduct}
+                    disabled={!customProductName.trim()}
+                    aria-label="Add custom product"
+                    className="flex h-11 w-11 items-center justify-center rounded-md border border-black/12 bg-white text-black/65 disabled:opacity-40"
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              </Field>
+              {products.some(product => !product.catalogKey) ? (
+                <div className="flex flex-wrap gap-2">
+                  {products.filter(product => !product.catalogKey).map(product => (
+                    <span key={product.id} className="inline-flex min-h-8 items-center gap-2 rounded-md bg-black/[0.045] px-3 text-xs text-black/60">
+                      <PackagePlus size={13} aria-hidden="true" />
+                      {product.name}
+                      <button
+                        type="button"
+                        onClick={() => edit(setProducts, products.filter(item => item.id !== product.id))}
+                        aria-label={`Remove ${product.name}`}
+                        className="text-black/35 hover:text-black"
+                      >
+                        <X size={13} aria-hidden="true" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <Field label="Customer portal headline" htmlFor="portal-experience-headline">
+                <input
+                  id="portal-experience-headline"
+                  value={experienceHeadline}
+                  onChange={event => edit(setExperienceHeadline, event.target.value)}
+                  className={CONTROL}
+                  placeholder="Leave blank to adapt automatically"
+                />
+                <p className="mt-1 text-[11px] leading-5 text-black/38">Optional. The selected products create this automatically unless you override it.</p>
+              </Field>
+            </div>
+
+            <div className="mt-5 grid gap-4 border-t border-black/10 pt-5">
               <Field label="Customer email" htmlFor="portal-login-email">
                 <input id="portal-login-email" type="email" value={loginEmail} onChange={event => edit(setLoginEmail, event.target.value)} className={CONTROL} placeholder="customer@example.com" />
               </Field>
@@ -431,8 +566,10 @@ export function FulfilmentPortalPreview({
                 />
                 <p className="mt-1 text-[11px] leading-5 text-black/38">One clear item per line.</p>
               </Field>
-              <Field label="Billing rhythm" htmlFor="portal-billing-cadence">
+              <Field label="Payment schedule" htmlFor="portal-billing-cadence">
                 <select id="portal-billing-cadence" value={billingCadence} onChange={event => edit(setBillingCadence, event.target.value)} className={CONTROL}>
+                  <option>Project</option>
+                  <option>Project + ongoing care</option>
                   <option>One-off</option>
                   <option>Monthly</option>
                   <option>Quarterly</option>
@@ -519,7 +656,7 @@ export function FulfilmentPortalPreview({
                   : accessStatus === "sent"
                     ? "Resend customer access"
                     : accessStatus === "prepared"
-                      ? "Create new test link"
+                      ? "Create new one-time link"
                       : "Send customer access"}
               </button>
               {dirty && <p className="text-center text-[11px] text-amber-700">Save changes before sending access.</p>}
@@ -541,8 +678,8 @@ export function FulfilmentPortalPreview({
                       className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 disabled:opacity-45"
                     >
                       {pending
-                        ? `${type === "design" ? "Design" : "Launch"} pending`
-                        : `Request ${type} approval`}
+                        ? `${type === "design" ? "Direction" : "Delivery"} pending`
+                        : `Request ${type === "design" ? "direction" : "delivery"} approval`}
                     </button>
                   );
                 })}

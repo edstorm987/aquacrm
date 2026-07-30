@@ -49,7 +49,7 @@ describe("PortalRole widening", () => {
 describe("BrandKit 16-var emission", () => {
   it("emits the single primary var from a minimal kit", () => {
     const out = brandToCss({ primaryColor: "#FF6B35" });
-    assert.deepEqual(Object.keys(out.vars), ["--brand-primary"]);
+    assert.deepEqual(Object.keys(out.vars), ["--brand-primary", "--brand-on-primary"]);
   });
 
   it("emits all 16 vars from a fully-populated kit", () => {
@@ -71,6 +71,7 @@ describe("BrandKit 16-var emission", () => {
     });
     const expected = [
       "--brand-primary",
+      "--brand-on-primary",
       "--brand-secondary",
       "--brand-accent",
       "--brand-font-heading",

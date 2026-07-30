@@ -15,11 +15,14 @@ import type {
   Invoice,
   InvoiceFilter,
   InvoiceLineItem,
+  InvoiceTemplate,
+  UpdateInvoiceTemplateInput,
   UpdateInvoicePatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort, TenantPort } from "./ports";
 
 const INV_INDEX_KEY = "invoices/index";
+const TEMPLATE_KEY = "invoices/template";
 const invKey = (id: string): string => `invoices/by-id/${id}`;
 const byClientKey = (cid: ClientId): string => `invoices/by-client/${cid}`;
 const seqKey = (year: number): string => `invoices/seq/${year}`;
@@ -59,6 +62,30 @@ export class InvoiceService {
       .sort((a, b) => b.issuedAt - a.issuedAt);
   }
 
+  async getTemplate(): Promise<InvoiceTemplate> {
+    return (await this.storage.get<InvoiceTemplate>(TEMPLATE_KEY)) ?? {
+      name: "Milesymedia invoice",
+      accentColor: "#171717",
+      documentTitle: "Invoice",
+      updatedAt: 0,
+    };
+  }
+
+  async saveTemplate(input: UpdateInvoiceTemplateInput): Promise<InvoiceTemplate> {
+    const template: InvoiceTemplate = {
+      name: input.name.trim() || "Milesymedia invoice",
+      accentColor: /^#[0-9a-f]{6}$/i.test(input.accentColor) ? input.accentColor : "#171717",
+      documentTitle: input.documentTitle.trim() || "Invoice",
+      businessDetails: input.businessDetails?.trim() || undefined,
+      paymentDetails: input.paymentDetails?.trim() || undefined,
+      footerText: input.footerText?.trim() || undefined,
+      letterheadDataUrl: input.letterheadDataUrl || undefined,
+      updatedAt: now(),
+    };
+    await this.storage.set(TEMPLATE_KEY, template);
+    return template;
+  }
+
   async get(id: string): Promise<Invoice | null> {
     const row = await this.storage.get<Invoice>(invKey(id));
     return row && row.agencyId === this.agencyId ? row : null;
@@ -96,6 +123,7 @@ export class InvoiceService {
     const row: Invoice = {
       id,
       agencyId: this.agencyId,
+      companyId: input.companyId,
       clientId: input.clientId,
       number: formatInvoiceNumber(year, seq),
       issuedAt,
@@ -137,6 +165,13 @@ export class InvoiceService {
   async update(id: string, patch: UpdateInvoicePatch, actor: UserId): Promise<Invoice | null> {
     const existing = await this.get(id);
     if (!existing) return null;
+    const changesFinancialContent = patch.dueAt !== undefined
+      || patch.lineItems !== undefined
+      || patch.taxCents !== undefined
+      || patch.notes !== undefined;
+    if (changesFinancialContent && existing.status !== "draft") {
+      throw new Error(`Only draft invoices can be amended. ${existing.number} is ${existing.status}.`);
+    }
     // Status transitions allowed via update():
     //   draft → sent | void
     //   sent → overdue | void | refunded
@@ -261,28 +296,31 @@ export class InvoiceService {
     return true;
   }
 
-  // Simple HTML rendering — used by InvoiceDetail page + a future
-  // PDF-export round. Returns plain HTML; brand kit injection happens
-  // at the foundation chrome layer.
   async renderInvoiceHtml(id: string): Promise<string | null> {
     const invoice = await this.get(id);
     if (!invoice) return null;
     const client = await this.tenant.getClientForAgency(this.agencyId, invoice.clientId);
     const agency = await this.tenant.getAgency(this.agencyId);
+    const template = await this.getTemplate();
     const fmt = (cents: number): string => (cents / 100).toFixed(2);
     const itemsHtml = invoice.lineItems.map(li =>
       `<tr><td>${escapeHtml(li.description)}</td><td>${li.quantity}</td><td>${fmt(li.unitCents)}</td><td>${fmt(li.totalCents)}</td></tr>`,
     ).join("\n");
     return `<article class="invoice">
-  <header><h1>${invoice.number}</h1><p>${escapeHtml(agency?.name ?? "Agency")} → ${escapeHtml(client?.name ?? invoice.clientId)}</p></header>
-  <section><p>Issued ${new Date(invoice.issuedAt).toISOString().slice(0, 10)} · Due ${new Date(invoice.dueAt).toISOString().slice(0, 10)}</p></section>
+  ${template.letterheadDataUrl ? `<img class="letterhead" src="${escapeHtml(template.letterheadDataUrl)}" alt="">` : ""}
+  <div class="invoice-content">
+  <header><div><span class="eyebrow">${escapeHtml(template.documentTitle)}</span><h1>${invoice.number}</h1></div><div class="from"><strong>${escapeHtml(agency?.name ?? "Agency")}</strong>${template.businessDetails ? `<p>${escapeHtml(template.businessDetails).replace(/\n/g, "<br>")}</p>` : ""}</div></header>
+  <section class="meta"><div><span>Bill to</span><strong>${escapeHtml(client?.name ?? invoice.clientId)}</strong></div><div><span>Issued</span><strong>${new Date(invoice.issuedAt).toISOString().slice(0, 10)}</strong></div><div><span>Due</span><strong>${new Date(invoice.dueAt).toISOString().slice(0, 10)}</strong></div></section>
   <table><thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
-  <footer>
-    <p>Subtotal: ${fmt(invoice.subtotalCents)} ${invoice.currency}</p>
-    <p>Tax: ${fmt(invoice.taxCents)} ${invoice.currency}</p>
-    <p><strong>Total: ${fmt(invoice.totalCents)} ${invoice.currency}</strong></p>
-    ${invoice.notes ? `<p>${escapeHtml(invoice.notes)}</p>` : ""}
-  </footer>
+  <div class="summary">
+    <p><span>Subtotal</span><span>${fmt(invoice.subtotalCents)} ${invoice.currency.toUpperCase()}</span></p>
+    <p><span>Tax</span><span>${fmt(invoice.taxCents)} ${invoice.currency.toUpperCase()}</span></p>
+    <p class="grand-total"><strong>Total</strong><strong>${fmt(invoice.totalCents)} ${invoice.currency.toUpperCase()}</strong></p>
+  </div>
+  ${invoice.notes ? `<section class="notes"><span>Notes</span><p>${escapeHtml(invoice.notes).replace(/\n/g, "<br>")}</p></section>` : ""}
+  ${template.paymentDetails ? `<section class="payment"><span>Payment details</span><p>${escapeHtml(template.paymentDetails).replace(/\n/g, "<br>")}</p></section>` : ""}
+  ${template.footerText ? `<footer>${escapeHtml(template.footerText).replace(/\n/g, "<br>")}</footer>` : ""}
+  </div>
 </article>`;
   }
 }

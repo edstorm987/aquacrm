@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     to: user.email,
     agencyId: agency.id,
     externalRef: `verify-email:${user.id}`,
-    subject: "Verify your Milesymedia account",
+    subject: "Verify your AquaCRM account",
     bodyText: `Confirm your Milesymedia email address using this secure link. It expires in 24 hours.\n\n${verifyUrl}`,
     bodyHtml: `<p>Confirm your Milesymedia email address using the secure link below. It expires in 24 hours.</p><p><a href="${verifyUrl}">Verify email address</a></p>`,
   });

@@ -54,42 +54,91 @@ function ensureUniqueSlug(agencyId: string, base: string, exceptId?: string): st
 
 // ─── Default column packs ─────────────────────────────────────────────────
 
-// Fulfilment columns mirror today's stage enum (Discovery → Live → Churned)
-// so the migration runner can map existing clients onto cards 1:1.
+// Fulfilment follows the same six-stage journey shown on every client record.
 export const FULFILMENT_STAGE_TO_COLUMN: Record<string, string> = {
-  discovery: "discovery",
-  design: "design",
-  development: "design",       // collapse pre-Aqua "development" into design
-  onboarding: "onboarding",
-  live: "live",
+  discovery: "aqua-epic-intro",
+  design: "aqua-brand-builder",
+  development: "aqua-traffic",
+  onboarding: "aqua-epic-intro",
+  live: "aqua-mastery",
   churned: "churned",
-  lead: "discovery",
-  "aqua-epic-intro": "discovery",
-  "aqua-blueprint": "design",
-  "aqua-diagnostics": "design",
-  "aqua-brand-builder": "onboarding",
-  "aqua-traffic": "live",
-  "aqua-mastery": "live",
+  lead: "aqua-epic-intro",
+  "aqua-epic-intro": "aqua-epic-intro",
+  "aqua-blueprint": "aqua-blueprint",
+  "aqua-diagnostics": "aqua-diagnostics",
+  "aqua-brand-builder": "aqua-brand-builder",
+  "aqua-traffic": "aqua-traffic",
+  "aqua-mastery": "aqua-mastery",
 };
 
 function fulfilmentColumns(): PipelineColumn[] {
   return [
-    { id: "discovery",  label: "Discovery",  order: 0, color: "#0EA5A4" },
-    { id: "design",     label: "Design",     order: 1, color: "#F97316" },
-    { id: "onboarding", label: "Onboarding", order: 2, color: "#6366F1" },
-    { id: "live",       label: "Live",       order: 3, color: "#10B981" },
-    { id: "churned",    label: "Churned",    order: 4, color: "#71717A" },
+    { id: "aqua-epic-intro",    label: "Onboarding",            order: 0, color: "#8B6C33" },
+    { id: "aqua-blueprint",     label: "Planning",              order: 1, color: "#64748B" },
+    { id: "aqua-diagnostics",   label: "Content & foundations", order: 2, color: "#0F766E" },
+    { id: "aqua-brand-builder", label: "Design",                order: 3, color: "#B45309" },
+    { id: "aqua-traffic",       label: "Build & launch",        order: 4, color: "#2563EB" },
+    { id: "aqua-mastery",       label: "Live care",             order: 5, color: "#15803D" },
+    { id: "churned",            label: "Closed",                order: 6, color: "#71717A" },
   ];
+}
+
+function upgradeLegacyFulfilmentPipeline(agencyId: string, pipeline: Pipeline): Pipeline {
+  const legacyIds = new Set(["discovery", "design", "onboarding", "live", "churned"]);
+  if (pipeline.columns.length !== legacyIds.size || !pipeline.columns.every(column => legacyIds.has(column.id))) {
+    return pipeline;
+  }
+  const legacyColumnMap: Record<string, string> = {
+    discovery: "aqua-epic-intro",
+    design: "aqua-brand-builder",
+    onboarding: "aqua-epic-intro",
+    live: "aqua-mastery",
+    churned: "churned",
+  };
+  mutate(state => {
+    for (const card of Object.values(state.pipelineCards)) {
+      if (card.pipelineId !== pipeline.id) continue;
+      card.columnId = legacyColumnMap[card.columnId] ?? "aqua-epic-intro";
+      card.updatedAt = Date.now();
+    }
+  });
+  return updatePipeline(agencyId, pipeline.id, { columns: fulfilmentColumns() }) ?? pipeline;
 }
 
 function leadsColumns(): PipelineColumn[] {
   return [
-    { id: "new",        label: "New",        order: 0 },
-    { id: "contacted",  label: "Contacted",  order: 1 },
-    { id: "qualified",  label: "Qualified",  order: 2 },
-    { id: "won",        label: "Won",        order: 3, color: "#10B981" },
-    { id: "lost",       label: "Lost",       order: 4, color: "#71717A" },
+    { id: "scouting",         label: "Scouting",         order: 0, color: "#765A2C" },
+    { id: "new",              label: "New",              order: 1 },
+    { id: "contacted",        label: "Contacted",        order: 2 },
+    { id: "meeting",          label: "Meeting",          order: 3 },
+    { id: "proposal",         label: "Proposal",         order: 4 },
+    { id: "awaiting-payment", label: "Awaiting payment", order: 5, color: "#B45309" },
+    { id: "won",              label: "Won",              order: 6, color: "#10B981" },
+    { id: "lost",             label: "Lost",             order: 7, color: "#71717A" },
   ];
+}
+
+function upgradeLegacyLeadsPipeline(agencyId: string, pipeline: Pipeline): Pipeline {
+  const legacyIds = new Set(["new", "contacted", "qualified", "won", "lost"]);
+  if (pipeline.columns.length === legacyIds.size && pipeline.columns.every(column => legacyIds.has(column.id))) {
+    mutate(state => {
+      for (const card of Object.values(state.pipelineCards)) {
+        if (card.pipelineId !== pipeline.id) continue;
+        if (card.columnId === "qualified") card.columnId = "proposal";
+        card.updatedAt = Date.now();
+      }
+    });
+    return updatePipeline(agencyId, pipeline.id, { columns: leadsColumns() }) ?? pipeline;
+  }
+  if (!pipeline.columns.some(column => column.id === "scouting")) {
+    return updatePipeline(agencyId, pipeline.id, {
+      columns: [
+        { id: "scouting", label: "Scouting", order: 0, color: "#765A2C" },
+        ...pipeline.columns.map((column, index) => ({ ...column, order: index + 1 })),
+      ],
+    }) ?? pipeline;
+  }
+  return pipeline;
 }
 
 function salesColumns(): PipelineColumn[] {
@@ -199,7 +248,10 @@ export function getPipeline(id: string): Pipeline | null {
 
 export function getPipelineBySlug(agencyId: string, slug: string): Pipeline | null {
   for (const p of Object.values(getState().pipelines)) {
-    if (p.agencyId === agencyId && p.slug === slug) return p;
+    if (p.agencyId !== agencyId || p.slug !== slug) continue;
+    if (p.kind === "leads") return upgradeLegacyLeadsPipeline(agencyId, p);
+    if (p.kind === "fulfilment") return upgradeLegacyFulfilmentPipeline(agencyId, p);
+    return p;
   }
   return null;
 }
@@ -274,7 +326,11 @@ export function seedDefaultPipelines(agencyId: string): SeedDefaultPipelinesResu
   for (const spec of DEFAULT_PIPELINE_SPECS) {
     const already = listPipelines(agencyId).find(p => p.kind === spec.kind);
     if (already) {
-      existing.push(already);
+      existing.push(spec.kind === "fulfilment"
+        ? upgradeLegacyFulfilmentPipeline(agencyId, already)
+        : spec.kind === "leads"
+          ? upgradeLegacyLeadsPipeline(agencyId, already)
+          : already);
       continue;
     }
     const pipeline = createPipeline({

@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   const client = getClient(clientId);
-  if (!client || client.status !== "active") {
+  if (!client || !["active", "suspended"].includes(client.status)) {
     return NextResponse.json({ ok: false, error: "Unknown client." }, { status: 404 });
   }
   if (client.endCustomers?.signupsEnabled === false) {

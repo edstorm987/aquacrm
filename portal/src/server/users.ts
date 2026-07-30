@@ -270,6 +270,7 @@ export interface UpdateUserPatch {
   role?: Role;
   agencyId?: string;
   agencyIds?: string[];
+  companyIds?: string[];
   clientId?: string;
   mustChangePassword?: boolean;
   // R036: profile picture data URL. `null` clears the field (DELETE
@@ -309,6 +310,7 @@ export function updateUser(
       role: patch.role ?? stored.role,
       agencyId: patch.agencyId ?? stored.agencyId,
       agencyIds: patch.agencyIds ?? stored.agencyIds,
+      companyIds: patch.companyIds ?? stored.companyIds,
       clientId: patch.clientId ?? stored.clientId,
       mustChangePassword: patch.mustChangePassword ?? stored.mustChangePassword,
       avatarUrl: nextAvatar,

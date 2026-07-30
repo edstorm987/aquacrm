@@ -25,8 +25,8 @@ export interface CategoryStyle {
 
 const STYLES: Record<ActivityCategory, CategoryStyle> = {
   auth:             { color: "#0ea5e9", icon: "🔐", label: "Auth" },
-  tenant:           { color: "#6366f1", icon: "🏢", label: "Tenant" },
-  plugin:           { color: "#a855f7", icon: "🧩", label: "Tools" },
+  tenant:           { color: "#6366f1", icon: "🏢", label: "Business" },
+  plugin:           { color: "#a855f7", icon: "🧩", label: "Systems" },
   phase:            { color: "#14b8a6", icon: "📈", label: "Phase" },
   fulfillment:      { color: "#f59e0b", icon: "📦", label: "Project work" },
   ecommerce:        { color: "#16a34a", icon: "🛒", label: "Ecommerce" },

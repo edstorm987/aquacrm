@@ -16,11 +16,12 @@ const ROOT = join(__dirname, "..");
 const SIDEBAR_LAYOUT = join(ROOT, "src", "lib", "chrome", "sidebarLayout.ts");
 const SIDEBAR = join(ROOT, "src", "components", "chrome", "Sidebar.tsx");
 const PROFILE = join(ROOT, "src", "components", "chrome", "ProfileMenu.tsx");
-const SWITCHER = join(ROOT, "src", "components", "chrome", "AgencySwitcher.tsx");
+const ARCHIVED_MULTI_AGENCY = join(ROOT, "src", "archive", "multi-agency");
 const CATCHALL = join(ROOT, "src", "app", "portal", "agency", "[...rest]", "page.tsx");
 const AGENCY_HOME = join(ROOT, "src", "app", "portal", "agency", "page.tsx");
 const PIPELINE_PAGE = join(ROOT, "src", "app", "portal", "agency", "pipelines", "[slug]", "page.tsx");
 const CLIENTS_PAGE = join(ROOT, "src", "app", "portal", "clients", "page.tsx");
+const PEOPLE_HUB = join(ROOT, "src", "app", "portal", "clients", "_PeopleHub.tsx");
 const CLIENT_HOME = join(ROOT, "src", "app", "portal", "clients", "[clientId]", "page.tsx");
 const NEW_CLIENT_BUTTON = join(ROOT, "src", "app", "portal", "agency", "_NewClientButton.tsx");
 const LEGACY_FULFILLMENT_CLIENT_LIST = join(ROOT, "src", "built-ins", "modules", "fulfillment", "src", "components", "ClientList.tsx");
@@ -43,6 +44,9 @@ const CUSTOMER_SUBROUTE = join(ROOT, "src", "app", "portal", "customer", "_subro
 const CUSTOMER_BOOKINGS = join(ROOT, "src", "app", "portal", "customer", "bookings", "page.tsx");
 const CUSTOMER_ORDERS = join(ROOT, "src", "app", "portal", "customer", "orders", "page.tsx");
 const TENANTS = join(ROOT, "src", "server", "tenants.ts");
+const FINANCE_MANIFEST = join(ROOT, "src", "built-ins", "modules", "agency-finance", "index.ts");
+const LEADS_MANIFEST = join(ROOT, "src", "built-ins", "modules", "leads-pipeline", "index.ts");
+const FOUNDER_SEED = join(ROOT, "src", "lib", "server", "founderSeed.ts");
 
 function read(path: string): string {
   return readFileSync(path, "utf8");
@@ -59,26 +63,41 @@ describe("standalone portal nav audit", () => {
     const block = agencyMainItemBlock(src);
     const expected = [
       ["clients", "/portal/clients"],
-      ["contacts", "/portal/agency/leads-pipeline/contacts"],
-      ["pipelines", "/portal/agency/pipelines/fulfilment"],
-      ["inbox", "/portal/agency/activity-inbox"],
-      ["sops", "/portal/agency/sops"],
+      ["pipelines", "/portal/agency/pipelines/leads"],
+      ["marketing", "/portal/agency/marketing"],
+      ["actions", "/portal/agency/actions"],
+      ["development", "/portal/agency/development"],
+      ["inbox", "/portal/agency/inbox"],
+      ["performance", "/portal/agency/performance"],
+      ["products", "/portal/agency/products"],
       ["finance", "/portal/agency/agency-finance"],
+      ["sop-library", "/portal/agency/sop-library"],
     ];
 
     for (const [id, href] of expected) {
       assert.ok(block.includes(`id: "${id}"`), `${id} main nav item missing`);
       assert.ok(block.includes(`href: "${href}"`), `${href} main nav href missing`);
     }
+    assert.ok(!block.includes('id: "contacts"'), "contacts should live inside the clients hub");
+    assert.ok(!block.includes('id: "sales"'), "sales should live inside Pipelines");
     assert.ok(!block.includes('id: "fulfillment", label: "Fulfilment"'), "duplicate Fulfilment main nav item should stay removed");
+
+    const priorityOrder = ["home", "actions", "inbox", "performance", "clients", "pipelines", "products", "development", "marketing", "finance", "sop-library"];
+    const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
+    const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
+    assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
+    assert.deepEqual([...positions].sort((a, b) => a - b), positions, "agency navigation should remain ordered by daily priority");
   });
 
   it("allows only the canonical agency main ids through the Milesymedia override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "clients", "contacts", "pipelines", "inbox", "sops", "finance"]) {
+    for (const id of ["home", "clients", "pipelines", "marketing", "actions", "development", "inbox", "performance", "products", "finance", "sop-library"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
+    assert.ok(!canonical.includes('"sops"'), "the duplicate systems dashboard should not be a main nav item");
+    assert.ok(!canonical.includes('"contacts"'), "contacts should not be a standalone main nav id");
+    assert.ok(!canonical.includes('"sales"'), "sales should not be a standalone main nav id");
     assert.ok(!canonical.includes('"fulfillment"'), "legacy fulfillment id should not be allowed into main nav");
   });
 
@@ -102,11 +121,12 @@ describe("standalone portal nav audit", () => {
 
   it("keeps the current clients page as the only visible create-client surface", () => {
     const src = read(CLIENTS_PAGE);
+    const hub = read(PEOPLE_HUB);
     const legacyList = read(LEGACY_FULFILLMENT_CLIENT_LIST);
-    assert.ok(src.includes("NewClientButton"), "clients page should expose the shared new-client modal");
-    assert.ok(src.includes("No clients yet"), "empty state should invite creating a client");
-    assert.ok(src.includes("Use the New client button above"), "empty state should point to the single header create action");
-    assert.equal((src.match(/<NewClientButton/g) ?? []).length, 1, "clients page should render only one NewClientButton");
+    assert.ok(src.includes("PeopleHub"), "clients page should expose the shared people hub");
+    assert.ok(hub.includes("NewClientButton"), "people hub should expose the shared new-client modal");
+    assert.ok(hub.includes("No clients yet"), "empty state should invite creating a client");
+    assert.equal((hub.match(/<NewClientButton/g) ?? []).length, 1, "people hub should render only one NewClientButton");
     assert.ok(!src.includes("Go to agency home"), "old empty-state detour should stay removed");
     assert.ok(!legacyList.includes("NewClientModal"), "legacy fulfilment list should not mount a second create-client modal");
     assert.ok(!legacyList.includes("+ New client"), "legacy fulfilment list should not show a second New client button");
@@ -121,13 +141,12 @@ describe("standalone portal nav audit", () => {
 
     assert.ok(!agencyHome.includes('href="/portal/agency/pipelines/new"'), "new pipeline CTA should not point at a missing route");
     assert.ok(!pipelinePage.includes('href="/portal/agency/pipelines/new"'), "pipeline header should not point at a missing route");
-    assert.ok(pipelinePage.includes("Pipelines are managed from Systems"), "pipeline header should explain where pipeline setup belongs");
+    assert.ok(pipelinePage.includes('aria-label="Work boards"'), "pipeline header should offer direct links to each work board");
     assert.ok(!clientHome.includes("/website-editor/pages"), "website CTA should use the mounted pages route");
-    assert.ok(!clientHome.includes("/website-editor/portal-variants"), "portal CTA should use the mounted portals route");
     assert.ok(!clientHome.includes("/website-editor/assets"), "assets CTA should use the mounted assets route");
     assert.ok(clientHome.includes("`/portal/clients/${client.id}/pages`"), "website CTA route missing");
-    assert.ok(clientHome.includes("`/portal/clients/${client.id}/portals`"), "portal CTA route missing");
     assert.ok(clientHome.includes("`/portal/clients/${client.id}/assets`"), "assets CTA route missing");
+    assert.ok(clientHome.includes("<FulfilmentPortalPreview"), "customer portal preview should remain mounted in fulfilment");
   });
 
   it("presents client capabilities as built-in systems", () => {
@@ -138,14 +157,11 @@ describe("standalone portal nav audit", () => {
 
     assert.ok(clientTabs.includes('id: "systems"'), "client tab id should be systems");
     assert.ok(clientTabs.includes('label: "Systems"'), "client tab label should be Systems");
-    assert.ok(clientLayout.includes('label: "Systems"'), "client sidebar should show Systems");
+    assert.ok(clientLayout.includes('label: "Monitoring"'), "client sidebar should show Monitoring");
     assert.ok(clientLayout.includes("tab=systems"), "client sidebar should use systems tab");
     assert.ok(clientHome.includes('rawTabInput === "tools" ? "systems"'), "legacy tools tab links should resolve to systems");
-    assert.ok(clientHome.includes("<OverviewTabs clientId={client.id} active={tab} />"), "client workspace should render its tab strip");
     assert.ok(clientHome.includes('tab === "systems"'), "client systems tab branch missing");
     assert.ok(clientHome.includes("+ Add system"), "quick action should say Add system");
-    assert.ok(clientHome.includes("<h2 className=\"text-lg font-medium text-black/90\">Systems</h2>"), "systems heading missing");
-    assert.ok(clientHome.includes("active system"), "client workspace should use systems language for active counts");
     assert.ok(picker.includes("Typical live-stage system set"), "live recommendation copy should say system set");
     assert.ok(picker.includes("All recommended systems are already active."), "picker should say recommended systems");
     assert.ok(picker.includes("stage system"), "picker preset badge should say stage system");
@@ -157,15 +173,32 @@ describe("standalone portal nav audit", () => {
     assert.ok(!picker.includes("stage tool"), "picker should not say stage tool");
   });
 
-  it("creates a starter client portal in the same backend create-client action", () => {
+  it("keeps Sales and Finance available without optional setup", () => {
+    assert.ok(read(FINANCE_MANIFEST).includes("core: true"), "Finance must remain an always-on built-in");
+    assert.ok(read(LEADS_MANIFEST).includes("core: true"), "Sales must remain an always-on built-in");
+    const founderSeed = read(FOUNDER_SEED);
+    assert.ok(founderSeed.includes("installCorePluginsForScope"), "existing owner accounts must receive newly added built-ins");
+    assert.ok(founderSeed.includes("await installCorePluginsForScope({ agencyId: agency.id }, existing.id)"));
+  });
+
+  it("makes a client portal optional and keeps later creation available", () => {
     const route = read(CREATE_CLIENT_ROUTE);
     const modal = read(NEW_CLIENT_BUTTON);
     assert.ok(!existsSync(LEGACY_APPLY_INCUBATOR_ROUTE), "legacy separate starter-portal endpoint should stay removed");
     assert.ok(route.includes("setupClientStarterPortal"), "create route should own starter portal setup");
     assert.ok(route.includes("starterPortal"), "create route should accept a starterPortal request");
+    assert.ok(route.includes("const createPortal = body.createPortal === true"), "portal creation should require an explicit choice");
+    assert.ok(route.includes("if (createPortal)"), "portal setup should only run when selected");
+    assert.ok(route.includes("portalRequired: createPortal"), "client metadata should remember whether a portal is needed");
     assert.ok(route.includes("structuredClone(getState())"), "create route should snapshot state before portal setup");
     assert.ok(route.includes("client portal setup failed"), "create route should report portal setup failures clearly");
-    assert.ok(modal.includes("starterPortal:"), "new-client modal should request portal setup in the create call");
+    assert.ok(modal.includes('product.portalRequirement === "required"'), "products should be able to require portal creation");
+    assert.ok(modal.includes('product.portalRequirement === "none"'), "products should be able to disable portal creation");
+    assert.ok(modal.includes('portalRequirement: "optional"'), "ordinary products should keep portal creation optional");
+    assert.ok(modal.includes("Create a client portal now"), "new-client modal should offer portal creation");
+    assert.ok(modal.includes("You can create it later from their client record."), "modal should explain the later option");
+    assert.ok(modal.includes("? {") && modal.includes("starterPortal:"), "starter portal details should only be sent when selected");
+    assert.ok(read(CLIENT_HOME).includes('meta.portalBuiltAt ? "Portal preview" : "Create client portal"'), "client record should expose later portal creation");
     assert.ok(!modal.includes('fetch("/api/tenants/apply-incubator-variant"'), "modal should not fire a second portal setup request");
   });
 
@@ -194,7 +227,7 @@ describe("standalone portal nav audit", () => {
     }
   });
 
-  it("backs the client settings link with archive/reactivate controls", () => {
+  it("backs the client settings link with pause, resume, archive, and reactivate controls", () => {
     const layout = read(join(ROOT, "src", "app", "portal", "clients", "[clientId]", "layout.tsx"));
     const route = read(CLIENT_STATUS_ROUTE);
     const settings = read(CLIENT_SETTINGS_PAGE);
@@ -205,9 +238,13 @@ describe("standalone portal nav audit", () => {
     assert.ok(existsSync(CLIENT_SETTINGS_PAGE), "client settings page missing");
     assert.ok(route.includes("updateClient"), "client-status route should update clients");
     assert.ok(route.includes('"client.archived"'), "client-status route should log archive actions");
+    assert.ok(route.includes('"client.paused"'), "client-status route should log pause actions");
+    assert.ok(route.includes('"client.resumed"'), "client-status route should log resume actions");
     assert.ok(route.includes('"client.reactivated"'), "client-status route should log reactivate actions");
     assert.ok(settings.includes("ClientStatusActions"), "settings page should render lifecycle controls");
     assert.ok(actions.includes('fetch("/api/tenants/client-status"'), "settings action should call status route");
+    assert.ok(actions.includes("Pause client"), "settings action should expose pause");
+    assert.ok(actions.includes("Resume client"), "settings action should expose resume");
     assert.ok(tenants.includes("includeArchived"), "listClients should support archive filtering");
     assert.ok(tenants.includes('c.status !== "archived"'), "archived clients should be hidden by default");
   });
@@ -223,9 +260,8 @@ describe("standalone portal nav audit", () => {
   it("keeps account menu targets backed by real pages", () => {
     const src = read(PROFILE);
     const targets = [
-      ["href=\"/portal/account\"", join(ROOT, "src", "app", "portal", "account", "page.tsx")],
-      ["href=\"/portal/account/preferences\"", join(ROOT, "src", "app", "portal", "account", "preferences", "page.tsx")],
-      ["href=\"/portal/account/permissions\"", join(ROOT, "src", "app", "portal", "account", "permissions", "page.tsx")],
+      ['"/portal/account"', join(ROOT, "src", "app", "portal", "account", "page.tsx")],
+      ['"/portal/account/permissions"', join(ROOT, "src", "app", "portal", "account", "permissions", "page.tsx")],
     ];
     for (const [marker, path] of targets) {
       assert.ok(src.includes(marker), `${marker} missing from ProfileMenu`);
@@ -233,17 +269,20 @@ describe("standalone portal nav audit", () => {
     }
   });
 
-  it("keeps agency switch/add route wired", () => {
-    const src = read(SWITCHER);
-    assert.ok(src.includes('"/api/auth/agency-add"'), "agency add endpoint missing from switcher");
-    assert.ok(existsSync(join(ROOT, "src", "app", "api", "auth", "agency-add", "route.ts")));
+  it("keeps Milesymedia single-agency and parks the old multi-agency controls", () => {
+    const src = read(SIDEBAR);
+    assert.ok(src.includes('data-testid="tenant-identity"'));
+    assert.ok(!src.includes("TenantSwitcher"));
+    assert.ok(!existsSync(join(ROOT, "src", "app", "api", "auth", "agency-add", "route.ts")));
+    assert.ok(!existsSync(join(ROOT, "src", "app", "api", "auth", "agency-switch", "route.ts")));
+    assert.ok(existsSync(join(ARCHIVED_MULTI_AGENCY, "components", "AgencySwitcher.tsx")));
+    assert.ok(existsSync(join(ARCHIVED_MULTI_AGENCY, "api", "agency-add.ts")));
   });
 
   it("keeps sidebar empty states and footer settings plumbing", () => {
     const src = read(SIDEBAR);
     assert.ok(src.includes('data-testid="sidebar-empty-state"'));
-    assert.ok(src.includes("No systems enabled"));
-    assert.ok(src.includes("No systems active for this workspace yet."));
+    assert.ok(src.includes("No tools are available"));
     assert.ok(!src.includes("No tools enabled"));
     assert.ok(!src.includes("No tools active for this workspace yet."));
     assert.ok(!src.includes("No tools installed for this workspace yet."));
@@ -267,7 +306,7 @@ describe("standalone portal nav audit", () => {
     const page = read(AGENCY_SETTINGS_PAGE);
     const tabs = read(AGENCY_SETTINGS_TABS);
 
-    assert.ok(page.includes("stages and systems"), "settings header should say systems");
+    assert.ok(page.includes("Manage the workspace, your team"), "settings header should explain its purpose");
     assert.ok(page.includes("systemCount"), "settings context should use systemCount");
     assert.ok(tabs.includes('Stat label="Systems"'), "workspace stats should label built-ins as Systems");
     assert.ok(tabs.includes("recommended systems"), "phase help copy should say recommended systems");
@@ -297,9 +336,7 @@ describe("standalone portal nav audit", () => {
     const bookings = read(CUSTOMER_BOOKINGS);
     const orders = read(CUSTOMER_ORDERS);
 
-    assert.ok(home.includes("More sections will appear here as your provider prepares them."), "customer home should describe prepared sections");
-    assert.ok(home.includes("account view coming soon"), "customer home should avoid variant jargon");
-    assert.ok(home.includes("prepares account sections"), "empty customer state should avoid tools language");
+    assert.ok(home.includes('<CustomerPortalView section="home"'), "customer home should render the full customer portal");
     assert.ok(subroute.includes("not available yet"), "customer subroutes should use available/not available language");
     assert.ok(subroute.includes("is being prepared for your account"), "active-but-unexposed systems should read as prepared");
     assert.ok(bookings.includes("scheduling is ready for your account"), "bookings fallback should be customer-friendly");

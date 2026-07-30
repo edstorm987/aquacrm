@@ -55,7 +55,7 @@ export function ClientSopsTab({
     <section className="rounded-xl border border-black/10 bg-white p-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="text-lg font-medium text-black/90">SOPs for {phaseLabel}</h2>
+          <h2 className="text-lg font-medium text-black/90">Playbooks for {phaseLabel}</h2>
           <p className="mt-1 text-sm text-black/60">
             Filtered to {families.map(f => TAG_LABELS[f] ?? f).join(" · ")}.
             Read-only here; edits live on the agency SOPs shelf.

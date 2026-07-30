@@ -3,16 +3,20 @@
 import type { PluginApiRoute } from "../lib/aquaPluginTypes";
 import {
   contactLeadHandler,
+  createMarketingAssetHandler,
   createCampaignHandler,
   createLeadHandler,
   createTemplateHandler,
   deleteCampaignHandler,
+  deleteMarketingAssetHandler,
   listCampaignsHandler,
+  listMarketingAssetsHandler,
   listLeadsHandler,
   listTemplatesHandler,
   reportCampaignsHandler,
   reportLeadsHandler,
   updateCampaignHandler,
+  updateMarketingAssetHandler,
   updateLeadHandler,
   updateTemplateHandler,
 } from "./handlers";
@@ -31,6 +35,12 @@ const AGENCY_ADMINS = ["agency-owner", "agency-manager"] as const;
 const AGENCY_VIEWERS = ["agency-owner", "agency-manager", "agency-staff"] as const;
 
 export const ROUTES: PluginApiRoute[] = [
+  // Milesymedia-owned channels: social profiles, website, funnels, Google Ads.
+  { path: "assets", methods: ["GET"], handler: listMarketingAssetsHandler, visibleToRoles: [...AGENCY_VIEWERS] },
+  { path: "assets", methods: ["POST"], handler: createMarketingAssetHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "assets", methods: ["PATCH"], handler: updateMarketingAssetHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "assets", methods: ["DELETE"], handler: deleteMarketingAssetHandler, visibleToRoles: [...AGENCY_ADMINS] },
+
   // Campaigns (4 routes)
   { path: "campaigns", methods: ["GET"], handler: listCampaignsHandler, visibleToRoles: [...AGENCY_VIEWERS] },
   { path: "campaigns", methods: ["POST"], handler: createCampaignHandler, visibleToRoles: [...AGENCY_ADMINS] },

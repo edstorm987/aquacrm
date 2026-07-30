@@ -1,35 +1,40 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Not found · Milesymedia Portal",
+  title: "Not found · Milesymedia client portal",
 };
 
-const SUGGESTED = [
-  { href: "/", label: "Portal home", hint: "Start over" },
-  { href: "/login?next=/portal", label: "Sign in", hint: "Open your portal" },
-  { href: "/portal/agency", label: "Agency", hint: "Go to dashboard" },
-];
-
 export default function NotFound() {
+  const websiteUrl =
+    process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL ?? "http://localhost:3030";
+  const suggested = [
+    { href: websiteUrl, label: "Milesymedia", hint: "Return to the website" },
+    { href: "/login?next=/portal", label: "Sign in", hint: "Open your portal" },
+    {
+      href: "mailto:hello@milesymedia.co",
+      label: "Get help",
+      hint: "Contact Milesymedia",
+    },
+  ];
+
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-16 text-center">
-      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#0EA5A4]">
+      <p className="text-sm font-semibold uppercase text-[#8A563A]">
         Page not found
       </p>
       <h1 className="mt-4 text-4xl font-semibold tracking-tight text-black/90">
         This portal page does not exist.
       </h1>
       <p className="mt-3 text-sm leading-6 text-black/55">
-        This is the standalone Milesymedia portal app, so public website pages
-        are not mounted here.
+        The address may be incomplete or the portal page may have moved.
       </p>
 
       <ul className="mt-8 grid gap-3 sm:grid-cols-3">
-        {SUGGESTED.map((s) => (
+        {suggested.map((s) => (
           <li key={s.href}>
             <Link
               href={s.href}
-              className="block rounded-xl border border-black/10 bg-white p-4 text-left shadow-sm transition hover:bg-black/[0.02]"
+              className="block rounded-md border border-black/10 bg-white p-4 text-left shadow-sm transition hover:bg-black/[0.02]"
             >
               <span className="block text-sm font-semibold text-black/85">{s.label}</span>
               <span className="mt-1 block text-xs text-black/50">{s.hint}</span>

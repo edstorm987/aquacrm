@@ -31,6 +31,7 @@ export interface ParsedRow {
 }
 
 export interface ParseCsvResult {
+  headers: string[];
   headerVariants: Record<string, number>; // canonical name → column index
   rows: ParsedRow[];
   unrecognisedHeaders: string[];
@@ -99,10 +100,11 @@ export function parseCsv(text: string): ParseCsvResult {
   const cleaned = stripBom(text).replace(/\r\n/g, "\n");
   const lines = cleaned.split("\n").filter(l => l.length > 0);
   if (lines.length === 0) {
-    return { headerVariants: {}, rows: [], unrecognisedHeaders: [] };
+    return { headers: [], headerVariants: {}, rows: [], unrecognisedHeaders: [] };
   }
   const delimiter = detectDelimiter(lines[0] ?? "");
-  const header = splitCsvLine(lines[0] ?? "", delimiter).map(c => c.toLowerCase().trim());
+  const headers = splitCsvLine(lines[0] ?? "", delimiter).map(c => c.trim());
+  const header = headers.map(c => c.toLowerCase());
   const headerVariants: Record<string, number> = {};
   const unrecognised: string[] = [];
   for (let i = 0; i < header.length; i++) {
@@ -133,7 +135,7 @@ export function parseCsv(text: string): ParseCsvResult {
     }
     rows.push(row);
   }
-  return { headerVariants, rows, unrecognisedHeaders: unrecognised };
+  return { headers, headerVariants, rows, unrecognisedHeaders: unrecognised };
 }
 
 export function parseXlsxToDelimitedText(input: ArrayBuffer | Uint8Array | Buffer): string {

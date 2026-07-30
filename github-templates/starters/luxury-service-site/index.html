@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="{{CLIENT_NAME}} offers considered, personal service." />
+    <title>{{CLIENT_NAME}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="wordmark" href="./" aria-label="{{CLIENT_NAME}} home">{{CLIENT_NAME}}</a>
+      <nav aria-label="Primary navigation">
+        <a href="#work">Our work</a>
+        <a href="#approach">Approach</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <a class="portal-link" href="{{CLIENT_PORTAL_URL}}">Client portal</a>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <img src="assets/hero.jpg" alt="A considered contemporary interior" />
+        <div class="hero-shade"></div>
+        <div class="hero-copy">
+          <p class="eyebrow">Private, considered service</p>
+          <h1 id="hero-title">Spaces made personal.</h1>
+          <p>Thoughtful design, precise delivery, and a calm experience from first conversation to final detail.</p>
+          <a class="button button-light" href="#contact">Begin a conversation</a>
+        </div>
+      </section>
+
+      <section class="statement" id="approach">
+        <p class="eyebrow">The studio</p>
+        <h2>We create enduring spaces around the way you want to live.</h2>
+        <p class="body-copy">Every commission begins with listening. We bring clarity to the process, make each decision purposeful, and keep the full journey beautifully organised.</p>
+      </section>
+
+      <section class="work" id="work">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Selected work</p>
+            <h2>Quietly distinctive.</h2>
+          </div>
+          <p>A selection of considered spaces, materials, and details from recent work.</p>
+        </div>
+        <div class="project-grid">
+          <article>
+            <div class="project-image project-image-one" role="img" aria-label="Warm neutral interior detail"></div>
+            <p class="project-number">01</p>
+            <h3>Townhouse study</h3>
+            <p>Residential · London</p>
+          </article>
+          <article>
+            <div class="project-image project-image-two" role="img" aria-label="Dark walnut and stone material palette"></div>
+            <p class="project-number">02</p>
+            <h3>Private residence</h3>
+            <p>Interiors · Surrey</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="contact" id="contact">
+        <div>
+          <p class="eyebrow">New commissions</p>
+          <h2>Tell us what you are imagining.</h2>
+          <p>A short note is enough to begin. We will reply personally with the clearest next step.</p>
+        </div>
+        <form action="mailto:{{CLIENT_EMAIL}}" method="post" enctype="text/plain">
+          <label>
+            Name
+            <input name="name" autocomplete="name" required />
+          </label>
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="email" required />
+          </label>
+          <label>
+            What would you like to create?
+            <textarea name="message" rows="4" required></textarea>
+          </label>
+          <button class="button button-dark" type="submit">Send enquiry</button>
+        </form>
+      </section>
+    </main>
+
+    <footer>
+      <a class="wordmark" href="./">{{CLIENT_NAME}}</a>
+      <p>Designed and developed with Milesymedia.</p>
+      <a href="{{CLIENT_PORTAL_URL}}">Client portal</a>
+    </footer>
+    <script src="script.js"></script>
+    <script src="{{MILESYMEDIA_ORIGIN}}/milesy-tag.js" data-client-id="{{CLIENT_ID}}" data-property-id="{{PROPERTY_ID}}" defer></script>
+  </body>
+</html>

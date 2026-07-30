@@ -71,14 +71,14 @@ export class ContactService {
           phone: existing.phone ?? input.phone,
           company: existing.company ?? input.company,
           tags: Array.from(new Set([...existing.tags, ...(input.tags ?? [])])),
-          // Promotion is one-way: lead → customer → vendor never downgrades
-          // back to "lead". A move that flips lead→customer overwrites.
-          type: typeRank(input.type) > typeRank(existing.type) ? input.type : existing.type,
+          type: mergeContactType(existing.type, input.type),
           notes: existing.notes ?? input.notes,
+          customFields: { ...(input.customFields ?? {}), ...(existing.customFields ?? {}) },
           promotedFromLeadId: existing.promotedFromLeadId ?? input.promotedFromLeadId,
           nextMeetingAt: existing.nextMeetingAt ?? input.nextMeetingAt,
           meetingLink: existing.meetingLink ?? input.meetingLink,
           meetingNotes: existing.meetingNotes ?? input.meetingNotes,
+          salesPresentations: existing.salesPresentations ?? input.salesPresentations,
           callRecordingUrl: existing.callRecordingUrl ?? input.callRecordingUrl,
           sessionNotes: existing.sessionNotes ?? input.sessionNotes,
           inspirationLinks: existing.inspirationLinks ?? input.inspirationLinks,
@@ -110,6 +110,7 @@ export class ContactService {
       nextMeetingAt: input.nextMeetingAt,
       meetingLink: input.meetingLink,
       meetingNotes: input.meetingNotes,
+      salesPresentations: input.salesPresentations,
       callRecordingUrl: input.callRecordingUrl,
       sessionNotes: input.sessionNotes,
       inspirationLinks: input.inspirationLinks,
@@ -120,6 +121,7 @@ export class ContactService {
       designFeedback: input.designFeedback,
       supportNotes: input.supportNotes,
       notes: input.notes,
+      customFields: input.customFields,
       createdAt: ts,
       updatedAt: ts,
     };
@@ -158,6 +160,7 @@ export class ContactService {
         nextMeetingAt: lead.nextMeetingAt,
         meetingLink: lead.meetingLink,
         meetingNotes: lead.meetingNotes,
+        salesPresentations: lead.salesPresentations,
         callRecordingUrl: lead.callRecordingUrl,
         sessionNotes: lead.sessionNotes,
         inspirationLinks: lead.inspirationLinks,
@@ -168,6 +171,7 @@ export class ContactService {
         designFeedback: lead.designFeedback,
         supportNotes: lead.supportNotes,
         notes: lead.notes,
+        customFields: lead.customFields,
       },
       actor,
     );
@@ -217,7 +221,9 @@ export class ContactService {
   }
 }
 
-function typeRank(t: ContactType): number {
-  // Promotion ladder — higher wins on conflict.
-  return { lead: 0, vendor: 1, customer: 2 }[t];
+function mergeContactType(existing: ContactType, incoming: ContactType): ContactType {
+  // Pipeline conversion is the only implicit role change. Supplier,
+  // employee, account, and other relationships are edited explicitly.
+  if (existing === "lead" && incoming === "customer") return "customer";
+  return existing;
 }

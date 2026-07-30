@@ -12,7 +12,6 @@ import type {
   BosMePayload,
 } from "../lib/domain";
 import {
-  DEV_BYPASS_BANNER,
   buildLoginRedirect,
   isBosAsset,
   matchesBosPath,
@@ -38,14 +37,6 @@ export function evaluate(ctx: AuthGateContext, opts: AuthGateOptions = {}): Auth
   // can't follow 302 mid-asset-load) regardless of auth state.
   if (isBosAsset(ctx.pathname)) {
     return { outcome: "allow", reason: "static_asset" };
-  }
-
-  if (opts.devBypass) {
-    return {
-      outcome: "dev-bypass",
-      banner: DEV_BYPASS_BANNER,
-      reason: "dev_bypass",
-    };
   }
 
   if (!ctx.signedIn) {

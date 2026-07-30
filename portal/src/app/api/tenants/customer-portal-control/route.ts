@@ -5,6 +5,7 @@ import { isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import { deliverMagicLink, signMagicToken } from "@/lib/server/magicLink";
+import { cleanPortalProducts } from "@/lib/portalProducts";
 
 type PortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -25,6 +26,8 @@ interface Body {
   logoUrl?: unknown;
   accentColor?: unknown;
   billingUrl?: unknown;
+  products?: unknown;
+  experienceHeadline?: unknown;
 }
 
 function cleanMode(value: unknown): PortalMode {
@@ -75,7 +78,15 @@ function cleanPlanIncludes(value: unknown): string[] {
 }
 
 function cleanBillingCadence(value: unknown): string {
-  const allowed = ["One-off", "Monthly", "Quarterly", "Annually", "As agreed"];
+  const allowed = [
+    "Project",
+    "Project + ongoing care",
+    "One-off",
+    "Monthly",
+    "Quarterly",
+    "Annually",
+    "As agreed",
+  ];
   return typeof value === "string" && allowed.includes(value) ? value : "As agreed";
 }
 
@@ -95,9 +106,18 @@ export async function POST(req: NextRequest) {
 
   const clientId = cleanText(body.clientId, 120);
   const action = cleanText(body.action, 40);
+  if (!["build-portal", "save", "send-access"].includes(action)) {
+    return NextResponse.json({ ok: false, error: "unsupported action" }, { status: 400 });
+  }
   const agencyId = session.activeAgencyId ?? session.agencyId;
   const client = getClientForAgency(agencyId, clientId);
   if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+  if (action !== "build-portal" && typeof client.metadata?.portalBuiltAt !== "number") {
+    return NextResponse.json(
+      { ok: false, error: "Create the client portal before saving it or sending access." },
+      { status: 409 },
+    );
+  }
 
   const portalMode = cleanMode(body.mode);
   const portalLoginEmail = cleanEmail(body.loginEmail);
@@ -112,6 +132,8 @@ export async function POST(req: NextRequest) {
   const portalSupportWhatsappUrl = cleanSupportUrl(body.supportWhatsappUrl);
   const portalLogoUrl = cleanSupportUrl(body.logoUrl);
   const portalAccentColor = cleanHexColor(body.accentColor) || "#8b6c33";
+  const portalProducts = cleanPortalProducts(body.products);
+  const portalExperienceHeadline = cleanText(body.experienceHeadline, 160);
   const stripeLink = cleanSupportUrl(body.billingUrl);
   if (typeof body.billingUrl === "string" && body.billingUrl.trim() && !stripeLink) {
     return NextResponse.json({ ok: false, error: "payment link must use http or https" }, { status: 400 });
@@ -138,11 +160,19 @@ export async function POST(req: NextRequest) {
       portalSupportWhatsappUrl,
       portalLogoUrl,
       portalAccentColor,
+      portalProducts,
+      portalExperienceHeadline,
       stripeLink,
       portalBuiltAt,
+      portalRequired: action === "build-portal"
+        ? true
+        : client.metadata?.portalRequired,
       portalShellVersion: action === "build-portal"
         ? "milesymedia-customer-home-v2"
         : client.metadata?.portalShellVersion,
+      portalProvisioningSource: action === "build-portal"
+        ? "built-in"
+        : client.metadata?.portalProvisioningSource,
       portalAccessUpdatedAt: Date.now(),
     },
   });

@@ -45,6 +45,8 @@ let storage: StorageMod;
 let tenants: TenantsMod;
 
 before(async () => {
+  // Domain tests must never reset the developer's real local portal state.
+  process.env.PORTAL_BACKEND = "memory";
   pipelines = await import("../src/server/pipelines");
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
@@ -163,8 +165,36 @@ describe("Pipelines — default seed (idempotent)", () => {
     const list = pipelines.listPipelines(agencyId);
     assert.deepEqual(list.map(p => p.kind), ["fulfilment", "leads", "sales"]);
     const fulfilment = list[0]!;
-    assert.deepEqual(fulfilment.columns.map(c => c.id), ["discovery", "design", "onboarding", "live", "churned"]);
+    assert.deepEqual(fulfilment.columns.map(c => c.id), [
+      "aqua-epic-intro",
+      "aqua-blueprint",
+      "aqua-diagnostics",
+      "aqua-brand-builder",
+      "aqua-traffic",
+      "aqua-mastery",
+      "churned",
+    ]);
+    assert.deepEqual(fulfilment.columns.map(c => c.label), [
+      "Onboarding",
+      "Planning",
+      "Content & foundations",
+      "Design",
+      "Build & launch",
+      "Live care",
+      "Closed",
+    ]);
     assert.deepEqual(fulfilment.allowedCardKinds, ["client"]);
+    const leads = list[1]!;
+    assert.deepEqual(leads.columns.map(c => c.id), [
+      "scouting",
+      "new",
+      "contacted",
+      "meeting",
+      "proposal",
+      "awaiting-payment",
+      "won",
+      "lost",
+    ]);
   });
 
   it("seedDefaultPipelines is idempotent — second call adds none", async () => {
@@ -178,7 +208,15 @@ describe("Pipelines — default seed (idempotent)", () => {
 
   it("FULFILMENT_STAGE_TO_COLUMN covers every ClientStage", () => {
     // Just spot-check the canonical Aqua + legacy stages map to a valid column id.
-    const validColumns = new Set(["discovery", "design", "onboarding", "live", "churned"]);
+    const validColumns = new Set([
+      "aqua-epic-intro",
+      "aqua-blueprint",
+      "aqua-diagnostics",
+      "aqua-brand-builder",
+      "aqua-traffic",
+      "aqua-mastery",
+      "churned",
+    ]);
     for (const stage of [
       "lead", "discovery", "design", "development", "onboarding", "live", "churned",
       "aqua-epic-intro", "aqua-blueprint", "aqua-diagnostics",
@@ -215,8 +253,8 @@ describe("Pipelines — cards + projection + migration", () => {
     assert.equal(projections.length, 2);
     const liveProj = projections.find(p => p.client.name === "Felicia");
     const discProj = projections.find(p => p.client.name === "Maya");
-    assert.equal(liveProj!.columnId, "live");
-    assert.equal(discProj!.columnId, "discovery");
+    assert.equal(liveProj!.columnId, "aqua-mastery");
+    assert.equal(discProj!.columnId, "aqua-epic-intro");
   });
 
   it("migrateClientsToFulfilment creates one card per client + idempotent on re-run", async () => {
@@ -253,12 +291,12 @@ describe("Pipelines — wiring (source markers)", () => {
     assert.match(src, /migrateClientsToFulfilment/);
   });
 
-  it("/portal/agency hub renders pipelines grid (data-testid)", () => {
+  it("/portal/agency hub keeps a single guided operating view", () => {
     const src = readFileSync(HUB_PAGE, "utf-8");
     assert.match(src, /data-testid="agency-pipelines-hub"/);
-    assert.match(src, /data-testid="pipelines-grid"/);
     assert.match(src, /\/portal\/agency\/pipelines\//);
     assert.match(src, /seedDefaultPipelines/);
+    assert.doesNotMatch(src, /data-testid="pipelines-grid"/);
     // No more single Clients grid as the primary section.
     assert.doesNotMatch(src, /lastByClient/);
   });
@@ -266,16 +304,18 @@ describe("Pipelines — wiring (source markers)", () => {
   it("/portal/agency/pipelines/[slug] renders columns + switcher", () => {
     const src = readFileSync(PIPELINE_VIEW, "utf-8");
     assert.match(src, /data-testid="pipeline-view"/);
-    assert.match(src, /data-testid="pipeline-switcher"/);
+    assert.match(src, /aria-label="Work boards"/);
     assert.match(src, /data-testid="pipeline-columns"/);
     assert.match(src, /getPipelineBySlug/);
-    assert.match(src, /projectClientsToFulfilmentCards/);
+    assert.match(src, /data-testid="fulfilment-overview"/);
+    assert.match(src, /PRODUCT_PIPELINE_COLUMNS/);
+    assert.match(src, /productPipelineStages/);
     assert.match(src, /notFound\(\)/);
   });
 
-  it("sidebar nav points Pipelines at /portal/agency/pipelines/fulfilment", () => {
+  it("sidebar nav opens the unified Pipelines workspace on sales and leads", () => {
     const src = readFileSync(NAV, "utf-8");
-    assert.match(src, /\/portal\/agency\/pipelines\/fulfilment/);
+    assert.match(src, /\/portal\/agency\/pipelines\/leads/);
     assert.doesNotMatch(src, /\/portal\/agency#clients/);
   });
 });

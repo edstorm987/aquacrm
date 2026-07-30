@@ -10,6 +10,7 @@ import {
   type ClientTelemetryEventType,
   type ClientTelemetrySnapshot,
 } from "@/lib/clientTelemetry";
+import { syncClientPerformanceMilestones } from "@/server/clientMilestones";
 
 const MAX_EVENTS_PER_CLIENT = 500;
 const MAX_EVENTS_PER_MINUTE = 120;
@@ -157,6 +158,15 @@ export function recordClientTelemetry(
     value: cleanNumber(input.value),
     release: cleanText(input.release, 160),
     environment: cleanText(input.environment, 80),
+    sessionId: cleanText(input.sessionId, 120),
+    formName: cleanText(input.formName, 160),
+    query: cleanText(input.query, 300),
+    impressions: cleanNumber(input.impressions),
+    clicks: cleanNumber(input.clicks),
+    position: cleanNumber(input.position),
+    experimentId: cleanText(input.experimentId, 120),
+    variant: cleanText(input.variant, 120),
+    conversionValueCents: cleanNumber(input.conversionValueCents),
     userAgent: cleanText(userAgent, 400),
   };
 
@@ -229,5 +239,43 @@ export function recordClientTelemetry(
     });
   }
 
+  if (["error", "deployment", "form", "conversion", "search", "chatbot", "interaction", "custom"].includes(event.type)) {
+    const eventLabel = event.type === "form"
+      ? "form submission"
+      : event.type === "chatbot"
+        ? "chatbot interaction"
+        : event.type;
+    logActivity({
+      agencyId: client.agencyId,
+      clientId: client.id,
+      category: event.type === "error"
+        ? "support"
+        : event.type === "deployment"
+          ? "fulfillment"
+          : event.type === "form"
+            ? "public-funnel"
+            : "marketing",
+      action: `telemetry.${event.type}`,
+      message: `${client.name} recorded a ${eventLabel}.`,
+      metadata: {
+        telemetryEventId: event.id,
+        propertyId: event.propertyId,
+        path: event.path,
+        url: event.url,
+        title: event.title,
+        metric: event.metric,
+        value: event.value,
+        release: event.release,
+        environment: event.environment,
+        message: event.type === "error" ? event.message : undefined,
+        messageLength: event.message?.length,
+        formName: event.formName,
+        experimentId: event.experimentId,
+        variant: event.variant,
+      },
+    });
+  }
+
+  syncClientPerformanceMilestones(client.agencyId, client.id);
   return { status: "recorded", clientId: client.id, event };
 }

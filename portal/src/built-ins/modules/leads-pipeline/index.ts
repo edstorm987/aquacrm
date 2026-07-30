@@ -1,7 +1,7 @@
 // Manifest export — `@aqua/plugin-leads-pipeline`.
 //
 // Auto-binds to the foundation's leads-kind pipeline (T1 R034 default
-// seed). Agency-scoped + opt-in. The foundation registers this plugin
+// seed). Agency-scoped and always available as a Milesymedia built-in.
 // in `_registry.ts` and at boot calls
 // `registerLeadsPipelineFoundation({...})` with its real port adapters.
 
@@ -30,7 +30,7 @@ const manifest: AquaPlugin = {
   description:
     "Owns the agency's leads pipeline: a CSV-importable contact rolodex, a Lead/Contact domain with promotion when a card moves to Won, and single-shot email blasts that enqueue through the email-sender plugin's queue. Subscribes to public-funnel.lead.captured so HC + Resources tools auto-deposit captures into the New column.",
 
-  core: false,
+  core: true,
   scopePolicy: "agency",
 
   navItems: [
@@ -53,7 +53,7 @@ const manifest: AquaPlugin = {
     {
       id: "leads-pipeline.campaigns",
       label: "Campaigns",
-      href: "/portal/agency/leads-pipeline/campaigns",
+      href: "/portal/agency/marketing",
       panelId: "marketing",
       order: 30,
       visibleToRoles: [...AGENCY_ADMINS],

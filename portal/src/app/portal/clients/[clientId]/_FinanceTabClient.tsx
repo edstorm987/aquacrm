@@ -17,8 +17,28 @@ interface Invoice {
   notes?: string;
 }
 
+interface ClientExpense {
+  id: string;
+  categoryId: string;
+  vendor?: string;
+  description?: string;
+  amountCents: number;
+  taxCents?: number;
+  currency: string;
+  incurredAt: number;
+  status: "pending" | "approved" | "reimbursed" | "rejected";
+  receiptUrl?: string;
+}
+
+interface ExpenseCategory {
+  id: string;
+  name: string;
+  status: "active" | "archived";
+}
+
 interface InitialState {
   planTier?: "foundational" | "expansion" | "mastery";
+  servicePlan?: string;
   lockInPaid?: boolean;
   stripeLink?: string;
 }
@@ -69,10 +89,13 @@ export function FinanceTabClient({
   initialContracts: ClientContract[];
 }) {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [clientExpenses, setClientExpenses] = useState<ClientExpense[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pluginMissing, setPluginMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [addingCost, setAddingCost] = useState(false);
   const [draft, setDraft] = useState({
     description: "",
     amount: "",
@@ -83,7 +106,11 @@ export function FinanceTabClient({
 
   async function refresh() {
     try {
-      const res = await fetch(`/api/portal/agency-finance/invoices?clientId=${encodeURIComponent(clientId)}`, { method: "GET" });
+      const [res, expenseRes, categoryRes] = await Promise.all([
+        fetch(`/api/portal/agency-finance/invoices?clientId=${encodeURIComponent(clientId)}`, { method: "GET" }),
+        fetch(`/api/portal/agency-finance/expenses?clientId=${encodeURIComponent(clientId)}`, { method: "GET" }),
+        fetch("/api/portal/agency-finance/categories", { method: "GET" }),
+      ]);
       if (!res.ok) {
         setPluginMissing(true);
         setInvoices([]);
@@ -91,6 +118,14 @@ export function FinanceTabClient({
       }
       const data = await res.json() as { ok: boolean; invoices?: Invoice[] };
       setInvoices(data.invoices ?? []);
+      if (expenseRes.ok) {
+        const expenseData = await expenseRes.json() as { expenses?: ClientExpense[] };
+        setClientExpenses(expenseData.expenses ?? []);
+      }
+      if (categoryRes.ok) {
+        const categoryData = await categoryRes.json() as { categories?: ExpenseCategory[] };
+        setExpenseCategories(categoryData.categories ?? []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -210,7 +245,16 @@ export function FinanceTabClient({
 
   const max = mrrSeries ? Math.max(...mrrSeries) : 0;
   const totalPaid = mrrSeries ? mrrSeries.reduce((a, b) => a + b, 0) : 0;
-  const planLabel = initial.planTier ? PLAN_LABELS[initial.planTier] : null;
+  const directCosts = clientExpenses
+    .filter(expense => expense.status === "reimbursed")
+    .reduce((sum, expense) => sum + expense.amountCents, 0);
+  const grossProfit = totalPaid - directCosts;
+  const planLabel = initial.servicePlan?.trim()
+    || (initial.planTier ? PLAN_LABELS[initial.planTier] : null);
+  const depositPaid = initial.lockInPaid === true || Boolean(invoices?.some(invoice =>
+    invoice.status === "paid"
+    && invoice.lineItems?.some(item => /\b(deposit|lock[\s-]?in)\b/i.test(item.description)),
+  ));
 
   return (
     <div data-testid="client-finance-tab" className="flex flex-col gap-4">
@@ -223,14 +267,14 @@ export function FinanceTabClient({
         ].join(" ")}>
           {planLabel ?? "Not set"}
         </span>
-        <span className="font-semibold uppercase tracking-wide text-black/55">· Lock-in</span>
+        <span className="font-semibold uppercase tracking-wide text-black/55">· Deposit</span>
         <span className={[
           "rounded-full px-2 py-0.5 font-medium",
-          initial.lockInPaid
+          depositPaid
             ? "bg-emerald-100 text-emerald-800"
             : "border border-black/10 bg-white text-black/55",
         ].join(" ")}>
-          {initial.lockInPaid ? "£100 paid" : "Unpaid"}
+          {depositPaid ? "Received" : "Unpaid"}
         </span>
         {initial.stripeLink && (
           <a
@@ -282,6 +326,55 @@ export function FinanceTabClient({
           <p className="mt-1 text-xs text-black/50">
             No paid invoices have been recorded for this client yet.
           </p>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-black/10 bg-white">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 p-4">
+          <div>
+            <h2 className="text-sm font-medium text-black/85">Client profitability</h2>
+            <p className="mt-1 text-xs text-black/45">Actual paid invoices less costs allocated to this client.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAddingCost(value => !value)}
+            className="rounded-md border border-black/15 px-3 py-1.5 text-xs font-medium hover:bg-black/5"
+          >
+            {addingCost ? "Cancel" : "Add client cost"}
+          </button>
+        </header>
+        <dl className="grid grid-cols-3 divide-x divide-black/10 border-b border-black/10">
+          <div className="p-4"><dt className="text-xs text-black/45">Paid income</dt><dd className="mt-1 font-semibold text-black/85">{fmtMoney(totalPaid, "GBP")}</dd></div>
+          <div className="p-4"><dt className="text-xs text-black/45">Direct costs</dt><dd className="mt-1 font-semibold text-black/85">{fmtMoney(directCosts, "GBP")}</dd></div>
+          <div className="p-4"><dt className="text-xs text-black/45">Gross profit</dt><dd className={`mt-1 font-semibold ${grossProfit < 0 ? "text-red-700" : "text-emerald-800"}`}>{fmtMoney(grossProfit, "GBP")}</dd></div>
+        </dl>
+        {addingCost ? (
+          <ClientCostForm
+            clientId={clientId}
+            categories={expenseCategories.filter(category => category.status === "active")}
+            busy={busy}
+            onBusy={setBusy}
+            onError={setError}
+            onSaved={async () => {
+              setAddingCost(false);
+              await refresh();
+            }}
+          />
+        ) : null}
+        {clientExpenses.length > 0 ? (
+          <div className="divide-y divide-black/[0.07]">
+            {clientExpenses.slice(0, 5).map(expense => (
+              <div key={expense.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                <div>
+                  <p className="font-medium text-black/80">{expense.vendor || expense.description || "Client cost"}</p>
+                  <p className="mt-0.5 text-xs text-black/45">{new Date(expense.incurredAt).toLocaleDateString("en-GB")} · {expense.status === "reimbursed" ? "Paid" : "Needs review"}</p>
+                </div>
+                <span className="font-mono font-semibold text-black/75">{fmtMoney(expense.amountCents, expense.currency)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 py-6 text-center text-sm text-black/45">No direct costs recorded for this client.</p>
         )}
       </section>
 
@@ -468,5 +561,92 @@ export function FinanceTabClient({
         )}
       </section>
     </div>
+  );
+}
+
+function ClientCostForm({
+  clientId,
+  categories,
+  busy,
+  onBusy,
+  onError,
+  onSaved,
+}: {
+  clientId: string;
+  categories: ExpenseCategory[];
+  busy: boolean;
+  onBusy: (value: boolean) => void;
+  onError: (value: string | null) => void;
+  onSaved: () => Promise<void>;
+}) {
+  return (
+    <form
+      className="border-b border-black/10 bg-black/[0.015] p-4"
+      onSubmit={async event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = new FormData(form);
+        const amountCents = Math.round(Number(data.get("amount") ?? 0) * 100);
+        const taxRate = Number(data.get("taxRate") ?? 0);
+        const taxCents = taxRate > 0 ? Math.round(amountCents - amountCents / (1 + taxRate / 100)) : 0;
+        if (!data.get("categoryId") || amountCents <= 0) {
+          onError("Choose a category and enter a positive cost.");
+          return;
+        }
+        onBusy(true);
+        onError(null);
+        try {
+          const response = await fetch("/api/portal/agency-finance/expenses", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              clientId,
+              categoryId: String(data.get("categoryId")),
+              vendor: String(data.get("vendor") ?? "").trim() || undefined,
+              description: String(data.get("description") ?? "").trim() || undefined,
+              amountCents,
+              taxCents,
+              taxRateBps: Math.round(taxRate * 100),
+              taxDeductible: true,
+              businessUsePercent: 100,
+              incurredAt: Date.parse(String(data.get("incurredAt"))) || Date.now(),
+              receiptUrl: String(data.get("receiptUrl") ?? "").trim() || undefined,
+              currency: "gbp",
+              recordAsPaid: true,
+            }),
+          });
+          const result = await response.json() as { ok?: boolean; error?: string };
+          if (!response.ok || !result.ok) {
+            onError(result.error ?? "Could not save client cost.");
+            return;
+          }
+          await onSaved();
+        } finally {
+          onBusy(false);
+        }
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="grid gap-1 text-xs font-medium text-black/60">Supplier<input name="vendor" className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" placeholder="Hosting provider" /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Category
+          <select name="categoryId" required defaultValue="" className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm">
+            <option value="" disabled>Choose category</option>
+            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Gross amount (£)<input name="amount" type="number" min="0.01" step="0.01" required className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Tax included
+          <select name="taxRate" defaultValue="20" className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm">
+            <option value="0">No tax</option><option value="5">5%</option><option value="20">20% VAT</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Date<input name="incurredAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Receipt URL<input name="receiptUrl" type="url" className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2 lg:col-span-3">Description<input name="description" className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" placeholder="What this cost covered" /></label>
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button disabled={busy} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save client cost"}</button>
+      </div>
+    </form>
   );
 }

@@ -7,17 +7,38 @@
 
 import Link from "next/link";
 import { ForgotForm } from "./ForgotForm";
+import { getAuthBrand } from "@/lib/authBrand";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: "Forgot password · Milesymedia Portal",
-};
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const brand = getAuthBrand(params.brand);
+  return {
+    title: `Forgot password · ${brand.name}`,
+    description: `Recover access to your ${brand.name} client workspace.`,
+  };
+}
 
-export default function ForgotPage() {
+export default async function ForgotPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
+  const params = await searchParams;
+  const brand = getAuthBrand(params.brand);
   return (
-    <main className="mm-auth-shell">
+    <main className="mm-auth-shell" data-auth-brand={brand.id}>
       <div className="mm-auth-split">
         <aside className="mm-auth-brand-panel" aria-hidden="true">
-          <span className="mm-auth-brand-eyebrow">Milesymedia Portal</span>
+          <div className="mm-auth-brand-mark">
+            <span>{brand.mark}</span>
+            <strong>{brand.name}</strong>
+          </div>
+          <span className="mm-auth-brand-eyebrow">Client portal</span>
           <h2 className="mm-auth-brand-headline">
             Lock-out happens.<br />
             We&apos;ll get you back in.
@@ -26,18 +47,20 @@ export default function ForgotPage() {
             Pop your email below and we&apos;ll send a reset link, valid for
             24 hours.
           </p>
-          <span className="mm-auth-brand-foot">portal.milesymedia</span>
+          <span className="mm-auth-brand-foot">
+            Secure access provided by {brand.name}
+          </span>
         </aside>
 
         <div className="mm-auth-card">
           <div className="mm-auth-card-head">
             <h1>Forgot password</h1>
-            <p>Enter the email tied to your Milesymedia portal account.</p>
+            <p>Enter the email used for your {brand.name} workspace.</p>
           </div>
           <ForgotForm />
           <div className="mm-auth-foot">
             <span>
-              Remembered it? <Link href="/login">Sign in →</Link>
+              Remembered it? <Link href={`/login?brand=${brand.id}`}>Sign in →</Link>
             </span>
           </div>
         </div>

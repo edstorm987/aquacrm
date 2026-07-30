@@ -8,17 +8,20 @@ interface ClientStatusActionsProps {
 }
 
 export function ClientStatusActions({ clientId, status }: ClientStatusActionsProps) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"active" | "suspended" | "archived" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const archived = status === "archived";
+  const paused = status === "suspended";
 
-  async function submit(nextStatus: "active" | "archived") {
+  async function submit(nextStatus: "active" | "suspended" | "archived") {
     const confirmed = nextStatus === "archived"
       ? window.confirm("Archive this client? They will be hidden from the main client list.")
+      : nextStatus === "suspended"
+        ? window.confirm("Pause this client? Their record and portal will stay available, while active work and reminders are held.")
       : true;
     if (!confirmed) return;
 
-    setBusy(true);
+    setBusy(nextStatus);
     setError(null);
     try {
       const res = await fetch("/api/tenants/client-status", {
@@ -33,7 +36,7 @@ export function ClientStatusActions({ clientId, status }: ClientStatusActionsPro
       window.location.href = nextStatus === "archived" ? "/portal/clients" : `/portal/clients/${clientId}/settings`;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update client status.");
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -43,27 +46,48 @@ export function ClientStatusActions({ clientId, status }: ClientStatusActionsPro
         <div>
           <h2 className="text-base font-semibold text-black/85">Client status</h2>
           <p className="mt-1 max-w-xl text-sm leading-6 text-black/60">
-            Archive a client when the work is finished, cancelled, or no longer needs to sit in the live workspace.
+            Pause active work without losing the client&apos;s history or portal. Archive only when the relationship is finished.
           </p>
         </div>
         {archived ? (
           <button
             type="button"
-            disabled={busy}
+            disabled={busy !== null}
             onClick={() => submit("active")}
             className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {busy ? "Reactivating..." : "Reactivate client"}
+            {busy === "active" ? "Reactivating..." : "Reactivate client"}
           </button>
         ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => submit("archived")}
-            className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {busy ? "Archiving..." : "Archive client"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {paused ? (
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() => submit("active")}
+                className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {busy === "active" ? "Resuming..." : "Resume client"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() => submit("suspended")}
+                className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {busy === "suspended" ? "Pausing..." : "Pause client"}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => submit("archived")}
+              className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy === "archived" ? "Archiving..." : "Archive client"}
+            </button>
+          </div>
         )}
       </div>
       {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

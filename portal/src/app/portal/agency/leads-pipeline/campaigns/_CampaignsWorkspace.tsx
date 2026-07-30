@@ -11,7 +11,18 @@ interface CampaignRow {
   subject: string;
   bodyHtml: string;
   bodyText?: string;
-  status: "draft" | "scheduled" | "sending" | "sent";
+  channel?: CampaignChannel;
+  sourceKey?: string;
+  status: "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed";
+  budgetCents?: number;
+  spendCents?: number;
+  attributedRevenueCents?: number;
+  startsAt?: number;
+  endsAt?: number;
+  externalUrl?: string;
+  notes?: string;
+  attributedLeads?: number;
+  attributedClients?: number;
   recipients: number;
   sentCount: number;
   sentAt?: number;
@@ -30,18 +41,35 @@ interface CampaignsWorkspaceProps {
   availableSources: string[];
   pipelineColumns: string[];
   emailSenderReady: boolean;
+  embedded?: boolean;
 }
 
 const EMPTY_FORM = {
   name: "",
+  channel: "email" as CampaignChannel,
+  sourceKey: "",
   subject: "",
   bodyText: "",
+  budget: "",
+  spend: "",
+  revenue: "",
+  startsAt: "",
+  endsAt: "",
+  externalUrl: "",
+  notes: "",
   tags: "",
   sourcedFrom: "",
   pipelineColumn: "",
 };
 
-export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady }: CampaignsWorkspaceProps) {
+type CampaignChannel = "email" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "event" | "referral" | "other";
+const CHANNEL_LABELS: Record<CampaignChannel, string> = {
+  email: "Email", "google-ads": "Google Ads", "meta-ads": "Meta Ads",
+  "linkedin-ads": "LinkedIn Ads", organic: "Organic", event: "Event",
+  referral: "Referral", other: "Other",
+};
+
+export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady, embedded = false }: CampaignsWorkspaceProps) {
   const router = useRouter();
   const [form, setForm] = useState(EMPTY_FORM);
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
@@ -52,6 +80,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
   const draftCount = campaigns.filter(c => c.status === "draft").length;
   const sentCount = campaigns.filter(c => c.status === "sent").length;
   const totalSent = campaigns.reduce((sum, c) => sum + c.sentCount, 0);
+  const totalSpend = campaigns.reduce((sum, c) => sum + (c.spendCents ?? 0), 0);
 
   const audienceFilter = useMemo(() => ({
     tags: splitList(form.tags),
@@ -91,9 +120,18 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: form.name,
+          channel: form.channel,
+          sourceKey: form.sourceKey,
           subject: form.subject,
           bodyHtml: textToHtml(form.bodyText),
           bodyText: form.bodyText,
+          budgetCents: poundsToCents(form.budget),
+          spendCents: poundsToCents(form.spend),
+          attributedRevenueCents: poundsToCents(form.revenue),
+          startsAt: dateToMs(form.startsAt),
+          endsAt: dateToMs(form.endsAt),
+          externalUrl: form.externalUrl,
+          notes: form.notes,
           audienceFilter,
         }),
       });
@@ -146,9 +184,19 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: draft.name,
+          channel: draft.channel,
+          sourceKey: draft.sourceKey,
           subject: draft.subject,
           bodyHtml: textToHtml(draft.bodyText),
           bodyText: draft.bodyText,
+          budgetCents: poundsToCents(draft.budget),
+          spendCents: poundsToCents(draft.spend),
+          attributedRevenueCents: poundsToCents(draft.revenue),
+          startsAt: dateToMs(draft.startsAt),
+          endsAt: dateToMs(draft.endsAt),
+          externalUrl: draft.externalUrl,
+          notes: draft.notes,
+          status: draft.status,
           audienceFilter,
         }),
       });
@@ -164,8 +212,8 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
   }
 
   return (
-    <main data-testid="leads-pipeline-campaigns" className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <div data-testid="leads-pipeline-campaigns" className="flex flex-col gap-6">
+      {!embedded ? <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Outreach</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">Campaigns</h1>
@@ -181,15 +229,16 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
             Contacts
           </Link>
         </div>
-      </header>
+      </header> : null}
 
-      <WorkflowSteps active="outreach" />
+      {!embedded ? <WorkflowSteps active="outreach" /> : null}
 
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat label="Campaigns" value={String(campaigns.length)} />
         <Stat label="Drafts" value={String(draftCount)} />
         <Stat label="Sent campaigns" value={String(sentCount)} />
         <Stat label="Emails queued" value={String(totalSent)} />
+        <Stat label="Spend tracked" value={formatMoney(totalSpend)} />
       </section>
 
       {(notice || error) && (
@@ -208,6 +257,11 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="grid gap-3">
             <Field label="Campaign name" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="July website audit follow-up" required />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SelectField label="Channel" value={form.channel} onChange={v => setForm(f => ({ ...f, channel: v as CampaignChannel }))} options={Object.entries(CHANNEL_LABELS)} />
+              <Field label="Source key" value={form.sourceKey} onChange={v => setForm(f => ({ ...f, sourceKey: v }))} placeholder="google-search-july" />
+            </div>
+            {form.channel === "email" ? <>
             <Field label="Subject" value={form.subject} onChange={v => setForm(f => ({ ...f, subject: v }))} placeholder="Quick idea for your website" required />
             <label className="text-xs font-medium text-black/60">
               Email body
@@ -220,6 +274,19 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                 placeholder={"Hi {{name}},\n\nI had a quick look at {{company}} and spotted a few easy wins...\n\nEd"}
               />
             </label>
+            </> : <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Campaign link" value={form.externalUrl} onChange={v => setForm(f => ({ ...f, externalUrl: v }))} placeholder="https://..." />
+              <Field label="Notes" value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))} placeholder="Audience, creative, objective..." />
+            </div>}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Budget (£)" value={form.budget} onChange={v => setForm(f => ({ ...f, budget: v }))} placeholder="500" />
+              <Field label="Spend to date (£)" value={form.spend} onChange={v => setForm(f => ({ ...f, spend: v }))} placeholder="0" />
+              <Field label="Revenue attributed (£)" value={form.revenue} onChange={v => setForm(f => ({ ...f, revenue: v }))} placeholder="0" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Start date" type="date" value={form.startsAt} onChange={v => setForm(f => ({ ...f, startsAt: v }))} />
+              <Field label="End date" type="date" value={form.endsAt} onChange={v => setForm(f => ({ ...f, endsAt: v }))} />
+            </div>
           </div>
 
           <aside className="rounded-lg border border-black/10 bg-black/[0.02] p-3">
@@ -266,13 +333,18 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate text-sm font-semibold text-black/90">{campaign.name}</h3>
-                  <p className="mt-1 truncate text-xs text-black/50">{campaign.subject}</p>
+                  <p className="mt-1 truncate text-xs text-black/50">{CHANNEL_LABELS[campaign.channel ?? "email"]}{campaign.sourceKey ? ` · ${campaign.sourceKey}` : ""}{campaign.subject ? ` · ${campaign.subject}` : ""}</p>
                 </div>
                 <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium capitalize text-black/55">{campaign.status}</span>
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-black/55">
                 <span>{campaign.recipients} recipients</span>
                 <span>{campaign.sentCount} sent</span>
+                <span>{formatMoney(campaign.spendCents ?? 0)} spent</span>
+                {campaign.budgetCents ? <span>of {formatMoney(campaign.budgetCents)} budget</span> : null}
+                <span>{campaign.attributedLeads ?? 0} leads</span>
+                <span>{campaign.attributedClients ?? 0} clients</span>
+                {campaign.attributedRevenueCents ? <span>{formatMoney(campaign.attributedRevenueCents)} revenue</span> : null}
                 {campaign.sentAt && <span>Sent {new Date(campaign.sentAt).toLocaleDateString()}</span>}
               </div>
               {campaign.status !== "sent" && campaign.status !== "sending" && (
@@ -284,7 +356,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                 />
               )}
               <div className="mt-3 flex flex-wrap gap-2 border-t border-black/10 pt-3">
-                {campaign.status !== "sent" && campaign.status !== "sending" && (
+                {(campaign.channel ?? "email") === "email" && campaign.status !== "sent" && campaign.status !== "sending" && (
                   <button
                     type="button"
                     onClick={() => sendCampaign(campaign.id)}
@@ -299,14 +371,24 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
           ))}
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
 interface CampaignDraft {
   name: string;
+  channel: CampaignChannel;
+  sourceKey: string;
   subject: string;
   bodyText: string;
+  budget: string;
+  spend: string;
+  revenue: string;
+  startsAt: string;
+  endsAt: string;
+  externalUrl: string;
+  notes: string;
+  status: CampaignRow["status"];
   tags: string;
   sourcedFrom: string;
   pipelineColumn: string;
@@ -325,11 +407,21 @@ function CampaignEditor({
 }) {
   const [draft, setDraft] = useState<CampaignDraft>({
     name: campaign.name,
+    channel: campaign.channel ?? "email",
+    sourceKey: campaign.sourceKey ?? "",
     subject: campaign.subject,
     bodyText: campaign.bodyText ?? htmlToText(campaign.bodyHtml),
     tags: (campaign.audienceFilter.tags ?? []).join(", "),
     sourcedFrom: (campaign.audienceFilter.sourcedFrom ?? []).join(", "),
     pipelineColumn: campaign.audienceFilter.pipelineColumn ?? "",
+    budget: centsToInput(campaign.budgetCents),
+    spend: centsToInput(campaign.spendCents),
+    revenue: centsToInput(campaign.attributedRevenueCents),
+    startsAt: msToDate(campaign.startsAt),
+    endsAt: msToDate(campaign.endsAt),
+    externalUrl: campaign.externalUrl ?? "",
+    notes: campaign.notes ?? "",
+    status: campaign.status,
   });
 
   return (
@@ -338,11 +430,23 @@ function CampaignEditor({
       <div className="mt-3 grid gap-3">
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Campaign name" value={draft.name} onChange={value => setDraft(d => ({ ...d, name: value }))} required />
-          <Field label="Subject" value={draft.subject} onChange={value => setDraft(d => ({ ...d, subject: value }))} required />
+          <SelectField label="Channel" value={draft.channel} onChange={value => setDraft(d => ({ ...d, channel: value as CampaignChannel }))} options={Object.entries(CHANNEL_LABELS)} />
+          <Field label="Source key" value={draft.sourceKey} onChange={value => setDraft(d => ({ ...d, sourceKey: value }))} />
+          <SelectField label="Status" value={draft.status} onChange={value => setDraft(d => ({ ...d, status: value as CampaignRow["status"] }))} options={[["draft", "Draft"], ["active", "Active"], ["paused", "Paused"], ["completed", "Completed"]]} />
+          {draft.channel === "email" ? <Field label="Subject" value={draft.subject} onChange={value => setDraft(d => ({ ...d, subject: value }))} required /> : null}
           <Field label="Tags" value={draft.tags} onChange={value => setDraft(d => ({ ...d, tags: value }))} placeholder="warm, follow-up" />
           <Field label="Sources" value={draft.sourcedFrom} onChange={value => setDraft(d => ({ ...d, sourcedFrom: value }))} placeholder="sheet-upload, manual" />
         </div>
-        <label className="text-xs font-medium text-black/60">
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Budget (£)" value={draft.budget} onChange={value => setDraft(d => ({ ...d, budget: value }))} />
+          <Field label="Spend to date (£)" value={draft.spend} onChange={value => setDraft(d => ({ ...d, spend: value }))} />
+          <Field label="Revenue attributed (£)" value={draft.revenue} onChange={value => setDraft(d => ({ ...d, revenue: value }))} />
+          <Field label="Start date" type="date" value={draft.startsAt} onChange={value => setDraft(d => ({ ...d, startsAt: value }))} />
+          <Field label="End date" type="date" value={draft.endsAt} onChange={value => setDraft(d => ({ ...d, endsAt: value }))} />
+          <Field label="Campaign link" value={draft.externalUrl} onChange={value => setDraft(d => ({ ...d, externalUrl: value }))} />
+        </div>
+        <Field label="Notes" value={draft.notes} onChange={value => setDraft(d => ({ ...d, notes: value }))} />
+        {draft.channel === "email" ? <label className="text-xs font-medium text-black/60">
           Pipeline stage
           <select
             value={draft.pipelineColumn}
@@ -352,7 +456,7 @@ function CampaignEditor({
             <option value="">Any stage</option>
             {pipelineColumns.map(col => <option key={col} value={col}>{col}</option>)}
           </select>
-        </label>
+        </label> : null}
         <label className="text-xs font-medium text-black/60">
           Email body
           <textarea
@@ -380,6 +484,7 @@ function Field({
   value,
   onChange,
   placeholder,
+  type = "text",
   required = false,
 }: {
   label: string;
@@ -387,12 +492,14 @@ function Field({
   onChange: (value: string) => void;
   placeholder?: string;
   required?: boolean;
+  type?: string;
 }) {
   return (
     <label className="block text-xs font-medium text-black/60">
       {label}
       <input
         required={required}
+        type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
@@ -400,6 +507,10 @@ function Field({
       />
     </label>
   );
+}
+
+function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]> }) {
+  return <label className="block text-xs font-medium text-black/60">{label}<select value={value} onChange={event => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/80">{options.map(([option, text]) => <option key={option} value={option}>{text}</option>)}</select></label>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -413,6 +524,28 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function splitList(value: string): string[] {
   return value.split(",").map(item => item.trim()).filter(Boolean);
+}
+
+function poundsToCents(value: string): number | undefined {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) : undefined;
+}
+
+function centsToInput(value?: number): string {
+  return value === undefined ? "" : String(value / 100);
+}
+
+function formatMoney(value: number): string {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(value / 100);
+}
+
+function dateToMs(value: string): number | undefined {
+  const result = value ? new Date(`${value}T12:00:00`).getTime() : Number.NaN;
+  return Number.isFinite(result) ? result : undefined;
+}
+
+function msToDate(value?: number): string {
+  return value ? new Date(value).toISOString().slice(0, 10) : "";
 }
 
 function textToHtml(value: string): string {

@@ -41,7 +41,7 @@ const MIN_LENGTHS: Record<string, number> = {
 const EXAMPLE_SENTINELS: Record<string, string[]> = {
   FOUNDER_EMAIL: ["edwardhallam07@gmail.com"],
   PORTAL_SESSION_SECRET: ["", "dev-secret", "change-me", "your-secret-here"],
-  NEXT_PUBLIC_PORTAL_BASE_URL: ["http://localhost:3030", ""],
+  NEXT_PUBLIC_PORTAL_BASE_URL: ["http://localhost:3032", ""],
 };
 
 // Allowlist of recognised env keys. The startup self-check warns when
@@ -50,6 +50,8 @@ const EXAMPLE_SENTINELS: Record<string, string[]> = {
 // every framework's own surface) are ignored.
 export const ENV_ALLOWLIST: readonly string[] = [
   "PORTAL_SESSION_SECRET",
+  "PORTAL_VAULT_ENCRYPTION_KEY",
+  "PORTAL_PREVIEW_SECRET",
   "PORTAL_BACKEND",
   "PORTAL_PG_POOL_MAX",
   "PORTAL_PG_IDLE_MS",
@@ -57,10 +59,11 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "DATABASE_URL",
   "NEXT_PUBLIC_PORTAL_BASE_URL",
   "NEXT_PUBLIC_PORTAL_SECURITY",
-  "NEXT_PUBLIC_DEV_BYPASS",
   "FOUNDER_EMAIL",
   "FOUNDER_PASSWORD",
   "FOUNDER_AGENCY_NAME",
+  "GITHUB_TOKEN",
+  "GITHUB_OWNER",
   "VERCEL_TOKEN",
   "VERCEL_TEAM_ID",
   "VERCEL_ENV",
@@ -76,6 +79,8 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "MILESYMEDIA_SUPPORT_EMAIL",
   "MILESYMEDIA_SUPPORT_PHONE",
   "MILESYMEDIA_SUPPORT_WHATSAPP_URL",
+  "MILESYMEDIA_ASSISTANT_API_TOKEN",
+  "MILESYMEDIA_ASSISTANT_AGENCY_ID",
   "BLOB_READ_WRITE_TOKEN",
   "BLOB_STORE_ID",
   "SENTRY_DSN",
@@ -85,9 +90,13 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "GOOGLE_OAUTH_CLIENT_ID",
   "GOOGLE_OAUTH_CLIENT_SECRET",
   "GOOGLE_OAUTH_REDIRECT_URI",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+  "OPENAI_API_KEY",
+  "OPENAI_ASSISTANT_MODEL",
 ] as const;
 
-const PORTAL_KEY_PATTERN = /^(PORTAL_|FOUNDER_|NEXT_PUBLIC_PORTAL_|NEXT_PUBLIC_SENTRY|SENTRY_|VERCEL_|GOOGLE_OAUTH_|POSTMARK_|MILESYMEDIA_|BLOB_)/;
+const PORTAL_KEY_PATTERN = /^(PORTAL_|FOUNDER_|GITHUB_|NEXT_PUBLIC_PORTAL_|NEXT_PUBLIC_SENTRY|SENTRY_|VERCEL_|GOOGLE_OAUTH_|POSTMARK_|MILESYMEDIA_|BLOB_|STRIPE_|OPENAI_)/;
 
 interface RequireOpts {
   // When true, also throws in dev (caller treats this var as

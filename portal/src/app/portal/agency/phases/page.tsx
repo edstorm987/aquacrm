@@ -93,8 +93,7 @@ export default async function PhasesPreviewPage() {
       <section className="rounded-lg border border-dashed border-black/15 bg-black/[0.02] p-4">
         <h2 className="text-sm font-semibold text-black/80">+ Add custom phase</h2>
         <p className="mt-1 text-xs text-black/60">
-          New custom phases land at the bottom of the order. Optional CSS / JS is injected
-          into the client portal head when previewing this phase.
+          Add another phase when a project needs a step outside the standard journey.
         </p>
         <AddCustomPhaseForm />
       </section>
@@ -104,7 +103,11 @@ export default async function PhasesPreviewPage() {
 
 function phaseDescription(description: string): string {
   return description
-    .replace(/\bNo plugin installs yet\./gi, "No extra systems are needed yet.")
+    .replace(
+      /\bOnboarding form \+ welcome scroll\. No plugin installs yet\./gi,
+      "Collect the brief, contacts, content, and access needed to begin.",
+    )
+    .replace(/\bNo plugin installs yet\./gi, "Everything needed for this phase is built in.")
     .replace(/\bAll plugins disabled, config preserved\./gi, "Engagement ended; history and settings are preserved.")
     .replace(/\bplugin installs\b/gi, "system setup")
     .replace(/\bplugins\b/gi, "systems");

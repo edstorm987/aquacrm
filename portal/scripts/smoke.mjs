@@ -9,15 +9,15 @@
 //   5. created client overview, Systems tab, and portal tab
 //
 // Usage:
-//   AQUA_BASE=http://localhost:3032 node scripts/smoke.mjs
+//   AQUA_BASE=http://localhost:3030 node scripts/smoke.mjs
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
-const BASE = process.env.AQUA_BASE || "http://localhost:3032";
+const BASE = process.env.AQUA_BASE || "http://localhost:3030";
 const FOUNDER_LOGIN = process.env.FOUNDER_LOGIN || "Ed";
-const FOUNDER_PASSWORD = process.env.FOUNDER_PASSWORD || "SuperCreator123!";
+const FOUNDER_PASSWORD = process.env.FOUNDER_PASSWORD || "AquaSmokePass123!";
 const JAR = join(tmpdir(), `milesymedia-portal-smoke-${process.pid}.json`);
 
 const failures = [];
@@ -80,7 +80,7 @@ function visibleHtml(html) {
 }
 
 async function main() {
-  console.log(`Standalone portal smoke against ${BASE}\n`);
+  console.log(`Unified Milesymedia smoke against ${BASE}\n`);
 
   console.log("§ Health");
   let res = await go("GET", "/healthz");
@@ -127,6 +127,7 @@ async function main() {
       name: `Smoke Client ${suffix}`,
       slug: `smoke-client-${suffix}`,
       ownerEmail: `smoke-client-${suffix}@example.com`,
+      createPortal: true,
       stage: "aqua-epic-intro",
       brand: { primaryColor: "#0EA5A4" },
       metadata: {
@@ -339,12 +340,12 @@ async function main() {
       && repliedSupportText.includes("Milesymedia"));
 
     const lifecycleChecks = [
-      ["onboarding", "We are laying the foundations."],
-      ["designing", "Your direction is taking shape."],
-      ["developed-launch", "The build is becoming real."],
-      ["maintenance", "Your digital home is live."],
+      ["onboarding", "We are laying the foundations.", "Tell us anything we should know."],
+      ["designing", "Your direction is taking shape.", "Leave focused design feedback."],
+      ["developed-launch", "The build is becoming real.", "Send a build note or launch question."],
+      ["maintenance", "Your digital home is live.", "Ask for a change or report an issue."],
     ];
-    for (const [mode, heading] of lifecycleChecks) {
+    for (const [mode, heading, responsePrompt] of lifecycleChecks) {
       const modeResponse = await go("POST", "/api/tenants/customer-portal-control", {
         body: { ...portalSettings, mode },
       });
@@ -353,6 +354,15 @@ async function main() {
       record(
         `${mode} lifecycle view persists`,
         modeResponse.status === 200 && modePreview.status === 200 && modePreviewText.includes(heading),
+      );
+      const projectPreview = await go("GET", `/client-preview/${clientId}?section=project`);
+      const projectPreviewText = await text(projectPreview);
+      record(
+        `${mode} gives the customer a stage-specific response`,
+        projectPreview.status === 200
+          && projectPreviewText.includes("Keep things moving.")
+          && projectPreviewText.includes(responsePrompt)
+          && projectPreviewText.includes("Customer can send this"),
       );
     }
     await go("POST", "/api/tenants/customer-portal-control", {
@@ -455,6 +465,37 @@ async function main() {
     record("customer contribution appears in portal files",
       filesPreview.status === 200 && filesPreviewText.includes("Customer inspiration"));
 
+    const recordingResponse = await go("POST", "/api/tenants/client-files", {
+      body: {
+        clientId,
+        action: "add",
+        file: {
+          name: "Discovery call recording",
+          url: "https://example.com/discovery-call.mp4",
+          category: "recording",
+        },
+      },
+    });
+    const recordingJson = recordingResponse.status < 300
+      ? await recordingResponse.json().catch(() => null)
+      : null;
+    record("call recording can be attached to the customer record", recordingResponse.status === 200);
+
+    const customerRecord = await go("GET", `/client-preview/${clientId}?section=resources`);
+    const customerRecordText = await text(customerRecord);
+    record("customer transparency record renders",
+      customerRecord.status === 200
+      && customerRecordText.includes("Your complete Milesymedia record.")
+      && customerRecordText.includes("What we hold.")
+      && customerRecordText.includes("Notes we hold about your project."));
+    record("customer can revisit recordings and personal account data",
+      customerRecordText.includes("Discovery call recording")
+      && customerRecordText.includes("Rewatch")
+      && customerRecordText.includes(portalSettings.loginEmail)
+      && customerRecordText.includes("Foundational Flow"));
+    record("customer navigation exposes their record",
+      customerRecordText.includes("Your record"));
+
     const activityInbox = await go("GET", "/portal/agency/activity-inbox");
     const activityInboxText = await text(activityInbox);
     record("customer contribution reaches agency inbox",
@@ -467,6 +508,11 @@ async function main() {
       record("project contribution can be removed", removalResponse.status === 200);
     } else {
       record("project contribution can be removed", false);
+    }
+    if (recordingJson?.file?.id) {
+      await go("POST", "/api/tenants/client-files", {
+        body: { clientId, action: "delete", fileId: recordingJson.file.id },
+      });
     }
 
     const preview = await go("GET", `/client-preview/${clientId}`);

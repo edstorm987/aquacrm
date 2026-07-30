@@ -8,9 +8,14 @@
 import Link from "next/link";
 import type { Role } from "@/server/types";
 import { MobileNav } from "@/components/chrome/MobileNav";
-import { AgencySwitcher, type AgencyOption } from "@/components/chrome/AgencySwitcher";
 import { ProfileMenu } from "@/components/chrome/ProfileMenu";
+import { TopbarBackButton } from "@/components/chrome/TopbarBackButton";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
+import type { ReactNode } from "react";
+import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
+import { PortalSearch } from "@/components/chrome/PortalSearch";
+import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
+import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 
 interface Props {
   title: string;
@@ -28,35 +33,41 @@ interface Props {
   panels?: NavPanel[];
   tenantLabel?: string;
   currentPath?: string;
-  // R026: optional agency-switcher inputs. Pass session.agencyIds[]
-  // resolved to AgencyOption[] (id + name + brand swatch) plus the
-  // current activeAgencyId. Switcher hides itself when ≤1 agency.
-  agencies?: AgencyOption[];
-  activeAgencyId?: string;
   /** Sandboxed demo session — show "Back to website" exit. */
   isDemo?: boolean;
+  showcaseMode?: boolean;
   /** Phase preview cookie active for this scope — show "Exit preview" → phases admin. */
   previewActive?: boolean;
+  notifications?: ReactNode;
+  companySwitcher?: ReactNode;
+  privacyTerms?: string[];
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, agencies, activeAgencyId, isDemo, previewActive }: Props) {
-  // Ed's directive 2026-05-07 — the agency-name title slot IS the
-  // tenant switcher. Renders a real <details> button with brand
-  // swatch + "+ Add agency" entry. Falls back to plain title text
-  // when the layout doesn't pass agencies (client / customer
-  // surfaces today; they get richer multi-tenancy in R+1).
-  const showSwitcher = !!(agencies && activeAgencyId);
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, previewActive, notifications, companySwitcher, privacyTerms }: Props) {
+  const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
+  const recordsEnabled = role === "agency-owner" || role === "agency-manager" || role === "agency-staff";
   return (
-    <header className="flex min-h-14 flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-white/40 px-4 py-2 md:px-6">
+    <header className="z-40 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-black/10 bg-white/40 px-4 py-2 backdrop-blur-xl md:px-6">
       <div className="flex items-center gap-3 min-w-0">
         {panels && tenantLabel && currentPath && (
           <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} />
         )}
-        {showSwitcher && (
-          <AgencySwitcher agencies={agencies!} activeAgencyId={activeAgencyId!} subtitle={subtitle} />
-        )}
+        <TopbarBackButton />
+        <div className="mm-private-chrome hidden min-w-0 sm:block">
+          <p className="truncate text-sm font-semibold text-black/80">{title}</p>
+          {subtitle ? <p className="truncate text-[11px] text-black/40">{subtitle}</p> : null}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs sm:gap-3">
+        {companySwitcher ? <div className="mm-private-chrome">{companySwitcher}</div> : null}
+        {searchItems.length ? <PortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
+        <PrivacyModeControl
+          canEnterShowcase={role === "agency-owner" || role === "agency-manager"}
+          showcaseMode={showcaseMode}
+          sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
+        />
+        {showcaseMode ? <ShowcaseModeControl /> : notifications}
+        <ColorModeToggle />
         {previewActive ? (
           <Link
             href="/portal/agency/phases"
@@ -65,7 +76,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           >
             <span aria-hidden>←</span> Back to portal account
           </Link>
-        ) : isDemo ? (
+        ) : isDemo && !showcaseMode ? (
           <Link
             href="/"
             aria-label="Back to the marketing site"
@@ -74,7 +85,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
             <span aria-hidden>←</span> Back to website
           </Link>
         ) : null}
-        <ProfileMenu email={email} role={role} name={name} avatarUrl={avatarUrl} />
+        <div className="mm-private-chrome"><ProfileMenu email={email} role={role} name={name} avatarUrl={avatarUrl} /></div>
       </div>
     </header>
   );

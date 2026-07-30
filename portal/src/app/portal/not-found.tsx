@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Not found · Milesymedia Portal",
+  title: "Not found · AquaCRM",
 };
 
 // Portal-scoped 404 — fires for any /portal/* URL not matched by an

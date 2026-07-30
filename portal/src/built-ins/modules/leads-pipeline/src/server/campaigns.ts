@@ -63,8 +63,9 @@ export class CampaignService {
 
   async create(input: CreateCampaignInput, actor: UserId): Promise<Campaign> {
     if (!input.name.trim()) throw new Error("Campaign name required.");
-    if (!input.subject.trim()) throw new Error("Campaign subject required.");
-    if (!input.bodyHtml.trim() && !input.bodyText) {
+    const channel = input.channel ?? "email";
+    if (channel === "email" && !input.subject?.trim()) throw new Error("Campaign subject required.");
+    if (channel === "email" && !input.bodyHtml?.trim() && !input.bodyText) {
       throw new Error("Campaign needs bodyHtml or bodyText.");
     }
     const id = makeId("camp");
@@ -74,9 +75,18 @@ export class CampaignService {
       id,
       agencyId: this.agencyId,
       name: input.name.trim(),
-      subject: input.subject.trim(),
-      bodyHtml: input.bodyHtml,
+      channel,
+      sourceKey: input.sourceKey?.trim() || undefined,
+      subject: input.subject?.trim() ?? "",
+      bodyHtml: input.bodyHtml ?? "",
       bodyText: input.bodyText,
+      budgetCents: input.budgetCents,
+      spendCents: input.spendCents,
+      attributedRevenueCents: input.attributedRevenueCents,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      externalUrl: input.externalUrl?.trim() || undefined,
+      notes: input.notes?.trim() || undefined,
       status,
       scheduleAt: input.scheduleAt,
       audienceFilter: input.audienceFilter,
@@ -134,6 +144,9 @@ export class CampaignService {
     if (!campaign) throw new Error(`Campaign ${id} not found.`);
     if (campaign.status === "sending" || campaign.status === "sent") {
       throw new Error(`Campaign ${id} already ${campaign.status}.`);
+    }
+    if ((campaign.channel ?? "email") !== "email") {
+      throw new Error("Only email campaigns can be sent from Milesymedia. Track other channels here and publish them manually.");
     }
     if (!this.emailEnqueue) {
       throw new Error("email-sender not wired (EmailEnqueuePort missing). Foundation-pending.");

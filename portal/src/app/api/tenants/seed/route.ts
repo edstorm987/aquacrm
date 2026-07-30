@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     name: "Milesy Media",
     slug: "milesy-media",
     ownerEmail,
-    brand: { primaryColor: "#0EA5A4", accentColor: "#F97316", fontHeading: "ui-sans-serif, system-ui" },
+    brand: { primaryColor: "#0B6F6D", accentColor: "#F97316", fontHeading: "ui-sans-serif, system-ui" },
   });
   const owner = createUser({
     email: ownerEmail, password: ownerPassword,

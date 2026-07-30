@@ -52,10 +52,6 @@ export function portalBackend(): "file" | "memory" | "kv" | "postgres" | undefin
   return undefined;
 }
 
-export function devBypass(): boolean {
-  return optionalEnv("NEXT_PUBLIC_DEV_BYPASS", "0") === "1";
-}
-
 export function sentryDsn(): string | undefined {
   const v = optionalEnv("SENTRY_DSN", "");
   return v.length > 0 ? v : undefined;

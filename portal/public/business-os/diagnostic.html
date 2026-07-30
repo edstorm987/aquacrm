@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My Diagnostic — Business OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/business-os/styles.css" />
+  <script src="/business-os/splash.js"></script>
+  <script defer src="/business-os/auth-sync.js"></script>
+</head>
+<body class="bos-body" data-mobile-checked="2026-05-09">
+
+  <div class="bos-bg-glow" aria-hidden="true"></div>
+
+  <div class="bos-shell">
+    <aside class="bos-sidebar">
+      <a href="app.html" class="brand bos-brand-niche">
+        <span class="mark" data-bos-niche-icon>◆</span>
+        <span class="brand-name" data-bos-niche-label>Business OS</span>
+      </a>
+      <nav class="bos-side-nav" data-bos-auto-nav data-bos-active="diagnostic.html"></nav>
+      <div class="bos-side-user">
+        <div class="av" data-bos-initial>JL</div>
+        <div>
+          <div class="bos-side-user-name" data-bos-name>Jordan Lee</div>
+          <div class="bos-side-user-biz muted" data-bos-business>Northbeam Apparel</div>
+        </div>
+      </div>
+      <a href="/" class="bos-back-to-site" title="Back to milesymedia.co">← Back to website</a>
+    </aside>
+
+    <main class="bos-main">
+      <section class="bos-hc-page">
+        <span class="eyebrow">Diagnostic</span>
+        <h1>Health Check</h1>
+        <p class="lead">Take it again to see how your numbers have moved, or step back into a past run to revisit what surfaced.</p>
+
+        <div class="bos-hc-actions">
+          <a href="/health-check/index.html?from=bos" class="btn btn-primary btn-lg">↻ Retake the Health Check</a>
+          <a href="/health-check/index.html?from=bos&review=last" class="btn btn-secondary btn-lg" id="bosHcReviewLastBtn" hidden>Review my latest results →</a>
+        </div>
+
+        <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:22px;margin:0 0 14px;letter-spacing:-0.01em">Past completions</h2>
+        <div class="bos-hc-history" id="bosHcHistory">
+          <div class="bos-hc-history-empty">You haven't completed a Health Check yet. Take it for the first time using the button above — it takes ~12 minutes.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/business-os/bos.js"></script>
+  <script>
+    (function () {
+      function fmt(d) {
+        try { return new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); }
+        catch (e) { return d || ''; }
+      }
+      function loadHistory() {
+        try {
+          var hist = JSON.parse(localStorage.getItem('bos.healthCheckHistory') || '[]');
+          if (!Array.isArray(hist)) hist = [];
+          // Back-compat: if no history but a single snapshot exists, surface it.
+          if (hist.length === 0) {
+            var single = localStorage.getItem('bos.healthCheck');
+            if (single) {
+              try { hist = [JSON.parse(single)]; } catch (e) {}
+            }
+          }
+          return hist;
+        } catch (e) { return []; }
+      }
+      var hist = loadHistory();
+      var listEl = document.getElementById('bosHcHistory');
+      var reviewBtn = document.getElementById('bosHcReviewLastBtn');
+      if (hist.length > 0 && reviewBtn) reviewBtn.removeAttribute('hidden');
+      if (hist.length === 0) return;
+      listEl.innerHTML = hist.map(function (s, i) {
+        var when = s.completedAt ? fmt(s.completedAt) : 'Earlier';
+        var leak = s.leakEstimate
+          ? '£' + Number(s.leakEstimate).toLocaleString() + '/month estimated leak'
+          : 'Leak estimate unavailable';
+        var topics = (s.topics || []).map(function (t) {
+          return '<span class="bos-hc-snap-topic">' + (t.icon || '•') + ' ' + t.name + ' · ' + t.score + '/100</span>';
+        }).join('');
+        return '<article class="bos-hc-snap">'
+          + '<div class="bos-hc-snap-meta">'
+          +   '<div class="bos-hc-snap-when">' + when + '</div>'
+          +   '<div class="bos-hc-snap-leak">' + leak + '</div>'
+          + '</div>'
+          + '<div class="bos-hc-snap-actions">'
+          +   '<a class="btn btn-secondary" href="/health-check/index.html?from=bos&review=' + i + '">Review →</a>'
+          + '</div>'
+          + (topics ? '<div class="bos-hc-snap-topics">' + topics + '</div>' : '')
+          + '</article>';
+      }).join('');
+    })();
+  </script>
+</body>
+</html>

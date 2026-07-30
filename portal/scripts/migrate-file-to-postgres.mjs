@@ -28,6 +28,7 @@ const STATE_FILE = process.env.STATE_FILE
   : resolve(".data", "portal-state.json");
 const STATE_KEY = process.env.STATE_KEY ?? "__portal_state__";
 const DRY_RUN = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
+const SCHEMA_FILE = resolve("scripts", "schema.sql");
 
 function log(...args) { console.log("[migrate]", ...args); }
 
@@ -94,6 +95,9 @@ async function main() {
   }
 
   try {
+    const schema = await readFile(SCHEMA_FILE, "utf8");
+    await client.query(schema);
+    log("schema ready");
     const result = await client.query(
       `INSERT INTO portal_kv (key, value, updated_at)
        VALUES ($1, $2::jsonb, NOW())

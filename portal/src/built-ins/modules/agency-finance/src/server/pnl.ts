@@ -14,6 +14,7 @@ import type {
 import type { ExpenseService } from "./expenses";
 import type { InvoiceService } from "./invoices";
 import type { PaymentService } from "./payments";
+import type { IncomeService } from "./income";
 import type { PlanService } from "./plans";
 
 const MONTH_KEY = (year: number, month: number): string => `${year}-${month}`;
@@ -32,6 +33,7 @@ export class PnLService {
     private agencyId: AgencyId,
     private invoices: InvoiceService,
     private payments: PaymentService,
+    private income: IncomeService,
     private expenses: ExpenseService,
     private plans: PlanService,
   ) {}
@@ -40,7 +42,13 @@ export class PnLService {
   // P&LPage admin route.
   async trailingMonths(refNow: number, count = 12): Promise<PnLMonth[]> {
     const allPayments = await this.payments.list();
+    const allOtherIncome = await this.income.list();
+    const allInvoices = await this.invoices.list();
     const allExpenses = await this.expenses.list();
+    const invoiceIdsWithPayments = new Set(allPayments.map(payment => payment.invoiceId));
+    const legacyPaidInvoices = allInvoices.filter(invoice =>
+      invoice.status === "paid" && !invoiceIdsWithPayments.has(invoice.id),
+    );
     const months: PnLMonth[] = [];
     const ref = ymOf(refNow);
     // Walk back `count` months ending in ref's month.
@@ -52,15 +60,21 @@ export class PnLService {
       const end = startOfMonthUTC(year, month + 1);
       const revenueCents = allPayments
         .filter(p => p.paidAt >= start && p.paidAt < end)
-        .reduce((s, p) => s + p.amountCents, 0);
+        .reduce((s, p) => s + p.amountCents, 0)
+        + legacyPaidInvoices
+          .filter(invoice => (invoice.paidAt ?? invoice.issuedAt) >= start && (invoice.paidAt ?? invoice.issuedAt) < end)
+          .reduce((sum, invoice) => sum + invoice.totalCents, 0);
+      const otherIncomeCents = allOtherIncome
+        .filter(entry => entry.receivedAt >= start && entry.receivedAt < end)
+        .reduce((sum, entry) => sum + entry.amountCents, 0);
       const expensesCents = allExpenses
         .filter(e => e.incurredAt >= start && e.incurredAt < end && e.status === "approved")
         .reduce((s, e) => s + e.amountCents, 0);
       months.push({
         year, month,
-        revenueCents,
+        revenueCents: revenueCents + otherIncomeCents,
         expensesCents,
-        netCents: revenueCents - expensesCents,
+        netCents: revenueCents + otherIncomeCents - expensesCents,
       });
     }
     return months;
@@ -73,6 +87,7 @@ export class PnLService {
     const plans = await this.plans.list(false);
     const allInvoices = await this.invoices.list();
     const allPayments = await this.payments.list();
+    const otherIncome = await this.income.list();
     const trailingMonths = await this.trailingMonths(refNow, 12);
 
     const currency: Currency = plans[0]?.currency ?? allInvoices[0]?.currency ?? "gbp";
@@ -104,12 +119,17 @@ export class PnLService {
     for (const p of allPayments) {
       lifetime.set(p.clientId, (lifetime.get(p.clientId) ?? 0) + p.amountCents);
     }
+    const invoiceIdsWithPayments = new Set(allPayments.map(payment => payment.invoiceId));
+    for (const invoice of allInvoices) {
+      if (invoice.status !== "paid" || invoiceIdsWithPayments.has(invoice.id)) continue;
+      lifetime.set(invoice.clientId, (lifetime.get(invoice.clientId) ?? 0) + invoice.totalCents);
+    }
     const topClients = [...lifetime.entries()]
       .map(([clientId, lifetimeCents]) => ({ clientId, lifetimeCents }))
       .sort((a, b) => b.lifetimeCents - a.lifetimeCents)
       .slice(0, 10);
 
-    const hasData = allInvoices.length > 0 || plans.length > 0;
+    const hasData = allInvoices.length > 0 || plans.length > 0 || otherIncome.length > 0;
     return {
       currency,
       mrrCents,

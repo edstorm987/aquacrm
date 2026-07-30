@@ -13,7 +13,7 @@ import type { BrandKit } from "@/server/types";
 
 interface Props {
   brand: BrandKit;
-  scope: "agency" | "client" | "customer";
+  scope: "agency" | "client" | "customer" | `trading-company:${string}`;
 }
 
 export function ThemeInjector({ brand, scope }: Props) {

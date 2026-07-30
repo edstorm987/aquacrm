@@ -1,5 +1,6 @@
 import { redirect, notFound } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
@@ -8,14 +9,24 @@ import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { CustomerPortalChrome } from "./_CustomerPortalChrome";
-import { portalMode } from "./_portalData";
+import { loadCustomerPortalData, portalMode } from "./_portalData";
+import { portalProjectLabel } from "@/lib/portalProducts";
+import { getAuthBrand } from "@/lib/authBrand";
 
 const MODE_LABEL = {
   onboarding: "Onboarding",
-  designing: "Designing",
-  "developed-launch": "Build & launch",
+  designing: "In progress",
+  "developed-launch": "Review & delivery",
   maintenance: "Live care",
 } as const;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const cookieStore = await cookies();
+  const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
+  return {
+    title: `${authBrand.name} client portal`,
+  };
+}
 
 export default async function CustomerLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -38,7 +49,7 @@ export default async function CustomerLayout({ children }: { children: ReactNode
     return (
       <>
         <ThemeInjector brand={client.brand} scope="customer" />
-        <main id="main-content" data-testid="portal-customer-embed" className="min-h-screen px-4 py-4">
+        <main id="main-content" data-testid="portal-customer-embed" className="mm-portal-root min-h-screen px-4 py-4">
           <ErrorBoundary label="customer (embed)">{children}</ErrorBoundary>
         </main>
       </>
@@ -46,12 +57,15 @@ export default async function CustomerLayout({ children }: { children: ReactNode
   }
 
   const user = getUserById(session.userId);
+  const cookieStore = await cookies();
+  const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
   const meta = (client.metadata ?? {}) as {
     portalMode?: unknown;
     portalLogoUrl?: string;
     portalAccentColor?: string;
   };
   const modeLabel = MODE_LABEL[portalMode(meta.portalMode)];
+  const portalData = await loadCustomerPortalData(client, user?.name ?? client.name);
   const accentColor = /^#[0-9a-f]{6}$/i.test(meta.portalAccentColor ?? "")
     ? meta.portalAccentColor
     : "#8b6c33";
@@ -67,6 +81,9 @@ export default async function CustomerLayout({ children }: { children: ReactNode
         modeLabel={modeLabel}
         logoUrl={meta.portalLogoUrl}
         accentColor={accentColor}
+        projectLabel={portalProjectLabel(portalData.products)}
+        providerName={authBrand.name}
+        providerMark={authBrand.mark}
       >
         <ErrorBoundary label="client portal">{children}</ErrorBoundary>
       </CustomerPortalChrome>

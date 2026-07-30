@@ -1,0 +1,113 @@
+/* Shared print stylesheet — HC results + Incubator root + admin (R018).
+   Wrap everything in @media print so on-screen rendering is untouched.
+   Honest watermark + URL + date in footer per chapter #68. */
+
+@media print {
+
+  /* Page setup. */
+  @page {
+    size: A4;
+    margin: 18mm 16mm 22mm 16mm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #1a1a1a !important;
+    font-size: 11pt;
+    line-height: 1.45;
+  }
+
+  /* Hide chrome the user doesn't want printed. */
+  .nav, header.nav,
+  .mm-stickybar,
+  .bos-sidebar,
+  .inc-toprail,
+  .bos-mobile-nav-btn,
+  .bos-mobile-drawer,
+  .bos-dev-bar,
+  .bos-ai-launcher, .bos-ai-panel,
+  .inc-ai-launcher, .inc-ai-panel,
+  .bos-incubator-strip-bar,
+  [data-incubator-strip],
+  [data-bos-trial-banner],
+  [data-bos-cart-icon],
+  [data-bos-preview-banner],
+  [data-bos-bell],
+  [data-bos-switcher],
+  .bos-switcher,
+  .inc-pa-confetti,
+  .hc-modal,
+  .hc-progress,
+  [data-hc-print-hide],
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* The shared print header — injected by the page or rendered via a
+     `[data-print-only]` block. Surfaces use the same hook. */
+  [data-print-only] { display: block !important; }
+
+  .bos-shell { display: block !important; }
+  .bos-main, .bos-main * { box-shadow: none !important; }
+
+  /* Drop dark backgrounds + glow effects when printing. */
+  .bos-bg-glow { display: none !important; }
+  .inc-cover, .mm-hero-cover-bg { display: none !important; }
+
+  /* Headings + spacing. */
+  h1 { font-size: 22pt; margin: 8pt 0 6pt; }
+  h2 { font-size: 14pt; margin: 12pt 0 4pt; page-break-after: avoid; }
+  h3 { font-size: 12pt; margin: 8pt 0 4pt; }
+  p, li { font-size: 11pt; }
+
+  /* Avoid splitting key blocks across pages. */
+  .leak-card, .hc-leak-cards .leak-card,
+  .inc-card, .inc-pa, .inc-checks,
+  .bos-cart-row, .kpi { page-break-inside: avoid; }
+
+  /* Auto-expand `details` flagged for print — controlled via JS. */
+  details[data-print-expand] > * { display: block !important; }
+  details[data-print-expand] > summary { font-weight: 700; }
+
+  /* Brand header (rendered into [data-print-only][data-print-header]). */
+  .print-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid #C9A76A;
+    padding-bottom: 8pt;
+    margin-bottom: 14pt;
+  }
+  .print-header-brand {
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 16pt;
+    color: #1a1208;
+  }
+  .print-header-brand span { color: #8E7340; }
+  .print-header-meta {
+    text-align: right;
+    font-size: 10pt;
+    color: #555;
+  }
+
+  /* Print-time honest watermark — fixed footer pattern. */
+  .print-watermark {
+    margin-top: 16pt;
+    padding-top: 8pt;
+    border-top: 1px dashed #C9A76A;
+    font-size: 10pt;
+    color: #8E7340;
+  }
+  .print-watermark strong { color: #1a1208; }
+
+  /* Buttons + links → flat for print. */
+  .btn, button, a.btn { background: transparent !important; color: #1a1a1a !important; border: 1px solid #1a1a1a !important; padding: 4pt 8pt !important; }
+  a { color: #1a1a1a !important; text-decoration: underline; }
+
+  /* Activity widget + recommend strip — keep but mute backgrounds. */
+  .inc-hc-strip, .inc-activity-widget, .inc-pa { background: #fafafa !important; border: 1px solid #ddd !important; color: #1a1a1a !important; }
+  .inc-hc-rec, .inc-checks { background: #fff !important; color: #1a1a1a !important; }
+
+  /* The "Print this page" button itself shouldn't print. */
+  [data-print-trigger] { display: none !important; }
+}

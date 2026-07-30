@@ -10,7 +10,7 @@ interface ClientStatusBody {
   status: AgencyStatus;
 }
 
-const ALLOWED_STATUS: AgencyStatus[] = ["active", "archived"];
+const ALLOWED_STATUS: AgencyStatus[] = ["active", "suspended", "archived"];
 
 export async function POST(req: Request) {
   try {
@@ -31,16 +31,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "status update failed" }, { status: 500 });
     }
 
+    const action = body.status === "archived"
+      ? "client.archived"
+      : body.status === "suspended"
+        ? "client.paused"
+        : client.status === "suspended"
+          ? "client.resumed"
+          : "client.reactivated";
+    const message = body.status === "archived"
+      ? `Archived client "${client.name}".`
+      : body.status === "suspended"
+        ? `Paused client "${client.name}".`
+        : client.status === "suspended"
+          ? `Resumed client "${client.name}".`
+          : `Reactivated client "${client.name}".`;
+
     logActivity({
       agencyId: session.agencyId,
       clientId: body.clientId,
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "tenant",
-      action: body.status === "archived" ? "client.archived" : "client.reactivated",
-      message: body.status === "archived"
-        ? `Archived client "${client.name}".`
-        : `Reactivated client "${client.name}".`,
+      action,
+      message,
       metadata: { previousStatus: client.status, status: updated.status },
     });
 

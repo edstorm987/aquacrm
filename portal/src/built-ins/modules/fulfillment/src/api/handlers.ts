@@ -116,6 +116,7 @@ export interface AdvancePhaseBody {
   clientId: string;
   fromPhaseId: string;
   toPhaseId: string;
+  reason?: string;
 }
 
 export async function advancePhaseHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -138,6 +139,11 @@ export async function advancePhaseHandler(req: Request, ctx: PluginCtx): Promise
     if (fromPhase.agencyId !== ctx.agencyId || toPhase.agencyId !== ctx.agencyId) {
       return badRequest("Phase definitions don't belong to this agency.");
     }
+    const orderedPhases = (await c.phaseService.listForAgency(ctx.agencyId))
+      .sort((left, right) => left.order - right.order);
+    const fromIndex = orderedPhases.findIndex(phase => phase.id === fromPhase.id);
+    const toIndex = orderedPhases.findIndex(phase => phase.id === toPhase.id);
+    const stageDistance = fromIndex >= 0 && toIndex >= 0 ? Math.abs(toIndex - fromIndex) : 1;
     const client = await ctx.services.clients.getClientForAgency(ctx.agencyId, body.clientId);
     if (!client) return notFound("Client not found.");
     const result = await c.transitionService.advancePhase({
@@ -146,6 +152,9 @@ export async function advancePhaseHandler(req: Request, ctx: PluginCtx): Promise
       fromPhase,
       toPhase,
       actor: ctx.actor,
+      reason: typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : undefined,
+      directJump: stageDistance > 1,
+      skippedStageCount: Math.max(0, stageDistance - 1),
     });
     return json(result, result.ok ? 200 : 422);
   } catch (err) {

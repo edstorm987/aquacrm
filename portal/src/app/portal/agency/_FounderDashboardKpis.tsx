@@ -38,9 +38,9 @@ export function FounderDashboardKpis({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // ─── Marketing touchpoints / 7d: leads with lastContactedAt within 7d.
+      // Sales touchpoints / 7d: leads contacted within the last week.
       try {
-        const r = await fetch("/api/portal/agency-marketing/leads", { method: "GET" });
+        const r = await fetch("/api/portal/leads-pipeline/leads", { method: "GET" });
         if (!r.ok) {
           if (!cancelled) setPluginMissing(p => ({ ...p, marketing: true }));
         } else {
@@ -67,11 +67,11 @@ export function FounderDashboardKpis({
       id: "open-work",
       label: "Open work",
       value: String(openWorkItems),
-      subtext: openWorkItems === 0 && activeClients > 0 ? "Move clients through the fulfilment pipeline." : undefined,
+      subtext: openWorkItems === 0 && activeClients > 0 ? "Move clients through the project board." : undefined,
     },
     {
       id: "lockin",
-      label: "Lock-in collected",
+      label: "Deposits received",
       value: String(lockInCollected),
       subtext: lockInCollected === 0 && activeClients > 0
         ? "Mark a client's £100 deposit paid in their overview."
@@ -79,14 +79,14 @@ export function FounderDashboardKpis({
     },
     {
       id: "touchpoints",
-      label: "Touchpoints / 7d",
+      label: "Client contact / 7 days",
       value: pluginMissing.marketing ? "—" : (touchpoints === null ? "…" : String(touchpoints)),
       subtext: pluginMissing.marketing ? "Connect sales activity to see" : undefined,
       fallback: pluginMissing.marketing,
     },
     {
       id: "stale",
-      label: "Stale clients (>7d)",
+      label: "Clients not contacted",
       value: String(staleClients),
       subtext: staleClients > 0
         ? "These clients need a check-in."
@@ -98,17 +98,14 @@ export function FounderDashboardKpis({
     <section
       data-testid="founder-dashboard-kpis"
       aria-labelledby="founder-kpis-title"
-      className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+      className="grid grid-cols-2 border-y border-black/10 md:grid-cols-3 lg:grid-cols-5"
     >
-      <h2 id="founder-kpis-title" className="sr-only">Agency KPIs</h2>
+      <h2 id="founder-kpis-title" className="sr-only">Business summary</h2>
       {tiles.map(t => (
         <div
           key={t.id}
           data-testid={`kpi-tile-${t.id}`}
-          className={[
-            "rounded-xl border p-3 shadow-sm",
-            t.fallback ? "border-black/10 bg-black/[0.02]" : "border-black/10 bg-white",
-          ].join(" ")}
+          className="min-w-0 border-b border-black/10 px-3 py-3 last:border-b-0 lg:border-b-0 lg:border-r lg:last:border-r-0"
         >
           <div className="text-[10px] font-semibold uppercase tracking-wide text-black/55">
             {t.label}

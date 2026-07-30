@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, KeyRound, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { AvatarUploader } from "@/app/portal/account/AvatarUploader";
 import { requireRole } from "@/lib/server/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
+import { getAuthBrand } from "@/lib/authBrand";
 
 function initials(seed: string): string {
   const parts = seed.trim().split(/[\s@.]+/).filter(Boolean);
@@ -12,13 +14,13 @@ function initials(seed: string): string {
   return parts[0]?.slice(0, 2).toUpperCase() || "?";
 }
 
-export const metadata = { title: "Your account · Milesymedia" };
-
 export default async function CustomerAccountPage() {
   await ensureHydrated();
   const session = await requireRole("end-customer");
   const user = getUserById(session.userId);
   if (!user) notFound();
+  const cookieStore = await cookies();
+  const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
 
   return (
     <>
@@ -27,7 +29,7 @@ export default async function CustomerAccountPage() {
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--portal-accent)]">Your account</p>
           <h1 className="mt-3 font-serif text-4xl leading-[1.05] text-[#1b1a18] sm:text-5xl">Personal, private, yours.</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-black/52">
-            Keep the name and photograph used throughout your Milesymedia home up to date.
+            Keep the name and photograph used throughout your {authBrand.name} home up to date.
           </p>
         </div>
         <Link href="/portal/customer" className="inline-flex min-h-10 items-center gap-2 self-start rounded-md border border-black/12 bg-white px-4 text-sm font-medium text-black/65">
@@ -90,7 +92,7 @@ export default async function CustomerAccountPage() {
           <p className="mt-3 text-sm leading-6 text-white/52">
             We will send the secure next step to your sign-in email.
           </p>
-          <Link href="/login/forgot" className="mt-7 inline-flex min-h-10 items-center rounded-md border border-white/15 px-4 text-sm font-medium text-white/85">
+          <Link href={`/login/forgot?brand=${authBrand.id}`} className="mt-7 inline-flex min-h-10 items-center rounded-md border border-white/15 px-4 text-sm font-medium text-white/85">
             Reset password
           </Link>
         </aside>

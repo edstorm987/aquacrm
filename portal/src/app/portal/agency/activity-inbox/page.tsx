@@ -17,14 +17,14 @@ export default async function ActivityInboxPage() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Inbox</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">Activity inbox</h1>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">System history</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">Activity log</h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">
-            The operating trail for clients, portals, sales, billing, support requests, and build updates.
+            A clear history of client, portal, sales, billing, support, and project updates.
           </p>
         </div>
-        <Link href="/portal/agency" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">
-          Back to dashboard
+        <Link href="/portal/agency/inbox" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">
+          Open inbox
         </Link>
       </header>
 
@@ -73,7 +73,9 @@ function activityMessage(message: string): string {
 
 function activityCategory(category: string): string {
   if (category === "plugin") return "systems";
-  if (category === "fulfillment") return "pipeline";
+  if (category === "fulfillment") return "project work";
+  if (category === "tenant") return "client";
+  if (category === "telemetry") return "monitoring";
   return category.replace(/-/g, " ");
 }
 
@@ -81,7 +83,9 @@ function activityAction(action: string): string {
   return action
     .replace(/[._-]/g, " ")
     .replace(/\bplugin\b/gi, "system")
-    .replace(/\bfulfillment\b/gi, "pipeline")
+    .replace(/\bfulfillment\b/gi, "project work")
+    .replace(/\btelemetry\b/gi, "monitoring")
+    .replace(/\btenant\b/gi, "client")
     .replace(/\binstalled\b/gi, "activated")
     .replace(/\buninstalled\b/gi, "removed")
     .replace(/\bdisabled\b/gi, "turned off")

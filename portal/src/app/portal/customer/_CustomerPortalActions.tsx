@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowUpRight, Check, CheckCircle2, ExternalLink, FileSignature, Link2, Save, Send, Upload } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, CheckCircle2, Circle, ExternalLink, FileSignature, Link2, Save, Send, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ClientRequest, ClientRequestType } from "@/app/api/tenants/client-requests/route";
 import type { ClientContract } from "@/lib/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
+import type { CustomerPortalMode } from "./_portalData";
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/12 bg-white px-3 text-sm text-[#292621] outline-none transition placeholder:text-black/30 focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-black/10";
 
@@ -17,6 +18,161 @@ function formatShortDate(timestamp: number): string {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(timestamp));
+}
+
+const STAGE_RESPONSE: Record<CustomerPortalMode, {
+  eyebrow: string;
+  title: string;
+  placeholder: string;
+  type: ClientRequestType;
+}> = {
+  onboarding: {
+    eyebrow: "Add to the brief",
+    title: "Tell us anything we should know.",
+    placeholder: "A priority, concern, idea, deadline, or useful piece of context...",
+    type: "suggestion",
+  },
+  designing: {
+    eyebrow: "Shape the work",
+    title: "Leave focused feedback.",
+    placeholder: "What feels right, what should change, and why...",
+    type: "design-feedback",
+  },
+  "developed-launch": {
+    eyebrow: "Review delivery",
+    title: "Send final feedback or a question.",
+    placeholder: "Something to check, change, or confirm before delivery...",
+    type: "suggestion",
+  },
+  maintenance: {
+    eyebrow: "Ongoing care",
+    title: "Ask for a change or report an issue.",
+    placeholder: "Tell us what you need and what you expected to happen...",
+    type: "support-ticket",
+  },
+};
+
+export interface CustomerStageTask {
+  label: string;
+  detail: string;
+  complete: boolean;
+  href?: string;
+}
+
+export function CustomerStageWorkspace({
+  clientId,
+  mode,
+  tasks,
+  readOnly = false,
+}: {
+  clientId: string;
+  mode: CustomerPortalMode;
+  tasks: CustomerStageTask[];
+  readOnly?: boolean;
+}) {
+  const router = useRouter();
+  const response = STAGE_RESPONSE[mode];
+  const [message, setMessage] = useState("");
+  const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!message.trim()) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const request = await fetch("/api/tenants/client-requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          type: response.type,
+          message,
+          link: link.trim() || undefined,
+        }),
+      });
+      const payload = await request.json() as { ok: boolean; error?: string };
+      if (!request.ok || !payload.ok) throw new Error(payload.error || "We could not send that update.");
+      setMessage("");
+      setLink("");
+      setNotice("Sent. Milesymedia can now see this in your project.");
+      router.refresh();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "We could not send that update.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section id="stage-actions" className="mt-5 overflow-hidden rounded-md border border-black/10 bg-[#fbfaf8]">
+      <div className="grid lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
+        <div className="border-b border-black/10 p-6 sm:p-8 lg:border-b-0 lg:border-r">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Your part</p>
+          <h2 className="mt-2 font-serif text-2xl">Keep things moving.</h2>
+          <ul className="mt-6 divide-y divide-black/8 border-y border-black/10">
+            {tasks.map(task => (
+              <li key={task.label} className="flex items-start gap-3 py-4">
+                {task.complete ? (
+                  <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
+                ) : (
+                  <Circle size={17} className="mt-0.5 shrink-0 text-[var(--portal-accent)]" aria-hidden="true" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{task.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-black/45">{task.detail}</p>
+                </div>
+                {!task.complete && task.href ? (
+                  <a href={task.href} className="inline-flex min-h-8 shrink-0 items-center gap-1 text-xs font-medium text-[var(--portal-accent)]">
+                    Open <ArrowRight size={12} aria-hidden="true" />
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <form onSubmit={submit} className="p-6 sm:p-8" aria-disabled={readOnly}>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--portal-accent)]">{response.eyebrow}</p>
+          <h2 className="mt-2 font-serif text-2xl">{response.title}</h2>
+          <textarea
+            value={message}
+            onChange={event => setMessage(event.target.value)}
+            disabled={readOnly}
+            className={`${CONTROL} mt-5 min-h-32 resize-y py-3`}
+            placeholder={response.placeholder}
+          />
+          <label className="mt-3 grid gap-2 text-xs font-medium text-black/50">
+            Helpful link <span className="font-normal text-black/35">(optional)</span>
+            <span className="relative">
+              <Link2 size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 text-black/30" />
+              <input
+                value={link}
+                onChange={event => setLink(event.target.value)}
+                disabled={readOnly}
+                type="url"
+                className={`${CONTROL} pl-9`}
+                placeholder="https://"
+              />
+            </span>
+          </label>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p aria-live="polite" className="text-xs text-black/50">{notice}</p>
+            <button
+              type="submit"
+              disabled={readOnly || busy || !message.trim()}
+              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#1b1a18] px-5 text-sm font-medium text-white disabled:opacity-45"
+            >
+              <Send size={14} aria-hidden="true" />
+              {readOnly ? "Customer can send this" : busy ? "Sending..." : "Send update"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  );
 }
 
 export function CustomerProjectBriefForm({
@@ -62,7 +218,7 @@ export function CustomerProjectBriefForm({
   }
 
   return (
-    <form onSubmit={submit} className="mt-5 rounded-md border border-black/10 bg-[#fbfaf8] p-6 sm:p-8">
+    <form id="project-brief" onSubmit={submit} className="mt-5 scroll-mt-24 rounded-md border border-black/10 bg-[#fbfaf8] p-6 sm:p-8">
       <div className="flex flex-col justify-between gap-3 border-b border-black/10 pb-5 sm:flex-row sm:items-end">
         <div>
           <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Project brief</p>
@@ -214,7 +370,7 @@ export function CustomerApprovals({
 
   if (approvals.length === 0) return null;
   return (
-    <section className="mt-5 overflow-hidden rounded-md border border-black/10 bg-white">
+    <section id="approvals" className="mt-5 scroll-mt-24 overflow-hidden rounded-md border border-black/10 bg-white">
       <div className="border-b border-black/10 px-6 py-5">
         <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Decisions</p>
         <h2 className="mt-2 font-serif text-2xl">Approvals</h2>

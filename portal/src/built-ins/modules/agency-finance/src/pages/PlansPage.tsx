@@ -25,7 +25,7 @@ export default async function PlansPage(props: PluginPageProps) {
             <th style={{ padding: 6 }}>Tier</th>
             <th style={{ padding: 6 }}>Label</th>
             <th style={{ padding: 6 }}>Monthly</th>
-            <th style={{ padding: 6 }}>Lock-in</th>
+            <th style={{ padding: 6 }}>Minimum term</th>
             <th style={{ padding: 6 }}>Clients</th>
             <th style={{ padding: 6 }}>Active</th>
           </tr>
@@ -61,8 +61,8 @@ export default async function PlansPage(props: PluginPageProps) {
         </label>
         <label>Label<input name="label" required /></label>
         <label>Monthly (cents)<input name="monthlyAmountCents" type="number" min={0} required /></label>
-        <label>Lock-in months<input name="lockInMonths" type="number" min={0} defaultValue={0} /></label>
-        <label>Lock-in fee (cents)<input name="lockInFeeCents" type="number" min={0} defaultValue={0} /></label>
+        <label>Minimum term (months)<input name="lockInMonths" type="number" min={0} defaultValue={0} /></label>
+        <label>Deposit (pence)<input name="lockInFeeCents" type="number" min={0} defaultValue={0} /></label>
         <button type="submit">Create plan</button>
       </form>
     </section>

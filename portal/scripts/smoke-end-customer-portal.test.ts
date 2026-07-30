@@ -52,6 +52,45 @@ describe("End-customer portal sub-routes (R019)", () => {
     assert.ok(src.includes("lk_demo_embed=1"), "should detect embed cookie");
     assert.ok(src.includes("portal-customer-embed"), "should set the embed testid");
   });
+
+  it("keeps Resources empty and client history in Your details", () => {
+    const chrome = readFileSync(join(CUSTOMER, "_CustomerPortalChrome.tsx"), "utf8");
+    const views = readFileSync(join(CUSTOMER, "_CustomerPortalViews.tsx"), "utf8");
+    const catchAll = readFileSync(join(CUSTOMER, "[...rest]", "page.tsx"), "utf8");
+
+    assert.ok(chrome.includes('{ label: "Resources"'));
+    assert.ok(chrome.includes('{ label: "Your details"'));
+    assert.ok(views.includes('if (section === "resources") return <ResourcesView />'));
+    assert.ok(views.includes('if (section === "details") return <RecordView'));
+    assert.ok(views.includes('aria-label="Resources"'));
+    assert.ok(catchAll.includes('"resources", "details"'));
+  });
+
+  it("always exposes real Milesymedia support routes", () => {
+    const data = readFileSync(join(CUSTOMER, "_portalData.ts"), "utf8");
+    assert.ok(data.includes('"hello@milesymedia.co"'));
+    assert.ok(data.includes('"+44 7707 020250"'));
+    assert.ok(data.includes('"https://wa.me/447707020250"'));
+  });
+
+  it("preserves project and ongoing-care payment schedules in the portal editor", () => {
+    const editor = readFileSync(
+      join(ROOT, "src", "app", "portal", "clients", "[clientId]", "_FulfilmentPortalPreview.tsx"),
+      "utf8",
+    );
+    const route = readFileSync(
+      join(ROOT, "src", "app", "api", "tenants", "customer-portal-control", "route.ts"),
+      "utf8",
+    );
+    const views = readFileSync(join(CUSTOMER, "_CustomerPortalViews.tsx"), "utf8");
+
+    for (const value of ["Project", "Project + ongoing care"]) {
+      assert.ok(editor.includes(`<option>${value}</option>`));
+      assert.ok(route.includes(`"${value}"`));
+    }
+    assert.ok(editor.includes('label="Payment schedule"'));
+    assert.ok(views.includes("Payment schedule"));
+  });
 });
 
 describe("End-customer portal subroute config contracts", () => {

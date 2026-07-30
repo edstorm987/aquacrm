@@ -27,7 +27,7 @@ export interface NavPanel {
 }
 
 const DEFAULT_PANELS: { id: PanelId; label: string; order: number }[] = [
-  { id: "main", label: "Agency OS", order: 0 },
+  { id: "main", label: "Workspace", order: 0 },
   { id: "fulfillment", label: "Fulfilment", order: 10 },
   { id: "store", label: "Store", order: 20 },
   { id: "customer", label: "Account", order: 25 },
@@ -74,14 +74,20 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
   if (input.scope === "agency") {
     items.push({ id: "home", label: "Dashboard", href: "/portal/agency", panelId: "main", order: -10 });
     if (isAgencyRole(input.role)) {
-      // Milesymedia canonical sidebar (Ed, 2026-05-14): exactly these 7
+      // Milesymedia canonical sidebar: the agency's daily operating areas.
       // rows under Agency OS, in this order. Everything else stays parked.
-      items.push({ id: "clients",     label: "Clients",     href: "/portal/clients",                       panelId: "main", order: -9 });
-      items.push({ id: "contacts",    label: "Sales",       href: "/portal/agency/pipelines/leads",         panelId: "main", order: -8 });
-      items.push({ id: "pipelines",   label: "Fulfilment",  href: "/portal/agency/pipelines/fulfilment",   panelId: "main", order: -7 });
-      items.push({ id: "inbox",       label: "Inbox",       href: "/portal/agency/activity-inbox",         panelId: "main", order: -6 });
-      items.push({ id: "sops",        label: "Systems",     href: "/portal/agency/sops",                   panelId: "main", order: -5 });
-      items.push({ id: "finance",     label: "Finance",     href: "/portal/agency/agency-finance",         panelId: "main", order: -4 });
+      items.push({ id: "company",     label: "Company",            href: "/portal/agency/company",         panelId: "main", order: -9.5 });
+      items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -9 });
+      items.push({ id: "inbox",       label: "Master inbox",       href: "/portal/agency/inbox",           panelId: "main", order: -8 });
+      items.push({ id: "performance", label: "Performance",        href: "/portal/agency/performance",     panelId: "main", order: -7 });
+      items.push({ id: "clients",     label: "Clients & contacts", href: "/portal/clients",                panelId: "main", order: -6 });
+      items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -5.5 });
+      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/agency/pipelines/leads", panelId: "main", order: -5 });
+      items.push({ id: "products",    label: "Products",           href: "/portal/agency/products",        panelId: "main", order: -4 });
+      items.push({ id: "development", label: "Development",        href: "/portal/agency/development", panelId: "ops", order: -3 });
+      items.push({ id: "marketing",   label: "Marketing",          href: "/portal/agency/marketing",       panelId: "main", order: -2 });
+      items.push({ id: "finance",     label: "Finance",            href: "/portal/agency/agency-finance",  panelId: "ops",  order: -3 });
+      items.push({ id: "sop-library", label: "SOP library",        href: "/portal/agency/sop-library",     panelId: "ops",  order: -2 });
     }
   } else if (input.scope === "client" && input.currentClient) {
     items.push({
@@ -196,17 +202,16 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
   // land in their declared range even if they entered before Settings.
   const sorted = result.sort((a, b) => a.order - b.order);
 
-  // Milesymedia override (Ed, 2026-05-14): only Aqua HQ + Settings in
-  // the sidebar. Strip every other panel; pin main panel items to the
-  // 8 canonical rows; sweep any "Logs" item from anywhere into
-  // settings so it shows up in the footer Settings menu.
+  // Milesymedia override: one calm, flat agency navigation. Settings
+  // remains separate because the Sidebar renders it in the footer.
   if (input.scope === "agency") {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
-      "home", "clients", "contacts", "pipelines",
-      "inbox", "sops", "finance",
+      "home", "company", "actions", "inbox", "performance", "clients", "you-deserve-it",
+      "pipelines", "products", "development", "marketing", "finance", "sop-library",
     ]);
+    const canonicalOrder = [...canonicalMainIds];
     // Collect any "Logs" items from any panel and re-route to settings.
     const logsItems: NavItem[] = [];
     for (const panel of sorted) {
@@ -215,11 +220,15 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
       }
     }
     const out: NavPanel[] = [];
-    if (main) {
+    const navigationItems = sorted
+      .flatMap(panel => panel.id === "settings" ? [] : panel.items)
+      .filter(item => canonicalMainIds.has(item.id))
+      .sort((a, b) => canonicalOrder.indexOf(a.id) - canonicalOrder.indexOf(b.id));
+    if (main && navigationItems.length) {
       out.push({
         ...main,
-        items: main.items.filter(i => canonicalMainIds.has(i.id))
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+        label: "",
+        items: navigationItems,
       });
     }
     if (settings || logsItems.length > 0) {

@@ -10,6 +10,10 @@ export default async function InvoicesPage(props: PluginPageProps) {
     storage: props.storage,
     install: props.install,
   });
-  const invoices = await c.invoices.list();
-  return <InvoicesList invoices={invoices} apiBase={API_BASE} canMutate />;
+  const [invoices, clients, template] = await Promise.all([
+    c.invoices.list(),
+    Promise.resolve(c.tenant.listClients?.(props.agencyId) ?? []),
+    c.invoices.getTemplate(),
+  ]);
+  return <InvoicesList invoices={invoices} clients={clients} apiBase={API_BASE} canMutate template={template} />;
 }

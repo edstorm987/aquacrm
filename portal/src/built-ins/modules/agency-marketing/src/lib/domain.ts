@@ -65,6 +65,55 @@ export interface UpdateCampaignPatch {
   notes?: string;
 }
 
+// ─── Milesymedia channel inventory ──────────────────────────────────────
+
+export type MarketingAssetKind = "social" | "website" | "funnel" | "google-ads" | "reputation";
+export type MarketingAssetStatus = "draft" | "active" | "paused" | "complete" | "archived";
+
+export interface MarketingAsset {
+  id: string;
+  agencyId: AgencyId;
+  companyIds?: string[];
+  kind: MarketingAssetKind;
+  name: string;
+  platform?: string;
+  url?: string;
+  objective?: string;
+  owner?: string;
+  status: MarketingAssetStatus;
+  budgetCents: number;
+  spendCents: number;
+  leads: number;
+  conversions: number;
+  rating?: number;
+  reviewCount?: number;
+  unansweredReviews?: number;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateMarketingAssetInput {
+  kind: MarketingAssetKind;
+  companyIds?: string[];
+  name: string;
+  platform?: string;
+  url?: string;
+  objective?: string;
+  owner?: string;
+  status?: MarketingAssetStatus;
+  budgetCents?: number;
+  spendCents?: number;
+  leads?: number;
+  conversions?: number;
+  rating?: number;
+  reviewCount?: number;
+  unansweredReviews?: number;
+  notes?: string;
+}
+
+export type UpdateMarketingAssetPatch = Partial<Omit<CreateMarketingAssetInput, "kind">>;
+
 // ─── Lead ────────────────────────────────────────────────────────────────
 
 export type LeadSource = "form" | "manual" | "import" | "campaign";

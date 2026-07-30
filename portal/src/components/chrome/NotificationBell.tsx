@@ -1,14 +1,10 @@
 import "server-only";
-// Server-rendered bell badge for the agency-shell sidebar. Reads
-// foundation activity + the activity-inbox plugin's per-actor read
-// state to compute an unread count. Renders nothing if the
-// activity-inbox plugin is not installed for this agency — making it
-// safe to wire unconditionally from the layout.
+// Server-rendered operational bell. It uses the same live alert rules as
+// the master inbox so the count and the page cannot disagree.
 
 import Link from "next/link";
-import { getInstall } from "@/server/pluginInstalls";
-import { listActivity } from "@/server/activity";
-import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { Bell } from "lucide-react";
+import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 
 interface Props {
   agencyId: string;
@@ -16,38 +12,23 @@ interface Props {
   inboxHref?: string;
 }
 
-const READ_PREFIX = "inbox/read/";
-const SCAN_LIMIT = 500;
-
-export async function NotificationBell({ agencyId, actor, inboxHref = "/portal/agency/activity-inbox?unread=1" }: Props) {
-  const install = getInstall({ agencyId }, "activity-inbox");
-  if (!install || !install.enabled) return null;
-
-  const storage = makePluginStorage(install.id);
-  const state = (await storage.get<{ lastReadTs?: number }>(`${READ_PREFIX}${actor}`)) ?? { lastReadTs: 0 };
-  const lastReadTs = state.lastReadTs ?? 0;
-
-  const recent = listActivity({ agencyId, limit: SCAN_LIMIT });
-  const unread = recent.filter(e => e.ts > lastReadTs).length;
+export async function NotificationBell({ agencyId, actor: _actor, inboxHref = "/portal/agency/inbox" }: Props) {
+  const unread = (await listOperationalAlerts(agencyId)).length;
   const display = unread > 99 ? "99+" : String(unread);
 
   return (
-    <div className="mt-4 border-t border-black/10 pt-3">
-      <Link
-        href={inboxHref}
-        aria-label={`Inbox — ${unread} unread events`}
-        className="flex items-center justify-between rounded-md px-2 py-1.5 text-black/80 hover:bg-black/5"
-      >
-        <span className="flex items-center gap-2">
-          <span aria-hidden="true">🔔</span>
-          <span>Inbox</span>
+    <Link
+      href={inboxHref}
+      aria-label={`Notifications — ${unread} items need attention`}
+      title="Notifications"
+      className="relative grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/60 shadow-sm hover:border-black/20 hover:bg-black/[0.025]"
+    >
+      <Bell size={16} aria-hidden="true" />
+      {unread > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white">
+          {display}
         </span>
-        {unread > 0 && (
-          <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-medium text-white">
-            {display}
-          </span>
-        )}
-      </Link>
-    </div>
+      )}
+    </Link>
   );
 }

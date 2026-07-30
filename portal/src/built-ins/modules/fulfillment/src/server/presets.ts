@@ -59,7 +59,7 @@ export const DEFAULT_PHASE_PRESETS: readonly PhasePresetSeed[] = [
   {
     stage: "aqua-epic-intro",
     label: "Epic Intro",
-    description: "Onboarding form + welcome scroll. No plugin installs yet.",
+    description: "Collect the brief, contacts, content, and access needed to begin.",
     order: 10,
     pluginPreset: [],
     starterVariantId: "starter-epic-intro",
@@ -69,8 +69,8 @@ export const DEFAULT_PHASE_PRESETS: readonly PhasePresetSeed[] = [
       "Confirm WhatsApp group invite",
     ],
     clientTasks: [
-      "Read the Epic Intro scroll",
-      "Confirm lock-in deposit",
+      "Review the welcome and next steps",
+      "Confirm the project deposit",
     ],
   },
   {

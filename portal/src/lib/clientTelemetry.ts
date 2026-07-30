@@ -3,6 +3,11 @@ export const TELEMETRY_EVENT_TYPES = [
   "performance",
   "error",
   "deployment",
+  "form",
+  "conversion",
+  "search",
+  "chatbot",
+  "interaction",
   "heartbeat",
   "custom",
 ] as const;
@@ -24,6 +29,15 @@ export interface ClientTelemetryEvent {
   value?: number;
   release?: string;
   environment?: string;
+  sessionId?: string;
+  formName?: string;
+  query?: string;
+  impressions?: number;
+  clicks?: number;
+  position?: number;
+  experimentId?: string;
+  variant?: string;
+  conversionValueCents?: number;
   userAgent?: string;
 }
 

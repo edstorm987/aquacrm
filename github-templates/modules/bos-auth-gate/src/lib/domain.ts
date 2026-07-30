@@ -39,7 +39,7 @@ export function isBosAsset(pathname: string): boolean {
 // Decision shape returned by `evaluate`. Foundation middleware
 // translates this into a Response (302) or pass-through.
 
-export type AuthGateOutcome = "allow" | "redirect" | "dev-bypass";
+export type AuthGateOutcome = "allow" | "redirect";
 
 export interface AuthGateContext {
   pathname: string;
@@ -56,22 +56,15 @@ export interface AuthGateContext {
 
 export interface AuthGateOptions {
   loginPath?: string;            // default "/login"
-  devBypass?: boolean;           // NEXT_PUBLIC_DEV_BYPASS=1 → true
-  // When dev-bypass is on, we still want the response handler to
-  // know it's a bypass so it can render a banner. Outcome ===
-  // "dev-bypass" is the signal; the redirect path is undefined.
 }
 
 export interface AuthGateDecision {
   outcome: AuthGateOutcome;
   redirect?: string;
   reason?: string;
-  banner?: string;               // operator-facing for dev-bypass
 }
 
 export const DEFAULT_LOGIN_PATH = "/login";
-export const DEV_BYPASS_BANNER =
-  "DEV MODE — BOS is open. Set NEXT_PUBLIC_DEV_BYPASS=0 to gate.";
 
 // `from=bos&next=<encoded path>` so post-login redirect can land
 // the user back on the BOS path they originally requested. Mirrors

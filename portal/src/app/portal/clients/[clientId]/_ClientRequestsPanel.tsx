@@ -14,15 +14,13 @@ const TYPE_LABELS: Record<ClientRequestType, string> = {
 
 const TYPES = Object.keys(TYPE_LABELS) as ClientRequestType[];
 
-function formatRelative(ts: number): string {
-  const delta = Date.now() - ts;
-  if (delta < 60_000) return "just now";
-  if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m ago`;
-  if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)}h ago`;
+function formatRequestDate(ts: number): string {
   return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
+    day: "numeric",
+    month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "UTC",
   }).format(new Date(ts));
 }
@@ -129,6 +127,7 @@ export function ClientRequestsPanel({
 
       <form onSubmit={submit} className="mt-4 grid gap-2 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,18rem)_auto] lg:items-start">
         <select
+          aria-label="Request type"
           value={type}
           onChange={e => setType(e.target.value as ClientRequestType)}
           className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm"
@@ -175,7 +174,7 @@ export function ClientRequestsPanel({
                         : "bg-emerald-50 text-emerald-800",
                   ].join(" ")}>{item.status}</span>
                 </div>
-                <span className="text-[11px] text-black/45">{formatRelative(item.submittedAt)} by {item.submittedBy}</span>
+                <span className="text-[11px] text-black/45">{formatRequestDate(item.submittedAt)} by {item.submittedBy}</span>
               </div>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-black/65">{item.message}</p>
               {item.link && (
@@ -191,7 +190,7 @@ export function ClientRequestsPanel({
                         <span className="text-[11px] font-semibold text-black/65">
                           {reply.from === "milesymedia" ? "Milesymedia" : "Customer"}
                         </span>
-                        <span className="text-[10px] text-black/35">{formatRelative(reply.createdAt)}</span>
+                        <span className="text-[10px] text-black/35">{formatRequestDate(reply.createdAt)}</span>
                       </div>
                       <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-black/60">{reply.message}</p>
                     </div>

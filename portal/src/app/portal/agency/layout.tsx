@@ -5,9 +5,9 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole, getSessionAgencyIds, getActiveAgencyId } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { getAgency } from "@/server/tenants";
+import { getAgency, listClients } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { getInstall, listInstalledFor } from "@/server/pluginInstalls";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
@@ -18,6 +18,9 @@ import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
 import { NotificationBell } from "@/components/chrome/NotificationBell";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { CompanyContextSwitcher } from "@/components/chrome/CompanyContextSwitcher";
+import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
+import { getTradingCompany, listTradingCompanies } from "@/server/tradingCompanies";
 
 export default async function AgencyLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -30,6 +33,22 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
 
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
+  const activeCompanyId = await getActiveTradingCompanyId(agency.id);
+  const activeCompany = activeCompanyId ? getTradingCompany(agency.id, activeCompanyId) : null;
+  const currentUser = getUserById(session.userId);
+  const tradingCompanies = listTradingCompanies(agency.id).filter(company => !currentUser?.companyIds?.length || currentUser.companyIds.includes(company.id));
+  const activeBrand = activeCompany?.brand ?? agency.brand;
+  const activeLabel = activeCompany?.name ?? agency.name;
+  const privacyTerms = listClients(agency.id, { includeArchived: true }).flatMap(client => {
+    const metadata = client.metadata ?? {};
+    return [
+      client.name,
+      client.ownerEmail ?? "",
+      typeof metadata.contactName === "string" ? metadata.contactName : "",
+      typeof metadata.businessName === "string" ? metadata.businessName : "",
+      typeof metadata.phone === "string" ? metadata.phone : "",
+    ];
+  });
 
   let leadsInstall = getInstall({ agencyId: agency.id }, "leads-pipeline");
   if (!leadsInstall) {
@@ -65,8 +84,8 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   if (embed) {
     return (
       <>
-        <ThemeInjector brand={agency.brand} scope="agency" />
-        <main id="main-content" data-testid="portal-embed" className="min-h-screen px-4 py-4">
+        <ThemeInjector brand={activeBrand} scope={activeCompany ? `trading-company:${activeCompany.id}` : "agency"} />
+        <main id="main-content" data-testid="portal-embed" className="mm-portal-root min-h-screen px-4 py-4">
           <ErrorBoundary label="agency workspace (embed)">{children}</ErrorBoundary>
         </main>
       </>
@@ -75,33 +94,38 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
 
   return (
     <>
-      <ThemeInjector brand={agency.brand} scope="agency" />
-      <div className="flex min-h-screen">
+      <ThemeInjector brand={activeBrand} scope={activeCompany ? `trading-company:${activeCompany.id}` : "agency"} />
+      <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar
           panels={panels}
-          tenantLabel={agency.name}
+          tenantLabel={activeLabel}
           currentPath={currentPath}
-          agencies={getSessionAgencyIds(session).flatMap(id => {
-            const a = getAgency(id);
-            return a ? [{ id: a.id, name: a.name, swatch: a.brand?.primaryColor }] : [];
-          })}
-          activeAgencyId={getActiveAgencyId(session)}
-          extra={<NotificationBell agencyId={agency.id} actor={session.userId} />}
         />
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
-            title={agency.name}
-            subtitle="Agency workspace"
+            title={activeLabel}
+            subtitle={activeCompany ? `AquaCRM · ${activeLabel}` : "AquaCRM workspace"}
             role={session.role}
             email={session.email}
-            name={getUserById(session.userId)?.name}
-            avatarUrl={getUserById(session.userId)?.avatarUrl}
+            name={currentUser?.name}
+            avatarUrl={currentUser?.avatarUrl}
             panels={panels}
-            tenantLabel={agency.name}
+            tenantLabel={activeLabel}
             currentPath={currentPath}
             isDemo={session.isDemo}
+            showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            privacyTerms={privacyTerms}
+            notifications={<NotificationBell agencyId={agency.id} actor={session.userId} />}
+            companySwitcher={<CompanyContextSwitcher
+              activeCompanyId={activeCompanyId}
+              companies={tradingCompanies.map(company => ({
+                id: company.id,
+                name: company.name,
+                primaryColor: company.brand.primaryColor,
+              }))}
+            />}
           />
-          <main id="main-content" className="flex-1 px-8 py-6">
+          <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label="agency workspace">{children}</ErrorBoundary>
           </main>
         </div>

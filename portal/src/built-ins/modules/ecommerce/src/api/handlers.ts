@@ -14,7 +14,7 @@ import {
   readStripeKeysFromInstall,
   type StripeLineItem,
 } from "../lib/stripe/server";
-import type { ServerOrderItem } from "../server/orders";
+import type { ServerOrderItem, UpdateOrderPatch } from "../server/orders";
 import type { Product } from "../lib/products";
 import type { CustomDiscountCode } from "../server/discounts";
 import type { GiftCard } from "../server/giftCards";
@@ -162,6 +162,8 @@ export async function updateOrderStatusHandler(req: Request, ctx: PluginCtx): Pr
   if (!body?.id || !body.status) return badRequest("id + status required.");
   try {
     const c = containerFor(ctx.storage);
+    const existing = await c.orders.getOrder(body.id);
+    if (!existing || existing.clientId !== scope) return notFound("Order not found.");
     const next = await c.orders.updateOrderStatus(body.id, body.status, {
       trackingNumber: body.trackingNumber,
       trackingCarrier: body.trackingCarrier,
@@ -172,6 +174,76 @@ export async function updateOrderStatusHandler(req: Request, ctx: PluginCtx): Pr
   } catch (err) {
     return serverError(err);
   }
+}
+
+export async function updateOrderHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "PATCH"); if (guard) return guard;
+  const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  const body = await safeJson<{ id: string; patch: UpdateOrderPatch }>(req);
+  if (!body?.id || !body.patch) return badRequest("id + patch required.");
+  try {
+    const c = containerFor(ctx.storage);
+    const existing = await c.orders.getOrder(body.id);
+    if (!existing || existing.clientId !== scope) return notFound("Order not found.");
+    const order = await c.orders.updateOrder(body.id, body.patch);
+    if (!order) return notFound("Order not found.");
+    await c.activity.logActivity({
+      agencyId: ctx.agencyId,
+      clientId: scope,
+      category: "ecommerce",
+      action: "order.updated",
+      message: `Updated order ${order.id}.`,
+      metadata: { orderId: order.id, status: order.status },
+    });
+    return json({ ok: true, order });
+  } catch (err) {
+    return serverError(err);
+  }
+}
+
+export async function downloadOrderHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+  const format = url.searchParams.get("format") ?? "html";
+  const print = url.searchParams.get("print") === "1";
+  if (!id) return badRequest("id required.");
+  const c = containerFor(ctx.storage);
+  const order = await c.orders.getOrder(id);
+  if (!order || order.clientId !== scope) return notFound("Order not found.");
+  if (format === "json") {
+    return new Response(JSON.stringify(order, null, 2), {
+      headers: {
+        "content-type": "application/json",
+        "content-disposition": `attachment; filename="${order.id}.json"`,
+        "cache-control": "private, no-store",
+      },
+    });
+  }
+  const client = await c.tenant.getClientForAgency(ctx.agencyId, scope);
+  const lineRows = order.items.map(item => `<tr><td>${escapeHtml(item.name)}</td><td>${item.quantity}</td><td>${money(item.unitAmount, item.currency)}</td><td>${money(item.unitAmount * item.quantity, item.currency)}</td></tr>`).join("");
+  const address = order.shippingAddress
+    ? [order.shippingAddress.line1, order.shippingAddress.line2, order.shippingAddress.city, order.shippingAddress.state, order.shippingAddress.postalCode, order.shippingAddress.country].filter(Boolean).map(value => escapeHtml(String(value))).join("<br>")
+    : "";
+  const document = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(order.id)}</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f3f3f1;color:#171717;font:14px/1.5 Arial,sans-serif}.document{max-width:800px;min-height:1120px;margin:24px auto;background:#fff;padding:64px;box-shadow:0 12px 40px rgba(0,0,0,.08)}
+header{display:flex;justify-content:space-between;gap:24px;border-bottom:3px solid #171717;padding-bottom:24px}h1{margin:4px 0 0;font-size:30px}.eyebrow,h2{color:#666;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}section{margin-top:30px}.details{display:grid;grid-template-columns:1fr 1fr;gap:32px}.details p{color:#555;line-height:1.7}table{width:100%;border-collapse:collapse}th,td{padding:13px 8px;border-bottom:1px solid #ddd;text-align:left}th{color:#666;font-size:10px;text-transform:uppercase}th:nth-child(n+2),td:nth-child(n+2){text-align:right}.total{margin:28px 0 0 auto;max-width:320px;border-bottom:3px solid #171717;padding:12px 0;display:flex;justify-content:space-between;font-size:17px}.notes{white-space:pre-wrap;color:#555}
+@media print{@page{size:A4;margin:0}body{background:#fff}.document{min-height:297mm;margin:0;padding:18mm 16mm;box-shadow:none}}</style></head><body><article class="document"><header><div><span class="eyebrow">Order</span><h1>${escapeHtml(order.id)}</h1></div><div style="text-align:right"><strong>${escapeHtml(client?.name ?? "Store")}</strong><p>${new Date(order.createdAt).toLocaleDateString("en-GB")}</p></div></header><section class="details"><div><h2>Customer</h2><p>${escapeHtml(order.customerName ?? "Customer")}<br>${escapeHtml(order.customerEmail ?? "")}</p></div>${address ? `<div><h2>Delivery</h2><p>${address}</p></div>` : ""}</section><section><h2>Items</h2><table><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>${lineRows}</tbody></table><div class="total"><strong>Total</strong><strong>${money(order.amountTotal, order.currency)}</strong></div></section><section><h2>Order status</h2><p>${escapeHtml(order.status)}</p></section>${order.internalNotes ? `<section><h2>Internal notes</h2><p class="notes">${escapeHtml(order.internalNotes)}</p></section>` : ""}</article>${print ? '<script>window.addEventListener("load",function(){window.print()})</script>' : ""}</body></html>`;
+  return new Response(document, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "content-disposition": `${print ? "inline" : "attachment"}; filename="${order.id}.html"`,
+      "cache-control": "private, no-store",
+    },
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function money(cents: number, currency: string): string {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
 }
 
 // ─── Stripe — checkout ────────────────────────────────────────────────────

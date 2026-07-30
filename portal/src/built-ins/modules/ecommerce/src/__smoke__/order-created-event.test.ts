@@ -169,6 +169,33 @@ describe("R6 — ecommerce order.created event", () => {
     assert.equal(order?.endCustomerUserId, BUYER_USER);
   });
 
+  test("step 2b: operational order details can be amended without changing the paid total", async () => {
+    const { orderId } = await simulateWebhook({
+      sessionId: "cs_editable",
+      amountTotal: 7200,
+    });
+    const updated = await services.orders.updateOrder(orderId, {
+      customerName: "Updated Buyer",
+      customerEmail: "buyer@example.test",
+      status: "shipped",
+      trackingCarrier: "Royal Mail",
+      trackingNumber: "TRACK-123",
+      internalNotes: "Leave with reception.",
+      shippingAddress: {
+        line1: "1 Test Street",
+        city: "London",
+        postalCode: "SW1A 1AA",
+        country: "United Kingdom",
+      },
+    });
+    assert.equal(updated?.customerName, "Updated Buyer");
+    assert.equal(updated?.status, "shipped");
+    assert.equal(updated?.trackingNumber, "TRACK-123");
+    assert.equal(updated?.internalNotes, "Leave with reception.");
+    assert.equal(updated?.amountTotal, 7200, "editing operations must not rewrite the transaction total");
+    assert.ok(updated?.shippedAt);
+  });
+
   test("step 3: webhook retry on same sessionId does NOT re-emit order.created", async () => {
     const eventsBefore = world.inspect.events.filter(e => e.name === "order.created").length;
     const { isNew } = await simulateWebhook({

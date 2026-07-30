@@ -407,6 +407,34 @@ describe("leads-pipeline / LeadService", () => {
     assert.equal(list.length, 2);
   });
 
+  test("CSV import — explicit mapping keeps custom fields", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const csv = "Contact Email,Person,Interested In,Choices\nmapped@x.com,Mapping Test,Photography,\"Website;Branding\"\n";
+    const result = await c.leads.importCsv({
+      text: csv,
+      actor: ACTOR,
+      mapping: {
+        "0": "email",
+        "1": "name",
+        "2": "custom:service-interest",
+        "3": "custom:deliverables",
+      },
+      customFieldTypes: {
+        "service-interest": "select",
+        deliverables: "multi-select",
+      },
+    });
+    assert.equal(result.imported, 1);
+    const lead = await c.leads.getByEmail("mapped@x.com");
+    assert.equal(lead?.name, "Mapping Test");
+    assert.equal(lead?.customFields?.["service-interest"], "Photography");
+    assert.deepEqual(lead?.customFields?.deliverables, ["Website", "Branding"]);
+  });
+
   test("CSV import — skip rows missing email", async () => {
     const w = buildWorld();
     const c = buildLeadsPipelineContainer({
@@ -461,6 +489,23 @@ describe("leads-pipeline / LeadService", () => {
       lastContactedAt: contactedAt,
       nextMeetingAt: meeting,
       meetingNotes: "Discovery call",
+      meetingMode: "google-meet",
+      meetingLink: "https://meet.google.com/abc-defg-hij",
+      meetingStatus: "confirmed",
+      meetingConfirmedAt: contactedAt,
+      meetingReminderAt: meeting - 24 * 60 * 60 * 1000,
+      meetingAttempts: [{
+        id: "attempt_test",
+        at: contactedAt,
+        channel: "email",
+        outcome: "reminder-sent",
+        notes: "Confirmation sent manually.",
+      }],
+      salesPresentations: [{
+        id: "presentation_test",
+        title: "Website proposal",
+        url: "https://docs.example.com/website-proposal",
+      }],
     }, ACTOR);
     assert.equal(updated?.name, "Managed Lead");
     assert.equal(updated?.phone, "07123");
@@ -468,6 +513,11 @@ describe("leads-pipeline / LeadService", () => {
     assert.equal(updated?.lastContactedAt, contactedAt);
     assert.equal(updated?.nextMeetingAt, meeting);
     assert.equal(updated?.meetingNotes, "Discovery call");
+    assert.equal(updated?.meetingMode, "google-meet");
+    assert.equal(updated?.meetingStatus, "confirmed");
+    assert.equal(updated?.meetingConfirmedAt, contactedAt);
+    assert.equal(updated?.meetingAttempts?.[0]?.outcome, "reminder-sent");
+    assert.equal(updated?.salesPresentations?.[0]?.title, "Website proposal");
   });
 
   test("delete archives lead and removes it from active list", async () => {
@@ -552,6 +602,115 @@ describe("leads-pipeline / ContactService", () => {
     assert.equal(updated?.type, "customer");
     assert.deepEqual(updated?.tags, ["warm", "converted"]);
     assert.ok((updated?.lastContactedAt ?? 0) > 0);
+  });
+});
+
+describe("leads-pipeline / commercial packs", () => {
+  test("meeting invoice and agreement remain editable, send, accept, and record idempotent payments", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    const lead = await c.leads.upsert({
+      email: "buyer@example.test",
+      name: "Buyer",
+      company: "Buyer Ltd",
+      source: "meeting",
+    }, ACTOR);
+    const draft = await c.commercial.save({
+      partyKind: "lead",
+      partyId: lead.lead.id,
+      recipientName: "Buyer",
+      recipientEmail: lead.lead.email,
+      lineItems: [{ description: "Website build", quantity: 1, unitCents: 120_000 }],
+      taxCents: 24_000,
+      currency: "gbp",
+      dueAt: Date.now() + 7 * 86_400_000,
+      billingCadence: "installments",
+      installmentCount: 3,
+      serviceLevel: "Website launch",
+      agreementTitle: "Service level agreement",
+      agreementBody: "Milesymedia will design and build the agreed website.",
+    }, ACTOR);
+    assert.equal(draft.totalCents, 144_000);
+    assert.match(draft.invoiceNumber, /^MM-\d{4}-\d{4}$/);
+
+    const amended = await c.commercial.save({
+      partyKind: "lead",
+      partyId: lead.lead.id,
+      recipientName: "Buyer",
+      recipientEmail: lead.lead.email,
+      lineItems: [{ description: "Website build and photography", quantity: 1, unitCents: 150_000 }],
+      taxCents: 30_000,
+      currency: "gbp",
+      dueAt: draft.dueAt,
+      billingCadence: "installments",
+      installmentCount: 3,
+      serviceLevel: "Website and photography",
+      agreementTitle: "Service level agreement",
+      agreementBody: "Milesymedia will deliver the agreed website and photography.",
+    }, ACTOR);
+    assert.equal(amended.invoiceNumber, draft.invoiceNumber);
+    assert.equal(amended.totalCents, 180_000);
+
+    const sent = await c.commercial.send("lead", lead.lead.id, "https://milesymedia.test", ACTOR);
+    assert.equal(sent.invoiceStatus, "sent");
+    assert.equal(sent.agreementStatus, "sent");
+    assert.equal(w.enqueued.length, 1);
+    assert.match(w.enqueued[0]?.bodyText ?? "", /proposal\//);
+
+    const accepted = await c.commercial.accept(sent.publicToken, "Buyer");
+    assert.equal(accepted?.agreementStatus, "accepted");
+
+    const partPaid = await c.commercial.recordPayment("lead", lead.lead.id, {
+      amountCents: 60_000,
+      method: "bank-transfer",
+      reference: "BANK-001",
+    }, ACTOR);
+    assert.equal(partPaid?.payments.length, 1);
+    assert.equal(partPaid?.invoiceStatus, "sent");
+
+    const duplicate = await c.commercial.recordPayment("lead", lead.lead.id, {
+      amountCents: 60_000,
+      method: "bank-transfer",
+      reference: "BANK-001",
+    }, ACTOR);
+    assert.equal(duplicate?.payments.length, 1);
+
+    const paid = await c.commercial.recordPayment("lead", lead.lead.id, {
+      amountCents: 120_000,
+      method: "cash",
+      reference: "CASH-002",
+    }, ACTOR);
+    assert.equal(paid?.invoiceStatus, "paid");
+    assert.equal(paid?.payments.length, 2);
+    assert.ok(w.activityLog.some(entry => entry.action === "commercial.payment.recorded"));
+    assert.ok(w.events.some(event => event.name === "commercial.payment.recorded"));
+  });
+
+  test("signed agreement uploads are constrained to safe document formats", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    await assert.rejects(c.commercial.save({
+      partyKind: "lead",
+      partyId: "lead_upload",
+      recipientEmail: "buyer@example.test",
+      lineItems: [{ description: "Service", quantity: 1, unitCents: 10_000 }],
+      taxCents: 0,
+      currency: "gbp",
+      dueAt: Date.now(),
+      billingCadence: "one-off",
+      serviceLevel: "Service",
+      agreementTitle: "Agreement",
+      agreementBody: "Terms",
+      signedDocumentName: "unsafe.html",
+      signedDocumentDataUrl: "data:text/html;base64,PGgxPk5vPC9oMT4=",
+    }, ACTOR), /PDF, PNG, JPEG, or WebP/);
   });
 });
 

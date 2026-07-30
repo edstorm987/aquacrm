@@ -32,7 +32,7 @@ export default async function CustomerPluginCatchAll({ params, searchParams }: R
   const { rest } = await params;
   const sp = await searchParams;
   const section = rest[0];
-  const fixedSections: CustomerPortalSection[] = ["project", "files", "billing", "support", "resources"];
+  const fixedSections: CustomerPortalSection[] = ["project", "results", "files", "billing", "support", "resources", "details"];
   if (rest.length === 1 && fixedSections.includes(section as CustomerPortalSection)) {
     return <CustomerPortalView section={section as CustomerPortalSection} />;
   }
@@ -62,7 +62,9 @@ export default async function CustomerPluginCatchAll({ params, searchParams }: R
   };
   return (
     <ErrorBoundary label={`${install.pluginId}${page.path ? `/${page.path}` : ""}`}>
-      <Component {...props} />
+      <div className="plugin-page-shell" data-plugin-id={install.pluginId}>
+        <Component {...props} />
+      </div>
     </ErrorBoundary>
   );
 }

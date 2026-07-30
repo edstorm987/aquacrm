@@ -34,6 +34,7 @@ export function LoginForm({
   // so the parent site can land the visitor wherever they came from.
   const nextParam = params.get("next");
   const returnParam = params.get("return");
+  const brandParam = params.get("brand");
   const success = embedded
     ? returnParam ?? `${typeof window !== "undefined" ? window.location.origin : ""}/portal/customer`
     : nextParam ?? "/portal";
@@ -173,7 +174,11 @@ export function LoginForm({
         </label>
       )}
       {!isMagic && mode === "signin" && (
-        <a href="/login/forgot" className="mm-form-toggle" data-testid="login-forgot-link">
+        <a
+          href={`/login/forgot${brandParam ? `?brand=${encodeURIComponent(brandParam)}` : ""}`}
+          className="mm-form-toggle"
+          data-testid="login-forgot-link"
+        >
           Forgot password?
         </a>
       )}

@@ -16,18 +16,28 @@
 // in a future round.
 //
 // Usage:
-//   node scripts/smoke-ux.mjs                        # default base http://localhost:3032
+//   node scripts/smoke-ux.mjs                        # default base http://localhost:3030
 //   AQUA_BASE=https://my-deploy node scripts/smoke-ux.mjs
 //
 // Requires the dev server (or a build) running at AQUA_BASE.
 
 import { writeFile, readFile, mkdir } from "node:fs/promises";
+import { loadEnvFile } from "node:process";
 import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const BASE = process.env.AQUA_BASE || "http://localhost:3032";
+const BASE = process.env.AQUA_BASE || "http://localhost:3030";
 const JAR = join(tmpdir(), `aqua-ux-smoke-${process.pid}.json`);
+
+try {
+  loadEnvFile(".env.local");
+} catch {
+  // Deployed smoke runs provide credentials through the environment.
+}
+
+const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL || "edwardhallam07@gmail.com";
+const FOUNDER_PASSWORD = process.env.FOUNDER_PASSWORD || "";
 
 const failures = [];
 let total = 0;
@@ -105,9 +115,9 @@ const PAGES = [
   { path: "/portal/agency/agency-finance", label: "Finance / invoices", needsAuth: true },
   { path: "/portal/agency/sops", label: "Systems / SOPs", needsAuth: true },
   { path: "/portal/agency/settings", label: "Agency settings", needsAuth: true },
-  { path: "/portal/account", label: "Account profile", needsAuth: true },
-  { path: "/portal/account/preferences", label: "Account preferences", needsAuth: true },
-  { path: "/portal/account/permissions", label: "Account permissions", needsAuth: true },
+  { path: "/portal/account", label: "Account profile", needsAuth: true, needsNav: false },
+  { path: "/portal/account/preferences", label: "Account preferences", needsAuth: true, needsNav: false },
+  { path: "/portal/account/permissions", label: "Account permissions", needsAuth: true, needsNav: false },
 ];
 
 const VIEWPORTS = [375, 768, 1280];
@@ -117,13 +127,13 @@ async function main() {
 
   const jar = await loadCookies();
 
-  // Ensure founder session for the standalone local portal.
-  const login = await request("POST", "/api/dev/login-as", 1280, jar, {
+  // Sign in through the same credential flow used by the real portal.
+  const login = await request("POST", "/api/auth/login", 1280, jar, {
     accept: "application/json",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ persona: "founder" }),
+    body: JSON.stringify({ email: FOUNDER_EMAIL, password: FOUNDER_PASSWORD }),
   });
-  record("dev founder login", login.status === 200, `status ${login.status}`);
+  record("founder login", login.status === 200, `status ${login.status}`);
   await saveCookies(jar);
 
   // Check each page at each viewport.
@@ -144,10 +154,12 @@ async function main() {
             `[${vp}] ${page.label} has main-content landmark`,
             r.text.includes('id="main-content"'),
           );
-          record(
-            `[${vp}] ${page.label} has aria-label primary nav`,
-            r.text.includes('aria-label="Primary navigation"') || r.text.includes('aria-label="Primary"'),
-          );
+          if (page.needsNav !== false) {
+            record(
+              `[${vp}] ${page.label} has aria-label primary nav`,
+              r.text.includes('aria-label="Primary navigation"') || r.text.includes('aria-label="Primary"'),
+            );
+          }
         }
         // No console-error markers in the body.
         const errorMarkers = ["Application error", "An unexpected error occurred", "next-error"];

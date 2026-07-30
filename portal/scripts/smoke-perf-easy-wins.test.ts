@@ -22,7 +22,7 @@ describe("Perf — standalone portal guards", () => {
   it("performance scripts target the standalone portal", () => {
     const perf = readFileSync(join(ROOT, "scripts/smoke-perf.mjs"), "utf8");
     const baseline = readFileSync(join(ROOT, "scripts/perf-baseline.mjs"), "utf8");
-    assert.ok(perf.includes("http://localhost:3032"));
+    assert.ok(perf.includes("http://localhost:3030"));
     assert.ok(perf.includes("/portal/agency"));
     assert.ok(perf.includes("/portal/clients"));
     assert.ok(baseline.includes("perf-baseline"));

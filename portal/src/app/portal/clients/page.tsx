@@ -1,14 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole, getSessionAgencyIds, getActiveAgencyId } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
-import type { Client } from "@/server/types";
 import { phaseLabel } from "@/server/phases";
-import { NewClientButton } from "@/app/portal/agency/_NewClientButton";
 import { getUserById } from "@/server/users";
-import { listInstalledFor } from "@/server/pluginInstalls";
+import { getInstall, listInstalledFor } from "@/server/pluginInstalls";
 import { buildSidebar } from "@/lib/chrome/sidebarLayout";
 import { effectiveRole } from "@/lib/server/effectiveRole";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
@@ -16,12 +13,21 @@ import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
 import { NotificationBell } from "@/components/chrome/NotificationBell";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { containerFor } from "@aqua/plugin-leads-pipeline/server";
+import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
+import { PeopleHub, type ContactRole, type HubContact } from "./_PeopleHub";
+import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import { CompanyContextSwitcher } from "@/components/chrome/CompanyContextSwitcher";
+import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
+import { getTradingCompany, listTradingCompanies, recordBelongsToCompany } from "@/server/tradingCompanies";
 
 // /portal/clients — agency-side client list. Client-* roles redirect
 // straight to their own client portal (a list of "all clients" makes no
 // sense for them).
 
-export default async function ClientsList() {
+export default async function ClientsList({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   await ensureHydrated();
   let session;
   try {
@@ -32,7 +38,62 @@ export default async function ClientsList() {
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
 
-  const clients = listClients(session.agencyId);
+  const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
+  const activeCompany = activeCompanyId ? getTradingCompany(session.agencyId, activeCompanyId) : null;
+  const currentUser = getUserById(session.userId);
+  const tradingCompanies = listTradingCompanies(session.agencyId).filter(company => !currentUser?.companyIds?.length || currentUser.companyIds.includes(company.id));
+  const activeLabel = activeCompany?.name ?? agency.name;
+  const activeBrand = activeCompany?.brand ?? agency.brand;
+  const clients = listClients(session.agencyId)
+    .filter(client => !activeCompanyId || !client.companyId || client.companyId === activeCompanyId);
+  ensureDefaultAgencyProducts(session.agencyId);
+  const products = listAgencyProducts(session.agencyId)
+    .filter(product => recordBelongsToCompany(product.companyIds, activeCompanyId));
+  const workspaceSettings = getAgencyWorkspaceSettings(session.agencyId);
+  const leadsInstall = getInstall({ agencyId: agency.id }, "leads-pipeline");
+  let contacts: HubContact[] = [];
+  if (leadsInstall) {
+    ensureLeadsPipelineFoundationRegistered();
+    const leadsContainer = containerFor({
+      agencyId: agency.id,
+      storage: makePluginStorage(leadsInstall.id) as never,
+    });
+    const [contactRows, leadRows] = await Promise.all([
+      leadsContainer.contacts.list(),
+      leadsContainer.leads.list(),
+    ]);
+    const contactEmails = new Set(contactRows.map(contact => contact.email.toLowerCase()));
+    contacts = [
+      ...contactRows.map(contact => ({
+        id: contact.id,
+        email: contact.email,
+        name: contact.name,
+        phone: contact.phone,
+        company: contact.company,
+        tags: contact.tags,
+        type: contact.type as ContactRole,
+        source: contact.source,
+        notes: contact.notes,
+        recordKind: "contact" as const,
+      })),
+      ...leadRows
+        .filter(lead => !contactEmails.has(lead.email.toLowerCase()))
+        .map(lead => ({
+          id: lead.id,
+          email: lead.email,
+          name: lead.name,
+          phone: lead.phone,
+          company: lead.company,
+          tags: lead.tags,
+          type: "lead" as const,
+          source: lead.source,
+          notes: lead.notes,
+          recordKind: "lead" as const,
+        })),
+    ];
+  }
+  const requestedView = (await searchParams).view;
+  const initialView = requestedView === "contacts" || requestedView === "staff" || requestedView === "health" || requestedView === "all" ? requestedView : "clients";
   const installs = listInstalledFor({ agencyId: agency.id });
   const eff = effectiveRole(session);
   const panels = buildSidebar({
@@ -46,168 +107,87 @@ export default async function ClientsList() {
 
   return (
     <>
-      <ThemeInjector brand={agency.brand} scope="agency" />
-      <div className="flex min-h-screen">
+      <ThemeInjector brand={activeBrand} scope={activeCompany ? `trading-company:${activeCompany.id}` : "agency"} />
+      <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar
           panels={panels}
-          tenantLabel={agency.name}
+          tenantLabel={activeLabel}
           currentPath={currentPath}
-          agencies={getSessionAgencyIds(session).flatMap(id => {
-            const a = getAgency(id);
-            return a ? [{ id: a.id, name: a.name, swatch: a.brand?.primaryColor }] : [];
-          })}
-          activeAgencyId={getActiveAgencyId(session)}
-          extra={<NotificationBell agencyId={agency.id} actor={session.userId} />}
         />
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
-            title={agency.name}
-            subtitle="Clients"
+            title={activeLabel}
+            subtitle="Clients & contacts"
             role={session.role}
             email={session.email}
-            name={getUserById(session.userId)?.name}
-            avatarUrl={getUserById(session.userId)?.avatarUrl}
+            name={currentUser?.name}
+            avatarUrl={currentUser?.avatarUrl}
             panels={panels}
-            tenantLabel={agency.name}
+            tenantLabel={activeLabel}
             currentPath={currentPath}
             isDemo={session.isDemo}
+            showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            privacyTerms={[
+              ...clients.flatMap(client => [client.name, client.ownerEmail ?? ""]),
+              ...contacts.flatMap(contact => [contact.name ?? "", contact.email, contact.phone ?? "", contact.company ?? ""]),
+            ]}
+            notifications={<NotificationBell agencyId={agency.id} actor={session.userId} />}
+            companySwitcher={<CompanyContextSwitcher
+              activeCompanyId={activeCompanyId}
+              companies={tradingCompanies.map(company => ({
+                id: company.id,
+                name: company.name,
+                primaryColor: company.brand.primaryColor,
+              }))}
+            />}
           />
-          <main id="main-content" className="flex-1 px-8 py-6">
+          <main id="main-content" className="mm-private-surface min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label="clients index">
-              <div className="flex flex-col gap-6">
-                <header className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-brand">Client control room</p>
-                    <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">Clients</h1>
-                    <p className="mt-1 max-w-2xl text-sm text-black/60">
-                      Add clients, track their current phase, keep their portal work together, and jump straight into the next thing they need.
-                    </p>
-                  </div>
-                  <NewClientButton />
-                </header>
-
-                {clients.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-black/15 bg-white/70 px-6 py-12 text-center shadow-sm">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-xl text-brand" aria-hidden>
-                      +
-                    </div>
-                    <h2 className="mt-4 text-lg font-semibold text-black/85">No clients yet</h2>
-                    <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-black/60">
-                      Start with one client. Give them a phase, owner email, brand colour and plan notes, then their workspace becomes the place you run onboarding from.
-                    </p>
-                    <p className="mt-5 text-xs font-medium text-black/45">
-                      Use the New client button above to add the first one.
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {clients.map(c => (
-                      <li key={c.id} className="min-w-0">
-                        <ClientCard client={c} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <PeopleHub
+                initialView={initialView}
+                clientDefaults={workspaceSettings}
+                products={products.map(product => ({
+                  id: product.id, kind: product.kind, name: product.name, category: product.category,
+                  description: product.description ?? "", deliverables: product.deliverables,
+                  buyerHeadline: product.buyerHeadline, coverImageUrl: product.coverImageUrl,
+                  accentColor: product.accentColor, portalRequirement: product.portalRequirement,
+                  portalHeadline: product.portalHeadline, portalWelcomeNote: product.portalWelcomeNote,
+                  includedProductIds: product.includedProductIds, welcomePackItems: product.welcomePackItems,
+                  welcomePackNotes: product.welcomePackNotes, pricing: product.pricing,
+                  priceCents: product.priceCents, billingInterval: product.billingInterval,
+                  depositPercent: product.depositPercent, taxRatePercent: product.taxRatePercent,
+                  paymentTermsDays: product.paymentTermsDays, billingNotes: product.billingNotes,
+                  internalInfo: product.internalInfo, contractTitle: product.contractTitle,
+                  contractBody: product.contractBody, sopIds: product.sopIds,
+                  sopCategories: product.sopCategories,
+                }))}
+                clients={clients.map(client => {
+                  const metadata = client.metadata as { leadSource?: string; lastContactedAt?: number; products?: unknown[]; niche?: string; customFields?: Record<string, unknown> } | undefined;
+                  const healthNotes = [
+                    !client.ownerEmail ? "Account email missing" : null,
+                    !metadata?.leadSource ? "Acquisition source missing" : null,
+                    metadata?.lastContactedAt && Date.now() - metadata.lastContactedAt > 1000 * 60 * 60 * 24 * 14 ? "No contact in 14+ days" : null,
+                  ].filter((note): note is string => Boolean(note));
+                  return {
+                  id: client.id,
+                  name: client.name,
+                  ownerEmail: client.ownerEmail,
+                  websiteUrl: client.websiteUrl,
+                  stageLabel: phaseLabel(client.stage),
+                  status: client.status,
+                  primaryColor: client.brand.primaryColor,
+                  source: metadata?.leadSource ?? "Unknown",
+                  niche: metadata?.niche ?? (typeof metadata?.customFields?.niche === "string" ? metadata.customFields.niche : undefined),
+                  lastContactedAt: metadata?.lastContactedAt,
+                  health: healthNotes.length ? "attention" as const : "healthy" as const,
+                  healthNotes,
+                };})}
+                contacts={contacts}
+              />
             </ErrorBoundary>
           </main>
         </div>
       </div>
     </>
   );
-}
-
-function ClientCard({ client }: { client: Client }) {
-  const meta = client.metadata ?? {};
-  const planTier = stringMeta(meta.planTier);
-  const whatsappLink = stringMeta(meta.whatsappLink);
-  const stripeLink = stringMeta(meta.stripeLink);
-  const lockInPaid = Boolean(meta.lockInPaid);
-  const initials = client.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(word => word[0]?.toUpperCase())
-    .join("") || "C";
-
-  return (
-    <article className="flex h-full flex-col rounded-xl border border-black/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <Link href={`/portal/clients/${client.id}`} className="group flex min-w-0 items-start gap-3">
-        {client.brand.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={client.brand.logoUrl} alt="" className="h-12 w-12 rounded-lg object-cover ring-1 ring-black/10" />
-        ) : (
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: client.brand.primaryColor }}
-            aria-hidden
-          >
-            {initials}
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold text-black/90 group-hover:text-brand">{client.name}</h2>
-          <p className="mt-1 truncate text-xs text-black/50">{client.ownerEmail ?? "No portal login email yet"}</p>
-        </div>
-      </Link>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span
-          className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white"
-          style={{ backgroundColor: client.brand.primaryColor }}
-        >
-          {phaseLabel(client.stage)}
-        </span>
-        {planTier && (
-          <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium capitalize text-black/65">
-            {planTier.replace(/-/g, " ")}
-          </span>
-        )}
-        {lockInPaid && (
-          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800">
-            Lock-in paid
-          </span>
-        )}
-      </div>
-
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
-        <InfoTile label="Website" value={client.websiteUrl ? "Connected" : "Not added"} />
-        <InfoTile label="Portal" value={client.endCustomers?.signupsEnabled === false ? "Private" : "Ready"} />
-      </dl>
-
-      <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-black/10 pt-4">
-        <Link href={`/portal/clients/${client.id}`} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">
-          Manage
-        </Link>
-        <Link href={`/portal/clients/${client.id}?tab=portal`} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
-          Portal
-        </Link>
-        <Link href={`/portal/clients/${client.id}?tab=finance`} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
-          Finance
-        </Link>
-        {whatsappLink && (
-          <a href={whatsappLink} target="_blank" rel="noreferrer" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
-            WhatsApp
-          </a>
-        )}
-        {stripeLink && (
-          <a href={stripeLink} target="_blank" rel="noreferrer" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
-            Payment
-          </a>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function InfoTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2">
-      <dt className="text-[10px] font-semibold uppercase tracking-wide text-black/40">{label}</dt>
-      <dd className="mt-1 truncate font-medium text-black/75">{value}</dd>
-    </div>
-  );
-}
-
-function stringMeta(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
 }

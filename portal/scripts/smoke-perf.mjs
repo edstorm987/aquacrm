@@ -10,7 +10,7 @@
 // First Contentful Paint, so a 2.5s response cap is a usable proxy.
 //
 // Usage:
-//   node scripts/smoke-perf.mjs                        # default base http://localhost:3032
+//   node scripts/smoke-perf.mjs                        # default base http://localhost:3030
 //   AQUA_BASE=https://my-deploy node scripts/smoke-perf.mjs
 //   AQUA_BUDGET_MS=2500 AQUA_BUDGET_KB=300 node scripts/smoke-perf.mjs
 //
@@ -20,8 +20,17 @@ import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadEnvFile } from "node:process";
 
-const BASE = process.env.AQUA_BASE || "http://localhost:3032";
+try {
+  loadEnvFile(".env.local");
+} catch {
+  // Deployed runs provide credentials through the environment.
+}
+
+const BASE = process.env.AQUA_BASE || "http://localhost:3030";
+const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL || "edwardhallam07@gmail.com";
+const FOUNDER_PASSWORD = process.env.FOUNDER_PASSWORD || "";
 const BUDGET_MS = Number(process.env.AQUA_BUDGET_MS || 2500);
 const BUDGET_KB = Number(process.env.AQUA_BUDGET_KB || 300);
 const JAR = join(tmpdir(), `aqua-perf-smoke-${process.pid}.json`);
@@ -108,14 +117,13 @@ async function main() {
 
   const jar = await loadCookies();
 
-  // Bootstrap founder session for the standalone local portal.
-  const login = await timed("/api/dev/login-as", jar, {
+  const login = await timed("/api/auth/login", jar, {
     method: "POST",
     accept: "application/json",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ persona: "founder" }),
+    body: JSON.stringify({ email: FOUNDER_EMAIL, password: FOUNDER_PASSWORD }),
   });
-  record(`dev founder login`, login.status === 200, `${login.status} · ${login.elapsed.toFixed(0)}ms`);
+  record(`founder login`, login.status === 200, `${login.status} · ${login.elapsed.toFixed(0)}ms`);
   await saveCookies(jar);
 
   let totalBytes = 0;

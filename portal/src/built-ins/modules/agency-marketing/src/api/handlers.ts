@@ -1,5 +1,6 @@
 // HTTP handlers for the agency-marketing plugin.
 
+import crypto from "node:crypto";
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import type {
@@ -9,6 +10,11 @@ import type {
   CreateTemplateInput,
   Currency,
   LeadFilter,
+  MarketingAsset,
+  MarketingAssetKind,
+  MarketingAssetStatus,
+  CreateMarketingAssetInput,
+  UpdateMarketingAssetPatch,
   TemplateFilter,
   UpdateCampaignPatch,
   UpdateLeadPatch,
@@ -37,6 +43,98 @@ const buildContainer = (ctx: PluginCtx) =>
 
 const defaultCurrency = (ctx: PluginCtx): Currency =>
   (ctx.install.config.defaultCurrency as Currency | undefined) ?? "usd";
+
+const MARKETING_ASSETS_KEY = "milesymedia/channel-assets/v1";
+const MARKETING_ASSET_KINDS = new Set<MarketingAssetKind>(["social", "website", "funnel", "google-ads", "reputation"]);
+const MARKETING_ASSET_STATUSES = new Set<MarketingAssetStatus>(["draft", "active", "paused", "complete", "archived"]);
+
+function cleanMarketingAssetInput(input: CreateMarketingAssetInput): Omit<MarketingAsset, "id" | "agencyId" | "createdAt" | "updatedAt"> | null {
+  const name = typeof input.name === "string" ? input.name.trim().slice(0, 120) : "";
+  if (!name || !MARKETING_ASSET_KINDS.has(input.kind)) return null;
+  const status = input.status && MARKETING_ASSET_STATUSES.has(input.status) ? input.status : "draft";
+  const text = (value: unknown, max = 500) => typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
+  const count = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+  return {
+    kind: input.kind,
+    companyIds: Array.isArray(input.companyIds)
+      ? Array.from(new Set(input.companyIds.filter((value): value is string => typeof value === "string").map(value => value.trim()).filter(Boolean))).slice(0, 30)
+      : [],
+    name,
+    platform: text(input.platform, 80),
+    url: text(input.url, 500),
+    objective: text(input.objective, 300),
+    owner: text(input.owner, 100),
+    status,
+    budgetCents: count(input.budgetCents),
+    spendCents: count(input.spendCents),
+    leads: count(input.leads),
+    conversions: count(input.conversions),
+    rating: typeof input.rating === "number" && Number.isFinite(input.rating)
+      ? Math.min(5, Math.max(0, Math.round(input.rating * 10) / 10))
+      : undefined,
+    reviewCount: count(input.reviewCount),
+    unansweredReviews: count(input.unansweredReviews),
+    notes: text(input.notes, 2_000),
+  };
+}
+
+export async function listMarketingAssetsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const kind = new URL(req.url).searchParams.get("kind") as MarketingAssetKind | null;
+  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
+  return json({
+    ok: true,
+    assets: rows
+      .filter(row => !kind || row.kind === kind)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+  });
+}
+
+export async function createMarketingAssetHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "POST");
+  if (guard) return guard;
+  const body = await safeJson<CreateMarketingAssetInput>(req);
+  if (!body) return badRequest("marketing item required.");
+  const input = cleanMarketingAssetInput(body);
+  if (!input) return badRequest("name and a valid marketing area are required.");
+  const now = Date.now();
+  const row: MarketingAsset = {
+    ...input,
+    id: `mkt_${crypto.randomBytes(8).toString("hex")}`,
+    agencyId: ctx.agencyId,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
+  await ctx.storage.set(MARKETING_ASSETS_KEY, [row, ...rows]);
+  return json({ ok: true, asset: row }, 201);
+}
+
+export async function updateMarketingAssetHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "PATCH");
+  if (guard) return guard;
+  const body = await safeJson<{ id: string; patch: UpdateMarketingAssetPatch }>(req);
+  if (!body?.id || !body.patch) return badRequest("id and patch required.");
+  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
+  const existing = rows.find(row => row.id === body.id && row.agencyId === ctx.agencyId);
+  if (!existing) return notFound("marketing item not found");
+  const input = cleanMarketingAssetInput({ ...existing, ...body.patch, kind: existing.kind });
+  if (!input) return badRequest("name and a valid marketing area are required.");
+  const updated: MarketingAsset = { ...existing, ...input, updatedAt: Date.now() };
+  await ctx.storage.set(MARKETING_ASSETS_KEY, rows.map(row => row.id === updated.id ? updated : row));
+  return json({ ok: true, asset: updated });
+}
+
+export async function deleteMarketingAssetHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const guard = methodGuard(req, "DELETE");
+  if (guard) return guard;
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return badRequest("id required.");
+  const rows = (await ctx.storage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? [];
+  if (!rows.some(row => row.id === id && row.agencyId === ctx.agencyId)) return notFound("marketing item not found");
+  await ctx.storage.set(MARKETING_ASSETS_KEY, rows.filter(row => row.id !== id));
+  return json({ ok: true });
+}
 
 // ─── Campaigns ───────────────────────────────────────────────────────────
 

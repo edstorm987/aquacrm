@@ -14,7 +14,7 @@ export default async function TouchpointsPage(props: PluginPageProps) {
   return (
     <section>
       <header style={{ marginBottom: 16 }}>
-        <h1>Touchpoints</h1>
+        <h1>Client contact</h1>
         <p style={{ color: "rgba(0,0,0,0.6)", margin: 0 }}>
           {items.length} recorded{leadId ? ` for lead ${leadId}` : ""}
         </p>
@@ -33,7 +33,7 @@ export default async function TouchpointsPage(props: PluginPageProps) {
         <tbody>
           {items.length === 0 && (
             <tr><td colSpan={5} style={{ padding: 12, color: "rgba(0,0,0,0.5)" }}>
-              No touchpoints recorded yet.
+              No client contact recorded yet.
             </td></tr>
           )}
           {items.map(t => (

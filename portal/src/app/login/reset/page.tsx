@@ -10,7 +10,8 @@ import { Suspense } from "react";
 import { ResetForm } from "./ResetForm";
 
 export const metadata = {
-  title: "Reset password · Milesymedia Portal",
+  title: "Reset password · Milesymedia",
+  description: "Choose a new password for your Milesymedia client portal.",
 };
 
 // `/login/reset` reads `?token=` via useSearchParams in ResetForm.
@@ -24,7 +25,11 @@ export default function ResetPage() {
     <main className="mm-auth-shell">
       <div className="mm-auth-split">
         <aside className="mm-auth-brand-panel" aria-hidden="true">
-          <span className="mm-auth-brand-eyebrow">Milesymedia Portal</span>
+          <div className="mm-auth-brand-mark">
+            <span>M</span>
+            <strong>Milesymedia</strong>
+          </div>
+          <span className="mm-auth-brand-eyebrow">Client portal</span>
           <h2 className="mm-auth-brand-headline">
             New password.<br />
             Same workspace.
@@ -33,7 +38,9 @@ export default function ResetPage() {
             Set a strong password. Existing sessions for this account will
             sign out automatically.
           </p>
-          <span className="mm-auth-brand-foot">portal.milesymedia</span>
+          <span className="mm-auth-brand-foot">
+            Secure access provided by Milesymedia
+          </span>
         </aside>
 
         <div className="mm-auth-card">

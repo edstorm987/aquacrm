@@ -17,6 +17,7 @@ import type { PortalState } from "./types";
 
 const empty = (): PortalState => ({
   agencies: {},
+  tradingCompanies: {},
   clients: {},
   endCustomers: {},
   users: {},
@@ -26,6 +27,20 @@ const empty = (): PortalState => ({
   activity: [],
   pipelines: {},
   pipelineCards: {},
+  assistant: {},
+  tasks: {},
+  sops: {},
+  agencyProducts: {},
+  clientMilestones: {},
+  performanceExperiments: {},
+  clientDelight: {},
+  agencySettings: {},
+  portalEditor: {},
+  companyProfiles: {},
+  legalDocuments: {},
+  developmentResources: {},
+  developmentWorkflows: {},
+  agencyWebsites: {},
 });
 
 // ─── Backend interface ────────────────────────────────────────────────────
@@ -226,6 +241,7 @@ function parseBlob(raw: string): PortalState {
     const parsed = JSON.parse(raw) as Partial<PortalState>;
     return {
       agencies: parsed.agencies ?? {},
+      tradingCompanies: parsed.tradingCompanies ?? {},
       clients: parsed.clients ?? {},
       endCustomers: parsed.endCustomers ?? {},
       users: parsed.users ?? {},
@@ -235,6 +251,20 @@ function parseBlob(raw: string): PortalState {
       activity: Array.isArray(parsed.activity) ? parsed.activity : [],
       pipelines: parsed.pipelines ?? {},
       pipelineCards: parsed.pipelineCards ?? {},
+      assistant: parsed.assistant ?? {},
+      tasks: parsed.tasks ?? {},
+      sops: parsed.sops ?? {},
+      agencyProducts: parsed.agencyProducts ?? {},
+      clientMilestones: parsed.clientMilestones ?? {},
+      performanceExperiments: parsed.performanceExperiments ?? {},
+      clientDelight: parsed.clientDelight ?? {},
+      agencySettings: parsed.agencySettings ?? {},
+      portalEditor: parsed.portalEditor ?? {},
+      companyProfiles: parsed.companyProfiles ?? {},
+      legalDocuments: parsed.legalDocuments ?? {},
+      developmentResources: parsed.developmentResources ?? {},
+      developmentWorkflows: parsed.developmentWorkflows ?? {},
+      agencyWebsites: parsed.agencyWebsites ?? {},
     };
   } catch {
     return empty();

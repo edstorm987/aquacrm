@@ -10,12 +10,11 @@
 // summary text, leaving just the leading icon for each item. Native
 // title="" gives a tooltip on hover.
 
-import Link from "next/link";
 import type { ReactNode } from "react";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
-import { TenantSwitcher, type TenantOption } from "./TenantSwitcher";
 import { SidebarFooter } from "./SidebarFooter";
 import { WORKSPACES } from "@/lib/chrome/workspaces";
+import { SidebarNavLink } from "./SidebarNavLink";
 
 function workspacesForPanel(panelId: string): string {
   return WORKSPACES.filter(w => w.panels.includes(panelId)).map(w => w.id).join(" ");
@@ -27,12 +26,9 @@ interface Props {
   currentPath: string;
   mobile?: boolean;
   extra?: ReactNode;
-  agencies?: TenantOption[];
-  activeAgencyId?: string;
 }
 
-export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extra, agencies, activeAgencyId }: Props) {
-  const showSwitcher = !!(agencies && agencies.length > 0 && activeAgencyId);
+export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extra }: Props) {
   // Pluck the "settings" panel out of the main nav and pass its items
   // to the footer's expandable Settings — single source of truth, no
   // duplicate Settings entries elsewhere in the sidebar.
@@ -47,8 +43,8 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
       data-sidebar-mobile={mobile ? "true" : "false"}
       suppressHydrationWarning
       className={[
-        "shrink-0 bg-white/60 p-4 text-sm",
-        "flex flex-col min-h-screen",
+        "mm-private-sidebar shrink-0 bg-white/60 p-4 text-sm",
+        "flex h-dvh min-h-0 flex-col overflow-hidden",
         mobile ? "w-60" : "hidden md:flex border-r border-black/10 mm-sidebar-collapsible",
       ].join(" ")}
     >
@@ -58,23 +54,24 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
           mobile ? "" : "sticky top-0 z-10 -mx-4 -mt-4 bg-white/85 px-4 pt-4 pb-3 backdrop-blur",
         ].join(" ")}
       >
-        {showSwitcher ? (
-          <TenantSwitcher agencies={agencies!} activeAgencyId={activeAgencyId!} />
-        ) : (
-          <>
-            <div className="text-[11px] uppercase tracking-wide text-black/50">Tenant</div>
-            <div className="text-base font-semibold text-black/90">{tenantLabel}</div>
-          </>
-        )}
+        <div data-testid="tenant-identity" className="flex items-center gap-2.5 rounded-lg border border-black/10 bg-white/65 px-2.5 py-2 shadow-sm">
+          <span aria-hidden className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">
+            {(tenantLabel.trim().charAt(0) || "M").toUpperCase()}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-medium uppercase tracking-wide text-black/45">AquaCRM</span>
+            <span className="block truncate text-sm font-semibold text-black/90">{tenantLabel}</span>
+          </span>
+        </div>
       </div>
 
-      <nav aria-label="Primary" className="flex flex-1 flex-col gap-2">
+      <nav aria-label="Primary" className="mm-sidebar-primary-nav flex min-h-0 flex-1 flex-col gap-1">
         {panels.length === 0 && (
           <p
             data-testid="sidebar-empty-state"
             className="rounded-md border border-dashed border-black/10 px-2 py-3 text-[11px] italic text-black/40"
           >
-            No systems enabled for this scope yet.
+            No tools are available here yet.
           </p>
         )}
         {mainPanels.map(panel => {
@@ -82,10 +79,17 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
           const hasActive = panel.items.some(
             item => currentPath === item.href || currentPath.startsWith(item.href + "/"),
           );
+          if (!panel.label) {
+            return (
+              <div key={panel.id} data-panel-id={panel.id} data-workspaces={workspacesForPanel(panel.id)} className="mm-sidebar-panel">
+                <NavItems panel={panel} currentPath={currentPath} />
+              </div>
+            );
+          }
           return (
             <details
               key={panel.id}
-              open
+              open={panel.id === "main" || hasActive}
               data-panel-id={panel.id}
               data-workspaces={workspacesForPanel(panel.id)}
               className="mm-sidebar-panel group/panel"
@@ -109,49 +113,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
                   </span>
                 )}
               </summary>
-              {panel.items.length === 0 ? (
-                <p className="px-2 py-1 text-[11px] italic text-black/40 mm-sidebar-link-label">No systems enabled.</p>
-              ) : (
-                <ul className="mt-0.5 flex flex-col">
-                  {panel.items.map(item => {
-                    const active = currentPath === item.href || currentPath.startsWith(item.href + "/");
-                    const initial = item.label.trim().charAt(0).toUpperCase() || "•";
-                    return (
-                      <li key={`${panel.id}:${item.id}:${item.href}`}>
-                        <Link
-                          href={item.href}
-                          aria-current={active ? "page" : undefined}
-                          title={item.label}
-                          data-sidebar-nav-link
-                          className={[
-                            "mm-sidebar-link flex items-center gap-2 rounded-md px-2 py-1.5",
-                            active ? "bg-brand/10 text-brand font-medium" : "text-black/80 hover:bg-black/5",
-                          ].join(" ")}
-                        >
-                          <span
-                            aria-hidden
-                            className={[
-                              "mm-sidebar-link-icon inline-flex h-5 w-5 shrink-0 items-center justify-center text-[11px] font-semibold text-black/55",
-                              item.icon ? "" : "mm-sidebar-link-initial",
-                            ].join(" ")}
-                          >
-                            {item.icon ?? <span>{initial}</span>}
-                          </span>
-                          <span className="mm-sidebar-link-label flex-1 truncate">{item.label}</span>
-                          {item.badge !== undefined && (
-                            <span
-                              aria-label={`${item.badge}`}
-                              className="mm-sidebar-link-badge rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] text-black/70"
-                            >
-                              {String(item.badge)}
-                            </span>
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+              <NavItems panel={panel} currentPath={currentPath} />
             </details>
           );
         })}
@@ -173,12 +135,29 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             className="mt-4 rounded-lg border border-dashed border-black/15 bg-white/40 p-3 text-[12px] text-black/55"
           >
             <div className="mb-1 font-semibold" style={{ color: w.color }}>{w.label}</div>
-            <div>No systems active for this workspace yet.</div>
-            <a href="/portal/agency/settings" className="mt-1.5 inline-block text-[11px] underline">Open Settings →</a>
+            <div>No tools are available in this area yet.</div>
+            <a href="/portal/agency/settings" className="mt-1.5 inline-block text-[11px] underline">Open settings →</a>
           </div>
         );
       })}
       {!mobile && <SidebarFooter settingsItems={settingsItems} />}
     </aside>
+  );
+}
+
+function NavItems({ panel, currentPath }: { panel: NavPanel; currentPath: string }) {
+  if (!panel.items.length) {
+    return <p className="px-2 py-1 text-[11px] italic text-black/40 mm-sidebar-link-label">Nothing here yet.</p>;
+  }
+  return (
+    <ul className="mt-0.5 flex flex-col">
+      {panel.items.map(item => {
+        return (
+          <li key={`${panel.id}:${item.id}:${item.href}`}>
+            <SidebarNavLink id={item.id} href={item.href} label={item.label} icon={item.icon} badge={item.badge} />
+          </li>
+        );
+      })}
+    </ul>
   );
 }

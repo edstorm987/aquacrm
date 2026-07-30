@@ -14,9 +14,9 @@ export default async function LockInPage(props: PluginPageProps) {
   return (
     <section>
       <header style={{ marginBottom: 16 }}>
-        <h1>Lock-in tracker</h1>
+        <h1>Deposit tracker</h1>
         <p style={{ color: "rgba(0,0,0,0.6)", margin: 0 }}>
-          {rows.length} clients on lock-in plans · {(totalPaid / 100).toFixed(2)} / {(totalDue / 100).toFixed(2)} collected
+          {rows.length} clients with deposits · {(totalPaid / 100).toFixed(2)} / {(totalDue / 100).toFixed(2)} collected
         </p>
       </header>
 
@@ -25,7 +25,7 @@ export default async function LockInPage(props: PluginPageProps) {
           <tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "left" }}>
             <th style={{ padding: 6 }}>Client</th>
             <th style={{ padding: 6 }}>Plan</th>
-            <th style={{ padding: 6 }}>Lock-in</th>
+            <th style={{ padding: 6 }}>Term</th>
             <th style={{ padding: 6 }}>Fee due</th>
             <th style={{ padding: 6 }}>Paid</th>
             <th style={{ padding: 6 }}>Status</th>
@@ -33,7 +33,7 @@ export default async function LockInPage(props: PluginPageProps) {
         </thead>
         <tbody>
           {rows.length === 0 && (
-            <tr><td colSpan={6} style={{ padding: 12, color: "rgba(0,0,0,0.5)" }}>No lock-in clients yet.</td></tr>
+            <tr><td colSpan={6} style={{ padding: 12, color: "rgba(0,0,0,0.5)" }}>No client deposits yet.</td></tr>
           )}
           {rows.map(r => (
             <tr key={`${r.clientId}-${r.planId}`} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
@@ -56,10 +56,7 @@ export default async function LockInPage(props: PluginPageProps) {
       </table>
 
       <p style={{ color: "rgba(0,0,0,0.5)", fontSize: 13, marginTop: 24 }}>
-        Lock-in payments are detected by Payment.notes containing "lock-in" or
-        externalRef starting "lockin_" — operator runbook documents the
-        convention. T1 R002 R+1 will move this onto invoice
-        <code>metadata.lockInPaid</code>.
+        Deposits are matched to the related client invoice and payment record.
       </p>
     </section>
   );

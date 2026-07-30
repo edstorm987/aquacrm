@@ -162,6 +162,13 @@ describe("agency-finance smoke", () => {
     const sent = await services.invoices.update(invoiceId, { status: "sent" }, ACTOR);
     assert.equal(sent?.status, "sent");
 
+    await assert.rejects(
+      services.invoices.update(invoiceId, {
+        lineItems: [{ description: "Silently changed work", quantity: 1, unitCents: 1 }],
+      }, ACTOR),
+      /Only draft invoices can be amended/i,
+    );
+
     // Cannot delete a non-draft invoice.
     await assert.rejects(
       services.invoices.delete(invoiceId, ACTOR),
@@ -195,11 +202,26 @@ describe("agency-finance smoke", () => {
   });
 
   test("step 4: invoice HTML render", async () => {
+    const savedTemplate = await services.invoices.saveTemplate({
+      name: "Smoke letterhead",
+      accentColor: "#234567",
+      documentTitle: "Tax invoice",
+      businessDetails: "Smoke Finance Agency\n1 Test Street",
+      paymentDetails: "Bank transfer: 00-00-00",
+      footerText: "Thank you.",
+      letterheadDataUrl: "data:image/png;base64,c21va2U=",
+    });
+    assert.equal((await services.invoices.getTemplate()).name, "Smoke letterhead");
+    assert.ok(savedTemplate.updatedAt > 0);
+
     const html = await services.invoices.renderInvoiceHtml(invoiceId);
     assert.ok(html);
     assert.match(html ?? "", /INV-\d{4}-\d{4}/);
     assert.match(html ?? "", /Design retainer/);
     assert.match(html ?? "", /Felicia Smoke/);
+    assert.match(html ?? "", /Tax invoice/);
+    assert.match(html ?? "", /Bank transfer/);
+    assert.match(html ?? "", /data:image\/png/);
   });
 
   test("step 5: expense submit → approve → reimburse", async () => {
@@ -247,6 +269,92 @@ describe("agency-finance smoke", () => {
       services.expenses.update(exp.id, { vendor: "Different" }, ACTOR),
       /Cannot edit/i,
     );
+  });
+
+  test("step 6b: paid client cost preserves tax evidence and allocation", async () => {
+    const exp = await services.expenses.create({
+      clientId: CLIENT_ID,
+      categoryId,
+      vendor: "Cloud host",
+      description: "Production hosting for client",
+      reason: "The client production environment requires managed hosting.",
+      amountCents: 12000,
+      taxCents: 2000,
+      taxRateBps: 2000,
+      taxDeductible: true,
+      businessUsePercent: 100,
+      billableToClient: true,
+      paymentMethod: "card",
+      reference: "BANK-CLIENT-COST-1",
+      customFields: {
+        "purchase-order": "PO-1042",
+        "requires-follow-up": true,
+        "cost-centres": ["Hosting", "Client delivery"],
+      },
+      receiptUrl: "https://example.test/receipt.pdf",
+      attachments: [{
+        id: "exa_smoke",
+        name: "hosting-receipt.pdf",
+        url: "/api/portal/finance/expense-attachments/content?id=exa_smoke",
+        size: 12_345,
+        contentType: "application/pdf",
+        storageProvider: "local",
+        storageKey: `${AGENCY_ID}/exa_smoke-hosting-receipt.pdf`,
+        uploadedAt: Date.now(),
+      }],
+      recordAsPaid: true,
+    }, ACTOR, "gbp");
+
+    assert.equal(exp.clientId, CLIENT_ID);
+    assert.equal(exp.status, "reimbursed");
+    assert.equal(exp.netCents, 10000);
+    assert.equal(exp.taxCents, 2000);
+    assert.equal(exp.billableToClient, true);
+    assert.equal(exp.reference, "BANK-CLIENT-COST-1");
+    assert.match(exp.reason ?? "", /production environment/);
+    assert.equal(exp.attachments?.[0]?.name, "hosting-receipt.pdf");
+    assert.deepEqual(exp.customFields, {
+      "purchase-order": "PO-1042",
+      "requires-follow-up": true,
+      "cost-centres": ["Hosting", "Client delivery"],
+    });
+
+    const clientCosts = await services.expenses.list({ clientId: CLIENT_ID });
+    assert.ok(clientCosts.some(cost => cost.id === exp.id));
+  });
+
+  test("step 6c: recurring schedules post a pending occurrence and advance the due date", async () => {
+    const dueAt = Date.UTC(2026, 7, 1);
+    const schedule = await services.expenses.create({
+      categoryId,
+      vendor: "Business insurer",
+      description: "Professional indemnity insurance",
+      reason: "Required business cover.",
+      amountCents: 4_500,
+      recurrence: "monthly",
+      nextDueAt: dueAt,
+      paymentMethod: "direct-debit",
+      recordAsPaid: true,
+      attachments: [{
+        id: "exa_old_policy",
+        name: "previous-policy.pdf",
+        url: "/old-policy",
+        size: 1_000,
+        contentType: "application/pdf",
+        storageProvider: "local",
+        storageKey: `${AGENCY_ID}/previous-policy.pdf`,
+        uploadedAt: Date.now(),
+      }],
+    }, ACTOR, "gbp");
+    const result = await services.expenses.postNextOccurrence(schedule.id, ACTOR);
+    assert.ok(result);
+    assert.equal(result?.expense.incurredAt, dueAt);
+    assert.equal(result?.expense.status, "pending");
+    assert.equal(result?.expense.recurrence, undefined);
+    assert.equal(result?.expense.reason, "Required business cover.");
+    assert.equal(result?.expense.attachments, undefined, "new occurrence must require fresh evidence");
+    assert.equal(result?.source.nextDueAt, Date.UTC(2026, 8, 1));
+    assert.ok(world.inspect.activityLog.some(entry => entry.action === "expense.recurring.posted"));
   });
 
   test("step 7: revenueSnapshot aggregates", async () => {
@@ -483,5 +591,36 @@ describe("agency-finance R007 — Payments / Plans / P&L", () => {
     assert.equal(rows[0]?.clientId, CLIENT_ID);
     assert.equal(rows[0]?.paid, true);
     assert.equal(rows[0]?.paidCents, 100_000);
+  });
+
+  test("R007-12: standalone income persists and contributes to income totals without an invoice", async () => {
+    const { w, c } = freshContainer();
+    const receivedAt = Date.UTC(2026, 6, 15);
+    const entry = await c.income.create(ACTOR, {
+      title: "Referral fee",
+      category: "Referral",
+      description: "Partner introduction",
+      amountCents: 25_000,
+      currency: "gbp",
+      method: "bank-transfer",
+      receivedAt,
+      reference: "REF-001",
+    });
+
+    assert.equal(entry.clientId, undefined);
+    assert.equal(entry.amountCents, 25_000);
+    assert.equal((await c.income.list())[0]?.title, "Referral fee");
+    assert.ok(w.inspect.events.some(e => e.name === "agency-finance.income.recorded"));
+
+    const months = await c.pnl.trailingMonths(receivedAt, 1);
+    assert.equal(months[0]?.revenueCents, 25_000);
+    assert.equal(months[0]?.netCents, 25_000);
+
+    const report = await c.reports.revenueSnapshot({
+      from: Date.UTC(2026, 6, 1),
+      to: Date.UTC(2026, 7, 1) - 1,
+      currency: "gbp",
+    });
+    assert.equal(report.totalPaidCents, 25_000);
   });
 });

@@ -29,14 +29,13 @@ const CATEGORY_META: Record<FileCategory, { label: string; emoji: string }> = {
 
 const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "misc"];
 
-function formatRelative(ts: number): string {
-  const delta = Date.now() - ts;
-  if (delta < 86_400_000) return `${Math.max(1, Math.round(delta / 3_600_000))}h ago`;
-  if (delta < 7 * 86_400_000) return `${Math.round(delta / 86_400_000)}d ago`;
+function formatFileDate(ts: number): string {
   return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
+    day: "numeric",
+    month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "UTC",
   }).format(new Date(ts));
 }
@@ -223,6 +222,7 @@ export function FilesTabClient({
               </div>
             )}
             <select
+              aria-label="File category"
               value={draft.category}
               onChange={e => setDraft(d => ({ ...d, category: e.target.value as FileCategory }))}
               disabled={busy}
@@ -271,7 +271,7 @@ export function FilesTabClient({
                       {CATEGORY_META[f.category].label}
                     </span>
                     <span>{f.uploadedBy ?? "—"}</span>
-                    <span>· {formatRelative(f.uploadedAt)}</span>
+                    <span>· {formatFileDate(f.uploadedAt)}</span>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">

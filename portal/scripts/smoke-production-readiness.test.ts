@@ -34,7 +34,7 @@ describe("production readiness", () => {
 
   it("rejects an insecure public portal origin", () => {
     const result = inspectProductionReadiness(productionEnv({
-      NEXT_PUBLIC_PORTAL_BASE_URL: "http://localhost:3032",
+      NEXT_PUBLIC_PORTAL_BASE_URL: "http://localhost:3030",
     }));
     assert.equal(result.ready, false);
     assert.equal(result.items.find(item => item.id === "security")?.status, "needs-setup");
@@ -44,6 +44,14 @@ describe("production readiness", () => {
     const result = inspectProductionReadiness(productionEnv({
       DATABASE_URL: "",
       PORTAL_BACKEND: "file",
+    }));
+    assert.equal(result.ready, false);
+    assert.equal(result.items.find(item => item.id === "database")?.status, "needs-setup");
+  });
+
+  it("does not accept a localhost database for a public deployment", () => {
+    const result = inspectProductionReadiness(productionEnv({
+      DATABASE_URL: "postgres://portal:secret@127.0.0.1:5432/milesymedia",
     }));
     assert.equal(result.ready, false);
     assert.equal(result.items.find(item => item.id === "database")?.status, "needs-setup");
@@ -66,5 +74,27 @@ describe("production readiness", () => {
     assert.equal(result.ready, true);
     assert.equal(result.items.find(item => item.id === "billing")?.status, "optional");
     assert.equal(result.items.find(item => item.id === "monitoring")?.status, "optional");
+  });
+
+  it("reports optional service connections without exposing their values", () => {
+    const secrets = {
+      STRIPE_SECRET_KEY: "stripe-private-value",
+      STRIPE_WEBHOOK_SECRET: "stripe-webhook-private-value",
+      GITHUB_TOKEN: "github-private-value",
+      VERCEL_TOKEN: "vercel-private-value",
+      OPENAI_API_KEY: "openai-private-value",
+      MILESYMEDIA_ASSISTANT_API_TOKEN: "assistant-private-value",
+      MILESYMEDIA_ASSISTANT_AGENCY_ID: "milesymedia",
+    };
+    const result = inspectProductionReadiness(productionEnv(secrets));
+
+    for (const id of ["billing", "github", "vercel", "assistant", "assistant-api"] as const) {
+      assert.equal(result.items.find(item => item.id === id)?.status, "ready");
+    }
+
+    const visibleCopy = JSON.stringify(result);
+    for (const value of Object.values(secrets)) {
+      assert.equal(visibleCopy.includes(value), false);
+    }
   });
 });

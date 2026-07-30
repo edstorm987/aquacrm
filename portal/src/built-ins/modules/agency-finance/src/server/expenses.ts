@@ -42,6 +42,7 @@ export class ExpenseService {
     }
     return out
       .filter(e => !filter?.status || e.status === filter.status)
+      .filter(e => !filter?.clientId || e.clientId === filter.clientId)
       .filter(e => !filter?.categoryId || e.categoryId === filter.categoryId)
       .filter(e => !filter?.staffId || e.staffId === filter.staffId)
       .filter(e => !filter?.fromIncurredAt || e.incurredAt >= filter.fromIncurredAt)
@@ -66,6 +67,12 @@ export class ExpenseService {
 
   async create(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "usd"): Promise<Expense> {
     if (input.amountCents <= 0) throw new Error("amountCents must be > 0.");
+    if ((input.taxCents ?? 0) < 0 || (input.taxCents ?? 0) > input.amountCents) {
+      throw new Error("taxCents must be between 0 and amountCents.");
+    }
+    if ((input.businessUsePercent ?? 100) < 0 || (input.businessUsePercent ?? 100) > 100) {
+      throw new Error("businessUsePercent must be between 0 and 100.");
+    }
     const cat = await this.categories.get(input.categoryId);
     if (!cat) throw new Error(`Category ${input.categoryId} not found.`);
     if (cat.status !== "active") throw new Error(`Category ${cat.name} is archived.`);
@@ -75,15 +82,42 @@ export class ExpenseService {
     const row: Expense = {
       id,
       agencyId: this.agencyId,
+      clientId: input.clientId,
       staffId: input.staffId,
       categoryId: input.categoryId,
-      vendor: input.vendor,
-      description: input.description,
+      vendor: input.vendor?.trim().slice(0, 180) || undefined,
+      description: input.description?.trim().slice(0, 2_000) || undefined,
+      reason: input.reason?.trim().slice(0, 4_000) || undefined,
       amountCents: input.amountCents,
+      netCents: input.amountCents - (input.taxCents ?? 0),
+      taxCents: input.taxCents ?? 0,
+      taxRateBps: input.taxRateBps,
+      taxDeductible: input.taxDeductible ?? true,
+      businessUsePercent: input.businessUsePercent ?? 100,
+      billableToClient: input.billableToClient ?? false,
       currency: input.currency ?? defaultCurrency,
       incurredAt: input.incurredAt ?? ts,
-      status: "pending",
+      status: input.recordAsPaid ? "reimbursed" : "pending",
       receiptUrl: input.receiptUrl,
+      attachments: input.attachments?.slice(0, 8).map(attachment => ({
+        id: attachment.id.slice(0, 120),
+        name: attachment.name.trim().slice(0, 180),
+        url: attachment.url.slice(0, 2_000),
+        size: Math.max(0, Math.round(attachment.size)),
+        contentType: attachment.contentType.slice(0, 180),
+        storageProvider: attachment.storageProvider,
+        storageKey: attachment.storageKey.slice(0, 2_000),
+        uploadedAt: attachment.uploadedAt,
+      })),
+      paymentMethod: input.paymentMethod,
+      reference: input.reference,
+      recurrence: input.recurrence,
+      nextDueAt: input.recurrence
+        ? input.nextDueAt ?? nextOccurrence(input.incurredAt ?? ts, input.recurrence)
+        : undefined,
+      recurringActive: input.recurrence ? input.recurringActive ?? true : undefined,
+      customFields: cleanCustomFields(input.customFields),
+      ...(input.recordAsPaid ? { approvedBy: actor, approvedAt: ts, reimbursedAt: ts } : {}),
       createdAt: ts,
       updatedAt: ts,
     };
@@ -108,9 +142,16 @@ export class ExpenseService {
       category: "finance",
       action: "expense.created",
       message: `Submitted expense (${(row.amountCents / 100).toFixed(2)} ${row.currency}, ${cat.name}).`,
-      metadata: { expenseId: id, categoryId: input.categoryId, amountCents: row.amountCents },
+      clientId: input.clientId,
+      metadata: {
+        expenseId: id,
+        categoryId: input.categoryId,
+        amountCents: row.amountCents,
+        taxCents: row.taxCents,
+        clientId: input.clientId,
+      },
     });
-    this.events.emit({ agencyId: this.agencyId }, "expense.created", { expenseId: id });
+    this.events.emit({ agencyId: this.agencyId, clientId: input.clientId }, "expense.created", { expenseId: id });
     return row;
   }
 
@@ -123,6 +164,8 @@ export class ExpenseService {
     const next: Expense = {
       ...existing,
       ...patch,
+      customFields: patch.customFields ? cleanCustomFields(patch.customFields) : existing.customFields,
+      netCents: (patch.amountCents ?? existing.amountCents) - (patch.taxCents ?? existing.taxCents ?? 0),
       updatedAt: now(),
     };
     await this.storage.set(expKey(id), next);
@@ -203,4 +246,73 @@ export class ExpenseService {
     this.events.emit({ agencyId: this.agencyId }, "expense.reimbursed", { expenseId: id });
     return next;
   }
+
+  async postNextOccurrence(id: string, actor: UserId): Promise<{ source: Expense; expense: Expense } | null> {
+    const source = await this.get(id);
+    if (!source) return null;
+    if (!source.recurrence || source.recurringActive === false) {
+      throw new Error("This expense does not have an active recurring schedule.");
+    }
+    const incurredAt = source.nextDueAt ?? nextOccurrence(source.incurredAt, source.recurrence);
+    const expense = await this.create({
+      clientId: source.clientId,
+      staffId: source.staffId,
+      categoryId: source.categoryId,
+      vendor: source.vendor,
+      description: source.description,
+      reason: source.reason,
+      amountCents: source.amountCents,
+      taxCents: source.taxCents,
+      taxRateBps: source.taxRateBps,
+      taxDeductible: source.taxDeductible,
+      businessUsePercent: source.businessUsePercent,
+      billableToClient: source.billableToClient,
+      currency: source.currency,
+      incurredAt,
+      receiptUrl: undefined,
+      attachments: undefined,
+      paymentMethod: source.paymentMethod,
+      reference: source.reference,
+      customFields: source.customFields,
+      recordAsPaid: false,
+    }, actor, source.currency);
+    const updatedSource: Expense = {
+      ...source,
+      nextDueAt: nextOccurrence(incurredAt, source.recurrence),
+      updatedAt: now(),
+    };
+    await this.storage.set(expKey(source.id), updatedSource);
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      clientId: source.clientId,
+      actorUserId: actor,
+      category: "finance",
+      action: "expense.recurring.posted",
+      message: `Posted the next ${source.recurrence} expense for ${source.vendor || source.description || source.id}.`,
+      metadata: { scheduleExpenseId: source.id, expenseId: expense.id, nextDueAt: updatedSource.nextDueAt },
+    });
+    return { source: updatedSource, expense };
+  }
+}
+
+function cleanCustomFields(value: unknown): Record<string, string | string[] | boolean> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const cleaned: Record<string, string | string[] | boolean> = {};
+  for (const [rawKey, rawValue] of Object.entries(value as Record<string, unknown>).slice(0, 100)) {
+    const key = rawKey.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 80);
+    if (!key) continue;
+    if (typeof rawValue === "boolean") cleaned[key] = rawValue;
+    else if (typeof rawValue === "string") cleaned[key] = rawValue.trim().slice(0, 4_000);
+    else if (Array.isArray(rawValue)) {
+      cleaned[key] = rawValue.filter((item): item is string => typeof item === "string").map(item => item.trim().slice(0, 200)).filter(Boolean).slice(0, 40);
+    }
+  }
+  return Object.keys(cleaned).length ? cleaned : undefined;
+}
+
+function nextOccurrence(from: number, recurrence: NonNullable<CreateExpenseInput["recurrence"]>): number {
+  const date = new Date(from);
+  const months = recurrence === "monthly" ? 1 : recurrence === "quarterly" ? 3 : 12;
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.getTime();
 }

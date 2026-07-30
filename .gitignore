@@ -39,6 +39,9 @@ next-env.d.ts
 # local file-backend state
 .data
 
+# Generated customer projects are independent repositories.
+client-projects/
+
 # R8 milesymedia stitch — public/_milesy/ is a build artefact copied
 # from `04-the-final-portal/milesymedia website/` by
 # `scripts/prepare-milesy.mjs`. Source lives in the static-site

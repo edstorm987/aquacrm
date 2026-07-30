@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Milesymedia — Free Digital Health Check</title>
+  <meta name="description" content="A guided look at where your business is leaking customers — built around small experiments, not jargon." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/health-check/styles.css" />
+  <link rel="stylesheet" href="/business-os/print.css" media="print" />
+</head>
+<body data-mobile-checked="2026-05-07">
+
+  <!-- Health Check splash — a quick branded loader on every fresh
+       load of the iframe. Self-contained styles + script so it paints
+       before any other CSS is parsed. -->
+  <style id="hc-splash-style">
+    .hc-splash {
+      position: fixed; inset: 0; z-index: 99999;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 30%, rgba(212, 184, 136, 0.06) 0%, transparent 70%),
+        linear-gradient(180deg, #0B0A07 0%, #050505 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-family: "Inter", -apple-system, system-ui, sans-serif;
+      animation: hc-splash-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .hc-splash::before {
+      content: ""; position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(212, 184, 136, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(212, 184, 136, 0.025) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: radial-gradient(ellipse 50% 40% at 50% 50%, #000 0%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse 50% 40% at 50% 50%, #000 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hc-splash-out { animation: hc-splash-out 0.55s cubic-bezier(0.6, 0, 0.4, 1) both; pointer-events: none; }
+    .hc-splash-stage {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 24px;
+      padding: 0 24px;
+      text-align: center;
+    }
+    .hc-splash-eyebrow {
+      font-size: 10.5px; font-weight: 600;
+      letter-spacing: 0.32em; text-transform: uppercase;
+      color: rgba(212, 184, 136, 0.55);
+      display: inline-flex; align-items: center; gap: 10px;
+      opacity: 0; animation: hc-splash-fade-up 0.6s 0.05s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .hc-splash-eyebrow::before, .hc-splash-eyebrow::after {
+      content: ""; width: 28px; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(212, 184, 136, 0.4), transparent);
+    }
+    .hc-splash-mono {
+      width: 72px; height: 72px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #1B1408 0%, #0A0703 100%);
+      border: 1px solid rgba(212, 184, 136, 0.22);
+      display: grid; place-items: center;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.5), 0 16px 40px -10px rgba(212,184,136,0.18);
+      opacity: 0; animation: hc-splash-mono-in 0.7s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .hc-splash-mono svg { display: block; }
+    .hc-splash-wordmark {
+      font-family: "Playfair Display", Georgia, serif;
+      font-weight: 700; font-size: 22px;
+      letter-spacing: -0.015em; color: #F5EDD8;
+      opacity: 0; animation: hc-splash-fade-up 0.7s 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .hc-splash-wordmark span {
+      background: linear-gradient(135deg, #D4B888 0%, #8B6F3D 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hc-splash-ekg {
+      width: 240px; height: 36px;
+      opacity: 0; animation: hc-splash-fade-up 0.7s 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .hc-splash-ekg path {
+      fill: none; stroke: url(#hc-ekg-grad);
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+      stroke-dasharray: 480; stroke-dashoffset: 480;
+      animation: hc-splash-trace 2.2s 0.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    }
+    .hc-splash-status {
+      font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: rgba(212, 184, 136, 0.5); font-weight: 500;
+      opacity: 0; animation: hc-splash-fade-up 0.7s 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .hc-splash-status::before {
+      content: ""; width: 5px; height: 5px;
+      border-radius: 999px; background: #D4B888;
+      box-shadow: 0 0 10px rgba(212, 184, 136, 0.7);
+      animation: hc-splash-blink 1.4s ease-in-out infinite;
+    }
+    @keyframes hc-splash-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes hc-splash-out { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.015); visibility: hidden; } }
+    @keyframes hc-splash-fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes hc-splash-mono-in { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
+    @keyframes hc-splash-trace { 0% { stroke-dashoffset: 480; } 55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -480; } }
+    @keyframes hc-splash-blink { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
+    @media (prefers-reduced-motion: reduce) {
+      .hc-splash, .hc-splash *, .hc-splash *::before, .hc-splash *::after { animation: none !important; opacity: 1 !important; }
+      .hc-splash-ekg path { stroke-dashoffset: 0; }
+    }
+  </style>
+  <div class="hc-splash" id="hcSplash" aria-hidden="true">
+    <div class="hc-splash-stage">
+      <div class="hc-splash-eyebrow">Milesymedia</div>
+      <div class="hc-splash-mono">
+        <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+          <defs>
+            <linearGradient id="hc-mono-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#D4B888" />
+              <stop offset="100%" stop-color="#8B6F3D" />
+            </linearGradient>
+          </defs>
+          <text x="16" y="22" text-anchor="middle"
+            font-family="Playfair Display, Georgia, serif"
+            font-size="20" font-weight="700" fill="url(#hc-mono-grad)"
+            letter-spacing="-0.02em">M</text>
+        </svg>
+      </div>
+      <div class="hc-splash-wordmark">Health <span>Check</span></div>
+      <svg class="hc-splash-ekg" viewBox="0 0 240 36" aria-hidden="true">
+        <defs>
+          <linearGradient id="hc-ekg-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(212,184,136,0)" />
+            <stop offset="50%" stop-color="#D4B888" />
+            <stop offset="100%" stop-color="rgba(212,184,136,0)" />
+          </linearGradient>
+        </defs>
+        <path d="M0 18 L60 18 L72 18 L80 6 L88 30 L96 8 L104 22 L112 18 L160 18 L172 18 L180 12 L188 24 L196 18 L240 18" />
+      </svg>
+      <div class="hc-splash-status">Diagnostic in progress</div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var MIN = 600, FADE = 400, MAX_WAIT = 1800;
+      var el = document.getElementById('hcSplash');
+      if (!el) return;
+      var start = Date.now();
+      var fired = false;
+      function done() {
+        if (fired) return;
+        fired = true;
+        var wait = Math.max(0, MIN - (Date.now() - start));
+        setTimeout(function () {
+          if (!el) return;
+          el.classList.add('hc-splash-out');
+          setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, FADE);
+        }, wait);
+      }
+      /* Fire as soon as DOM is interactive — far snappier than waiting
+         for `window.load` (which waits for every image + font). Plus a
+         hard fallback at MAX_WAIT so the splash NEVER gets stuck. */
+      if (document.readyState !== 'loading') {
+        setTimeout(done, 50);
+      } else {
+        document.addEventListener('DOMContentLoaded', function () { setTimeout(done, 50); }, { once: true });
+      }
+      setTimeout(done, MAX_WAIT);
+    })();
+  </script>
+
+  <!-- Global back button — visible on every step except intro/results.
+       Click → smart back (handled in script via data-hc-action="go-back"). -->
+  <button type="button" class="hc-back-floater" data-hc-action="go-back" aria-label="Back">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="15 6 9 12 15 18" />
+    </svg>
+    <span>Back</span>
+  </button>
+
+
+  <main class="hc-shell">
+    <div class="container">
+
+      <!-- ─── INTRO ─────────────────────────────── -->
+      <section class="hc-step" data-step="intro">
+        <div class="hc-intro">
+          <span class="eyebrow">Free · Interactive · No signup</span>
+          <h1>Where is your business <span class="accent">quietly leaking</span> customers?</h1>
+          <p class="lead">
+            Five short topics. You'll do them with us — not fill out a form.
+            By the end you'll have a real picture of what new customers see when
+            they look for you, and where the money is slipping.
+          </p>
+          <div class="hc-bullets">
+            <div><span class="dot"></span> Pick a comfort level for each topic — beginner, dabbler or pro.</div>
+            <div><span class="dot"></span> Beginner = no jargon, mini-experiments together.</div>
+            <div><span class="dot"></span> Skip to your results at any point. Talk to us at any point.</div>
+          </div>
+          <div class="hc-actions">
+            <button class="btn btn-primary btn-lg" data-hc-action="start">Let's go →</button>
+            <button class="btn btn-secondary btn-lg" data-hc-action="returning" id="hcReturningCta">Log back in →</button>
+          </div>
+          <p class="hc-returning-hint muted" id="hcReturningHint" style="margin-top:10px;font-size:13px;display:none">
+            <span id="hcReturningHintText"></span>
+          </p>
+        </div>
+      </section>
+
+      <!-- ─── GATE: business type ───────────────── -->
+      <section class="hc-step" data-step="gate" hidden>
+        <div class="hc-tier-head">
+          <span class="eyebrow">First — quick context</span>
+          <h2>Which sounds most like you?</h2>
+          <p class="muted">We'll tweak the questions so they actually fit. You can change this later.</p>
+        </div>
+        <div class="hc-tiers hc-gate-cards">
+          <button class="hc-tier-card hc-tier-beginner" data-hc-pick-type="service">
+            <div class="hc-tier-tag">Service business</div>
+            <h3>I sell my time / a service</h3>
+            <div class="hc-tier-time">Trades · agencies · consultants · therapists · salons</div>
+            <p>Bookings, enquiries, quotes, retainers.</p>
+            <span class="hc-tier-cta">That's me →</span>
+          </button>
+          <button class="hc-tier-card hc-tier-intermediate" data-hc-pick-type="product">
+            <div class="hc-tier-tag">Product business</div>
+            <h3>I sell physical or digital products</h3>
+            <div class="hc-tier-time">Ecom · DTC · marketplace · digital downloads</div>
+            <p>Carts, SKUs, repeat orders, fulfilment.</p>
+            <span class="hc-tier-cta">That's me →</span>
+          </button>
+          <button class="hc-tier-card hc-tier-professional" data-hc-pick-type="hybrid">
+            <div class="hc-tier-tag">A bit of both</div>
+            <h3>Mixed — services + products</h3>
+            <div class="hc-tier-time">Studios · clinics · brands with installs · hybrid offers</div>
+            <p>We'll cover both sides where it matters.</p>
+            <span class="hc-tier-cta">That's me →</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ─── AREA OVERVIEW ─────────────────────── -->
+      <section class="hc-step" data-step="overview" hidden>
+        <div class="hc-overview">
+          <span class="eyebrow" data-hc-overview-eyebrow>Topic 1 of 5</span>
+          <h2 data-hc-overview-title>Up next: Visibility &amp; Search</h2>
+          <p class="muted" data-hc-overview-blurb></p>
+          <div class="hc-area-progress" data-hc-area-progress></div>
+          <div class="hc-actions" style="justify-content:center">
+            <button class="btn btn-primary btn-lg" data-hc-action="open-tiers">Pick how we explore this →</button>
+            <button class="btn btn-secondary btn-lg" data-hc-action="skip-results">See my results so far</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── TIER SELECT ───────────────────────── -->
+      <section class="hc-step" data-step="tiers" hidden>
+        <div class="hc-tier-head">
+          <span class="eyebrow" data-hc-tier-eyebrow>Topic 1 of 5 · Visibility &amp; Search</span>
+          <h2 data-hc-tier-prompt>How would you like to look at this?</h2>
+          <p class="muted">No wrong answer. Pick a different level for each topic.</p>
+        </div>
+        <div class="hc-tiers" data-hc-tiers></div>
+        <div class="hc-mid-actions">
+          <button class="btn btn-ghost" data-hc-action="skip-area">Skip this topic →</button>
+        </div>
+      </section>
+
+      <!-- ─── EXERCISE RUNNER ───────────────────── -->
+      <section class="hc-step" data-step="exercise" hidden>
+        <div class="hc-progress">
+          <div class="hc-progress-meta">
+            <span data-hc-step-label>Step 1</span>
+            <span data-hc-step-pct>0%</span>
+          </div>
+          <div class="hc-progress-bar"><span data-hc-progress-fill style="width:0%"></span></div>
+        </div>
+        <div class="hc-sticky-embed" data-hc-sticky hidden></div>
+        <div class="hc-question-card" data-hc-step-body></div>
+
+        <div class="hc-actions hc-nav">
+          <button class="btn btn-secondary" data-hc-action="step-back">← Back</button>
+          <button class="btn btn-primary" data-hc-action="step-next" disabled>Next →</button>
+        </div>
+
+        <!-- Persistent action row -->
+        <div class="hc-floating-actions">
+          <a href="tel:+447707020250" class="floating-pill"><span>📞</span> Call us</a>
+          <button class="floating-pill" data-hc-action="skip-results"><span>📊</span> Skip to my results</button>
+          <button class="floating-pill" data-hc-action="skip-area"><span>↷</span> Skip this topic</button>
+        </div>
+      </section>
+
+      <!-- ─── Progress-save modal (after Q5 of section 1) ─── -->
+      <div class="hc-modal" data-hc-progress-modal hidden>
+        <div class="hc-modal-card" data-hc-progress-shell>
+          <div class="hc-modal-icon">💾</div>
+          <h2>Quick one — save your progress?</h2>
+          <p>You're a few minutes in. We're <strong>not trying to sell you</strong> — we just don't want you to lose what you've answered if you close the tab. Drop a name + email and we'll generate a resume link you can use on another device.</p>
+          <form data-hc-progress-form class="hc-modal-form">
+            <label>Your name<input type="text" name="name" placeholder="Jordan Lee" /></label>
+            <label>Email <span class="muted" style="font-weight:400">(used only for the resume link)</span><input type="email" name="email" placeholder="you@yourbusiness.co.uk" required /></label>
+            <label>Or mobile <span class="muted" style="font-weight:400">(optional)</span><input type="text" name="contact" placeholder="07…" /></label>
+            <p class="muted hc-modal-fineprint">🎬 <strong>Demo mode</strong> — email isn't sent yet. We generate the resume link on this page so you can copy it. Real email send wires later via T6.</p>
+            <div class="hc-modal-actions">
+              <button type="button" class="btn btn-ghost" data-hc-progress-skip>Skip — I'll keep going</button>
+              <button type="submit" class="btn btn-primary">Email me my progress link →</button>
+            </div>
+          </form>
+        </div>
+        <!-- Resume-link panel (replaces the form on successful submit) -->
+        <div class="hc-modal-card" data-hc-progress-result hidden>
+          <div class="hc-modal-icon">🔗</div>
+          <h2>Your resume link is ready.</h2>
+          <p>Copy the link below — it restores your answers when you open it on any device. Valid for 7 days. <strong>Demo mode:</strong> no email was sent; the link lives only in your clipboard from here.</p>
+          <label>Resume link<textarea data-hc-progress-link readonly rows="3" style="width:100%;padding:10px 12px;border:1px solid var(--bos-line,#e6e1d4);border-radius:8px;font:13px monospace"></textarea></label>
+          <div class="hc-modal-actions">
+            <button type="button" class="btn btn-ghost" data-hc-progress-resume-close>Close</button>
+            <button type="button" class="btn btn-primary" data-hc-progress-copy>📋 Copy to clipboard</button>
+          </div>
+          <p class="muted hc-modal-fineprint" data-hc-progress-copy-status></p>
+        </div>
+      </div>
+
+      <!-- ─── BUILDING ──────────────────────────── -->
+      <section class="hc-step" data-step="building" hidden>
+        <div class="hc-building">
+          <div class="hc-spinner" aria-hidden="true"></div>
+          <h2>Pulling it all together…</h2>
+          <p class="muted">Looking at your answers · estimating the leak · picking the quick wins.</p>
+        </div>
+      </section>
+
+      <!-- ─── RESULTS ───────────────────────────── -->
+      <section class="hc-step" data-step="results" hidden>
+        <!-- R018 print-only header -->
+        <div data-print-only class="print-header" style="display:none">
+          <div class="print-header-brand">Milesy<span>Media</span> · Health Check</div>
+          <div class="print-header-meta" data-print-meta></div>
+        </div>
+        <!-- R018 print trigger (screen-only) -->
+        <div data-print-trigger style="display:flex;justify-content:flex-end;margin-bottom:14px">
+          <button type="button" class="btn btn-secondary" data-hc-print>🖨 Print this page</button>
+        </div>
+
+        <div class="hc-results-head">
+          <span class="eyebrow">The mirror</span>
+          <h1 data-hc-money-headline>You're leaving an estimated <span class="accent">£3,200/month</span> on the table.</h1>
+          <p class="muted" data-hc-money-sub>Based on what you told us, here's where the leaks are — and the quick wins that'd plug them.</p>
+        </div>
+
+        <div class="hc-leak-cards">
+          <div class="leak-card">
+            <div class="leak-num" data-hc-leak-visibility>12<span>%</span></div>
+            <div class="leak-lbl">of nearby searchers find you</div>
+            <p class="muted">The other 88 land on a competitor before they ever see your name.</p>
+          </div>
+          <div class="leak-card">
+            <div class="leak-num" data-hc-leak-trust>5<span>s</span></div>
+            <div class="leak-lbl">average attention on your site</div>
+            <p class="muted">First-time visitors decide whether to stay before they finish reading the headline.</p>
+          </div>
+          <div class="leak-card">
+            <div class="leak-num" data-hc-leak-dependence>78<span>%</span></div>
+            <div class="leak-lbl">of revenue from one channel</div>
+            <p class="muted">If that channel hiccups, you feel it the same week.</p>
+          </div>
+        </div>
+
+        <!-- 2026-05-09 — Post-HC handoff goes to Business OS (the app),
+             not the Incubator. The Incubator lives inside BOS as a
+             sidebar section (chapter #159 setup flow). -->
+        <div class="hc-incubator-handoff">
+          <div class="hc-incubator-handoff-icon">🧭</div>
+          <div class="hc-incubator-handoff-body">
+            <span class="eyebrow">Where to next</span>
+            <h2>Open your Business OS.</h2>
+            <p>The Health Check is the mirror. Business OS is where you act on it — your home dashboard, your customers, your numbers, your tasks. Inside you'll find the Incubator as a sidebar section: four templated setup phases (Epic Intro · Blueprint · Diagnostics · Brand Builder) that turn what surfaced above into a real, owned operating system. We seed your brand from the answers you just gave.</p>
+            <a href="/business-os/app.html?from=hc" class="btn btn-primary btn-lg" data-hc-incubator-cta>Open my Business OS →</a>
+          </div>
+        </div>
+
+        <!-- ── Transparency block — how we got this & what we'd verify ── -->
+        <div class="hc-transparency">
+          <details class="hc-transparency-detail" data-print-expand>
+            <summary>🧮 How we got this number</summary>
+            <div class="hc-transparency-body">
+              <p>The range above is derived from <strong>your answers</strong>, not from your live business data. Three inputs feed it:</p>
+              <ol>
+                <li><strong>Headroom</strong> — how far each topic score sits below 100, averaged across the topics you answered.</li>
+                <li><strong>Confidence</strong> — what fraction of the 5 topics you actually answered. Less coverage → narrower claim.</li>
+                <li><strong>Sector benchmark multiplier</strong> — typical revenue impact a healthy version of each topic produces in your kind of business.</li>
+              </ol>
+              <p class="muted">This is a self-report, not a measurement. The range is deliberately wide. A real audit replaces it with measured numbers.</p>
+            </div>
+          </details>
+          <details class="hc-transparency-detail">
+            <summary>🔌 What we'd verify against — for the real version</summary>
+            <div class="hc-transparency-body">
+              <p>To convert this from a self-report to a measured audit, we'd plug into:</p>
+              <ul class="hc-verify-list">
+                <li><span class="hc-verify-icon">🔍</span><div><strong>Google Search Console</strong> — actual impressions, clicks, ranking positions, queries you appear for.</div></li>
+                <li><span class="hc-verify-icon">📍</span><div><strong>Google Business Profile Insights</strong> — direction requests, calls, map vs search appearances.</div></li>
+                <li><span class="hc-verify-icon">⚡</span><div><strong>Lighthouse / PageSpeed Insights</strong> — real performance/SEO/accessibility score, LCP, CLS, INP.</div></li>
+                <li><span class="hc-verify-icon">📈</span><div><strong>GA4 / server-side events</strong> — actual conversion rates, source attribution, drop-off pages.</div></li>
+                <li><span class="hc-verify-icon">💷</span><div><strong>Stripe / QuickBooks</strong> — real revenue, MRR, refunds, customer LTV.</div></li>
+                <li><span class="hc-verify-icon">🗺</span><div><strong>SERP rank tracker (DataForSEO / Ahrefs)</strong> — third-party verification of where you actually rank.</div></li>
+              </ul>
+              <p class="muted">Free tier: self-report only. Pro/audit tier: we run these connectors against your real accounts and replace every estimate with a measurement.</p>
+              <a href="/business-os/tools.html" class="btn btn-secondary">See the available tools →</a>
+            </div>
+          </details>
+        </div>
+
+        <!-- Quick wins -->
+        <div class="hc-section-block">
+          <div class="hc-section-block-head">
+            <h2>Your quick wins</h2>
+            <p class="muted">Each one is a small fix that compounds. Pick how you want to act — read, call, or hand it over.</p>
+          </div>
+          <div class="hc-quickwins" data-hc-quickwins></div>
+        </div>
+
+        <!-- Section navigator: explored vs unlock -->
+        <div class="hc-section-block">
+          <div class="hc-section-block-head">
+            <h2>Topics</h2>
+            <p class="muted">Tap any topic to deepen your answers — your quick wins update as you go.</p>
+          </div>
+          <div class="hc-section-nav" data-hc-section-nav></div>
+        </div>
+
+        <!-- ── Free gift: claim your Business OS ── -->
+        <div class="hc-gift-card" data-hc-gift>
+          <div class="hc-gift-ribbon">🎁 Free gift</div>
+          <div class="hc-gift-body">
+            <span class="eyebrow">Your reward for finishing</span>
+            <h2 data-hc-gift-headline>Claim your free Business OS — on us.</h2>
+            <p>
+              A complete operating system for growing your business. Manage everything
+              in one place, unlock guides as you go, install only the add-ons you need,
+              and watch your "money leak" shrink each week. Free for life. No card needed.
+            </p>
+            <ul class="hc-gift-bullets">
+              <li>📊 Your Health Check results, plugged in and tracked</li>
+              <li>🎯 A built-for-you OS — pick your niche on signup</li>
+              <li>📚 Quick-win modules &amp; templates</li>
+              <li>🤖 Aqua AI — context-aware, with free messages</li>
+              <li>📞 Free strategy call any time you're stuck</li>
+            </ul>
+            <div class="hc-actions hc-cta-actions" data-hc-gift-actions>
+              <a href="/business-os/app.html?source=healthcheck" class="btn btn-primary btn-lg" data-hc-claim-bos>Open my free Business OS →</a>
+              <a href="#" class="btn btn-secondary btn-lg" data-hc-bos-existing hidden>← Back to my Business OS</a>
+            </div>
+            <p class="muted hc-gift-fineprint">Already have one? We'll spot it and just send you back in.</p>
+          </div>
+        </div>
+
+        <!-- Assistant tease -->
+        <div class="hc-assistant-card">
+          <div class="hc-assistant-icon">🤖</div>
+          <div class="hc-assistant-body">
+            <div class="hc-assistant-eyebrow">Free · 10 minutes</div>
+            <h3>Talk to your implementation assistant</h3>
+            <p>It's been briefed on every answer you've given here. It can walk you through claiming a Google Business Profile, drafting your first review-request message, or sketching out a homepage hero — live, on a call.</p>
+            <div class="hc-actions">
+              <a href="mailto:hello@milesymedia.co?subject=Implementation%20assistant" class="btn btn-primary">Book the assistant →</a>
+              <a href="tel:+447707020250" class="btn btn-secondary">📞 Or call us instead</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Final CTA -->
+        <div class="hc-cta">
+          <span class="eyebrow">Bigger conversation</span>
+          <h2>Want the full strategy version of this?</h2>
+          <p>Book a free 30-minute strategy call. We'll walk through your live data, pressure-test the leaks above, and leave you with a costed quarterly plan — even if you don't hire us.</p>
+          <div class="hc-actions hc-cta-actions">
+            <a href="mailto:hello@milesymedia.co?subject=Strategy%20call" class="btn btn-primary btn-lg">Book a strategy call →</a>
+            <a href="/business-os/app.html" class="btn btn-secondary btn-lg" data-hc-bos-return hidden>← Back to my Business OS</a>
+            <button class="btn btn-secondary btn-lg" data-hc-action="restart">Start over</button>
+          </div>
+
+          <!-- Email a copy / share UI (visible always, mock now) -->
+          <div class="hc-share-row">
+            <button class="hc-share-btn" data-hc-share="email">📧 Email me a copy</button>
+            <button class="hc-share-btn" data-hc-share="link">🔗 Get a shareable link</button>
+            <button class="hc-share-btn" data-hc-share="pdf">📄 Download as PDF</button>
+          </div>
+
+          <!-- R018 print-only watermark -->
+          <div data-print-only class="print-watermark" style="display:none">
+            <strong>Self-reported snapshot</strong> — printed <span data-print-date></span>. Honesty contract: only topics you answered are surfaced; nothing fabricated. <span data-print-url></span>
+          </div>
+
+          <!-- Second sign-up grab — only if no contact captured earlier -->
+          <div class="hc-signup-grab" data-hc-signup-grab hidden>
+            <div class="hc-signup-grab-icon">✨</div>
+            <div class="hc-signup-grab-body">
+              <h3>One last thing — would you like us to look at your answers?</h3>
+              <p>If you drop your details, we'll send a few personalised pointers based on what you said. No catch, no auto-pilot drip campaign — a real reply from a real person within a working day.</p>
+              <form data-hc-signup-grab-form class="hc-modal-form">
+                <input type="text" name="name" placeholder="Your name" required />
+                <input type="text" name="contact" placeholder="Email or mobile" required />
+                <button type="submit" class="btn btn-primary">Send me my pointers →</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+
+  <script defer src="/business-os/lib/storage.js"></script>
+  <script defer src="/business-os/lib/activity.js"></script>
+  <script>
+    /* R014 — `?niche=<key>` writes `bos.brand.niche` so HC results +
+       Incubator pack auto-apply. Used by niche landing pages. */
+    (function () {
+      var m = location.search.match(/[?&]niche=([a-z\-]+)/);
+      if (!m) return;
+      var allowed = ['agency','skincare','coaching','fitness'];
+      if (allowed.indexOf(m[1]) === -1) return;
+      try {
+        var brand = JSON.parse(localStorage.getItem('bos.brand') || '{}') || {};
+        brand.niche = m[1];
+        localStorage.setItem('bos.brand', JSON.stringify(brand));
+      } catch (e) {}
+    })();
+  </script>
+  <script defer src="/health-check/hc-questions.js"></script>
+  <script>
+  /* ─── DATA ──────────────────────────────────── */
+  /* Each AREA has 3 tiers and a `quickwins` builder that takes the slot
+     (chosen tier + raw answers) and returns 0-N quick-win objects:
+     { title, why, actions: [{ label, type:'guide'|'callus'|'diy'|'doitforme', href? }] }.
+     This is what populates the action-rich quick-wins section on results. */
+
+  /* AREAS comes from hc-questions.js. Admin can override via
+     localStorage['bos.hcQuestions']. Bump HC_SCHEMA_VERSION whenever
+     the default shape adds new fields (stickyEmbed, lever-calc,
+     mental-note, skipIf, etc.) so stale overrides get discarded.
+     `?fresh=1` forces defaults regardless. */
+  var HC_SCHEMA_VERSION = 3;
+  var AREAS = (function () {
+    try {
+      if (/[?&]fresh=1/.test(location.search)) {
+        localStorage.removeItem('bos.hcQuestions');
+        localStorage.removeItem('bos.hcQuestions.version');
+        return window.HC_AREAS || [];
+      }
+      var storedVer = parseInt(localStorage.getItem('bos.hcQuestions.version') || '0', 10);
+      if (storedVer < HC_SCHEMA_VERSION) {
+        localStorage.removeItem('bos.hcQuestions');
+        localStorage.setItem('bos.hcQuestions.version', String(HC_SCHEMA_VERSION));
+        return window.HC_AREAS || [];
+      }
+      var ovr = JSON.parse(localStorage.getItem('bos.hcQuestions') || 'null');
+      if (ovr && Array.isArray(ovr) && ovr.length) return ovr;
+    } catch (e) {}
+    return window.HC_AREAS || [];
+  })();
+
+  /* ─── STATE ─────────────────────────────────── */
+  var state = {
+    step: 'intro',
+    type: null,             // 'service' | 'product' | 'hybrid'
+    areaIdx: 0,
+    tier: null,
+    exerciseIdx: 0,
+    answers: {}
+  };
+
+  /* R017 — `?resume=<token>` consumer. Decodes base64 payload from
+     R017's resume-link generator, validates 7d expiry, restores state.
+     Failures are honest: a small panel below the intro tells the user
+     the link was invalid / expired so they can keep going from scratch. */
+  (function () {
+    var m = location.search.match(/[?&]resume=([^&]+)/);
+    if (!m) return;
+    var raw;
+    try { raw = decodeURIComponent(m[1]); } catch (e) { return; }
+    var payload;
+    try { payload = JSON.parse(decodeURIComponent(escape(atob(raw)))); }
+    catch (e) { window.__hcResumeError = 'Couldn\'t read that resume link — it may be corrupted.'; return; }
+    if (!payload || !payload.savedAt || !payload.hcState) {
+      window.__hcResumeError = 'Resume link missing required fields.'; return;
+    }
+    var ageDays = (Date.now() - +new Date(payload.savedAt)) / 86400000;
+    if (ageDays > 7 || ageDays < 0) {
+      window.__hcResumeError = 'Resume link expired (7-day limit). Start fresh — your old answers are gone.'; return;
+    }
+    /* Restore state and stash a flag so the boot can fast-forward. */
+    state = payload.hcState;
+    window.__hcResumed = true;
+    window.__hcResumedEmail = payload.email || null;
+    /* Re-write hc.contact so the rest of the funnel knows about this user. */
+    try {
+      localStorage.setItem('hc.contact', JSON.stringify({
+        email: payload.email, capturedAt: 'resume-link', resumedAt: new Date().toISOString()
+      }));
+    } catch (e) {}
+  })();
+
+  function $(s, r) { return (r || document).querySelector(s); }
+  function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  function show(name) {
+    state.step = name;
+    $$(".hc-step").forEach(function (el) { el.hidden = el.getAttribute("data-step") !== name; });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function currentArea() { return AREAS[state.areaIdx]; }
+  function currentTier() { return currentArea().tiers[state.tier]; }
+  function currentStep() { return currentTier().exercise[state.exerciseIdx]; }
+  function ensureAnswerSlot() {
+    var aid = currentArea().id;
+    if (!state.answers[aid]) state.answers[aid] = { tier: state.tier, scores: [], raw: {} };
+    return state.answers[aid];
+  }
+
+  /* ─── OVERVIEW ──────────────────────────────── */
+  function renderOverview() {
+    var a = currentArea();
+    $("[data-hc-overview-eyebrow]").textContent = "Topic " + (state.areaIdx + 1) + " of " + AREAS.length;
+    $("[data-hc-overview-title]").textContent = "Up next: " + a.name;
+    $("[data-hc-overview-blurb]").textContent = a.blurb;
+    var prog = $("[data-hc-area-progress]");
+    prog.innerHTML = AREAS.map(function (x, i) {
+      var done = !!state.answers[x.id];
+      var s = done ? 'done' : (i === state.areaIdx ? 'active' : 'pending');
+      return '<div class="hc-pill hc-pill-' + s + '"><span class="hc-pill-icon">' + x.icon + '</span>' + x.name + '</div>';
+    }).join('');
+  }
+
+  /* ─── TIER SELECT ───────────────────────────── */
+  function renderTiers() {
+    var a = currentArea();
+    $("[data-hc-tier-eyebrow]").textContent = "Topic " + (state.areaIdx + 1) + " of " + AREAS.length + " · " + a.name;
+    $("[data-hc-tier-prompt]").textContent = a.blurb;
+    var tierIds = ['beginner', 'intermediate', 'professional'];
+    var tierMeta = {
+      beginner:     { tag: 'Beginner' },
+      intermediate: { tag: 'Intermediate' },
+      professional: { tag: 'Professional' }
+    };
+    $("[data-hc-tiers]").innerHTML = tierIds.map(function (id) {
+      var t = a.tiers[id], m = tierMeta[id];
+      return '<button class="hc-tier-card hc-tier-' + id + '" data-hc-pick-tier="' + id + '">'
+        + '<div class="hc-tier-tag">' + m.tag + '</div>'
+        + '<h3>' + t.label + '</h3>'
+        + '<div class="hc-tier-time">' + t.time + '</div>'
+        + '<p>' + t.summary + '</p>'
+        + '<span class="hc-tier-cta">Choose this →</span>'
+        + '</button>';
+    }).join('');
+    $$("[data-hc-pick-tier]").forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.tier = btn.getAttribute('data-hc-pick-tier');
+        state.exerciseIdx = 0;
+        ensureAnswerSlot().tier = state.tier;
+        show('exercise');
+        renderStep();
+      });
+    });
+  }
+
+  /* ─── INLINE EMBED (search / site preview) ──── */
+  function searchEmbedUrl(q) {
+    return 'https://www.google.com/search?igu=1&q=' + encodeURIComponent(q || '');
+  }
+  function safeSiteUrl(u) {
+    if (!u) return '';
+    var s = String(u).trim();
+    if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+    return s;
+  }
+  function renderEmbed(embed, slot) {
+    if (!embed) return '';
+    var key = 'embed_' + state.exerciseIdx;
+    var stored = slot.embed && slot.embed[key];
+    if (embed.kind === 'search') {
+      var q = stored != null ? stored : (embed.query || '');
+      var src = q ? searchEmbedUrl(q) : '';
+      var input = embed.editable
+        ? '<form class="hc-embed-bar" data-hc-embed-form><input type="text" class="hc-embed-input" data-hc-embed-input placeholder="'
+            + (embed.placeholder || 'Search…') + '" value="' + (q || '').replace(/"/g, '&quot;') + '" />'
+            + '<button type="submit" class="btn btn-secondary btn-sm">Search</button></form>'
+        : '<div class="hc-embed-bar hc-embed-bar-static">🔍 ' + q + '</div>';
+      var frame = src
+        ? '<iframe class="hc-embed-frame" data-hc-embed-frame src="' + src
+            + '" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" loading="lazy"></iframe>'
+        : '<div class="hc-embed-empty">Type a search above to see real results.</div>';
+      var note = '<div class="hc-embed-note">Live Google results (embedded mode). If results look stripped down or blank, <a href="https://www.google.com/search?q='
+        + encodeURIComponent(q || '') + '" target="_blank" rel="noopener">open in a new tab ↗</a>.</div>';
+      return '<div class="hc-embed" data-hc-embed-kind="search">' + input + frame + note + '</div>';
+    }
+    if (embed.kind === 'site') {
+      var u = stored != null ? stored : '';
+      var src2 = u ? safeSiteUrl(u) : '';
+      var bar = '<form class="hc-embed-bar" data-hc-embed-form><input type="url" class="hc-embed-input" data-hc-embed-input placeholder="'
+        + (embed.placeholder || 'https://…') + '" value="' + (u || '').replace(/"/g, '&quot;') + '" />'
+        + '<button type="submit" class="btn btn-secondary btn-sm">Show me</button></form>';
+      var frame2 = src2
+        ? '<div class="hc-embed-stage' + (embed.timer ? ' hc-embed-timer' : '') + '" data-hc-embed-timer="' + (embed.timer || 0) + '">'
+            + '<iframe class="hc-embed-frame" data-hc-embed-frame src="' + src2
+            + '" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" loading="lazy"></iframe>'
+            + (embed.timer ? '<div class="hc-embed-veil" data-hc-embed-veil><span data-hc-embed-countdown>' + embed.timer + '</span><em>Look away — answer from first impression only.</em></div>' : '')
+            + '</div>'
+        : '<div class="hc-embed-empty">Drop your URL above to load it inline.</div>';
+      var note2 = src2
+        ? '<div class="hc-embed-note">Loaded in a sandboxed frame. Some sites block embedding — <a href="' + src2 + '" target="_blank" rel="noopener">open in a new tab ↗</a> if it looks blank.</div>'
+        : '';
+      return '<div class="hc-embed" data-hc-embed-kind="site">' + bar + frame2 + note2 + '</div>';
+    }
+    return '';
+  }
+  function wireEmbed(step, slot) {
+    if (!step.embed) return;
+    var key = 'embed_' + state.exerciseIdx;
+    slot.embed = slot.embed || {};
+    var form = $("[data-hc-embed-form]");
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var v = $("[data-hc-embed-input]").value.trim();
+        slot.embed[key] = v; renderStep();
+      });
+    }
+    var stage = $("[data-hc-embed-timer]");
+    if (stage && parseInt(stage.getAttribute('data-hc-embed-timer'), 10) > 0) {
+      var n = parseInt(stage.getAttribute('data-hc-embed-timer'), 10);
+      var cd = $("[data-hc-embed-countdown]");
+      var veil = $("[data-hc-embed-veil]");
+      if (veil) veil.style.opacity = '0';
+      var t = setInterval(function () {
+        n -= 1;
+        if (cd) cd.textContent = n;
+        if (n <= 0) { clearInterval(t); if (veil) { veil.style.opacity = '1'; } }
+      }, 1000);
+    }
+  }
+
+  /* ─── STICKY EMBED (persists across consecutive steps) ──── */
+  function resolveStickyQuery(embed, slot) {
+    if (embed.queryFromUser) return slot.userSearch || '';
+    return embed.query || '';
+  }
+  function stickySig(embed, slot) {
+    if (!embed) return '';
+    if (embed.kind === 'search') return 's:' + resolveStickyQuery(embed, slot);
+    if (embed.kind === 'site')   return 'u:' + (slot.userSiteUrl || '');
+    return '';
+  }
+  function renderStickyEmbed(step, slot) {
+    var host = $("[data-hc-sticky]");
+    var embed = step.stickyEmbed;
+    if (!embed) { host.hidden = true; host.innerHTML = ''; host.removeAttribute('data-sig'); return; }
+    var sig = stickySig(embed, slot);
+    if (host.getAttribute('data-sig') === sig && !host.hidden) {
+      // same iframe — leave it; just refresh the input value if editable
+      var inp = host.querySelector('[data-hc-sticky-input]');
+      if (inp) inp.value = embed.kind === 'search' ? resolveStickyQuery(embed, slot) : (slot.userSiteUrl || '');
+      return;
+    }
+    host.hidden = false;
+    host.setAttribute('data-sig', sig);
+    if (embed.kind === 'search') {
+      var q = resolveStickyQuery(embed, slot);
+      var src = q ? searchEmbedUrl(q) : '';
+      var input = embed.editable
+        ? '<form class="hc-embed-bar" data-hc-sticky-form><input type="text" class="hc-embed-input" data-hc-sticky-input placeholder="'
+            + (embed.placeholder || 'Search…') + '" value="' + (q || '').replace(/"/g, '&quot;') + '" />'
+            + '<button type="submit" class="btn btn-secondary btn-sm">Search</button></form>'
+        : '<div class="hc-embed-bar hc-embed-bar-static">🔍 ' + q + '</div>';
+      var frame = src
+        ? '<iframe class="hc-embed-frame" src="' + src + '" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" loading="lazy"></iframe>'
+        : '<div class="hc-embed-empty">Type a search above to see real results.</div>';
+      var note = '<div class="hc-embed-note">Live Google results (embedded mode). If results look stripped down or blank, <a href="https://www.google.com/search?q='
+        + encodeURIComponent(q || '') + '" target="_blank" rel="noopener">open in a new tab ↗</a>.</div>';
+      host.innerHTML = '<div class="hc-embed">' + input + frame + note + '</div>';
+      var f = host.querySelector('[data-hc-sticky-form]');
+      if (f) f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        slot.userSearch = host.querySelector('[data-hc-sticky-input]').value.trim();
+        renderStep();
+      });
+    } else if (embed.kind === 'site') {
+      var u = slot.userSiteUrl || '';
+      var src2 = u ? safeSiteUrl(u) : '';
+      var bar = '<form class="hc-embed-bar" data-hc-sticky-form><input type="url" class="hc-embed-input" data-hc-sticky-input placeholder="'
+        + (embed.placeholder || 'https://…') + '" value="' + (u || '').replace(/"/g, '&quot;') + '" />'
+        + '<button type="submit" class="btn btn-secondary btn-sm">Show me</button></form>';
+      var frame2 = src2
+        ? '<iframe class="hc-embed-frame" src="' + src2 + '" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" loading="lazy"></iframe>'
+        : '<div class="hc-embed-empty">Drop your URL above to load it inline.</div>';
+      host.innerHTML = '<div class="hc-embed">' + bar + frame2 + '</div>';
+      var f2 = host.querySelector('[data-hc-sticky-form]');
+      if (f2) f2.addEventListener('submit', function (e) {
+        e.preventDefault();
+        slot.userSiteUrl = host.querySelector('[data-hc-sticky-input]').value.trim();
+        renderStep();
+      });
+    }
+  }
+
+  /* ─── EXERCISE STEP ─────────────────────────── */
+  function renderStep() {
+    var step = currentStep();
+    var slot = ensureAnswerSlot();
+    var raw = slot.raw[state.exerciseIdx];
+    var body = $("[data-hc-step-body]");
+    var html = '';
+
+    if (step.type === 'task') {
+      html = '<div class="hc-step-eyebrow">Try this →</div>'
+        + '<h2 class="hc-q-prompt">' + step.title + '</h2>'
+        + '<p class="hc-step-body">' + step.body + '</p>'
+        + renderEmbed(step.embed, slot)
+        + '<button class="btn btn-secondary hc-task-done' + (raw === true ? ' is-on' : '') + '" data-hc-task-done>'
+        + (raw === true ? '✓ ' : '') + (step.done || 'Done') + '</button>';
+    } else if (step.type === 'reveal') {
+      html = '<div class="hc-step-eyebrow">A small truth</div>'
+        + '<h2 class="hc-q-prompt">' + step.title + '</h2>'
+        + '<div class="hc-step-body">' + step.body + '</div>';
+    } else if (step.type === 'choice') {
+      html = '<h2 class="hc-q-prompt">' + step.prompt + '</h2><div class="hc-q-options" role="radiogroup">';
+      step.options.forEach(function (opt, i) {
+        var on = raw === i;
+        html += '<button class="hc-opt' + (on ? ' is-selected' : '') + '" data-hc-opt="' + i + '">'
+          + '<span class="hc-opt-dot"></span><span class="hc-opt-label">' + opt.label + '</span></button>';
+      });
+      html += '</div>';
+    } else if (step.type === 'multi') {
+      var picked = Array.isArray(raw) ? raw : [];
+      html = '<h2 class="hc-q-prompt">' + step.prompt + '</h2><div class="hc-q-chips">';
+      step.options.forEach(function (opt, i) {
+        var on = picked.indexOf(i) !== -1;
+        html += '<button class="hc-chip' + (on ? ' is-on' : '') + '" data-hc-multi="' + i + '">' + opt.label + '</button>';
+      });
+      html += '</div>';
+    } else if (step.type === 'slider') {
+      var v = (raw == null ? step.value : raw);
+      html = '<h2 class="hc-q-prompt">' + step.prompt + '</h2>'
+        + '<div class="hc-slider-wrap">'
+        + '<input type="range" min="' + step.min + '" max="' + step.max + '" value="' + v + '" data-hc-slider />'
+        + '<div class="hc-slider-val"><span data-hc-slider-val>' + v + '</span>' + (step.suffix || '') + '</div>'
+        + '</div>';
+    } else if (step.type === 'url') {
+      html = '<h2 class="hc-q-prompt">' + step.prompt + '</h2>'
+        + (step.body ? '<p class="hc-step-body">' + step.body + '</p>' : '')
+        + '<input type="url" class="hc-url-input" placeholder="' + (step.placeholder || '') + '" value="' + (raw || '') + '" data-hc-url />';
+    } else if (step.type === 'text') {
+      html = '<h2 class="hc-q-prompt">' + step.prompt + '</h2>'
+        + '<textarea class="hc-text-input" rows="3" data-hc-text>' + (raw || '') + '</textarea>';
+    } else if (step.type === 'lever-calc') {
+      var lc = (raw && typeof raw === 'object') ? raw : { ltv: slot.ltv || step.ltvDefault || 1000, enq: step.enqDefault || 10 };
+      var total = (Number(lc.ltv) || 0) * (Number(lc.enq) || 0);
+      html = '<div class="hc-step-eyebrow">Your numbers, your math</div>'
+        + '<h2 class="hc-q-prompt">' + (step.prompt || 'What might this be costing you?') + '</h2>'
+        + (step.body ? '<p class="hc-step-body">' + step.body + '</p>' : '')
+        + '<div class="hc-lever">'
+        + '  <label class="hc-lever-row"><span>Your average customer lifetime value (£)</span>'
+        + '    <input type="number" min="0" step="50" data-hc-lever="ltv" value="' + (lc.ltv || '') + '" /></label>'
+        + '  <label class="hc-lever-row"><span>If you ranked first, extra enquiries per year (your guess)</span>'
+        + '    <input type="number" min="0" step="1" data-hc-lever="enq" value="' + (lc.enq || '') + '" /></label>'
+        + '  <div class="hc-lever-out">'
+        + '    £<span data-hc-lever-ltv>' + (Number(lc.ltv) || 0).toLocaleString() + '</span>'
+        + '    × <span data-hc-lever-enq>' + (Number(lc.enq) || 0) + '</span>'
+        + '    = <strong>£<span data-hc-lever-total>' + total.toLocaleString() + '</span> / year</strong>'
+        + '    <em>you may be leaving on the table</em>'
+        + '  </div>'
+        + '</div>';
+    } else if (step.type === 'mental-note') {
+      var on = raw === true;
+      html = '<div class="hc-step-eyebrow">A note for yourself</div>'
+        + '<h2 class="hc-q-prompt">' + step.prompt + '</h2>'
+        + (step.body ? '<p class="hc-step-body">' + step.body + '</p>' : '')
+        + '<button class="hc-mental-note' + (on ? ' is-on' : '') + '" data-hc-mental-note>'
+        + '<span class="hc-mental-tick">' + (on ? '✓' : '○') + '</span>'
+        + '<span class="hc-mental-label">' + (step.label || 'Yes — I think this is costing me money.') + '</span>'
+        + '</button>';
+    }
+
+    body.innerHTML = html;
+    renderStickyEmbed(step, slot);
+    wireStepInputs(step, slot);
+    updateProgress();
+    updateNav(step, raw);
+  }
+
+  function wireStepInputs(step, slot) {
+    var i = state.exerciseIdx;
+    if (step.type === 'task') {
+      $("[data-hc-task-done]").addEventListener('click', function () { slot.raw[i] = true; renderStep(); });
+      wireEmbed(step, slot);
+    } else if (step.type === 'choice') {
+      $$("[data-hc-opt]").forEach(function (b) {
+        b.addEventListener('click', function () {
+          slot.raw[i] = parseInt(b.getAttribute('data-hc-opt'), 10); renderStep();
+        });
+      });
+    } else if (step.type === 'multi') {
+      $$("[data-hc-multi]").forEach(function (b) {
+        b.addEventListener('click', function () {
+          var idx = parseInt(b.getAttribute('data-hc-multi'), 10);
+          var arr = Array.isArray(slot.raw[i]) ? slot.raw[i].slice() : [];
+          var p = arr.indexOf(idx); if (p === -1) arr.push(idx); else arr.splice(p, 1);
+          slot.raw[i] = arr; renderStep();
+        });
+      });
+    } else if (step.type === 'slider') {
+      var s = $("[data-hc-slider]");
+      s.addEventListener('input', function () {
+        var v = parseInt(s.value, 10); slot.raw[i] = v;
+        $("[data-hc-slider-val]").textContent = v; updateNav(step, v);
+      });
+      if (slot.raw[i] == null) slot.raw[i] = step.value;
+    } else if (step.type === 'url') {
+      var u = $("[data-hc-url]");
+      u.addEventListener('input', function () { slot.raw[i] = u.value; updateNav(step, u.value); });
+    } else if (step.type === 'text') {
+      var t = $("[data-hc-text]");
+      t.addEventListener('input', function () { slot.raw[i] = t.value; updateNav(step, t.value); });
+    } else if (step.type === 'lever-calc') {
+      function readLever() {
+        var ltvEl = $("[data-hc-lever='ltv']");
+        var enqEl = $("[data-hc-lever='enq']");
+        var ltv = parseInt(ltvEl.value, 10) || 0;
+        var enq = parseInt(enqEl.value, 10) || 0;
+        slot.raw[i] = { ltv: ltv, enq: enq };
+        slot.ltv = ltv;
+        slot.leverEstimate = { ltv: ltv, enq: enq, total: ltv * enq };
+        $("[data-hc-lever-ltv]").textContent = ltv.toLocaleString();
+        $("[data-hc-lever-enq]").textContent = enq;
+        $("[data-hc-lever-total]").textContent = (ltv * enq).toLocaleString();
+        updateNav(step, slot.raw[i]);
+      }
+      $$("[data-hc-lever]").forEach(function (el) { el.addEventListener('input', readLever); });
+      if (slot.raw[i] == null) readLever();
+    } else if (step.type === 'mental-note') {
+      $("[data-hc-mental-note]").addEventListener('click', function () {
+        slot.raw[i] = slot.raw[i] === true ? false : true;
+        slot.painAcknowledged = slot.painAcknowledged || {};
+        slot.painAcknowledged[step.tag || 'general'] = slot.raw[i] === true;
+        renderStep();
+      });
+    }
+  }
+
+  function stepIsAnswered(step, raw) {
+    if (step.optional) return true;
+    if (step.type === 'task')   return raw === true;
+    if (step.type === 'reveal') return true;
+    if (step.type === 'choice') return raw != null;
+    if (step.type === 'multi')  return Array.isArray(raw) && raw.length > 0;
+    if (step.type === 'slider') return raw != null;
+    if (step.type === 'url')    return typeof raw === 'string' && raw.trim().length > 3;
+    if (step.type === 'text')   return typeof raw === 'string' && raw.trim().length > 0;
+    if (step.type === 'lever-calc')  return raw != null && raw.ltv > 0 && raw.enq > 0;
+    if (step.type === 'mental-note') return raw === true || raw === false;
+    return true;
+  }
+
+  function updateNav(step, raw) {
+    var next = $("[data-hc-action='step-next']");
+    var back = $("[data-hc-action='step-back']");
+    next.disabled = !stepIsAnswered(step, raw);
+    var lastStep = isLastActive(state.exerciseIdx);
+    var lastArea = state.areaIdx === AREAS.length - 1;
+    next.textContent = (lastStep && lastArea) ? 'See my results →'
+                     : lastStep ? 'Next topic →'
+                     : 'Next →';
+    back.disabled = prevActiveIdx(state.exerciseIdx) < 0;
+  }
+
+  function updateProgress() {
+    var ex = currentTier().exercise;
+    var pct = Math.round((state.exerciseIdx / ex.length) * 100);
+    $("[data-hc-step-label]").textContent = currentArea().name + " · Step " + (state.exerciseIdx + 1) + " of " + ex.length;
+    $("[data-hc-step-pct]").textContent = pct + "%";
+    $("[data-hc-progress-fill]").style.width = pct + "%";
+  }
+
+  /* ─── SCORING ───────────────────────────────── */
+  function scoreArea(areaId) {
+    var slot = state.answers[areaId];
+    if (!slot) return null;
+    var area = AREAS.find(function (a) { return a.id === areaId; });
+    var tier = area.tiers[slot.tier];
+    var scores = [];
+    tier.exercise.forEach(function (step, i) {
+      var raw = slot.raw[i];
+      if (step.type === 'choice' && raw != null && step.options[raw].score != null && (step.scoring !== false)) {
+        scores.push(step.options[raw].score);
+      } else if (step.type === 'multi' && Array.isArray(raw) && raw.length) {
+        var s = 0;
+        raw.forEach(function (idx) { s += step.options[idx].score || 0; });
+        scores.push(Math.max(0, Math.min(100, 30 + s)));
+      } else if (step.type === 'slider' && raw != null) {
+        scores.push(Math.max(0, Math.min(100, 100 - raw)));
+      }
+    });
+    if (!scores.length) return 50;
+    return Math.round(scores.reduce(function (a, b) { return a + b; }, 0) / scores.length);
+  }
+
+  /* ─── RESULTS ───────────────────────────────── */
+  function persistToBOS(pillars, moneyEstimate) {
+    try {
+      var iconByName = {
+        'Visibility & Search': '⌕', 'Your Website': '◎',
+        'Where Customers Come From': '↗', 'My Business': '✪', 'Keeping Them': '✉'
+      };
+      var summary = {
+        headline: "You're leaving an estimated £" + moneyEstimate.toLocaleString() + "/month on the table.",
+        leakEstimate: moneyEstimate,
+        topics: pillars.filter(function (p) { return p.score != null; }).map(function (p) {
+          return { name: p.area.name, icon: iconByName[p.area.name] || p.area.icon, score: p.score, status: p.status };
+        }),
+        /* 2026-05-09 — persist raw state so the intro "Show me my last results"
+           shortcut can restore + replay buildResults() without a fresh run. */
+        state: state,
+        completedAt: new Date().toISOString()
+      };
+      localStorage.setItem('bos.healthCheck', JSON.stringify(summary));
+      /* Append to history so the user can re-review past completions
+         from inside Business OS. Keep the last 12, newest first. */
+      try {
+        var hist = JSON.parse(localStorage.getItem('bos.healthCheckHistory') || '[]');
+        if (!Array.isArray(hist)) hist = [];
+        hist.unshift(summary);
+        if (hist.length > 12) hist = hist.slice(0, 12);
+        localStorage.setItem('bos.healthCheckHistory', JSON.stringify(hist));
+      } catch (e) {}
+      /* R013 — log HC completion. Idempotent guard via prog.completed.healthCheck below. */
+      if (window.Activity && typeof window.Activity.log === 'function') {
+        var alreadyLoggedProg = JSON.parse(localStorage.getItem('bos.progress') || 'null');
+        if (!alreadyLoggedProg || !alreadyLoggedProg.completed || !alreadyLoggedProg.completed.healthCheck) {
+          window.Activity.log('hc.completed', { leakEstimate: moneyEstimate, topicsAnswered: summary.topics.length });
+        }
+      }
+      // XP grant + achievement on first completion
+      var prog = JSON.parse(localStorage.getItem('bos.progress') || '{"xp":0,"timeSavedHrs":0,"streak":0,"lastActive":null,"completed":{},"achievements":[]}');
+      if (!prog.completed.healthCheck) {
+        prog.xp += 250;
+        prog.timeSavedHrs += 8;
+        prog.completed.healthCheck = true;
+        if (prog.achievements.indexOf('self-aware') === -1) prog.achievements.push('self-aware');
+        localStorage.setItem('bos.progress', JSON.stringify(prog));
+      }
+    } catch (e) {}
+  }
+
+  function buildResults() {
+    var coveredCount = Object.keys(state.answers).length;
+    var pillars = AREAS.map(function (a) {
+      var score = scoreArea(a.id);
+      var status = score == null ? 'pending' : score >= 75 ? 'good' : score >= 50 ? 'warn' : 'bad';
+      var slot = state.answers[a.id] || null;
+      return { area: a, score: score, status: status, slot: slot };
+    });
+    var scored = pillars.filter(function (p) { return p.score != null; });
+
+    /* ── No-data state: nothing answered, don't fabricate ── */
+    if (!scored.length) {
+      $("[data-hc-money-headline]").innerHTML = "We don't know enough about you yet.";
+      $("[data-hc-money-sub]").innerHTML = 'Skip-to-results without answering anything is honest — but useless. Pick a topic and answer at least one question, even if just the easy one. Your numbers will be your numbers — not made-up averages.';
+      $("[data-hc-leak-visibility]").innerHTML = '—';
+      $("[data-hc-leak-trust]").innerHTML = '—';
+      $("[data-hc-leak-dependence]").innerHTML = '—';
+      $("[data-hc-quickwins]").innerHTML = '<div class="hc-quickwin-empty"><p class="muted">Quick wins are computed from your answers. Answer one topic and they\'ll appear here.</p></div>';
+      var transp = document.querySelector('.hc-transparency');
+      if (transp) transp.style.display = 'none';
+      $("[data-hc-section-nav]").innerHTML = pillars.map(function (p, i) {
+        return '<button class="hc-section-nav-card is-pending" data-hc-jump="' + i + '">'
+          + '<div class="hc-section-nav-icon">' + p.area.icon + '</div>'
+          + '<div class="hc-section-nav-meta">'
+          +   '<div class="hc-section-nav-title">' + p.area.name + '</div>'
+          +   '<div class="hc-section-nav-sub">Not explored yet</div>'
+          + '</div>'
+          + '<div class="hc-section-nav-cta">Start →</div>'
+          + '</button>';
+      }).join('');
+      $$("[data-hc-jump]").forEach(function (b) {
+        b.addEventListener('click', function () {
+          state.areaIdx = parseInt(b.getAttribute('data-hc-jump'), 10);
+          state.tier = null; state.exerciseIdx = 0;
+          show('overview'); renderOverview();
+        });
+      });
+      return;
+    }
+
+    var transp = document.querySelector('.hc-transparency');
+    if (transp) transp.style.display = '';
+
+    var overall = Math.round(scored.reduce(function (s, p) { return s + p.score; }, 0) / scored.length);
+
+    /* ── Honest money range ─────────────────────
+       Two anchors: how much room there is to improve (100 - overall) and
+       how confident we can be in that read (coverage). Range, not point.
+       Expressed in £/month. Floors to £0. */
+    var confidence = coveredCount / AREAS.length;        // 0.2 .. 1.0
+    var room       = (100 - overall) / 100;              // 0 .. 1
+    var lowMonthly  = Math.round((room * confidence * 1500) / 100) * 100; // £100 step
+    var highMonthly = Math.round((room * confidence * 5000) / 100) * 100;
+    var moneyEstimate = Math.round((lowMonthly + highMonthly) / 2);
+    persistToBOS(pillars, moneyEstimate);
+
+    /* Mirror any captured HC contact into the BOS lead store too. */
+    try {
+      var contact = JSON.parse(localStorage.getItem('hc.contact') || 'null');
+      if (contact) {
+        var rawLeads = localStorage.getItem('bos.leads');
+        var leads = rawLeads ? JSON.parse(rawLeads) : [];
+        var exists = leads.some(function (l) { return l && l.fromHc && l.contact === contact.contact; });
+        if (!exists) {
+          leads.unshift({
+            id: Date.now(),
+            name: contact.name || 'HC lead',
+            source: 'health check (' + (contact.capturedAt || '?') + ')',
+            value: 250,
+            stage: 'new',
+            fromHc: true,
+            contact: contact.contact
+          });
+          localStorage.setItem('bos.leads', JSON.stringify(leads));
+        }
+      }
+    } catch (e) {}
+
+    /* Honest headline — range, not £X point estimate, with explicit
+       confidence. Plus a "How we got this" expander that shows the
+       maths and what we'd need to verify against real data. */
+    var coverPct = Math.round(confidence * 100);
+    if (lowMonthly === 0 && highMonthly === 0) {
+      $("[data-hc-money-headline]").innerHTML = 'You\'re ahead of most of the businesses we audit.';
+    } else {
+      $("[data-hc-money-headline]").innerHTML =
+        'Likely upside: <span class="accent">£' + lowMonthly.toLocaleString()
+        + '–£' + highMonthly.toLocaleString() + '/month</span>';
+    }
+    $("[data-hc-money-sub]").innerHTML =
+      'Range based on ' + coveredCount + '/' + AREAS.length + ' topics answered (confidence: ~' + coverPct + '%). '
+      + 'These are <strong>self-reported answers</strong>, not pulled from your live data. To make this real, see "How we got this" below.';
+
+    /* Leak cards — only show real numbers if the topic was answered. */
+    var seoSlot = state.answers['seo'];
+    var siteSlot = state.answers['site'];
+    var flowSlot = state.answers['flow'];
+
+    if (seoSlot) {
+      var seoScore = scoreArea('seo');
+      $("[data-hc-leak-visibility]").innerHTML = seoScore + '<span>/100</span>';
+      $("[data-hc-leak-visibility]").parentElement.querySelector('.leak-lbl').textContent = 'visibility score';
+    } else {
+      $("[data-hc-leak-visibility]").innerHTML = '—';
+      $("[data-hc-leak-visibility]").parentElement.querySelector('.muted').textContent = 'Answer the Visibility topic to fill this.';
+    }
+
+    if (siteSlot) {
+      var siteScore = scoreArea('site');
+      $("[data-hc-leak-trust]").innerHTML = siteScore + '<span>/100</span>';
+      $("[data-hc-leak-trust]").parentElement.querySelector('.leak-lbl').textContent = 'website score';
+    } else {
+      $("[data-hc-leak-trust]").innerHTML = '—';
+      $("[data-hc-leak-trust]").parentElement.querySelector('.muted').textContent = 'Answer the Website topic to fill this.';
+    }
+
+    if (flowSlot) {
+      var flowScore = 100 - scoreArea('flow');
+      $("[data-hc-leak-dependence]").innerHTML = flowScore + '<span>%</span>';
+      $("[data-hc-leak-dependence]").parentElement.querySelector('.leak-lbl').textContent = 'channel-concentration risk';
+    } else {
+      $("[data-hc-leak-dependence]").innerHTML = '—';
+      $("[data-hc-leak-dependence]").parentElement.querySelector('.muted').textContent = 'Answer the Customer-flow topic to fill this.';
+    }
+
+    /* ── Quick wins (action-rich) ──────────────── */
+    var allWins = [];
+    pillars.forEach(function (p) {
+      if (!p.slot || !p.area.quickwins) return;
+      try {
+        var ws = p.area.quickwins(p.slot) || [];
+        ws.forEach(function (w) { allWins.push(Object.assign({ areaId: p.area.id, areaName: p.area.name, areaIcon: p.area.icon }, w)); });
+      } catch (e) { /* swallow — placeholder safety */ }
+    });
+    var qw = $("[data-hc-quickwins]");
+    if (!allWins.length) {
+      qw.innerHTML = '<div class="hc-quickwin-empty"><p class="muted">Answer at least one topic to see your quick wins.</p></div>';
+    } else {
+      qw.innerHTML = allWins.map(function (w, i) {
+        var actions = w.actions.map(function (a) {
+          if (a.type === 'guide') return '<a href="' + a.href + '" target="_blank" rel="noopener" class="qw-action qw-guide">📖 ' + a.label + '</a>';
+          if (a.type === 'callus') return '<a href="tel:+447707020250" class="qw-action qw-callus">📞 ' + a.label + '</a>';
+          if (a.type === 'doitforme') return '<a href="mailto:hello@milesymedia.co?subject=' + encodeURIComponent(w.title) + '" class="qw-action qw-doitforme">⚡ ' + a.label + '</a>';
+          return '<button class="qw-action qw-diy">' + a.label + '</button>';
+        }).join('');
+        return '<details class="qw-card" ' + (i === 0 ? 'open' : '') + '>'
+          + '<summary><span class="qw-icon">' + w.areaIcon + '</span><span class="qw-title">' + w.title + '</span><span class="qw-area-tag">' + w.areaName + '</span></summary>'
+          + '<div class="qw-body"><p>' + w.why + '</p><div class="qw-actions">' + actions + '</div></div>'
+          + '</details>';
+      }).join('');
+    }
+
+    /* ── Section navigator — card per topic with redo + skip actions.
+         Click anywhere on the card → redo that section.
+         Click "Skip" (only on completed cards) → clear the answer for
+         that area so it disappears from the results, then re-render. */
+    var nav = $("[data-hc-section-nav]");
+    nav.innerHTML = pillars.map(function (p, i) {
+      var done = p.score != null;
+      var stateCls = done ? 'is-done' : 'is-pending';
+      var label = done ? 'Score: ' + p.score + '/100 · ' + (p.slot.tier) : 'Not explored yet';
+      var primaryCta = done ? '↻ Redo this section' : 'Explore this section →';
+      var skipBtn = done
+        ? '<button type="button" class="hc-section-nav-skip" data-hc-section-skip="' + i + '" aria-label="Skip ' + p.area.name + '">Skip</button>'
+        : '';
+      return '<div class="hc-section-nav-card ' + stateCls + '">'
+        + '<button class="hc-section-nav-main" data-hc-jump="' + i + '">'
+        +   '<div class="hc-section-nav-icon">' + p.area.icon + '</div>'
+        +   '<div class="hc-section-nav-meta">'
+        +     '<div class="hc-section-nav-title">' + p.area.name + '</div>'
+        +     '<div class="hc-section-nav-sub">' + label + '</div>'
+        +   '</div>'
+        +   '<div class="hc-section-nav-cta">' + primaryCta + '</div>'
+        + '</button>'
+        + skipBtn
+        + '</div>';
+    }).join('');
+    $$("[data-hc-jump]").forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.areaIdx = parseInt(b.getAttribute('data-hc-jump'), 10);
+        state.tier = null; state.exerciseIdx = 0;
+        show('overview'); renderOverview();
+      });
+    });
+    $$("[data-hc-section-skip]").forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var idx = parseInt(b.getAttribute('data-hc-section-skip'), 10);
+        var aid = AREAS[idx] && AREAS[idx].id;
+        if (aid && state.answers[aid]) delete state.answers[aid];
+        /* Re-build results so the skipped section flips back to "pending". */
+        buildResults();
+      });
+    });
+  }
+
+  /* ─── NAVIGATION ────────────────────────────── */
+  function startArea() {
+    state.tier = null; state.exerciseIdx = 0;
+    show('overview'); renderOverview();
+  }
+
+  /* ─ Soft progress-save prompt ───────────── */
+  /* Trigger once: after question 5 of the first answered area. */
+  function maybeShowProgressModal() {
+    try {
+      if (localStorage.getItem('hc.contact')) return false;       // already captured
+      if (localStorage.getItem('hc.progressDismissed')) return false; // user opted out
+    } catch (e) {}
+    var slot = state.answers[currentArea().id];
+    if (!slot) return false;
+    var answered = Object.keys(slot.raw).length;
+    if (answered < 5) return false;
+    document.querySelector('[data-hc-progress-modal]').removeAttribute('hidden');
+    return true;
+  }
+  document.querySelector('[data-hc-progress-skip]').addEventListener('click', function () {
+    try { localStorage.setItem('hc.progressDismissed', '1'); } catch (e) {}
+    document.querySelector('[data-hc-progress-modal]').setAttribute('hidden', '');
+  });
+  /* R017 — generate a base64 `?resume=<token>` link from current state. */
+  function makeResumeToken(email, savedAtIso) {
+    var payload = { email: email, savedAt: savedAtIso, hcState: state };
+    try { return btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }
+    catch (e) { return null; }
+  }
+  function makeResumeUrl(email) {
+    var savedAt = new Date().toISOString();
+    var token = makeResumeToken(email, savedAt);
+    if (!token) return null;
+    var base = location.origin + location.pathname;
+    return base + '?resume=' + encodeURIComponent(token);
+  }
+  function appendLeadFromHcSave(email, name) {
+    try {
+      var leads = JSON.parse(localStorage.getItem('bos.leads') || '[]') || [];
+      leads.push({
+        id: 'L' + Date.now().toString(36),
+        email: email, name: name || '',
+        source: 'hc-progress-nudge',
+        capturedAt: new Date().toISOString()
+      });
+      localStorage.setItem('bos.leads', JSON.stringify(leads));
+    } catch (e) {}
+  }
+  document.querySelector('[data-hc-progress-form]').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var fd = new FormData(ev.target);
+    var email = (fd.get('email') || '').toString().trim();
+    var name  = (fd.get('name')  || '').toString().trim();
+    var contact = (fd.get('contact') || '').toString().trim();
+    if (!email) return;
+    try {
+      localStorage.setItem('hc.contact', JSON.stringify({
+        name: name, email: email, contact: contact, capturedAt: 'progress-save'
+      }));
+    } catch (e) {}
+    appendLeadFromHcSave(email, name);
+    if (window.Activity && typeof window.Activity.log === 'function') {
+      window.Activity.log('hc.shared', { source: 'hc-progress-nudge', method: 'resume-link', name: name });
+    }
+    var url = makeResumeUrl(email);
+    var ta = document.querySelector('[data-hc-progress-link]');
+    if (ta) ta.value = url || '(could not generate — copy your URL manually)';
+    document.querySelector('[data-hc-progress-shell]').setAttribute('hidden', '');
+    document.querySelector('[data-hc-progress-result]').removeAttribute('hidden');
+  });
+  /* Copy-to-clipboard + close handlers for the resume-link panel. */
+  document.querySelector('[data-hc-progress-copy]').addEventListener('click', function () {
+    var ta = document.querySelector('[data-hc-progress-link]');
+    var status = document.querySelector('[data-hc-progress-copy-status]');
+    if (!ta) return;
+    try {
+      ta.select(); document.execCommand('copy');
+      if (navigator.clipboard) navigator.clipboard.writeText(ta.value).catch(function () {});
+      if (status) { status.textContent = '✓ Copied. Paste into your other device\'s browser.'; setTimeout(function () { status.textContent = ''; }, 4000); }
+    } catch (e) {
+      if (status) status.textContent = 'Couldn\'t copy automatically — select the text manually and copy.';
+    }
+  });
+  document.querySelector('[data-hc-progress-resume-close]').addEventListener('click', function () {
+    document.querySelector('[data-hc-progress-modal]').setAttribute('hidden', '');
+    /* Reset modal to form view in case it pops again. */
+    document.querySelector('[data-hc-progress-shell]').removeAttribute('hidden');
+    document.querySelector('[data-hc-progress-result]').setAttribute('hidden', '');
+  });
+
+  /* skipIf engine — find next/prev step that isn't conditionally skipped */
+  function isSkipped(stepIdx, slot) {
+    var ex = currentTier().exercise;
+    var s = ex[stepIdx];
+    if (!s || typeof s.skipIf !== 'function') return false;
+    try { return !!s.skipIf(slot); } catch (e) { return false; }
+  }
+  function nextActiveIdx(fromIdx) {
+    var ex = currentTier().exercise;
+    var slot = ensureAnswerSlot();
+    var i = fromIdx + 1;
+    while (i < ex.length && isSkipped(i, slot)) i++;
+    return i; // may === ex.length, meaning end-of-area
+  }
+  function prevActiveIdx(fromIdx) {
+    var slot = ensureAnswerSlot();
+    var i = fromIdx - 1;
+    while (i >= 0 && isSkipped(i, slot)) i--;
+    return i; // may be -1
+  }
+  function isLastActive(stepIdx) {
+    return nextActiveIdx(stepIdx) >= currentTier().exercise.length;
+  }
+
+  function nextStepOrArea() {
+    var nxt = nextActiveIdx(state.exerciseIdx);
+    if (nxt < currentTier().exercise.length) {
+      state.exerciseIdx = nxt; renderStep();
+      if (state.exerciseIdx >= 4) maybeShowProgressModal();
+    } else {
+      if (state.areaIdx < AREAS.length - 1) {
+        state.areaIdx++; startArea();
+      } else {
+        show('building');
+        setTimeout(function () { buildResults(); show('results'); show('results'); paintResultsExtras(); }, 1200);
+      }
+    }
+  }
+
+  /* ─ Results extras: signup grab + share buttons ─ */
+  function paintResultsExtras() {
+    try {
+      var contact = JSON.parse(localStorage.getItem('hc.contact') || 'null');
+      var grab = document.querySelector('[data-hc-signup-grab]');
+      if (!contact && grab) grab.removeAttribute('hidden');
+    } catch (e) {}
+  }
+  var grabForm = document.querySelector('[data-hc-signup-grab-form]');
+  if (grabForm) {
+    grabForm.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var fd = new FormData(ev.target);
+      try {
+        localStorage.setItem('hc.contact', JSON.stringify({
+          name: fd.get('name'), contact: fd.get('contact'), capturedAt: 'results-grab'
+        }));
+      } catch (e) {}
+      document.querySelector('[data-hc-signup-grab]').setAttribute('hidden', '');
+      alert('Thanks — we\'ll be in touch within a working day.');
+    });
+  }
+  document.querySelectorAll('[data-hc-share]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var kind = b.getAttribute('data-hc-share');
+      if (kind === 'email') {
+        var subj = encodeURIComponent('My Milesy Health Check results');
+        var body = encodeURIComponent('Saving my Health Check results — see attached / link below.\n\n[results URL placeholder]');
+        location.href = 'mailto:?subject=' + subj + '&body=' + body;
+      } else if (kind === 'link') {
+        navigator.clipboard && navigator.clipboard.writeText(location.href);
+        alert('Shareable link copied to your clipboard.');
+      } else if (kind === 'pdf') {
+        window.print();
+      }
+    });
+  });
+
+  // Show "back to BOS" button if user came from the OS
+  if (new URLSearchParams(location.search).get('from') === 'bos') {
+    var btn = document.querySelector('[data-hc-bos-return]');
+    if (btn) btn.removeAttribute('hidden');
+  }
+
+  // Same-origin now (single :3033 server serving both apps as
+  // sub-folders), relative paths work — no rewrite needed.
+  function bosUrl(path) { return path; }
+
+  // If a BOS user already exists on this origin, swap the gift CTA for
+  // a "Back to my OS" button. Cross-origin in dev means we can't always
+  // detect — that's fine; the gift card still works for new arrivals.
+  try {
+    var existingBos = JSON.parse(localStorage.getItem('bos.user') || 'null');
+    if (existingBos) {
+      var claim = document.querySelector('[data-hc-claim-bos]');
+      var back  = document.querySelector('[data-hc-bos-existing]');
+      var head  = document.querySelector('[data-hc-gift-headline]');
+      if (claim) claim.setAttribute('hidden', '');
+      if (back)  {
+        back.removeAttribute('hidden');
+        back.setAttribute('href', bosUrl('../business-os/app.html'));
+      }
+      if (head) head.textContent = 'Welcome back — your Business OS is waiting.';
+    }
+  } catch (e) {}
+
+  /* 2026-05-09 — Returning-visitor CTA. Always sends them through /login
+     so they end up in their portal → Business OS section, regardless of
+     local state. The hint shows the date if they've done the HC before. */
+  (function () {
+    var btn = document.getElementById('hcReturningCta');
+    var hint = document.getElementById('hcReturningHint');
+    var hintText = document.getElementById('hcReturningHintText');
+    if (!btn) return;
+    btn.textContent = 'Log back in →';
+    try {
+      var prior = localStorage.getItem('bos.healthCheck');
+      if (prior && hint && hintText) {
+        var s = JSON.parse(prior || '{}');
+        var when = s.completedAt ? new Date(s.completedAt) : null;
+        hintText.textContent = when
+          ? 'You completed the Health Check on ' + when.toLocaleDateString() + '. Sign in to your portal to pick up where you left off.'
+          : 'Sign in to your portal — your Business OS is waiting.';
+        hint.style.display = '';
+      }
+    } catch (e) {}
+  })();
+
+  document.addEventListener('click', function (ev) {
+    var pickType = ev.target.closest('[data-hc-pick-type]');
+    if (pickType) { state.type = pickType.getAttribute('data-hc-pick-type'); state.areaIdx = 0; startArea(); return; }
+
+    var t = ev.target.closest('[data-hc-action]');
+    if (!t) return;
+    var a = t.getAttribute('data-hc-action');
+    if (a === 'start')           { show('gate'); }
+    else if (a === 'go-back') {
+      /* Smart back — handles every step:
+         - exercise: previous question if any, else back to overview
+         - overview: previous area's exercise (last question), else gate
+         - tiers:    back to overview (or gate if no area picked yet)
+         - gate:     back to intro
+         - results:  back to exercise (last question of last area)
+         - building: same as results target */
+      var s = state.step;
+      if (s === 'exercise') {
+        var pv = prevActiveIdx(state.exerciseIdx);
+        if (pv >= 0) { state.exerciseIdx = pv; renderStep(); return; }
+        show('overview'); renderOverview(); return;
+      }
+      if (s === 'overview') {
+        if (state.areaIdx > 0) { state.areaIdx--; show('overview'); renderOverview(); return; }
+        show('gate'); return;
+      }
+      if (s === 'tiers')    { show('overview'); renderOverview(); return; }
+      if (s === 'gate')     { show('intro'); return; }
+      if (s === 'results' || s === 'building') {
+        if (AREAS && AREAS.length) {
+          state.areaIdx = AREAS.length - 1;
+          state.exerciseIdx = 0;
+          var t = currentArea() && currentArea().tiers && state.tier ? currentTier() : null;
+          if (t && t.exercise && t.exercise.length) state.exerciseIdx = t.exercise.length - 1;
+          show('exercise'); renderStep(); return;
+        }
+        show('overview'); return;
+      }
+      show('intro');
+    }
+    else if (a === 'returning') {
+      /* Send returning users to /login WITHOUT a next= param — the
+         /login page now auto-redirects to the primary portal for
+         each role (Aqua Portal for agency/client/team, Business OS
+         for leads). If already signed in, /login bounces straight
+         through with no form shown. */
+      try { window.parent.location.href = '/login'; }
+      catch (e) { window.location.href = '/login'; }
+    }
+    else if (a === 'open-tiers') { show('tiers'); renderTiers(); }
+    else if (a === 'step-back')  { var pv = prevActiveIdx(state.exerciseIdx); if (pv >= 0) { state.exerciseIdx = pv; renderStep(); } }
+    else if (a === 'step-next')  { nextStepOrArea(); }
+    else if (a === 'skip-area')  {
+      if (state.areaIdx < AREAS.length - 1) { state.areaIdx++; startArea(); }
+      else { show('building'); setTimeout(function () { buildResults(); show('results'); }, 800); }
+    }
+    else if (a === 'skip-results') {
+      show('building'); setTimeout(function () { buildResults(); show('results'); }, 800);
+    }
+    else if (a === 'restart') {
+      state = { step:'intro', type:null, areaIdx:0, tier:null, exerciseIdx:0, answers:{} };
+      show('intro');
+    }
+  });
+
+  /* R017 — resume-link finalisation. Runs once on script tail. If
+     `?resume=` succeeded earlier, fast-forward to the saved step.
+     If it failed, render an honest banner above the intro card. */
+  (function () {
+    if (window.__hcResumeError) {
+      var intro = document.querySelector('[data-step="intro"]');
+      if (!intro) return;
+      var bn = document.createElement('div');
+      bn.style.cssText = 'background:rgba(208,89,89,0.1);border:1px solid #d05959;color:#d05959;padding:12px 16px;border-radius:10px;margin:0 0 20px;font-size:14px';
+      bn.textContent = '⚠ ' + window.__hcResumeError;
+      intro.insertBefore(bn, intro.firstChild);
+      return;
+    }
+    if (!window.__hcResumed) return;
+    /* Re-paint per saved state.step. */
+    try {
+      if (state.step === 'overview' || state.step === 'tiers') {
+        show('overview'); renderOverview();
+      } else if (state.step === 'exercise') {
+        show('exercise'); renderStep();
+      } else if (state.step === 'results') {
+        show('building');
+        setTimeout(function () { buildResults(); show('results'); paintResultsExtras && paintResultsExtras(); }, 400);
+      } else if (state.step === 'gate') {
+        show('gate');
+      } else {
+        show(state.step);
+      }
+      /* Honest little banner so the user knows resume worked. */
+      var stage = document.querySelector('[data-step="' + state.step + '"]');
+      if (stage) {
+        var bn = document.createElement('div');
+        bn.style.cssText = 'background:rgba(120,160,90,0.1);border:1px solid #5a7a3a;color:#5a7a3a;padding:10px 14px;border-radius:8px;margin:0 0 18px;font-size:13px';
+        bn.textContent = '✓ Resumed' + (window.__hcResumedEmail ? ' · ' + window.__hcResumedEmail : '') + '. Picking up where you left off.';
+        stage.insertBefore(bn, stage.firstChild);
+      }
+    } catch (e) {}
+  })();
+
+  /* ─── R010: HC → Incubator handoff bridge ─────────────────────────
+     On click of the "Continue your journey →" CTA, seed Incubator state
+     from the HC inputs (business name, niche, goal) so the user lands
+     in a populated Incubator surface. Honesty contract: we only seed
+     what the user actually told us; nothing fabricated. */
+  function bridgeHcToIncubator() {
+    var get = function (k, d) { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(d)); } catch (e) { return d; } };
+    var set = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+    var setStr = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
+
+    var contact = get('hc.contact', null);
+    var user = get('bos.user', null);
+    var brand = get('bos.brand', {}) || {};
+
+    var name = (contact && contact.name) || (user && user.name) || null;
+    var business = (contact && contact.business) || (user && user.business) || null;
+    var niche = (user && user.niche) || brand.niche || 'agency';
+    var goal = (contact && contact.goal) || null;
+
+    if (business && !brand.companyName) brand.companyName = business;
+    if (!brand.niche) brand.niche = niche;
+    set('bos.brand', brand);
+
+    if (goal) {
+      var goals = get('incubator.goals', []) || [];
+      if (goals.indexOf(goal) === -1) { goals.push(goal); set('incubator.goals', goals); }
+    }
+    if (!localStorage.getItem('incubator.phase')) setStr('incubator.phase', 'epic-intro');
+    setStr('incubator.bridgedFromHC', '1');
+    if (name) setStr('incubator.userName', name);
+
+    /* Activity log via window.Activity (R013) when present. */
+    if (window.Activity && typeof window.Activity.log === 'function') {
+      window.Activity.log('incubator.bridged', { name: name, business: business, niche: niche, goal: goal });
+    } else {
+      var activity = get('bos.activity', []) || [];
+      activity.push({ ts: new Date().toISOString(), kind: 'incubator.bridged', payload: { name: name } });
+      set('bos.activity', activity);
+    }
+  }
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest('[data-hc-incubator-cta]');
+    if (!a) return;
+    bridgeHcToIncubator();
+    /* Default navigation proceeds to ../incubator/index.html?from=hc */
+  });
+
+  /* R018 — print this page. Auto-fills print-only meta + opens any
+     `[data-print-expand]` <details> on beforeprint, then restores after. */
+  function paintPrintMeta() {
+    var d = new Date().toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+    document.querySelectorAll('[data-print-meta]').forEach(function (el) { el.textContent = 'Printed ' + d; });
+    document.querySelectorAll('[data-print-date]').forEach(function (el) { el.textContent = d; });
+    document.querySelectorAll('[data-print-url]').forEach(function (el) { el.textContent = location.host + location.pathname; });
+  }
+  var __printRestore = [];
+  window.addEventListener('beforeprint', function () {
+    paintPrintMeta();
+    __printRestore = [];
+    document.querySelectorAll('details[data-print-expand]').forEach(function (d) {
+      __printRestore.push({ el: d, was: d.open });
+      d.open = true;
+    });
+  });
+  window.addEventListener('afterprint', function () {
+    __printRestore.forEach(function (r) { r.el.open = r.was; });
+    __printRestore = [];
+  });
+  document.addEventListener('click', function (ev) {
+    if (!ev.target.closest('[data-hc-print]')) return;
+    paintPrintMeta();
+    window.print();
+  });
+  </script>
+
+<script>
+/* Intro rubber-band — when the user tries to scroll on the intro
+   step, the .hc-intro block translates down by a dampened amount
+   then springs back to center. Cool premium feel without actually
+   scrolling the page. */
+(function () {
+  var MAX = 95;            // max pull in px (slightly less room)
+  var DAMP = 0.10;         // very gentle — every wheel tick gives only a sliver
+  var DIR = -1;            // -1 inverts → scroll DOWN pulls intro UP
+  var SPRING_MS = 1500;    // slow, deliberate spring-back
+  var IDLE_MS = 320;       // hold the pull a beat longer before releasing
+  var current = 0;
+  var idleTimer = null;
+  var pullingEl = null;
+
+  function isIntroActive() {
+    var intro = document.querySelector('.hc-step[data-step="intro"]');
+    return intro && !intro.hasAttribute('hidden');
+  }
+  function getEl() {
+    if (pullingEl && document.body.contains(pullingEl)) return pullingEl;
+    pullingEl = document.querySelector('.hc-intro');
+    return pullingEl;
+  }
+  function applyPull(delta) {
+    if (!isIntroActive()) return;
+    var el = getEl();
+    if (!el) return;
+    current = Math.max(-MAX, Math.min(MAX, current + delta * DAMP * DIR));
+    /* Pull intensity 0..1 — drives scale, blur, opacity for a weighted
+       "physical" pull feel. */
+    var t = Math.abs(current) / MAX;
+    var scale = 1 - t * 0.045;          // up to 4.5% compression
+    var blur = (t * 1.6).toFixed(2);    // tiny motion blur at max
+    var op = 1 - t * 0.08;              // very slight fade — feels heavy
+    el.style.transition = 'none';
+    el.style.transformOrigin = 'center top';
+    el.style.transform = 'translateY(' + current + 'px) scale(' + scale + ')';
+    el.style.filter = 'blur(' + blur + 'px)';
+    el.style.opacity = op;
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(spring, IDLE_MS);
+  }
+  function spring() {
+    var el = getEl();
+    if (!el) return;
+    current = 0;
+    /* Spring with a touch of overshoot — back-out cubic gives a tiny
+       bounce feel without going overboard. */
+    el.style.transition =
+      'transform ' + SPRING_MS + 'ms cubic-bezier(0.34, 1.56, 0.46, 1), ' +
+      'filter '    + (SPRING_MS * 0.7) + 'ms ease-out, ' +
+      'opacity '   + (SPRING_MS * 0.7) + 'ms ease-out';
+    el.style.transform = 'translateY(0) scale(1)';
+    el.style.filter = 'blur(0)';
+    el.style.opacity = '1';
+  }
+
+  window.addEventListener('wheel', function (e) {
+    if (!isIntroActive()) return;
+    e.preventDefault();
+    applyPull(e.deltaY);
+  }, { passive: false });
+
+  /* Touch — track deltaY across the gesture. */
+  var touchStartY = null;
+  window.addEventListener('touchstart', function (e) {
+    if (!isIntroActive()) return;
+    if (e.touches.length === 1) touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  window.addEventListener('touchmove', function (e) {
+    if (!isIntroActive() || touchStartY == null) return;
+    var dy = touchStartY - e.touches[0].clientY;
+    touchStartY = e.touches[0].clientY;
+    e.preventDefault();
+    applyPull(dy);
+  }, { passive: false });
+  window.addEventListener('touchend', function () {
+    touchStartY = null;
+    spring();
+  });
+})();
+</script>
+</body>
+</html>

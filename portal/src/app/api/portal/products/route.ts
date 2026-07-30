@@ -1,0 +1,105 @@
+import { NextResponse } from "next/server";
+import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { createAgencyProduct, ensureDefaultAgencyProducts, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
+import { ensureHydrated } from "@/server/storage";
+import { AGENCY_ROLES, type AgencyProductKind, type AgencyProductPortalRequirement, type AgencyProductPricing } from "@/server/types";
+import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
+import { recordBelongsToCompany } from "@/server/tradingCompanies";
+
+type Body = {
+  action?: "create" | "update";
+  productId?: string;
+  kind?: AgencyProductKind;
+  name?: string;
+  category?: string;
+  description?: string;
+  buyerHeadline?: string;
+  coverImageUrl?: string;
+  accentColor?: string;
+  portalRequirement?: AgencyProductPortalRequirement;
+  portalHeadline?: string;
+  portalWelcomeNote?: string;
+  includedProductIds?: string[];
+  welcomePackItems?: string[];
+  welcomePackNotes?: string;
+  pricing?: AgencyProductPricing;
+  priceCents?: number;
+  billingInterval?: "month" | "quarter" | "year";
+  depositPercent?: number;
+  taxRatePercent?: number;
+  paymentTermsDays?: number;
+  billingNotes?: string;
+  internalInfo?: string;
+  deliverables?: string[];
+  contractTitle?: string;
+  contractBody?: string;
+  sopIds?: string[];
+  sopCategories?: string[];
+  active?: boolean;
+  companyIds?: string[];
+};
+
+export async function GET() {
+  try {
+    await ensureHydrated();
+    const session = await requireRole([...AGENCY_ROLES]);
+    const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
+    ensureDefaultAgencyProducts(session.agencyId);
+    return NextResponse.json({
+      ok: true,
+      products: listAgencyProducts(session.agencyId, true)
+        .filter(product => recordBelongsToCompany(product.companyIds, activeCompanyId)),
+    });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    await ensureHydrated();
+    const session = await requireRole([...AGENCY_ROLES]);
+    const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
+    const body = await request.json().catch(() => null) as Body | null;
+    if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
+    const input = {
+      kind: body.kind,
+      name: body.name ?? "",
+      category: body.category,
+      description: body.description,
+      buyerHeadline: body.buyerHeadline,
+      coverImageUrl: body.coverImageUrl,
+      accentColor: body.accentColor,
+      portalRequirement: body.portalRequirement,
+      portalHeadline: body.portalHeadline,
+      portalWelcomeNote: body.portalWelcomeNote,
+      includedProductIds: body.includedProductIds,
+      welcomePackItems: body.welcomePackItems,
+      welcomePackNotes: body.welcomePackNotes,
+      pricing: body.pricing,
+      priceCents: body.priceCents,
+      billingInterval: body.billingInterval,
+      depositPercent: body.depositPercent,
+      taxRatePercent: body.taxRatePercent,
+      paymentTermsDays: body.paymentTermsDays,
+      billingNotes: body.billingNotes,
+      internalInfo: body.internalInfo,
+      deliverables: body.deliverables,
+      contractTitle: body.contractTitle,
+      contractBody: body.contractBody,
+      sopIds: body.sopIds,
+      sopCategories: body.sopCategories,
+      active: body.active,
+      companyIds: body.companyIds ?? (body.action === "create" && activeCompanyId ? [activeCompanyId] : undefined),
+    };
+    const product = body.action === "create"
+      ? createAgencyProduct(session.agencyId, input, session.userId)
+      : body.productId
+        ? updateAgencyProduct(session.agencyId, body.productId, input, session.userId)
+        : null;
+    if (!product) return NextResponse.json({ ok: false, error: "product not found" }, { status: 404 });
+    return NextResponse.json({ ok: true, product });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}

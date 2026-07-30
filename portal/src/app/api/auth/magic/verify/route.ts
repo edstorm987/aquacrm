@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   if (!consumed) return err(req, "already_used");
 
   const client = getClient(clientId);
-  if (!client || client.status !== "active" || client.agencyId !== agencyId) {
+  if (!client || !["active", "suspended"].includes(client.status) || client.agencyId !== agencyId) {
     return err(req, "client_inactive");
   }
 

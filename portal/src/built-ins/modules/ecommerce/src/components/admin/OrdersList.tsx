@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { ServerOrder } from "../../server/orders";
@@ -22,22 +23,50 @@ export function OrdersList({ orders }: OrdersListProps) {
     });
   }, [orders, query, statusFilter]);
 
+  function downloadCsv() {
+    const cells = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["Order", "Customer", "Email", "Status", "Total", "Currency", "Created", "Tracking"],
+      ...filtered.map(order => [
+        order.id,
+        order.customerName ?? "",
+        order.customerEmail ?? "",
+        order.status,
+        (order.amountTotal / 100).toFixed(2),
+        order.currency.toUpperCase(),
+        new Date(order.createdAt).toISOString(),
+        [order.trackingCarrier, order.trackingNumber].filter(Boolean).join(" "),
+      ]),
+    ];
+    const blob = new Blob([rows.map(row => row.map(cells).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(href);
+  }
+
   return (
-    <section className="ecom-orders">
-      <header className="ecom-list-header">
+    <section className="mx-auto w-full max-w-6xl space-y-6 pb-12">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1>Orders</h1>
-          <p>{stats.totalOrders} total · revenue {formatPrice(stats.totalRevenue, "gbp")} · avg {formatPrice(stats.averageOrderValue, "gbp")}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-black/45">Commerce</p>
+          <h1 className="mt-1 text-2xl font-semibold text-black/90">Orders</h1>
+          <p className="mt-1 text-sm text-black/55">{stats.totalOrders} total · revenue {formatPrice(stats.totalRevenue, "gbp")} · avg {formatPrice(stats.averageOrderValue, "gbp")}</p>
         </div>
-        <div className="ecom-list-actions">
+        <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]"><Download size={16} /> Download CSV</button>
+      </header>
+        <div className="flex flex-wrap gap-2 border-b border-black/10 pb-3">
           <input
+            className="min-h-10 min-w-56 flex-1 rounded-md border border-black/15 bg-white px-3 text-sm"
             type="search"
             placeholder="Search orders, emails, sessions…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search orders"
           />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
+          <select className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
             <option value="paid">Paid</option>
@@ -48,33 +77,32 @@ export function OrdersList({ orders }: OrdersListProps) {
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-      </header>
 
-      <table className="ecom-table">
+      <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
         <thead>
-          <tr>
-            <th>Order</th>
-            <th>Customer</th>
-            <th>Status</th>
-            <th>Total</th>
-            <th>Created</th>
+          <tr className="border-b border-black/10 text-left text-[11px] uppercase tracking-wide text-black/45">
+            <th className="py-2">Order</th>
+            <th className="py-2">Customer</th>
+            <th className="py-2">Status</th>
+            <th className="py-2 text-right">Total</th>
+            <th className="py-2 text-right">Created</th>
           </tr>
         </thead>
         <tbody>
           {filtered.map(o => (
-            <tr key={o.id}>
-              <td><a href={`./orders/${o.id}`}>{o.id}</a></td>
-              <td>{o.customerName ?? o.customerEmail ?? "—"}</td>
-              <td><span className={`ecom-status ecom-status-${o.status}`}>{o.status}</span></td>
-              <td>{formatPrice(o.amountTotal, o.currency)}</td>
-              <td>{new Date(o.createdAt).toLocaleString()}</td>
+            <tr key={o.id} className="border-b border-black/[0.07]">
+              <td className="py-3 font-medium"><a className="underline decoration-black/20 underline-offset-2 hover:decoration-black" href={`./orders/${o.id}`}>{o.id}</a></td>
+              <td className="py-3 text-black/60">{o.customerName ?? o.customerEmail ?? "—"}</td>
+              <td className="py-3"><span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-black/60">{o.status}</span></td>
+              <td className="py-3 text-right font-mono font-semibold">{formatPrice(o.amountTotal, o.currency)}</td>
+              <td className="py-3 text-right text-black/50">{new Date(o.createdAt).toLocaleString("en-GB")}</td>
             </tr>
           ))}
           {filtered.length === 0 && (
-            <tr><td colSpan={5} className="ecom-empty">No orders match.</td></tr>
+            <tr><td colSpan={5} className="py-12 text-center text-black/45">No orders match.</td></tr>
           )}
         </tbody>
-      </table>
+      </table></div>
     </section>
   );
 }

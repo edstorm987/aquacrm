@@ -36,6 +36,9 @@ export interface AdvancePhaseArgs {
   fromPhase: PhaseDefinition;
   toPhase: PhaseDefinition;
   actor: UserId;
+  reason?: string;
+  directJump?: boolean;
+  skippedStageCount?: number;
 }
 
 export interface AdvancePhaseResult {
@@ -75,6 +78,8 @@ export class TransitionService {
 
   async advancePhase(args: AdvancePhaseArgs): Promise<AdvancePhaseResult | AdvancePhaseFailure> {
     const scope = { agencyId: args.agencyId, clientId: args.clientId };
+    const isDirectJump = args.directJump === true;
+    const skippedStageCount = args.skippedStageCount ?? 0;
 
     // Sanity: same agency, both phases.
     if (args.fromPhase.agencyId !== args.agencyId || args.toPhase.agencyId !== args.agencyId) {
@@ -227,7 +232,9 @@ export class TransitionService {
       actorUserId: args.actor,
       category: "phase",
       action: "phase.advanced",
-      message: `Advanced to ${args.toPhase.label}.`,
+      message: isDirectJump
+        ? `Moved directly to ${args.toPhase.label}, bypassing ${skippedStageCount} ${skippedStageCount === 1 ? "stage" : "stages"}.${args.reason ? ` Reason: ${args.reason}` : ""}`
+        : `${args.toPhase.order >= args.fromPhase.order ? "Advanced" : "Moved back"} to ${args.toPhase.label}.${args.reason ? ` Reason: ${args.reason}` : ""}`,
       metadata: {
         from: args.fromPhase.id,
         fromStage: args.fromPhase.stage,
@@ -236,6 +243,9 @@ export class TransitionService {
         disabled,
         enabled,
         skipped: skipped.map(s => s.pluginId),
+        directJump: isDirectJump,
+        skippedStageCount,
+        reason: args.reason,
       },
     });
 
@@ -249,6 +259,9 @@ export class TransitionService {
       enabled,
       skipped: skipped.map(s => s.pluginId),
       actor: args.actor,
+      directJump: isDirectJump,
+      skippedStageCount,
+      reason: args.reason,
     });
 
     return { ok: true, client: updated, disabled, enabled, skipped, variant };

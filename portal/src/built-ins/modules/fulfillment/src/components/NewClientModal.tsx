@@ -24,7 +24,7 @@ interface FormState {
 const DEFAULT_STATE: FormState = {
   name: "",
   email: "",
-  brandColor: "#0EA5A4",
+  brandColor: "#0B6F6D",
   logoUrl: "",
   stage: "discovery",
 };

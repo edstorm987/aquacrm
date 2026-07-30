@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quick Wins — Business OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/business-os/styles.css" />
+  <script src="/business-os/splash.js"></script>
+  <script defer src="/business-os/auth-sync.js"></script>
+</head>
+<body class="bos-body" data-mobile-checked="2026-05-09">
+
+  <div class="bos-bg-glow" aria-hidden="true"></div>
+
+  <div class="bos-shell">
+    <aside class="bos-sidebar">
+      <a href="app.html" class="brand bos-brand-niche">
+        <span class="mark" data-bos-niche-icon>◆</span>
+        <span class="brand-name" data-bos-niche-label>Business OS</span>
+      </a>
+      <nav class="bos-side-nav" data-bos-auto-nav data-bos-active="quick-wins.html"></nav>
+      <a href="/" class="bos-back-to-site" title="Back to milesymedia.co">← Back to website</a>
+    </aside>
+
+    <main class="bos-main">
+      <section class="bos-qw-page">
+        <span class="eyebrow">Quick wins</span>
+        <h1>Fix what's leaking — fast.</h1>
+        <p class="lead" id="bosQwLead">Here are the short videos that match the topics your Health Check flagged. Watch one, do one. We only show what's relevant to you.</p>
+
+        <div id="bosQwList" class="bos-qw-list">
+          <!-- Filled by JS based on bos.healthCheck topics -->
+        </div>
+
+        <div class="bos-qw-handoff" id="bosQwHandoff">
+          <h2>Want us to do this for you?</h2>
+          <p>If these wins helped — imagine what we can do as your team. We turn this same diagnostic into a real, owned operating system, run by us, branded as you.</p>
+          <a href="/#contact" class="btn btn-primary btn-lg">Work with Milesymedia →</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/business-os/bos.js"></script>
+  <script>
+    /* Catalogue of quick-win videos. Keyed by HC topic name (the
+       canonical names from public/health-check/hc-questions.js).
+       Add more entries as new videos are recorded. */
+    var QUICK_WINS = {
+      'Visibility & Search': [
+        { title: 'Fix your Google Business profile in 8 minutes', mins: 8, url: '#', summary: 'The 5 fields that move you from page-3 to top-3 nearby.' },
+        { title: 'Add the 3 schemas Google actually uses', mins: 6, url: '#', summary: 'JSON-LD snippets you paste once. Indexed within hours.' }
+      ],
+      'Your Website': [
+        { title: 'Rewrite your hero in 5 minutes', mins: 5, url: '#', summary: 'The hero formula that survives a 5-second attention test.' },
+        { title: 'Make every page convert with one block', mins: 7, url: '#', summary: 'A single CTA pattern proven across 40+ client builds.' }
+      ],
+      'Where Customers Come From': [
+        { title: 'Diversify in a week without spending more', mins: 9, url: '#', summary: 'Three free channels nobody you compete with is using.' }
+      ],
+      'My Business': [
+        { title: 'The 30-minute weekly review every owner needs', mins: 11, url: '#', summary: 'A 4-question check that catches problems before they hurt.' }
+      ],
+      'Keeping Them': [
+        { title: 'Rescue a lost customer with one email', mins: 6, url: '#', summary: 'Word-for-word template + when to send.' },
+        { title: 'Build a 90-day stay system', mins: 10, url: '#', summary: 'Three touchpoints that triple repeat orders.' }
+      ]
+    };
+
+    (function () {
+      var listEl = document.getElementById('bosQwList');
+      var leadEl = document.getElementById('bosQwLead');
+      var handoff = document.getElementById('bosQwHandoff');
+
+      var hc = null;
+      try { hc = JSON.parse(localStorage.getItem('bos.healthCheck') || 'null'); } catch (e) {}
+      var topics = (hc && hc.topics) || [];
+
+      if (topics.length === 0) {
+        leadEl.textContent = 'Take the Health Check first — then this page lights up with the exact videos for the topics you scored lowest on.';
+        listEl.innerHTML = '<a href="diagnostic.html" class="btn btn-primary btn-lg" style="margin-top:24px">Take my Health Check →</a>';
+        handoff.style.display = 'none';
+        return;
+      }
+
+      // Sort topics by lowest score first → those need help most.
+      var sorted = topics.slice().sort(function (a, b) { return (a.score || 0) - (b.score || 0); });
+
+      var html = '';
+      sorted.forEach(function (t) {
+        var vids = QUICK_WINS[t.name] || [];
+        if (!vids.length) return;
+        html += '<section class="bos-qw-block">'
+          + '<header class="bos-qw-block-head">'
+          +   '<div class="bos-qw-icon">' + (t.icon || '•') + '</div>'
+          +   '<div>'
+          +     '<h2>' + t.name + '</h2>'
+          +     '<div class="bos-qw-score">Your score: <strong>' + t.score + '/100</strong> · ' + (t.status || '') + '</div>'
+          +   '</div>'
+          + '</header>'
+          + '<div class="bos-qw-videos">'
+          + vids.map(function (v) {
+              return '<a href="' + v.url + '" class="bos-qw-card">'
+                + '<div class="bos-qw-thumb"><span aria-hidden>▶</span><span class="bos-qw-mins">' + v.mins + ' min</span></div>'
+                + '<div class="bos-qw-meta">'
+                +   '<div class="bos-qw-title">' + v.title + '</div>'
+                +   '<div class="bos-qw-sum">' + v.summary + '</div>'
+                + '</div>'
+                + '</a>';
+            }).join('')
+          + '</div>'
+          + '</section>';
+      });
+      if (!html) {
+        listEl.innerHTML = '<div class="bos-qw-empty">No videos lined up for your top-scoring topics yet — that means your basics are solid. We\'ll add deeper-dive content soon.</div>';
+        return;
+      }
+      listEl.innerHTML = html;
+    })();
+  </script>
+</body>
+</html>

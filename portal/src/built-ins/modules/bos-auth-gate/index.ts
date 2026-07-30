@@ -28,9 +28,7 @@ const manifest: AquaPlugin = {
     "lead, this plugin makes sure only signed-in users hit BOS and " +
     "feeds the lead's HC slot to BOS via `me`. Pure decision engine " +
     "(`evaluate`) so the foundation middleware can route without " +
-    "importing the runtime container; soft-gate via " +
-    "`NEXT_PUBLIC_DEV_BYPASS=1` keeps dev access easy. Production " +
-    "should land with the gate active.",
+    "importing the runtime container.",
 
   core: true,
   scopePolicy: "agency",
@@ -53,13 +51,6 @@ const manifest: AquaPlugin = {
             default: "/login",
             helpText: "Where unauthenticated BOS visitors are sent. Mirrors T1 R022's `?return=` semantics — the gate appends `?from=bos&next=<path>`.",
           },
-          {
-            id: "devBypass",
-            label: "Dev-bypass mode (UI hint)",
-            type: "boolean",
-            default: false,
-            helpText: "Display-only — actual bypass is read from `NEXT_PUBLIC_DEV_BYPASS` at request time so the toggle survives an env flip without redeploying.",
-          },
         ],
       },
     ],
@@ -68,7 +59,6 @@ const manifest: AquaPlugin = {
   features: [
     { id: "middleware-gate", label: "Gate /business-os/* in middleware", default: true },
     { id: "me-endpoint",     label: "Surface BOS me-context payload",    default: true },
-    { id: "dev-bypass",      label: "Honour NEXT_PUBLIC_DEV_BYPASS",     default: true },
   ],
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {

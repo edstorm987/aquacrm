@@ -26,7 +26,7 @@ import {
 interface SystemProperty {
   id: string;
   label: string;
-  kind: "website" | "client-portal" | "dev-portal" | "repo" | "template" | "tag";
+  kind: "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
   status: "planning" | "building" | "review" | "live" | "redirected" | "archived";
   repoUrl?: string;
   liveUrl?: string;
@@ -41,6 +41,11 @@ const EVENT_LABEL: Record<ClientTelemetryEvent["type"], string> = {
   performance: "Performance sample",
   error: "Browser error",
   deployment: "Deployment",
+  form: "Form submitted",
+  conversion: "Conversion",
+  search: "Search visibility",
+  chatbot: "Chatbot interaction",
+  interaction: "Customer interaction",
   heartbeat: "Connection checked",
   custom: "Custom event",
 };
@@ -228,8 +233,8 @@ export function ClientSystemsWorkspace({
         </p>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
-        <div className="min-w-0">
+      <div className="grid w-full min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
+        <div className="min-w-0 max-w-full">
           <div className="flex items-center justify-between gap-3 border-b border-black/10 pb-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Live activity</p>
@@ -269,7 +274,7 @@ export function ClientSystemsWorkspace({
           )}
         </div>
 
-        <aside className="self-start rounded-lg border border-black/10 bg-white p-5 shadow-sm">
+        <aside className="min-w-0 max-w-full self-start rounded-lg border border-black/10 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Connection</p>
@@ -294,7 +299,7 @@ export function ClientSystemsWorkspace({
               </select>
             </label>
           )}
-          <pre className="mt-4 max-h-32 overflow-auto rounded-md bg-[#171512] p-4 text-[11px] leading-5 text-white/72">
+          <pre className="mt-4 max-h-32 w-full min-w-0 max-w-full overflow-auto rounded-md bg-[#171512] p-4 text-[11px] leading-5 text-white/72">
             <code>{snippet || "Preparing secure connection…"}</code>
           </pre>
           <div className="mt-3 grid grid-cols-2 gap-2">

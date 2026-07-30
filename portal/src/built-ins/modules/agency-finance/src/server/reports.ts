@@ -18,6 +18,7 @@ import type {
 import type { CategoryService } from "./categories";
 import type { ExpenseService } from "./expenses";
 import type { InvoiceService } from "./invoices";
+import type { IncomeService } from "./income";
 
 export class ReportService {
   constructor(
@@ -25,6 +26,7 @@ export class ReportService {
     private invoices: InvoiceService,
     private expenses: ExpenseService,
     private categories: CategoryService,
+    private income: IncomeService,
   ) {}
 
   async revenueSnapshot(args: {
@@ -36,6 +38,7 @@ export class ReportService {
     const allInvoices = await this.invoices.list({});
     const allExpenses = await this.expenses.list({});
     const allCategories = await this.categories.list();
+    const otherIncome = await this.income.list({ fromReceivedAt: args.from, toReceivedAt: args.to + 1 });
     const catNameById = new Map(allCategories.map(c => [c.id, c.name]));
 
     const invoicesInWindow = allInvoices.filter(i =>
@@ -50,7 +53,8 @@ export class ReportService {
 
     const paidInvoices = invoicesInWindow.filter(i => i.status === "paid");
     const invoicesPaid = paidInvoices.length;
-    const totalPaidCents = paidInvoices.reduce((s, i) => s + i.totalCents, 0);
+    const totalPaidCents = paidInvoices.reduce((s, i) => s + i.totalCents, 0)
+      + otherIncome.filter(entry => entry.currency === currency).reduce((sum, entry) => sum + entry.amountCents, 0);
 
     const overdueInvoices = invoicesInWindow.filter(i =>
       i.status === "overdue" || (i.status === "sent" && i.dueAt < Date.now()),
@@ -94,6 +98,7 @@ export class ReportService {
       monthlyAgg.set(key, existing);
     };
     for (const i of paidInvoices) bumpMonth(i.paidAt ?? i.issuedAt, "paidCents", i.totalCents);
+    for (const entry of otherIncome.filter(item => item.currency === currency)) bumpMonth(entry.receivedAt, "paidCents", entry.amountCents);
     for (const e of reimbursedExpenses) bumpMonth(e.reimbursedAt ?? e.incurredAt, "expenseCents", e.amountCents);
     const monthly = [...monthlyAgg.values()].sort(
       (a, b) => a.year - b.year || a.month - b.month,

@@ -15,6 +15,7 @@ import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
+import { NotificationBell } from "@/components/chrome/NotificationBell";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { getPreviewPhase, escapeStyleContent, escapeScriptContent } from "@/lib/server/previewPhase";
 import { getPhaseForClientStage } from "@/server/phases";
@@ -59,15 +60,25 @@ export default async function ClientLayout({
       { id: "back-to-agency", label: "← Back to agency", href: "/portal/agency", order: 0 },
       { id: "client-overview", label: "Overview", href: overviewBase, order: 10 },
       { id: "client-fulfilment", label: "Fulfilment", href: `${overviewBase}?tab=fulfilment`, order: 20 },
-      { id: "client-properties", label: "Development", href: `${overviewBase}?tab=properties`, order: 30 },
-      { id: "client-kanban", label: "Tasks", href: `${overviewBase}?tab=kanban`, order: 40 },
-      { id: "client-finance", label: "Finance", href: `${overviewBase}?tab=finance`, order: 50 },
-      { id: "client-files", label: "Files", href: `${overviewBase}?tab=files`, order: 60 },
-      { id: "client-systems", label: "Monitoring", href: `${overviewBase}?tab=systems`, order: 70 },
+      { id: "client-kanban", label: "Tasks", href: `${overviewBase}?tab=kanban`, order: 30 },
     ],
   };
   let panels: import("@/lib/chrome/sidebarLayout").NavPanel[] = [
     workspacePanel,
+    {
+      id: "ops",
+      label: "Manage",
+      order: 50,
+      items: [
+        { id: "client-website", label: "Website", href: `${overviewBase}?tab=website`, order: 10 },
+        { id: "client-properties", label: "Development", href: `${overviewBase}?tab=properties`, order: 20 },
+        { id: "client-finance", label: "Finance", href: `${overviewBase}?tab=finance`, order: 30 },
+        { id: "client-assets", label: "Assets", href: `${overviewBase}?tab=assets`, order: 40 },
+        { id: "client-files", label: "Files", href: `${overviewBase}?tab=files`, order: 50 },
+        { id: "client-sops", label: "Processes", href: `${overviewBase}?tab=sops`, order: 60 },
+        { id: "client-systems", label: "Monitoring", href: `${overviewBase}?tab=systems`, order: 70 },
+      ],
+    },
     {
       id: "settings",
       label: "Settings",
@@ -151,9 +162,9 @@ export default async function ClientLayout({
         />
       ) : null}
       <ThemeInjector brand={client.brand} scope="client" />
-      <div className="flex min-h-screen">
+      <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} />
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             title={client.name}
             subtitle={`Stage · ${client.stage}`}
@@ -165,9 +176,20 @@ export default async function ClientLayout({
             tenantLabel={client.name}
             currentPath={currentPath}
             isDemo={session.isDemo}
+            showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            privacyTerms={[
+              client.name,
+              client.ownerEmail ?? "",
+              typeof client.metadata?.contactName === "string" ? client.metadata.contactName : "",
+              typeof client.metadata?.businessName === "string" ? client.metadata.businessName : "",
+              typeof client.metadata?.phone === "string" ? client.metadata.phone : "",
+            ]}
             previewActive={!!previewActive}
+            notifications={session.role.startsWith("agency-")
+              ? <NotificationBell agencyId={session.agencyId} actor={session.userId} />
+              : undefined}
           />
-          <main id="main-content" className="flex-1 px-8 py-6">
+          <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label={`${client.name} workspace`}>{children}</ErrorBoundary>
           </main>
         </div>

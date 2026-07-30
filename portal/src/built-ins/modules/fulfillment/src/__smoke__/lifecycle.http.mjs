@@ -17,9 +17,9 @@
 //
 // Exit code 0 on success, 1 on first assertion failure.
 
-const BASE = process.env.AQUA_BASE ?? "http://localhost:3032";
+const BASE = process.env.AQUA_BASE ?? "http://localhost:3030";
 const DEMO_OWNER_EMAIL = process.env.AQUA_OWNER_EMAIL ?? "Ed";
-const DEMO_OWNER_PASSWORD = process.env.AQUA_OWNER_PASSWORD ?? "SuperCreator123!";
+const DEMO_OWNER_PASSWORD = process.env.AQUA_OWNER_PASSWORD ?? "AquaSmokePass123!";
 
 let cookie = "";
 let failures = 0;

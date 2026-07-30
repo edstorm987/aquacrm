@@ -8,14 +8,22 @@ export interface UpcomingMeeting {
   meetingAt: number;
   meetingLink?: string;
   notes?: string;
+  mode?: "google-meet" | "phone" | "in-person" | "other";
+  location?: string;
+  status?: "scheduled" | "confirmed" | "completed" | "no-show" | "cancelled" | "rescheduled";
+  confirmed?: boolean;
+  reminderDue?: boolean;
+  salesPresentations?: Array<{ id: string; title: string; url: string }>;
 }
 
 export function UpcomingMeetings({
   meetings,
   onShowAll,
+  onOpenCommercial,
 }: {
   meetings: UpcomingMeeting[];
   onShowAll?: () => void;
+  onOpenCommercial?: (meeting: UpcomingMeeting) => void;
 }) {
   const upcoming = meetings
     .filter(item => item.meetingAt)
@@ -60,6 +68,12 @@ export function UpcomingMeetings({
                   {formatUkDateTime(item.meetingAt)}
                 </time>
               </div>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                <span className="rounded-full bg-black/[0.05] px-2 py-0.5 capitalize text-black/55">{(item.mode ?? "other").replaceAll("-", " ")}</span>
+                <span className={`rounded-full px-2 py-0.5 ${item.confirmed ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{item.confirmed ? "Confirmed" : "Needs confirmation"}</span>
+                {item.reminderDue ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-red-700">Reminder due</span> : null}
+              </div>
+              {item.location ? <p className="mt-2 text-xs text-black/55">{item.location}</p> : null}
               {item.notes && <p className="mt-2 text-xs leading-5 text-black/55">{item.notes}</p>}
               <div className="mt-3 flex flex-wrap gap-2 border-t border-black/10 pt-3">
                 {item.meetingLink && (
@@ -72,9 +86,21 @@ export function UpcomingMeetings({
                     Join meeting
                   </a>
                 )}
+                {item.salesPresentations?.map(presentation => (
+                  <a
+                    key={presentation.id}
+                    href={presentation.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs font-medium text-black/70 hover:bg-black/[0.03]"
+                  >
+                    {presentation.title}
+                  </a>
+                ))}
                 {item.phone && <a href={`tel:${item.phone}`} className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Call</a>}
                 <a href={`mailto:${item.email}`} className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email</a>
-                <a href={`mailto:${item.email}?subject=${encodeURIComponent("Meeting reminder")}`} className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Send reminder</a>
+                <a href="/portal/agency/actions" className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Review actions</a>
+                {onOpenCommercial ? <button type="button" onClick={() => onOpenCommercial(item)} className="rounded-md bg-black px-2 py-1 text-xs font-semibold text-white hover:bg-black/85">Send invoice</button> : null}
               </div>
             </article>
           ))}

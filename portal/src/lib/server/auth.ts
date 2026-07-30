@@ -54,6 +54,7 @@ interface IssueSessionInput {
   // render the demo banner + POV toggle; the seed/reset endpoints use it
   // to scope writes to the demo agency only.
   isDemo?: boolean;
+  showcaseReturnAgencyId?: string;
   // R021: session rotation revision. Pass the user's current `sessionRev`
   // here so the cookie gets stamped — later rotations bump the user record's
   // value and stale tokens fail freshness checks at the lookup layer.
@@ -78,6 +79,7 @@ export function issueSession(input: IssueSessionInput): string {
     activeAgencyId,
     clientId: input.clientId,
     isDemo: input.isDemo === true ? true : undefined,
+    showcaseReturnAgencyId: input.showcaseReturnAgencyId,
     sessionRev: input.sessionRev ?? 0,
     iat: now,
     exp: now + COOKIE_MAX_AGE,

@@ -63,6 +63,7 @@ export interface ServerOrder {
   shippedAt?: number;
   trackingNumber?: string;
   trackingCarrier?: string;
+  internalNotes?: string;
   // R5 — discount provenance. Populated when the discount chain
   // applied a discount to the cart. `discountSource: "membership"`
   // also carries `discountSnapshot` with the planId so the source
@@ -82,6 +83,16 @@ export interface ServerOrder {
   // commission. Persisted on the order so retries / late routing /
   // backfills can still attribute.
   referralCodeId?: string;
+}
+
+export interface UpdateOrderPatch {
+  status?: OrderStatus;
+  customerEmail?: string;
+  customerName?: string;
+  shippingAddress?: ServerOrder["shippingAddress"];
+  trackingNumber?: string;
+  trackingCarrier?: string;
+  internalNotes?: string;
 }
 
 // R6 — `upsertOrderByStripeSession` returns whether the call inserted
@@ -233,6 +244,34 @@ export class OrderService {
     const next: ServerOrder = { ...existing, ...extras, status };
     if (status === "shipped" && !next.shippedAt) next.shippedAt = now();
     if (status === "fulfilled" && !next.fulfilledAt) next.fulfilledAt = now();
+    await this.storage.set(this.orderKey(id), next);
+    return next;
+  }
+
+  async updateOrder(id: string, patch: UpdateOrderPatch): Promise<ServerOrder | null> {
+    const existing = await this.getOrder(id);
+    if (!existing) return null;
+    const next: ServerOrder = {
+      ...existing,
+      ...patch,
+      customerEmail: patch.customerEmail?.trim() || undefined,
+      customerName: patch.customerName?.trim() || undefined,
+      trackingNumber: patch.trackingNumber?.trim() || undefined,
+      trackingCarrier: patch.trackingCarrier?.trim() || undefined,
+      internalNotes: patch.internalNotes?.trim() || undefined,
+      shippingAddress: patch.shippingAddress
+        ? {
+            line1: patch.shippingAddress.line1?.trim() || undefined,
+            line2: patch.shippingAddress.line2?.trim() || undefined,
+            city: patch.shippingAddress.city?.trim() || undefined,
+            state: patch.shippingAddress.state?.trim() || undefined,
+            postalCode: patch.shippingAddress.postalCode?.trim() || undefined,
+            country: patch.shippingAddress.country?.trim() || undefined,
+          }
+        : existing.shippingAddress,
+    };
+    if (patch.status === "shipped" && !next.shippedAt) next.shippedAt = now();
+    if (patch.status === "fulfilled" && !next.fulfilledAt) next.fulfilledAt = now();
     await this.storage.set(this.orderKey(id), next);
     return next;
   }

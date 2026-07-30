@@ -2,7 +2,7 @@
   "name": "@aqua/plugin-bos-auth-gate",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal BOS auth gate — gates `/business-os/*` on a real session and reads lead user state (HC slot, captures) from public-funnel for personalisation. Pure middleware-decision helper + a `me` endpoint; foundation wires the actual middleware.ts match. Soft-gate via NEXT_PUBLIC_DEV_BYPASS.",
+  "description": "Aqua portal BOS auth gate — gates `/business-os/*` on a real session and reads lead user state (HC slot, captures) from public-funnel for personalisation.",
   "type": "module",
   "main": "index.ts",
   "exports": {

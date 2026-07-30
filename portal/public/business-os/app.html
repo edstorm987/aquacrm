@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Business OS — Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/business-os/styles.css" />
+  <!-- 2026-05-09 — Incubator gate + graduation flag fully removed.
+       BOS loads directly. Incubator was archived to _archived/
+       (client-only feature for later). -->
+
+  <script src="/business-os/splash.js"></script>
+  <script defer src="/business-os/auth-sync.js"></script>
+</head>
+<body class="bos-body" data-mobile-checked="2026-05-07">
+
+  <div class="bos-bg-glow" aria-hidden="true"></div>
+
+  <div class="bos-shell">
+
+    <aside class="bos-sidebar">
+      <a href="app.html" class="brand bos-brand-niche">
+        <span class="mark" data-bos-niche-icon>◆</span>
+        <span class="brand-name" data-bos-niche-label>Business OS</span>
+      </a>
+      <nav class="bos-side-nav" data-bos-auto-nav data-bos-active="app.html"></nav>
+      <div class="bos-side-user">
+        <div class="av" data-bos-initial>JL</div>
+        <div>
+          <div class="bos-side-user-name" data-bos-name>Jordan Lee</div>
+          <div class="bos-side-user-biz muted" data-bos-business>Northbeam Apparel</div>
+        </div>
+      </div>
+      <a href="/" class="bos-back-to-site" title="Back to milesymedia.co">← Back to website</a>
+    </aside>
+
+    <main id="bos-home" class="bos-main bos-home">
+
+      <header class="bos-home-greet">
+        <h1 data-bos-greet>Welcome.</h1>
+        <p class="muted bos-home-tagline">Your free Business OS — three steps to fix what's leaking.</p>
+      </header>
+
+      <!-- "Take the Health Check" prompt — ONLY shown when no HC on file.
+           Hidden by default; the JS removes the hidden attr if needed. -->
+      <section class="bos-home-next" data-bos-home-next hidden>
+        <span class="eyebrow">Your next move</span>
+        <h2>Take the free Health Check.</h2>
+        <p>It takes 12 minutes and unlocks a personalised picture — what's leaking customers, and the quick wins to plug it. We then queue up short videos that fix exactly those topics.</p>
+        <div class="hc-actions">
+          <a class="btn btn-primary btn-lg" href="/health-check/index.html?from=bos">Start the Health Check →</a>
+        </div>
+      </section>
+
+      <!-- HC-derived: leak topic + link to the matching Quick Wins. -->
+      <section class="bos-home-leak" data-bos-home-leak hidden>
+        <span class="eyebrow">Based on your Health Check</span>
+        <h3>Your biggest leak right now is <strong data-bos-leak-topic>Visibility</strong>.</h3>
+        <p class="muted" data-bos-leak-body>Start with the videos that target it directly — short, specific, free.</p>
+        <a class="btn btn-primary" href="quick-wins.html">Watch Quick Wins →</a>
+      </section>
+
+      <!-- Become-a-client handoff. The whole point: free value first,
+           then they sign on. -->
+      <section class="bos-home-client">
+        <span class="eyebrow">Done it yourself? Want it done for you?</span>
+        <h2>Become a client.</h2>
+        <p>If the Health Check + the Quick Wins helped — imagine what a real team can do. We build, run and brand the whole operating system as you. You take the calls; we keep it humming.</p>
+        <div class="hc-actions">
+          <a href="/#contact" class="btn btn-primary btn-lg">Work with Milesymedia →</a>
+          <a href="tel:+447707020250" class="btn btn-secondary btn-lg">📞 Book a free call</a>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script defer src="/business-os/bos.js"></script>
+  <script>
+    /* Two clean states:
+         1) No HC yet → reveal the "Take the Health Check" prompt
+         2) HC done   → leave that prompt hidden + show the leak strip
+                        (Tools/Quick Wins live in the sidebar, no need
+                        to push HC again). */
+    document.addEventListener('DOMContentLoaded', function () {
+      var hc = null;
+      try { hc = JSON.parse(localStorage.getItem('bos.healthCheck') || 'null'); } catch (e) {}
+
+      if (!hc) {
+        var prompt = document.querySelector('[data-bos-home-next]');
+        if (prompt) prompt.removeAttribute('hidden');
+        return;
+      }
+
+      if (hc.topics && hc.topics.length) {
+        var sorted = hc.topics.slice().sort(function (a, b) { return a.score - b.score; });
+        var leak = sorted[0];
+        var leakBox = document.querySelector('[data-bos-home-leak]');
+        leakBox.removeAttribute('hidden');
+        document.querySelector('[data-bos-leak-topic]').textContent = leak.name;
+        document.querySelector('[data-bos-leak-body]').textContent =
+          'You scored ' + leak.score + '/100 there. Open the matching videos in Quick Wins.';
+      }
+    });
+  </script>
+
+</body>
+</html>

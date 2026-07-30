@@ -16,74 +16,61 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const SWITCHER = join(ROOT, "src", "components", "chrome", "AgencySwitcher.tsx");
+const SWITCHER = join(ROOT, "src", "archive", "multi-agency", "components", "AgencySwitcher.tsx");
 const TOPBAR = join(ROOT, "src", "components", "chrome", "Topbar.tsx");
-const ROUTE = join(ROOT, "src", "app", "api", "auth", "agency-switch", "route.ts");
+const SIDEBAR = join(ROOT, "src", "components", "chrome", "Sidebar.tsx");
+const ROUTE = join(ROOT, "src", "archive", "multi-agency", "api", "agency-switch.ts");
+const LIVE_SWITCH_ROUTE = join(ROOT, "src", "app", "api", "auth", "agency-switch", "route.ts");
+const LIVE_ADD_ROUTE = join(ROOT, "src", "app", "api", "auth", "agency-add", "route.ts");
 const SEED = join(ROOT, "src", "lib", "server", "aquaOasisSeed.ts");
 const FOUNDER = join(ROOT, "src", "lib", "server", "founderSeed.ts");
 const AGENCY_LAYOUT = join(ROOT, "src", "app", "portal", "agency", "layout.tsx");
 
-describe("Topbar agency switcher — component (R026)", () => {
-  it("AgencySwitcher.tsx exists + client-component", () => {
+describe("Milesymedia bespoke identity", () => {
+  it("parks the former agency switcher outside the live component tree", () => {
     assert.equal(existsSync(SWITCHER), true);
     const src = readFileSync(SWITCHER, "utf8");
     assert.ok(src.startsWith('"use client"'));
-    assert.ok(src.includes("export function AgencySwitcher"));
-    assert.ok(src.includes("/api/auth/agency-switch"));
+    assert.ok(src.includes("Archived"));
+    assert.equal(existsSync(join(ROOT, "src", "components", "chrome", "AgencySwitcher.tsx")), false);
   });
 
-  it("stays visible for single-agency users so agency add/switch remains discoverable", () => {
-    const src = readFileSync(SWITCHER, "utf8");
-    assert.ok(src.includes("Add new agency"));
-    assert.ok(src.includes("/api/auth/agency-add"));
-    assert.ok(!src.includes("agencies.length <= 1"));
+  it("renders a fixed non-interactive business identity", () => {
+    const src = readFileSync(SIDEBAR, "utf8");
+    assert.ok(src.includes('data-testid="tenant-identity"'));
+    assert.ok(!src.includes("TenantSwitcher"));
+    assert.ok(!src.includes("Click to switch"));
   });
 
-  it("renders brand swatch + currently-active marker", () => {
-    const src = readFileSync(SWITCHER, "utf8");
-    assert.ok(src.includes("background: active.swatch"));
-    assert.ok(src.includes('a.id === activeAgencyId'));
-    assert.ok(src.includes("✓"));
-  });
-});
-
-describe("Topbar wire-up (R026)", () => {
-  it("Topbar.tsx accepts agencies + activeAgencyId props + renders switcher", () => {
+  it("keeps the workspace title plain in the top bar", () => {
     const src = readFileSync(TOPBAR, "utf8");
-    assert.ok(src.includes("agencies?: AgencyOption[]"));
-    assert.ok(src.includes("activeAgencyId?: string"));
-    assert.ok(src.includes("<AgencySwitcher"));
-  });
-
-  it("agency layout passes session.agencyIds → resolved AgencyOption[] + activeAgencyId", () => {
-    const src = readFileSync(AGENCY_LAYOUT, "utf8");
-    assert.ok(src.includes("getSessionAgencyIds(session)"));
-    assert.ok(src.includes("getActiveAgencyId(session)"));
-    assert.ok(src.includes("a.brand?.primaryColor"));
+    assert.ok(src.includes("{title}"));
+    assert.ok(!src.includes("AgencySwitcher"));
+    assert.ok(!src.includes("activeAgencyId"));
   });
 });
 
-describe("/api/auth/agency-switch route (R026)", () => {
-  it("file exists + POST validates + assertTenantScope", () => {
+describe("Single-agency wire-up", () => {
+  it("agency layout no longer resolves or passes switchable agencies", () => {
+    const src = readFileSync(AGENCY_LAYOUT, "utf8");
+    assert.ok(!src.includes("getSessionAgencyIds(session)"));
+    assert.ok(!src.includes("getActiveAgencyId(session)"));
+    assert.ok(src.includes("tenantLabel={agency.name}"));
+  });
+});
+
+describe("Archived multi-agency endpoints", () => {
+  it("removes create/switch from the live API tree", () => {
+    assert.equal(existsSync(LIVE_SWITCH_ROUTE), false);
+    assert.equal(existsSync(LIVE_ADD_ROUTE), false);
+  });
+
+  it("keeps the old implementation in the archive folder", () => {
     assert.equal(existsSync(ROUTE), true);
     const src = readFileSync(ROUTE, "utf8");
     assert.ok(src.includes("export async function POST"));
     assert.ok(src.includes("assertTenantScope"));
-    assert.ok(src.includes("getSessionFromRequest"));
-  });
-
-  it("re-issues session with activeAgencyId + agencyIds + activity log", () => {
-    const src = readFileSync(ROUTE, "utf8");
     assert.ok(src.includes("activeAgencyId: agencyId"));
-    assert.ok(src.includes("issueSession({"));
-    assert.ok(src.includes('action: "agency.switch"'));
-    assert.ok(src.includes("resolvePostLoginPath"));
-  });
-
-  it("rejects deleted/suspended agencies even when membership matches", () => {
-    const src = readFileSync(ROUTE, "utf8");
-    assert.ok(src.match(/agency\.status\s*!==\s*"active"/));
-    assert.ok(src.includes('"agency_inactive"'));
   });
 });
 

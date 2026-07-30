@@ -67,6 +67,12 @@ describe("Postgres backend — migration runner (R027 B)", () => {
     assert.ok(src.includes("DRY_RUN"));
     assert.ok(src.includes('process.env.DRY_RUN === "1"'));
   });
+
+  it("bootstraps a fresh database from the checked-in schema", () => {
+    const src = readFileSync(MIGRATE, "utf8");
+    assert.ok(src.includes('resolve("scripts", "schema.sql")'));
+    assert.ok(src.includes("await client.query(schema)"));
+  });
 });
 
 describe("Postgres backend — smoke skips cleanly without DATABASE_URL (R027 D)", () => {
@@ -110,11 +116,17 @@ describe("Postgres backend — runtime roundtrip (R027 D, opt-in)", () => {
     return;
   }
   it("loadBlob → null on empty key; saveBlob+loadBlob roundtrips", async () => {
-    const { saveBlob, loadBlob, closePool } = await import("../src/server/storagePostgres");
+    const { saveBlob, loadBlob, closePool, getPool } = await import("../src/server/storagePostgres");
+    const baseline = await loadBlob();
     const payload = JSON.stringify({ smoke: "r027", ts: Date.now() });
-    await saveBlob(payload);
-    const got = await loadBlob();
-    assert.ok(got, "loadBlob should return the payload after saveBlob");
-    await closePool();
+    try {
+      await saveBlob(payload);
+      const got = await loadBlob();
+      assert.ok(got, "loadBlob should return the payload after saveBlob");
+    } finally {
+      if (baseline) await saveBlob(baseline);
+      else await getPool().query("DELETE FROM portal_kv WHERE key = $1", ["__portal_state__"]);
+      await closePool();
+    }
   });
 });

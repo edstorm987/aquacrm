@@ -13,7 +13,7 @@ import "server-only";
 //     dev convenience. Required to differ from default in production.
 //   - `FOUNDER_PASSWORD` — no default. Missing → log a warning + skip
 //     the seed (rather than create an unauthenticated founder).
-//   - `FOUNDER_AGENCY_NAME` — defaults to "Milesy Media".
+//   - `FOUNDER_AGENCY_NAME` — defaults to "Milesymedia".
 //   - Production guard: when `NODE_ENV === "production"`, refuse to
 //     seed when password length < 12 OR email is the dev default.
 //     Throws — fail-closed startup error rather than silent insecure
@@ -21,7 +21,8 @@ import "server-only";
 
 import { ensureHydrated } from "@/server/storage";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
-import { getAgencyBySlug } from "@/server/tenants";
+import { installCorePluginsForScope } from "@/built-ins/runtime/_runtime";
+import { getAgencyBySlug, updateAgency } from "@/server/tenants";
 import { createUser, getUser, updateUser } from "@/server/users";
 
 export const FOUNDER_AGENCY_SLUG = "milesymedia";
@@ -78,6 +79,16 @@ async function run(): Promise<void> {
     if (existing.username !== FOUNDER_USERNAME) {
       updateUser(existing.email, { username: FOUNDER_USERNAME }, { role: existing.role, clientId: existing.clientId });
     }
+    const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
+    const agencyName = readFounderAgencyName();
+    if (agency && agency.name !== agencyName) {
+      updateAgency(agency.id, { name: agencyName });
+    }
+    if (agency) {
+      await installCorePluginsForScope({ agencyId: agency.id }, existing.id);
+      const { ensureZimanteTradingCompanies } = await import("@/server/zimanteTradingCompanies");
+      ensureZimanteTradingCompanies(agency.id, existing.id);
+    }
     return;
   }
 
@@ -123,6 +134,9 @@ async function run(): Promise<void> {
     name: FOUNDER_NAME,
   });
 
+  const { ensureZimanteTradingCompanies } = await import("@/server/zimanteTradingCompanies");
+  ensureZimanteTradingCompanies(agency.id, founder.id);
+
   // R026: seed AquaOasis Demo + make Ed a master. Idempotent — second
   // run short-circuits on the slug check. Wrapped so a seed failure
   // doesn't tank the founder-seed (the demo agency is nice-to-have,
@@ -134,7 +148,7 @@ async function run(): Promise<void> {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn(
-      "[founderSeed] AquaOasis Demo seed failed — switcher will only show Milesy Media:",
+      "[founderSeed] AquaOasis Demo seed failed — switcher will only show Milesymedia:",
       e instanceof Error ? e.message : e,
     );
   }

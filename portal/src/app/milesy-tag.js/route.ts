@@ -7,11 +7,24 @@ const TAG_SOURCE = String.raw`(() => {
   const propertyId = script && script.dataset ? script.dataset.property || "" : "";
   if (!siteKey || !script || !script.src) return;
   const endpoint = new URL("/api/telemetry/collect", script.src).toString();
+  const sessionId = (() => {
+    try {
+      const key = "milesymedia-session";
+      const existing = sessionStorage.getItem(key);
+      if (existing) return existing;
+      const created = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+      sessionStorage.setItem(key, created);
+      return created;
+    } catch {
+      return Math.random().toString(36).slice(2);
+    }
+  })();
 
   const send = (type, data = {}) => {
     const payload = JSON.stringify({
       siteKey,
       propertyId,
+      sessionId,
       type,
       occurredAt: Date.now(),
       url: location.href,
@@ -61,6 +74,24 @@ const TAG_SOURCE = String.raw`(() => {
     };
   }
   window.addEventListener("popstate", pageview);
+  document.addEventListener("submit", event => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    send("form", {
+      formName: form.dataset.milesymediaForm || form.getAttribute("name") || form.id || form.action || "Website form",
+      experimentId: form.dataset.milesymediaExperiment || undefined,
+      variant: form.dataset.milesymediaVariant || undefined,
+    });
+  }, true);
+  document.addEventListener("click", event => {
+    const target = event.target instanceof Element ? event.target.closest("[data-milesymedia-conversion]") : null;
+    if (!target) return;
+    send("conversion", {
+      formName: target.getAttribute("data-milesymedia-conversion") || "Conversion action",
+      experimentId: target.getAttribute("data-milesymedia-experiment") || undefined,
+      variant: target.getAttribute("data-milesymedia-variant") || undefined,
+    });
+  }, true);
 
   window.Milesymedia = Object.freeze({
     track(type, data = {}) {

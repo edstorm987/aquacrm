@@ -4,6 +4,7 @@
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import type {
+  CreateIncomeEntryInput,
   CreatePaymentInput,
   CreatePlanInput,
   PaymentFilter,
@@ -50,6 +51,24 @@ export async function createPaymentHandler(req: Request, ctx: PluginCtx): Promis
   } catch (e) {
     if (e instanceof Error && e.message === "agency-finance: invoice not found") return notFound("invoice_not_found");
     return badRequest(e instanceof Error ? e.message : "record_failed");
+  }
+}
+
+export async function listIncomeHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "GET") return methodNotAllowed();
+  return json({ ok: true, income: await build(ctx).income.list() });
+}
+
+export async function createIncomeHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return methodNotAllowed();
+  const body = await safeJson<CreateIncomeEntryInput>(req);
+  if (!body?.title?.trim() || !body.amountCents || !body.method) return badRequest("title, amount and method are required");
+  try {
+    const defaultCurrency = (ctx.install.config.defaultCurrency as CreateIncomeEntryInput["currency"] | undefined) ?? "gbp";
+    const income = await build(ctx).income.create(ctx.actor, body, defaultCurrency);
+    return json({ ok: true, income }, 201);
+  } catch (error) {
+    return badRequest(error instanceof Error ? error.message : "income could not be recorded");
   }
 }
 

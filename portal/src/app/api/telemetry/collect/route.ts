@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { recordClientTelemetry } from "@/lib/server/clientTelemetry";
+import { recordAgencyWebsiteTelemetry } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 
 const CORS_HEADERS = {
@@ -32,7 +33,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "siteKey required" }, { status: 400, headers: CORS_HEADERS });
   }
 
-  const recorded = recordClientTelemetry(siteKey, body, req.headers.get("user-agent") ?? undefined);
+  const userAgent = req.headers.get("user-agent") ?? undefined;
+  const recorded = recordClientTelemetry(siteKey, body, userAgent)
+    ?? recordAgencyWebsiteTelemetry(siteKey, body, userAgent);
   if (!recorded) {
     return NextResponse.json({ ok: false, error: "unknown site" }, { status: 404, headers: CORS_HEADERS });
   }

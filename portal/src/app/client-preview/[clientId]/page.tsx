@@ -8,11 +8,12 @@ import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { CustomerPortalChrome } from "@/app/portal/customer/_CustomerPortalChrome";
 import { CustomerPortalContent, type CustomerPortalSection } from "@/app/portal/customer/_CustomerPortalViews";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
+import { portalProjectLabel } from "@/lib/portalProducts";
 
 const MODE_LABEL = {
   onboarding: "Onboarding",
-  designing: "Designing",
-  "developed-launch": "Build & launch",
+  designing: "In progress",
+  "developed-launch": "Review & delivery",
   maintenance: "Live care",
 } as const;
 
@@ -35,7 +36,7 @@ export default async function ClientPreviewPage({
   const query = await searchParams;
   const embedded = query.embedded === "1";
   const requestedSection = Array.isArray(query.section) ? query.section[0] : query.section;
-  const allowedSections = new Set<CustomerPortalSection>(["home", "project", "files", "billing", "support", "resources"]);
+  const allowedSections = new Set<CustomerPortalSection>(["home", "project", "results", "files", "billing", "support", "resources", "details"]);
   const section: CustomerPortalSection = allowedSections.has(requestedSection as CustomerPortalSection)
     ? requestedSection as CustomerPortalSection
     : "home";
@@ -63,6 +64,7 @@ export default async function ClientPreviewPage({
         hideAccountMenu
         logoUrl={data.logoUrl}
         accentColor={data.accentColor}
+        projectLabel={portalProjectLabel(data.products)}
       >
         <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} />
       </CustomerPortalChrome>

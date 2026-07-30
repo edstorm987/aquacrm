@@ -1,5 +1,5 @@
 "use client";
-// Floating "M" handle — appears ONLY when the nav has been folded away
+// Floating AquaCRM handle — appears only when the nav has been folded away.
 // via the side-tab. Click → restores the nav (un-folds). Doubles as
 // the visual anchor of where the brand "lives" while the nav is gone.
 
@@ -17,7 +17,7 @@ export function FloatingChat() {
         title="Bring the nav back"
         onClick={restore}
       >
-        <span className="mm-chat-mark">M</span>
+        <span className="mm-chat-mark">A</span>
         <span className="mm-chat-pulse" aria-hidden />
       </button>
     </div>

@@ -21,8 +21,8 @@ export default async function PerformancePage(props: PluginPageProps) {
         }}>
           <h2 style={{ marginTop: 0 }}>No marketing activity yet</h2>
           <p style={{ color: "rgba(0,0,0,0.6)" }}>
-            Real numbers will appear here once you create a campaign or log
-            a touchpoint. We don't fabricate data.
+            Real numbers will appear here once you create a campaign or record
+            client contact. Nothing on this page is estimated.
           </p>
         </div>
       </section>
@@ -40,14 +40,14 @@ export default async function PerformancePage(props: PluginPageProps) {
         </p>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" style={{ marginBottom: 24 }}>
         <Tile label="Campaigns" value={`${summary.campaigns.active} / ${summary.campaigns.total}`} sub="active / total" />
         <Tile label="Content" value={`${summary.content.scheduled} / ${summary.content.published}`} sub="scheduled / published" />
-        <Tile label="Touchpoints (12w)" value={String(summary.touchpoints.total)} />
+        <Tile label="Client contact · 12 weeks" value={String(summary.touchpoints.total)} />
         <Tile label="Lead replies" value={String(summary.touchpoints.byType.find(b => b.type === "reply")?.count ?? 0)} />
       </div>
 
-      <h2>Weekly touchpoints (sparkline)</h2>
+      <h2>Weekly client contact</h2>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80, marginBottom: 24 }}>
         {summary.weeklyTouchpoints.map((n, i) => (
           <div key={i} style={{
@@ -58,7 +58,7 @@ export default async function PerformancePage(props: PluginPageProps) {
         ))}
       </div>
 
-      <h2>Touchpoints by type</h2>
+      <h2>Contact by type</h2>
       <ul>
         {summary.touchpoints.byType.map(b => (
           <li key={b.type}>{b.type} — {b.count}</li>
@@ -74,9 +74,9 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
       border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, padding: 12,
       background: "rgba(255,255,255,0.5)",
     }}>
-      <div style={{ fontSize: 11, color: "rgba(0,0,0,0.5)", textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: 12, color: "rgba(0,0,0,0.62)", fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: "rgba(0,0,0,0.5)" }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 12, color: "rgba(0,0,0,0.62)" }}>{sub}</div>}
     </div>
   );
 }

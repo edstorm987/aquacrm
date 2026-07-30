@@ -12,12 +12,15 @@ import { getSessionFromRequest } from "@/lib/server/auth";
 import { logActivity } from "@/server/activity";
 import { setupClientStarterPortal, type ClientPortalSetupResult } from "@/server/clientPortalSetup";
 import { customerPortalProvisioningMetadata } from "@/lib/server/customerPortalProvisioning";
+import { createClientDelight } from "@/server/clientDelight";
 import type { ClientStage } from "@/server/types";
+import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
 
 interface Body {
   name?: string;
   slug?: string;
   ownerEmail?: string;
+  createPortal?: boolean;
   stage?: ClientStage;
   brand?: { primaryColor?: string; logoUrl?: string };
   metadata?: Record<string, unknown>;
@@ -57,24 +60,30 @@ export async function POST(req: NextRequest) {
   try {
     const beforeCreate = structuredClone(getState());
     const suppliedMetadata = body.metadata ?? {};
+    const createPortal = body.createPortal === true;
+    const companyId = await getActiveTradingCompanyId(agencyId);
     const client = createClient(agencyId, {
       name,
       slug: body.slug?.trim() || undefined,
       ownerEmail: body.ownerEmail?.trim() || undefined,
       stage: body.stage,
+      companyId: companyId ?? undefined,
       brand: body.brand?.primaryColor || body.brand?.logoUrl
         ? { primaryColor: body.brand.primaryColor, logoUrl: body.brand.logoUrl }
         : undefined,
       metadata: {
         ...suppliedMetadata,
-        ...customerPortalProvisioningMetadata({
-          clientName: name,
-          contactName: body.starterPortal?.contactName
-            ?? (typeof suppliedMetadata.contactName === "string" ? suppliedMetadata.contactName : undefined),
-          email: body.ownerEmail,
-          servicePlan: body.starterPortal?.planTier
-            ?? (typeof suppliedMetadata.planTier === "string" ? suppliedMetadata.planTier : undefined),
-        }),
+        portalRequired: createPortal,
+        ...(createPortal
+          ? customerPortalProvisioningMetadata({
+              clientName: name,
+              contactName: body.starterPortal?.contactName
+                ?? (typeof suppliedMetadata.contactName === "string" ? suppliedMetadata.contactName : undefined),
+              email: body.ownerEmail,
+              servicePlan: body.starterPortal?.planTier
+                ?? (typeof suppliedMetadata.planTier === "string" ? suppliedMetadata.planTier : undefined),
+            })
+          : {}),
       },
     });
 
@@ -88,35 +97,55 @@ export async function POST(req: NextRequest) {
       clientId: client.id,
     });
 
-    const portalSetup: ClientPortalSetupResult = await setupClientStarterPortal({
-      agencyId,
-      clientId: client.id,
-      actor: session.userId,
-      metadata: {
-        phase: body.starterPortal?.phase,
-        planTier: body.starterPortal?.planTier,
-        therapistName: body.starterPortal?.contactName,
-        practiceName: body.starterPortal?.businessName,
-        onboardingStartedAt: body.starterPortal?.onboardingStartedAt,
-      },
-    });
-    if (!portalSetup.ok) {
-      mutate(state => {
-        state.agencies = beforeCreate.agencies;
-        state.clients = beforeCreate.clients;
-        state.endCustomers = beforeCreate.endCustomers;
-        state.users = beforeCreate.users;
-        state.pluginInstalls = beforeCreate.pluginInstalls;
-        state.pluginData = beforeCreate.pluginData;
-        state.phases = beforeCreate.phases;
-        state.activity = beforeCreate.activity;
-        state.pipelines = beforeCreate.pipelines;
-        state.pipelineCards = beforeCreate.pipelineCards;
+    let portalSetup: ClientPortalSetupResult | null = null;
+    if (createPortal) {
+      portalSetup = await setupClientStarterPortal({
+        agencyId,
+        clientId: client.id,
+        actor: session.userId,
+        metadata: {
+          phase: body.starterPortal?.phase,
+          planTier: body.starterPortal?.planTier,
+          therapistName: body.starterPortal?.contactName,
+          practiceName: body.starterPortal?.businessName,
+          onboardingStartedAt: body.starterPortal?.onboardingStartedAt,
+        },
       });
-      return NextResponse.json(
-        { ok: false, error: `client portal setup failed: ${portalSetup.error}` },
-        { status: 500 },
-      );
+      if (!portalSetup.ok) {
+        mutate(state => {
+          state.agencies = beforeCreate.agencies;
+          state.clients = beforeCreate.clients;
+          state.endCustomers = beforeCreate.endCustomers;
+          state.users = beforeCreate.users;
+          state.pluginInstalls = beforeCreate.pluginInstalls;
+          state.pluginData = beforeCreate.pluginData;
+          state.phases = beforeCreate.phases;
+          state.activity = beforeCreate.activity;
+          state.pipelines = beforeCreate.pipelines;
+          state.pipelineCards = beforeCreate.pipelineCards;
+        });
+        return NextResponse.json(
+          { ok: false, error: `client portal setup failed: ${portalSetup.error}` },
+          { status: 500 },
+        );
+      }
+    }
+
+    const welcomePackItems = Array.isArray(suppliedMetadata.welcomePackItems)
+      ? suppliedMetadata.welcomePackItems.filter((item): item is string => typeof item === "string").map(item => item.trim()).filter(Boolean).slice(0, 30)
+      : [];
+    if (welcomePackItems.length) {
+      const welcomePackNotes = typeof suppliedMetadata.welcomePackNotes === "string"
+        ? suppliedMetadata.welcomePackNotes.trim()
+        : "";
+      createClientDelight(agencyId, {
+        clientId: client.id,
+        recipientName: client.name,
+        occasion: "welcome",
+        title: "Client welcome pack",
+        status: "planned",
+        notes: [...welcomePackItems.map(item => `• ${item}`), welcomePackNotes].filter(Boolean).join("\n"),
+      }, session.userId);
     }
 
     return NextResponse.json({

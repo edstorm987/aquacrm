@@ -1,0 +1,10 @@
+{
+  "clientId": "{{CLIENT_ID}}",
+  "clientName": "{{CLIENT_NAME}}",
+  "projectName": "{{PROJECT_NAME}}",
+  "projectSlug": "{{PROJECT_SLUG}}",
+  "portalUrl": "{{CLIENT_PORTAL_URL}}",
+  "milesymediaOrigin": "{{MILESYMEDIA_ORIGIN}}",
+  "propertyId": "{{PROPERTY_ID}}",
+  "starter": "luxury-service-site"
+}

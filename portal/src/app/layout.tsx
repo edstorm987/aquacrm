@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { SkipToContent } from "@/components/ui/SkipToContent";
 import dynamic from "next/dynamic";
+import { COLOR_MODE_SCRIPT } from "@/lib/chrome/colorMode";
 
 // Defer chrome client islands so they don't block first paint of the
 // page content for slow connections.
@@ -10,13 +11,16 @@ const PageReveal = dynamic(() => import("@/components/chrome/PageReveal").then(m
 const ScrollClassToggle = dynamic(() => import("@/components/chrome/ScrollClassToggle").then(m => m.ScrollClassToggle));
 
 export const metadata: Metadata = {
-  title: "Aqua portal",
-  description: "Milesymedia's agency platform — a portal to anywhere.",
+  title: "AquaCRM",
+  description: "AquaCRM business operations and secure client portal.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: COLOR_MODE_SCRIPT }} />
+      </head>
       <body>
         <PageReveal />
         <ScrollClassToggle threshold={40} />

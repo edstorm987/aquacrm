@@ -137,13 +137,7 @@ describe("@aqua/plugin-bos-auth-gate smoke", () => {
     assert.equal(d.reason, "role_not_allowed");
   });
 
-  test("10. devBypass=true → dev-bypass outcome with banner (anon allowed through)", () => {
-    const d = evaluate({ pathname: "/business-os/dashboard", signedIn: false }, { devBypass: true });
-    assert.equal(d.outcome, "dev-bypass");
-    assert.match(d.banner ?? "", /DEV MODE/);
-  });
-
-  test("11. custom loginPath flows through to the redirect URL", () => {
+  test("10. custom loginPath flows through to the redirect URL", () => {
     const d = evaluate(
       { pathname: "/business-os/x", signedIn: false },
       { loginPath: "/sign-in" },
@@ -153,7 +147,7 @@ describe("@aqua/plugin-bos-auth-gate smoke", () => {
 
   // ── me payload resolver ──────────────────────────────────────
 
-  test("12. me returns null for unknown user", async () => {
+  test("11. me returns null for unknown user", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -162,7 +156,7 @@ describe("@aqua/plugin-bos-auth-gate smoke", () => {
     resetClock();
   });
 
-  test("13. me payload for lead with HC slot present returns hcSlot + agencyless:true", async () => {
+  test("12. me payload for lead with HC slot present returns hcSlot + agencyless:true", async () => {
     setClock(() => T0);
     const userMap = new Map<string, UserProfile>([
       ["user_lead_a", { id: "user_lead_a", email: "ed@example.com", agencyId: "lead-tenant" }],

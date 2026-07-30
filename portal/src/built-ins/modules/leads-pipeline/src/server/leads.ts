@@ -13,6 +13,7 @@ import type { AgencyId, UserId } from "../lib/tenancy";
 import type {
   AudienceFilter,
   CreateLeadInput,
+  CustomFieldValue,
   CsvImportResult,
   Lead,
   LeadFilter,
@@ -87,11 +88,20 @@ export class LeadService {
           name: existing.name ?? input.name,
           phone: existing.phone ?? input.phone,
           company: existing.company ?? input.company,
+          companyId: existing.companyId ?? input.companyId,
+          companyIds: Array.from(new Set([
+            ...(existing.companyIds ?? (existing.companyId ? [existing.companyId] : [])),
+            ...(input.companyIds ?? (input.companyId ? [input.companyId] : [])),
+          ])),
+          brandSlugs: Array.from(new Set([...(existing.brandSlugs ?? []), ...(input.brandSlugs ?? [])])),
+          serviceLines: Array.from(new Set([...(existing.serviceLines ?? []), ...(input.serviceLines ?? [])])),
           tags: input.tags && input.tags.length > 0
             ? Array.from(new Set([...existing.tags, ...input.tags]))
             : existing.tags,
           notes: existing.notes ?? input.notes,
+          customFields: { ...(input.customFields ?? {}), ...(existing.customFields ?? {}) },
           meetingLink: existing.meetingLink,
+          salesPresentations: existing.salesPresentations,
           callRecordingUrl: existing.callRecordingUrl,
           sessionNotes: existing.sessionNotes,
           inspirationLinks: existing.inspirationLinks,
@@ -111,6 +121,10 @@ export class LeadService {
       id,
       agencyId: this.agencyId,
       email,
+      companyId: input.companyId,
+      companyIds: input.companyIds ?? (input.companyId ? [input.companyId] : []),
+      brandSlugs: input.brandSlugs ?? [],
+      serviceLines: input.serviceLines ?? [],
       name: input.name?.trim() || undefined,
       phone: input.phone?.trim() || undefined,
       company: input.company?.trim() || undefined,
@@ -118,6 +132,7 @@ export class LeadService {
       source: input.source,
       capturedAt: input.capturedAt ?? ts,
       notes: input.notes,
+      customFields: input.customFields,
       sentCount: 0,
     };
     await this.storage.set(leadKey(id), lead);
@@ -207,9 +222,16 @@ export class LeadService {
     actor: UserId;
     defaultSource?: string;
     defaultTags?: string[];
+    mapping?: Record<string, string>;
+    customFieldTypes?: Record<string, "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox">;
   }): Promise<CsvImportResult> {
     const parsed = parseCsv(args.text);
-    if (!("email" in parsed.headerVariants)) {
+    const mappedColumns = Object.entries(args.mapping ?? {})
+      .map(([index, target]) => ({ index: Number(index), target }))
+      .filter(item => Number.isInteger(item.index) && item.index >= 0 && item.target && item.target !== "skip");
+    const mappedIndex = (target: string) => mappedColumns.find(item => item.target === target)?.index;
+    const emailIndex = mappedColumns.length ? mappedIndex("email") : parsed.headerVariants.email;
+    if (emailIndex == null) {
       return {
         imported: 0,
         updated: 0,
@@ -224,22 +246,42 @@ export class LeadService {
     const source = args.defaultSource ?? `csv:${args.filename ?? "upload"}`;
 
     for (const row of parsed.rows) {
-      if (!row.email || row.email.length === 0) {
+      const cell = (target: string, fallback?: string) => {
+        const index = mappedColumns.length ? mappedIndex(target) : undefined;
+        return index == null ? fallback : row.raw[index]?.trim();
+      };
+      const email = row.raw[emailIndex]?.trim();
+      if (!email) {
         skipped += 1;
         errors.push({ row: row.rowNumber, reason: "missing_email" });
         continue;
       }
       try {
-        const tags = Array.from(new Set([...(args.defaultTags ?? []), ...(row.tags ?? [])]));
+        const rawTags = cell("tags", row.tags?.join(",") ?? "");
+        const rowTags = rawTags ? rawTags.split(/[,;|]/).map(tag => tag.trim()).filter(Boolean) : [];
+        const tags = Array.from(new Set([...(args.defaultTags ?? []), ...rowTags]));
+        const customFieldEntries: Array<[string, CustomFieldValue]> = [];
+        for (const { index, target } of mappedColumns) {
+          if (!target.startsWith("custom:")) continue;
+          const id = target.slice("custom:".length);
+          const raw = row.raw[index]?.trim() ?? "";
+          if (!id || !raw) continue;
+          const type = args.customFieldTypes?.[id];
+          if (type === "checkbox") customFieldEntries.push([id, /^(true|yes|y|1|checked)$/i.test(raw)]);
+          else if (type === "multi-select") customFieldEntries.push([id, raw.split(/[,;|]/).map(item => item.trim()).filter(Boolean)]);
+          else customFieldEntries.push([id, raw]);
+        }
+        const customFields = Object.fromEntries(customFieldEntries);
         const result = await this.upsert(
           {
-            email: row.email,
-            name: row.name,
-            phone: row.phone,
-            company: row.company,
+            email,
+            name: cell("name", row.name),
+            phone: cell("phone", row.phone),
+            company: cell("company", row.company),
             tags,
-            source: row.source && row.source.length > 0 ? row.source : source,
-            notes: row.notes,
+            source: cell("source", row.source) || source,
+            notes: cell("notes", row.notes),
+            customFields,
           },
           args.actor,
         );

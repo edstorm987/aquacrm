@@ -220,7 +220,6 @@ describe("Env secrets — secrets.ts typed accessors (R029, source-marker)", () 
       "export function founderPassword",
       "export function founderAgencyName",
       "export function portalBackend",
-      "export function devBypass",
       "export function sentryDsn",
     ]) {
       assert.ok(src.includes(name), `missing ${name}`);

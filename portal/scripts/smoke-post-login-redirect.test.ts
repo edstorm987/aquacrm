@@ -4,7 +4,7 @@
 // We don't import the resolver directly: it pulls `@/server/tenants`
 // which carries a `server-only` shim that throws under tsx. Instead we
 // verify the routing table via source-marker assertions plus structural
-// wire-up of the four call-sites (login, signup, magic/verify, dev/pov).
+// wire-up of the three production call-sites (login, signup, magic/verify).
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -19,7 +19,7 @@ const RESOLVER = join(ROOT, "src", "lib", "server", "postLoginRedirect.ts");
 const LOGIN_ROUTE = join(ROOT, "src", "app", "api", "auth", "login", "route.ts");
 const SIGNUP_ROUTE = join(ROOT, "src", "app", "api", "auth", "signup", "route.ts");
 const MAGIC_ROUTE = join(ROOT, "src", "app", "api", "auth", "magic", "verify", "route.ts");
-const POV_PAGE = join(ROOT, "src", "app", "(demo)", "dev", "pov", "page.tsx");
+const DEV_POV_PAGE = join(ROOT, "src", "app", "(demo)", "dev", "pov", "page.tsx");
 const LOGIN_FORM = join(ROOT, "src", "app", "login", "LoginForm.tsx");
 
 describe("Post-login redirect resolver (R022)", () => {
@@ -95,10 +95,8 @@ describe("Post-login redirect — call-site wire-up", () => {
     assert.ok(src.includes("ret && ret.startsWith"), "should still honor an explicit ?return path when same-origin");
   });
 
-  it("/dev/pov uses resolver (drops hardcoded landing per persona)", () => {
-    const src = readFileSync(POV_PAGE, "utf8");
-    assert.ok(src.includes('import { resolvePostLoginPath }'));
-    assert.ok(src.includes("resolvePostLoginPath(null, user)"));
+  it("does not ship the retired /dev/pov bypass", () => {
+    assert.equal(existsSync(DEV_POV_PAGE), false);
   });
 
   it("LoginForm reads `redirect` from response (chained behind returnUrl)", () => {

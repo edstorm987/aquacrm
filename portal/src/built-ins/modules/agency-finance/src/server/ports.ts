@@ -33,6 +33,7 @@ export interface TenantPort {
   getAgency(id: AgencyId): Promise<Agency | null> | Agency | null;
   getClient(id: ClientId): Promise<Client | null> | Client | null;
   getClientForAgency(agencyId: AgencyId, clientId: ClientId): Promise<Client | null> | Client | null;
+  listClients?(agencyId: AgencyId): Promise<Client[]> | Client[];
 }
 
 // ─── User (resolve staff identity) ───────────────────────────────────────

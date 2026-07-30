@@ -96,6 +96,35 @@ export const emailEnqueuePort: EmailEnqueuePort = {
     });
     return { messageId: message.id };
   },
+  async send(input: EmailEnqueueInput): Promise<EmailEnqueueResult> {
+    const sender = await import("@aqua/plugin-email-sender/server" as never) as {
+      isFoundationRegistered: () => boolean;
+      containerFor: (args: { agencyId: string; storage: unknown; install?: unknown }) => {
+        emails: { enqueue: (i: unknown) => Promise<{ id: string }> };
+        delivery: { deliver: (id: string) => Promise<{ ok: boolean; reason?: string }> };
+      };
+    };
+    if (!sender.isFoundationRegistered()) throw new Error("Email sender is not configured.");
+    const { makePluginStorage } = await import("@/lib/server/pluginStorage");
+    const { getInstall } = await import("@/server/pluginInstalls");
+    const install = getInstall({ agencyId: input.agencyId }, "email-sender");
+    if (!install) throw new Error("Install Email sender before sending proposals.");
+    const container = sender.containerFor({
+      agencyId: input.agencyId,
+      storage: makePluginStorage(install.id),
+      install,
+    });
+    const message = await container.emails.enqueue({
+      to: input.to,
+      subject: input.subject,
+      bodyHtml: input.bodyHtml,
+      bodyText: input.bodyText,
+      triggeredByPlugin: input.triggeredByPlugin,
+      externalRef: input.externalRef,
+    });
+    const delivered = await container.delivery.deliver(message.id);
+    return { messageId: message.id, delivered: delivered.ok, error: delivered.reason };
+  },
 };
 
 // ─── PipelinePort (adapter onto T1 R034 foundation pipelines) ────────────

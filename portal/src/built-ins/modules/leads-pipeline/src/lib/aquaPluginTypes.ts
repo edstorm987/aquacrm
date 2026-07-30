@@ -116,6 +116,7 @@ export interface PluginApiRoute {
   handler: (req: Request, ctx: PluginCtx) => Promise<Response>;
   requiresFeature?: string;
   visibleToRoles?: PluginRoleVisibility[];
+  public?: boolean;
 }
 
 export interface SettingsSchema {

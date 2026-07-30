@@ -1,165 +1,559 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Download, Eye, FileUp, Paperclip, Plus, ReceiptText, Settings2, Trash2, X } from "lucide-react";
 
-import type { Expense, ExpenseCategory, ExpenseStatus } from "../lib/domain";
+import type { Client } from "../lib/tenancy";
+import type { Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
+import { FinanceNav } from "./FinanceNav";
 
 export interface ExpensesListProps {
   expenses: Expense[];
   categories: ExpenseCategory[];
+  clients: Client[];
   apiBase: string;
   canMutate: boolean;
 }
 
+interface CustomFieldDefinition {
+  id: string;
+  label: string;
+  type: "text" | "textarea" | "number" | "date" | "url" | "email" | "select" | "multi-select" | "checkbox";
+  options: string[];
+  section: string;
+  required: boolean;
+  active: boolean;
+}
+
 const STATUS_LABEL: Record<ExpenseStatus, string> = {
-  pending: "Pending", approved: "Approved",
-  reimbursed: "Reimbursed", rejected: "Rejected",
+  pending: "Needs review",
+  approved: "Approved",
+  reimbursed: "Paid",
+  rejected: "Excluded",
 };
 
-export function ExpensesList({ expenses, categories, apiBase, canMutate }: ExpensesListProps) {
-  const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("pending");
-  const catNameById = new Map(categories.map(c => [c.id, c.name]));
-  const filtered = statusFilter === "all" ? expenses : expenses.filter(e => e.status === statusFilter);
+const inputClass = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
+const labelClass = "grid gap-1 text-xs font-medium text-black/60";
+
+function money(cents: number, currency = "gbp"): string {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(cents / 100);
+}
+
+function csvCell(value: unknown): string {
+  return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`;
+}
+
+export function ExpensesList({ expenses, categories, clients, apiBase, canMutate }: ExpensesListProps) {
+  const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
+  const [clientFilter, setClientFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [postingId, setPostingId] = useState("");
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
+  const catNameById = new Map(categories.map(category => [category.id, category.name]));
+  const clientNameById = new Map(clients.map(client => [client.id, client.name]));
+
+  useEffect(() => {
+    void fetch("/api/portal/settings/portal-editor")
+      .then(response => response.json())
+      .then(result => {
+        if (result?.ok) setCustomFields((result.editor?.forms?.expenses ?? []).filter((field: CustomFieldDefinition) => field.active !== false));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return expenses.filter(expense => {
+      if (statusFilter !== "all" && expense.status !== statusFilter) return false;
+      if (clientFilter === "unallocated" && expense.clientId) return false;
+      if (clientFilter !== "all" && clientFilter !== "unallocated" && expense.clientId !== clientFilter) return false;
+      if (q && !`${expense.vendor ?? ""} ${expense.description ?? ""} ${expense.reason ?? ""} ${expense.reference ?? ""} ${expense.attachments?.map(file => file.name).join(" ") ?? ""} ${Object.values(expense.customFields ?? {}).flat().join(" ")}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [clientFilter, expenses, query, statusFilter]);
+
+  const paid = expenses.filter(expense => expense.status === "reimbursed");
+  const totalPaid = paid.reduce((sum, expense) => sum + expense.amountCents, 0);
+  const taxRecorded = paid.reduce((sum, expense) => sum + (expense.taxDeductible === false ? 0 : (expense.taxCents ?? 0)), 0);
+  const clientCosts = paid.filter(expense => expense.clientId).reduce((sum, expense) => sum + expense.amountCents, 0);
+  const awaitingReview = expenses.filter(expense => expense.status === "pending").length;
+  const recurringDue = expenses.filter(expense => expense.recurringActive && expense.nextDueAt && expense.nextDueAt <= Date.now() + 30 * 86_400_000).length;
+
+  async function postNextExpense(id: string) {
+    setPostingId(id);
+    try {
+      const response = await fetch(`${apiBase}/expenses/post-recurring`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        window.alert(result?.error ?? "Could not post the next expense.");
+        return;
+      }
+      window.location.reload();
+    } finally {
+      setPostingId("");
+    }
+  }
+
+  function downloadCsv() {
+    const headers = ["Date", "Supplier", "Description", "Reason", "Category", "Client", "Gross", "Tax", "Net", "Business use %", "Payment method", "Reference", "Evidence", "Status", "Currency", ...customFields.map(field => field.label)];
+    const rows = filtered.map(expense => [
+      new Date(expense.incurredAt).toISOString().slice(0, 10),
+      expense.vendor,
+      expense.description,
+      expense.reason,
+      catNameById.get(expense.categoryId) ?? "Uncategorised",
+      expense.clientId ? clientNameById.get(expense.clientId) ?? expense.clientId : "",
+      (expense.amountCents / 100).toFixed(2),
+      ((expense.taxCents ?? 0) / 100).toFixed(2),
+      ((expense.netCents ?? expense.amountCents - (expense.taxCents ?? 0)) / 100).toFixed(2),
+      expense.businessUsePercent ?? 100,
+      expense.paymentMethod,
+      expense.reference,
+      expense.attachments?.map(file => file.name).join("; ") || expense.receiptUrl,
+      STATUS_LABEL[expense.status],
+      expense.currency.toUpperCase(),
+      ...customFields.map(field => formatCustomValue(expense.customFields?.[field.id])),
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `milesymedia-expenses-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <section className="finance-expenses">
-      <header className="finance-list-header">
+    <section className="mx-auto w-full max-w-6xl space-y-6 pb-12">
+      <FinanceNav active="expenses" />
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1>Expenses</h1>
-          <p>{expenses.length === 0 ? "No expenses yet." : `${filtered.length} of ${expenses.length}.`}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-black/45">Finance</p>
+          <h1 className="mt-1 text-2xl font-semibold text-black/90">Expenses sheet</h1>
+          <p className="mt-1 max-w-2xl text-sm text-black/55">
+            Keep evidence for every business cost and allocate direct costs to the client they belong to.
+          </p>
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as ExpenseStatus | "all")}>
-          <option value="all">All</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="reimbursed">Reimbursed</option>
-          <option value="rejected">Rejected</option>
-        </select>
+        <div className="flex gap-2">
+          <a href="/portal/agency/settings#portal-editor/expenses" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]">
+            <Settings2 size={16} aria-hidden /> Edit form
+          </a>
+          <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]">
+            <Download size={16} aria-hidden /> Export CSV
+          </button>
+          {canMutate ? (
+            <button type="button" onClick={() => setAdding(value => !value)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
+              {adding ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
+              {adding ? "Close" : "Add expense"}
+            </button>
+          ) : null}
+        </div>
       </header>
 
-      {expenses.length === 0 ? (
-        <div className="finance-empty" role="status">
-          <h3>No expenses yet</h3>
-          <p>Submit an expense below to start tracking reimbursable costs.</p>
+      <dl className="grid grid-cols-2 border-y border-black/10 sm:grid-cols-5">
+        <Summary label="Paid costs" value={money(totalPaid)} />
+        <Summary label="Tax recorded" value={money(taxRecorded)} />
+        <Summary label="Client costs" value={money(clientCosts)} />
+        <Summary label="Needs review" value={String(awaitingReview)} />
+        <Summary label="Recurring due" value={String(recurringDue)} alert={recurringDue > 0} />
+      </dl>
+
+      {adding ? (
+        <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
+          <button type="button" aria-label="Close expense form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
+          <div role="dialog" aria-modal="true" aria-labelledby="new-expense-heading" className="relative mx-auto max-h-[92vh] w-full max-w-5xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
+            <NewExpenseForm
+              apiBase={apiBase}
+              categories={categories.filter(category => category.status === "active")}
+              clients={clients}
+              customFields={customFields}
+              onClose={() => setAdding(false)}
+            />
+          </div>
         </div>
       ) : null}
-      <ul className="finance-expense-grid">
-        {filtered.map(e => (
-          <li key={e.id}>
-            <article className="finance-expense-card">
-              <header>
-                <h3>{catNameById.get(e.categoryId) ?? "Uncategorised"}</h3>
-                <span className={`finance-pill finance-pill-exp-${e.status}`}>{STATUS_LABEL[e.status]}</span>
-              </header>
-              <p className="finance-meta">{(e.amountCents / 100).toFixed(2)} {e.currency}</p>
-              {e.vendor && <p className="finance-meta">{e.vendor}</p>}
-              {e.description && <p className="finance-meta">{e.description}</p>}
-              <p className="finance-meta">Incurred {new Date(e.incurredAt).toISOString().slice(0, 10)}</p>
-              {canMutate && e.status === "pending" && (
-                <div className="finance-expense-actions">
-                  <ApproveButton apiBase={apiBase} expenseId={e.id} />
-                  <RejectButton apiBase={apiBase} expenseId={e.id} />
-                </div>
-              )}
-              {canMutate && e.status === "approved" && (
-                <ReimburseButton apiBase={apiBase} expenseId={e.id} />
-              )}
-            </article>
-          </li>
-        ))}
-      </ul>
+      {selectedExpense ? <ExpenseDetail
+        expense={selectedExpense}
+        category={catNameById.get(selectedExpense.categoryId) ?? "Uncategorised"}
+        client={selectedExpense.clientId ? clientNameById.get(selectedExpense.clientId) ?? "Unknown client" : "Business overhead"}
+        customFields={customFields}
+        onClose={() => setSelectedExpense(null)}
+      /> : null}
 
-      {canMutate && (
-        <NewExpenseForm apiBase={apiBase} categories={categories.filter(c => c.status === "active")} />
+      <div className="flex flex-wrap items-center gap-2 border-b border-black/10 pb-3">
+        <input
+          type="search"
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          placeholder="Search supplier, reason, reference, or evidence"
+          className={`${inputClass} min-w-56 flex-1`}
+        />
+        <select value={clientFilter} onChange={event => setClientFilter(event.target.value)} className={`${inputClass} min-w-44 sm:!w-auto`}>
+          <option value="all">All clients</option>
+          <option value="unallocated">Business overheads</option>
+          {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+        </select>
+        <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as ExpenseStatus | "all")} className={`${inputClass} min-w-36 sm:!w-auto`}>
+          <option value="all">All statuses</option>
+          {(Object.keys(STATUS_LABEL) as ExpenseStatus[]).map(status => (
+            <option key={status} value={status}>{STATUS_LABEL[status]}</option>
+          ))}
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="grid min-h-56 place-items-center border-b border-black/10 text-center">
+          <div>
+            <ReceiptText className="mx-auto text-black/25" size={28} aria-hidden />
+            <p className="mt-3 text-sm font-medium text-black/75">No expenses to show</p>
+            <p className="mt-1 text-sm text-black/45">Add a real business cost or change the filters.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[940px] text-sm">
+            <thead className="border-b border-black/10 text-left text-[11px] font-semibold uppercase tracking-wide text-black/45">
+              <tr>
+                <th className="px-2 py-3">Date</th>
+                <th className="px-2 py-3">Supplier / cost</th>
+                <th className="px-2 py-3">Client</th>
+                <th className="px-2 py-3">Category</th>
+                <th className="px-2 py-3 text-right">Net</th>
+                <th className="px-2 py-3 text-right">Tax</th>
+                <th className="px-2 py-3 text-right">Gross</th>
+                <th className="px-2 py-3">Evidence</th>
+                <th className="px-2 py-3">Status</th>
+                <th className="px-2 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(expense => (
+                <tr key={expense.id} className="border-b border-black/[0.07] align-top hover:bg-black/[0.015]">
+                  <td className="px-2 py-3 text-black/55">{new Date(expense.incurredAt).toLocaleDateString("en-GB")}</td>
+                  <td className="px-2 py-3">
+                    <p className="font-medium text-black/85">{expense.vendor || expense.description || "Expense"}</p>
+                    {expense.vendor && expense.description ? <p className="mt-0.5 max-w-72 text-xs text-black/45">{expense.description}</p> : null}
+                    {expense.reference ? <p className="mt-0.5 text-xs text-black/40">Ref: {expense.reference}</p> : null}
+                    {expense.recurrence ? <p className={`mt-1 text-xs font-medium ${expense.nextDueAt && expense.nextDueAt <= Date.now() + 30 * 86_400_000 ? "text-red-700" : "text-black/45"}`}>{expense.recurrence[0]!.toUpperCase() + expense.recurrence.slice(1)} · next {expense.nextDueAt ? new Date(expense.nextDueAt).toLocaleDateString("en-GB") : "date needed"}</p> : null}
+                  </td>
+                  <td className="px-2 py-3 text-black/60">
+                    {expense.clientId ? clientNameById.get(expense.clientId) ?? "Client" : "Overhead"}
+                  </td>
+                  <td className="px-2 py-3 text-black/60">{catNameById.get(expense.categoryId) ?? "Uncategorised"}</td>
+                  <td className="px-2 py-3 text-right font-mono text-black/65">{money(expense.netCents ?? expense.amountCents - (expense.taxCents ?? 0), expense.currency)}</td>
+                  <td className="px-2 py-3 text-right font-mono text-black/55">{money(expense.taxCents ?? 0, expense.currency)}</td>
+                  <td className="px-2 py-3 text-right font-mono font-semibold text-black/85">{money(expense.amountCents, expense.currency)}</td>
+                  <td className="px-2 py-3">
+                    {expense.attachments?.length ? (
+                      <button type="button" onClick={() => setSelectedExpense(expense)} className="inline-flex items-center gap-1 text-xs font-medium text-black/70 underline underline-offset-2"><Paperclip size={12} />{expense.attachments.length} {expense.attachments.length === 1 ? "file" : "files"}</button>
+                    ) : expense.receiptUrl ? (
+                      <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-black/70 underline underline-offset-2">Receipt link</a>
+                    ) : <span className="text-xs text-amber-700">Missing evidence</span>}
+                  </td>
+                  <td className="px-2 py-3">
+                    <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-black/60">
+                      {STATUS_LABEL[expense.status]}
+                    </span>
+                  </td>
+                  <td className="px-2 py-3 text-right">
+                    <div className="inline-flex items-center gap-1">
+                    <button type="button" onClick={() => setSelectedExpense(expense)} aria-label={`Inspect ${expense.vendor || expense.description || "expense"}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Eye size={15} /></button>
+                    {canMutate && expense.recurrence && expense.recurringActive !== false ? (
+                      <button
+                        type="button"
+                        onClick={() => void postNextExpense(expense.id)}
+                        disabled={postingId === expense.id}
+                        className="min-h-8 rounded-md border border-black/15 px-2 text-xs font-medium text-black/70 hover:bg-black/[0.03] disabled:opacity-50"
+                      >
+                        {postingId === expense.id ? "Posting..." : "Post next"}
+                      </button>
+                    ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      <p className="text-xs leading-5 text-black/40">
+        Milesymedia stores your operating records and calculations. Tax treatment still depends on your legal structure and should be reviewed with your accountant before filing.
+      </p>
     </section>
   );
 }
 
-function ApproveButton({ apiBase, expenseId }: { apiBase: string; expenseId: string }) {
-  return <ActionButton apiBase={apiBase} expenseId={expenseId} path="approve" label="Approve" />;
+function ExpenseDetail({ expense, category, client, customFields, onClose }: { expense: Expense; category: string; client: string; customFields: CustomFieldDefinition[]; onClose: () => void }) {
+  const net = expense.netCents ?? expense.amountCents - (expense.taxCents ?? 0);
+  return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6">
+    <button type="button" className="absolute inset-0" aria-label="Close expense details" onClick={onClose} />
+    <section role="dialog" aria-modal="true" aria-label="Expense details" className="relative mx-auto max-h-[92vh] w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-2xl sm:rounded-lg sm:p-6">
+      <header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Expense</p><h2 className="mt-1 text-xl font-semibold text-black/85">{expense.vendor || expense.description || "Expense details"}</h2></div><button type="button" aria-label="Close" onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>
+      <dl className="divide-y divide-black/10 border-y border-black/10">
+        <Detail label="Gross amount" value={money(expense.amountCents, expense.currency)} strong />
+        <Detail label="Net amount" value={money(net, expense.currency)} />
+        <Detail label="Tax recorded" value={money(expense.taxCents ?? 0, expense.currency)} />
+        <Detail label="Date" value={new Date(expense.incurredAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} />
+        <Detail label="Supplier" value={expense.vendor || "Not recorded"} />
+        <Detail label="Description" value={expense.description || "Not recorded"} />
+        <Detail label="Reason" value={expense.reason || "Not recorded"} />
+        <Detail label="Category" value={category} />
+        <Detail label="Allocated to" value={client} />
+        <Detail label="Payment method" value={expense.paymentMethod?.replaceAll("-", " ") ?? "Not recorded"} />
+        <Detail label="Reference" value={expense.reference || "Not recorded"} />
+        <Detail label="Status" value={STATUS_LABEL[expense.status]} />
+        <Detail label="Business use" value={`${expense.businessUsePercent ?? 100}%`} />
+        <Detail label="Tax recoverable" value={expense.taxDeductible === false ? "No" : "Yes"} />
+        <Detail label="Recharge to client" value={expense.billableToClient ? "Yes" : "No"} />
+        {customFields.map(field => <Detail key={field.id} label={field.label} value={formatCustomValue(expense.customFields?.[field.id]) || "Not recorded"} />)}
+        <Detail label="Recurrence" value={expense.recurrence ? `${expense.recurrence}${expense.nextDueAt ? ` · next ${new Date(expense.nextDueAt).toLocaleDateString("en-GB")}` : ""}` : "One-off"} />
+        <Detail label="Expense ID" value={expense.id} />
+      </dl>
+      {expense.attachments?.length ? <section className="mt-5"><h3 className="text-xs font-semibold uppercase tracking-wide text-black/45">Documents and receipts</h3><div className="mt-2 divide-y divide-black/10 border-y border-black/10">{expense.attachments.map(file => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-between gap-3 py-2 text-sm hover:bg-black/[0.02]"><span className="inline-flex min-w-0 items-center gap-2"><Paperclip size={15} className="shrink-0 text-black/40" /><span className="truncate font-medium text-black/75">{file.name}</span></span><span className="shrink-0 text-xs text-black/40">{fileSize(file.size)}</span></a>)}</div></section> : null}
+      <div className="mt-5 flex justify-end">{expense.receiptUrl ? <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center rounded-md bg-black px-4 text-sm font-semibold text-white">Open receipt link</a> : !expense.attachments?.length ? <span className="text-sm text-amber-700">No evidence attached</span> : null}</div>
+    </section>
+  </div>;
 }
-function RejectButton({ apiBase, expenseId }: { apiBase: string; expenseId: string }) {
-  return <ActionButton apiBase={apiBase} expenseId={expenseId} path="reject" label="Reject" prompt />;
+
+function Detail({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 py-3 text-sm"><dt className="text-black/45">{label}</dt><dd className={`${strong ? "font-semibold" : ""} break-words capitalize text-black/80`}>{value}</dd></div>;
 }
-function ReimburseButton({ apiBase, expenseId }: { apiBase: string; expenseId: string }) {
-  return <ActionButton apiBase={apiBase} expenseId={expenseId} path="reimburse" label="Mark reimbursed" />;
-}
-function ActionButton(props: { apiBase: string; expenseId: string; path: string; label: string; prompt?: boolean }) {
-  const [busy, setBusy] = useState(false);
+
+function Summary({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        const decisionNote = props.prompt ? (window.prompt("Reason (optional):") ?? undefined) : undefined;
-        setBusy(true);
-        try {
-          await fetch(`${props.apiBase}/expenses/${props.path}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: props.expenseId, decisionNote }),
-          });
-          window.location.reload();
-        } finally { setBusy(false); }
-      }}
-    >
-      {busy ? "…" : props.label}
-    </button>
+    <div className="px-3 py-4 first:pl-0">
+      <dt className="text-xs font-medium text-black/45">{label}</dt>
+      <dd className={`mt-1 text-xl font-semibold ${alert ? "text-red-700" : "text-black/85"}`}>{value}</dd>
+    </div>
   );
 }
 
-function NewExpenseForm({ apiBase, categories }: { apiBase: string; categories: ExpenseCategory[] }) {
+function NewExpenseForm({ apiBase, categories, clients, customFields, onClose }: { apiBase: string; categories: ExpenseCategory[]; clients: Client[]; customFields: CustomFieldDefinition[]; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [taxRate, setTaxRate] = useState("20");
+  const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
+
+  async function uploadFiles(files: FileList | null) {
+    if (!files?.length) return;
+    if (attachments.length + files.length > 8) {
+      setError("You can attach up to 8 files to one expense.");
+      return;
+    }
+    setError(null);
+    setUploading(true);
+    try {
+      const uploaded: ExpenseAttachment[] = [];
+      for (const file of Array.from(files)) {
+        const form = new FormData();
+        form.set("file", file);
+        const response = await fetch("/api/portal/finance/expense-attachments/upload", { method: "POST", body: form });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.ok) throw new Error(result?.error ?? `Could not upload ${file.name}.`);
+        uploaded.push(result.attachment as ExpenseAttachment);
+      }
+      setAttachments(current => [...current, ...uploaded]);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "The files could not be uploaded.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <form
-      className="finance-expense-create"
-      onSubmit={async (e) => {
-        e.preventDefault();
+      className="px-5 py-5 sm:px-6"
+      onSubmit={async event => {
+        event.preventDefault();
         setError(null);
-        const fd = new FormData(e.currentTarget);
+        const form = event.currentTarget;
+        const data = new FormData(form);
+        const amountCents = Math.round(Number(data.get("amount") ?? 0) * 100);
+        const rate = Number(data.get("taxRate") ?? 0);
+        const taxCents = rate > 0 ? Math.round(amountCents - amountCents / (1 + rate / 100)) : 0;
+        const customFieldValues = Object.fromEntries(customFields.map(field => {
+          const key = `custom:${field.id}`;
+          if (field.type === "checkbox") return [field.id, data.get(key) === "on"];
+          if (field.type === "multi-select") return [field.id, data.getAll(key).map(String)];
+          return [field.id, String(data.get(key) ?? "").trim()];
+        }));
         const body = {
-          categoryId: String(fd.get("categoryId") ?? ""),
-          vendor: String(fd.get("vendor") ?? "").trim() || undefined,
-          description: String(fd.get("description") ?? "").trim() || undefined,
-          amountCents: Math.round(Number(fd.get("amount") ?? 0) * 100),
-          incurredAt: Date.parse(String(fd.get("incurredAt") ?? "")) || undefined,
+          categoryId: String(data.get("categoryId") ?? ""),
+          clientId: String(data.get("clientId") ?? "") || undefined,
+          vendor: String(data.get("vendor") ?? "").trim() || undefined,
+          description: String(data.get("description") ?? "").trim() || undefined,
+          reason: String(data.get("reason") ?? "").trim() || undefined,
+          amountCents,
+          taxCents,
+          taxRateBps: Math.round(rate * 100),
+          taxDeductible: data.get("taxDeductible") === "on",
+          businessUsePercent: Number(data.get("businessUsePercent") ?? 100),
+          billableToClient: data.get("billableToClient") === "on",
+          incurredAt: Date.parse(String(data.get("incurredAt") ?? "")) || undefined,
+          receiptUrl: String(data.get("receiptUrl") ?? "").trim() || undefined,
+          attachments,
+          paymentMethod: String(data.get("paymentMethod") ?? "card"),
+          reference: String(data.get("reference") ?? "").trim() || undefined,
+          recurrence: String(data.get("recurrence") ?? "") || undefined,
+          nextDueAt: Date.parse(String(data.get("nextDueAt") ?? "")) || undefined,
+          recurringActive: Boolean(data.get("recurrence")),
+          currency: "gbp",
+          recordAsPaid: data.get("recordAsPaid") === "on",
+          customFields: customFieldValues,
         };
-        if (!body.categoryId || body.amountCents <= 0) {
-          setError("category + positive amount required");
+        if (!body.categoryId || amountCents <= 0) {
+          setError("Choose a category and enter a positive gross amount.");
           return;
         }
         setBusy(true);
         try {
-          const r = await fetch(`${apiBase}/expenses`, {
+          const response = await fetch(`${apiBase}/expenses`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(body),
           });
-          const data = await r.json();
-          if (!r.ok || !data.ok) {
-            setError(data?.error ?? `Failed (${r.status})`);
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            setError(result?.error ?? `Could not save expense (${response.status}).`);
             return;
           }
-          (e.currentTarget as HTMLFormElement).reset();
+          form.reset();
           window.location.reload();
-        } finally { setBusy(false); }
+        } finally {
+          setBusy(false);
+        }
       }}
     >
-      <h3>Submit expense</h3>
-      <label>Category
-        <select name="categoryId" required defaultValue="">
-          <option value="" disabled>Select…</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </label>
-      <label>Vendor<input name="vendor" /></label>
-      <label>Description<input name="description" /></label>
-      <label>Amount<input name="amount" type="number" step="0.01" min="0" required /></label>
-      <label>Incurred on<input name="incurredAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
-      {error && <p className="finance-form-error">{error}</p>}
-      <button type="submit" disabled={busy}>{busy ? "Submitting…" : "Submit"}</button>
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+        <h2 id="new-expense-heading" className="text-lg font-semibold text-black/85">Record an expense</h2>
+        <p className="mt-1 text-sm text-black/50">Enter the amount exactly as it appears on the receipt or bank transaction.</p>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Close" title="Close" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/5"><X size={16} /></button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <label className={labelClass}>Supplier<input name="vendor" className={inputClass} placeholder="Adobe" /></label>
+        <label className={labelClass}>Category
+          <select name="categoryId" className={inputClass} required defaultValue="">
+            <option value="" disabled>Choose category</option>
+            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </label>
+        <label className={labelClass}>Gross amount (£)<input name="amount" type="number" step="0.01" min="0.01" required className={inputClass} placeholder="0.00" /></label>
+        <label className={labelClass}>Tax included
+          <select name="taxRate" value={taxRate} onChange={event => setTaxRate(event.target.value)} className={inputClass}>
+            <option value="0">No tax / exempt</option>
+            <option value="5">5%</option>
+            <option value="20">20% VAT</option>
+          </select>
+        </label>
+        <label className={labelClass}>Expense date<input name="incurredAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className={inputClass} /></label>
+        <label className={labelClass}>Paid using
+          <select name="paymentMethod" className={inputClass} defaultValue="card">
+            <option value="card">Card</option>
+            <option value="bank-transfer">Bank transfer</option>
+            <option value="direct-debit">Direct debit</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label className={labelClass}>Allocate to client
+          <select name="clientId" className={inputClass} defaultValue="">
+            <option value="">Business overhead</option>
+            {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+          </select>
+        </label>
+        <label className={labelClass}>Business use (%)<input name="businessUsePercent" type="number" min="0" max="100" defaultValue="100" className={inputClass} /></label>
+        <label className={labelClass}>Repeats
+          <select name="recurrence" className={inputClass} defaultValue="">
+            <option value="">One-off expense</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="annual">Annual</option>
+          </select>
+        </label>
+        <label className={labelClass}>Next payment date<input name="nextDueAt" type="date" className={inputClass} /></label>
+        <label className={`${labelClass} sm:col-span-2`}>What was purchased?<input name="description" className={inputClass} placeholder="Creative Cloud monthly subscription" /></label>
+        <label className={`${labelClass} sm:col-span-2`}>Reason for this expense<textarea name="reason" rows={3} className={`${inputClass} py-2`} placeholder="Why the business needed this cost" /></label>
+        <label className={labelClass}>Existing receipt link (optional)<input name="receiptUrl" type="url" className={inputClass} placeholder="https://…" /></label>
+        <label className={labelClass}>Bank / receipt reference<input name="reference" className={inputClass} placeholder="Transaction ID" /></label>
+      </div>
+      <section className="mt-4 border-y border-black/10 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="text-sm font-semibold text-black/80">Documents, photos and receipts</h3><p className="mt-0.5 text-xs text-black/45">PDFs, documents, spreadsheets and images up to 8 MB each.</p></div>
+          <label className={`inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-black/15 px-3 text-sm font-medium ${uploading ? "pointer-events-none opacity-50" : "hover:bg-black/[0.03]"}`}><FileUp size={16} />{uploading ? "Uploading..." : "Choose files"}<input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.webp,.heic,.heif" className="sr-only" disabled={uploading} onChange={event => { void uploadFiles(event.target.files); event.currentTarget.value = ""; }} /></label>
+        </div>
+        {attachments.length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{attachments.map(file => <div key={file.id} className="flex min-w-0 items-center gap-2 rounded-md border border-black/10 px-3 py-2"><Paperclip size={15} className="shrink-0 text-black/40" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-black/75">{file.name}</p><p className="text-xs text-black/40">{fileSize(file.size)}</p></div><button type="button" onClick={() => setAttachments(current => current.filter(item => item.id !== file.id))} aria-label={`Remove ${file.name}`} className="grid size-8 shrink-0 place-items-center rounded-md text-black/40 hover:bg-black/5 hover:text-red-700"><Trash2 size={15} /></button></div>)}</div> : <p className="mt-3 text-sm text-black/40">No files attached yet.</p>}
+      </section>
+      {customFields.length ? (
+        <section className="mt-4 border-b border-black/10 pb-4">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold text-black/80">Extra details</h3>
+            <p className="mt-0.5 text-xs text-black/45">Fields managed in Settings → Portal editor.</p>
+          </div>
+          {Array.from(new Set(customFields.map(field => field.section))).map(section => (
+            <div key={section} className="mb-4 last:mb-0">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-black/40">{section}</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {customFields.filter(field => field.section === section).map(field => <CustomFieldInput key={field.id} field={field} />)}
+              </div>
+            </div>
+          ))}
+        </section>
+      ) : null}
+      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-black/65">
+        <label className="inline-flex items-center gap-2"><input type="checkbox" name="recordAsPaid" defaultChecked className="size-4 shrink-0 accent-black" /> Money has left the business</label>
+        <label className="inline-flex items-center gap-2"><input type="checkbox" name="taxDeductible" defaultChecked className="size-4 shrink-0 accent-black" /> Tax is recoverable</label>
+        <label className="inline-flex items-center gap-2"><input type="checkbox" name="billableToClient" className="size-4 shrink-0 accent-black" /> Recharge this cost to the client</label>
+      </div>
+      {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
+      <div className="mt-5 flex justify-end">
+        <button type="submit" disabled={busy || uploading} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">
+          {busy ? "Saving…" : uploading ? "Waiting for uploads…" : "Save expense"}
+        </button>
+      </div>
     </form>
   );
+}
+
+function CustomFieldInput({ field }: { field: CustomFieldDefinition }) {
+  const name = `custom:${field.id}`;
+  if (field.type === "checkbox") {
+    return <label className="inline-flex min-h-10 items-center gap-2 self-end text-sm text-black/65"><input type="checkbox" name={name} required={field.required} className="size-4 accent-black" />{field.label}</label>;
+  }
+  if (field.type === "textarea") {
+    return <label className={`${labelClass} sm:col-span-2`}>{field.label}<textarea name={name} required={field.required} rows={3} className={`${inputClass} py-2`} /></label>;
+  }
+  if (field.type === "select" || field.type === "multi-select") {
+    return <label className={labelClass}>{field.label}
+      <select name={name} required={field.required} multiple={field.type === "multi-select"} className={`${inputClass} ${field.type === "multi-select" ? "min-h-24 py-2" : ""}`} defaultValue={field.type === "multi-select" ? [] : ""}>
+        {field.type === "select" ? <option value="">Choose an option</option> : null}
+        {field.options.map(option => <option key={option} value={option}>{option}</option>)}
+      </select>
+    </label>;
+  }
+  return <label className={labelClass}>{field.label}<input name={name} required={field.required} type={field.type} className={inputClass} /></label>;
+}
+
+function formatCustomValue(value: string | string[] | boolean | undefined): string {
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return value ?? "";
+}
+
+function fileSize(bytes: number): string {
+  if (bytes < 1_024) return `${bytes} B`;
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KB`;
+  return `${(bytes / 1_048_576).toFixed(1)} MB`;
 }

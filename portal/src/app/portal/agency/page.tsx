@@ -17,15 +17,25 @@ import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { listPipelines, pipelineCardCounts, seedDefaultPipelines } from "@/server/pipelines";
 import { NewClientButton } from "./_NewClientButton";
-import { FounderTodosWidget } from "./_FounderTodosWidget";
 import { FounderDashboardKpis } from "./_FounderDashboardKpis";
-import { AgencyActivityFeed } from "./_AgencyActivityFeed";
+import { getUser } from "@/server/users";
+import { listAgencyTasks } from "@/server/tasks";
+import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
+import { getTradingCompany, recordBelongsToCompany } from "@/server/tradingCompanies";
 
 export default async function AgencyHome() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const agency = getAgency(session.agencyId)!;
-  const clients = listClients(agency.id);
+  const activeCompanyId = await getActiveTradingCompanyId(agency.id);
+  const activeCompany = activeCompanyId ? getTradingCompany(agency.id, activeCompanyId) : null;
+  const clients = listClients(agency.id).filter(client => !activeCompanyId || !client.companyId || client.companyId === activeCompanyId);
+  const openTaskCount = listAgencyTasks(agency.id).filter(task => task.status !== "done").length;
+  ensureDefaultAgencyProducts(agency.id);
+  const products = listAgencyProducts(agency.id).filter(product => recordBelongsToCompany(product.companyIds, activeCompanyId));
+  const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
   // even if it pre-dates the R034 seed in `bootstrapAgency`.
@@ -38,7 +48,8 @@ export default async function AgencyHome() {
   const fulfilmentPipeline = pipelines.find(p => p.kind === "fulfilment" || p.slug === "fulfilment");
   const fulfilmentCardCount = fulfilmentPipeline ? counts[fulfilmentPipeline.id] ?? 0 : 0;
 
-  const firstName = (session.email.split("@")[0] || "there").replace(/[^a-z]/gi, "");
+  const account = getUser(session.email);
+  const firstName = account?.name?.trim().split(/\s+/)[0] ?? (session.email.split("@")[0] || "there").replace(/[^a-z]/gi, "");
   const greet = firstName ? firstName[0]!.toUpperCase() + firstName.slice(1) : "there";
 
   return (
@@ -46,13 +57,13 @@ export default async function AgencyHome() {
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">
-            Milesymedia Agency OS
+            {activeCompany?.name ?? "Milesymedia"}
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">
             Welcome back, {greet}.
           </h1>
           <p className="mt-2 text-sm leading-6 text-black/60">
-            A simple command centre for sales, clients, project work, support, finance, and the signals you cannot afford to miss.
+            Sales, clients, project work, support, and money in one clear place.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -62,7 +73,21 @@ export default async function AgencyHome() {
           >
             Add lead
           </Link>
-          <NewClientButton />
+          <NewClientButton defaults={workspaceSettings} products={products.map(product => ({
+            id: product.id, kind: product.kind, name: product.name, category: product.category,
+            description: product.description ?? "", deliverables: product.deliverables,
+            buyerHeadline: product.buyerHeadline, coverImageUrl: product.coverImageUrl,
+            accentColor: product.accentColor, portalRequirement: product.portalRequirement,
+            portalHeadline: product.portalHeadline, portalWelcomeNote: product.portalWelcomeNote,
+            includedProductIds: product.includedProductIds, welcomePackItems: product.welcomePackItems,
+            welcomePackNotes: product.welcomePackNotes, pricing: product.pricing,
+            priceCents: product.priceCents, billingInterval: product.billingInterval,
+            depositPercent: product.depositPercent, taxRatePercent: product.taxRatePercent,
+            paymentTermsDays: product.paymentTermsDays, billingNotes: product.billingNotes,
+            internalInfo: product.internalInfo, contractTitle: product.contractTitle,
+            contractBody: product.contractBody, sopIds: product.sopIds,
+            sopCategories: product.sopCategories,
+          }))} />
         </div>
       </section>
 
@@ -80,175 +105,83 @@ export default async function AgencyHome() {
         }).length}
       />
 
-      <AgencyOperatingSystem leadCount={leadsCardCount} clientCount={clients.length} />
+      <OperatingLoop
+        leadCount={leadsCardCount}
+        clientCount={clients.length}
+        deliveryCount={fulfilmentCardCount}
+        openTaskCount={openTaskCount}
+      />
 
-      <FounderTodosWidget isFounder={session.role === "agency-owner"} />
-
-      <AgencyActivityFeed />
-
-      <section aria-labelledby="pipelines-heading" data-testid="pipelines-grid">
-        <div className="mb-3">
-          <div>
-            <h2 id="pipelines-heading" className="text-lg font-medium text-black/85">
-              Pipelines
-            </h2>
-            <p className="text-xs text-black/55">
-              Each pipeline is its own kanban — project work carries clients, leads carries unconverted contacts, sales carries open deals.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {pipelines.map(p => {
-            const cardCount = counts[p.id] ?? 0;
-            return (
-              <Link
-                key={p.id}
-                href={`/portal/agency/pipelines/${p.slug}`}
-                data-testid={`pipeline-card-${p.slug}`}
-                data-pipeline-kind={p.kind}
-                className="group relative overflow-hidden rounded-lg border border-black/10 bg-white p-4 shadow-sm transition hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="text-base font-medium text-black/90">{pipelineName(p.name, p.kind)}</div>
-                    <div className="mt-0.5 text-[11px] uppercase tracking-wide text-black/45">
-                      {pipelineKindLabel(p.kind)}
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] text-black/65">
-                    {cardCount} {cardCount === 1 ? "card" : "cards"}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {p.columns.map(col => (
-                    <span
-                      key={col.id}
-                      className="rounded-full px-1.5 py-px text-[10px] text-white"
-                      style={{ backgroundColor: col.color ?? "#0EA5A4" }}
-                    >
-                      {col.label}
-                    </span>
-                  ))}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 }
 
-function AgencyOperatingSystem({
+function OperatingLoop({
   leadCount,
   clientCount,
+  deliveryCount,
+  openTaskCount,
 }: {
   leadCount: number;
   clientCount: number;
+  deliveryCount: number;
+  openTaskCount: number;
 }) {
-  const zones = [
+  const steps = [
     {
-      label: "Sales",
+      label: "Capture a lead",
+      detail: leadCount ? `${leadCount} lead${leadCount === 1 ? "" : "s"} in sales` : "Add the first person or business you want to work with.",
       href: "/portal/agency/pipelines/leads",
-      status: `${leadCount} board card${leadCount === 1 ? "" : "s"}`,
-      description: "Capture leads, import sheets, follow up, book calls, and turn the right people into clients.",
+      done: leadCount > 0,
+      action: "Open sales",
     },
     {
-      label: "Clients",
+      label: "Create the client",
+      detail: clientCount ? `${clientCount} client${clientCount === 1 ? "" : "s"} ready` : "Create the client once the opportunity is agreed.",
       href: "/portal/clients",
-      status: `${clientCount} client${clientCount === 1 ? "" : "s"}`,
-      description: "Create client portals, store notes, track stage, and keep each build in one clean place.",
+      done: clientCount > 0,
+      action: "Open clients",
     },
     {
-      label: "Work",
+      label: "Start delivery",
+      detail: deliveryCount ? `${deliveryCount} active delivery item${deliveryCount === 1 ? "" : "s"}` : "Confirm what they bought and move the work into fulfilment.",
       href: "/portal/agency/pipelines/fulfilment",
-      status: "Project pipeline",
-      description: "See what is being built, what is blocked, and what needs your attention next.",
+      done: deliveryCount > 0,
+      action: "Open fulfilment",
     },
     {
-      label: "Support",
-      href: "/portal/agency/activity-inbox",
-      status: "Inbox first",
-      description: "Bring tickets, client messages, website outages, and Milesy tag alerts into one queue.",
-    },
-    {
-      label: "Money",
-      href: "/portal/agency/agency-finance",
-      status: "Finance",
-      description: "Track invoices, payments, plans, lock-ins, and the products or services you sell.",
-    },
-    {
-      label: "Systems",
-      href: "/portal/agency/sops",
-      status: "Reusable process",
-      description: "Document how the business works so you can delegate without losing quality.",
+      label: "Run the work",
+      detail: openTaskCount ? `${openTaskCount} open action${openTaskCount === 1 ? "" : "s"}` : "Track actions, money, support, and the next client decision.",
+      href: openTaskCount ? "/portal/agency/actions" : "/portal/agency/agency-finance",
+      done: deliveryCount > 0 && openTaskCount === 0,
+      action: openTaskCount ? "Open actions" : "Open finance",
     },
   ];
+  const nextIndex = Math.max(0, steps.findIndex(step => !step.done));
 
   return (
-    <section className="rounded-lg border border-black/10 bg-white p-4 shadow-sm" aria-labelledby="agency-os-heading">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="operating-loop-heading" className="border-y border-black/10">
+      <div className="flex flex-wrap items-end justify-between gap-3 py-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">One simple loop</p>
-          <h2 id="agency-os-heading" className="mt-1 text-lg font-medium text-black/85">
-            Find the client, build the product, support the result.
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/55">
-            Keep the app calm: every client should have a clear stage, a portal, active work, support history, money status, and any blindspots surfaced before they become problems.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Do next</p>
+          <h2 id="operating-loop-heading" className="mt-1 text-lg font-semibold text-black/85">One customer journey</h2>
+          <p className="mt-1 text-sm text-black/50">Move from opportunity to paid, delivered work without losing the next step.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/portal/agency/leads-pipeline/contacts#upload" className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">
-            Upload sheet
-          </Link>
-          <Link href="/portal/agency/pipelines/leads" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
-            Leads board
-          </Link>
-          <Link href="/portal/agency/activity-inbox" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 hover:bg-black/[0.03]">
-            Open inbox
-          </Link>
-        </div>
+        <span className="text-xs text-black/40">{steps.filter(step => step.done).length} of {steps.length} clear</span>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {zones.map(zone => (
-          <OperatingZone key={zone.label} {...zone} />
-        ))}
-      </div>
+      <ol className="divide-y divide-black/[0.07] border-t border-black/10">
+        {steps.map((step, index) => {
+          const isNext = index === nextIndex && !step.done;
+          return <li key={step.label} className={`grid gap-3 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-center ${isNext ? "bg-[#faf7ef]" : ""}`}>
+            <span className={`grid size-7 place-items-center rounded-full text-xs font-semibold ${step.done ? "bg-emerald-50 text-emerald-700" : isNext ? "bg-black text-white" : "bg-black/[0.04] text-black/35"}`}>{step.done ? "✓" : index + 1}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-black/80">{step.label}{isNext ? <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Next</span> : null}</p>
+              <p className="mt-0.5 text-xs text-black/45">{step.detail}</p>
+            </div>
+            <Link href={step.href} className="w-fit rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:border-black/20">{step.action}</Link>
+          </li>;
+        })}
+      </ol>
     </section>
-  );
-}
-
-function pipelineName(name: string, kind: string): string {
-  if (kind === "fulfilment" || name.toLowerCase() === "fulfilment") return "Project pipeline";
-  return name;
-}
-
-function pipelineKindLabel(kind: string): string {
-  if (kind === "fulfilment") return "project work";
-  return kind.replace(/-/g, " ");
-}
-
-function OperatingZone({
-  href,
-  label,
-  status,
-  description,
-}: {
-  href: string;
-  label: string;
-  status: string;
-  description: string;
-}) {
-  return (
-    <Link href={href} className="rounded-lg border border-black/10 bg-black/[0.02] p-3 transition hover:bg-black/[0.04]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold text-black/85">{label}</div>
-        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-black/50 ring-1 ring-black/10">
-          {status}
-        </span>
-      </div>
-      <div className="mt-2 text-xs leading-5 text-black/55">{description}</div>
-    </Link>
   );
 }

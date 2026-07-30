@@ -159,7 +159,8 @@ describe("§ Profile picture upload — topbar + layout wire-up", () => {
     for (const path of [AGENCY_LAYOUT, CLIENT_LAYOUT, CUSTOMER_LAYOUT]) {
       const src = readFileSync(path, "utf8");
       assert.ok(
-        src.includes("avatarUrl={getUserById(session.userId)?.avatarUrl}"),
+        src.includes("avatarUrl={getUserById(session.userId)?.avatarUrl}")
+          || src.includes("avatarUrl={user?.avatarUrl}"),
         `expected avatarUrl thread-through in ${path}`,
       );
     }

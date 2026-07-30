@@ -11,6 +11,7 @@ import { Sidebar } from "@/components/chrome/Sidebar";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useIsEmbedded } from "@/lib/a11y/isEmbedded";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
+import { usePathname } from "next/navigation";
 
 interface Props {
   panels: NavPanel[];
@@ -22,6 +23,7 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
   const [open, setOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const embedded = useIsEmbedded();
+  const pathname = usePathname();
   useFocusTrap(drawerRef, open);
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
   // Close drawer when route changes (any link click).
   useEffect(() => {
     setOpen(false);
-  }, [currentPath]);
+  }, [pathname]);
 
   return (
     <>

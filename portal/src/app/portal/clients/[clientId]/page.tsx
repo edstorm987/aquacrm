@@ -13,13 +13,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth";
-import { ALL_ROLES, type ClientStage } from "@/server/types";
+import { ALL_ROLES, isAgencyRole, type ClientStage } from "@/server/types";
 import { getClientForAgency } from "@/server/tenants";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { listActivity } from "@/server/activity";
 import { phaseLabel, listPhasesForAgency } from "@/server/phases";
 import { listPlugins } from "@/built-ins/runtime/_registry";
 import { TABS, type TabId } from "./_tabs";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { toolCopy } from "./toolCopy";
 import { BuildPortalWizard, type WizardPlugin } from "./_BuildPortalWizard";
 import { ClientSopsTab } from "./_ClientSopsTab";
@@ -39,6 +40,10 @@ import { assertSopsAccess, familiesForStage, SopsAccessError } from "@/lib/serve
 import { RequirePermission } from "@/lib/server/RequirePermission";
 import { OnboardingDashboardPanel, type OnboardingPhase } from "./_OnboardingDashboardPanel";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
+import { isGitHubPublishingConfigured } from "@/lib/server/githubProjectPublisher";
+import { isVercelProjectDeploymentConfigured } from "@/lib/server/vercelProjectDeployer";
+import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
+import { ClientContactsPanel } from "./_ClientContactsPanel";
 import {
   AQUA_PHASE_ORDER,
   AQUA_MILESTONES,
@@ -89,6 +94,17 @@ function formatRelative(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
+function formatMeeting(ts: number | undefined): string | undefined {
+  if (!ts) return undefined;
+  return new Date(ts).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default async function ClientHome({
   params,
   searchParams,
@@ -117,6 +133,7 @@ export default async function ClientHome({
     planTier?: "foundational" | "expansion" | "mastery";
     whatsappLink?: string;
     clientEmail?: string;
+    leadSource?: string;
     lastContactedAt?: number;
     stripeLink?: string;
     lockInPaid?: boolean;
@@ -126,6 +143,7 @@ export default async function ClientHome({
     nextMeetingAt?: number;
     meetingLink?: string;
     meetingNotes?: string;
+    salesPresentations?: Array<{ id: string; title: string; url: string }>;
     callRecordingUrl?: string;
     sessionNotes?: string;
     inspirationLinks?: string[];
@@ -141,6 +159,8 @@ export default async function ClientHome({
     portalServicePlan?: string;
     portalPlanSummary?: string;
     portalPlanIncludes?: string[];
+    portalProducts?: import("@/lib/portalProducts").PortalProductSelection[];
+    portalExperienceHeadline?: string;
     portalBillingCadence?: string;
     portalWelcomeNote?: string;
     portalSupportEmail?: string;
@@ -153,6 +173,7 @@ export default async function ClientHome({
       capturedAt?: number;
       meetingAt?: number;
       meetingLink?: string;
+      salesPresentations?: Array<{ id: string; title: string; url: string }>;
       callRecordingUrl?: string;
       sessionNotes?: string;
       inspirationLinks?: string[];
@@ -169,6 +190,14 @@ export default async function ClientHome({
     portalAccessPreparedAt?: number;
     files?: Array<{ id: string; category?: string }>;
     contracts?: ClientContract[];
+    commercialPack?: {
+      invoiceNumber?: string;
+      invoiceStatus?: string;
+      agreementStatus?: string;
+      signedDocumentDataUrl?: string;
+      payments?: Array<{ amountCents: number }>;
+      totalCents?: number;
+    };
     portalBrief?: {
       businessOverview?: string;
       primaryGoal?: string;
@@ -180,6 +209,8 @@ export default async function ClientHome({
       submittedBy?: string;
     };
     portalApprovals?: ClientApproval[];
+    clientEntityType?: ClientEntityType;
+    linkedContacts?: unknown;
   };
   const PLAN_LABELS: Record<NonNullable<typeof meta.planTier>, string> = {
     foundational: "Foundational Flow",
@@ -187,6 +218,7 @@ export default async function ClientHome({
     mastery:      "Mastery Plan",
   };
   const planLabel = meta.planTier ? PLAN_LABELS[meta.planTier] : null;
+  const servicePlanLabel = meta.portalServicePlan?.trim() || planLabel;
   const customerPortalData = tab === "fulfilment"
     ? await loadCustomerPortalData(client, meta.portalContactName ?? client.name)
     : null;
@@ -196,7 +228,7 @@ export default async function ClientHome({
   const liveRecommended = LIVE_RECOMMENDED_PLUGINS;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="flex flex-wrap items-center gap-4">
         {client.brand.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -239,12 +271,13 @@ export default async function ClientHome({
               currentStage={client.stage}
               isFounder={session.role === "agency-owner"}
             />
-            {planLabel && (
-              <span className="text-[11px] text-black/55">Plan tier: <span className="font-medium text-black/75">{planLabel}</span></span>
+            {servicePlanLabel && (
+              <span className="text-[11px] text-black/55">Plan: <span className="font-medium text-black/75">{servicePlanLabel}</span></span>
             )}
+            <span className="text-[11px] text-black/55">Source: <span className="font-medium text-black/75">{meta.leadSource?.replace(/[-_]+/g, " ") || "Not recorded"}</span></span>
             {meta.lockInPaid && (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800">
-                Lock-in paid
+                Deposit paid
               </span>
             )}
             {client.websiteUrl && (
@@ -290,6 +323,23 @@ export default async function ClientHome({
         )}
       </header>
 
+      {(() => {
+        const pack = meta.commercialPack;
+        const paidCents = pack?.payments?.reduce((sum, payment) => sum + payment.amountCents, 0) ?? 0;
+        const gaps = [
+          !pack?.invoiceNumber ? "Invoice missing" : null,
+          !pack || (pack.agreementStatus !== "accepted" && !pack.signedDocumentDataUrl) ? "Signed agreement missing" : null,
+          pack?.totalCents && paidCents < pack.totalCents ? `Payment outstanding (${new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format((pack.totalCents - paidCents) / 100)})` : null,
+        ].filter((gap): gap is string => Boolean(gap));
+        if (!gaps.length) return null;
+        return (
+          <section className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <div><strong>Commercial records need attention</strong><span className="ml-2">{gaps.join(" · ")}</span></div>
+            <Link href={`/portal/clients/${client.id}?tab=finance`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold ring-1 ring-red-200">Open finance</Link>
+          </section>
+        );
+      })()}
+
       {tab === "overview" && isAquaStage(client.stage) && (() => {
         const aquaPhases = phases.filter(p => AQUA_PHASE_ORDER.includes(p.stage));
         aquaPhases.sort((a, b) => AQUA_PHASE_ORDER.indexOf(a.stage) - AQUA_PHASE_ORDER.indexOf(b.stage));
@@ -325,24 +375,22 @@ export default async function ClientHome({
 
       {tab === "overview" && (
         <section className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-black/10 bg-white p-4 md:col-span-2">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-medium uppercase tracking-wide text-black/55">Buying context</h2>
-                <p className="mt-1 text-sm text-black/60">
-                  The trail from lead to client: call notes, recordings, risks, ideas, budgets, and useful links.
-                </p>
-              </div>
-              {meta.portalLoginEmail && (
-                <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/55">
-                  Portal login: {meta.portalLoginEmail}
-                </span>
-              )}
-            </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          <ClientContactsPanel
+            clientId={client.id}
+            initialEntityType={meta.clientEntityType === "person" ? "person" : "company"}
+            initialContacts={cleanClientContacts(meta.linkedContacts)}
+            canEdit={isAgencyRole(session.role)}
+          />
+          <div className="md:col-span-2">
+            <CollapsibleSection
+              title="Client context"
+              description="Sales notes, goals, recordings, budget, and useful links."
+              badge={meta.portalLoginEmail ? "Portal ready" : undefined}
+            >
+            <div className="grid gap-3 lg:grid-cols-3">
               <ContextItem label="Budget" value={meta.budgetRange ?? meta.buyingJourney?.budgetRange} />
               <ContextItem label="Price points" value={meta.pricePoints ?? meta.buyingJourney?.pricePoints} />
-              <ContextItem label="Next meeting" value={meta.nextMeetingAt ? new Date(meta.nextMeetingAt).toLocaleString() : meta.buyingJourney?.meetingAt ? new Date(meta.buyingJourney.meetingAt).toLocaleString() : undefined} />
+              <ContextItem label="Next meeting" value={formatMeeting(meta.nextMeetingAt ?? meta.buyingJourney?.meetingAt)} />
               <ContextItem label="Problems to solve" value={meta.potentialProblems ?? meta.buyingJourney?.potentialProblems} wide />
               <ContextItem label="Potential solutions" value={meta.potentialSolutions ?? meta.buyingJourney?.potentialSolutions} wide />
               <ContextItem label="Session notes" value={meta.sessionNotes ?? meta.buyingJourney?.sessionNotes ?? meta.meetingNotes ?? meta.notes} wide />
@@ -360,6 +408,9 @@ export default async function ClientHome({
               {meta.buyingJourney?.meetingLink && !meta.meetingLink && <ExternalPill href={meta.buyingJourney.meetingLink} label="Meeting link" />}
               {meta.callRecordingUrl && <ExternalPill href={meta.callRecordingUrl} label="Call recording" />}
               {meta.buyingJourney?.callRecordingUrl && !meta.callRecordingUrl && <ExternalPill href={meta.buyingJourney.callRecordingUrl} label="Call recording" />}
+              {(meta.salesPresentations ?? meta.buyingJourney?.salesPresentations ?? []).map(presentation => (
+                <ExternalPill key={presentation.id} href={presentation.url} label={presentation.title} />
+              ))}
               {(meta.inspirationLinks ?? meta.buyingJourney?.inspirationLinks ?? []).map((href, index) => (
                 <ExternalPill key={`${href}:${index}`} href={href} label={`Inspiration ${index + 1}`} />
               ))}
@@ -367,6 +418,7 @@ export default async function ClientHome({
                 Add files / screenshots
               </Link>
             </div>
+            </CollapsibleSection>
           </div>
           <div className="rounded-xl border border-black/10 bg-white p-4">
             <h2 className="text-sm font-medium uppercase tracking-wide text-black/55">Phase</h2>
@@ -386,7 +438,7 @@ export default async function ClientHome({
                 Edit website
               </Link>
               <Link href={`/portal/clients/${client.id}?tab=fulfilment`} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
-                Portal preview
+                {meta.portalBuiltAt ? "Portal preview" : "Create client portal"}
               </Link>
               <Link href={`/portal/clients/${client.id}?tab=systems`} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
                 + Add system
@@ -414,12 +466,12 @@ export default async function ClientHome({
             </div>
           </div>
           <ClientRequestsPanel clientId={client.id} initialRequests={meta.clientRequests ?? []} />
-          <div className="rounded-xl border border-black/10 bg-white p-4 md:col-span-2">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-black/55">Recent activity</h2>
+          <div className="md:col-span-2">
+            <CollapsibleSection title="Recent activity" description="The latest changes to this client." badge={String(recentActivity.length)}>
             {recentActivity.length === 0 ? (
-              <p className="mt-2 text-sm text-black/55">Nothing yet.</p>
+              <p className="text-sm text-black/55">Nothing yet.</p>
             ) : (
-              <ul className="mt-3 flex flex-col gap-1.5 text-sm">
+              <ul className="flex flex-col gap-1.5 text-sm">
                 {recentActivity.map(a => (
                   <li key={a.id} className="flex items-baseline justify-between gap-3 border-b border-black/5 pb-1.5 last:border-0">
                     <span className="text-black/80">{a.message}</span>
@@ -428,6 +480,7 @@ export default async function ClientHome({
                 ))}
               </ul>
             )}
+            </CollapsibleSection>
           </div>
         </section>
       )}
@@ -462,9 +515,11 @@ export default async function ClientHome({
             mode: meta.portalMode,
             loginEmail: meta.portalLoginEmail ?? meta.clientEmail ?? client.ownerEmail ?? "",
             contactName: meta.portalContactName ?? meta.therapistName ?? "",
-            servicePlan: meta.portalServicePlan ?? planLabel ?? "",
+            servicePlan: servicePlanLabel ?? "",
             planSummary: meta.portalPlanSummary ?? "",
             planIncludes: meta.portalPlanIncludes ?? [],
+            products: meta.portalProducts ?? [],
+            experienceHeadline: meta.portalExperienceHeadline ?? "",
             billingCadence: meta.portalBillingCadence ?? "As agreed",
             welcomeNote: meta.portalWelcomeNote ?? "",
             supportEmail: meta.portalSupportEmail ?? customerPortalData?.support.email ?? "",
@@ -494,6 +549,8 @@ export default async function ClientHome({
           clientId={client.id}
           clientName={client.name}
           initialProperties={Array.isArray(meta.properties) ? meta.properties : []}
+          githubPublishingConfigured={isGitHubPublishingConfigured()}
+          vercelDeploymentConfigured={isVercelProjectDeploymentConfigured()}
         />
       )}
 
@@ -508,6 +565,7 @@ export default async function ClientHome({
             initialContracts={Array.isArray(meta.contracts) ? meta.contracts : []}
             initial={{
               planTier: meta.planTier,
+              servicePlan: servicePlanLabel ?? undefined,
               lockInPaid: meta.lockInPaid,
               stripeLink: meta.stripeLink,
             }}
@@ -606,7 +664,11 @@ function ExternalPill({ href, label }: { href: string; label: string }) {
 
 function phaseDescription(description: string): string {
   return description
-    .replace(/\bNo plugin installs yet\./gi, "No extra systems are needed yet.")
+    .replace(
+      /\bOnboarding form \+ welcome scroll\. No plugin installs yet\./gi,
+      "Collect the brief, contacts, content, and access needed to begin.",
+    )
+    .replace(/\bNo plugin installs yet\./gi, "Everything needed for this phase is built in.")
     .replace(/\bAll plugins disabled, config preserved\./gi, "Engagement ended; history and settings are preserved.")
     .replace(/\bplugin installs\b/gi, "system setup")
     .replace(/\bplugins\b/gi, "systems");

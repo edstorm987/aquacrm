@@ -24,7 +24,7 @@ function slugify(s: string): string {
 }
 
 const DEFAULT_BRAND: BrandKit = {
-  primaryColor: "#0EA5A4",       // teal — Aqua's eponymous accent
+  primaryColor: "#0B6F6D",
   secondaryColor: "#1F2937",
   accentColor: "#F97316",
   fontHeading: "ui-sans-serif, system-ui",
@@ -120,6 +120,7 @@ export interface CreateClientInput {
   brand?: Partial<BrandKit>;
   endCustomers?: import("./types").ClientEndCustomerConfig;
   metadata?: Record<string, unknown>;
+  companyId?: string;
 }
 
 export function createClient(agencyId: string, input: CreateClientInput): Client {
@@ -134,6 +135,7 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
     saved = {
       id,
       agencyId,
+      companyId: input.companyId,
       name: input.name,
       slug,
       brand: { ...DEFAULT_BRAND, ...(input.brand ?? {}) },
@@ -181,6 +183,7 @@ export interface UpdateClientPatch {
   stage?: ClientStage;
   endCustomers?: import("./types").ClientEndCustomerConfig;
   metadata?: Record<string, unknown>;
+  companyId?: string | null;
 }
 
 export function updateClient(agencyId: string, clientId: string, patch: UpdateClientPatch): Client | null {
@@ -195,6 +198,7 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
     stageChanged = patch.stage !== undefined && patch.stage !== existing.stage;
     saved = {
       ...existing,
+      companyId: patch.companyId === null ? undefined : patch.companyId ?? existing.companyId,
       name: patch.name ?? existing.name,
       ownerEmail: patch.ownerEmail ?? existing.ownerEmail,
       websiteUrl: patch.websiteUrl ?? existing.websiteUrl,

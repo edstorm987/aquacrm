@@ -49,7 +49,7 @@ export default async function ClientSettingsPage({
         <InfoCard label="Current phase" value={phaseLabel(client.stage)} />
         <InfoCard label="Portal login" value={client.ownerEmail ?? "Not added yet"} />
         <InfoCard label="Website" value={client.websiteUrl ?? "Not connected yet"} />
-        <InfoCard label="Plan" value={stringMeta(meta.planTier) || "Not set"} />
+        <InfoCard label="Plan" value={stringMeta(meta.portalServicePlan) || planName(stringMeta(meta.planTier)) || "Not set"} />
       </section>
 
       <section className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
@@ -57,7 +57,7 @@ export default async function ClientSettingsPage({
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
           <Detail label="Client ID" value={client.id} />
           <Detail label="Slug" value={client.slug} />
-          <Detail label="Status" value={client.status} />
+          <Detail label="Status" value={client.status === "suspended" ? "Paused" : client.status} />
           <Detail label="Updated" value={new Date(client.updatedAt).toLocaleString("en-GB")} />
         </dl>
       </section>
@@ -74,6 +74,13 @@ function InfoCard({ label, value }: { label: string; value: string }) {
       <p className="mt-2 truncate text-base font-semibold text-black/85">{value}</p>
     </div>
   );
+}
+
+function planName(value: string): string {
+  if (value === "foundational") return "Foundational Flow";
+  if (value === "expansion") return "Expansion Plan";
+  if (value === "mastery") return "Mastery Plan";
+  return value;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

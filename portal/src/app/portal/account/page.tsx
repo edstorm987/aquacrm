@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/server/auth";
 import { getUserById } from "@/server/users";
 import { redirect } from "next/navigation";
 import { AvatarUploader } from "./AvatarUploader";
+import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 
 function deriveInitials(seed: string): string {
   const t = seed.trim();
@@ -27,7 +28,8 @@ export default async function AccountPage() {
   const isCustomer = session.role === "end-customer";
 
   return (
-    <main id="main-content" className="flex min-h-[calc(100vh-9rem)] w-full justify-center py-4 sm:py-8">
+    <main id="main-content" className="mm-portal-root relative flex min-h-screen w-full justify-center px-4 py-16 sm:py-20">
+      <div className="absolute right-4 top-4 sm:right-6 sm:top-6"><ColorModeToggle /></div>
       <div className="w-full max-w-xl">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-black/90">Edit profile</h1>

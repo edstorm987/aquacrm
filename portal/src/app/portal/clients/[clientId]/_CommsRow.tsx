@@ -4,7 +4,7 @@
 // WhatsApp pill + Mailto pill + Last-contact + inline edit + Mark
 // contacted button. Pinned in the per-client header.
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 interface InitialState {
@@ -13,17 +13,14 @@ interface InitialState {
   lastContactedAt: number;
 }
 
-function formatRelative(ts: number): string {
+function formatContactDate(ts: number): string {
   if (!ts) return "never";
-  const delta = Date.now() - ts;
-  if (delta < 60_000) return "just now";
-  if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m ago`;
-  if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)}h ago`;
-  if (delta < 7 * 86_400_000) return `${Math.round(delta / 86_400_000)}d ago`;
   return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
+    day: "numeric",
+    month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "UTC",
   }).format(new Date(ts));
 }
@@ -42,7 +39,10 @@ export function CommsRow({
   const [emailDraft, setEmailDraft] = useState(initial.clientEmail);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState<number | null>(null);
   const [, startTransition] = useTransition();
+
+  useEffect(() => setNow(Date.now()), []);
 
   async function patch(body: object) {
     setBusy(true);
@@ -87,8 +87,8 @@ export function CommsRow({
   const hasWhatsapp = !!state.whatsappLink;
   const hasEmail = !!state.clientEmail;
   const lastTs = state.lastContactedAt;
-  const stale = lastTs > 0 && Date.now() - lastTs > 7 * 86_400_000;
-  const lastLabel = lastTs ? `last contact ${formatRelative(lastTs)}` : "never contacted";
+  const stale = now !== null && lastTs > 0 && now - lastTs > 7 * 86_400_000;
+  const lastLabel = lastTs ? `last contacted ${formatContactDate(lastTs)}` : "never contacted";
 
   return (
     <div data-testid="client-comms-row" className="flex flex-wrap items-center gap-2 text-xs">

@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Globe2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, FolderGit2, Globe2, LoaderCircle, LockKeyhole, Pencil, Plus, Sparkles, Trash2, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "repo" | "template" | "tag";
+export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
 export type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived";
 export type ClientPropertyTagStatus = "planned" | "installed" | "missing" | "broken" | "not-needed";
 
@@ -20,6 +20,15 @@ export interface ClientProperty {
   redirectTarget?: string;
   tagStatus?: ClientPropertyTagStatus;
   notes?: string;
+  projectSlug?: string;
+  starterId?: string;
+  repositoryStatus?: "not-created" | "local" | "connected";
+  deploymentStatus?: "not-deployed" | "preview" | "production";
+  initialCommit?: string;
+  provisionedAt?: number;
+  vercelDeploymentId?: string;
+  deploymentReadyState?: string;
+  lastDeployedAt?: number;
   updatedAt: number;
 }
 
@@ -27,6 +36,8 @@ const KIND_OPTIONS: { value: ClientPropertyKind; label: string }[] = [
   { value: "website", label: "Website" },
   { value: "client-portal", label: "Client portal" },
   { value: "dev-portal", label: "Dev portal" },
+  { value: "software", label: "Software" },
+  { value: "lead-magnet", label: "Lead magnet" },
   { value: "repo", label: "Repository" },
   { value: "template", label: "Template" },
   { value: "tag", label: "Milesymedia tag" },
@@ -37,7 +48,7 @@ const STATUS_OPTIONS: { value: ClientPropertyStatus; label: string }[] = [
   { value: "building", label: "Building" },
   { value: "review", label: "Review" },
   { value: "live", label: "Live" },
-  { value: "redirected", label: "Redirected" },
+  { value: "redirected", label: "Handed over" },
   { value: "archived", label: "Archived" },
 ];
 
@@ -106,26 +117,71 @@ export function PropertiesTabClient({
   clientId,
   clientName,
   initialProperties,
+  githubPublishingConfigured,
+  vercelDeploymentConfigured,
 }: {
   clientId: string;
   clientName: string;
   initialProperties: ClientProperty[];
+  githubPublishingConfigured: boolean;
+  vercelDeploymentConfigured: boolean;
 }) {
   const [properties, setProperties] = useState<ClientProperty[]>(initialProperties);
   const [adding, setAdding] = useState(false);
+  const [provisioning, setProvisioning] = useState(false);
+  const [projectName, setProjectName] = useState(`${clientName} website`);
+  const [starterId, setStarterId] = useState("luxury-service-site");
+  const [provisionedPath, setProvisionedPath] = useState<string | null>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<PropertyDraft>(EMPTY_DRAFT);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [deployingId, setDeployingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const counts = useMemo(() => ({
     total: properties.length,
     live: properties.filter(p => p.status === "live" || p.status === "redirected").length,
     tagInstalled: properties.filter(p => p.tagStatus === "installed").length,
-    repos: properties.filter(p => p.repoUrl).length,
+    repos: properties.filter(p => p.repoUrl || p.repositoryStatus === "local" || p.repositoryStatus === "connected").length,
   }), [properties]);
+
+  async function provisionProject() {
+    setError(null);
+    setProvisionedPath(null);
+    if (!projectName.trim()) {
+      setError("Project name required.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await fetch("/api/tenants/client-projects/provision", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId, projectName, starterId }),
+      });
+      const data = await response.json() as {
+        ok: boolean;
+        error?: string;
+        properties?: ClientProperty[];
+        workspace?: { localPath?: string };
+      };
+      if (!data.ok) {
+        setError(data.error ?? "Project provisioning failed.");
+        return;
+      }
+      setProperties(data.properties ?? []);
+      setProvisionedPath(data.workspace?.localPath ?? null);
+      setProvisioning(false);
+      setProjectName(`${clientName} website`);
+    } catch {
+      setError("Project provisioning failed. Check the local server and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveProperty() {
     setError(null);
@@ -170,6 +226,58 @@ export function PropertiesTabClient({
       setProperties(data.properties ?? []);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function publishRepository(property: ClientProperty) {
+    if (!githubPublishingConfigured) {
+      setError("GitHub is not connected. Add a fresh GITHUB_TOKEN to the server environment first.");
+      return;
+    }
+    setPublishingId(property.id);
+    setError(null);
+    try {
+      const response = await fetch("/api/tenants/client-projects/publish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId, propertyId: property.id }),
+      });
+      const data = await response.json() as { ok: boolean; error?: string; properties?: ClientProperty[] };
+      if (!data.ok) {
+        setError(data.error ?? "Repository publishing failed.");
+        return;
+      }
+      setProperties(data.properties ?? []);
+    } catch {
+      setError("Repository publishing failed. Check the server connection and try again.");
+    } finally {
+      setPublishingId(null);
+    }
+  }
+
+  async function deployPreview(property: ClientProperty) {
+    if (!vercelDeploymentConfigured) {
+      setError("Vercel is not connected. Add VERCEL_TOKEN to the server environment first.");
+      return;
+    }
+    setDeployingId(property.id);
+    setError(null);
+    try {
+      const response = await fetch("/api/tenants/client-projects/deploy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId, propertyId: property.id }),
+      });
+      const data = await response.json() as { ok: boolean; error?: string; properties?: ClientProperty[] };
+      if (!data.ok) {
+        setError(data.error ?? "Preview deployment failed.");
+        return;
+      }
+      setProperties(data.properties ?? []);
+    } catch {
+      setError("Preview deployment failed. Check the server connection and try again.");
+    } finally {
+      setDeployingId(null);
     }
   }
 
@@ -251,22 +359,100 @@ export function PropertiesTabClient({
             Keep every website, portal, preview, repository, handoff, and monitoring connection for {clientName} in one place.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setAdding(v => !v)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-white shadow hover:opacity-90"
-        >
-          {adding ? <X size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
-          {adding ? "Cancel" : "Add website or product"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setProvisioning(value => !value);
+              setAdding(false);
+              setError(null);
+            }}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-white shadow hover:opacity-90"
+          >
+            {provisioning ? <X size={15} aria-hidden="true" /> : <Sparkles size={15} aria-hidden="true" />}
+            {provisioning ? "Cancel" : "Provision project"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdding(value => !value);
+              setProvisioning(false);
+              setError(null);
+            }}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-medium text-black/72 hover:bg-black/[0.03]"
+          >
+            {adding ? <X size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
+            {adding ? "Cancel" : "Connect existing"}
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
         <Metric label="Products" value={counts.total} />
         <Metric label="Live / redirected" value={counts.live} />
-        <Metric label="Repos linked" value={counts.repos} />
+        <Metric label="Repositories" value={counts.repos} />
         <Metric label="Tags installed" value={counts.tagInstalled} />
       </div>
+
+      {provisioning && (
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            void provisionProject();
+          }}
+          className="grid gap-5 rounded-md bg-[#171613] p-5 text-white lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.72fr)_auto] lg:items-end"
+        >
+          <div className="lg:col-span-3">
+            <div className="flex items-center gap-2 text-[#c9ab76]">
+              <FolderGit2 size={17} aria-hidden="true" />
+              <p className="text-xs font-semibold uppercase tracking-wide">New client project</p>
+            </div>
+            <h3 className="mt-3 text-xl font-medium">Create the working site, not a placeholder.</h3>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-white/58">
+              Milesymedia will create an editable project folder, install the starter, connect the client portal and monitoring tag, then make the first Git commit.
+            </p>
+          </div>
+          <Field label="Project name" htmlFor="provision-project-name" dark>
+            <input
+              id="provision-project-name"
+              value={projectName}
+              onChange={event => setProjectName(event.target.value)}
+              className="rounded-md border border-white/16 bg-white/[0.07] px-3 py-2 text-sm text-white outline-none transition focus:border-[#c9ab76] focus:ring-2 focus:ring-[#c9ab76]/20"
+              placeholder={`${clientName} website`}
+              autoFocus
+            />
+          </Field>
+          <Field label="Starting point" htmlFor="provision-starter" dark>
+            <select
+              id="provision-starter"
+              value={starterId}
+              onChange={event => setStarterId(event.target.value)}
+              className="rounded-md border border-white/16 bg-[#24231f] px-3 py-2 text-sm text-white outline-none transition focus:border-[#c9ab76] focus:ring-2 focus:ring-[#c9ab76]/20"
+            >
+              <option value="luxury-service-site">Luxury service website</option>
+            </select>
+          </Field>
+          <button
+            type="submit"
+            disabled={busy || !projectName.trim()}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#f4f0e8] px-4 text-sm font-semibold text-[#171613] disabled:opacity-45"
+          >
+            {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <Sparkles size={15} aria-hidden="true" />}
+            {busy ? "Creating project" : "Create project"}
+          </button>
+          {error && <p role="alert" className="text-sm text-red-200 lg:col-span-3">{error}</p>}
+        </form>
+      )}
+
+      {provisionedPath && (
+        <div className="flex flex-wrap items-start gap-3 border-l-2 border-emerald-600 bg-emerald-50/65 px-4 py-3 text-sm text-emerald-950">
+          <Check size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-semibold">Project created with its first Git commit.</p>
+            <p className="mt-0.5 break-all font-mono text-xs text-emerald-900/72">{provisionedPath}</p>
+          </div>
+        </div>
+      )}
 
       {adding && (
         <form
@@ -302,7 +488,7 @@ export function PropertiesTabClient({
           </Field>
           <details className="group border-t border-black/10 pt-4 lg:col-span-2">
             <summary className="cursor-pointer text-sm font-medium text-black/62 marker:text-black/35">
-              Repository, deployment and handoff details
+              Repository, deployment and client login
             </summary>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <Field label="GitHub repository" htmlFor="property-repo-url">
@@ -314,8 +500,8 @@ export function PropertiesTabClient({
               <Field label="Local project folder" htmlFor="property-local-path">
                 <input id="property-local-path" value={draft.localPath} onChange={e => setDraft(d => ({ ...d, localPath: e.target.value }))} className={CONTROL_CLASS} placeholder="/Users/eds/Desktop/Projects/..." />
               </Field>
-              <Field label="Portal handoff URL" htmlFor="property-redirect-target">
-                <input id="property-redirect-target" type="url" value={draft.redirectTarget} onChange={e => setDraft(d => ({ ...d, redirectTarget: e.target.value }))} className={CONTROL_CLASS} placeholder="Where the customer signs in after handoff" />
+              <Field label="Finished client portal URL" htmlFor="property-redirect-target">
+                <input id="property-redirect-target" type="url" value={draft.redirectTarget} onChange={e => setDraft(d => ({ ...d, redirectTarget: e.target.value }))} className={CONTROL_CLASS} placeholder="Where this client should land after sign-in" />
               </Field>
               <Field label="Monitoring" htmlFor="property-tag-status">
                 <select id="property-tag-status" value={draft.tagStatus} onChange={e => setDraft(d => ({ ...d, tagStatus: e.target.value as ClientPropertyTagStatus }))} className={CONTROL_CLASS}>
@@ -406,7 +592,10 @@ export function PropertiesTabClient({
                 </form>
               ) : (
                 <>
+                  <ReleaseRail property={property} />
                   <dl className="mt-4 grid gap-2 text-sm">
+                    <PropertyLine label="Starter" value={property.starterId ? property.starterId.replaceAll("-", " ") : undefined} />
+                    <PropertyLine label="Project" value={property.projectSlug} mono />
                     <PropertyLine label="Local" value={property.localPath} mono />
                     <PropertyLine label="Repo" value={property.repoUrl} href={externalUrl(property.repoUrl)} />
                     <PropertyLine label="Live" value={property.liveUrl} href={externalUrl(property.liveUrl)} />
@@ -414,10 +603,73 @@ export function PropertiesTabClient({
                     <PropertyLine label="Vercel" value={property.vercelProject} href={externalUrl(property.vercelProject)} />
                     <PropertyLine label="Redirect" value={property.redirectTarget} href={externalUrl(property.redirectTarget)} />
                     <PropertyLine label="Tag" value={prettyTag(property.tagStatus)} />
+                    <PropertyLine
+                      label="Git"
+                      value={property.repositoryStatus === "local"
+                        ? `Local repository · ${property.initialCommit?.slice(0, 8) ?? "ready"}`
+                        : property.repositoryStatus === "connected" ? "GitHub connected" : undefined}
+                      mono
+                    />
+                    <PropertyLine
+                      label="Deploy"
+                      value={property.deploymentStatus === "not-deployed"
+                        ? "Not deployed yet"
+                        : `${property.deploymentStatus}${property.deploymentReadyState ? ` · ${property.deploymentReadyState.toLowerCase()}` : ""}`}
+                    />
+                    <PropertyLine label="Deploy ID" value={property.vercelDeploymentId} mono />
+                    <PropertyLine label="Last deploy" value={property.lastDeployedAt ? formatUpdatedAt(property.lastDeployedAt) : undefined} />
                   </dl>
 
                   {property.notes && (
                     <p className="mt-4 whitespace-pre-wrap rounded-md bg-black/[0.02] p-3 text-sm leading-6 text-black/65">{property.notes}</p>
+                  )}
+
+                  {property.localPath && (property.repositoryStatus === "local" || property.deploymentStatus === "not-deployed") && (
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-4">
+                      <div className="flex items-center gap-2">
+                        <span className="grid size-8 place-items-center rounded-md bg-black/[0.04] text-black/48">
+                          <LockKeyhole size={15} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-semibold text-black/72">Local repository ready</p>
+                          <p className="text-[11px] text-black/42">Remote repositories are private by default.</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {property.repositoryStatus === "local" && !property.repoUrl && (
+                          <button
+                            type="button"
+                            disabled={!githubPublishingConfigured || publishingId === property.id}
+                            onClick={() => void publishRepository(property)}
+                            title={githubPublishingConfigured ? "Create and push a private GitHub repository" : "Add GITHUB_TOKEN to connect GitHub"}
+                            className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/68 hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            {publishingId === property.id
+                              ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+                              : <UploadCloud size={14} aria-hidden="true" />}
+                            {publishingId === property.id
+                              ? "Publishing"
+                              : githubPublishingConfigured ? "Publish private repo" : "GitHub setup required"}
+                          </button>
+                        )}
+                        {property.deploymentStatus === "not-deployed" && (
+                          <button
+                            type="button"
+                            disabled={!vercelDeploymentConfigured || deployingId === property.id}
+                            onClick={() => void deployPreview(property)}
+                            title={vercelDeploymentConfigured ? "Upload a private review preview to Vercel" : "Add VERCEL_TOKEN to connect Vercel"}
+                            className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {deployingId === property.id
+                              ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+                              : <Globe2 size={14} aria-hidden="true" />}
+                            {deployingId === property.id
+                              ? "Deploying"
+                              : vercelDeploymentConfigured ? "Deploy review preview" : "Vercel setup required"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </>
               )}
@@ -470,8 +722,8 @@ function PropertyEditorFields({
       <Field label="Vercel project" htmlFor={`${prefix}-vercel`}>
         <input id={`${prefix}-vercel`} value={draft.vercelProject} onChange={event => setDraft(value => ({ ...value, vercelProject: event.target.value }))} className={CONTROL_CLASS} placeholder="Project name or dashboard URL" />
       </Field>
-      <Field label="Portal handoff URL" htmlFor={`${prefix}-redirect`}>
-        <input id={`${prefix}-redirect`} type="url" value={draft.redirectTarget} onChange={event => setDraft(value => ({ ...value, redirectTarget: event.target.value }))} className={CONTROL_CLASS} placeholder="Where the customer lands after handoff" />
+      <Field label="Finished client portal URL" htmlFor={`${prefix}-redirect`}>
+        <input id={`${prefix}-redirect`} type="url" value={draft.redirectTarget} onChange={event => setDraft(value => ({ ...value, redirectTarget: event.target.value }))} className={CONTROL_CLASS} placeholder="Where this client should land after sign-in" />
       </Field>
       <Field label="Milesymedia tag" htmlFor={`${prefix}-tag`}>
         <select id={`${prefix}-tag`} value={draft.tagStatus} onChange={event => setDraft(value => ({ ...value, tagStatus: event.target.value as ClientPropertyTagStatus }))} className={CONTROL_CLASS}>
@@ -494,10 +746,43 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+function ReleaseRail({ property }: { property: ClientProperty }) {
+  const steps = [
+    { label: "Workspace", complete: Boolean(property.localPath) },
+    { label: "Repository", complete: property.repositoryStatus === "connected" },
+    { label: "Review", complete: property.deploymentStatus === "preview" || property.deploymentStatus === "production" },
+    { label: "Live", complete: property.status === "live" || property.status === "redirected" || property.deploymentStatus === "production" },
+  ];
+  const activeIndex = Math.min(
+    steps.findIndex(step => !step.complete) === -1 ? steps.length - 1 : steps.findIndex(step => !step.complete),
+    steps.length - 1,
+  );
+  return (
+    <ol className="mt-4 grid grid-cols-4 border-y border-black/8 py-3" aria-label={`Release progress for ${property.label}`}>
+      {steps.map((step, index) => (
+        <li key={step.label} className="relative flex min-w-0 flex-col items-center gap-1 text-center">
+          {index > 0 && (
+            <span className={`absolute right-1/2 top-[5px] h-px w-full ${steps[index - 1].complete ? "bg-emerald-600/55" : "bg-black/10"}`} aria-hidden="true" />
+          )}
+          <span className={[
+            "relative z-[1] block size-[11px] rounded-full border-2 bg-white",
+            step.complete
+              ? "border-emerald-600 bg-emerald-600"
+              : index === activeIndex ? "border-brand" : "border-black/16",
+          ].join(" ")} aria-hidden="true" />
+          <span className={`truncate text-[10px] font-medium ${step.complete ? "text-black/68" : index === activeIndex ? "text-brand" : "text-black/32"}`}>
+            {step.label}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Field({ label, htmlFor, children, dark = false }: { label: string; htmlFor: string; children: React.ReactNode; dark?: boolean }) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-black/70">
+      <label htmlFor={htmlFor} className={`text-sm font-medium ${dark ? "text-white/72" : "text-black/70"}`}>
         {label}
       </label>
       {children}

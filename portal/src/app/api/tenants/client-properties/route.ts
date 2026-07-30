@@ -5,7 +5,7 @@ import { logActivity } from "@/server/activity";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 
-export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "repo" | "template" | "tag";
+export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
 export type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived";
 export type ClientPropertyTagStatus = "planned" | "installed" | "missing" | "broken" | "not-needed";
 
@@ -22,6 +22,15 @@ export interface ClientProperty {
   redirectTarget?: string;
   tagStatus?: ClientPropertyTagStatus;
   notes?: string;
+  projectSlug?: string;
+  starterId?: string;
+  repositoryStatus?: "not-created" | "local" | "connected";
+  deploymentStatus?: "not-deployed" | "preview" | "production";
+  initialCommit?: string;
+  provisionedAt?: number;
+  vercelDeploymentId?: string;
+  deploymentReadyState?: string;
+  lastDeployedAt?: number;
   updatedAt: number;
 }
 
@@ -34,7 +43,7 @@ interface Body {
   propertyId?: string;
 }
 
-const KINDS: readonly ClientPropertyKind[] = ["website", "client-portal", "dev-portal", "repo", "template", "tag"];
+const KINDS: readonly ClientPropertyKind[] = ["website", "client-portal", "dev-portal", "software", "lead-magnet", "repo", "template", "tag"];
 const STATUSES: readonly ClientPropertyStatus[] = ["planning", "building", "review", "live", "redirected", "archived"];
 const TAG_STATUSES: readonly ClientPropertyTagStatus[] = ["planned", "installed", "missing", "broken", "not-needed"];
 
@@ -86,6 +95,15 @@ function cleanProperty(input: PropertyInput, existing?: ClientProperty): ClientP
     redirectTarget: mergedString(input, "redirectTarget", existing?.redirectTarget),
     tagStatus,
     notes: mergedString(input, "notes", existing?.notes),
+    projectSlug: mergedString(input, "projectSlug", existing?.projectSlug),
+    starterId: mergedString(input, "starterId", existing?.starterId),
+    repositoryStatus: input.repositoryStatus ?? existing?.repositoryStatus,
+    deploymentStatus: input.deploymentStatus ?? existing?.deploymentStatus,
+    initialCommit: mergedString(input, "initialCommit", existing?.initialCommit),
+    provisionedAt: typeof input.provisionedAt === "number" ? input.provisionedAt : existing?.provisionedAt,
+    vercelDeploymentId: mergedString(input, "vercelDeploymentId", existing?.vercelDeploymentId),
+    deploymentReadyState: mergedString(input, "deploymentReadyState", existing?.deploymentReadyState),
+    lastDeployedAt: typeof input.lastDeployedAt === "number" ? input.lastDeployedAt : existing?.lastDeployedAt,
     updatedAt: Date.now(),
   };
 }

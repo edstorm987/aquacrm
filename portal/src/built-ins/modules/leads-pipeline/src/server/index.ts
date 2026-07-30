@@ -2,8 +2,18 @@
 // adapter exports. Same shape as agency-hr / public-funnel.
 
 export { LeadService } from "./leads";
+export { ProspectService } from "./prospects";
 export { ContactService } from "./contacts";
 export { CampaignService, PLUGIN_ID } from "./campaigns";
+export { CommercialService } from "./commercial";
+export type {
+  CommercialPack,
+  CommercialPartyKind,
+  CommercialPayment,
+  CommercialPaymentMethod,
+  BillingCadence,
+  SaveCommercialPackInput,
+} from "../lib/domain";
 export { parseCsv, splitCsvLine, stripBom } from "./csv";
 export type { ParsedRow, ParseCsvResult } from "./csv";
 
@@ -56,8 +66,10 @@ import type {
   TenantPort,
 } from "./ports";
 import { LeadService } from "./leads";
+import { ProspectService } from "./prospects";
 import { ContactService } from "./contacts";
 import { CampaignService } from "./campaigns";
+import { CommercialService } from "./commercial";
 
 // ─── Container ────────────────────────────────────────────────────────────
 
@@ -73,12 +85,17 @@ export interface LeadsPipelineDeps {
 }
 
 export interface LeadsPipelineContainer {
+  prospects: ProspectService;
   leads: LeadService;
   contacts: ContactService;
   campaigns: CampaignService;
+  commercial: CommercialService;
 }
 
 export function buildLeadsPipelineContainer(deps: LeadsPipelineDeps): LeadsPipelineContainer {
+  const prospects = new ProspectService(
+    deps.agencyId, deps.storage, deps.activity, deps.events,
+  );
   const leads = new LeadService(
     deps.agencyId, deps.storage, deps.activity, deps.events, deps.pipeline,
   );
@@ -88,5 +105,8 @@ export function buildLeadsPipelineContainer(deps: LeadsPipelineDeps): LeadsPipel
   const campaigns = new CampaignService(
     deps.agencyId, deps.storage, deps.activity, deps.events, leads, deps.emailEnqueue,
   );
-  return { leads, contacts, campaigns };
+  const commercial = new CommercialService(
+    deps.agencyId, deps.storage, deps.activity, deps.events, deps.emailEnqueue,
+  );
+  return { prospects, leads, contacts, campaigns, commercial };
 }

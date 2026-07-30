@@ -43,6 +43,21 @@ export interface Agency {
   updatedAt: number;
 }
 
+export type TradingCompanyStatus = "active" | "paused" | "archived";
+
+export interface TradingCompany {
+  id: string;
+  agencyId: string;
+  name: string;
+  slug: string;
+  description?: string;
+  website?: string;
+  brand: BrandKit;
+  status: TradingCompanyStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // Phase-driven lifecycle. Stored as a string so future agency-customised
 // phases (Decisions log #2) can extend without a code change. The seven
 // defaults match the ones in `04-architecture.md §7` plus a "lead" entry
@@ -75,6 +90,7 @@ export interface ClientEndCustomerConfig {
 export interface Client {
   id: string;
   agencyId: string;
+  companyId?: string;
   name: string;
   slug: string;
   brand: BrandKit;
@@ -176,6 +192,7 @@ export interface ServerUser {
   // agency". Lead role carries `agencyIds: []` (global tenant).
   agencyIds: string[];
   agencyId: string;              // legacy mirror — = agencyIds[0] (or LEAD_AGENCY_ID for leads)
+  companyIds?: string[];          // empty/undefined = shared Milesymedia access
   clientId?: string;             // set for client-* roles + freelancer + end-customer
   mustChangePassword?: boolean;
   emailVerifiedAt?: number;       // R020: epoch ms when verification token redeemed
@@ -215,6 +232,9 @@ export interface SessionPayload {
   // (not by `/api/auth/login`). Surfaces a banner + POV toggle in the
   // portal chrome and isolates the demo agency from real tenants.
   isDemo?: boolean;
+  // Showcase Mode uses an isolated, hardcoded tenant during client calls.
+  // The signed return id restores the live workspace without exposing it.
+  showcaseReturnAgencyId?: string;
   // R021: session-rotation revision. When user.sessionRev > payload.sessionRev
   // the session is stale (role/password changed) and should be rejected on
   // user-aware paths (getCurrentUser / requireRole+lookup). Stateless verify
@@ -432,10 +452,456 @@ export interface Pipeline {
   updatedAt: number;
 }
 
+// ─── Milesymedia assistant ───────────────────────────────────────────────
+
+export interface AssistantMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: number;
+}
+
+export interface AssistantThread {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: AssistantMessage[];
+}
+
+export interface AssistantMemory {
+  id: string;
+  content: string;
+  createdAt: number;
+  sourceThreadId?: string;
+}
+
+export interface AssistantWorkspaceState {
+  agencyId: string;
+  userId: string;
+  threads: AssistantThread[];
+  memories: AssistantMemory[];
+  updatedAt: number;
+}
+
+// ─── Agency tasks ────────────────────────────────────────────────────────
+
+export type AgencyTaskStatus = "todo" | "in-progress" | "done";
+export type AgencyTaskPriority = "low" | "normal" | "high" | "urgent";
+export type AgencyTaskRecurrence = "none" | "daily" | "weekly" | "monthly";
+
+export interface AgencyTask {
+  id: string;
+  agencyId: string;
+  title: string;
+  notes?: string;
+  status: AgencyTaskStatus;
+  priority: AgencyTaskPriority;
+  startAt?: number;
+  dueAt?: number;
+  reminderAt?: number;
+  recurrence?: AgencyTaskRecurrence;
+  seriesId?: string;
+  assigneeUserId?: string;
+  sopIds?: string[];
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
+export interface SopDocument {
+  id: string;
+  agencyId: string;
+  title: string;
+  category?: string;
+  tags: string[];
+  kind: "written" | "file";
+  content?: string;
+  fileName?: string;
+  contentType?: string;
+  size?: number;
+  storageProvider?: "vercel-blob" | "local";
+  storageKey?: string;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type AgencyProductPricing = "fixed" | "from" | "recurring" | "custom";
+export type AgencyProductPortalRequirement = "required" | "optional" | "none";
+export type AgencyProductKind = "product" | "package";
+
+export interface AgencyProduct {
+  id: string;
+  agencyId: string;
+  companyIds?: string[];          // empty/undefined = shared offer
+  kind: AgencyProductKind;
+  name: string;
+  category: string;
+  description?: string;
+  buyerHeadline?: string;
+  coverImageUrl?: string;
+  accentColor?: string;
+  portalRequirement: AgencyProductPortalRequirement;
+  portalHeadline?: string;
+  portalWelcomeNote?: string;
+  includedProductIds: string[];
+  welcomePackItems: string[];
+  welcomePackNotes?: string;
+  pricing: AgencyProductPricing;
+  priceCents?: number;
+  billingInterval?: "month" | "quarter" | "year";
+  depositPercent?: number;
+  taxRatePercent?: number;
+  paymentTermsDays?: number;
+  billingNotes?: string;
+  internalInfo?: string;
+  deliverables: string[];
+  contractTitle?: string;
+  contractBody?: string;
+  sopIds: string[];
+  sopCategories: string[];
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type ClientMilestoneStatus = "not-started" | "in-progress" | "complete" | "blocked";
+
+export interface ClientMilestone {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  title: string;
+  description?: string;
+  status: ClientMilestoneStatus;
+  progress: number;
+  targetAt?: number;
+  metric?: "pageviews" | "visitors" | "conversions" | "search-clicks";
+  targetValue?: number;
+  currentValue?: number;
+  autoTrack?: boolean;
+  completedAt?: number;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type PerformanceExperimentStatus = "draft" | "running" | "complete" | "paused";
+
+export interface PerformanceExperimentVariant {
+  id: string;
+  name: string;
+  visitors: number;
+  conversions: number;
+}
+
+export interface PerformanceExperiment {
+  id: string;
+  agencyId: string;
+  clientId?: string;
+  propertyId?: string;
+  name: string;
+  hypothesis?: string;
+  primaryMetric: string;
+  status: PerformanceExperimentStatus;
+  variants: PerformanceExperimentVariant[];
+  startedAt?: number;
+  endedAt?: number;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type ClientDelightOccasion = "welcome" | "birthday" | "christmas" | "milestone" | "random" | "shock-and-awe" | "other";
+export type ClientDelightStatus = "idea" | "planned" | "ordered" | "sent" | "delivered" | "cancelled";
+
+export interface ClientDelightRecord {
+  id: string;
+  agencyId: string;
+  clientId?: string;
+  recipientName: string;
+  occasion: ClientDelightOccasion;
+  title: string;
+  status: ClientDelightStatus;
+  dueAt?: number;
+  budgetCents?: number;
+  costCents?: number;
+  supplier?: string;
+  trackingUrl?: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AgencyWorkspaceSettings {
+  agencyId: string;
+  legalName?: string;
+  supportEmail?: string;
+  phone?: string;
+  website?: string;
+  businessAddress?: string;
+  companyNumber?: string;
+  taxNumber?: string;
+  timezone: string;
+  defaultCurrency: string;
+  defaultTaxRatePercent: number;
+  defaultPaymentTermsDays: number;
+  invoicePrefix: string;
+  defaultClientStage: ClientStage;
+  createPortalByDefault: boolean;
+  portalAccessDays: number;
+  clientWelcomeMessage?: string;
+  notifications: {
+    overdueTasks: boolean;
+    outages: boolean;
+    supportRequests: boolean;
+    meetingReminders: boolean;
+    financeAlerts: boolean;
+    marketingAlerts: boolean;
+    digest: "off" | "daily" | "weekly";
+  };
+  updatedAt: number;
+}
+
+export type PortalFormEntity = "contacts" | "expenses" | "clients" | "leads" | "tasks" | "products";
+export type PortalFormFieldType = "text" | "textarea" | "number" | "date" | "url" | "email" | "select" | "multi-select" | "checkbox";
+export type PortalFormFieldValue = string | string[] | boolean;
+
+export interface PortalFormFieldDefinition {
+  id: string;
+  label: string;
+  type: PortalFormFieldType;
+  options: string[];
+  section: string;
+  required: boolean;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PortalFormEditorState {
+  agencyId: string;
+  forms: Partial<Record<PortalFormEntity, PortalFormFieldDefinition[]>>;
+  updatedAt: number;
+}
+
+export interface CompanyObjective {
+  id: string;
+  title: string;
+  metric: string;
+  currentValue: number;
+  targetValue: number;
+  unit: string;
+  dueAt?: number;
+  status: "on-track" | "at-risk" | "complete";
+}
+
+export interface CompanyPlan {
+  id: string;
+  title: string;
+  horizon: "now" | "next" | "later";
+  status: "idea" | "planned" | "active" | "complete" | "paused";
+  owner?: string;
+  notes?: string;
+}
+
+export interface CompanyQuarterlyReview {
+  id: string;
+  period: string;
+  wins: string;
+  lessons: string;
+  decisions: string;
+  nextPriorities: string;
+  updatedAt: number;
+}
+
+export interface CompanyProfile {
+  agencyId: string;
+  companyId?: string;
+  mission: string;
+  vision: string;
+  values: string[];
+  monthlyRevenueTargetCents: number;
+  averageDealValueCents: number;
+  salesCallCloseRatePercent: number;
+  annualRevenueTargetCents: number;
+  objectives: CompanyObjective[];
+  plans: CompanyPlan[];
+  reviews: CompanyQuarterlyReview[];
+  updatedAt: number;
+}
+
+export type LegalDocumentCategory = "contract" | "insurance" | "hmrc" | "letter" | "template" | "policy" | "company" | "other";
+export type LegalDocumentStatus = "draft" | "active" | "action-required" | "expired" | "archived";
+
+export interface LegalDocument {
+  id: string;
+  agencyId: string;
+  companyIds?: string[];          // empty/undefined = parent/shared legal record
+  title: string;
+  category: LegalDocumentCategory;
+  status: LegalDocumentStatus;
+  counterparty?: string;
+  reference?: string;
+  effectiveAt?: number;
+  expiresAt?: number;
+  reminderAt?: number;
+  notes?: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  storageProvider: "vercel-blob" | "local";
+  storageKey: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type DevelopmentResourceKind =
+  | "tool"
+  | "app"
+  | "design-inspiration"
+  | "saved-page"
+  | "template"
+  | "git-template"
+  | "component"
+  | "seo-tool"
+  | "canva-template"
+  | "inspiration-pack"
+  | "course"
+  | "knowledge"
+  | "credential"
+  | "sop";
+
+export type DevelopmentResourceVisibility = "team" | "private";
+
+export interface DevelopmentResourceFile {
+  fileName: string;
+  contentType: string;
+  size: number;
+  storageProvider: "vercel-blob" | "local";
+  storageKey: string;
+}
+
+export interface DevelopmentCredential {
+  loginUrl?: string;
+  username?: string;
+  encryptedPassword?: string;
+  passwordManagerUrl?: string;
+  accessRoles: Role[];
+  notes?: string;
+}
+
+export interface DevelopmentResource {
+  id: string;
+  agencyId: string;
+  companyIds?: string[];
+  kind: DevelopmentResourceKind;
+  title: string;
+  description?: string;
+  category?: string;
+  url?: string;
+  localPath?: string;
+  framework?: string;
+  codeSnippet?: string;
+  tags: string[];
+  workflowStageIds: string[];
+  sopIds: string[];
+  visibility: DevelopmentResourceVisibility;
+  file?: DevelopmentResourceFile;
+  credential?: DevelopmentCredential;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DevelopmentWorkflowStage {
+  id: string;
+  name: string;
+  description?: string;
+  order: number;
+}
+
+export interface DevelopmentWorkflow {
+  id: string;
+  agencyId: string;
+  name: string;
+  description?: string;
+  productCategory?: string;
+  stages: DevelopmentWorkflowStage[];
+  active: boolean;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type AgencyWebsiteReleaseStatus = "live" | "gated" | "maintenance";
+export type AgencyWebsitePageStatus = "live" | "updating";
+
+export interface AgencyWebsitePage {
+  route: string;
+  label: string;
+  status: AgencyWebsitePageStatus;
+  message?: string;
+  updatedAt: number;
+}
+
+export interface AgencyWebsiteTelemetryEvent {
+  id: string;
+  type: "pageview" | "performance" | "error" | "deployment" | "form" | "conversion" | "search" | "chatbot" | "interaction" | "heartbeat" | "custom";
+  receivedAt: number;
+  occurredAt: number;
+  propertyId?: string;
+  url?: string;
+  path?: string;
+  title?: string;
+  referrer?: string;
+  message?: string;
+  metric?: string;
+  value?: number;
+  release?: string;
+  environment?: string;
+  sessionId?: string;
+  formName?: string;
+  query?: string;
+  impressions?: number;
+  clicks?: number;
+  position?: number;
+  experimentId?: string;
+  variant?: string;
+  conversionValueCents?: number;
+  userAgent?: string;
+}
+
+export interface AgencyWebsiteProject {
+  agencyId: string;
+  name: string;
+  firstParty: true;
+  status: AgencyWebsiteReleaseStatus;
+  gateHeadline: string;
+  gateMessage: string;
+  maintenanceMessage: string;
+  productionUrl: string;
+  previewUrl: string;
+  repositoryUrl: string;
+  localPath: string;
+  pages: AgencyWebsitePage[];
+  telemetrySiteKey: string;
+  telemetryEvents: AgencyWebsiteTelemetryEvent[];
+  telemetryLastSeenAt?: number;
+  updatedBy?: string;
+  updatedAt: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export interface PortalState {
   agencies: Record<string, Agency>;
+  tradingCompanies: Record<string, TradingCompany>;
   clients: Record<string, Client>;
   endCustomers: Record<string, EndCustomer>;
   users: Record<string, ServerUser>;             // keyed by lower-cased email
@@ -447,4 +913,19 @@ export interface PortalState {
   // (legacy state lacks these fields); storage parser injects defaults.
   pipelines: Record<string, Pipeline>;
   pipelineCards: Record<string, PipelineCard>;
+  // `${agencyId}|${userId}` → private assistant history and memories.
+  assistant?: Record<string, AssistantWorkspaceState>;
+  tasks: Record<string, AgencyTask>;
+  sops: Record<string, SopDocument>;
+  agencyProducts: Record<string, AgencyProduct>;
+  clientMilestones: Record<string, ClientMilestone>;
+  performanceExperiments: Record<string, PerformanceExperiment>;
+  clientDelight: Record<string, ClientDelightRecord>;
+  agencySettings: Record<string, AgencyWorkspaceSettings>;
+  portalEditor: Record<string, PortalFormEditorState>;
+  companyProfiles: Record<string, CompanyProfile>;
+  legalDocuments: Record<string, LegalDocument>;
+  developmentResources: Record<string, DevelopmentResource>;
+  developmentWorkflows: Record<string, DevelopmentWorkflow>;
+  agencyWebsites: Record<string, AgencyWebsiteProject>;
 }

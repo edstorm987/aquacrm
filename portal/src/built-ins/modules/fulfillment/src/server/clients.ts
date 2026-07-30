@@ -73,6 +73,13 @@ export class ClientLifecycleService {
         `Run seedDefaultPhases() first.`,
       );
     }
+    const orderedPhases = (await this.phases.listForAgency(input.agencyId))
+      .sort((left, right) => left.order - right.order);
+    const startingStageIndex = orderedPhases.findIndex(candidate => candidate.id === phase.id);
+    const skippedStageCount = Math.max(0, startingStageIndex);
+    const lifecycleStartReason = typeof input.metadata?.lifecycleStartReason === "string"
+      ? input.metadata.lifecycleStartReason.trim().slice(0, 500)
+      : undefined;
 
     const client = await this.clients.createClient(input.agencyId, {
       name: input.name,
@@ -143,12 +150,17 @@ export class ClientLifecycleService {
       actorUserId: input.actor,
       category: "tenant",
       action: "client.created",
-      message: `Created ${client.name} in ${phase.label} phase.`,
+      message: skippedStageCount > 0
+        ? `Created ${client.name} directly in ${phase.label}, bypassing ${skippedStageCount} ${skippedStageCount === 1 ? "earlier stage" : "earlier stages"}.${lifecycleStartReason ? ` Reason: ${lifecycleStartReason}` : ""}`
+        : `Created ${client.name} in ${phase.label} phase.`,
       metadata: {
         phaseId: phase.id,
         stage: phase.stage,
         installedPlugins: installs.filter(i => i.ok).map(i => i.pluginId),
         failedPlugins: installs.filter(i => !i.ok).map(i => i.pluginId),
+        directLifecycleStart: skippedStageCount > 0,
+        skippedStageCount,
+        lifecycleStartReason,
       },
     });
 

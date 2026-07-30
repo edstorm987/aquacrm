@@ -4,26 +4,33 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
+  BookOpen,
+  ChartNoAxesCombined,
   CircleHelp,
   CreditCard,
   Files,
   FolderKanban,
   Home,
-  Library,
+  IdCard,
   Menu,
   Sparkles,
   X,
 } from "lucide-react";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { ProfileMenu } from "@/components/chrome/ProfileMenu";
+import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
+import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
+import { contrastRatio } from "@/lib/a11y/contrastValidator";
 
 const NAV = [
   { label: "Home", href: "/portal/customer", section: "home", icon: Home },
   { label: "Project", href: "/portal/customer/project", section: "project", icon: FolderKanban },
+  { label: "Results", href: "/portal/customer/results", section: "results", icon: ChartNoAxesCombined },
   { label: "Files", href: "/portal/customer/files", section: "files", icon: Files },
   { label: "Billing", href: "/portal/customer/billing", section: "billing", icon: CreditCard },
   { label: "Support", href: "/portal/customer/support", section: "support", icon: CircleHelp },
-  { label: "Resources", href: "/portal/customer/resources", section: "resources", icon: Library },
+  { label: "Resources", href: "/portal/customer/resources", section: "resources", icon: BookOpen },
+  { label: "Your details", href: "/portal/customer/details", section: "details", icon: IdCard },
 ];
 
 function NavItems({
@@ -31,11 +38,13 @@ function NavItems({
   close,
   previewHrefPrefix,
   activePreviewSection,
+  projectLabel,
 }: {
   pathname: string;
   close?: () => void;
   previewHrefPrefix?: string;
   activePreviewSection?: string;
+  projectLabel: string;
 }) {
   return (
     <nav aria-label="Client portal" className="grid gap-1">
@@ -54,14 +63,14 @@ function NavItems({
             onClick={close}
             aria-current={active ? "page" : undefined}
             className={[
-              "group flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition",
+              "group flex min-h-11 items-center gap-3 rounded-sm px-3 text-sm transition",
               active
-                ? "bg-[#1b1a18] text-white shadow-sm"
-                : "text-[#625e58] hover:bg-black/[0.045] hover:text-[#1b1a18]",
+                ? "bg-[#f4efe6] text-[#151310]"
+                : "text-white/58 hover:bg-white/[0.07] hover:text-white",
             ].join(" ")}
           >
             <Icon size={17} strokeWidth={1.65} aria-hidden="true" />
-            <span>{item.label}</span>
+            <span>{item.section === "project" ? projectLabel : item.label}</span>
           </Link>
         );
       })}
@@ -82,6 +91,9 @@ export function CustomerPortalChrome({
   hideAccountMenu = false,
   logoUrl,
   accentColor = "#8b6c33",
+  projectLabel = "Project",
+  providerName = "Milesymedia",
+  providerMark = "M",
 }: {
   children: ReactNode;
   clientName: string;
@@ -95,42 +107,56 @@ export function CustomerPortalChrome({
   hideAccountMenu?: boolean;
   logoUrl?: string;
   accentColor?: string;
+  projectLabel?: string;
+  providerName?: string;
+  providerMark?: string;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   const isPreview = Boolean(previewBackHref || hideAccountMenu);
+  const showLogo = Boolean(logoUrl) && !logoFailed;
+  const lightAccent = (contrastRatio(accentColor, "#f2f0eb") ?? 0) >= 4.5
+    ? accentColor
+    : "#765a2c";
+  const darkAccent = (contrastRatio(accentColor, "#131210") ?? 0) >= 4.5
+    ? accentColor
+    : "#c9a76a";
 
   return (
     <div
-      className="min-h-screen bg-[#f5f3ef] text-[#1b1a18]"
-      style={{ "--portal-accent": accentColor } as CSSProperties}
+      className="mm-customer-portal mm-portal-root h-dvh overflow-hidden bg-[#f2f0eb] text-[#171512]"
+      style={{ "--portal-accent": lightAccent, "--portal-accent-dark": darkAccent } as CSSProperties}
     >
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-black/10 bg-[#fbfaf8] px-4 py-5 md:flex">
-        <div className="flex min-h-14 items-center gap-3 border-b border-black/8 px-2 pb-5">
-          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white text-[var(--portal-accent)]">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt={`${clientName} logo`} className="h-full w-full object-contain p-1" />
-            ) : (
+      <aside className="mm-private-sidebar mm-customer-dark fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-white/8 bg-[#131210] px-5 py-6 text-white md:flex">
+        <div className="flex min-h-14 items-center gap-3 border-b border-white/10 px-1 pb-6">
+          <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] text-[var(--portal-accent)]">
+            {showLogo ? (
               <Sparkles size={16} strokeWidth={1.5} aria-hidden="true" />
+            ) : (
+              <span className="font-serif text-base" aria-hidden="true">{providerMark}</span>
             )}
+            {showLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="" onError={() => setLogoFailed(true)} className="absolute inset-0 h-full w-full bg-[#131210] object-contain p-1" />
+            ) : null}
           </span>
           <div className="min-w-0">
-            <p className="truncate font-serif text-lg leading-none">Milesymedia</p>
-            <p className="mt-1 truncate text-[10px] uppercase tracking-[0.18em] text-black/40">Client concierge</p>
+            <p className="truncate font-serif text-xl leading-none text-[#f7f2e9]">{providerName}</p>
+            <p className="mt-1.5 truncate text-[10px] uppercase tracking-[0.18em] text-white/38">Private client service</p>
           </div>
         </div>
 
-        <div className="px-2 py-6">
-          <p className="truncate text-[11px] uppercase tracking-[0.16em] text-black/38">Your workspace</p>
-          <p className="mt-1 truncate text-sm font-medium">{clientName}</p>
+        <div className="px-2 py-7">
+          <p className="truncate text-[10px] uppercase tracking-[0.16em] text-white/35">Prepared for</p>
+          <p className="mt-2 truncate font-serif text-lg text-[#f7f2e9]">{clientName}</p>
         </div>
 
-        <NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} />
+        <NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} />
 
-        <div className="mt-auto rounded-md border border-black/8 bg-white px-3 py-3">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-black/40">Project status</p>
-          <div className="mt-2 flex items-center gap-2 text-xs font-medium">
+        <div className="mt-auto border-t border-white/10 px-2 pt-5">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">Current stage</p>
+          <div className="mt-2 flex items-center gap-2 text-xs font-medium text-white/78">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
             {modeLabel}
           </div>
@@ -145,45 +171,52 @@ export function CustomerPortalChrome({
             className="absolute inset-0 bg-black/35 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="relative flex h-full w-[82vw] max-w-xs flex-col bg-[#fbfaf8] p-4 shadow-2xl">
-            <div className="mb-6 flex items-center justify-between border-b border-black/8 px-2 pb-4">
+          <aside className="mm-private-sidebar mm-customer-dark relative flex h-full w-[84vw] max-w-xs flex-col bg-[#131210] p-5 text-white shadow-2xl">
+            <div className="mb-6 flex items-center justify-between border-b border-white/10 px-1 pb-5">
               <div className="flex min-w-0 items-center gap-3">
-                {logoUrl ? (
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white">
+                <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] text-[var(--portal-accent)]">
+                  {showLogo ? (
+                    <Sparkles size={15} strokeWidth={1.5} aria-hidden="true" />
+                  ) : (
+                    <span className="font-serif text-sm" aria-hidden="true">{providerMark}</span>
+                  )}
+                  {showLogo ? (
+                    <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={logoUrl} alt={`${clientName} logo`} className="h-full w-full object-contain p-1" />
-                  </span>
-                ) : null}
+                    <img src={logoUrl} alt="" onError={() => setLogoFailed(true)} className="absolute inset-0 h-full w-full bg-[#131210] object-contain p-1" />
+                    </>
+                  ) : null}
+                </span>
                 <div className="min-w-0">
-                  <p className="font-serif text-xl">Milesymedia</p>
-                  <p className="truncate text-[10px] uppercase tracking-[0.16em] text-black/40">{clientName}</p>
+                  <p className="truncate font-serif text-xl text-[#f7f2e9]">{providerName}</p>
+                  <p className="truncate text-[10px] uppercase tracking-[0.16em] text-white/38">{clientName}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close navigation"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-white"
               >
                 <X size={18} aria-hidden="true" />
               </button>
             </div>
-            <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} />
+            <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} />
           </aside>
         </div>
       )}
 
-      <div className="md:pl-64">
+      <div className="flex h-dvh min-h-0 flex-col overflow-hidden md:pl-72">
         {previewBackHref && (
-          <div className="flex min-h-10 items-center justify-between bg-[#1b1a18] px-4 text-white sm:px-6 lg:px-10">
+          <div className="flex min-h-10 items-center justify-between border-b border-white/10 bg-[#131210] px-4 text-white sm:px-6 lg:px-10">
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/55">Agency preview · customers do not see this bar</p>
             <Link href={previewBackHref} className="inline-flex items-center gap-1.5 text-xs font-medium text-white/80 hover:text-white">
               <ArrowLeft size={13} aria-hidden="true" />
-              Back to fulfilment
+              Back to client work
             </Link>
           </div>
         )}
-        <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between border-b border-black/8 bg-[#f5f3ef]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-10">
+        <header className="z-20 flex min-h-[68px] shrink-0 items-center justify-between border-b border-black/8 bg-[#f2f0eb]/92 px-4 backdrop-blur-xl sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -193,26 +226,30 @@ export function CustomerPortalChrome({
             >
               <Menu size={18} aria-hidden="true" />
             </button>
-            <div className="min-w-0">
-              <p className="truncate text-[10px] uppercase tracking-[0.16em] text-black/40">Milesymedia for</p>
-              <p className="truncate text-sm font-medium">{clientName}</p>
+            <div className="mm-private-chrome min-w-0">
+              <p className="truncate text-[10px] uppercase tracking-[0.16em] text-black/38">Private client home</p>
+              <p className="mt-0.5 truncate text-sm font-medium">{clientName}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <ColorModeToggle />
+            <PrivacyModeControl canEnterShowcase={false} sensitiveTerms={[clientName, email, name ?? ""]} />
             {!isPreview && (
               <Link
                 href={previewHrefPrefix ? `${previewHrefPrefix}support` : "/portal/customer/support"}
-                className="hidden min-h-9 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-xs font-medium text-black/65 transition hover:border-black/20 hover:text-black sm:inline-flex"
+                className="mm-private-chrome hidden min-h-9 items-center gap-2 rounded-full border border-black/10 bg-white px-4 text-xs font-medium text-black/65 transition hover:border-black/20 hover:text-black sm:inline-flex"
               >
                 <CircleHelp size={15} aria-hidden="true" />
                 Get support
               </Link>
             )}
-            {!hideAccountMenu && !previewBackHref && <ProfileMenu email={email} role="end-customer" name={name} avatarUrl={avatarUrl} />}
+            {!hideAccountMenu && !previewBackHref && <div className="mm-private-chrome"><ProfileMenu email={email} role="end-customer" name={name} avatarUrl={avatarUrl} accountLabel={`${providerName} account`} /></div>}
           </div>
         </header>
-        <main id="main-content" className="mx-auto w-full max-w-[1440px] px-4 py-7 sm:px-6 lg:px-10 lg:py-10">
-          {children}
+        <main id="main-content" className="mm-private-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="mx-auto w-full max-w-[1360px] px-4 py-8 sm:px-7 lg:px-12 lg:py-12">
+            {children}
+          </div>
         </main>
       </div>
     </div>

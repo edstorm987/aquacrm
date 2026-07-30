@@ -6,7 +6,6 @@ export {
   BOS_PATH_PREFIXES,
   BOS_SOFT_ALLOW_SUFFIXES,
   DEFAULT_LOGIN_PATH,
-  DEV_BYPASS_BANNER,
 } from "../lib/domain";
 export type {
   ActivityLogPort, EventBusPort, FunnelMePort, GateEventName,

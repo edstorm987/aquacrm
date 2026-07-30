@@ -44,6 +44,9 @@ export default async function AgencyPluginCatchAll({ params, searchParams }: Rou
     if (rest[1] === "marketplace") redirect("/portal/agency/settings");
     if (rest[1] === "phases") redirect("/portal/agency/phases");
   }
+  if (rest[0] === "leads-pipeline" && rest[1] === "campaigns") {
+    redirect("/portal/agency/marketing");
+  }
 
   const resolved = resolveAgencyPluginPage({ agencyId: session.agencyId, rest });
   if (!resolved) {
@@ -114,7 +117,9 @@ export default async function AgencyPluginCatchAll({ params, searchParams }: Rou
   };
   return (
     <ErrorBoundary label={`${install.pluginId}${page.path ? `/${page.path}` : ""}`}>
-      <Component {...props} />
+      <div className="plugin-page-shell" data-plugin-id={install.pluginId}>
+        <Component {...props} />
+      </div>
     </ErrorBoundary>
   );
 }

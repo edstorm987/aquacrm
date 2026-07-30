@@ -58,6 +58,7 @@ export function PhaseTransitionButton({
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -103,7 +104,12 @@ export function PhaseTransitionButton({
       const res = await fetch("/api/portal/fulfillment/phase/advance", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ clientId, fromPhaseId: current.id, toPhaseId: target.id }),
+        body: JSON.stringify({
+          clientId,
+          fromPhaseId: current.id,
+          toPhaseId: target.id,
+          reason: reason.trim() || undefined,
+        }),
       });
       const data = await res.json() as { ok: boolean; error?: string };
       if (!data.ok) {
@@ -111,6 +117,7 @@ export function PhaseTransitionButton({
         return;
       }
       setTarget(null);
+      setReason("");
       startTransition(() => router.refresh());
     } finally {
       setBusy(false);
@@ -123,6 +130,10 @@ export function PhaseTransitionButton({
 
   const delta = target ? diff(current, target) : null;
   const direction = target ? (target.order > current.order ? "Advance" : "Regress") : "";
+  const targetIdx = target ? phases.findIndex(phase => phase.id === target.id) : -1;
+  const jumpDistance = targetIdx >= 0 ? Math.abs(targetIdx - currentIdx) : 0;
+  const isDirectJump = jumpDistance > 1;
+  const skippedCount = Math.max(0, jumpDistance - 1);
 
   return (
     <div data-testid="phase-transition-button" className="relative inline-flex items-center gap-1">
@@ -142,9 +153,9 @@ export function PhaseTransitionButton({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         disabled={busy}
-        className="rounded-md border border-black/15 px-2 py-1 text-xs hover:bg-black/5 disabled:opacity-50"
+        className="rounded-md border border-black/15 px-3 py-1 text-xs font-medium hover:bg-black/5 disabled:opacity-50"
       >
-        ▾
+        Change stage
       </button>
       {menuOpen && (
         <div
@@ -161,8 +172,8 @@ export function PhaseTransitionButton({
               ← Regress to {displayLabel(prev)}
             </button>
           )}
-          <div className="mt-1 border-t border-black/10 pt-1">
-            <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-black/45">Skip to</div>
+          <div className={prev ? "mt-1 border-t border-black/10 pt-1" : ""}>
+            <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-black/45">Move directly to</div>
             {phases.filter(p => p.stage !== currentStage).map(p => (
               <button
                 key={p.id}
@@ -184,25 +195,57 @@ export function PhaseTransitionButton({
           aria-modal="true"
           aria-labelledby="phase-transition-title"
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6"
-          onClick={e => { if (e.target === e.currentTarget && !busy) setTarget(null); }}
+          onClick={e => {
+            if (e.target === e.currentTarget && !busy) {
+              setTarget(null);
+              setReason("");
+            }
+          }}
         >
           <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
             <header className="flex items-baseline justify-between border-b border-black/10 px-5 py-4">
               <h2 id="phase-transition-title" className="text-lg font-semibold text-black/90">
-                {direction}: {displayLabel(current)} → {displayLabel(target)}
+                {isDirectJump ? "Jump stage" : direction}: {displayLabel(current)} → {displayLabel(target)}
               </h2>
               <button
                 type="button"
-                onClick={() => { if (!busy) setTarget(null); }}
+                onClick={() => {
+                  if (!busy) {
+                    setTarget(null);
+                    setReason("");
+                  }
+                }}
                 className="text-xs text-black/55 hover:text-black/90"
               >
                 Close
               </button>
             </header>
             <div className="flex flex-col gap-4 px-5 py-4 text-sm">
-              <p className="text-xs text-black/55">
-                Moving stage updates the recommended systems for this client and records the change in activity.
-              </p>
+              {isDirectJump ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-xs text-blue-900">
+                  <p className="font-semibold">
+                    This moves the client directly to {displayLabel(target)}.
+                  </p>
+                  <p className="mt-1 text-blue-800">
+                    {skippedCount} {skippedCount === 1 ? "stage" : "stages"} will be bypassed. Their checklists will stay incomplete, so the record remains honest.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-black/55">
+                  Moving stage updates the client workspace and records the change in activity.
+                </p>
+              )}
+              <label className="grid gap-1.5 text-xs font-medium text-black/70">
+                Reason <span className="font-normal text-black/40">(optional)</span>
+                <textarea
+                  value={reason}
+                  onChange={event => setReason(event.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  placeholder={isDirectJump ? "For example: Friend project; website already built." : "Add context for the team."}
+                  className="w-full resize-none rounded-md border border-black/15 bg-white px-3 py-2 text-sm font-normal text-black/85 outline-none placeholder:text-black/35 focus:border-black/35"
+                />
+              </label>
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
                   Will add / turn on ({delta.toInstall.length})
@@ -237,7 +280,7 @@ export function PhaseTransitionButton({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => { if (!busy) setTarget(null); }}
+                onClick={() => { if (!busy) { setTarget(null); setReason(""); } }}
                 className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 disabled:opacity-50"
               >
                 Cancel
@@ -248,7 +291,7 @@ export function PhaseTransitionButton({
                 disabled={busy}
                 className="rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50"
               >
-                {busy ? "Transitioning…" : `Confirm ${direction.toLowerCase()}`}
+                {busy ? "Moving…" : isDirectJump ? `Move directly to ${displayLabel(target)}` : `Confirm ${direction.toLowerCase()}`}
               </button>
             </footer>
           </div>

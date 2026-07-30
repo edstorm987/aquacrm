@@ -1,6 +1,6 @@
 // `@aqua/plugin-agency-finance` — invoices, expenses, revenue
 // dashboard. Agency-internal companion to agency-HR.
-// `scopePolicy: "agency"`, `core: false`, opt-in.
+// `scopePolicy: "agency"`, always available as a Milesymedia built-in.
 
 import type {
   AquaPlugin,
@@ -27,7 +27,7 @@ const manifest: AquaPlugin = {
     "Manual workflow in v1; Stripe Invoice sync and PDF export are deferred " +
     "to a future round.",
 
-  core: false,
+  core: true,
   scopePolicy: "agency",
 
   navItems: [
@@ -57,7 +57,7 @@ const manifest: AquaPlugin = {
     },
     {
       id: "agency-finance.payments",
-      label: "Payments",
+      label: "Income",
       href: "/portal/agency/agency-finance/payments",
       panelId: "agency-finance",
       order: 35,
@@ -73,7 +73,7 @@ const manifest: AquaPlugin = {
     },
     {
       id: "agency-finance.lock-in",
-      label: "Lock-in",
+      label: "Deposits",
       href: "/portal/agency/agency-finance/lock-in",
       panelId: "agency-finance",
       order: 45,
@@ -81,7 +81,7 @@ const manifest: AquaPlugin = {
     },
     {
       id: "agency-finance.founder",
-      label: "Founder dashboard",
+      label: "Finance overview",
       href: "/portal/agency/agency-finance/founder",
       panelId: "agency-finance",
       order: 50,
@@ -141,6 +141,13 @@ const manifest: AquaPlugin = {
             label: "Agency tax ID (e.g. VAT/EIN)",
             type: "text",
             placeholder: "GB123456789",
+          },
+          {
+            id: "taxReserveRate",
+            label: "Indicative tax reserve (%)",
+            type: "number",
+            default: 20,
+            helpText: "Planning reserve only. Your accountant should confirm the appropriate rate.",
           },
         ],
       },

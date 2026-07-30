@@ -21,6 +21,7 @@ export interface InvoiceLineItem {
 export interface Invoice {
   id: string;
   agencyId: AgencyId;
+  companyId?: string;
   clientId: ClientId;                  // billed to a client
   number: string;                      // human-readable, e.g. "INV-2026-0042"
   issuedAt: number;                    // epoch ms — when invoice issued
@@ -41,6 +42,7 @@ export interface Invoice {
 
 export interface CreateInvoiceInput {
   clientId: ClientId;
+  companyId?: string;
   issuedAt?: number;
   dueAt: number;
   lineItems: Array<{ description: string; quantity: number; unitCents: number }>;
@@ -59,49 +61,118 @@ export interface UpdateInvoicePatch {
   paidVia?: Invoice["paidVia"];
 }
 
+export interface InvoiceTemplate {
+  name: string;
+  accentColor: string;
+  documentTitle: string;
+  businessDetails?: string;
+  paymentDetails?: string;
+  footerText?: string;
+  letterheadDataUrl?: string;
+  updatedAt: number;
+}
+
+export type UpdateInvoiceTemplateInput = Omit<InvoiceTemplate, "updatedAt">;
+
 // ─── Expense ─────────────────────────────────────────────────────────────
 
 export type ExpenseStatus = "pending" | "approved" | "reimbursed" | "rejected";
+export type ExpenseRecurrence = "monthly" | "quarterly" | "annual";
+
+export interface ExpenseAttachment {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  contentType: string;
+  storageProvider: "vercel-blob" | "local";
+  storageKey: string;
+  uploadedAt: number;
+}
 
 export interface Expense {
   id: string;
   agencyId: AgencyId;
+  clientId?: ClientId;                 // optional direct cost allocation
   staffId?: string;                    // optional foundation User id (or agency-HR Staff id)
   categoryId: string;
   vendor?: string;
   description?: string;
+  reason?: string;
   amountCents: number;
+  netCents?: number;                   // amount before recoverable tax
+  taxCents?: number;                   // VAT / sales tax included in amount
+  taxRateBps?: number;                 // basis points: 2000 = 20%
+  taxDeductible?: boolean;
+  businessUsePercent?: number;         // 0-100 for mixed-use costs
+  billableToClient?: boolean;
   currency: Currency;
   incurredAt: number;                  // epoch ms — when the expense happened
   status: ExpenseStatus;
   receiptUrl?: string;                 // stored on plugin storage
+  attachments?: ExpenseAttachment[];
+  paymentMethod?: "bank-transfer" | "card" | "cash" | "direct-debit" | "other";
+  reference?: string;
+  recurrence?: ExpenseRecurrence;
+  nextDueAt?: number;
+  recurringActive?: boolean;
   approvedBy?: UserId;
   approvedAt?: number;
   reimbursedAt?: number;
   decisionNote?: string;               // approval / rejection reason
+  customFields?: Record<string, string | string[] | boolean>;
   createdAt: number;
   updatedAt: number;
 }
 
 export interface CreateExpenseInput {
+  clientId?: ClientId;
   staffId?: string;
   categoryId: string;
   vendor?: string;
   description?: string;
+  reason?: string;
   amountCents: number;
+  taxCents?: number;
+  taxRateBps?: number;
+  taxDeductible?: boolean;
+  businessUsePercent?: number;
+  billableToClient?: boolean;
   currency?: Currency;
   incurredAt?: number;
   receiptUrl?: string;
+  attachments?: ExpenseAttachment[];
+  paymentMethod?: Expense["paymentMethod"];
+  reference?: string;
+  recurrence?: ExpenseRecurrence;
+  nextDueAt?: number;
+  recurringActive?: boolean;
+  recordAsPaid?: boolean;
+  customFields?: Record<string, string | string[] | boolean>;
 }
 
 export interface UpdateExpensePatch {
+  clientId?: ClientId;
   staffId?: string;
   categoryId?: string;
   vendor?: string;
   description?: string;
+  reason?: string;
   amountCents?: number;
+  taxCents?: number;
+  taxRateBps?: number;
+  taxDeductible?: boolean;
+  businessUsePercent?: number;
+  billableToClient?: boolean;
   incurredAt?: number;
   receiptUrl?: string;
+  attachments?: ExpenseAttachment[];
+  paymentMethod?: Expense["paymentMethod"];
+  reference?: string;
+  recurrence?: ExpenseRecurrence;
+  nextDueAt?: number;
+  recurringActive?: boolean;
+  customFields?: Record<string, string | string[] | boolean>;
 }
 
 // ─── ExpenseCategory ─────────────────────────────────────────────────────
@@ -142,6 +213,7 @@ export interface InvoiceFilter {
 
 export interface ExpenseFilter {
   status?: ExpenseStatus;
+  clientId?: ClientId;
   categoryId?: string;
   staffId?: string;
   fromIncurredAt?: number;
@@ -194,6 +266,44 @@ export interface CreatePaymentInput {
   paidAt?: number;            // defaults to now()
   notes?: string;
   externalRef?: string;
+}
+
+export interface IncomeEntry {
+  id: string;
+  agencyId: AgencyId;
+  clientId?: ClientId;
+  title: string;
+  category?: string;
+  description?: string;
+  amountCents: number;
+  currency: Currency;
+  method: PaymentMethod;
+  receivedAt: number;
+  reference?: string;
+  notes?: string;
+  createdBy: UserId;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateIncomeEntryInput {
+  clientId?: ClientId;
+  title: string;
+  category?: string;
+  description?: string;
+  amountCents: number;
+  currency?: Currency;
+  method: PaymentMethod;
+  receivedAt?: number;
+  reference?: string;
+  notes?: string;
+}
+
+export interface IncomeEntryFilter {
+  clientId?: ClientId;
+  method?: PaymentMethod;
+  fromReceivedAt?: number;
+  toReceivedAt?: number;
 }
 
 export type PlanTier = "starter" | "growth" | "scale" | "custom";

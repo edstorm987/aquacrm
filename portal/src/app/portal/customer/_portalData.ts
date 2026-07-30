@@ -10,6 +10,7 @@ import type { ClientRequest } from "@/app/api/tenants/client-requests/route";
 import type { ClientContract } from "@/lib/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
+import { cleanPortalProducts, type PortalProductSelection } from "@/lib/portalProducts";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -47,6 +48,27 @@ export interface CustomerInvoice {
   paidAt?: number;
 }
 
+export interface CustomerRecordNote {
+  label: string;
+  value: string;
+}
+
+export interface CustomerRecordLink {
+  label: string;
+  url: string;
+  kind: "recording" | "meeting" | "inspiration";
+}
+
+export interface CustomerRecord {
+  email?: string;
+  phone?: string;
+  source?: string;
+  capturedAt?: number;
+  nextMeetingAt?: number;
+  notes: CustomerRecordNote[];
+  links: CustomerRecordLink[];
+}
+
 export interface CustomerPortalData {
   mode: CustomerPortalMode;
   contactName: string;
@@ -54,7 +76,10 @@ export interface CustomerPortalData {
   planSummary?: string;
   planIncludes: string[];
   billingCadence: string;
+  agreedProjectValue?: string;
   welcomeNote?: string;
+  products: PortalProductSelection[];
+  experienceHeadline?: string;
   logoUrl?: string;
   accentColor: string;
   builtAt?: number;
@@ -68,6 +93,7 @@ export interface CustomerPortalData {
   brief: CustomerProjectBrief;
   approvals: ClientApproval[];
   invoices: CustomerInvoice[];
+  record: CustomerRecord;
   support: {
     email?: string;
     phone?: string;
@@ -122,7 +148,7 @@ function customerActivityMessage(
   const invoiceNumber = invoiceNumberById.get(invoiceId);
 
   if (item.action === "customer_brief.updated") return "Your project brief was updated.";
-  if (item.action === "customer_portal.built") return "Your Milesymedia portal was prepared.";
+  if (item.action === "customer_portal.built") return "Your private client portal was prepared.";
   if (item.action.startsWith("client_file.") && item.action !== "client_file.removed") {
     return "A new item was added to your project files.";
   }
@@ -159,7 +185,10 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     portalPlanSummary?: string;
     portalPlanIncludes?: string[];
     portalBillingCadence?: string;
+    agreedProjectValue?: string;
     portalWelcomeNote?: string;
+    portalProducts?: PortalProductSelection[];
+    portalExperienceHeadline?: string;
     portalBuiltAt?: number;
     planTier?: string;
     stripeLink?: string;
@@ -177,6 +206,38 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     portalLogoUrl?: string;
     portalAccentColor?: string;
     portalLoginEmail?: string;
+    clientEmail?: string;
+    phone?: string;
+    contactPhone?: string;
+    source?: string;
+    capturedAt?: number;
+    notes?: string;
+    nextMeetingAt?: number;
+    meetingLink?: string;
+    meetingNotes?: string;
+    callRecordingUrl?: string;
+    sessionNotes?: string;
+    inspirationLinks?: string[];
+    potentialProblems?: string;
+    potentialSolutions?: string;
+    pricePoints?: string;
+    budgetRange?: string;
+    designFeedback?: string;
+    supportNotes?: string;
+    buyingJourney?: {
+      source?: string;
+      capturedAt?: number;
+      meetingAt?: number;
+      meetingLink?: string;
+      callRecordingUrl?: string;
+      sessionNotes?: string;
+      inspirationLinks?: string[];
+      potentialProblems?: string;
+      potentialSolutions?: string;
+      pricePoints?: string;
+      budgetRange?: string;
+      notes?: string;
+    };
   };
 
   let invoices: Invoice[] = [];
@@ -308,6 +369,43 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     status: invoice.status,
     paidAt: invoice.paidAt,
   }));
+  const depositPaid = meta.lockInPaid === true || safeInvoices.some(invoice =>
+    invoice.status === "paid"
+    && invoice.lineItems.some(item => /\b(deposit|lock[\s-]?in)\b/i.test(item.description)),
+  );
+  const noteCandidates: Array<[string, unknown]> = [
+    ["Session notes", meta.sessionNotes ?? meta.buyingJourney?.sessionNotes],
+    ["Meeting notes", meta.meetingNotes],
+    ["Additional notes", meta.notes ?? meta.buyingJourney?.notes],
+    ["Problems discussed", meta.potentialProblems ?? meta.buyingJourney?.potentialProblems],
+    ["Potential solutions", meta.potentialSolutions ?? meta.buyingJourney?.potentialSolutions],
+    ["Budget discussed", meta.budgetRange ?? meta.buyingJourney?.budgetRange],
+    ["Price points discussed", meta.pricePoints ?? meta.buyingJourney?.pricePoints],
+    ["Design feedback", meta.designFeedback],
+    ["Support notes", meta.supportNotes],
+  ];
+  const seenNotes = new Set<string>();
+  const recordNotes: CustomerRecordNote[] = noteCandidates.flatMap(([label, value]) => {
+    if (typeof value !== "string" || !value.trim()) return [];
+    const clean = value.trim();
+    if (seenNotes.has(clean)) return [];
+    seenNotes.add(clean);
+    return [{ label, value: clean }];
+  });
+  const linkCandidates: Array<[string, unknown, CustomerRecordLink["kind"]]> = [
+    ["Discovery call recording", meta.callRecordingUrl ?? meta.buyingJourney?.callRecordingUrl, "recording"],
+    ["Next meeting", meta.meetingLink ?? meta.buyingJourney?.meetingLink, "meeting"],
+    ...(meta.inspirationLinks ?? meta.buyingJourney?.inspirationLinks ?? []).map((url, index) =>
+      [`Inspiration ${index + 1}`, url, "inspiration"] as [string, unknown, CustomerRecordLink["kind"]]
+    ),
+  ];
+  const seenLinks = new Set<string>();
+  const recordLinks: CustomerRecordLink[] = linkCandidates.flatMap(([label, value, kind]) => {
+    const url = supportUrl(value);
+    if (!url || seenLinks.has(url)) return [];
+    seenLinks.add(url);
+    return [{ label, url, kind }];
+  });
 
   return {
     mode: portalMode(meta.portalMode),
@@ -321,15 +419,18 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
           .slice(0, 12)
       : [],
     billingCadence: meta.portalBillingCadence?.trim() || "As agreed",
+    agreedProjectValue: meta.agreedProjectValue?.trim() || undefined,
     welcomeNote: meta.portalWelcomeNote?.trim() || undefined,
+    products: cleanPortalProducts(meta.portalProducts),
+    experienceHeadline: meta.portalExperienceHeadline?.trim() || undefined,
     logoUrl: supportUrl(meta.portalLogoUrl),
     accentColor: /^#[0-9a-f]{6}$/i.test(meta.portalAccentColor ?? "")
       ? meta.portalAccentColor!
       : "#8b6c33",
     builtAt: meta.portalBuiltAt,
-    websiteUrl: client.websiteUrl,
+    websiteUrl: supportUrl(client.websiteUrl),
     billingUrl: supportUrl(meta.stripeLink),
-    lockInPaid: meta.lockInPaid === true,
+    lockInPaid: depositPaid,
     files: safeFiles,
     properties: safeProperties,
     requests: safeRequests,
@@ -337,18 +438,28 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     brief: safeBrief,
     approvals: safeApprovals,
     invoices: safeInvoices,
+    record: {
+      email: meta.portalLoginEmail?.trim() || meta.clientEmail?.trim() || client.ownerEmail?.trim() || undefined,
+      phone: meta.phone?.trim() || meta.contactPhone?.trim() || undefined,
+      source: meta.source?.trim() || meta.buyingJourney?.source?.trim() || undefined,
+      capturedAt: typeof meta.capturedAt === "number" ? meta.capturedAt : meta.buyingJourney?.capturedAt,
+      nextMeetingAt: typeof meta.nextMeetingAt === "number" ? meta.nextMeetingAt : meta.buyingJourney?.meetingAt,
+      notes: recordNotes,
+      links: recordLinks,
+    },
     support: {
       email: meta.portalSupportEmail?.trim()
         || process.env.MILESYMEDIA_SUPPORT_EMAIL?.trim()
         || process.env.MILESYMEDIA_REPLY_TO?.trim()
         || process.env.MILESYMEDIA_FROM_EMAIL?.trim()
-        || undefined,
+        || "hello@milesymedia.co",
       phone: meta.portalSupportPhone?.trim()
         || process.env.MILESYMEDIA_SUPPORT_PHONE?.trim()
-        || undefined,
+        || "+44 7707 020250",
       whatsappUrl: supportUrl(meta.portalSupportWhatsappUrl)
         || supportUrl(meta.whatsappLink)
-        || supportUrl(process.env.MILESYMEDIA_SUPPORT_WHATSAPP_URL),
+        || supportUrl(process.env.MILESYMEDIA_SUPPORT_WHATSAPP_URL)
+        || "https://wa.me/447707020250",
     },
     activity,
   };

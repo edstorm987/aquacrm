@@ -9,6 +9,7 @@
 // with the end-customer's parent client's brand.
 
 import type { BrandKit } from "@/server/types";
+import { contrastRatio } from "@/lib/a11y/contrastValidator";
 
 export interface BrandCssVars {
   // Map of CSS-variable name → value. Used by ThemeInjector to render
@@ -18,8 +19,11 @@ export interface BrandCssVars {
 }
 
 export function brandToCss(brand: BrandKit): BrandCssVars {
+  const whiteRatio = contrastRatio("#FFFFFF", brand.primaryColor) ?? 0;
+  const blackRatio = contrastRatio("#111111", brand.primaryColor) ?? 0;
   const vars: Record<string, string> = {
     "--brand-primary": brand.primaryColor,
+    "--brand-on-primary": whiteRatio >= 4.5 || whiteRatio >= blackRatio ? "#FFFFFF" : "#111111",
   };
   if (brand.secondaryColor) vars["--brand-secondary"] = brand.secondaryColor;
   if (brand.accentColor) vars["--brand-accent"] = brand.accentColor;

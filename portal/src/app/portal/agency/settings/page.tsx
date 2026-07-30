@@ -11,8 +11,10 @@ import { getUserById, listUsersForAgency } from "@/server/users";
 import { listPhasesForAgency } from "@/server/phases";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
+import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { SettingsTabs } from "./SettingsTabs";
 import type { Role } from "@/server/types";
+import { listTradingCompanies } from "@/server/tradingCompanies";
 
 type AgencyTeamRole = Extract<Role, "agency-owner" | "agency-manager" | "agency-staff">;
 
@@ -62,6 +64,11 @@ export default async function AgencySettingsPage() {
       activeClientCount: activeClients.length,
       billingConfiguredClientCount,
     }),
+    settings: getAgencyWorkspaceSettings(agency.id),
+    canManageSettings: session.role === "agency-owner" || session.role === "agency-manager",
+    isShowcase: Boolean(session.showcaseReturnAgencyId),
+    tradingCompanies: listTradingCompanies(agency.id).map(company => ({ id: company.id, name: company.name })),
+    clients: clients.map(client => ({ id: client.id, name: client.name })),
     team: listUsersForAgency(agency.id)
       .filter((teamUser): teamUser is typeof teamUser & { role: AgencyTeamRole } => isAgencyTeamRole(teamUser.role))
       .map(teamUser => ({
@@ -70,6 +77,7 @@ export default async function AgencySettingsPage() {
         email: teamUser.email,
         username: teamUser.username,
         role: teamUser.role,
+        companyIds: teamUser.companyIds ?? [],
       })),
   };
 

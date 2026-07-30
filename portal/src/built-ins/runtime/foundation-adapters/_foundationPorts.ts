@@ -10,7 +10,7 @@ import "server-only";
 // ActivityLogPort / EventBusPort / TenantPort / etc. interfaces; we
 // match structurally.
 
-import { getClient, getClientForAgency } from "@/server/tenants";
+import { getAgency, getClient, getClientForAgency, listClients } from "@/server/tenants";
 import { logActivity, listActivity } from "@/server/activity";
 import { emit } from "@/server/eventBus";
 import { getInstall } from "@/server/pluginInstalls";
@@ -18,9 +18,13 @@ import { getUserById } from "@/server/users";
 import type { AquaEventName } from "@/server/eventBus";
 
 export const tenantPort = {
+  getAgency(id: string) { return getAgency(id); },
   getClient(id: string) { return getClient(id); },
   getClientForAgency(agencyId: string, clientId: string) {
     return getClientForAgency(agencyId, clientId);
+  },
+  listClients(agencyId: string) {
+    return listClients(agencyId);
   },
 };
 

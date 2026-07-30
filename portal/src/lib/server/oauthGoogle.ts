@@ -34,7 +34,7 @@ export function readGoogleOAuthConfig(redirectFallback?: string): GoogleOAuthCon
   const redirectUri =
     process.env.GOOGLE_OAUTH_REDIRECT_URI ??
     redirectFallback ??
-    `${process.env.NEXT_PUBLIC_PORTAL_BASE_URL ?? "http://localhost:3030"}/api/auth/oauth/google/callback`;
+    `${process.env.NEXT_PUBLIC_PORTAL_BASE_URL ?? "http://localhost:3032"}/api/auth/oauth/google/callback`;
   return { clientId, clientSecret, redirectUri };
 }
 
