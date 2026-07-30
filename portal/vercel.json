@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build && cp -R .next ../.next",
+  "buildCommand": "npm run build && cp -R .next ../.next && ln -s portal/node_modules ../node_modules",
   "devCommand": "npm run dev",
   "installCommand": "npm install --legacy-peer-deps"
 }
