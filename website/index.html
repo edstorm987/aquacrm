@@ -12,20 +12,36 @@
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="/" aria-label="AquaCRM home">
-        <span aria-hidden="true">A</span>
-        <strong>AquaCRM</strong>
-      </a>
-      <nav aria-label="Main navigation">
-        <a href="#platform">Platform</a>
-        <a href="#software">Software</a>
-        <a href="#journey">How it works</a>
-        <a href="#fit">Who it is for</a>
-        <a href="#questions">Questions</a>
-      </nav>
-      <a class="header-cta" data-aqua-login href="https://aquacrm.vercel.app/login?brand=aqua&amp;next=/portal">
-        Open AquaCRM
-      </a>
+      <div class="announcement">
+        <p>A focused software product from AquaOasis-Web.</p>
+        <a data-aqua-site href="https://aquaoasis-web.com">
+          Explore the full agency <span aria-hidden="true">→</span>
+        </a>
+      </div>
+      <div class="site-nav">
+        <a class="brand" href="/" aria-label="AquaCRM home">
+          <span aria-hidden="true">A</span>
+          <strong>AquaCRM</strong>
+        </a>
+        <button
+          class="menu-button"
+          type="button"
+          aria-expanded="false"
+          aria-controls="main-navigation"
+        >
+          Menu
+        </button>
+        <nav id="main-navigation" aria-label="Main navigation">
+          <a href="#platform">Platform</a>
+          <a href="#software">Software</a>
+          <a href="#journey">How it works</a>
+          <a href="#fit">Who it is for</a>
+          <a href="#questions">Questions</a>
+          <a class="header-cta" data-aqua-login href="https://aquacrm.vercel.app/login?brand=aqua&amp;next=/portal">
+            Open AquaCRM
+          </a>
+        </nav>
+      </div>
     </header>
 
     <main>
@@ -287,6 +303,24 @@
       <p>© 2026 AquaCRM. A Zimante Group product built by AquaOasis-Web.</p>
     </footer>
     <script>
+      const menuButton = document.querySelector(".menu-button");
+      const mainNavigation = document.querySelector("#main-navigation");
+
+      menuButton?.addEventListener("click", () => {
+        const isOpen = menuButton.getAttribute("aria-expanded") === "true";
+        menuButton.setAttribute("aria-expanded", String(!isOpen));
+        menuButton.textContent = isOpen ? "Menu" : "Close";
+        mainNavigation?.classList.toggle("is-open", !isOpen);
+      });
+
+      mainNavigation?.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => {
+          menuButton?.setAttribute("aria-expanded", "false");
+          if (menuButton) menuButton.textContent = "Menu";
+          mainNavigation.classList.remove("is-open");
+        });
+      });
+
       if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
         document.querySelectorAll("[data-aqua-login]").forEach((link) => {
           link.href = "http://localhost:3032/login?brand=aqua&next=/portal";
