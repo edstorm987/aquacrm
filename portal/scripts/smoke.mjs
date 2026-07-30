@@ -177,16 +177,16 @@ async function main() {
       }
     }
 
-    console.log("\n§ Milesymedia site connection");
+    console.log("\n§ Aqua site connection");
     const telemetryResponse = await go("GET", `/api/tenants/client-telemetry?clientId=${encodeURIComponent(clientId)}`);
     const telemetryJson = telemetryResponse.status < 300 ? await telemetryResponse.json().catch(() => null) : null;
     const siteKey = telemetryJson?.telemetry?.siteKey;
     record("client telemetry connection 200", telemetryResponse.status === 200, `status=${telemetryResponse.status}`);
-    record("new client has a site key", typeof siteKey === "string" && siteKey.startsWith("msy_"));
+    record("new client has a site key", typeof siteKey === "string" && siteKey.startsWith("aqua_"));
 
-    const tagResponse = await go("GET", "/milesy-tag.js");
+    const tagResponse = await go("GET", "/aqua-tag.js");
     const tagSource = await text(tagResponse);
-    record("embeddable Milesymedia tag 200", tagResponse.status === 200, `status=${tagResponse.status}`);
+    record("embeddable Aqua tag 200", tagResponse.status === 200, `status=${tagResponse.status}`);
     record("tag captures page views and browser errors", tagSource.includes('send("pageview"') && tagSource.includes('send("error"'));
 
     if (siteKey) {

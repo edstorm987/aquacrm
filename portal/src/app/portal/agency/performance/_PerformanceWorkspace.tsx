@@ -233,7 +233,7 @@ function GrowthPerformance({ analytics }: { analytics: PerformanceAnalytics }) {
           icon={<Globe2 size={15} />}
           headers={["Page", "Views", "Conversions", "Rate"]}
           rows={analytics.pages.map(row => [row.path, String(row.views), String(row.conversions), `${row.conversionRate.toFixed(1)}%`])}
-          empty="Page activity will appear once the Milesymedia tag is connected."
+          empty="Page activity will appear once the Aqua tag is connected."
         />
         <PerformanceTable
           title="Conversion points"
@@ -323,7 +323,7 @@ function DigitalPerformance({ client, product, kind }: { client: PerformanceClie
           {digitalProperties.map(property => <PropertyRow key={property.id} property={property} />)}
         </div>
       ) : (
-        <div className="py-8 text-center"><p className="font-semibold text-black/70">No property connected to {product.name}</p><p className="mt-1 text-sm text-black/45">Add the website, repo or portal, then install its Milesymedia monitoring tag.</p></div>
+        <div className="py-8 text-center"><p className="font-semibold text-black/70">No property connected to {product.name}</p><p className="mt-1 text-sm text-black/45">Add the website, repo or portal, then install its Aqua monitoring tag.</p></div>
       )}
     </div>
   );

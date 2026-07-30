@@ -9,7 +9,7 @@ export const CLIENT_PROJECT_STARTERS = {
   "luxury-service-site": {
     id: "luxury-service-site",
     label: "Luxury service website",
-    description: "Editorial service-business site with a private client portal link and Milesymedia monitoring.",
+    description: "Editorial service-business site with a private client portal link and Aqua monitoring.",
   },
 } as const;
 
@@ -22,7 +22,7 @@ export interface ProvisionClientProjectInput {
   clientEmail?: string;
   projectName: string;
   starterId: ClientProjectStarterId;
-  milesymediaOrigin: string;
+  aquaOrigin: string;
   propertyId?: string;
 }
 
@@ -127,13 +127,13 @@ export function provisionClientProject(input: ProvisionClientProjectInput): Prov
 
   try {
     cpSync(templatePath, targetPath, { recursive: true, errorOnExist: true });
-    const origin = input.milesymediaOrigin.replace(/\/+$/, "");
+    const origin = input.aquaOrigin.replace(/\/+$/, "");
     replaceTemplateTokens(targetPath, {
       CLIENT_EMAIL: input.clientEmail?.trim() || "hello@milesymedia.co",
       CLIENT_ID: input.clientId,
       CLIENT_NAME: input.clientName,
       CLIENT_PORTAL_URL: `${origin}/login`,
-      MILESYMEDIA_ORIGIN: origin,
+      AQUA_ORIGIN: origin,
       PROJECT_NAME: input.projectName,
       PROJECT_SLUG: projectSlug,
       PROPERTY_ID: propertyId,

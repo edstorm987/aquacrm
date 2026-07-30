@@ -11,7 +11,7 @@ export default async function WebsiteLayout({ children }: { children: ReactNode 
       {children}
       {website ? (
         <script
-          src="/milesy-tag.js"
+          src="/aqua-tag.js"
           data-site-key={website.telemetrySiteKey}
           data-property="milesymedia-website"
           defer

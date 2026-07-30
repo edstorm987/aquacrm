@@ -40,7 +40,7 @@ const KIND_OPTIONS: { value: ClientPropertyKind; label: string }[] = [
   { value: "lead-magnet", label: "Lead magnet" },
   { value: "repo", label: "Repository" },
   { value: "template", label: "Template" },
-  { value: "tag", label: "Milesymedia tag" },
+  { value: "tag", label: "Aqua tag" },
 ];
 
 const STATUS_OPTIONS: { value: ClientPropertyStatus; label: string }[] = [
@@ -725,7 +725,7 @@ function PropertyEditorFields({
       <Field label="Finished client portal URL" htmlFor={`${prefix}-redirect`}>
         <input id={`${prefix}-redirect`} type="url" value={draft.redirectTarget} onChange={event => setDraft(value => ({ ...value, redirectTarget: event.target.value }))} className={CONTROL_CLASS} placeholder="Where this client should land after sign-in" />
       </Field>
-      <Field label="Milesymedia tag" htmlFor={`${prefix}-tag`}>
+      <Field label="Aqua tag" htmlFor={`${prefix}-tag`}>
         <select id={`${prefix}-tag`} value={draft.tagStatus} onChange={event => setDraft(value => ({ ...value, tagStatus: event.target.value as ClientPropertyTagStatus }))} className={CONTROL_CLASS}>
           {TAG_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>

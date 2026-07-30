@@ -45,7 +45,7 @@ function cleanNumber(value: unknown): number | undefined {
 }
 
 export function newTelemetrySiteKey(): string {
-  return `msy_${crypto.randomBytes(24).toString("base64url")}`;
+  return `aqua_${crypto.randomBytes(24).toString("base64url")}`;
 }
 
 export function ensureClientTelemetry(
@@ -234,7 +234,7 @@ export function recordClientTelemetry(
       clientId: client.id,
       category: "system",
       action: "telemetry.connected",
-      message: `Milesymedia monitoring connected to ${connectedPropertyLabel}.`,
+      message: `Aqua monitoring connected to ${connectedPropertyLabel}.`,
       metadata: { propertyId: connectedPropertyId, eventType: event.type },
     });
   }

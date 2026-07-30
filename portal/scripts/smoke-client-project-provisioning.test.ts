@@ -37,7 +37,7 @@ describe("client project provisioning", () => {
       clientEmail: "studio@aster.example",
       projectName: "Aster & Co Website",
       starterId: "luxury-service-site",
-      milesymediaOrigin: "http://localhost:3030/",
+      aquaOrigin: "http://localhost:3030/",
       propertyId: "prop_test",
     });
 
@@ -51,7 +51,7 @@ describe("client project provisioning", () => {
       "styles.css",
       "script.js",
       "assets/hero.jpg",
-      "milesymedia.config.json",
+      "aqua.config.json",
       "vercel.json",
       "README.md",
       ".gitignore",
@@ -64,7 +64,7 @@ describe("client project provisioning", () => {
     assert.match(html, /Aster & Co/);
     assert.match(html, /data-client-id="cli_test"/);
     assert.match(html, /data-property-id="prop_test"/);
-    assert.match(html, /http:\/\/localhost:3030\/milesy-tag\.js/);
+    assert.match(html, /http:\/\/localhost:3030\/aqua-tag\.js/);
     assert.doesNotMatch(html, /\{\{[A-Z_]+\}\}/);
 
     const status = execFileSync("git", ["status", "--porcelain"], {
@@ -87,7 +87,7 @@ describe("client project provisioning", () => {
       clientSlug: "repeat-studio",
       projectName: "Main website",
       starterId: "luxury-service-site",
-      milesymediaOrigin: "http://localhost:3030",
+      aquaOrigin: "http://localhost:3030",
     });
     const second = provisionClientProject({
       clientId: "cli_repeat",
@@ -95,7 +95,7 @@ describe("client project provisioning", () => {
       clientSlug: "repeat-studio",
       projectName: "Main website",
       starterId: "luxury-service-site",
-      milesymediaOrigin: "http://localhost:3030",
+      aquaOrigin: "http://localhost:3030",
     });
 
     assert.equal(first.projectSlug, "main-website");

@@ -74,9 +74,9 @@ export async function POST(request: Request) {
         occurredAt: Date.now(),
         url: website.productionUrl,
         path: "/",
-        title: "Milesymedia tag test",
+        title: "Aqua tag test",
         environment: "portal-test",
-      }, "Milesymedia website tag test");
+      }, "Aqua website tag test");
       return NextResponse.json({ ok: recorded?.status === "recorded", website: ensureAgencyWebsite(session.agencyId) });
     }
     return NextResponse.json({ ok: false, error: "Unknown action." }, { status: 400 });

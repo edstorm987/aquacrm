@@ -182,7 +182,7 @@ export function WebsiteWorkspace({
 
         <div>
           <div className="flex items-end justify-between gap-3">
-            <div><h2 className="text-lg font-semibold text-black/85">Milesymedia tag</h2><p className="mt-1 text-sm text-black/45">Real signals from our own website.</p></div>
+            <div><h2 className="text-lg font-semibold text-black/85">Aqua tag</h2><p className="mt-1 text-sm text-black/45">Real signals from our own website.</p></div>
             <button type="button" disabled={!canManage || Boolean(busy)} onClick={() => void action({ action: "test-tag" }, "Test signal received.")} className={secondary}>
               {busy === "test-tag" ? <LoaderCircle size={15} className="animate-spin" /> : <RadioTower size={15} />}Test tag
             </button>

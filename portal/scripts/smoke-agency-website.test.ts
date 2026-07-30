@@ -50,8 +50,8 @@ test("Milesymedia website is a first-party project with release and page control
   assert.equal(website.websitePageIsUpdating(updating, "/client-centre")?.message, "Improving client access.");
 });
 
-test("Milesymedia tag events are accepted and summarised separately from clients", () => {
-  const agency = tenants.createAgency({ name: "Milesymedia Tag", slug: "milesymedia-tag" });
+test("Aqua tag events are accepted and summarised separately from clients", () => {
+  const agency = tenants.createAgency({ name: "Aqua Tag", slug: "aqua-tag" });
   const project = website.ensureAgencyWebsite(agency.id);
   const now = Date.now();
   assert.equal(website.recordAgencyWebsiteTelemetry(project.telemetrySiteKey, {

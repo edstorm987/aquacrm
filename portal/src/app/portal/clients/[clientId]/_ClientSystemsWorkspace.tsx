@@ -133,7 +133,7 @@ export function ClientSystemsWorkspace({
       : "quiet";
   const taggedProperties = properties.filter(property => property.tagStatus === "installed");
   const snippet = telemetry && origin
-    ? `<script src="${origin}/milesy-tag.js" data-site-key="${telemetry.siteKey}"${selectedPropertyId ? ` data-property="${selectedPropertyId}"` : ""} defer></script>`
+    ? `<script src="${origin}/aqua-tag.js" data-site-key="${telemetry.siteKey}"${selectedPropertyId ? ` data-property="${selectedPropertyId}"` : ""} defer></script>`
     : "";
 
   async function copySnippet() {
@@ -154,7 +154,7 @@ export function ClientSystemsWorkspace({
           siteKey: telemetry.siteKey,
           propertyId: selectedPropertyId || undefined,
           type: "heartbeat",
-          message: "Manual connection test from Milesymedia",
+          message: "Manual Aqua connection test",
           url: window.location.href,
           occurredAt: Date.now(),
         }),
@@ -210,7 +210,7 @@ export function ClientSystemsWorkspace({
             </p>
             <p className="mt-3 max-w-xl text-sm leading-6 text-white/50">
               {connectionState === "waiting"
-                ? "Install the Milesymedia tag once and this page will begin receiving real visits, performance samples, and browser errors."
+                ? "Install the Aqua tag once and this page will begin receiving real visits, performance samples, and browser errors."
                 : `Last signal ${relativeTime(telemetry?.lastSeenAt)}. No estimated or fabricated data is shown.`}
             </p>
           </div>
@@ -278,7 +278,7 @@ export function ClientSystemsWorkspace({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Connection</p>
-              <h3 className="mt-1 text-base font-semibold text-black/82">Milesymedia tag</h3>
+              <h3 className="mt-1 text-base font-semibold text-black/82">Aqua tag</h3>
             </div>
             <Code2 size={19} className="text-black/28" aria-hidden="true" />
           </div>

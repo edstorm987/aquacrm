@@ -20,9 +20,9 @@ const SECURITY_HEADERS = [
       "media-src 'self' blob: https:",
       "font-src 'self' data: https:",
       "connect-src 'self' https: wss:",
-      // /embed/login must be iframe-able by client-owned domains.
-      `frame-src 'self'${process.env.NODE_ENV === "production" ? "" : " http://localhost:3030 http://localhost:3031 http://localhost:3033 http://localhost:3034 http://localhost:3035"} https:`,
-      "frame-ancestors 'self' https:",
+      // Aqua embeds and branded sign-in surfaces are hosted in client-owned portals.
+      `frame-src 'self'${process.env.NODE_ENV === "production" ? "" : " http://localhost:3030 http://localhost:3031 http://localhost:3033 http://localhost:3034 http://localhost:3035 http://localhost:3036 http://localhost:3037"} https:`,
+      `frame-ancestors 'self'${process.env.NODE_ENV === "production" ? "" : " http://localhost:3030 http://localhost:3031 http://localhost:3033 http://localhost:3034 http://localhost:3035 http://localhost:3036 http://localhost:3037"} https:`,
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

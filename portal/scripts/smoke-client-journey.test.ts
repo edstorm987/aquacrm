@@ -354,7 +354,7 @@ describe("Milesymedia client journey", () => {
         latestPreviewUrl: "https://preview.example.com/buyer-studio",
         liveAnalyticsUrl: "https://analytics.example.com/buyer-studio",
         milesyTagInstalled: true,
-        milesyTagSnippet: '<script src="https://portal.milesymedia.com/milesy-tag.js" data-client="buyer-studio"></script>',
+        milesyTagSnippet: '<script src="https://portal.aquacrm.com/aqua-tag.js" data-client="buyer-studio"></script>',
         supportRoles: ["owner", "developer", "support"],
       },
     });

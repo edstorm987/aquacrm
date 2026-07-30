@@ -225,7 +225,7 @@ export function websitePageIsUpdating(project: AgencyWebsiteProject | null, rout
 }
 
 function newWebsiteSiteKey(): string {
-  return `msy_own_${crypto.randomBytes(24).toString("base64url")}`;
+  return `aqua_own_${crypto.randomBytes(24).toString("base64url")}`;
 }
 
 function cleanStatus(value: unknown): AgencyWebsiteReleaseStatus {
