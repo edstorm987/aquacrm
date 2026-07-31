@@ -3,6 +3,7 @@
 import {
   Aperture,
   Camera,
+  Inbox,
   CircleUserRound,
   Download,
   ExternalLink,
@@ -42,6 +43,7 @@ export default function PortalShell({
     ? [
         { href: "/portal", label: "Client view", icon: Images },
         { href: "/portal/admin", label: "Admin workspace", icon: LayoutDashboard },
+        { href: "/portal/responses", label: "Responses", icon: Inbox },
         { href: "/portal/aqua", label: "AquaOasis-Web", icon: PanelsTopLeft },
         ...clientLinks.slice(1),
       ]

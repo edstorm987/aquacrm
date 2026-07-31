@@ -65,14 +65,10 @@ export function verifyPortalSession(token: string): PortalSession | null {
 }
 
 function authenticateLocalPortalUser(email: string, password: string): Omit<PortalSession, "exp"> | null {
-  const adminEmail = process.env.PORTAL_ADMIN_EMAIL?.trim().toLowerCase()
-    || (isProduction() ? "" : "edwardhallam07@gmail.com");
-  const adminPassword = process.env.PORTAL_ADMIN_PASSWORD
-    || (isProduction() ? "" : "SuperCreator123!");
-  const clientEmail = process.env.PORTAL_CLIENT_EMAIL?.trim().toLowerCase()
-    || (isProduction() ? "" : "client@milesymedia.local");
-  const clientPassword = process.env.PORTAL_CLIENT_PASSWORD
-    || (isProduction() ? "" : "Preview123!");
+  const adminEmail = process.env.PORTAL_ADMIN_EMAIL?.trim().toLowerCase() || "";
+  const adminPassword = process.env.PORTAL_ADMIN_PASSWORD || "";
+  const clientEmail = process.env.PORTAL_CLIENT_EMAIL?.trim().toLowerCase() || "";
+  const clientPassword = process.env.PORTAL_CLIENT_PASSWORD || "";
   const candidateEmail = email.trim().toLowerCase();
 
   if (adminEmail && adminPassword && equal(candidateEmail, adminEmail) && equal(password, adminPassword)) {
