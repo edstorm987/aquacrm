@@ -45,13 +45,13 @@ function LoginView() {
     <main className="login-page">
       <div className="login-image" aria-hidden="true" />
       <section className="login-panel">
-        <a className="wordmark" href={process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL || "http://localhost:3030"}>
-          Milesymedia
+        <a className="wordmark" href="/">
+          AquaCRM
         </a>
         <div className="login-copy">
-          <span className="eyebrow"><LockKeyhole size={14} /> Private client portal</span>
-          <h1>Everything from your shoot, kept together.</h1>
-          <p>Review your galleries, download finished work and find the account details you need.</p>
+          <span className="eyebrow"><LockKeyhole size={14} /> Secure workspace</span>
+          <h1>Sign in to AquaCRM.</h1>
+          <p>Access client work, portals, delivery, billing, support and the records that keep the operation moving.</p>
         </div>
         <form className="login-form" onSubmit={submit}>
           <label>
@@ -67,7 +67,7 @@ function LoginView() {
             {busy ? "Signing in..." : "Sign in"} <ArrowRight size={17} />
           </button>
         </form>
-        <p className="login-help">Access details are issued personally by Milesymedia.</p>
+        <p className="login-help">Access details are issued by the workspace owner.</p>
       </section>
     </main>
   );
