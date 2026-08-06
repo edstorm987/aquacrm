@@ -55,6 +55,7 @@ interface IssueSessionInput {
   // to scope writes to the demo agency only.
   isDemo?: boolean;
   showcaseReturnAgencyId?: string;
+  publicShowcase?: boolean;
   // R021: session rotation revision. Pass the user's current `sessionRev`
   // here so the cookie gets stamped — later rotations bump the user record's
   // value and stale tokens fail freshness checks at the lookup layer.
@@ -80,6 +81,7 @@ export function issueSession(input: IssueSessionInput): string {
     clientId: input.clientId,
     isDemo: input.isDemo === true ? true : undefined,
     showcaseReturnAgencyId: input.showcaseReturnAgencyId,
+    publicShowcase: input.publicShowcase === true ? true : undefined,
     sessionRev: input.sessionRev ?? 0,
     iat: now,
     exp: now + COOKIE_MAX_AGE,

@@ -74,3 +74,21 @@ test("showcase reset removes every tenant-owned data collection", () => {
     assert.match(seed, new RegExp(`state\\.${collection}`), `missing showcase cleanup for ${collection}`);
   }
 });
+
+test("public showcase launches the real product with fictional read-only data", () => {
+  const route = read("src/app/showcase/route.ts");
+  const exit = read("src/app/showcase/exit/route.ts");
+  const proxy = read("src/proxy.ts");
+  const topbar = read("src/components/chrome/Topbar.tsx");
+  const projects = read("../website/projects.js");
+
+  assert.match(route, /ensureShowcaseWorkspace/);
+  assert.match(route, /publicShowcase: true/);
+  assert.match(route, /agencyIds: \[agency\.id\]/);
+  assert.match(proxy, /payload\?\.publicShowcase/);
+  assert.match(proxy, /This public showcase is read-only/);
+  assert.match(topbar, /PublicShowcaseControl/);
+  assert.match(exit, /AQUACRM_WEBSITE_URL/);
+  assert.match(projects, /http:\/\/localhost:3041\/showcase/);
+  assert.match(projects, /https:\/\/aqua-crm\.com\/showcase/);
+});

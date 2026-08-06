@@ -15,14 +15,22 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const COOKIE = "lk_session_v1";
 
-function decodePayload(token: string | undefined): { role?: string; agencyId?: string; clientId?: string; exp?: number } | null {
+interface ProxySession {
+  role?: string;
+  agencyId?: string;
+  clientId?: string;
+  exp?: number;
+  publicShowcase?: boolean;
+}
+
+function decodePayload(token: string | undefined): ProxySession | null {
   if (!token) return null;
   const dot = token.indexOf(".");
   if (dot <= 0) return null;
   const b64 = token.slice(0, dot);
   try {
     const json = Buffer.from(b64, "base64url").toString("utf8");
-    return JSON.parse(json) as { role?: string; agencyId?: string; clientId?: string; exp?: number };
+    return JSON.parse(json) as ProxySession;
   } catch {
     return null;
   }
@@ -30,13 +38,26 @@ function decodePayload(token: string | undefined): { role?: string; agencyId?: s
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  const token = req.cookies.get(COOKIE)?.value;
+  const payload = decodePayload(token);
+  const safeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
+
+  // A public product-tour token is signed and later re-verified by the
+  // route itself. Catch mutations here so the real UI remains explorable
+  // without allowing visitors to alter even the fictional shared tenant.
+  if (payload?.publicShowcase && !safeMethod) {
+    return NextResponse.json(
+      { ok: false, error: "This public showcase is read-only." },
+      { status: 403, headers: { "cache-control": "no-store" } },
+    );
+  }
+
   const env = process.env.NEXT_PUBLIC_PORTAL_SECURITY;
   const isStrict = env === "strict" || env === "true";
   if (!isStrict) return NextResponse.next();
 
   if (!path.startsWith("/portal")) return NextResponse.next();
 
-  const token = req.cookies.get(COOKIE)?.value;
   if (!token) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
@@ -50,7 +71,6 @@ export function proxy(req: NextRequest) {
   const match = /^\/portal\/clients\/([^/]+)/.exec(path);
   if (match) {
     const urlClientId = match[1];
-    const payload = decodePayload(token);
     if (payload && (payload.exp ?? 0) < Math.floor(Date.now() / 1000)) {
       const url = req.nextUrl.clone();
       url.pathname = "/login";
@@ -71,5 +91,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/portal/:path*"],
+  matcher: ["/portal/:path*", "/api/:path*"],
 };

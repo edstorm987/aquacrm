@@ -24,6 +24,11 @@ export const SHOWCASE_AGENCY_NAME = "Milesymedia Showcase";
 const SYSTEM_ACTOR = "showcase-system";
 const DAY = 86_400_000;
 
+export async function ensureShowcaseWorkspace(): Promise<Agency> {
+  await ensureHydrated();
+  return getAgencyBySlug(SHOWCASE_AGENCY_SLUG) ?? resetAndSeedShowcaseWorkspace();
+}
+
 export async function resetAndSeedShowcaseWorkspace(): Promise<Agency> {
   await ensureHydrated();
   resetShowcaseWorkspace();

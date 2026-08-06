@@ -235,6 +235,9 @@ export interface SessionPayload {
   // Showcase Mode uses an isolated, hardcoded tenant during client calls.
   // The signed return id restores the live workspace without exposing it.
   showcaseReturnAgencyId?: string;
+  // Public portfolio session for the real product demo. It is isolated to
+  // fictional showcase data and middleware rejects every mutating request.
+  publicShowcase?: boolean;
   // R021: session-rotation revision. When user.sessionRev > payload.sessionRev
   // the session is stale (role/password changed) and should be rejected on
   // user-aware paths (getCurrentUser / requireRole+lookup). Stateless verify

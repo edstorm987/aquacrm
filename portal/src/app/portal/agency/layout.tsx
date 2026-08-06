@@ -114,6 +114,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             currentPath={currentPath}
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            publicShowcase={session.publicShowcase}
             privacyTerms={privacyTerms}
             notifications={<NotificationBell agencyId={agency.id} actor={session.userId} />}
             companySwitcher={<CompanyContextSwitcher

@@ -1,3 +1,3 @@
 #!/bin/sh
 cd "$(dirname "$0")" || exit 1
-python3 -m http.server 3035
+python3 -m http.server 3040

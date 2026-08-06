@@ -85,7 +85,7 @@ export default function PortalShell({
             <span>Private workspace</span>
             <strong>{session.role === "admin" ? "Admin mode" : "Your Milesymedia home"}</strong>
           </div>
-          <a href={process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL || "https://milesymedia.com"} target="_blank" rel="noreferrer">
+          <a href={process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL || "https://milesymedia.com"} target="_blank" rel="noopener noreferrer">
             Website <ExternalLink size={14} />
           </a>
         </header>

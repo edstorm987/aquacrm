@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PortalSearch } from "@/components/chrome/PortalSearch";
 import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
+import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 
 interface Props {
@@ -36,6 +37,7 @@ interface Props {
   /** Sandboxed demo session — show "Back to website" exit. */
   isDemo?: boolean;
   showcaseMode?: boolean;
+  publicShowcase?: boolean;
   /** Phase preview cookie active for this scope — show "Exit preview" → phases admin. */
   previewActive?: boolean;
   notifications?: ReactNode;
@@ -43,7 +45,7 @@ interface Props {
   privacyTerms?: string[];
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, previewActive, notifications, companySwitcher, privacyTerms }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, publicShowcase, previewActive, notifications, companySwitcher, privacyTerms }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = role === "agency-owner" || role === "agency-manager" || role === "agency-staff";
   return (
@@ -59,14 +61,14 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs sm:gap-3">
-        {companySwitcher ? <div className="mm-private-chrome">{companySwitcher}</div> : null}
+        {!publicShowcase && companySwitcher ? <div className="mm-private-chrome">{companySwitcher}</div> : null}
         {searchItems.length ? <PortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
         <PrivacyModeControl
-          canEnterShowcase={role === "agency-owner" || role === "agency-manager"}
+          canEnterShowcase={!publicShowcase && (role === "agency-owner" || role === "agency-manager")}
           showcaseMode={showcaseMode}
           sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
         />
-        {showcaseMode ? <ShowcaseModeControl /> : notifications}
+        {publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}
         <ColorModeToggle />
         {previewActive ? (
           <Link
@@ -76,7 +78,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           >
             <span aria-hidden>←</span> Back to portal account
           </Link>
-        ) : isDemo && !showcaseMode ? (
+        ) : isDemo && !showcaseMode && !publicShowcase ? (
           <Link
             href="/"
             aria-label="Back to the marketing site"
@@ -85,7 +87,11 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
             <span aria-hidden>←</span> Back to website
           </Link>
         ) : null}
-        <div className="mm-private-chrome"><ProfileMenu email={email} role={role} name={name} avatarUrl={avatarUrl} /></div>
+        {publicShowcase ? (
+          <span className="hidden rounded-md border border-black/10 bg-white px-2 py-1 font-medium text-black/55 sm:inline">Demo visitor</span>
+        ) : (
+          <div className="mm-private-chrome"><ProfileMenu email={email} role={role} name={name} avatarUrl={avatarUrl} /></div>
+        )}
       </div>
     </header>
   );

@@ -8,7 +8,7 @@ Standalone product landing page for AquaCRM.
 ./start-local.sh
 ```
 
-Open `http://localhost:3035`.
+Open `http://localhost:3040`.
 
 The product sign-in routes to `https://aqua-crm.com/login?brand=aquacrm&next=/portal`
 in production. Local development can still redirect to the local AquaCRM app on
