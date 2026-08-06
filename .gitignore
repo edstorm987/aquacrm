@@ -31,6 +31,7 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+!.env.local.example
 .env*.local
 
 # vercel
@@ -56,3 +57,6 @@ client-projects/
 # `scripts/prepare-milesy.mjs`. Source lives in the static-site
 # folder; this is the materialised mirror Next.js serves.
 public/_milesy/
+
+# local-only private deployment/docs handoff
+Dev Team/

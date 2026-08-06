@@ -6,7 +6,7 @@ export const metadata = {
 
 export default function NotFound() {
   const websiteUrl =
-    process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL ?? "http://localhost:3030";
+    process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL ?? "https://milesymedia.com";
   const suggested = [
     { href: websiteUrl, label: "Milesymedia", hint: "Return to the website" },
     { href: "/login?next=/portal", label: "Sign in", hint: "Open your portal" },

@@ -3,7 +3,7 @@ export const TRADING_BRANDS = [
     slug: "zimante-group",
     name: "Zimante Group",
     description: "The parent group coordinating media, web, software and combined transformation work.",
-    website: "https://zimante.group",
+    website: "https://zimante-group.com",
     primaryColor: "#17211F",
     secondaryColor: "#F4F0E7",
     accentColor: "#D7A85D",
@@ -33,6 +33,15 @@ export const TRADING_BRANDS = [
     primaryColor: "#17211F",
     secondaryColor: "#F3F5F2",
     accentColor: "#5E9E92",
+  },
+  {
+    slug: "edward-hallam",
+    name: "Edward Hallam",
+    description: "Founder profile, personal projects and direct enquiries into the Zimante operating system.",
+    website: "https://edward-hallam.com",
+    primaryColor: "#111111",
+    secondaryColor: "#F6F2EA",
+    accentColor: "#C89B5A",
   },
 ] as const;
 

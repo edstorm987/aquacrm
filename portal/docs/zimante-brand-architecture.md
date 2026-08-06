@@ -2,21 +2,22 @@
 
 ## Public sites
 
-| Identity | Local URL | Public role |
+| Identity | Public URL | Public role |
 | --- | --- | --- |
-| Zimante Group | `http://localhost:3033` | Group enquiries, partnerships, combined work and group tools |
-| Milesymedia | `http://localhost:3030` | Commercial and personal photography and video |
-| Central portal | `http://localhost:3032` | CRM, fulfilment, finance, support and client portals |
-| AquaOasis-Web | `http://localhost:3034` | Websites, Google Business Profile and local visibility |
-| Software Studio | `http://localhost:3035` | Portals, ecommerce, automation and operational software |
+| Zimante Group | `https://zimante-group.com` | Group enquiries, partnerships, combined work and group tools |
+| Milesymedia | `https://milesymedia.com` | Commercial and personal photography and video |
+| Central portal | `https://aqua-crm.com` | CRM, fulfilment, finance, support and client portals |
+| AquaOasis-Web | `https://aquaoasis-web.com` | Websites, Google Business Profile and local visibility |
+| AquaCRM | `https://aqua-crm.com` | Portals, ecommerce, automation and operational software |
 
 The specialist sites are separate repositories and deployments. The Milesymedia
 portal remains the private operating system and central system of record.
 
 ## Shared enquiry contract
 
-Specialist sites submit `POST http://localhost:3032/api/public/brand-enquiry`
-to the portal in local development.
+Specialist sites submit `POST https://aqua-crm.com/api/public/brand-enquiry`
+to the portal in production. Localhost origins are still accepted automatically
+outside production.
 
 ```json
 {

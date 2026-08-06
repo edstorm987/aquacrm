@@ -47,7 +47,7 @@ export function getAuthBrand(value: string | undefined): AuthBrand {
         "Keep billing and support in one history.",
       ],
       homeUrl:
-        process.env.NEXT_PUBLIC_AQUAOASIS_URL ?? "http://localhost:3034",
+        process.env.NEXT_PUBLIC_AQUAOASIS_URL ?? "https://aquaoasis-web.com",
     };
   }
 
@@ -66,7 +66,7 @@ export function getAuthBrand(value: string | undefined): AuthBrand {
         "One connected support history.",
       ],
       homeUrl:
-        process.env.NEXT_PUBLIC_ZIMANTE_URL ?? "http://localhost:3033",
+        process.env.NEXT_PUBLIC_ZIMANTE_URL ?? "https://zimante-group.com",
     };
   }
 
@@ -85,6 +85,6 @@ export function getAuthBrand(value: string | undefined): AuthBrand {
     ],
     homeUrl:
       process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL ??
-      "http://localhost:3030",
+      "https://milesymedia.com",
   };
 }

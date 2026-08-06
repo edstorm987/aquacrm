@@ -18,8 +18,8 @@ npm run dev
 
 Open:
 
-- http://localhost:3032
-- http://localhost:3032/login?next=/portal
+- https://aqua-crm.com
+- https://aqua-crm.com/login?next=/portal
 
 ## Vercel
 

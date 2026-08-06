@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   const session = await getPortalSession();
   if (!session) return jsonError("Unauthorised.", 401);
 
-  const aquaUrl = process.env.AQUA_CRM_URL?.trim() || "http://localhost:3032";
+  const aquaUrl = process.env.AQUA_CRM_URL?.trim() || "https://aqua-crm.com";
   const apiToken = process.env.AQUA_EMBED_API_TOKEN?.trim()
     || (process.env.NODE_ENV === "production" ? "" : "local-aqua-embed");
   const clientId = process.env.AQUA_CLIENT_ID?.trim()
