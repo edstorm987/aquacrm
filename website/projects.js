@@ -175,6 +175,9 @@ document.addEventListener("keydown", (event) => { if (event.key === "Escape" && 
 const initialProject = new URLSearchParams(window.location.search).get("project");
 renderProject(projects[initialProject] ? initialProject : "ocean");
 
+const aquaCrmLoginOrigin = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? "http://localhost:3032"
+  : "https://aqua-crm.com";
 document.querySelectorAll("[data-aquacrm-login]").forEach((link) => {
-  link.href = "/login?brand=aquacrm&next=/portal";
+  link.href = `${aquaCrmLoginOrigin}/login?brand=aquacrm&next=/portal`;
 });
