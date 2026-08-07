@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev --webpack -p 3032",
     "dev:all": "npm run dev",
-    "build": "next build --webpack",
+    "build": "next build --webpack && node scripts/prepare-vercel-root-manifest.mjs",
     "start": "next start -p 3032",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
@@ -75,7 +75,7 @@
     "@supabase/supabase-js": "^2.112.2",
     "@vercel/blob": "^2.6.1",
     "lucide-react": "^0.468.0",
-    "next": "16.2.4",
+    "next": "16.3.0",
     "pg": "^8.13.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
