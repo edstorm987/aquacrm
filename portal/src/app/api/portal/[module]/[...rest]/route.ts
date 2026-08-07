@@ -11,7 +11,7 @@
 //   • Otherwise the install resolves at the agency scope.
 
 import { NextResponse, type NextRequest } from "next/server";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { authErrorResponse, requireSession } from "@/lib/server/auth";
 import { resolvePluginApiRoute } from "@/built-ins/runtime/_routeResolver";
 import { FOUNDATION_SERVICES } from "@/built-ins/runtime/foundation-adapters";
@@ -23,7 +23,7 @@ interface RouteParams {
 }
 
 async function dispatch(req: NextRequest, params: RouteParams["params"], method: string): Promise<Response> {
-  await ensureHydrated();
+  await ensureHydrated({ fresh: true });
 
   const { module: moduleId, rest } = await params;
   const url = new URL(req.url);
@@ -91,7 +91,22 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
     actor: session?.userId ?? "anonymous",
   };
 
-  return route.handler(req, ctx);
+  const response = await route.handler(req, ctx);
+  if (method !== "GET") {
+    try {
+      await flushPendingWrites();
+    } catch (error) {
+      console.error(
+        `[portal] ${moduleId}/${rest.join("/")} could not be persisted:`,
+        error instanceof Error ? error.message : error,
+      );
+      return NextResponse.json(
+        { ok: false, error: "storage_unavailable", message: "The change could not be saved. Please try again." },
+        { status: 503 },
+      );
+    }
+  }
+  return response;
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) { return dispatch(req, params, "GET"); }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Download, Eye, FileUp, Paperclip, Plus, ReceiptText, Settings2, Trash2, X } from "lucide-react";
 
 import type { Client } from "../lib/tenancy";
@@ -47,6 +48,8 @@ function csvCell(value: unknown): string {
 }
 
 export function ExpensesList({ expenses, categories, clients, apiBase, canMutate }: ExpensesListProps) {
+  const router = useRouter();
+  const [records, setRecords] = useState(expenses);
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -56,6 +59,10 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
   const catNameById = new Map(categories.map(category => [category.id, category.name]));
   const clientNameById = new Map(clients.map(client => [client.id, client.name]));
+
+  useEffect(() => {
+    setRecords(expenses);
+  }, [expenses]);
 
   useEffect(() => {
     void fetch("/api/portal/settings/portal-editor")
@@ -68,21 +75,21 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return expenses.filter(expense => {
+    return records.filter(expense => {
       if (statusFilter !== "all" && expense.status !== statusFilter) return false;
       if (clientFilter === "unallocated" && expense.clientId) return false;
       if (clientFilter !== "all" && clientFilter !== "unallocated" && expense.clientId !== clientFilter) return false;
       if (q && !`${expense.vendor ?? ""} ${expense.description ?? ""} ${expense.reason ?? ""} ${expense.reference ?? ""} ${expense.attachments?.map(file => file.name).join(" ") ?? ""} ${Object.values(expense.customFields ?? {}).flat().join(" ")}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [clientFilter, expenses, query, statusFilter]);
+  }, [clientFilter, query, records, statusFilter]);
 
-  const paid = expenses.filter(expense => expense.status === "reimbursed");
+  const paid = records.filter(expense => expense.status === "reimbursed");
   const totalPaid = paid.reduce((sum, expense) => sum + expense.amountCents, 0);
   const taxRecorded = paid.reduce((sum, expense) => sum + (expense.taxDeductible === false ? 0 : (expense.taxCents ?? 0)), 0);
   const clientCosts = paid.filter(expense => expense.clientId).reduce((sum, expense) => sum + expense.amountCents, 0);
-  const awaitingReview = expenses.filter(expense => expense.status === "pending").length;
-  const recurringDue = expenses.filter(expense => expense.recurringActive && expense.nextDueAt && expense.nextDueAt <= Date.now() + 30 * 86_400_000).length;
+  const awaitingReview = records.filter(expense => expense.status === "pending").length;
+  const recurringDue = records.filter(expense => expense.recurringActive && expense.nextDueAt && expense.nextDueAt <= Date.now() + 30 * 86_400_000).length;
 
   async function postNextExpense(id: string) {
     setPostingId(id);
@@ -97,7 +104,11 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
         window.alert(result?.error ?? "Could not post the next expense.");
         return;
       }
-      window.location.reload();
+      setRecords(current => [
+        result.expense as Expense,
+        ...current.map(expense => expense.id === result.source.id ? result.source as Expense : expense),
+      ]);
+      router.refresh();
     } finally {
       setPostingId("");
     }
@@ -177,6 +188,11 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
               clients={clients}
               customFields={customFields}
               onClose={() => setAdding(false)}
+              onSaved={expense => {
+                setRecords(current => [expense, ...current.filter(item => item.id !== expense.id)]);
+                setAdding(false);
+                router.refresh();
+              }}
             />
           </div>
         </div>
@@ -338,7 +354,7 @@ function Summary({ label, value, alert }: { label: string; value: string; alert?
   );
 }
 
-function NewExpenseForm({ apiBase, categories, clients, customFields, onClose }: { apiBase: string; categories: ExpenseCategory[]; clients: Client[]; customFields: CustomFieldDefinition[]; onClose: () => void }) {
+function NewExpenseForm({ apiBase, categories, clients, customFields, onClose, onSaved }: { apiBase: string; categories: ExpenseCategory[]; clients: Client[]; customFields: CustomFieldDefinition[]; onClose: () => void; onSaved: (expense: Expense) => void }) {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -429,7 +445,7 @@ function NewExpenseForm({ apiBase, categories, clients, customFields, onClose }:
             return;
           }
           form.reset();
-          window.location.reload();
+          onSaved(result.expense as Expense);
         } finally {
           setBusy(false);
         }

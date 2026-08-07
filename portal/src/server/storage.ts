@@ -166,11 +166,36 @@ let writable = backend.persistent;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInFlight: Promise<void> | null = null;
 let fileSnapshotMtimeMs = 0;
+let mutationVersion = 0;
+let persistedVersion = 0;
+let lastFlushError: Error | null = null;
 
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
+let remoteRefreshPromise: Promise<void> | null = null;
 
-export async function ensureHydrated(): Promise<void> {
+export async function ensureHydrated(options?: { fresh?: boolean }): Promise<void> {
+  const shouldRefreshRemote =
+    options?.fresh === true &&
+    (backend.kind === "supabase" || backend.kind === "postgres");
+
+  if (shouldRefreshRemote && hydrated) {
+    if (!remoteRefreshPromise) {
+      remoteRefreshPromise = (async () => {
+        // Never replace local changes with a remote snapshot that predates
+        // them. Mutation routes explicitly flush before returning, while this
+        // also protects callers during a warm server transition.
+        await flushPendingWrites();
+        hydrated = false;
+        hydratePromise = null;
+        await ensureHydrated();
+      })().finally(() => {
+        remoteRefreshPromise = null;
+      });
+    }
+    await remoteRefreshPromise;
+    return;
+  }
   if (hydrated && backend.kind === "file" && existsSync(DATA_FILE)) {
     const currentMtimeMs = statSync(DATA_FILE).mtimeMs;
     if (currentMtimeMs > fileSnapshotMtimeMs) {
@@ -230,6 +255,9 @@ export async function ensureHydrated(): Promise<void> {
           }
         }
         cache = raw ? parseBlob(raw) : empty();
+        mutationVersion = 0;
+        persistedVersion = 0;
+        lastFlushError = null;
         // R025: migrate legacy single-agency user rows in place. Pure +
         // idempotent — re-running on already-migrated rows is a no-op.
         // Lazy-import to avoid pulling the migration helper into every
@@ -291,16 +319,29 @@ function parseBlob(raw: string): PortalState {
   }
 }
 
-async function flush(): Promise<void> {
-  if (!cache || !writable) return;
+async function flush(options?: { throwOnError?: boolean }): Promise<void> {
+  if (!cache) return;
+  if (!writable) {
+    if (options?.throwOnError) {
+      throw lastFlushError ?? new Error(`[portal] backend "${backend.kind}" is not writable.`);
+    }
+    return;
+  }
   if (flushInFlight) await flushInFlight;
+  if (persistedVersion === mutationVersion) return;
+
+  const targetVersion = mutationVersion;
+  const snapshot = JSON.stringify(cache);
   flushInFlight = (async () => {
     try {
-      await backend.saveBlob(JSON.stringify(cache));
+      await backend.saveBlob(snapshot);
+      persistedVersion = targetVersion;
+      lastFlushError = null;
       if (backend.kind === "file" && existsSync(DATA_FILE)) {
         fileSnapshotMtimeMs = statSync(DATA_FILE).mtimeMs;
       }
     } catch (e) {
+      lastFlushError = e instanceof Error ? e : new Error(String(e));
       writable = false;
       if (process.env.NODE_ENV !== "test") {
         console.warn(
@@ -313,6 +354,7 @@ async function flush(): Promise<void> {
     }
   })();
   await flushInFlight;
+  if (options?.throwOnError && lastFlushError) throw lastFlushError;
 }
 
 function scheduleFlush() {
@@ -330,9 +372,12 @@ export function getState(): PortalState {
 export function mutate(fn: (state: PortalState) => void): void {
   if (!cache) cache = empty();
   fn(cache);
+  mutationVersion += 1;
   if (backend.kind === "file" && writable) {
     try {
       fileBackend.saveBlob(JSON.stringify(cache));
+      persistedVersion = mutationVersion;
+      lastFlushError = null;
       if (existsSync(DATA_FILE)) {
         fileSnapshotMtimeMs = statSync(DATA_FILE).mtimeMs;
       }
@@ -350,10 +395,24 @@ export function mutate(fn: (state: PortalState) => void): void {
   scheduleFlush();
 }
 
+/**
+ * Persist every mutation made during the current request before a successful
+ * response is returned. This is required for remote/serverless backends where
+ * the next request may execute in a different process with a different cache.
+ */
+export async function flushPendingWrites(): Promise<void> {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  await flush({ throwOnError: true });
+}
+
 export async function reset(): Promise<void> {
   cache = empty();
   hydrated = true;
-  await flush();
+  mutationVersion += 1;
+  await flush({ throwOnError: true });
 }
 
 export function isPersistent(): boolean {

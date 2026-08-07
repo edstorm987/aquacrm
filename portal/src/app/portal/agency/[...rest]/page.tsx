@@ -32,7 +32,7 @@ interface RouteProps {
 }
 
 export default async function AgencyPluginCatchAll({ params, searchParams }: RouteProps) {
-  await ensureHydrated();
+  await ensureHydrated({ fresh: true });
   const session = await requireRole([...AGENCY_ROLES]);
 
   const { rest } = await params;
