@@ -44,6 +44,10 @@ function cleanNumber(value: unknown): number | undefined {
     : undefined;
 }
 
+function cleanBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
 export function newTelemetrySiteKey(): string {
   return `aqua_${crypto.randomBytes(24).toString("base64url")}`;
 }
@@ -167,6 +171,11 @@ export function recordClientTelemetry(
     experimentId: cleanText(input.experimentId, 120),
     variant: cleanText(input.variant, 120),
     conversionValueCents: cleanNumber(input.conversionValueCents),
+    consentVersion: cleanNumber(input.consentVersion),
+    consentNecessary: cleanBoolean(input.consentNecessary),
+    consentPreferences: cleanBoolean(input.consentPreferences),
+    consentAnalytics: cleanBoolean(input.consentAnalytics),
+    consentMarketing: cleanBoolean(input.consentMarketing),
     userAgent: cleanText(userAgent, 400),
   };
 

@@ -22,6 +22,7 @@ import {
 } from "@/lib/server/passwordReset";
 import { getUserById, setUserPassword, validatePassword } from "@/server/users";
 import { logActivity } from "@/server/activity";
+import { updateSupabasePassword } from "@/lib/supabase/admin";
 
 interface Body {
   token?: unknown;
@@ -72,6 +73,15 @@ export async function POST(req: NextRequest) {
   if (user.email !== tok.payload.email) {
     // Defensive: reject mismatched email (token tampered to swap users).
     return NextResponse.json({ ok: false, error: "email_mismatch" }, { status: 400 });
+  }
+
+  try {
+    await updateSupabasePassword(user.email, newPassword);
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : "supabase_update_failed" },
+      { status: 500 },
+    );
   }
 
   // setUserPassword bumps sessionRev — every existing cookie for this

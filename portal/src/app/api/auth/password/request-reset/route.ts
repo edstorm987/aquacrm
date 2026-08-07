@@ -26,9 +26,11 @@ import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { getUser } from "@/server/users";
 import { signPasswordResetToken } from "@/lib/server/passwordReset";
 import { sendTransactionalEmail } from "@/lib/server/transactionalEmail";
+import { getAuthBrand } from "@/lib/authBrand";
 
 interface Body {
   email?: unknown;
+  brand?: unknown;
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const authBrand = getAuthBrand(typeof body.brand === "string" ? body.brand : undefined);
   if (!email || !email.includes("@")) {
     // Shape-level error is fine — no oracle (we'd reject the same way
     // before any lookup).
@@ -65,15 +68,15 @@ export async function POST(req: NextRequest) {
 
   const { token } = signPasswordResetToken({ userId: user.id, email: user.email });
   const origin = req.nextUrl.origin;
-  const resetUrl = `${origin}/login/reset?token=${encodeURIComponent(token)}`;
+  const resetUrl = `${origin}/login/reset?token=${encodeURIComponent(token)}&brand=${encodeURIComponent(authBrand.id)}`;
 
   const sent = await sendTransactionalEmail({
     to: user.email,
     agencyId: user.agencyId,
     externalRef: `password-reset:${user.id}`,
-    subject: "Reset your Milesymedia password",
-    bodyText: `Use this secure link to reset your Milesymedia password. It expires in 24 hours.\n\n${resetUrl}`,
-    bodyHtml: `<p>Use the secure link below to reset your Milesymedia password. It expires in 24 hours.</p><p><a href="${resetUrl}">Reset password</a></p>`,
+    subject: `Reset your ${authBrand.name} password`,
+    bodyText: `Use this secure link to reset your ${authBrand.name} password. It expires in 24 hours.\n\n${resetUrl}`,
+    bodyHtml: `<p>Use the secure link below to reset your ${authBrand.name} password. It expires in 24 hours.</p><p><a href="${resetUrl}">Reset password</a></p>`,
   });
 
   const isDev = process.env.NODE_ENV !== "production";

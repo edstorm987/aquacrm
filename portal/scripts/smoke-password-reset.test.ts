@@ -177,8 +177,9 @@ describe("Password reset — file structure (R038)", () => {
     assert.equal(existsSync(form), true);
     const pageSrc = readFileSync(page, "utf8");
     assert.ok(pageSrc.includes("mm-auth-shell"));
-    assert.ok(pageSrc.includes("Milesymedia Portal"));
+    assert.ok(pageSrc.includes("getAuthBrand"));
     assert.ok(pageSrc.includes("ForgotForm"));
+    assert.ok(pageSrc.includes("brand={brand.id}"));
     const formSrc = readFileSync(form, "utf8");
     assert.ok(formSrc.includes('"use client"'));
     assert.ok(formSrc.includes("/api/auth/password/request-reset"));
@@ -194,7 +195,8 @@ describe("Password reset — file structure (R038)", () => {
     assert.equal(existsSync(form), true);
     const pageSrc = readFileSync(page, "utf8");
     assert.ok(pageSrc.includes("mm-auth-shell"));
-    assert.ok(pageSrc.includes("Milesymedia Portal"));
+    assert.ok(pageSrc.includes("getAuthBrand"));
+    assert.ok(pageSrc.includes("data-auth-brand={brand.id}"));
     assert.ok(pageSrc.includes("ResetForm"));
     const formSrc = readFileSync(form, "utf8");
     assert.ok(formSrc.includes('"use client"'));
@@ -208,7 +210,7 @@ describe("Password reset — file structure (R038)", () => {
   it("LoginForm exposes a Forgot password? link in password sign-in mode", () => {
     const p = join(ROOT, "src", "app", "login", "LoginForm.tsx");
     const src = readFileSync(p, "utf8");
-    assert.ok(src.includes('href="/login/forgot"'));
+    assert.ok(src.includes("/login/forgot${brandParam"));
     assert.ok(src.includes("mm-form-toggle"),
       "Use the mm-form-toggle class per the Login premium redesign chapter.");
     assert.ok(src.includes('data-testid="login-forgot-link"'));

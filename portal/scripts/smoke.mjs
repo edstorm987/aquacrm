@@ -16,7 +16,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
 const BASE = process.env.AQUA_BASE || "http://localhost:3030";
-const FOUNDER_LOGIN = process.env.FOUNDER_LOGIN || "Ed";
+const FOUNDER_LOGIN = process.env.FOUNDER_LOGIN || process.env.FOUNDER_EMAIL || "Ed";
 const FOUNDER_PASSWORD = process.env.FOUNDER_PASSWORD || "AquaSmokePass123!";
 const JAR = join(tmpdir(), `milesymedia-portal-smoke-${process.pid}.json`);
 
@@ -112,7 +112,11 @@ async function main() {
   let visible = visibleHtml(body);
   record("agency dashboard 200", res.status === 200, `status=${res.status}`);
   record("agency dashboard has one New client action", (visible.match(/New client/g) ?? []).length === 1);
-  record("agency dashboard uses Systems language", body.includes("Systems") && !/Plugin marketplace|Capabilities/.test(body));
+  record(
+    "agency dashboard uses clear built-in product language",
+    body.includes("Sales, clients, project work, support, and money in one clear place.")
+      && !/Plugin marketplace|Capabilities/.test(body),
+  );
 
   res = await go("GET", "/portal/clients");
   body = await text(res);
@@ -213,6 +217,8 @@ async function main() {
           type: "heartbeat",
           propertyId,
           message: "Runtime smoke connection",
+          category: "analytics",
+          consentAnalytics: true,
           url: "https://smoke-client.example.com/?private=removed",
           occurredAt: Date.now(),
         },
@@ -241,6 +247,8 @@ async function main() {
             siteKey,
             propertyId,
             type: "pageview",
+            category: "analytics",
+            consentAnalytics: true,
             path: "/",
             title: "Smoke website",
             url: "https://smoke-client.example.com/?private=removed",
@@ -341,8 +349,8 @@ async function main() {
 
     const lifecycleChecks = [
       ["onboarding", "We are laying the foundations.", "Tell us anything we should know."],
-      ["designing", "Your direction is taking shape.", "Leave focused design feedback."],
-      ["developed-launch", "The build is becoming real.", "Send a build note or launch question."],
+      ["designing", "The work is taking shape.", "Leave focused feedback."],
+      ["developed-launch", "Your delivery is nearly ready.", "Send final feedback or a question."],
       ["maintenance", "Your digital home is live.", "Ask for a change or report an issue."],
     ];
     for (const [mode, heading, responsePrompt] of lifecycleChecks) {
@@ -481,11 +489,11 @@ async function main() {
       : null;
     record("call recording can be attached to the customer record", recordingResponse.status === 200);
 
-    const customerRecord = await go("GET", `/client-preview/${clientId}?section=resources`);
+    const customerRecord = await go("GET", `/client-preview/${clientId}?section=details`);
     const customerRecordText = await text(customerRecord);
     record("customer transparency record renders",
       customerRecord.status === 200
-      && customerRecordText.includes("Your complete Milesymedia record.")
+      && customerRecordText.includes("Everything we know, shared with you.")
       && customerRecordText.includes("What we hold.")
       && customerRecordText.includes("Notes we hold about your project."));
     record("customer can revisit recordings and personal account data",
@@ -494,7 +502,7 @@ async function main() {
       && customerRecordText.includes(portalSettings.loginEmail)
       && customerRecordText.includes("Foundational Flow"));
     record("customer navigation exposes their record",
-      customerRecordText.includes("Your record"));
+      customerRecordText.includes("Your details"));
 
     const activityInbox = await go("GET", "/portal/agency/activity-inbox");
     const activityInboxText = await text(activityInbox);

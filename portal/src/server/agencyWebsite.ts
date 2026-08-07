@@ -14,6 +14,7 @@ import type {
   AgencyWebsiteReleaseStatus,
   AgencyWebsiteTelemetryEvent,
 } from "@/server/types";
+import { publicAquaSite } from "@/lib/publicSites";
 
 const MAX_EVENTS = 500;
 const MAX_EVENTS_PER_MINUTE = 120;
@@ -142,7 +143,10 @@ export function recordAgencyWebsiteTelemetry(
   input: Record<string, unknown>,
   userAgent?: string,
 ): { status: "recorded"; agencyId: string; event: AgencyWebsiteTelemetryEvent } | { status: "rate-limited" } | null {
-  const project = Object.values(getState().agencyWebsites).find(item => item.telemetrySiteKey === siteKey);
+  const publicSite = publicAquaSite(siteKey);
+  const project = publicSite
+    ? ensurePrimaryAgencyWebsite()
+    : Object.values(getState().agencyWebsites).find(item => item.telemetrySiteKey === siteKey);
   if (!project) return null;
   const minuteAgo = Date.now() - 60_000;
   if (project.telemetryEvents.filter(event => event.receivedAt >= minuteAgo).length >= MAX_EVENTS_PER_MINUTE) {
@@ -159,7 +163,7 @@ export function recordAgencyWebsiteTelemetry(
     type,
     receivedAt: now,
     occurredAt: requestedAt && Math.abs(now - requestedAt) < 7 * 24 * 60 * 60 * 1_000 ? requestedAt : now,
-    propertyId: cleanText(input.propertyId, 120),
+    propertyId: publicSite?.propertyId ?? cleanText(input.propertyId, 120),
     url: cleanUrl(input.url),
     path: cleanText(input.path, 1_024),
     title: cleanText(input.title, 240),
@@ -178,11 +182,16 @@ export function recordAgencyWebsiteTelemetry(
     experimentId: cleanText(input.experimentId, 120),
     variant: cleanText(input.variant, 120),
     conversionValueCents: cleanNumber(input.conversionValueCents),
+    consentVersion: cleanNumber(input.consentVersion),
+    consentNecessary: cleanBoolean(input.consentNecessary),
+    consentPreferences: cleanBoolean(input.consentPreferences),
+    consentAnalytics: cleanBoolean(input.consentAnalytics),
+    consentMarketing: cleanBoolean(input.consentMarketing),
     userAgent: cleanText(userAgent, 400),
   };
   mutate(state => {
     const stored = state.agencyWebsites[project.agencyId];
-    if (!stored || stored.telemetrySiteKey !== siteKey) return;
+    if (!stored || (!publicSite && stored.telemetrySiteKey !== siteKey)) return;
     stored.telemetryEvents = [event, ...stored.telemetryEvents].slice(0, MAX_EVENTS);
     stored.telemetryLastSeenAt = now;
     stored.updatedAt = now;
@@ -247,6 +256,10 @@ function cleanNumber(value: unknown): number | undefined {
     : undefined;
 }
 
+function cleanBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
 function cleanUrl(value: unknown): string | undefined {
   const text = cleanText(value, 2_048);
   if (!text) return undefined;
@@ -255,6 +268,8 @@ function cleanUrl(value: unknown): string | undefined {
     if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
     url.username = "";
     url.password = "";
+    url.search = "";
+    url.hash = "";
     return url.toString();
   } catch {
     return undefined;

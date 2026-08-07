@@ -4,6 +4,16 @@
    sidebar adaptation, dev bar, achievements, Aqua AI widget. */
 
 (function () {
+  if (!document.querySelector('script[data-aqua-business-os]')) {
+    var aquaTag = document.createElement('script');
+    aquaTag.src = '/aqua-tag.js';
+    aquaTag.defer = true;
+    aquaTag.dataset.siteKey = 'aqua_public_aquacrm_v1';
+    aquaTag.dataset.property = 'aquacrm';
+    aquaTag.dataset.aquaBusinessOs = 'true';
+    document.head.appendChild(aquaTag);
+  }
+
   var KEY_USER = 'bos.user';
   var KEY_MODE = 'bos.mode';        // 'free' | 'customer'
   var KEY_PROGRESS = 'bos.progress'; // XP / streak / achievements

@@ -36,7 +36,7 @@ describe("End-customer portal sub-routes (R019)", () => {
     assert.ok(src.includes('requireRole("end-customer")'));
     assert.ok(src.includes("AvatarUploader"));
     assert.ok(src.includes('action="/api/auth/profile/update"'));
-    assert.ok(src.includes('href="/login/forgot"'));
+    assert.ok(src.includes('href={`/login/forgot?brand=${authBrand.id}`}'));
     assert.ok(!src.includes("CustomerSubroute"), "account should not rely on a plugin");
   });
 

@@ -718,11 +718,17 @@ aside[aria-label="Primary navigation"]:not([data-sidebar-mobile="true"]) .mm-sid
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) {
   width: 3.5rem; /* 56px */
 }
+html[data-sidebar-collapsed="true"] aside[aria-label="Primary navigation"]:not([data-sidebar-mobile="true"]) {
+  width: 3.5rem;
+}
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-tenant,
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-heading,
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-label,
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-badge,
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-extra {
+  display: none;
+}
+html[data-sidebar-collapsed="true"] aside[aria-label="Primary navigation"]:not([data-sidebar-mobile="true"]) :is(.mm-sidebar-tenant, .mm-sidebar-heading, .mm-sidebar-link-label, .mm-sidebar-link-badge, .mm-sidebar-extra) {
   display: none;
 }
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-initial {
@@ -739,11 +745,19 @@ aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-
   padding-left: 0;
   padding-right: 0;
 }
+html[data-sidebar-collapsed="true"] aside[aria-label="Primary navigation"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
 /* Collapsed sidebar: force-open every <details> panel so the items
    (icons) stay visible even if the operator collapsed the section
    while expanded. Hiding the <summary> via .mm-sidebar-heading rule
    above already removes the chevron + count. */
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) details.mm-sidebar-panel > ul {
+  display: flex !important;
+}
+html[data-sidebar-collapsed="true"] aside[aria-label="Primary navigation"]:not([data-sidebar-mobile="true"]) details.mm-sidebar-panel > ul {
   display: flex !important;
 }
 aside[aria-label="Primary navigation"][data-collapsed="true"]:not([data-sidebar-mobile="true"]) .mm-sidebar-link-icon {

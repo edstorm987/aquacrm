@@ -1,18 +1,13 @@
 "use client";
 
-// R007 — Cookie consent block. Renders only when no consent decision
-// is on file. Accept/decline writes a single localStorage key
-// (`aqua_cookie_consent_v1`); other plugins can read this key or
-// listen for the `aqua-cookie-consent` CustomEvent we dispatch on
-// either decision.
-//
-// Single-binary v1 — granular categories (analytics / marketing /
-// strict) are R+1.
+// R007 — compact consent block for generated client sites. It writes
+// the same category contract consumed by Aqua Tag across public sites.
 
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 
-export const COOKIE_CONSENT_KEY = "aqua_cookie_consent_v1";
+export const COOKIE_CONSENT_KEY = "aqua-cookie-preferences";
+const COOKIE_NAME = "aqua_cookie_preferences";
 export type CookieConsentValue = "accepted" | "declined";
 
 export default function CookieConsentBlock({ block }: BlockRenderProps) {
@@ -27,8 +22,8 @@ export default function CookieConsentBlock({ block }: BlockRenderProps) {
 
   useEffect(() => {
     try {
-      const cur = localStorage.getItem(COOKIE_CONSENT_KEY);
-      setDecided(cur === "accepted" || cur === "declined");
+      const cur = JSON.parse(localStorage.getItem(COOKIE_CONSENT_KEY) || "null") as { version?: number; necessary?: boolean } | null;
+      setDecided(cur?.version === 1 && cur.necessary === true);
     } catch {
       // Private mode / disabled storage — fall back to "decided" so we
       // don't render forever without a way to dismiss.
@@ -39,9 +34,22 @@ export default function CookieConsentBlock({ block }: BlockRenderProps) {
   if (decided) return null;
 
   function record(value: CookieConsentValue): void {
-    try { localStorage.setItem(COOKIE_CONSENT_KEY, value); } catch {}
+    const allowed = value === "accepted";
+    const choice = {
+      necessary: true,
+      preferences: allowed,
+      analytics: allowed,
+      marketing: allowed,
+      version: 1,
+      updatedAt: new Date().toISOString(),
+    };
+    try { localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(choice)); } catch {}
     try {
-      window.dispatchEvent(new CustomEvent("aqua-cookie-consent", { detail: { value } }));
+      const secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `${COOKIE_NAME}=${encodeURIComponent(JSON.stringify(choice))}; Max-Age=31536000; Path=/; SameSite=Lax${secure}`;
+    } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent("aqua:consent-updated", { detail: choice }));
     } catch {}
     setDecided(true);
   }

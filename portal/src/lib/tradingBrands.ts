@@ -27,6 +27,15 @@ export const TRADING_BRANDS = [
     accentColor: "#8A623D",
   },
   {
+    slug: "aquacrm",
+    name: "AquaCRM",
+    description: "Bespoke portals, operational software, EPOS, LMS, automation and connected business systems.",
+    website: "https://aqua-crm.com",
+    primaryColor: "#071A20",
+    secondaryColor: "#E8F3F1",
+    accentColor: "#62C9C7",
+  },
+  {
     slug: "software-studio",
     name: "Software Studio",
     description: "Bespoke portals, ecommerce, automation and operational software built around real business workflows.",

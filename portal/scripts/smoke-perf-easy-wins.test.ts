@@ -10,13 +10,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const FOUNDER_SEED = readFileSync(join(ROOT, "src/lib/server/founderSeed.ts"), "utf8");
 
-describe("Perf — standalone portal guards", () => {
-  it("founderSeed.ts keeps dev-bypass seeding memoized", () => {
-    assert.ok(FOUNDER_SEED.includes("DEV_SEED_TTL_MS"));
-    assert.ok(FOUNDER_SEED.includes("30_000"));
-    assert.ok(FOUNDER_SEED.includes("devSeedPromise"));
-    assert.ok(FOUNDER_SEED.includes("devSeedPromise = null"));
-    assert.ok(FOUNDER_SEED.includes("devSeedAt = 0"));
+describe("Perf — AquaCRM guards", () => {
+  it("founderSeed.ts keeps idempotent seeding memoized", () => {
+    assert.ok(FOUNDER_SEED.includes("let seedPromise: Promise<void> | null = null"));
+    assert.ok(FOUNDER_SEED.includes("if (!seedPromise) seedPromise = run()"));
+    assert.ok(FOUNDER_SEED.includes("return seedPromise"));
   });
 
   it("performance scripts target the standalone portal", () => {
@@ -29,8 +27,9 @@ describe("Perf — standalone portal guards", () => {
     assert.ok(baseline.includes(".next"));
   });
 
-  it("old public static apps are not part of this separated portal", () => {
-    for (const folder of ["health-check", "business-os", "incubator", "_marketing"]) {
+  it("retired public static apps are not shipped", () => {
+    assert.equal(existsSync(join(ROOT, "public", "aquacrm-site")), true);
+    for (const folder of ["incubator", "_marketing"]) {
       assert.equal(existsSync(join(ROOT, "public", folder)), false, `${folder} should live outside this portal app`);
     }
   });

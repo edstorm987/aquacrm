@@ -9,13 +9,12 @@ import "server-only";
 //
 // Behaviour:
 //
-//   - `FOUNDER_EMAIL` — defaults to `edwardhallam07@gmail.com` for
-//     dev convenience. Required to differ from default in production.
+//   - `FOUNDER_EMAIL` — defaults to the real AquaCRM owner account.
 //   - `FOUNDER_PASSWORD` — no default. Missing → log a warning + skip
 //     the seed (rather than create an unauthenticated founder).
 //   - `FOUNDER_AGENCY_NAME` — defaults to "Milesymedia".
 //   - Production guard: when `NODE_ENV === "production"`, refuse to
-//     seed when password length < 12 OR email is the dev default.
+//     seed when password length < 12.
 //     Throws — fail-closed startup error rather than silent insecure
 //     seed.
 
@@ -56,9 +55,6 @@ export function checkFounderPolicy(input: {
   if (input.nodeEnv === "production") {
     if (input.password.length < 12) {
       return { ok: false, reason: "FOUNDER_PASSWORD must be ≥12 chars in production." };
-    }
-    if (input.email.trim().toLowerCase() === DEFAULT_FOUNDER_EMAIL) {
-      return { ok: false, reason: "FOUNDER_EMAIL is the dev default — set a real address before deploying." };
     }
   }
   return { ok: true };

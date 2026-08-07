@@ -2,7 +2,7 @@
   "name": "aquacrm",
   "version": "0.1.0",
   "private": true,
-  "description": "Private Milesymedia and Zimante Group operating portal.",
+  "description": "AquaCRM website, business operating system, and secure client portals.",
   "scripts": {
     "dev": "next dev --webpack -p 3032",
     "dev:all": "npm run dev",
@@ -10,6 +10,7 @@
     "start": "next start -p 3032",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:all": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-*.test.ts",
     "smoke:post-deploy": "node scripts/post-deploy-smoke.mjs",
     "smoke:postgres": "node scripts/smoke-postgres.mjs",
     "smoke:ux": "node scripts/smoke-ux.mjs",
@@ -62,11 +63,16 @@
     "smoke:perf-easy-wins": "tsx --test scripts/smoke-perf-easy-wins.test.ts",
     "perf:baseline": "node scripts/perf-baseline.mjs",
     "migrate:file-to-postgres": "node scripts/migrate-file-to-postgres.mjs",
+    "migrate:file-to-supabase": "node --env-file=.env.local scripts/migrate-file-to-supabase.mjs",
+    "provision:founder": "node --env-file=.env.local scripts/provision-founder.mjs",
     "catalogue:development": "tsx scripts/catalogue-development-workspace.ts",
     "cleanup:development:duplicates": "tsx scripts/purge-duplicate-development-artifacts.ts",
-    "launch:audit": "tsx scripts/launch-audit.ts"
+    "launch:audit": "tsx scripts/launch-audit.ts",
+    "launch:audit:production-handoff": "VERCEL_ENV=production node --env-file='../Dev Team/vercel-env.local' ./node_modules/tsx/dist/cli.mjs scripts/launch-audit.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.2",
     "@vercel/blob": "^2.6.1",
     "lucide-react": "^0.468.0",
     "next": "16.2.4",

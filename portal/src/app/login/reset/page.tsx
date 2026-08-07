@@ -8,11 +8,21 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ResetForm } from "./ResetForm";
+import { getAuthBrand } from "@/lib/authBrand";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: "Reset password · Milesymedia",
-  description: "Choose a new password for your Milesymedia client portal.",
-};
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const brand = getAuthBrand(params.brand);
+  return {
+    title: `Reset password · ${brand.name}`,
+    description: `Choose a new password for your ${brand.name} workspace.`,
+  };
+}
 
 // `/login/reset` reads `?token=` via useSearchParams in ResetForm.
 // Force dynamic rendering so the static-prerender pass doesn't bail
@@ -20,14 +30,20 @@ export const metadata = {
 // dynamic renders skip the prerender entirely).
 export const dynamic = "force-dynamic";
 
-export default function ResetPage() {
+export default async function ResetPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string }>;
+}) {
+  const params = await searchParams;
+  const brand = getAuthBrand(params.brand);
   return (
-    <main className="mm-auth-shell">
+    <main className="mm-auth-shell" data-auth-brand={brand.id}>
       <div className="mm-auth-split">
         <aside className="mm-auth-brand-panel" aria-hidden="true">
           <div className="mm-auth-brand-mark">
-            <span>M</span>
-            <strong>Milesymedia</strong>
+            <span>{brand.mark}</span>
+            <strong>{brand.name}</strong>
           </div>
           <span className="mm-auth-brand-eyebrow">Client portal</span>
           <h2 className="mm-auth-brand-headline">
@@ -39,7 +55,7 @@ export default function ResetPage() {
             sign out automatically.
           </p>
           <span className="mm-auth-brand-foot">
-            Secure access provided by Milesymedia
+            Secure access provided by {brand.name}
           </span>
         </aside>
 
@@ -53,7 +69,7 @@ export default function ResetPage() {
           </Suspense>
           <div className="mm-auth-foot">
             <span>
-              Changed your mind? <Link href="/login">Sign in →</Link>
+              Changed your mind? <Link href={`/login?brand=${brand.id}`}>Sign in →</Link>
             </span>
           </div>
         </div>

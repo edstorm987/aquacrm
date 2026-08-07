@@ -44,6 +44,34 @@ const nextConfig: NextConfig = {
           source: "/",
           destination: "/aquacrm-site/index.html",
         },
+        {
+          source: "/projects",
+          destination: "/aquacrm-site/projects/index.html",
+        },
+        {
+          source: "/projects/",
+          destination: "/aquacrm-site/projects/index.html",
+        },
+        {
+          source: "/privacy",
+          destination: "/aquacrm-site/privacy/index.html",
+        },
+        {
+          source: "/privacy/",
+          destination: "/aquacrm-site/privacy/index.html",
+        },
+        {
+          source: "/styles.css",
+          destination: "/aquacrm-site/styles.css",
+        },
+        {
+          source: "/projects.js",
+          destination: "/aquacrm-site/projects.js",
+        },
+        {
+          source: "/assets/:path*",
+          destination: "/aquacrm-site/assets/:path*",
+        },
       ],
       afterFiles: [],
       fallback: [],

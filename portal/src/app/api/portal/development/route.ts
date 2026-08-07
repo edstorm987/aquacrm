@@ -4,6 +4,7 @@ import { del } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import {
   createDevelopmentResource,
   createDevelopmentWorkflow,
@@ -113,6 +114,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: "You cannot delete this resource." }, { status: 403 });
       }
       const deleted = deleteDevelopmentResource(session.agencyId, body.resourceId);
+      if (deleted?.file?.storageProvider === "supabase") await deleteSupabasePrivateUpload(deleted.file.storageKey).catch(() => false);
       if (deleted?.file?.storageProvider === "vercel-blob") await del(deleted.file.storageKey).catch(() => undefined);
       if (deleted?.file?.storageProvider === "local") {
         const root = resolve(process.cwd(), ".data", "development-uploads");

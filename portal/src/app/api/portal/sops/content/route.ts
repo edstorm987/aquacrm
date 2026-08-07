@@ -4,6 +4,7 @@ import { get } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { getSop } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type SopDocument } from "@/server/types";
@@ -30,6 +31,12 @@ export async function GET(request: NextRequest) {
     const sop = getSop(session.agencyId, id);
     if (!sop?.storageProvider || !sop.storageKey) {
       return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
+    }
+
+    if (sop.storageProvider === "supabase") {
+      const stored = await readSupabasePrivateUpload(sop.storageKey);
+      if (!stored) return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
+      return new Response(stored, { status: 200, headers: headersFor(sop) });
     }
 
     if (sop.storageProvider === "vercel-blob") {

@@ -98,12 +98,15 @@ describe("Observability — /healthz/full route (R030, source-marker)", () => {
     assert.ok(src.includes('"connected"'));
     assert.ok(src.includes('"down"'));
     assert.ok(src.includes('"untested"'));
-    assert.ok(src.includes("status: probe.ok ? 200 : 503"));
+    assert.ok(src.includes("const ok = probe.ok && (!isLiveProduction || readiness.ready)"));
+    assert.ok(src.includes("status: ok ? 200 : 503"));
   });
 
-  it("untested branch when PORTAL_BACKEND != postgres + DATABASE_URL unset", () => {
+  it("supports Postgres, Supabase, and an honest untested branch", () => {
     const src = readFileSync(HEALTHZ_FULL, "utf8");
     assert.ok(src.includes("wantsPostgres"));
+    assert.ok(src.includes("wantsSupabase"));
+    assert.ok(src.includes('from("app_datastores")'));
     assert.ok(src.match(/db:\s*"untested"/));
   });
 

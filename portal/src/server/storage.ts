@@ -45,7 +45,7 @@ const empty = (): PortalState => ({
 
 // ─── Backend interface ────────────────────────────────────────────────────
 
-export type BackendKind = "file" | "memory" | "kv" | "postgres";
+export type BackendKind = "file" | "memory" | "kv" | "postgres" | "supabase";
 
 interface Backend {
   kind: BackendKind;
@@ -118,12 +118,27 @@ const postgresBackend: Backend = {
   },
 };
 
+const supabaseBackend: Backend = {
+  kind: "supabase",
+  persistent: true,
+  description: "Supabase app datastore (`aquacrm-portal-state`).",
+  async loadBlob() {
+    const { loadBlob } = await import("./storageSupabase");
+    return loadBlob();
+  },
+  async saveBlob(content) {
+    const { saveBlob } = await import("./storageSupabase");
+    return saveBlob(content);
+  },
+};
+
 function pickBackend(): Backend {
   const explicit = (process.env.PORTAL_BACKEND ?? "").toLowerCase();
   switch (explicit) {
     case "memory":   return memoryBackend;
     case "kv":       return kvStub;
     case "postgres": return postgresBackend;
+    case "supabase": return supabaseBackend;
     case "file":
     case "":
     default: {
@@ -132,6 +147,11 @@ function pickBackend(): Backend {
       // production deploys "set DATABASE_URL and go" while keeping
       // local dev (no DATABASE_URL) on the file backend.
       if (!explicit && process.env.DATABASE_URL) return postgresBackend;
+      if (
+        !explicit &&
+        process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      ) return supabaseBackend;
       return fileBackend;
     }
   }
@@ -167,7 +187,7 @@ export async function ensureHydrated(): Promise<void> {
         process.env.NEXT_PHASE !== "phase-production-build";
       if (isDeployedProduction && (backend.kind === "file" || backend.kind === "memory")) {
         throw new Error(
-          `[portal] Refusing to start with ${backend.kind} storage on Vercel. Set DATABASE_URL and PORTAL_BACKEND=postgres before serving customer data.`,
+          `[portal] Refusing to start with ${backend.kind} storage on Vercel. Configure Supabase storage or Postgres before serving customer data.`,
         );
       }
       try {

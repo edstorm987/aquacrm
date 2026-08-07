@@ -599,3 +599,25 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   input, select, textarea { min-height: 48px; }
   footer nav a { min-height: 44px; display: flex; align-items: center; }
 }
+.cookie-reopen { position: fixed; right: 14px; bottom: 14px; z-index: 69; min-height: 40px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: var(--night); color: #fff; padding: 0 15px; font: inherit; font-size: .72rem; font-weight: 800; box-shadow: var(--shadow); cursor: pointer; }
+.cookie-banner { position: fixed; inset: auto 16px 16px 16px; z-index: 70; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 28px; align-items: center; max-width: 1120px; margin: auto; border: 1px solid #b9cac6; border-radius: 8px; background: #fff; color: var(--ink); padding: 22px; box-shadow: 0 22px 70px rgba(4,26,26,.22); }
+.cookie-banner[hidden] { display: none; }
+.cookie-banner strong { font-size: 1rem; }
+.cookie-banner p { max-width: 700px; margin: 6px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.55; }
+.cookie-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.cookie-actions button, .cookie-dialog button { min-height: 42px; border: 1px solid #b9cac6; border-radius: 5px; background: #fff; color: var(--ink); padding: 0 14px; font: inherit; font-size: .76rem; font-weight: 850; cursor: pointer; }
+.cookie-actions .primary, .cookie-dialog .primary { border-color: var(--teal); background: var(--teal); color: #fff; }
+.cookie-dialog { width: min(620px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); border: 0; border-radius: 8px; padding: 0; background: #fff; color: var(--ink); box-shadow: 0 28px 90px rgba(4,26,26,.34); }
+.cookie-dialog::backdrop { background: rgba(2,20,20,.72); }
+.cookie-dialog-shell { padding: 26px; }
+.cookie-dialog header, .cookie-dialog footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cookie-dialog header span { color: var(--teal); font-size: .63rem; font-weight: 900; text-transform: uppercase; }
+.cookie-dialog h2 { margin: 7px 0 18px; font-family: Georgia, serif; font-size: 1.7rem; font-weight: 400; }
+.cookie-dialog label { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); padding: 17px 0; }
+.cookie-dialog label span, .cookie-dialog label strong, .cookie-dialog label small { display: block; }
+.cookie-dialog label small { margin-top: 5px; color: var(--muted); line-height: 1.45; }
+.cookie-dialog input { width: 20px; height: 20px; accent-color: var(--teal); }
+.cookie-dialog > form > p { color: var(--muted); font-size: .78rem; }
+.cookie-dialog a { color: var(--teal); font-weight: 800; }
+.cookie-dialog footer { justify-content: flex-end; margin-top: 22px; }
+@media (max-width: 700px) { .cookie-banner { grid-template-columns: 1fr; gap: 16px; padding: 18px; } .cookie-actions { justify-content: stretch; } .cookie-actions button { flex: 1 1 auto; } .cookie-reopen { right: 10px; bottom: 10px; } }

@@ -211,7 +211,7 @@ test("Development control centre covers websites, portals and software", () => {
   const firstParty = readFileSync("src/lib/firstPartyDevelopmentProjects.ts", "utf8");
   const propertyApi = readFileSync("src/app/api/tenants/client-properties/route.ts", "utf8");
   assert.match(page, /FIRST_PARTY_DEVELOPMENT_PROJECTS/);
-  for (const project of ["Milesymedia website", "Milesymedia portal", "Business OS", "Health Check"]) {
+  for (const project of ["Milesymedia website", "AquaCRM", "Business OS", "Health Check"]) {
     assert.match(firstParty, new RegExp(project));
   }
   for (const view of ["All projects", "Websites", "Portals", "Software", "Lead magnets", "Needs attention"]) {

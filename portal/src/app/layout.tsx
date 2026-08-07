@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { SkipToContent } from "@/components/ui/SkipToContent";
 import dynamic from "next/dynamic";
 import { COLOR_MODE_SCRIPT } from "@/lib/chrome/colorMode";
+import { SIDEBAR_COLLAPSE_HYDRATION_SCRIPT } from "@/components/chrome/sidebarCollapseState";
 
 // Defer chrome client islands so they don't block first paint of the
 // page content for slow connections.
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: COLOR_MODE_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: SIDEBAR_COLLAPSE_HYDRATION_SCRIPT }} />
       </head>
       <body>
         <PageReveal />

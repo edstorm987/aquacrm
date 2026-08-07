@@ -5,6 +5,7 @@ import { createUser, getUser, getUserById, listUsersForAgency, updateUser } from
 import { logActivity } from "@/server/activity";
 import type { Role, ServerUser } from "@/server/types";
 import { getTradingCompany } from "@/server/tradingCompanies";
+import { provisionSupabaseIdentity } from "@/lib/supabase/admin";
 
 const STAFF_ROLES: Role[] = ["agency-manager", "agency-staff"];
 
@@ -92,6 +93,12 @@ export async function POST(req: NextRequest) {
   try {
     const agencyId = getActiveAgencyId(session);
     const companyIds = requestedCompanyIds.filter(id => Boolean(getTradingCompany(agencyId, id))).slice(0, 30);
+    await provisionSupabaseIdentity({
+      email,
+      password,
+      name,
+      role: "staff",
+    });
     const user = createUser({
       name,
       email,

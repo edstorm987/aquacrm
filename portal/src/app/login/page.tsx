@@ -3,7 +3,6 @@ import Link from "next/link";
 // Renamed to avoid clashing with the route-level `dynamic` const below.
 import nextDynamic from "next/dynamic";
 import { isGoogleOAuthConfigured } from "@/lib/server/oauthGoogle";
-import { seedFounder } from "@/lib/server/founderSeed";
 import { getCurrentUser } from "@/lib/server/auth";
 import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
 import { getAuthBrand } from "@/lib/authBrand";
@@ -49,16 +48,6 @@ export default async function LoginPage({
     redirect(resolvePostLoginPath(null, existing));
   }
 
-  // T4 unify-3 — make sure the founder user is seeded before the
-  // form renders, so a fresh `npm run dev` can sign in immediately.
-  try {
-    await seedFounder();
-  } catch (e) {
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.warn("[/login] seedFounder skipped:", e instanceof Error ? e.message : e);
-    }
-  }
   return (
     <main className="mm-auth-shell" data-auth-brand={brand.id}>
       <div className="mm-auth-split">

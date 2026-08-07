@@ -4,6 +4,7 @@ import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { getDevelopmentResource } from "@/server/developmentToolkit";
 import { ensureHydrated } from "@/server/storage";
 
@@ -18,6 +19,17 @@ export async function GET(request: Request) {
     if (!resource) return NextResponse.json({ ok: false, error: "File not found." }, { status: 404 });
     if (resource.visibility === "private" && resource.createdBy !== session.userId && session.role !== "agency-owner") {
       return NextResponse.json({ ok: false, error: "File not found." }, { status: 404 });
+    }
+    if (resource.file?.storageProvider === "supabase") {
+      const stored = await readSupabasePrivateUpload(resource.file.storageKey);
+      if (!stored) return NextResponse.json({ ok: false, error: "File not found." }, { status: 404 });
+      return new NextResponse(stored, {
+        headers: {
+          "content-type": resource.file.contentType,
+          "content-disposition": `inline; filename="${resource.file.fileName.replaceAll('"', "")}"`,
+          "cache-control": "private, no-store",
+        },
+      });
     }
     if (resource.file?.storageProvider === "vercel-blob") {
       const result = await get(resource.file.storageKey, { access: "private", useCache: false });

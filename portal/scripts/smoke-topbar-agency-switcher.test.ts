@@ -55,7 +55,8 @@ describe("Single-agency wire-up", () => {
     const src = readFileSync(AGENCY_LAYOUT, "utf8");
     assert.ok(!src.includes("getSessionAgencyIds(session)"));
     assert.ok(!src.includes("getActiveAgencyId(session)"));
-    assert.ok(src.includes("tenantLabel={agency.name}"));
+    assert.ok(src.includes("const activeLabel = activeCompany?.name ?? agency.name"));
+    assert.ok(src.includes("tenantLabel={activeLabel}"));
   });
 });
 

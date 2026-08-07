@@ -1,13 +1,9 @@
 # AquaCRM
 
-One private Next.js application for secure sign-in, agency operations, and
-customer portals across Zimante Group companies. Milesymedia is the founding
-business inside AquaCRM, not the name of the platform.
-
-It is also the central operating system for Zimante Group and its specialist
-trading identities. See
-[`docs/zimante-brand-architecture.md`](docs/zimante-brand-architecture.md) for
-the public-site boundaries and shared enquiry contract.
+A single Next.js application serving the AquaCRM public website, secure
+sign-in, the internal agency workspace, and branded customer portals. Public
+sites submit centrally to AquaCRM while preserving their trading brand,
+source, campaign, requested services, and consent record.
 
 ## Local
 
@@ -16,24 +12,22 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
-Open:
-
-- https://aqua-crm.com
-- https://aqua-crm.com/login?next=/portal
+Open `http://localhost:3032`. The website is `/`, sign-in is `/login`, and all
+authenticated workspaces live below `/portal`.
 
 ## Vercel
 
-When deploying from the repository root, the root `vercel.json` builds:
-
-```text
-04-milesymedia-portal/milesymedia-portal/portal
-```
+Import the `edstorm987/aquacrm` repository and set Vercel **Root Directory** to
+`portal`. Keep the framework preset on Next.js and do not set a custom output
+directory.
 
 The production launch gate requires:
 
-- Postgres: `DATABASE_URL` and `PORTAL_BACKEND=postgres`
+- Supabase: URL, anon key, service-role key, public bucket, and private upload
+  bucket. `PORTAL_BACKEND=supabase` is optional because the app detects a
+  complete Supabase configuration.
 - Secure sessions: `PORTAL_SESSION_SECRET`, `NEXT_PUBLIC_PORTAL_SECURITY=strict`, and the HTTPS `NEXT_PUBLIC_PORTAL_BASE_URL`
-- Transactional email: `POSTMARK_SERVER_TOKEN` and `MILESYMEDIA_FROM_EMAIL`
+- Email: Resend for access/security mail and enquiry notifications
 - Payments: `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`
 - Private assistant: `OPENAI_API_KEY` and optional `OPENAI_ASSISTANT_MODEL`
 - External assistant gateway: `MILESYMEDIA_ASSISTANT_API_TOKEN` and
@@ -41,7 +35,9 @@ The production launch gate requires:
   read-only OpenAPI contract is served from `/api/v1/openapi.json`; a reusable
   skill is in `assistant-integrations/milesymedia-api/SKILL.md`. Setup and
   endpoint guidance is in `docs/external-assistant-api.md`.
-- Durable private uploads: one supported Vercel Blob credential
+- Durable private uploads: `NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET` (normally
+  `aquacrm-uploads`). Existing Vercel Blob references remain readable for
+  migration compatibility, but new uploads use Supabase Storage.
 
 Set `FOUNDER_EMAIL`, `FOUNDER_PASSWORD`, and `FOUNDER_AGENCY_NAME` for the first owner account. Rotate the local founder password before any public launch.
 
@@ -58,11 +54,14 @@ the Stripe webhook endpoint and subscribe it to `checkout.session.completed`
 and `invoice.paid`. Bank transfer and cash payments can also be recorded
 manually, with references and emailed receipts retained in the audit trail.
 
+The complete variable names and safety notes live in `.env.example`. Local
+secrets belong in `.env.local`; never commit them.
+
 After configuring Vercel, confirm:
 
 - `/healthz` returns `200` for liveness.
 - `/healthz/full` returns `200` and `"readyForProduction": true`.
 - Agency Settings → Launch shows all four required services as ready.
 
-The public website is `/`, sign-in is `/login`, and all authenticated
-workspaces live under `/portal` on the same origin.
+The deep probe deliberately stays unready until required email, storage,
+database, HTTPS, and session-security settings are present in production.

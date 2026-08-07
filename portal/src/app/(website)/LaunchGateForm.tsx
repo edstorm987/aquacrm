@@ -25,6 +25,7 @@ export function LaunchGateForm({
   return (
     <form
       className="grid gap-5 sm:grid-cols-2"
+      data-aqua-form="Website enquiry"
       onSubmit={async (event) => {
         event.preventDefault();
         const form = event.currentTarget;

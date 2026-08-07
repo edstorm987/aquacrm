@@ -7,6 +7,7 @@ import { logActivity } from "@/server/activity";
 import { unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { del } from "@vercel/blob";
+import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export interface ClientFileRef {
   uploadedAt: number;
   size?: number;
   contentType?: string;
-  storageProvider?: "vercel-blob" | "local";
+  storageProvider?: "supabase" | "vercel-blob" | "local";
   storageKey?: string;
 }
 
@@ -118,6 +119,9 @@ export async function POST(req: Request) {
     const before = files.length;
     const next = files.filter(f => f.id !== body.fileId);
     if (next.length === before) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
+    if (target?.storageProvider === "supabase" && target.storageKey) {
+      await deleteSupabasePrivateUpload(target.storageKey).catch(() => false);
+    }
     if (target?.storageProvider === "vercel-blob" && target.storageKey) {
       await del(target.storageKey).catch(() => undefined);
     }

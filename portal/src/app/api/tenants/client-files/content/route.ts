@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency } from "@/server/tenants";
@@ -41,6 +42,12 @@ export async function GET(req: Request) {
   const file = files.find(item => item.id === fileId);
   if (!file?.storageProvider || !file.storageKey) {
     return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
+  }
+
+  if (file.storageProvider === "supabase") {
+    const stored = await readSupabasePrivateUpload(file.storageKey);
+    if (!stored) return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
+    return new Response(stored, { status: 200, headers: downloadHeaders(file) });
   }
 
   if (file.storageProvider === "vercel-blob") {

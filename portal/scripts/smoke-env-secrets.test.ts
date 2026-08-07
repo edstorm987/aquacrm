@@ -29,7 +29,12 @@ const PROD_REQUIRED_ENV: NodeJS.ProcessEnv = {
   DATABASE_URL: "postgres://user:pass@host/db",
   NEXT_PUBLIC_PORTAL_BASE_URL: "https://milesymedia.com",
   NEXT_PUBLIC_PORTAL_SECURITY: "strict",
-  FOUNDER_EMAIL: "ed@example.com",
+  NEXT_PUBLIC_SUPABASE_URL: "https://project-ref.supabase.co",
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-test-key",
+  NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
+  NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-uploads",
+  SUPABASE_SERVICE_ROLE_KEY: "service-role-test-key",
+  FOUNDER_EMAIL: "edwardhallam07@gmail.com",
   FOUNDER_PASSWORD: "x".repeat(16),
 };
 
@@ -133,11 +138,11 @@ describe("Env secrets — inspectEnv issues (R029)", () => {
     assert.ok(e);
   });
 
-  it("dev-default FOUNDER_EMAIL flagged as example sentinel", () => {
+  it("the real founder email is accepted", () => {
     const env = { ...PROD_REQUIRED_ENV, FOUNDER_EMAIL: "edwardhallam07@gmail.com" };
     const issues = inspectEnv(env);
-    const e = issues.find(i => i.name === "FOUNDER_EMAIL" && i.reason.includes("sentinel"));
-    assert.ok(e);
+    const e = issues.find(i => i.name === "FOUNDER_EMAIL");
+    assert.equal(e, undefined);
   });
 
   it("NEXT_PUBLIC_PORTAL_SECURITY != strict in prod is an error", () => {
@@ -190,9 +195,11 @@ describe("Env secrets — ENV_ALLOWLIST (R029)", () => {
   it("includes every PRODUCTION_REQUIRED key", () => {
     const required = [
       "PORTAL_SESSION_SECRET",
-      "DATABASE_URL",
       "NEXT_PUBLIC_PORTAL_BASE_URL",
       "NEXT_PUBLIC_PORTAL_SECURITY",
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY",
       "FOUNDER_EMAIL",
       "FOUNDER_PASSWORD",
     ];

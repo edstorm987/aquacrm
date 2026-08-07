@@ -40,9 +40,10 @@ describe("Founder seed — policy contract (R024)", () => {
     assert.ok(SEED_SRC.includes("FOUNDER_PASSWORD must be ≥12 chars in production"));
   });
 
-  it("production + email is dev default → not ok", () => {
+  it("the default founder email is the real owner account", () => {
     assert.ok(SEED_SRC.includes("DEFAULT_FOUNDER_EMAIL"));
-    assert.ok(SEED_SRC.includes('FOUNDER_EMAIL is the dev default'));
+    assert.ok(SEED_SRC.includes('DEFAULT_FOUNDER_EMAIL = "edwardhallam07@gmail.com"'));
+    assert.ok(!SEED_SRC.includes('FOUNDER_EMAIL is the dev default'));
   });
 
   it("dev + password ≥ 8 → ok (uses validatePassword via createUser)", () => {
@@ -97,7 +98,7 @@ describe("Founder seed — standalone deploy docs (R024)", () => {
     const rb = readFileSync(README, "utf8");
     assert.ok(rb.includes("`FOUNDER_EMAIL`"));
     assert.ok(rb.includes("`FOUNDER_PASSWORD`"));
-    assert.ok(rb.toLowerCase().includes("rotate `founder_password` before public flip"));
+    assert.ok(rb.toLowerCase().includes("rotate the local founder password before any public launch"));
   });
 });
 

@@ -21,9 +21,10 @@ test("public website enquiries enter the real sales system", () => {
 test("public enquiry endpoint validates origin, fields, bots, and request volume", () => {
   assert.match(route, /configuredOrigins\(\)\.has/);
   assert.match(route, /isTradingBrandSlug\(brand\)/);
-  assert.match(route, /CONTACT_METHODS\.has/);
+  assert.match(route, /CONTACT_METHOD_ALIASES/);
+  assert.match(route, /normalizeContactMethod/);
   assert.match(route, /brand-enquiry:\$\{ip\}/);
-  assert.match(route, /brand-enquiry-email:\$\{email\}/);
+  assert.match(route, /brand-enquiry-contact:\$\{hasEmail \? email : phone\.replace/);
   assert.match(route, /body\.website/);
 });
 

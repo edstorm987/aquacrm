@@ -13,10 +13,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const PROXY = join(ROOT, "src", "proxy.ts");
 
-describe("Standalone portal proxy", () => {
-  it("matches only portal routes", () => {
+describe("AquaCRM proxy", () => {
+  it("matches authenticated portal and API routes", () => {
     const src = readFileSync(PROXY, "utf8");
-    assert.ok(src.includes('matcher: ["/portal/:path*"]'));
+    assert.ok(src.includes('matcher: ["/portal/:path*", "/api/:path*"]'));
+    assert.ok(src.includes("publicShowcase"));
+    assert.ok(src.includes("This public showcase is read-only."));
     assert.ok(!src.includes("/business-os"));
     assert.ok(!src.includes("/api/portal/business-os"));
     assert.ok(!src.includes("/embed/:slug/:variant"));

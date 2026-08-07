@@ -9,6 +9,7 @@ export const TELEMETRY_EVENT_TYPES = [
   "chatbot",
   "interaction",
   "heartbeat",
+  "consent",
   "custom",
 ] as const;
 
@@ -38,6 +39,11 @@ export interface ClientTelemetryEvent {
   experimentId?: string;
   variant?: string;
   conversionValueCents?: number;
+  consentVersion?: number;
+  consentNecessary?: boolean;
+  consentPreferences?: boolean;
+  consentAnalytics?: boolean;
+  consentMarketing?: boolean;
   userAgent?: string;
 }
 

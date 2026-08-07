@@ -20,6 +20,8 @@ import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import type { Role, ServerUser, SessionPayload } from "@/server/types";
 import { getUserById } from "@/server/users";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import { getAuthenticatedSupabaseUser } from "@/lib/supabase/server";
 
 const COOKIE_NAME = "lk_session_v1";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;       // 30 days
@@ -120,7 +122,20 @@ export function verifyToken(token: string | undefined): SessionPayload | null {
 
 export async function getSession(): Promise<SessionPayload | null> {
   const c = await cookies();
-  return verifyToken(c.get(COOKIE_NAME)?.value);
+  const session = verifyToken(c.get(COOKIE_NAME)?.value);
+  if (!session) return null;
+  if (session.isDemo || session.publicShowcase) return session;
+  // Embedded customer portals can still use AquaCRM's signed one-time
+  // access links. Their scoped session remains independently verified by
+  // the HMAC token and nonce store, while staff/client password accounts
+  // use Supabase as the primary identity provider.
+  if (session.role === "end-customer") return session;
+  if (!getSupabasePublicConfig()) return session;
+  const supabaseUser = await getAuthenticatedSupabaseUser();
+  if (!supabaseUser || supabaseUser.email?.toLowerCase() !== session.email.toLowerCase()) {
+    return null;
+  }
+  return session;
 }
 
 export async function getSessionFromRequest(req: NextRequest): Promise<SessionPayload | null> {

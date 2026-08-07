@@ -10,8 +10,10 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     PORTAL_SESSION_SECRET: "a-production-session-secret-over-32-characters",
     NEXT_PUBLIC_PORTAL_SECURITY: "strict",
     NEXT_PUBLIC_PORTAL_BASE_URL: "https://portal.milesymedia.co.uk",
-    POSTMARK_SERVER_TOKEN: "postmark-token",
     MILESYMEDIA_FROM_EMAIL: "portal@milesymedia.co.uk",
+    RESEND_API_KEY: "resend-token",
+    ENQUIRY_NOTIFY_TO: "owner@example.com",
+    ENQUIRY_EMAIL_FROM: "AquaCRM enquiries <enquiries@example.com>",
     BLOB_READ_WRITE_TOKEN: "blob-token",
     ...overrides,
   };
@@ -64,6 +66,27 @@ describe("production readiness", () => {
       const result = inspectProductionReadiness(env);
       assert.equal(result.items.find(item => item.id === "uploads")?.status, "ready");
     }
+  });
+
+  it("accepts Supabase for both durable state and private uploads", () => {
+    const result = inspectProductionReadiness(productionEnv({
+      PORTAL_BACKEND: "supabase",
+      DATABASE_URL: "",
+      BLOB_READ_WRITE_TOKEN: "",
+      NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
+      SUPABASE_SERVICE_ROLE_KEY: "server-service-role-key",
+      NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-uploads",
+    }));
+    assert.equal(result.ready, true);
+    assert.equal(result.items.find(item => item.id === "database")?.status, "ready");
+    assert.equal(result.items.find(item => item.id === "uploads")?.status, "ready");
+  });
+
+  it("requires both account mail and enquiry notifications", () => {
+    const withoutEnquiryMail = inspectProductionReadiness(productionEnv({ RESEND_API_KEY: "" }));
+    assert.equal(withoutEnquiryMail.ready, false);
+    assert.equal(withoutEnquiryMail.items.find(item => item.id === "email")?.status, "needs-setup");
   });
 
   it("keeps client billing and Sentry optional", () => {

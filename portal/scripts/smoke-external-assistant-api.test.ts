@@ -40,7 +40,7 @@ test("read-only context, records, search, and export routes exist", () => {
 test("OpenAPI contract and reusable model-independent skill are shipped", () => {
   const openapi = read("src/app/api/v1/openapi.json/route.ts");
   const skill = read("assistant-integrations/milesymedia-api/SKILL.md");
-  assert.match(openapi, /Milesymedia Business Assistant API/);
+  assert.match(openapi, /AquaCRM Business Assistant API/);
   assert.match(openapi, /bearerAuth/);
   assert.match(openapi, /read-only/i);
   assert.match(skill, /MILESYMEDIA_API_BASE_URL/);

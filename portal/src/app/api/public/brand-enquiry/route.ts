@@ -11,10 +11,29 @@ import { ensureHydrated } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
 import { getUser } from "@/server/users";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { notifyBrandEnquiry } from "@/lib/server/enquiryNotifications";
+import { PUBLIC_AQUA_SITES } from "@/lib/publicSites";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CONTACT_METHODS = new Set(["in-person", "call", "text", "email", "whatsapp"]);
+const PHONE = /^[+()\d\s.-]{7,40}$/;
 const MAX_SERVICES = 12;
+const CONTACT_METHOD_ALIASES: Record<string, string> = {
+  "in person": "in-person",
+  "in-person": "in-person",
+  call: "call",
+  phone: "call",
+  "phone call": "call",
+  text: "text",
+  "text message": "text",
+  email: "email",
+  whatsapp: "whatsapp",
+  chat: "chat",
+  chatbot: "chat",
+  support: "support",
+  ticket: "support",
+  other: "support",
+};
 
 interface BrandEnquiryBody {
   brand?: unknown;
@@ -44,13 +63,34 @@ function cleanServices(value: unknown): string[] {
   )];
 }
 
+function normalizeContactMethod(value: unknown): string {
+  return CONTACT_METHOD_ALIASES[clean(value, 30).toLowerCase()] ?? "";
+}
+
+function cleanPublicUrl(value: unknown): string {
+  const raw = clean(value, 500);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
 function configuredOrigins(): Set<string> {
-  return new Set(
-    (process.env.PUBLIC_BRAND_ORIGINS ?? "")
+  return new Set([
+    ...Object.values(PUBLIC_AQUA_SITES).flatMap((site) => [...site.origins]),
+    ...(process.env.PUBLIC_BRAND_ORIGINS ?? "")
       .split(",")
       .map((origin) => origin.trim().replace(/\/$/, ""))
       .filter(Boolean),
-  );
+  ]);
 }
 
 function allowedOrigin(req: NextRequest): string | null {
@@ -130,21 +170,23 @@ export async function POST(req: NextRequest) {
   const name = clean(body.name, 120);
   const email = clean(body.email, 254).toLowerCase();
   const phone = clean(body.phone, 40);
-  const contactMethod = clean(body.contactMethod, 30);
+  const contactMethod = normalizeContactMethod(body.contactMethod);
   const message = clean(body.message, 4_000);
-  const sourceUrl = clean(body.sourceUrl, 500);
+  const sourceUrl = cleanPublicUrl(body.sourceUrl);
   const campaign = clean(body.campaign, 120);
+  const hasEmail = EMAIL.test(email);
+  const hasPhone = PHONE.test(phone);
 
   if (
     !isTradingBrandSlug(brand)
     || !name
-    || !EMAIL.test(email)
-    || !CONTACT_METHODS.has(contactMethod)
+    || (!hasEmail && !hasPhone)
+    || !contactMethod
     || body.consent !== true
   ) {
     return response({
       ok: false,
-      error: "Please add your name, a valid email, contact preference and consent.",
+      error: "Please add your name, a valid email or phone number, contact preference and consent.",
     }, 400, origin);
   }
 
@@ -158,17 +200,17 @@ export async function POST(req: NextRequest) {
       ipLimit.retryAfterSec,
     );
   }
-  const emailLimit = rateLimit({
-    key: `brand-enquiry-email:${email}`,
+  const contactLimit = rateLimit({
+    key: `brand-enquiry-contact:${hasEmail ? email : phone.replace(/\D/g, "")}`,
     max: 4,
     windowMs: 60 * 60 * 1_000,
   });
-  if (!emailLimit.allowed) {
+  if (!contactLimit.allowed) {
     return response(
       { ok: false, error: "We already have your recent messages. Please give us a little time to reply." },
       429,
       origin,
-      emailLimit.retryAfterSec,
+      contactLimit.retryAfterSec,
     );
   }
 
@@ -191,41 +233,72 @@ export async function POST(req: NextRequest) {
     const companies = ensureZimanteTradingCompanies(agency.id, founder.id);
     const company = companies[brand as TradingBrandSlug];
     const brandDefinition = tradingBrandDefinition(brand as TradingBrandSlug);
-    const { leads } = containerFor({
-      agencyId: agency.id,
-      storage: makePluginStorage(install.id) as never,
-    });
+    const capturedAt = new Date().toISOString();
+    const supabase = createSupabaseAdminClient();
+    const { data: captured, error: captureError } = await supabase
+      .from("brand_enquiries")
+      .insert({
+        brand_slug: brand,
+        name,
+        email: hasEmail ? email : null,
+        phone: hasPhone ? phone : null,
+        contact_method: contactMethod,
+        services,
+        message: message || null,
+        source_url: sourceUrl || null,
+        campaign: campaign || null,
+        consent: true,
+        metadata: {
+          consentPurpose: "reply-to-enquiry",
+          consentVersion: 1,
+          consentCapturedAt: capturedAt,
+          origin: origin || "same-origin",
+          notification: "pending",
+        },
+      })
+      .select("id")
+      .single();
+    if (captureError || !captured?.id) {
+      throw new Error(`Supabase enquiry capture failed: ${captureError?.message || "no record returned"}`);
+    }
 
-    await leads.upsert({
-      email,
-      name,
-      phone: phone || undefined,
-      source: `website:${brand}`,
-      companyId: company.id,
-      companyIds: [company.id],
-      brandSlugs: [brand],
-      serviceLines: services,
-      tags: [
-        "website-enquiry",
-        `brand:${brand}`,
-        `contact:${contactMethod}`,
-        ...services.map((service) => `service:${service.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`),
-      ],
-      notes: message || undefined,
-      customFields: {
-        preferredContactMethod: contactMethod,
-        enquiryMessage: message,
-        sourceUrl,
-        campaign,
-        consentCaptured: true,
-        consentCapturedAt: new Date().toISOString(),
-        publicBrand: brandDefinition.name,
-      },
-    }, founder.id);
+    if (hasEmail) {
+      const { leads } = containerFor({
+        agencyId: agency.id,
+        storage: makePluginStorage(install.id) as never,
+      });
+      await leads.upsert({
+        email,
+        name,
+        phone: hasPhone ? phone : undefined,
+        source: `website:${brand}`,
+        companyId: company.id,
+        companyIds: [company.id],
+        brandSlugs: [brand],
+        serviceLines: services,
+        tags: [
+          "website-enquiry",
+          `brand:${brand}`,
+          `contact:${contactMethod}`,
+          ...services.map((service) => `service:${service.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`),
+        ],
+        notes: message || undefined,
+        customFields: {
+          enquiryId: captured.id,
+          preferredContactMethod: contactMethod,
+          enquiryMessage: message,
+          sourceUrl,
+          campaign,
+          consentCaptured: true,
+          consentCapturedAt: capturedAt,
+          publicBrand: brandDefinition.name,
+        },
+      }, founder.id);
+    }
 
     logActivity({
       agencyId: agency.id,
-      actorEmail: email,
+      actorEmail: hasEmail ? email : undefined,
       category: "public-funnel",
       action: "form.brand_enquiry.submitted",
       message: `${brandDefinition.name} enquiry submitted by ${name}.`,
@@ -237,11 +310,43 @@ export async function POST(req: NextRequest) {
         sourceUrl,
         campaign,
         contactMethod,
-        hasPhone: Boolean(phone),
+        hasPhone,
+        enquiryId: captured.id,
+        leadCreated: hasEmail,
       },
     });
 
-    return response({ ok: true }, 200, origin);
+    let notification = "not-configured";
+    try {
+      const result = await notifyBrandEnquiry({
+        id: captured.id,
+        brandName: brandDefinition.name,
+        name,
+        email: hasEmail ? email : null,
+        phone: hasPhone ? phone : null,
+        contactMethod,
+        services,
+        message: message || null,
+        sourceUrl: sourceUrl || null,
+        campaign: campaign || null,
+      });
+      notification = result.sent ? "sent" : "not-configured";
+    } catch (notificationError) {
+      notification = "failed";
+      console.error("[brand-enquiry] notification failed", notificationError instanceof Error ? notificationError.message : "Unknown error");
+    }
+    await supabase
+      .from("brand_enquiries")
+      .update({ metadata: {
+        consentPurpose: "reply-to-enquiry",
+        consentVersion: 1,
+        consentCapturedAt: capturedAt,
+        origin: origin || "same-origin",
+        notification,
+      } })
+      .eq("id", captured.id);
+
+    return response({ ok: true, submissionId: captured.id }, 200, origin);
   } catch (cause) {
     console.error("[brand-enquiry] failed to capture enquiry", cause);
     return response({

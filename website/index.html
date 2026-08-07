@@ -329,7 +329,7 @@
             </p>
             <div class="contact-detail"><span>For existing clients</span><a data-aquacrm-login href="https://aqua-crm.com/login?brand=aquacrm&amp;next=/portal" target="_blank" rel="noopener noreferrer">Open your AquaCRM portal →</a></div>
           </div>
-          <form class="enquiry-form" id="enquiry-form">
+          <form class="enquiry-form" id="enquiry-form" data-aqua-form="AquaCRM systems enquiry">
             <input class="form-trap" name="website" tabindex="-1" autocomplete="off" />
             <div class="form-pair">
               <label>Name<input required name="name" autocomplete="name" /></label>
@@ -374,6 +374,30 @@
       <p class="legal">© 2026 AquaCRM. AquaCRM is a trading name of <a href="https://edward-hallam.com" target="_blank" rel="noopener noreferrer">Edward Hallam</a>, a sole trader in England and Wales.</p>
     </footer>
 
+    <button class="cookie-reopen" type="button" data-cookie-reopen>Cookie settings</button>
+    <section class="cookie-banner" data-cookie-banner hidden aria-label="Cookie choices">
+      <div>
+        <strong>Your privacy, under your control.</strong>
+        <p>Necessary storage keeps this site working. Optional Aqua analytics helps us understand useful pages without collecting form values.</p>
+      </div>
+      <div class="cookie-actions">
+        <button type="button" data-cookie-reject>Necessary only</button>
+        <button type="button" data-cookie-manage>Manage</button>
+        <button class="primary" type="button" data-cookie-accept>Accept all</button>
+      </div>
+    </section>
+    <dialog class="cookie-dialog" data-cookie-dialog aria-labelledby="cookie-title">
+      <form method="dialog" class="cookie-dialog-shell">
+        <header><div><span>Privacy choices</span><h2 id="cookie-title">Choose what AquaCRM may store.</h2></div><button type="submit" aria-label="Close cookie settings">Close</button></header>
+        <label><span><strong>Necessary</strong><small>Security, consent and core site operation.</small></span><input type="checkbox" checked disabled /></label>
+        <label><span><strong>Preferences</strong><small>Remember optional choices that improve your experience.</small></span><input type="checkbox" data-cookie-preferences /></label>
+        <label><span><strong>Analytics</strong><small>Measure page use, performance and errors without capturing typed form values.</small></span><input type="checkbox" data-cookie-analytics /></label>
+        <label><span><strong>Marketing</strong><small>Measure opted-in campaign conversions and attribution.</small></span><input type="checkbox" data-cookie-marketing /></label>
+        <p>Read the <a href="/privacy/">privacy and cookie notice</a>.</p>
+        <footer><button type="button" data-cookie-save>Save choices</button><button class="primary" type="button" data-cookie-dialog-accept>Accept all</button></footer>
+      </form>
+    </dialog>
+
     <dialog class="demo-modal" id="demo-modal" aria-labelledby="demo-title">
       <div class="demo-modal-shell">
         <header class="demo-modal-header">
@@ -396,8 +420,71 @@
     </dialog>
 
     <script>
+      const CONSENT_KEY = "aqua-cookie-preferences";
+      const CONSENT_COOKIE = "aqua_cookie_preferences";
+      const CONSENT_VERSION = 1;
+      const cookieBanner = document.querySelector("[data-cookie-banner]");
+      const cookieDialog = document.querySelector("[data-cookie-dialog]");
+      const cookieReopen = document.querySelector("[data-cookie-reopen]");
+
+      function readConsent() {
+        try {
+          const value = JSON.parse(localStorage.getItem(CONSENT_KEY) || "null");
+          return value && value.necessary === true && value.version === CONSENT_VERSION ? value : null;
+        } catch { return null; }
+      }
+
+      function saveConsent(values, source) {
+        const choice = {
+          version: CONSENT_VERSION,
+          necessary: true,
+          preferences: Boolean(values.preferences),
+          analytics: Boolean(values.analytics),
+          marketing: Boolean(values.marketing),
+          updatedAt: new Date().toISOString(),
+          source,
+        };
+        localStorage.setItem(CONSENT_KEY, JSON.stringify(choice));
+        document.cookie = `${CONSENT_COOKIE}=${encodeURIComponent(JSON.stringify(choice))}; path=/; max-age=31536000; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
+        window.dispatchEvent(new CustomEvent("aqua:consent-updated", { detail: choice }));
+        cookieBanner.hidden = true;
+        cookieDialog.close();
+        return choice;
+      }
+
+      function populateConsent() {
+        const choice = readConsent() || {};
+        document.querySelector("[data-cookie-preferences]").checked = Boolean(choice.preferences);
+        document.querySelector("[data-cookie-analytics]").checked = Boolean(choice.analytics);
+        document.querySelector("[data-cookie-marketing]").checked = Boolean(choice.marketing);
+      }
+
+      document.querySelector("[data-cookie-reject]")?.addEventListener("click", () => saveConsent({}, "banner-reject"));
+      document.querySelector("[data-cookie-accept]")?.addEventListener("click", () => saveConsent({ preferences: true, analytics: true, marketing: true }, "banner-accept"));
+      document.querySelector("[data-cookie-manage]")?.addEventListener("click", () => { populateConsent(); cookieDialog.showModal(); });
+      cookieReopen?.addEventListener("click", () => { populateConsent(); cookieDialog.showModal(); });
+      document.querySelector("[data-cookie-save]")?.addEventListener("click", () => saveConsent({
+        preferences: document.querySelector("[data-cookie-preferences]").checked,
+        analytics: document.querySelector("[data-cookie-analytics]").checked,
+        marketing: document.querySelector("[data-cookie-marketing]").checked,
+      }, "settings-save"));
+      document.querySelector("[data-cookie-dialog-accept]")?.addEventListener("click", () => saveConsent({ preferences: true, analytics: true, marketing: true }, "settings-accept"));
+      cookieBanner.hidden = Boolean(readConsent());
+
+      const aquaOrigin = location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:3032" : "https://aqua-crm.com";
+      const tag = document.createElement("script");
+      tag.src = `${aquaOrigin}/aqua-tag.js`;
+      tag.dataset.siteKey = "aqua_public_aquacrm_v1";
+      tag.dataset.property = "aquacrm";
+      tag.defer = true;
+      document.head.appendChild(tag);
       const menuButton = document.querySelector(".menu-button");
       const mainNavigation = document.querySelector("#main-navigation");
+      const closeMobileNavigation = () => {
+        menuButton?.setAttribute("aria-expanded", "false");
+        if (menuButton) menuButton.textContent = "Menu";
+        mainNavigation?.classList.remove("is-open");
+      };
       const demoModal = document.querySelector("#demo-modal");
       const demoWorkspace = document.querySelector("#demo-workspace");
       const demoButtons = document.querySelectorAll("[data-demo-view]");
@@ -559,10 +646,19 @@
         mainNavigation?.classList.toggle("is-open", !isOpen);
       });
       mainNavigation?.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
-        menuButton?.setAttribute("aria-expanded", "false");
-        if (menuButton) menuButton.textContent = "Menu";
-        mainNavigation.classList.remove("is-open");
+        closeMobileNavigation();
       }));
+      document.addEventListener("click", (event) => {
+        if (mainNavigation?.classList.contains("is-open") &&
+            !mainNavigation.contains(event.target) &&
+            !menuButton?.contains(event.target)) closeMobileNavigation();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeMobileNavigation();
+      });
+      window.addEventListener("resize", () => {
+        if (window.innerWidth > 980) closeMobileNavigation();
+      });
 
       const enquiryForm = document.querySelector("#enquiry-form");
       enquiryForm?.addEventListener("submit", async (event) => {
@@ -575,14 +671,11 @@
         submit.textContent = "Sending...";
         status.textContent = "";
         try {
-          const enquiryEndpoint = window.location.hostname === "localhost"
-            ? "http://localhost:3032/api/public/brand-enquiry"
-            : "https://aqua-crm.com/api/public/brand-enquiry";
-          const response = await fetch(enquiryEndpoint, {
+          const response = await fetch(`${aquaOrigin}/api/public/brand-enquiry`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
-              brand: "software-studio",
+              brand: "aquacrm",
               services: data.getAll("services"),
               name: data.get("name"),
               email: data.get("email"),
@@ -609,9 +702,9 @@
         }
       });
 
-      if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-        document.querySelectorAll("[data-aquacrm-login]").forEach((link) => { link.href = "http://localhost:3032/login?brand=aquacrm&next=/portal"; });
-      }
+      document.querySelectorAll("[data-aquacrm-login]").forEach((link) => {
+        link.href = "/login?brand=aquacrm&next=/portal";
+      });
     </script>
   </body>
 </html>

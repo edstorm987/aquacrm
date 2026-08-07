@@ -4,6 +4,7 @@ import { del } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { deleteLegalDocument, listLegalDocuments, updateLegalDocument } from "@/server/legalDocuments";
 import { ensureHydrated } from "@/server/storage";
 import type { LegalDocument } from "@/server/types";
@@ -38,7 +39,8 @@ export async function DELETE(request: Request) {
     if (!id) return NextResponse.json({ ok: false, error: "Document required." }, { status: 400 });
     const document = deleteLegalDocument(session.agencyId, id);
     if (!document) return NextResponse.json({ ok: false, error: "Document not found." }, { status: 404 });
-    if (document.storageProvider === "vercel-blob") await del(document.storageKey).catch(() => undefined);
+    if (document.storageProvider === "supabase") await deleteSupabasePrivateUpload(document.storageKey).catch(() => false);
+    else if (document.storageProvider === "vercel-blob") await del(document.storageKey).catch(() => undefined);
     else {
       const root = resolve(process.cwd(), ".data", "legal-uploads");
       const path = resolve(root, document.storageKey);

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { AuthBrandId } from "@/lib/authBrand";
 
-export function ForgotForm() {
+export function ForgotForm({ brand }: { brand: AuthBrandId }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,7 @@ export function ForgotForm() {
       const res = await fetch("/api/auth/password/request-reset", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, brand }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string; devResetUrl?: string };
       if (!res.ok || !data.ok) {

@@ -85,7 +85,7 @@ export interface ExpenseAttachment {
   url: string;
   size: number;
   contentType: string;
-  storageProvider: "vercel-blob" | "local";
+  storageProvider: "supabase" | "vercel-blob" | "local";
   storageKey: string;
   uploadedAt: number;
 }

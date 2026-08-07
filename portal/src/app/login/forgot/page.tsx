@@ -57,7 +57,7 @@ export default async function ForgotPage({
             <h1>Forgot password</h1>
             <p>Enter the email used for your {brand.name} workspace.</p>
           </div>
-          <ForgotForm />
+          <ForgotForm brand={brand.id} />
           <div className="mm-auth-foot">
             <span>
               Remembered it? <Link href={`/login?brand=${brand.id}`}>Sign in →</Link>

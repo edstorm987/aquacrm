@@ -71,13 +71,13 @@ describe("Post-login redirect resolver (R022)", () => {
 });
 
 describe("Post-login redirect — call-site wire-up", () => {
-  it("/api/auth/login imports + uses resolver in both bootstrap and standard responses", () => {
+  it("/api/auth/login imports + uses the role-aware resolver", () => {
     const src = readFileSync(LOGIN_ROUTE, "utf8");
     assert.ok(src.includes('import { resolvePostLoginPath }'));
-    assert.ok(src.match(/redirect:\s*resolvePostLoginPath/g));
-    // Two callsites: bootstrap response + standard login response.
+    assert.ok(src.match(/const redirect\s*=\s*resolvePostLoginPath/));
+    assert.ok(src.match(/redirect,\s*\n/));
     const matches = src.match(/resolvePostLoginPath\(/g) ?? [];
-    assert.ok(matches.length >= 2, `expected ≥2 call-sites, got ${matches.length}`);
+    assert.ok(matches.length >= 1, `expected a resolver call-site, got ${matches.length}`);
     assert.ok(!src.match(/redirect:\s*"\/portal\/agency"/), "no hardcoded /portal/agency redirect should remain");
   });
 

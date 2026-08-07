@@ -2,7 +2,7 @@
 // `04-observability.md`).
 //
 // Distinct from `/healthz` (lightweight liveness — never touches the
-// DB; "the app is up" is a different signal from "Postgres is up").
+// DB; "the app is up" is a different signal from "durable storage is up").
 // The full probe touches storage + plugin registry + reports uptime.
 //
 // Returns:
@@ -14,10 +14,9 @@
 //     chapter #124 ship gate).
 //   - Operator dashboard / Sentry health monitor.
 //
-// Lightweight: a single `SELECT 1` against Postgres. The check is
-// gated on PORTAL_BACKEND === "postgres" || DATABASE_URL set —
-// file-backend deploys report `db: "untested"` rather than fabricating
-// a green light (chapter #68 honesty).
+// Lightweight: either a single `SELECT 1` against Postgres or a one-row
+// Supabase datastore read. Local file-backed runs report `db: "untested"`
+// rather than fabricating a green light (chapter #68 honesty).
 
 import { NextResponse } from "next/server";
 import { ensureHydrated, getState } from "@/server/storage";
@@ -37,14 +36,26 @@ interface ProbeResult {
 async function probeDb(): Promise<ProbeResult> {
   const explicit = (process.env.PORTAL_BACKEND ?? "").toLowerCase();
   const wantsPostgres = explicit === "postgres" || (!explicit && !!process.env.DATABASE_URL);
-  if (!wantsPostgres) {
-    return { ok: true, db: "untested" };
-  }
+  const wantsSupabase = explicit === "supabase" || (
+    !explicit
+    && !process.env.DATABASE_URL
+    && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)
+    && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  );
   try {
-    const { getPool } = await import("@/server/storagePostgres");
-    const pool = getPool();
-    await pool.query("SELECT 1");
-    return { ok: true, db: "connected" };
+    if (wantsPostgres) {
+      const { getPool } = await import("@/server/storagePostgres");
+      const pool = getPool();
+      await pool.query("SELECT 1");
+      return { ok: true, db: "connected" };
+    }
+    if (wantsSupabase) {
+      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+      const { error } = await createSupabaseAdminClient().from("app_datastores").select("app_key").limit(1);
+      if (error) throw error;
+      return { ok: true, db: "connected" };
+    }
+    return { ok: true, db: "untested" };
   } catch (e) {
     return {
       ok: false,

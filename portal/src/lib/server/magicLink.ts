@@ -136,7 +136,7 @@ export async function deliverMagicLink(input: {
   clientId: string;
   agencyId: string;
   magicUrl: string;
-}): Promise<{ delivered: boolean; via: "email-sender" | "postmark" | "console" }> {
+}): Promise<{ delivered: boolean; via: "email-sender" | "resend" | "console" }> {
   if (delivery) {
     await delivery(input);
     return { delivered: true, via: "email-sender" };
@@ -183,7 +183,7 @@ export async function deliverMagicLink(input: {
       '</body></html>',
     ].join(""),
   });
-  if (sent.delivered) return { delivered: true, via: "postmark" };
+  if (sent.delivered) return { delivered: true, via: "resend" };
 
   if (process.env.NODE_ENV !== "production") {
     console.log(

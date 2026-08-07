@@ -28,9 +28,9 @@ function read(p: string): string {
   return readFileSync(p, "utf8");
 }
 
-describe("Unified Milesymedia shell", () => {
+describe("Unified AquaCRM shell", () => {
   it("ships the public front door and portal entry points together", () => {
-    assert.ok(has(join(APP, "(website)", "page.tsx")));
+    assert.ok(has(join(APP, "page.tsx")));
     assert.ok(has(join(APP, "login", "page.tsx")));
     assert.ok(!has(join(APP, "(demo)", "dev", "pov", "page.tsx")), "demo POV should stay out of the real portal app");
     assert.ok(!has(join(APP, "demo")), "old public /demo surface should stay out of the portal app");

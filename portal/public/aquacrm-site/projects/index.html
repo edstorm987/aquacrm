@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Explore AquaCRM projects and interact with selected EPOS, workforce, stock, safety and business operating interfaces." />
+    <meta name="theme-color" content="#071818" />
+    <title>Projects | AquaCRM</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/projects.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="announcement"><p>Bespoke systems for businesses ready to run with more control.</p><a href="/#method">See how we work <span aria-hidden="true">→</span></a></div>
+      <div class="site-nav">
+        <a class="brand" href="/" aria-label="AquaCRM home"><span aria-hidden="true">A</span><strong>AquaCRM</strong></a>
+        <button class="menu-button" type="button" aria-expanded="false" aria-controls="main-navigation">Menu</button>
+        <nav id="main-navigation" aria-label="Main navigation">
+          <a href="/#work">What we build</a><a class="is-current" href="/projects/">Projects</a><a href="/#method">How it works</a><a href="/#outcomes">Why it matters</a><a href="/#questions">Questions</a>
+          <a data-aquacrm-login href="https://aqua-crm.com/login?brand=aquacrm&amp;next=/portal" target="_blank" rel="noopener noreferrer">Client login</a>
+          <a class="header-cta" href="/#contact">Start a conversation</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="projects-page">
+      <section class="projects-intro section-shell">
+        <p class="eyebrow">AquaCRM projects</p>
+        <h1>See how the systems work together.</h1>
+        <div><p>Each project begins with the wider business problem, then opens into the individual interfaces designed to solve it. Switch projects, inspect the structure and use selected working modules.</p><span>More projects can be added without changing the experience.</span></div>
+      </section>
+
+      <section class="projects-library">
+        <div class="project-browser section-shell" id="project-browser">
+          <header class="project-toolbar">
+            <div><span>Project library</span><strong>Choose a system to explore</strong></div>
+            <div class="project-tabs" role="tablist" aria-label="Choose a project">
+              <button class="is-active" type="button" role="tab" aria-selected="true" data-project-select="ocean">Ocean Boulevard</button>
+              <button type="button" role="tab" aria-selected="false" data-project-select="aquacrm">Aqua CRM</button>
+              <button type="button" role="tab" aria-selected="false" data-project-select="beast">Beast Commerce</button>
+            </div>
+          </header>
+          <div class="project-showcase">
+            <aside class="project-index">
+              <p>Projects</p>
+              <button class="is-active" type="button" data-project-select="ocean"><span>01</span><div><strong>Ocean Boulevard</strong><small>Hospitality operations</small></div><em>4 modules</em></button>
+              <button type="button" data-project-select="aquacrm"><span>02</span><div><strong>Aqua CRM</strong><small>Agency operating platform</small></div><em>Product</em></button>
+              <button type="button" data-project-select="beast"><span>03</span><div><strong>Beast Commerce</strong><small>Unified commerce</small></div><em>4 modules</em></button>
+              <div class="project-index-note"><span>More than screenshots</span><p>Every project opens the real product with isolated showcase data and write actions disabled.</p></div>
+            </aside>
+            <article class="project-main">
+              <div class="project-visual">
+                <img id="project-image" src="/assets/ocean-boulevard-operations.jpg" alt="Ocean Boulevard kiosk overlooking the seafront" />
+                <div class="project-visual-bar"><span id="project-type">Hospitality · Operations</span><em>Interactive project</em></div>
+                <button class="project-play" id="project-launch" type="button" data-project-view="hospitality" aria-label="Explore Ocean Boulevard project"><span aria-hidden="true">→</span><strong>Explore system</strong></button>
+              </div>
+              <div class="project-story">
+                <div><p class="eyebrow" id="project-number">Project 01</p><h3 id="project-title">Ocean Boulevard</h3></div>
+                <div><p id="project-summary">Hospitality, attractions, retail and staff operations joined into one adaptable system.</p><ul id="project-themes"><li>Customer service</li><li>Team operations</li><li>Management oversight</li></ul></div>
+              </div>
+            </article>
+          </div>
+          <section class="project-modules" aria-labelledby="project-modules-title">
+            <header><div><span>Inside this project</span><strong id="project-modules-title">Explore the working parts</strong></div><small>Select a module to open it full screen</small></header>
+            <div id="project-module-list">
+              <button type="button" data-project-module="hospitality"><span>01</span><strong>EPOS &amp; service</strong><p>Tills, products, payments and daily service.</p><em>Open →</em></button>
+              <button type="button" data-project-module="workforce"><span>02</span><strong>Staff operations</strong><p>Shifts, tasks, leave and team records.</p><em>Open →</em></button>
+              <button type="button" data-project-module="stock"><span>03</span><strong>Stock control</strong><p>Counts, locations, forecasts and exceptions.</p><em>Open →</em></button>
+              <button type="button" data-project-module="safety"><span>04</span><strong>Safety &amp; compliance</strong><p>Checks, incidents and accountable sign-off.</p><em>Open →</em></button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="projects-cta"><div class="section-shell"><p class="eyebrow">Built around your operation</p><h2>Your project will not look like these. It will look like your business.</h2><a class="primary" href="/#contact">Start a conversation <span aria-hidden="true">→</span></a></div></section>
+    </main>
+
+    <footer>
+      <div class="footer-lead"><a class="brand" href="/"><span aria-hidden="true">A</span><strong>AquaCRM</strong></a><p>Bespoke operational software designed around the way serious businesses actually work.</p></div>
+      <nav aria-label="Footer navigation"><a href="/#work">What we build</a><a href="/projects/">Projects</a><a href="/#method">How it works</a><a href="/#outcomes">Why it matters</a><a href="/#questions">Questions</a><a href="/#contact">Start a conversation</a></nav>
+      <div class="footer-access"><span>Already working with us?</span><a data-aquacrm-login href="https://aqua-crm.com/login?brand=aquacrm&amp;next=/portal" target="_blank" rel="noopener noreferrer">Client login →</a></div>
+      <p class="legal">© 2026 AquaCRM. AquaCRM is a trading name of <a href="https://edward-hallam.com" target="_blank" rel="noopener noreferrer">Edward Hallam</a>, a sole trader in England and Wales.</p>
+    </footer>
+
+    <dialog class="demo-modal" id="demo-modal" aria-labelledby="demo-title">
+      <div class="demo-modal-shell">
+        <header class="demo-modal-header"><a class="brand" href="/projects/" aria-label="AquaCRM projects"><span aria-hidden="true">A</span><strong>AquaCRM projects</strong></a><div><span class="demo-safe"><i></i>Project environment</span><button class="close-demo" type="button" aria-label="Close project">Close</button></div></header>
+        <div class="demo-modal-layout">
+          <aside class="demo-nav" aria-label="Project workspaces"><p>Explore systems</p><button class="is-active" type="button" data-demo-view="hospitality"><span>01</span>EPOS &amp; service</button><button type="button" data-demo-view="workforce"><span>02</span>Staff operations</button><button type="button" data-demo-view="stock"><span>03</span>Stock control</button><button type="button" data-demo-view="safety"><span>04</span>Safety &amp; compliance</button><button type="button" data-demo-view="agency"><span>05</span>Aqua CRM</button><div><small>Built to explore</small><strong>One operation. Shared context.</strong></div></aside>
+          <main class="demo-workspace" id="demo-workspace"></main>
+        </div>
+      </div>
+    </dialog>
+  </body>
+</html>

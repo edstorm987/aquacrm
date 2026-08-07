@@ -65,15 +65,26 @@ export function inspectProductionReadiness(
 ): ProductionReadiness {
   const explicitBackend = env.PORTAL_BACKEND?.trim().toLowerCase();
   const isPublicDeployment = env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview";
-  const databaseReady = has(env, "DATABASE_URL")
+  const supabaseReady = has(env, "NEXT_PUBLIC_SUPABASE_URL")
+    && has(env, "NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    && has(env, "SUPABASE_SERVICE_ROLE_KEY");
+  const postgresReady = has(env, "DATABASE_URL")
     && (explicitBackend === "postgres" || !explicitBackend)
     && (!isPublicDeployment || isRemoteDatabase(env.DATABASE_URL));
+  const databaseReady = explicitBackend === "postgres"
+    ? postgresReady
+    : explicitBackend === "supabase"
+      ? supabaseReady
+      : postgresReady || supabaseReady;
   const securityReady = (env.PORTAL_SESSION_SECRET?.length ?? 0) >= 32
     && env.NEXT_PUBLIC_PORTAL_SECURITY === "strict"
     && isSecurePublicOrigin(env.NEXT_PUBLIC_PORTAL_BASE_URL);
   const vaultReady = (env.PORTAL_VAULT_ENCRYPTION_KEY?.length ?? 0) >= 32;
-  const emailReady = has(env, "POSTMARK_SERVER_TOKEN") && has(env, "MILESYMEDIA_FROM_EMAIL");
-  const uploadsReady = has(env, "BLOB_READ_WRITE_TOKEN")
+  const transactionalEmailReady = has(env, "RESEND_API_KEY") && has(env, "MILESYMEDIA_FROM_EMAIL");
+  const enquiryEmailReady = has(env, "RESEND_API_KEY") && has(env, "ENQUIRY_NOTIFY_TO") && has(env, "ENQUIRY_EMAIL_FROM");
+  const emailReady = transactionalEmailReady && enquiryEmailReady;
+  const uploadsReady = (supabaseReady && has(env, "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET"))
+    || has(env, "BLOB_READ_WRITE_TOKEN")
     || has(env, "BLOB_STORE_ID")
     || has(env, "VERCEL_OIDC_TOKEN");
   const stripeReady = has(env, "STRIPE_SECRET_KEY") && has(env, "STRIPE_WEBHOOK_SECRET");
@@ -92,11 +103,11 @@ export function inspectProductionReadiness(
       id: "database",
       label: "Customer data",
       status: databaseReady ? "ready" : "needs-setup",
-      summary: databaseReady ? "Durable Postgres storage selected." : "Local file storage is not safe for a live deployment.",
-      action: databaseReady ? "No action needed." : "Connect Postgres and set PORTAL_BACKEND=postgres.",
+      summary: databaseReady ? "Durable Supabase or Postgres storage selected." : "Local file storage is not safe for a live deployment.",
+      action: databaseReady ? "No action needed." : "Connect Supabase or Postgres and select the matching portal backend.",
       required: true,
       group: "core",
-      envKeys: ["DATABASE_URL", "PORTAL_BACKEND"],
+      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "PORTAL_BACKEND"],
     },
     {
       id: "security",
@@ -124,21 +135,21 @@ export function inspectProductionReadiness(
       id: "email",
       label: "Customer email",
       status: emailReady ? "ready" : "needs-setup",
-      summary: emailReady ? "Transactional access and security emails can be delivered." : "Customer access links cannot be emailed yet.",
-      action: emailReady ? "No action needed." : "Connect Postmark and a verified Milesymedia sender address.",
+      summary: emailReady ? "Transactional access and enquiry notifications can be delivered." : "At least one required customer email path is not connected.",
+      action: emailReady ? "No action needed." : "Connect Resend for account mail and public enquiry notifications, using verified sender addresses.",
       required: true,
       group: "communication",
-      envKeys: ["POSTMARK_SERVER_TOKEN", "MILESYMEDIA_FROM_EMAIL", "MILESYMEDIA_FROM_NAME", "MILESYMEDIA_REPLY_TO"],
+      envKeys: ["RESEND_API_KEY", "MILESYMEDIA_FROM_EMAIL", "MILESYMEDIA_FROM_NAME", "MILESYMEDIA_REPLY_TO", "ENQUIRY_NOTIFY_TO", "ENQUIRY_EMAIL_FROM"],
     },
     {
       id: "uploads",
       label: "Private files",
       status: uploadsReady ? "ready" : "needs-setup",
       summary: uploadsReady ? "Customer uploads use durable object storage." : "Uploads currently depend on the local filesystem.",
-      action: uploadsReady ? "No action needed." : "Connect a private Vercel Blob store.",
+      action: uploadsReady ? "No action needed." : "Configure the private Supabase upload bucket.",
       required: true,
       group: "core",
-      envKeys: ["BLOB_READ_WRITE_TOKEN"],
+      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET", "BLOB_READ_WRITE_TOKEN"],
     },
     {
       id: "billing",

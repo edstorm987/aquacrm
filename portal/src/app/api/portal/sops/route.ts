@@ -4,6 +4,7 @@ import { del } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -81,6 +82,9 @@ export async function DELETE(request: NextRequest) {
     const sop = deleteSopRecord(session.agencyId, id);
     if (!sop) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
 
+    if (sop.storageProvider === "supabase" && sop.storageKey) {
+      await deleteSupabasePrivateUpload(sop.storageKey).catch(() => false);
+    }
     if (sop.storageProvider === "vercel-blob" && sop.storageKey) {
       await del(sop.storageKey).catch(() => undefined);
     }

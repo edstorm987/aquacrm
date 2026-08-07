@@ -524,7 +524,7 @@ export interface SopDocument {
   fileName?: string;
   contentType?: string;
   size?: number;
-  storageProvider?: "vercel-blob" | "local";
+  storageProvider?: "supabase" | "vercel-blob" | "local";
   storageKey?: string;
   createdBy: string;
   updatedBy: string;
@@ -756,7 +756,7 @@ export interface LegalDocument {
   fileName: string;
   contentType: string;
   size: number;
-  storageProvider: "vercel-blob" | "local";
+  storageProvider: "supabase" | "vercel-blob" | "local";
   storageKey: string;
   createdBy: string;
   createdAt: number;
@@ -785,7 +785,7 @@ export interface DevelopmentResourceFile {
   fileName: string;
   contentType: string;
   size: number;
-  storageProvider: "vercel-blob" | "local";
+  storageProvider: "supabase" | "vercel-blob" | "local";
   storageKey: string;
 }
 
@@ -855,7 +855,7 @@ export interface AgencyWebsitePage {
 
 export interface AgencyWebsiteTelemetryEvent {
   id: string;
-  type: "pageview" | "performance" | "error" | "deployment" | "form" | "conversion" | "search" | "chatbot" | "interaction" | "heartbeat" | "custom";
+  type: "pageview" | "performance" | "error" | "deployment" | "form" | "conversion" | "search" | "chatbot" | "interaction" | "heartbeat" | "consent" | "custom";
   receivedAt: number;
   occurredAt: number;
   propertyId?: string;
@@ -877,6 +877,11 @@ export interface AgencyWebsiteTelemetryEvent {
   experimentId?: string;
   variant?: string;
   conversionValueCents?: number;
+  consentVersion?: number;
+  consentNecessary?: boolean;
+  consentPreferences?: boolean;
+  consentAnalytics?: boolean;
+  consentMarketing?: boolean;
   userAgent?: string;
 }
 

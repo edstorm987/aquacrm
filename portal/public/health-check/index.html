@@ -296,14 +296,15 @@
           <div class="hc-modal-icon">💾</div>
           <h2>Quick one — save your progress?</h2>
           <p>You're a few minutes in. We're <strong>not trying to sell you</strong> — we just don't want you to lose what you've answered if you close the tab. Drop a name + email and we'll generate a resume link you can use on another device.</p>
-          <form data-hc-progress-form class="hc-modal-form">
+          <form data-hc-progress-form data-aqua-form="Health check progress save" class="hc-modal-form">
             <label>Your name<input type="text" name="name" placeholder="Jordan Lee" /></label>
             <label>Email <span class="muted" style="font-weight:400">(used only for the resume link)</span><input type="email" name="email" placeholder="you@yourbusiness.co.uk" required /></label>
             <label>Or mobile <span class="muted" style="font-weight:400">(optional)</span><input type="text" name="contact" placeholder="07…" /></label>
-            <p class="muted hc-modal-fineprint">🎬 <strong>Demo mode</strong> — email isn't sent yet. We generate the resume link on this page so you can copy it. Real email send wires later via T6.</p>
+            <label><input type="checkbox" name="consent" value="yes" required /> I agree that my details can be securely saved so AquaCRM can respond to this request.</label>
+            <p class="muted hc-modal-fineprint">Your answers stay in this browser. We save only the contact details above and the fact that you requested a progress link.</p>
             <div class="hc-modal-actions">
               <button type="button" class="btn btn-ghost" data-hc-progress-skip>Skip — I'll keep going</button>
-              <button type="submit" class="btn btn-primary">Email me my progress link →</button>
+              <button type="submit" class="btn btn-primary">Save my progress →</button>
             </div>
           </form>
         </div>
@@ -311,7 +312,7 @@
         <div class="hc-modal-card" data-hc-progress-result hidden>
           <div class="hc-modal-icon">🔗</div>
           <h2>Your resume link is ready.</h2>
-          <p>Copy the link below — it restores your answers when you open it on any device. Valid for 7 days. <strong>Demo mode:</strong> no email was sent; the link lives only in your clipboard from here.</p>
+          <p>Copy the link below to restore your answers on another device. Your email address is not included in the link.</p>
           <label>Resume link<textarea data-hc-progress-link readonly rows="3" style="width:100%;padding:10px 12px;border:1px solid var(--bos-line,#e6e1d4);border-radius:8px;font:13px monospace"></textarea></label>
           <div class="hc-modal-actions">
             <button type="button" class="btn btn-ghost" data-hc-progress-resume-close>Close</button>
@@ -498,9 +499,10 @@
             <div class="hc-signup-grab-body">
               <h3>One last thing — would you like us to look at your answers?</h3>
               <p>If you drop your details, we'll send a few personalised pointers based on what you said. No catch, no auto-pilot drip campaign — a real reply from a real person within a working day.</p>
-              <form data-hc-signup-grab-form class="hc-modal-form">
+              <form data-hc-signup-grab-form data-aqua-form="Health check follow-up" class="hc-modal-form">
                 <input type="text" name="name" placeholder="Your name" required />
                 <input type="text" name="contact" placeholder="Email or mobile" required />
+                <label><input type="checkbox" name="consent" value="yes" required /> I agree that my details can be used to reply with personalised pointers.</label>
                 <button type="submit" class="btn btn-primary">Send me my pointers →</button>
               </form>
             </div>
@@ -512,6 +514,7 @@
   </main>
 
 
+  <script defer src="/aqua-tag.js" data-site-key="aqua_public_aquacrm_v1" data-property="aquacrm"></script>
   <script defer src="/business-os/lib/storage.js"></script>
   <script defer src="/business-os/lib/activity.js"></script>
   <script>
@@ -1273,14 +1276,14 @@
     document.querySelector('[data-hc-progress-modal]').setAttribute('hidden', '');
   });
   /* R017 — generate a base64 `?resume=<token>` link from current state. */
-  function makeResumeToken(email, savedAtIso) {
-    var payload = { email: email, savedAt: savedAtIso, hcState: state };
+  function makeResumeToken(savedAtIso) {
+    var payload = { savedAt: savedAtIso, hcState: state };
     try { return btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }
     catch (e) { return null; }
   }
-  function makeResumeUrl(email) {
+  function makeResumeUrl() {
     var savedAt = new Date().toISOString();
-    var token = makeResumeToken(email, savedAt);
+    var token = makeResumeToken(savedAt);
     if (!token) return null;
     var base = location.origin + location.pathname;
     return base + '?resume=' + encodeURIComponent(token);
@@ -1297,13 +1300,50 @@
       localStorage.setItem('bos.leads', JSON.stringify(leads));
     } catch (e) {}
   }
-  document.querySelector('[data-hc-progress-form]').addEventListener('submit', function (ev) {
+  async function submitHealthCheckContact(details) {
+    var response = await fetch('/api/public/brand-enquiry', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        brand: 'aquacrm',
+        services: ['Business health check'],
+        name: details.name,
+        email: details.email || undefined,
+        phone: details.phone || undefined,
+        contactMethod: details.phone && !details.email ? 'call' : 'email',
+        message: details.message,
+        sourceUrl: window.location.href,
+        campaign: details.campaign,
+        consent: details.consent === true
+      })
+    });
+    var result = await response.json().catch(function () { return null; });
+    if (!response.ok || !result || !result.ok) throw new Error((result && result.error) || 'Unable to save your details.');
+    return result;
+  }
+  document.querySelector('[data-hc-progress-form]').addEventListener('submit', async function (ev) {
     ev.preventDefault();
     var fd = new FormData(ev.target);
     var email = (fd.get('email') || '').toString().trim();
     var name  = (fd.get('name')  || '').toString().trim();
     var contact = (fd.get('contact') || '').toString().trim();
     if (!email) return;
+    var button = ev.target.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      await submitHealthCheckContact({
+        name: name,
+        email: email,
+        phone: contact,
+        consent: fd.get('consent') === 'yes',
+        campaign: 'Business health check progress save',
+        message: 'Requested a private progress link after starting the business health check.'
+      });
+    } catch (error) {
+      alert(error && error.message ? error.message : 'Unable to save your details.');
+      button.disabled = false;
+      return;
+    }
     try {
       localStorage.setItem('hc.contact', JSON.stringify({
         name: name, email: email, contact: contact, capturedAt: 'progress-save'
@@ -1313,11 +1353,12 @@
     if (window.Activity && typeof window.Activity.log === 'function') {
       window.Activity.log('hc.shared', { source: 'hc-progress-nudge', method: 'resume-link', name: name });
     }
-    var url = makeResumeUrl(email);
+    var url = makeResumeUrl();
     var ta = document.querySelector('[data-hc-progress-link]');
     if (ta) ta.value = url || '(could not generate — copy your URL manually)';
     document.querySelector('[data-hc-progress-shell]').setAttribute('hidden', '');
     document.querySelector('[data-hc-progress-result]').removeAttribute('hidden');
+    button.disabled = false;
   });
   /* Copy-to-clipboard + close handlers for the resume-link panel. */
   document.querySelector('[data-hc-progress-copy]').addEventListener('click', function () {
@@ -1388,16 +1429,35 @@
   }
   var grabForm = document.querySelector('[data-hc-signup-grab-form]');
   if (grabForm) {
-    grabForm.addEventListener('submit', function (ev) {
+    grabForm.addEventListener('submit', async function (ev) {
       ev.preventDefault();
       var fd = new FormData(ev.target);
+      var contactValue = (fd.get('contact') || '').toString().trim();
+      var isEmail = contactValue.indexOf('@') > 0;
+      var button = ev.target.querySelector('[type="submit"]');
+      button.disabled = true;
+      try {
+        await submitHealthCheckContact({
+          name: (fd.get('name') || '').toString().trim(),
+          email: isEmail ? contactValue : '',
+          phone: isEmail ? '' : contactValue,
+          consent: fd.get('consent') === 'yes',
+          campaign: 'Business health check follow-up',
+          message: 'Requested personalised pointers after completing the business health check.'
+        });
+      } catch (error) {
+        alert(error && error.message ? error.message : 'Unable to save your details.');
+        button.disabled = false;
+        return;
+      }
       try {
         localStorage.setItem('hc.contact', JSON.stringify({
           name: fd.get('name'), contact: fd.get('contact'), capturedAt: 'results-grab'
         }));
       } catch (e) {}
       document.querySelector('[data-hc-signup-grab]').setAttribute('hidden', '');
-      alert('Thanks — we\'ll be in touch within a working day.');
+      alert('Thanks — your request is safely inside AquaCRM.');
+      button.disabled = false;
     });
   }
   document.querySelectorAll('[data-hc-share]').forEach(function (b) {

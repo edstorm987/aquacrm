@@ -15,6 +15,8 @@ const ROOT = join(__dirname, "..");
 const TOGGLE = join(ROOT, "src", "components", "chrome", "SidebarCollapseToggle.tsx");
 const SIDEBAR = join(ROOT, "src", "components", "chrome", "Sidebar.tsx");
 const SIDEBAR_FOOTER = join(ROOT, "src", "components", "chrome", "SidebarFooter.tsx");
+const SIDEBAR_NAV_LINK = join(ROOT, "src", "components", "chrome", "SidebarNavLink.tsx");
+const SIDEBAR_STATE = join(ROOT, "src", "components", "chrome", "sidebarCollapseState.ts");
 const LAYOUT = join(ROOT, "src", "app", "layout.tsx");
 const CSS = join(ROOT, "src", "app", "globals.css");
 
@@ -28,7 +30,9 @@ describe("SidebarCollapseToggle component (R035)", () => {
 
   it("persists to localStorage[\"mm-sidebar-collapsed\"] as \"1\"/\"0\"", () => {
     const src = readFileSync(TOGGLE, "utf8");
-    assert.ok(src.includes('SIDEBAR_COLLAPSED_KEY = "mm-sidebar-collapsed"'));
+    const state = readFileSync(SIDEBAR_STATE, "utf8");
+    assert.ok(src.includes("SIDEBAR_COLLAPSED_KEY"));
+    assert.ok(state.includes('SIDEBAR_COLLAPSED_KEY = "mm-sidebar-collapsed"'));
     assert.ok(src.includes('next ? "1" : "0"'));
     assert.ok(src.includes("localStorage.setItem"));
   });
@@ -40,9 +44,8 @@ describe("SidebarCollapseToggle component (R035)", () => {
   });
 
   it("exports synchronous hydration script for <head> (no flash)", () => {
-    const src = readFileSync(TOGGLE, "utf8");
-    assert.ok(src.includes("SIDEBAR_HYDRATION_SCRIPT"));
-    assert.ok(src.includes("export function SidebarCollapseHydrationScript"));
+    const src = readFileSync(SIDEBAR_STATE, "utf8");
+    assert.ok(src.includes("SIDEBAR_COLLAPSE_HYDRATION_SCRIPT"));
     // Must read localStorage synchronously (no async/await/setTimeout).
     assert.ok(src.includes("localStorage.getItem"));
     assert.ok(!src.includes("await fetch"));
@@ -62,8 +65,9 @@ describe("Sidebar wires the toggle (R035)", () => {
 
   it("nav links carry title= tooltip + first-letter fallback (no auto-collapse on click)", () => {
     const src = readFileSync(SIDEBAR, "utf8");
-    assert.ok(src.includes("title={item.label}"));
-    assert.ok(src.includes("mm-sidebar-link-initial"));
+    const navLink = readFileSync(SIDEBAR_NAV_LINK, "utf8");
+    assert.ok(navLink.includes("title={label}"));
+    assert.ok(navLink.includes("mm-sidebar-link-icon"));
     // Critical: nothing in the Link onClick mutates data-collapsed or
     // calls setItem on the collapsed key. Source-marker assertion.
     assert.ok(!src.includes("setAttribute(\"data-collapsed\""));
@@ -80,13 +84,13 @@ describe("Sidebar wires the toggle (R035)", () => {
 });
 
 describe("Root layout hydration (R035)", () => {
-  it("layout.tsx mounts SidebarCollapseHydrationScript inside <head>", () => {
+  it("layout.tsx mounts the sidebar hydration script inside <head>", () => {
     const src = readFileSync(LAYOUT, "utf8");
-    assert.ok(src.includes("SidebarCollapseHydrationScript"));
+    assert.ok(src.includes("SIDEBAR_COLLAPSE_HYDRATION_SCRIPT"));
     assert.ok(src.includes("<head>"));
     // Must be inside <head> (script before <body> so it runs pre-paint).
     const headIdx = src.indexOf("<head>");
-    const scriptIdx = src.indexOf("SidebarCollapseHydrationScript />");
+    const scriptIdx = src.indexOf("__html: SIDEBAR_COLLAPSE_HYDRATION_SCRIPT");
     const bodyIdx = src.indexOf("<body>");
     assert.ok(headIdx > -1 && scriptIdx > headIdx && scriptIdx < bodyIdx);
   });

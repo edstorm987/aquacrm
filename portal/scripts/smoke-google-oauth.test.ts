@@ -147,12 +147,12 @@ test(".env.example documents the 3 GOOGLE_OAUTH_* vars + setup steps", () => {
   assert.match(env, /Authorised redirect URI/);
 });
 
-// ── 11. README keeps this as a standalone Vercel app ───────────────────────
-test("README documents the standalone Vercel app", () => {
+// ── 11. README keeps deployment boundaries explicit ───────────────────────
+test("README documents the AquaCRM Vercel app", () => {
   const md = readFileSync(join(ROOT, "README.md"), "utf8");
-  assert.match(md, /Standalone portal app/);
+  assert.match(md, /Root Directory.*`portal`/s);
   assert.match(md, /Vercel/);
-  assert.match(md, /public Milesymedia website is intentionally not mounted/i);
+  assert.match(md, /website is `\/`, sign-in is `\/login`/i);
 });
 
 // ── 12. LoginForm gates the button on googleEnabled ────────────────────────

@@ -47,6 +47,7 @@ const EVENT_LABEL: Record<ClientTelemetryEvent["type"], string> = {
   chatbot: "Chatbot interaction",
   interaction: "Customer interaction",
   heartbeat: "Connection checked",
+  consent: "Privacy choice saved",
   custom: "Custom event",
 };
 

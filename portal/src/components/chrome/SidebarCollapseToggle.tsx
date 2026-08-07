@@ -38,6 +38,7 @@ export function SidebarCollapseToggle() {
         'aside[aria-label="Primary navigation"]'
       );
       if (aside) aside.setAttribute("data-collapsed", String(next));
+      document.documentElement.setAttribute("data-sidebar-collapsed", String(next));
       window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
     } catch {
       /* ignore */

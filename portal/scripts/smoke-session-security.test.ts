@@ -93,7 +93,7 @@ describe("File structure (R021)", () => {
     assert.ok(src.includes("isLoginLocked"));
     assert.ok(src.includes("recordLoginFailure"));
     assert.ok(src.includes("recordLoginSuccess"));
-    assert.ok(src.includes("sessionRev: user.sessionRev"));
+    assert.ok(src.includes("sessionRev: portalUser.sessionRev"));
   });
 
   it("signup route stamps sessionRev on issued session", () => {

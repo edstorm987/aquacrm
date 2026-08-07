@@ -4,6 +4,7 @@ import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { getLegalDocument } from "@/server/legalDocuments";
 import { ensureHydrated } from "@/server/storage";
 
@@ -22,6 +23,11 @@ export async function GET(request: Request) {
       "cache-control": "private, max-age=60",
       "x-content-type-options": "nosniff",
     });
+    if (document.storageProvider === "supabase") {
+      const stored = await readSupabasePrivateUpload(document.storageKey);
+      if (!stored) return NextResponse.json({ ok: false, error: "Stored file not found." }, { status: 404 });
+      return new Response(stored, { headers });
+    }
     if (document.storageProvider === "vercel-blob") {
       const result = await get(document.storageKey, { access: "private" });
       if (!result || result.statusCode !== 200 || !result.stream) return NextResponse.json({ ok: false, error: "Stored file not found." }, { status: 404 });

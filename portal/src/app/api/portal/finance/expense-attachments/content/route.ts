@@ -4,6 +4,7 @@ import { get } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 
@@ -29,6 +30,15 @@ export async function GET(request: NextRequest) {
     const storageKey = params.get("key") ?? "";
     const name = params.get("name") ?? "expense-file";
     const headers = responseHeaders(name, params.get("type") ?? "", params.get("size"));
+
+    if (provider === "supabase") {
+      if (!storageKey.startsWith(`expenses/${session.agencyId}/`)) {
+        return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
+      }
+      const stored = await readSupabasePrivateUpload(storageKey);
+      if (!stored) return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
+      return new Response(stored, { status: 200, headers });
+    }
 
     if (provider === "vercel-blob") {
       let pathname = "";

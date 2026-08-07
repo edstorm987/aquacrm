@@ -2,9 +2,8 @@
 /**
  * post-deploy-smoke.mjs
  *
- * Production-readiness smoke for the standalone Milesymedia Portal Vercel app.
- * It intentionally avoids the old public website/demo routes. The public
- * Milesymedia website is hosted separately; this app owns login + portal.
+ * Production-readiness smoke for the AquaCRM Vercel app. The root route is
+ * the public AquaCRM website; this app also owns the shared login and portal.
  *
  * Usage:
  *   node scripts/post-deploy-smoke.mjs --url=https://<deploy>.vercel.app
@@ -105,7 +104,6 @@ async function main() {
     "/login",
     "/login/forgot",
     "/login/reset?token=test",
-    "/dev/pov",
     "/healthz",
     "/healthz/full",
   ]) {
@@ -120,8 +118,8 @@ async function main() {
     const { status, body } = await fetchRaw("/api/auth/me");
     let parsed = null;
     try { parsed = JSON.parse(body); } catch { /* ignore */ }
-    const shapeOk = parsed !== null && Object.prototype.hasOwnProperty.call(parsed, "user");
-    record("GET", "/api/auth/me (unauthed)", status, shapeOk, shapeOk ? "" : "missing user key");
+    const shapeOk = status === 401 && parsed?.ok === false && typeof parsed?.error === "string";
+    record("GET", "/api/auth/me (unauthed)", status, shapeOk, shapeOk ? "" : "expected a generic 401 response");
   } catch (err) {
     record("GET", "/api/auth/me (unauthed)", "ERR", false, String(err?.message || err));
   }
@@ -137,15 +135,20 @@ async function main() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: FOUNDER_EMAIL, password: FOUNDER_PASS }),
       });
-      const setCookie = res.headers.get("set-cookie") || "";
-      const m = setCookie.match(/lk_session_v1=[^;]+/);
-      sessionCookie = m ? m[0] : "";
+      const setCookies = typeof res.headers.getSetCookie === "function"
+        ? res.headers.getSetCookie()
+        : [res.headers.get("set-cookie") || ""];
+      sessionCookie = setCookies
+        .map(value => value.split(";", 1)[0])
+        .filter(Boolean)
+        .join("; ");
+      const hasPortalSession = sessionCookie.includes("lk_session_v1=");
       record(
         "POST",
         "/api/auth/login (founder)",
         res.status,
-        res.status === 200 && Boolean(sessionCookie),
-        sessionCookie ? "session set" : "no session cookie",
+        res.status === 200 && hasPortalSession,
+        hasPortalSession ? "portal and identity sessions set" : "no portal session cookie",
       );
     } catch (err) {
       record("POST", "/api/auth/login (founder)", "ERR", false, String(err?.message || err));
@@ -157,14 +160,18 @@ async function main() {
     for (const route of [
       "/portal/agency",
       "/portal/clients",
-      "/portal/agency/leads-pipeline/contacts",
+      "/portal/agency/actions",
+      "/portal/agency/inbox",
+      "/portal/agency/company",
+      "/portal/agency/development",
+      "/portal/agency/marketing",
+      "/portal/agency/performance",
+      "/portal/agency/pipelines/leads",
       "/portal/agency/pipelines/fulfilment",
-      "/portal/agency/activity-inbox",
-      "/portal/agency/agency-finance",
-      "/portal/agency/sops",
+      "/portal/agency/products",
+      "/portal/agency/sop-library",
       "/portal/agency/settings",
       "/portal/account",
-      "/portal/account/preferences",
       "/portal/account/permissions",
     ]) {
       await check200(route, `${route} (founder cookie)`, sessionCookie);
