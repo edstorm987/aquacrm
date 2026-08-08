@@ -687,6 +687,10 @@ export interface AgencyWorkspaceSettings {
     meetingReminders: boolean;
     financeAlerts: boolean;
     marketingAlerts: boolean;
+    clientAlerts: boolean;
+    contractAlerts: boolean;
+    complianceAlerts: boolean;
+    developmentAlerts: boolean;
     digest: "off" | "daily" | "weekly";
   };
   updatedAt: number;

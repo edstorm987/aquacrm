@@ -20,6 +20,10 @@ const DEFAULTS: Omit<AgencyWorkspaceSettings, "agencyId" | "updatedAt"> = {
     meetingReminders: true,
     financeAlerts: true,
     marketingAlerts: true,
+    clientAlerts: true,
+    contractAlerts: true,
+    complianceAlerts: true,
+    developmentAlerts: true,
     digest: "daily",
   },
 };

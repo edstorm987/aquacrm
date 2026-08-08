@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import {
+  buildExternalAssistantSetupDocument,
+  externalAssistantSetupFilename,
+} from "../src/lib/externalAssistantSetup";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -91,4 +95,33 @@ test("OpenAPI contract and reusable model-independent skill are shipped", () => 
   assert.match(skill, /MILESYMEDIA_API_BASE_URL/);
   assert.match(skill, /GET \/assistant\/context/);
   assert.match(skill, /This API is read-only/);
+});
+
+test("assistant setup prompt and downloadable handoff are available in settings", () => {
+  const setup = read("src/lib/externalAssistantSetup.ts");
+  const ui = read("src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx");
+
+  assert.match(setup, /buildExternalAssistantSetupPrompt/);
+  assert.match(setup, /buildExternalAssistantSetupDocument/);
+  assert.match(setup, /GET \/assistant\/context/);
+  assert.match(setup, /Never reveal, repeat, log, or place the bearer token/);
+  assert.match(setup, /normal chat or document upload cannot make API requests by itself/i);
+  assert.match(ui, /Copy setup prompt/);
+  assert.match(ui, /Download setup guide/);
+  assert.match(ui, /Download complete setup file/);
+
+  const document = buildExternalAssistantSetupDocument({
+    assistantName: "Ed's private assistant",
+    workspace: "milesymedia",
+    apiBaseUrl: "https://aqua-crm.com/api/v1",
+    openApiUrl: "https://aqua-crm.com/api/v1/openapi.json",
+    modules: ["clients", "finance"],
+    permissions: ["context:read", "records:read"],
+    token: "aqa_test_token",
+    generatedAt: new Date("2026-08-08T12:00:00.000Z"),
+  });
+  assert.match(document, /Authorization: Bearer aqa_test_token/);
+  assert.match(document, /Modules: clients, finance/);
+  assert.match(document, /getMilesymediaContext/);
+  assert.equal(externalAssistantSetupFilename("Ed's private assistant"), "aquacrm-ed-s-private-assistant-setup.md");
 });

@@ -23,6 +23,7 @@
     "smoke:trading-companies": "tsx --test scripts/smoke-trading-companies.test.ts",
     "smoke:development-toolkit": "tsx --test scripts/smoke-development-toolkit.test.ts",
     "smoke:performance-analytics": "tsx --test scripts/smoke-performance-analytics.test.ts",
+    "smoke:notifications": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-operational-notifications.test.ts",
     "smoke:aqua-embed": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-aqua-embed.test.ts",
     "smoke:agency-website": "tsx --test scripts/smoke-agency-website.test.ts",
     "smoke:auth-magic": "tsx --test scripts/smoke-auth-magic.test.ts",

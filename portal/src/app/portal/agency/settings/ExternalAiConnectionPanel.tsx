@@ -3,6 +3,7 @@
 import {
   Check,
   Clipboard,
+  Download,
   ExternalLink,
   KeyRound,
   Plus,
@@ -13,6 +14,11 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  buildExternalAssistantSetupDocument,
+  buildExternalAssistantSetupPrompt,
+  externalAssistantSetupFilename,
+} from "@/lib/externalAssistantSetup";
 
 interface ApiKeySummary {
   id: string;
@@ -79,7 +85,7 @@ export function ExternalAiConnectionPanel() {
   const [copied, setCopied] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [revealed, setRevealed] = useState<{ token: string; name: string } | null>(null);
+  const [revealed, setRevealed] = useState<{ token: string; key: ApiKeySummary } | null>(null);
   const [name, setName] = useState("My AI assistant");
   const [expiresInDays, setExpiresInDays] = useState<number | null>(90);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
@@ -161,7 +167,7 @@ export function ExternalAiConnectionPanel() {
       }
       if (json.connection) applyConnection(json.connection);
       setCreateOpen(false);
-      setRevealed({ token: json.token, name: json.key.name });
+      setRevealed({ token: json.token, key: json.key });
       setStatus(`Created ${json.key.name}. Copy the private token now.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "The key could not be created.");
@@ -190,7 +196,7 @@ export function ExternalAiConnectionPanel() {
         throw new Error(json.error || "The key could not be rotated.");
       }
       if (json.connection) applyConnection(json.connection);
-      setRevealed({ token: json.token, name: json.key.name });
+      setRevealed({ token: json.token, key: json.key });
       setStatus("Key rotated. Update your assistant with the new token now.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "The key could not be rotated.");
@@ -219,6 +225,33 @@ export function ExternalAiConnectionPanel() {
     window.setTimeout(() => setCopied(""), 1_500);
   }
 
+  function setupOptions(token?: string, key?: ApiKeySummary) {
+    return {
+      assistantName: key?.name ?? "My AquaCRM assistant",
+      workspace: connection?.agencyId || "milesymedia",
+      apiBaseUrl: baseUrl,
+      openApiUrl,
+      modules: key?.modules ?? connection?.modules ?? [],
+      permissions: key?.permissions ?? connection?.permissions ?? [],
+      token,
+    };
+  }
+
+  function downloadSetupDocument(token?: string, key?: ApiKeySummary) {
+    const options = setupOptions(token, key);
+    const document = buildExternalAssistantSetupDocument(options);
+    const blob = new Blob([document], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    link.href = url;
+    link.download = externalAssistantSetupFilename(options.assistantName);
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus(token
+      ? "Downloaded the complete setup file. Store it securely because it contains the private token."
+      : "Downloaded the setup guide. Add a managed key when configuring authentication.");
+  }
+
   function toggleModule(module: string) {
     setSelectedModules(current => current.includes(module)
       ? current.filter(item => item !== module)
@@ -235,6 +268,7 @@ export function ExternalAiConnectionPanel() {
   const openApiUrl = `${origin}/api/v1/openapi.json`;
   const activeKeys = connection?.keys.filter(key => key.status === "active") ?? [];
   const inactiveKeys = connection?.keys.filter(key => key.status !== "active") ?? [];
+  const setupPrompt = buildExternalAssistantSetupPrompt(setupOptions());
 
   return (
     <div>
@@ -272,6 +306,35 @@ export function ExternalAiConnectionPanel() {
         <ConnectionValue label="Authentication" value="Authorization: Bearer YOUR_PRIVATE_TOKEN" onCopy={() => copy("Authorization: Bearer YOUR_PRIVATE_TOKEN", "auth")} copied={copied === "auth"} />
       </div>
 
+      <section className="mt-6 border-y border-black/10 py-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-black/35">Assistant setup</p>
+            <h4 className="mt-1 text-sm font-semibold text-black/80">Give your AI the complete operating brief</h4>
+            <p className="mt-1 text-xs leading-5 text-black/45">
+              Download the safe guide now, or generate a key to download a ready-to-connect version containing that key once.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={() => copy(setupPrompt, "prompt")} disabled={!origin || !connection} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-black/65 disabled:opacity-40">
+              {copied === "prompt" ? <Check size={14} /> : <Clipboard size={14} />}
+              {copied === "prompt" ? "Prompt copied" : "Copy setup prompt"}
+            </button>
+            <button type="button" onClick={() => downloadSetupDocument()} disabled={!origin || !connection} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-40">
+              <Download size={15} />
+              Download setup guide
+            </button>
+          </div>
+        </div>
+        <details className="mt-4 rounded-md border border-black/10 bg-black/[0.015]">
+          <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-black/60">Preview the setup prompt</summary>
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-black/10 px-4 py-4 text-[11px] leading-5 text-black/55">{setupPrompt}</pre>
+        </details>
+        <p className="mt-3 text-[11px] leading-4 text-black/40">
+          Compatible assistants still need an OpenAPI Action, Connector, MCP server, or authenticated HTTP tool. A normal document-only chat cannot call live APIs.
+        </p>
+      </section>
+
       <section className="mt-6">
         <div className="flex items-end justify-between gap-3">
           <div>
@@ -306,7 +369,7 @@ export function ExternalAiConnectionPanel() {
 
       {connection?.legacyKeyConfigured ? (
         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900/75">
-          A legacy environment key is still configured. Managed keys work alongside it; remove <code className="font-mono">MILESYMEDIA_ASSISTANT_API_TOKEN</code> from Vercel when every assistant has moved to a managed key.
+          A legacy environment key is still configured. Managed keys work alongside it; remove <code className="font-mono">MILESYMEDIA_ASSISTANT_API_TOKEN</code> from <a href="https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">Vercel environment variables</a> when every assistant has moved to a managed key.
         </div>
       ) : null}
 
@@ -379,13 +442,27 @@ export function ExternalAiConnectionPanel() {
           <div className="w-full rounded-t-xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-xl sm:p-6">
             <div className="flex size-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><KeyRound size={18} /></div>
             <h3 id="private-key-title" className="mt-4 text-lg font-semibold text-black/90">Copy this key now</h3>
-            <p className="mt-1 text-sm leading-6 text-black/50">This is the only time the private token for <strong className="font-semibold text-black/70">{revealed.name}</strong> will be shown. AquaCRM stores only its hash.</p>
+            <p className="mt-1 text-sm leading-6 text-black/50">This is the only time the private token for <strong className="font-semibold text-black/70">{revealed.key.name}</strong> will be shown. AquaCRM stores only its hash.</p>
             <div className="mt-4 rounded-lg bg-black p-4 text-white">
               <code className="block break-all text-xs leading-5">{revealed.token}</code>
               <button type="button" onClick={() => copy(revealed.token, "secret")} className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-md bg-white/10 px-3 text-xs font-semibold hover:bg-white/15">
                 {copied === "secret" ? <Check size={14} /> : <Clipboard size={14} />}
                 {copied === "secret" ? "Copied" : "Copy private key"}
               </button>
+            </div>
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-semibold text-emerald-950/80">Fastest setup</p>
+              <p className="mt-1 text-xs leading-5 text-emerald-950/60">Download one Markdown file containing the setup prompt, API details, exact permissions and this one-time token.</p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <button type="button" onClick={() => downloadSetupDocument(revealed.token, revealed.key)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-900 px-4 text-xs font-semibold text-white">
+                  <Download size={14} /> Download complete setup file
+                </button>
+                <button type="button" onClick={() => copy(buildExternalAssistantSetupDocument(setupOptions(revealed.token, revealed.key)), "complete-setup")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-emerald-900/15 bg-white px-4 text-xs font-semibold text-emerald-950/70">
+                  {copied === "complete-setup" ? <Check size={14} /> : <Clipboard size={14} />}
+                  {copied === "complete-setup" ? "Setup copied" : "Copy complete setup"}
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] leading-4 text-emerald-950/50">The downloaded file contains a live secret. Upload it only to an assistant workspace you trust.</p>
             </div>
             <div className="mt-5 flex justify-end">
               <button type="button" onClick={() => setRevealed(null)} className="min-h-11 rounded-md bg-black px-5 text-sm font-semibold text-white">I have saved it</button>

@@ -11,6 +11,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { listVisibleDevelopmentResources } from "@/server/developmentToolkit";
 import type { Role } from "@/server/types";
+import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 
 export interface GlobalSearchResult {
   id: string;
@@ -42,7 +43,8 @@ export interface GlobalSearchResult {
     | "Assistant"
     | "Workflow"
     | "Experiment"
-    | "Website";
+    | "Website"
+    | "Notification";
   title: string;
   subtitle?: string;
   href: string;
@@ -58,7 +60,7 @@ export async function GET(request: Request) {
     if (!query) return NextResponse.json({ ok: true, results: [] });
 
     ensureDefaultAgencyProducts(session.agencyId);
-    const candidates = buildCandidates(session.agencyId, session.userId, session.role);
+    const candidates = await buildCandidates(session.agencyId, session.userId, session.role);
     const results = candidates
       .map(candidate => ({ candidate, score: score(candidate, query) }))
       .filter(match => match.score > 0)
@@ -72,7 +74,7 @@ export async function GET(request: Request) {
   }
 }
 
-function buildCandidates(agencyId: string, userId: string, role: Role): Candidate[] {
+async function buildCandidates(agencyId: string, userId: string, role: Role): Promise<Candidate[]> {
   const state = getState();
   const clients = listClients(agencyId, { includeArchived: true });
   const clientById = new Map(clients.map(client => [client.id, client]));
@@ -256,6 +258,15 @@ function buildCandidates(agencyId: string, userId: string, role: Role): Candidat
   addFinanceCandidates(candidates, state, agencyId, clientById);
   addWorkspaceCandidates(candidates, state, agencyId, userId, clientById);
   addPluginCandidates(candidates, state, agencyId, clientById);
+  for (const alert of await listOperationalAlerts(agencyId)) {
+    push(candidates, {
+      id: `notification:${alert.id}`,
+      category: "Notification",
+      title: alert.title,
+      subtitle: [alert.detail, alert.clientName, readable(alert.category), readable(alert.severity)].filter(Boolean).join(" · "),
+      href: alert.href,
+    }, ["alert", "notification", "needs attention", alert.category, alert.severity]);
+  }
   return candidates;
 }
 

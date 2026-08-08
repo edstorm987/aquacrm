@@ -50,7 +50,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
   const outstandingCents = invoices
     .filter(invoice => invoice.currency === currency && ["sent", "overdue"].includes(invoice.status))
     .reduce((sum, invoice) => sum + invoice.totalCents, 0);
-  const missingReceipts = paidExpenses.filter(expense => !expense.receiptUrl).length;
+  const missingReceipts = paidExpenses.filter(expense => !expense.receiptUrl && !expense.attachments?.length).length;
 
   const clientNameById = new Map(clients.map(client => [client.id, client.name]));
   const profitability = clients.map(client => {
@@ -123,7 +123,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
             <CircleAlert size={17} aria-hidden />
             {missingReceipts > 0 ? `${missingReceipts} paid expense${missingReceipts === 1 ? "" : "s"} need receipt evidence.` : "Expenses are waiting for review."}
           </span>
-          <a href="/portal/agency/agency-finance/expenses" className="font-semibold underline underline-offset-2">Review expenses</a>
+          <a href="/portal/agency/agency-finance/expenses?evidence=missing" className="font-semibold underline underline-offset-2">Review expenses</a>
         </div>
       ) : null}
 

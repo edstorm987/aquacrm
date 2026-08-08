@@ -10,13 +10,15 @@ import { listAgencyTasks } from "@/server/tasks";
 import { getUserById } from "@/server/users";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listLegalDocuments } from "@/server/legalDocuments";
+import { getState } from "@/server/storage";
+import type { ClientContract } from "@/lib/clientContracts";
 
 export type OperationalAlertSeverity = "critical" | "warning" | "notice";
 
 export interface OperationalAlert {
   id: string;
   severity: OperationalAlertSeverity;
-  category: "outage" | "support" | "money" | "meeting" | "client" | "marketing" | "task" | "compliance";
+  category: "outage" | "support" | "money" | "meeting" | "client" | "marketing" | "task" | "compliance" | "contract" | "development";
   title: string;
   detail: string;
   href: string;
@@ -26,12 +28,21 @@ export interface OperationalAlert {
 
 const DAY = 24 * 60 * 60 * 1000;
 
+export const OPERATIONAL_ALERT_THRESHOLDS = {
+  clientContactDays: 14,
+  contractAcceptanceDays: 7,
+  portalAccessDays: 3,
+  recurringExpenseLookaheadDays: 7,
+  staleMonitoringDays: 2,
+  telemetryErrorWindowHours: 24,
+} as const;
+
 export async function listOperationalAlerts(agencyId: string, now = Date.now()): Promise<OperationalAlert[]> {
   const clients = listClients(agencyId);
   const alerts: OperationalAlert[] = [];
   const notificationSettings = getAgencyWorkspaceSettings(agencyId).notifications;
 
-  for (const document of listLegalDocuments(agencyId)) {
+  for (const document of notificationSettings.complianceAlerts ? listLegalDocuments(agencyId) : []) {
     if (document.status === "archived") continue;
     const href = "/portal/agency/company#legal";
     if (document.expiresAt && document.expiresAt < now) {
@@ -109,6 +120,10 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       clientRequests?: Array<{ id: string; type: string; message: string; status: string; submittedAt: number; replies?: unknown[] }>;
       telemetryEvents?: ClientTelemetryEvent[];
       commercialPack?: { invoiceNumber?: string; invoiceStatus?: string; dueAt?: number; totalCents?: number; payments?: Array<{ amountCents: number }> };
+      contracts?: ClientContract[];
+      portalBuiltAt?: number;
+      portalAccessPreparedAt?: number;
+      portalAccessSentAt?: number;
     } | undefined;
 
     for (const request of notificationSettings.supportRequests ? metadata?.clientRequests ?? [] : []) {
@@ -158,19 +173,51 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       });
     }
 
-    if (client.status === "active" && (!metadata?.lastContactedAt || now - metadata.lastContactedAt > 14 * DAY)) {
+    for (const contract of notificationSettings.contractAlerts ? metadata?.contracts ?? [] : []) {
+      const waitingSince = contract.issuedAt ?? contract.updatedAt ?? contract.createdAt;
+      if (contract.status !== "sent" || now - waitingSince < OPERATIONAL_ALERT_THRESHOLDS.contractAcceptanceDays * DAY) continue;
+      alerts.push({
+        id: `contract-awaiting:${client.id}:${contract.id}`,
+        severity: "warning",
+        category: "contract",
+        title: `${client.name} has a contract awaiting acceptance`,
+        detail: `${contract.title} was sent ${formatRelativeDate(waitingSince, now)}. Follow up or record the signed agreement.`,
+        href: `/portal/clients/${client.id}?tab=finance`,
+        clientName: client.name,
+        occurredAt: waitingSince,
+      });
+    }
+
+    const portalReadyAt = metadata?.portalAccessPreparedAt ?? metadata?.portalBuiltAt;
+    if (notificationSettings.clientAlerts && portalReadyAt && !metadata?.portalAccessSentAt && now - portalReadyAt >= OPERATIONAL_ALERT_THRESHOLDS.portalAccessDays * DAY) {
+      alerts.push({
+        id: `portal-access:${client.id}`,
+        severity: "notice",
+        category: "client",
+        title: `${client.name}'s portal access is ready to review`,
+        detail: `Access has been prepared for ${OPERATIONAL_ALERT_THRESHOLDS.portalAccessDays} days or more but has not been sent.`,
+        href: `/portal/clients/${client.id}?tab=fulfilment`,
+        clientName: client.name,
+        occurredAt: portalReadyAt,
+      });
+    }
+
+    if (notificationSettings.clientAlerts && client.status === "active" && (!metadata?.lastContactedAt || now - metadata.lastContactedAt > OPERATIONAL_ALERT_THRESHOLDS.clientContactDays * DAY)) {
       alerts.push({
         id: `contact:${client.id}`,
         severity: "warning",
         category: "client",
         title: `Check in with ${client.name}`,
-        detail: metadata?.lastContactedAt ? "No contact has been recorded for more than 14 days." : "No client contact has been recorded yet.",
+        detail: metadata?.lastContactedAt ? `No contact has been recorded for more than ${OPERATIONAL_ALERT_THRESHOLDS.clientContactDays} days.` : "No client contact has been recorded yet.",
         href: `/portal/clients/${client.id}`,
         clientName: client.name,
         occurredAt: metadata?.lastContactedAt ?? client.createdAt,
       });
     }
   }
+
+  if (notificationSettings.financeAlerts) addFinanceAlerts(alerts, agencyId, now);
+  if (notificationSettings.developmentAlerts) addDevelopmentAlerts(alerts, agencyId, now);
 
   const leadsInstall = getInstall({ agencyId }, "leads-pipeline");
   if (leadsInstall?.enabled) {
@@ -191,7 +238,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           occurredAt: lead.meetingReminderAt,
         });
       }
-      if (["public-contact", "website-contact", "milesymedia-website"].includes(lead.source) && !lead.lastContactedAt) {
+      if (notificationSettings.clientAlerts && ["public-contact", "website-contact", "milesymedia-website"].includes(lead.source) && !lead.lastContactedAt) {
         alerts.push({
           id: `enquiry:${lead.id}`,
           severity: now - lead.capturedAt > DAY ? "warning" : "notice",
@@ -235,6 +282,145 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
 
   const severityOrder = { critical: 0, warning: 1, notice: 2 };
   return alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || b.occurredAt - a.occurredAt);
+}
+
+function addFinanceAlerts(alerts: OperationalAlert[], agencyId: string, now: number): void {
+  const state = getState();
+  const installIds = Object.values(state.pluginInstalls)
+    .filter(install => install.agencyId === agencyId && install.pluginId === "agency-finance" && install.enabled)
+    .map(install => install.id);
+  const expenses: Record<string, unknown>[] = [];
+  const invoices: Record<string, unknown>[] = [];
+
+  for (const installId of installIds) {
+    for (const [key, value] of Object.entries(state.pluginData[installId] ?? {})) {
+      if (!isRecord(value)) continue;
+      if (key.startsWith("expenses/by-id/")) expenses.push(value);
+      if (key.startsWith("invoices/by-id/")) invoices.push(value);
+    }
+  }
+
+  const missingEvidence = expenses.filter(expense => {
+    const paid = expense.status === "reimbursed" || Boolean(expense.paymentMethod);
+    const hasEvidence = Boolean(cleanText(expense.receiptUrl)) || (Array.isArray(expense.attachments) && expense.attachments.length > 0);
+    return paid && !hasEvidence;
+  });
+  if (missingEvidence.length) {
+    alerts.push({
+      id: "finance:expense-evidence",
+      severity: "warning",
+      category: "money",
+      title: `${missingEvidence.length} paid expense${missingEvidence.length === 1 ? "" : "s"} need receipt evidence`,
+      detail: "Attach a receipt, invoice, photo or supporting document so the finance record has a complete audit trail.",
+      href: "/portal/agency/agency-finance/expenses?evidence=missing",
+      occurredAt: newestTimestamp(missingEvidence, now),
+    });
+  }
+
+  const pending = expenses.filter(expense => expense.status === "pending");
+  if (pending.length) {
+    alerts.push({
+      id: "finance:expense-review",
+      severity: "notice",
+      category: "money",
+      title: `${pending.length} expense${pending.length === 1 ? "" : "s"} await review`,
+      detail: "Approve, amend or reject each pending expense so the books stay current.",
+      href: "/portal/agency/agency-finance/expenses?status=pending",
+      occurredAt: newestTimestamp(pending, now),
+    });
+  }
+
+  const recurringDue = expenses.filter(expense =>
+    Boolean(expense.recurrence) && expense.recurringActive !== false && numeric(expense.nextDueAt) > 0
+      && numeric(expense.nextDueAt) <= now + OPERATIONAL_ALERT_THRESHOLDS.recurringExpenseLookaheadDays * DAY
+  );
+  if (recurringDue.length) {
+    const overdue = recurringDue.filter(expense => numeric(expense.nextDueAt) < now).length;
+    alerts.push({
+      id: "finance:recurring-expenses",
+      severity: overdue ? "warning" : "notice",
+      category: "money",
+      title: `${recurringDue.length} recurring cost${recurringDue.length === 1 ? "" : "s"} ${overdue ? "need posting" : "are due soon"}`,
+      detail: overdue
+        ? `${overdue} scheduled cost${overdue === 1 ? " is" : "s are"} overdue. Post the next occurrence or update the schedule.`
+        : `Due within the next ${OPERATIONAL_ALERT_THRESHOLDS.recurringExpenseLookaheadDays} days.`,
+      href: "/portal/agency/agency-finance/expenses?recurring=recurring",
+      occurredAt: oldestPositiveTimestamp(
+        recurringDue.map(expense => numeric(expense.nextDueAt)),
+        newestTimestamp(recurringDue, now),
+      ),
+    });
+  }
+
+  const overdueInvoices = invoices.filter(invoice => {
+    const status = cleanText(invoice.status);
+    return status === "overdue" || (status === "sent" && numeric(invoice.dueAt) > 0 && numeric(invoice.dueAt) < now);
+  });
+  if (overdueInvoices.length) {
+    alerts.push({
+      id: "finance:overdue-invoices",
+      severity: "critical",
+      category: "money",
+      title: `${overdueInvoices.length} invoice${overdueInvoices.length === 1 ? " is" : "s are"} overdue`,
+      detail: "Review payment status, record any offline payment and create the next human follow-up action.",
+      href: "/portal/agency/agency-finance/invoices?status=overdue",
+      occurredAt: oldestPositiveTimestamp(
+        overdueInvoices.map(invoice => numeric(invoice.dueAt)),
+        newestTimestamp(overdueInvoices, now),
+      ),
+    });
+  }
+}
+
+function addDevelopmentAlerts(alerts: OperationalAlert[], agencyId: string, now: number): void {
+  const website = getState().agencyWebsites[agencyId];
+  if (!website) return;
+  const errorWindow = OPERATIONAL_ALERT_THRESHOLDS.telemetryErrorWindowHours * 60 * 60 * 1000;
+  const recentErrors = website.telemetryEvents.filter(event => event.type === "error" && event.occurredAt >= now - errorWindow);
+  if (recentErrors.length) {
+    const latest = recentErrors.reduce((current, event) => event.occurredAt > current.occurredAt ? event : current);
+    alerts.push({
+      id: `development:errors:${latest.id}`,
+      severity: "critical",
+      category: "development",
+      title: `${website.name} recorded ${recentErrors.length} production error${recentErrors.length === 1 ? "" : "s"}`,
+      detail: latest.message || latest.path || "Open the development control centre to inspect the latest event.",
+      href: "/portal/agency/development/website",
+      occurredAt: latest.occurredAt,
+    });
+  }
+  if (website.telemetryLastSeenAt && now - website.telemetryLastSeenAt > OPERATIONAL_ALERT_THRESHOLDS.staleMonitoringDays * DAY) {
+    alerts.push({
+      id: "development:monitoring-stale",
+      severity: "warning",
+      category: "development",
+      title: `${website.name} monitoring has gone quiet`,
+      detail: `No telemetry has arrived for more than ${OPERATIONAL_ALERT_THRESHOLDS.staleMonitoringDays} days. Check the Aqua tag and production deployment.`,
+      href: "/portal/agency/development/website",
+      occurredAt: website.telemetryLastSeenAt,
+    });
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function cleanText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function numeric(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function oldestPositiveTimestamp(values: number[], fallback: number): number {
+  const valid = values.filter(value => value > 0 && Number.isFinite(value));
+  return valid.length ? Math.min(...valid) : fallback;
+}
+
+function newestTimestamp(records: Record<string, unknown>[], fallback: number): number {
+  return records.reduce((latest, record) => Math.max(latest, numeric(record.updatedAt), numeric(record.createdAt), numeric(record.incurredAt)), 0) || fallback;
 }
 
 function requestLabel(type: string): string {

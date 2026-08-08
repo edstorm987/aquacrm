@@ -2,6 +2,7 @@ import { ensureHydrated } from "@/server/storage";
 import { requireSession } from "@/lib/server/auth";
 import { effectiveRole } from "@/lib/server/effectiveRole";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 
 export const metadata = { title: "Permissions · Milesy Media" };
@@ -80,7 +81,7 @@ export default async function PermissionsPage() {
 
         <p className="mt-4 text-xs text-black/45">
           Permissions are based on each person&apos;s role. The business owner
-          can update team access.
+          can update access in <Link href="/portal/agency/settings#team" className="font-medium text-black/65 underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.
         </p>
       </div>
     </main>

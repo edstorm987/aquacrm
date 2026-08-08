@@ -2,6 +2,7 @@ import { ensureHydrated } from "@/server/storage";
 import { requireSession } from "@/lib/server/auth";
 import { getUserById } from "@/server/users";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AvatarUploader } from "./AvatarUploader";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 
@@ -36,7 +37,7 @@ export default async function AccountPage() {
           <p className="mt-1 text-sm text-black/55">
             {isCustomer
               ? "Manage the personal details used in your Milesymedia home."
-              : "Your basic details. Email and role are managed by your agency owner."}
+              : <>Your basic details. Email and role are managed from <Link href="/portal/agency/settings#team" className="font-medium underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.</>}
           </p>
         </header>
 

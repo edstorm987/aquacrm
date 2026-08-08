@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Bot, Building2, CalendarDays, CircleDollarSign, Contact, FileSearch2, FileText, FlaskConical, MessageSquare, NotebookPen, Package, Search, UserRound, UsersRound, X } from "lucide-react";
+import { ArrowUpRight, Bell, Bot, Building2, CalendarDays, CircleDollarSign, Contact, FileSearch2, FileText, FlaskConical, MessageSquare, NotebookPen, Package, Search, UserRound, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export interface PortalSearchItem {
@@ -208,6 +208,7 @@ function resultIcon(category: string) {
   if (category === "Note" || category === "Client data") return <NotebookPen size={14} />;
   if (category === "Meeting") return <CalendarDays size={14} />;
   if (category === "Assistant") return <Bot size={14} />;
+  if (category === "Notification") return <Bell size={14} />;
   if (category === "Experiment") return <FlaskConical size={14} />;
   if (category === "File" || category === "Contract" || category === "Form") return <FileSearch2 size={14} />;
   return <Contact size={14} />;

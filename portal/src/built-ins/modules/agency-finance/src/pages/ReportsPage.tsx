@@ -67,7 +67,7 @@ export default async function ReportsPage(props: PluginPageProps) {
             <Row label="Tax charged on paid invoices" value={money(outputTax, currency)} />
             <Row label="Recoverable tax recorded" value={money(inputTax, currency)} />
             <Row label="Recorded tax balance" value={money(Math.max(0, outputTax - inputTax), currency)} strong />
-            <Row label="Expenses missing receipts" value={String(paidExpenses.filter(expense => !expense.receiptUrl).length)} />
+            <Row label="Expenses missing receipts" value={String(paidExpenses.filter(expense => !expense.receiptUrl && !expense.attachments?.length).length)} />
           </dl>
         </section>
       </div>

@@ -76,6 +76,18 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   }, [expenses]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("status");
+    const evidence = params.get("evidence");
+    const recurring = params.get("recurring");
+    if (["pending", "approved", "reimbursed", "rejected"].includes(status ?? "")) {
+      setStatusFilter(status as ExpenseStatus);
+    }
+    if (evidence === "attached" || evidence === "missing") setEvidenceFilter(evidence);
+    if (recurring === "recurring" || recurring === "one-off") setRecurrenceFilter(recurring);
+  }, []);
+
+  useEffect(() => {
     void fetch("/api/portal/settings/portal-editor")
       .then(response => response.json())
       .then(result => {

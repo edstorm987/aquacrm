@@ -7,7 +7,7 @@
 // real editing.
 
 import Link from "next/link";
-import { Bell, Boxes, CircleUserRound, Eye, PanelsTopLeft, PlugZap, Save, ScrollText, ShieldCheck, SlidersHorizontal, UsersRound } from "lucide-react";
+import { ArrowUpRight, Bell, Boxes, CircleUserRound, Eye, PanelsTopLeft, PlugZap, Save, ScrollText, ShieldCheck, SlidersHorizontal, UsersRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { ProductionReadiness, ReadinessGroup, ReadinessStatus } from "@/lib/server/productionReadiness";
 import type { AgencyWorkspaceSettings, ClientStage } from "@/server/types";
@@ -163,6 +163,14 @@ function PrimaryLink({ href, children }: { href: string; children: ReactNode }) 
   );
 }
 
+function InlineLink({ href, children, external = false }: { href: string; children: ReactNode; external?: boolean }) {
+  const className = "font-medium text-black/65 underline decoration-black/25 underline-offset-2 transition hover:text-black hover:decoration-black/55";
+  if (external) {
+    return <a href={href} target="_blank" rel="noreferrer" className={className}>{children}</a>;
+  }
+  return <Link href={href} className={className}>{children}</Link>;
+}
+
 function GeneralPane({ ctx }: { ctx: SettingsContext }) {
   return (
     <>
@@ -179,8 +187,8 @@ function GeneralPane({ ctx }: { ctx: SettingsContext }) {
       <Section eyebrow="Quick links">
         <div className="flex flex-wrap gap-2">
           <PrimaryLink href="/portal/account">Edit profile</PrimaryLink>
-          <PrimaryLink href="/portal/account/preferences">Preferences</PrimaryLink>
           <PrimaryLink href="/portal/account/permissions">Permissions</PrimaryLink>
+          <PrimaryLink href="/portal/agency/settings#notifications">Notification preferences</PrimaryLink>
           {ctx.agency && <PrimaryLink href="/portal/agency/phases">Phases</PrimaryLink>}
           {ctx.agency && <PrimaryLink href="/portal/agency">Agency dashboard</PrimaryLink>}
         </div>
@@ -254,10 +262,10 @@ function PreferencesPane() {
   return (
     <Section eyebrow="Preferences">
       <p className="text-sm text-black/65">
-        Theme, density, notifications and editor preferences live on the dedicated preferences page.
+        Use the theme control in the top bar. Notification rules are managed in the settings section linked below.
       </p>
       <div className="mt-4">
-        <PrimaryLink href="/portal/account/preferences">Open preferences</PrimaryLink>
+        <PrimaryLink href="/portal/agency/settings#notifications">Open notification preferences</PrimaryLink>
       </div>
     </Section>
   );
@@ -327,7 +335,7 @@ function DefaultsPane({ ctx }: { ctx: SettingsContext }) {
   return (
     <form onSubmit={submit} className="grid gap-5">
       <Section eyebrow="Client defaults">
-        <p className="mb-4 text-xs leading-5 text-black/45">Starting points for new records. Every client can still be changed individually.</p>
+        <p className="mb-4 text-xs leading-5 text-black/45">Starting points for new records. Every client can still be changed individually from <InlineLink href="/portal/clients">Clients &amp; contacts</InlineLink>.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Default starting stage"><select value={form.defaultClientStage} onChange={event => setForm(value => ({ ...value, defaultClientStage: event.target.value as ClientStage }))} className={control} disabled={!ctx.canManageSettings}>{STAGES.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></Field>
           <Field label="Access-code expiry"><select value={form.portalAccessDays} onChange={event => setForm(value => ({ ...value, portalAccessDays: event.target.value }))} className={control} disabled={!ctx.canManageSettings}><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></Field>
@@ -336,7 +344,7 @@ function DefaultsPane({ ctx }: { ctx: SettingsContext }) {
         </div>
       </Section>
       <Section eyebrow="Finance defaults">
-        <p className="mb-4 text-xs leading-5 text-black/45">Applied to new products and documents, while remaining editable per invoice or agreement.</p>
+        <p className="mb-4 text-xs leading-5 text-black/45">Applied to new products and documents. Amend individual records in <InlineLink href="/portal/agency/agency-finance/invoices">Invoices</InlineLink> or edit agreement templates inside <InlineLink href="/portal/agency/products">Products</InlineLink>.</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Currency"><select value={form.defaultCurrency} onChange={event => setForm(value => ({ ...value, defaultCurrency: event.target.value }))} className={control} disabled={!ctx.canManageSettings}><option>GBP</option><option>EUR</option><option>USD</option></select></Field>
           <Field label="Default tax %"><input type="number" min="0" max="100" step="0.01" value={form.defaultTaxRatePercent} onChange={event => setForm(value => ({ ...value, defaultTaxRatePercent: event.target.value }))} className={control} disabled={!ctx.canManageSettings} /></Field>
@@ -359,6 +367,10 @@ function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
     { key: "meetingReminders", label: "Meetings", detail: "Upcoming reminders, missing confirmations, and follow-up attempts." },
     { key: "financeAlerts", label: "Finance", detail: "Overdue invoices, payment gaps, expenses, and recurring costs." },
     { key: "marketingAlerts", label: "Marketing", detail: "Campaign budget, spend, lead attribution, and target warnings." },
+    { key: "clientAlerts", label: "Client health", detail: "Contact gaps, portal access, enquiries, and customer lifecycle attention." },
+    { key: "contractAlerts", label: "Contracts", detail: "Agreements waiting for acceptance or missing from the commercial trail." },
+    { key: "complianceAlerts", label: "Legal and compliance", detail: "Insurance, HMRC, policy, contract, and document deadlines." },
+    { key: "developmentAlerts", label: "Development", detail: "Production errors, stale monitoring, Aqua tag health, and deployment signals." },
   ];
 
   async function submit(event: React.FormEvent) {
@@ -377,7 +389,7 @@ function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
       </Section>
       <Section eyebrow="Digest">
         <Field label="Summary frequency"><select value={notifications.digest} onChange={event => setNotifications(value => ({ ...value, digest: event.target.value as typeof notifications.digest }))} className={`${control} max-w-xs`} disabled={!ctx.canManageSettings}><option value="off">No digest</option><option value="daily">Daily summary</option><option value="weekly">Weekly summary</option></select></Field>
-        <p className="mt-2 text-xs leading-5 text-black/40">The preference is saved now. Email delivery requires the customer email service to be connected.</p>
+        <p className="mt-2 text-xs leading-5 text-black/40">The preference is saved now. Email delivery requires the <InlineLink href="/portal/agency/settings#integrations">customer email connection</InlineLink>.</p>
       </Section>
       <SaveRow status={status} canManage={ctx.canManageSettings} />
     </form>
@@ -435,6 +447,7 @@ function IntegrationsPane({ readiness }: { readiness: ProductionReadiness }) {
                         <div className="mt-3 flex flex-wrap gap-1.5" aria-label={`${item.label} environment variables`}>
                           {item.envKeys.map(key => <code key={key} className="rounded bg-black/[0.05] px-2 py-1 text-[11px] font-medium text-black/60">{key}</code>)}
                         </div>
+                        <ReadinessActionLink itemId={item.id} />
                       </div>
                     </details>
                   ))}
@@ -452,7 +465,7 @@ function IntegrationsPane({ readiness }: { readiness: ProductionReadiness }) {
           </div>
           <div className="rounded-lg border border-black/10 bg-white/70 p-4">
             <h3 className="text-sm font-semibold text-black/80">Live on Vercel</h3>
-            <p className="mt-1 text-xs leading-5 text-black/50">Add the same names in Project Settings → Environment Variables, then redeploy.</p>
+            <p className="mt-1 text-xs leading-5 text-black/50">Add the same names in <InlineLink href={SERVICE_DESTINATIONS.vercelEnvironment.href} external>Vercel environment variables</InlineLink>, then redeploy.</p>
           </div>
         </div>
         <p className="mt-4 text-xs leading-5 text-black/45">Keys are never saved in workspace data, activity logs, client portals or browser storage.</p>
@@ -475,6 +488,33 @@ function SettingsDestination({ title, detail, links }: { title: string; detail: 
 
 function StatusDot({ status }: { status: ReadinessStatus }) {
   return <span className={`size-2 rounded-full ${status === "ready" ? "bg-emerald-500" : status === "needs-setup" ? "bg-amber-500" : "bg-black/20"}`} aria-hidden="true" />;
+}
+
+type ReadinessItemId = ProductionReadiness["items"][number]["id"];
+
+const SERVICE_DESTINATIONS: Record<ReadinessItemId | "vercelEnvironment", { label: string; href: string; external?: boolean }> = {
+  database: { label: "Open Supabase database", href: "https://supabase.com/dashboard/project/dghzbsxbdatskserctgt/editor", external: true },
+  security: { label: "Open Vercel environment variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  vault: { label: "Open Vercel environment variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  email: { label: "Open Resend API keys", href: "https://resend.com/api-keys", external: true },
+  uploads: { label: "Open Supabase storage", href: "https://supabase.com/dashboard/project/dghzbsxbdatskserctgt/storage/buckets", external: true },
+  billing: { label: "Open Stripe API keys", href: "https://dashboard.stripe.com/apikeys", external: true },
+  google: { label: "Open Google credentials", href: "https://console.cloud.google.com/apis/credentials", external: true },
+  github: { label: "Open GitHub access tokens", href: "https://github.com/settings/tokens", external: true },
+  vercel: { label: "Open Vercel access tokens", href: "https://vercel.com/account/settings/tokens", external: true },
+  assistant: { label: "Open OpenAI API keys", href: "https://platform.openai.com/api-keys", external: true },
+  "assistant-api": { label: "Manage external AI access", href: "/portal/agency/settings#launch" },
+  monitoring: { label: "Open Sentry projects", href: "https://sentry.io/settings/projects/", external: true },
+  vercelEnvironment: { label: "Open Vercel environment variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+};
+
+function ReadinessActionLink({ itemId }: { itemId: ReadinessItemId }) {
+  const destination = SERVICE_DESTINATIONS[itemId];
+  const className = "mt-3 inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/65 transition hover:border-black/30 hover:text-black";
+  if (destination.external) {
+    return <a href={destination.href} target="_blank" rel="noreferrer" className={className}>{destination.label}<ArrowUpRight size={13} aria-hidden /></a>;
+  }
+  return <Link href={destination.href} className={className}>{destination.label}<span aria-hidden>›</span></Link>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -576,6 +616,7 @@ function LaunchPane({ readiness }: { readiness: ProductionReadiness }) {
             <div>
               <p className="text-sm leading-6 text-black/65">{item.summary}</p>
               <p className="mt-1 text-xs leading-5 text-black/45">{item.action}</p>
+              <ReadinessActionLink itemId={item.id} />
             </div>
             <div className="text-xs font-medium text-black/40 md:pt-0.5">
               {item.required ? "Required" : "Optional"}
