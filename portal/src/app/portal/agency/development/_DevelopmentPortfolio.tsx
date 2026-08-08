@@ -166,7 +166,7 @@ export function DevelopmentPortfolio({
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Development</p>
           <h1 className="mt-1 text-3xl font-semibold text-black/90">Everything we build.</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
-            Every Milesymedia and client website, portal, software product, repository, release and live signal in one control centre.
+            Every AquaOasis-Web and client website, portal, software product, repository, release and live signal in one control centre.
           </p>
         </div>
         <Link href="/portal/clients" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">

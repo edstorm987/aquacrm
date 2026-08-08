@@ -14,8 +14,6 @@ import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { listClients } from "@/server/tenants";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
-import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
-import { recordBelongsToCompany } from "@/server/tradingCompanies";
 import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 
 const LEADS_PLUGIN = "leads-pipeline";
@@ -31,7 +29,6 @@ export default async function MarketingPage({
 }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
-  const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
   ensureLeadsPipelineFoundationRegistered();
 
   let install = getInstall({ agencyId: session.agencyId }, LEADS_PLUGIN);
@@ -112,7 +109,7 @@ export default async function MarketingPage({
       <header>
         <p className="text-xs font-semibold uppercase tracking-wide text-brand">Growth</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Marketing</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Run Milesymedia&apos;s campaigns, social channels, website, funnels and Google Ads, then see what produces conversations and clients.</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Run campaigns, social channels, websites, funnels and Google Ads across every service brand, then see what produces conversations and clients.</p>
       </header>
 
       <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
@@ -176,7 +173,7 @@ export default async function MarketingPage({
               <div className="flex items-start gap-4">
                 <span className="grid size-11 shrink-0 place-items-center rounded-md bg-brand text-white"><Globe2 size={20} /></span>
                 <div>
-                  <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-black/85">Milesymedia website</h2><span className="rounded-full bg-black/[0.045] px-2 py-1 text-[10px] font-semibold uppercase text-black/45">Owned channel</span></div>
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-black/85">AquaOasis-Web website</h2><span className="rounded-full bg-black/[0.045] px-2 py-1 text-[10px] font-semibold uppercase text-black/45">Owned channel</span></div>
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">The same first-party website Development controls, viewed here as a marketing asset: traffic, conversion routes, public availability and the pages carrying the offer.</p>
                 </div>
               </div>
@@ -191,15 +188,15 @@ export default async function MarketingPage({
           </section>
           <MarketingChannelsWorkspace
             kind="website"
-            assets={marketingAssets.filter(asset => asset.kind === "website" && recordBelongsToCompany(asset.companyIds, activeCompanyId))}
-            activeCompanyId={activeCompanyId}
+            assets={marketingAssets.filter(asset => asset.kind === "website")}
+            activeCompanyId={null}
           />
         </div>
       ) : (
         <MarketingChannelsWorkspace
           kind={viewToAssetKind(view)}
-          assets={marketingAssets.filter(asset => asset.kind === viewToAssetKind(view) && recordBelongsToCompany(asset.companyIds, activeCompanyId))}
-          activeCompanyId={activeCompanyId}
+          assets={marketingAssets.filter(asset => asset.kind === viewToAssetKind(view))}
+          activeCompanyId={null}
         />
       )}
     </div>

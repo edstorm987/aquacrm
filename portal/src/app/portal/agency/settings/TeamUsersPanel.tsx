@@ -76,7 +76,7 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
     });
     const data = await response.json().catch(() => null) as { ok?: boolean; user?: TeamUser; error?: string } | null;
     if (!response.ok || !data?.user) {
-      setError(data?.error ?? "Company assignment could not be saved.");
+      setError(data?.error ?? "Service brand assignment could not be saved.");
       return;
     }
     setUsers(current => current.map(item => item.id === user.id ? data.user! : item));
@@ -87,7 +87,7 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
       <div className="rounded-xl border border-black/10 bg-white/70">
         <div className="border-b border-black/10 px-5 py-3">
           <h3 className="text-sm font-semibold text-black/85">Team access</h3>
-          <p className="mt-1 text-xs text-black/50">Create real staff accounts for AquaCRM.</p>
+          <p className="mt-1 text-xs text-black/50">Create staff accounts for the AquaOasis-Web workspace.</p>
         </div>
         <ul className="divide-y divide-black/10">
           {users.map(user => (
@@ -102,9 +102,9 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
               </span>
               </div>
               {companies.length ? <div className="mt-2 flex flex-wrap gap-1.5">
-                <span className="py-1 text-[10px] font-medium text-black/35">Companies:</span>
+                <span className="py-1 text-[10px] font-medium text-black/35">Service brands:</span>
                 {companies.map(company => <button type="button" key={company.id} onClick={() => void toggleCompany(user, company.id)} className={`rounded-full px-2 py-1 text-[10px] font-medium ${user.companyIds.includes(company.id) ? "bg-brand/10 text-brand" : "bg-black/[0.04] text-black/45"}`}>{company.name}</button>)}
-                {!user.companyIds.length ? <span className="rounded-full bg-black/[0.04] px-2 py-1 text-[10px] text-black/45">All Milesymedia</span> : null}
+                {!user.companyIds.length ? <span className="rounded-full bg-black/[0.04] px-2 py-1 text-[10px] text-black/45">All services</span> : null}
               </div> : null}
             </li>
           ))}
@@ -119,7 +119,7 @@ export function TeamUsersPanel({ initialUsers, canCreateManagers, companies }: {
             <input className="rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black/85 outline-none focus:border-brand" value={name} onChange={e => setName(e.target.value)} required />
           </label>
           {companies.length ? <fieldset className="grid gap-2">
-            <legend className="text-xs font-medium text-black/60">Trading companies <span className="font-normal text-black/40">(none means all)</span></legend>
+            <legend className="text-xs font-medium text-black/60">Service brand access <span className="font-normal text-black/40">(none means all)</span></legend>
             <div className="flex flex-wrap gap-2">{companies.map(company => <label key={company.id} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-2.5 py-2 text-xs"><input type="checkbox" checked={companyIds.includes(company.id)} onChange={() => setCompanyIds(current => current.includes(company.id) ? current.filter(id => id !== company.id) : [...current, company.id])} />{company.name}</label>)}</div>
           </fieldset> : null}
           <label className="grid gap-1 text-xs font-medium text-black/60">

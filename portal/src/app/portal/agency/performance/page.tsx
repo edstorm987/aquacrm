@@ -153,9 +153,9 @@ export default async function PerformancePage() {
   const ownSummary = summarizeAgencyWebsite(ownWebsite);
   const ownHealthNotes = ownSummary.errors24h > 0 ? [`${ownSummary.errors24h} live website error${ownSummary.errors24h === 1 ? "" : "s"}`] : [];
   const own: PerformanceClient = {
-    id: "milesymedia",
+    id: "aquaoasis-web",
     scope: "agency",
-    name: "Milesymedia",
+    name: "AquaOasis-Web",
     stage: ownWebsite.status === "live" ? "Live website" : ownWebsite.status === "maintenance" ? "Maintenance" : "Redesign gate",
     stageProgress: ownWebsite.status === "live" ? 100 : 70,
     health: ownHealthNotes.length ? "attention" : "healthy",
@@ -167,10 +167,10 @@ export default async function PerformancePage() {
     averageLoadMs: ownSummary.averageLoadMs,
     lastSeenAt: ownSummary.lastSeenAt,
     deployments30d: ownSummary.deployments30d,
-    products: [{ id: "milesymedia-website", name: "Milesymedia website", catalogKey: "website" }],
+    products: [{ id: "aquaoasis-web", name: "AquaOasis-Web platform", catalogKey: "website" }],
     properties: [{
-      id: "milesymedia-website",
-      label: "Milesymedia website",
+      id: "aquaoasis-web",
+      label: "AquaOasis-Web platform",
       kind: "website",
       status: ownWebsite.status,
       repoUrl: ownWebsite.repositoryUrl,

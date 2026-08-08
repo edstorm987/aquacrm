@@ -3,8 +3,6 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth";
 import { createAgencyProduct, ensureDefaultAgencyProducts, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type AgencyProductKind, type AgencyProductPortalRequirement, type AgencyProductPricing } from "@/server/types";
-import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
-import { recordBelongsToCompany } from "@/server/tradingCompanies";
 
 type Body = {
   action?: "create" | "update";
@@ -43,12 +41,10 @@ export async function GET() {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
     ensureDefaultAgencyProducts(session.agencyId);
     return NextResponse.json({
       ok: true,
-      products: listAgencyProducts(session.agencyId, true)
-        .filter(product => recordBelongsToCompany(product.companyIds, activeCompanyId)),
+      products: listAgencyProducts(session.agencyId, true),
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -59,7 +55,6 @@ export async function POST(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
     const input = {
@@ -90,7 +85,7 @@ export async function POST(request: Request) {
       sopIds: body.sopIds,
       sopCategories: body.sopCategories,
       active: body.active,
-      companyIds: body.companyIds ?? (body.action === "create" && activeCompanyId ? [activeCompanyId] : undefined),
+      companyIds: body.companyIds,
     };
     const product = body.action === "create"
       ? createAgencyProduct(session.agencyId, input, session.userId)

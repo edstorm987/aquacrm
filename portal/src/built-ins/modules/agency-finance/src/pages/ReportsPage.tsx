@@ -37,7 +37,7 @@ export default async function ReportsPage(props: PluginPageProps) {
       <header>
         <p className="text-xs font-semibold uppercase tracking-wide text-black/45">Finance</p>
         <h1 className="mt-1 text-2xl font-semibold text-black/90">Tax and profit report</h1>
-        <p className="mt-1 text-sm text-black/55">Calendar year to date · actual transactions recorded in Milesymedia.</p>
+        <p className="mt-1 text-sm text-black/55">Calendar year to date · actual transactions recorded in AquaOasis-Web.</p>
       </header>
 
       <dl className="grid grid-cols-2 border-y border-black/10 lg:grid-cols-5">

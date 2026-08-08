@@ -86,7 +86,7 @@ export function PerformanceWorkspace({ initialClients }: { initialClients: Perfo
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Performance</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Every result, clearly.</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Compare Milesymedia and every client across visibility, conversions, progress, live signals, and milestones.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Compare AquaOasis-Web and every client across visibility, conversions, progress, live signals, and milestones.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select value={period} onChange={event => setPeriod(Number(event.target.value) as 7 | 28 | 90)} aria-label="Choose reporting period" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75">
@@ -94,7 +94,7 @@ export function PerformanceWorkspace({ initialClients }: { initialClients: Perfo
           </select>
           <select value={selectedId} onChange={event => setSelectedId(event.target.value)} aria-label="Choose account" className="min-h-11 min-w-56 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75">
             <option value="all">Everyone</option>
-            {clients.map(client => <option key={client.id} value={client.id}>{client.scope === "agency" ? "Milesymedia · " : ""}{client.name}</option>)}
+            {clients.map(client => <option key={client.id} value={client.id}>{client.scope === "agency" ? "AquaOasis-Web · " : ""}{client.name}</option>)}
           </select>
         </div>
       </header>

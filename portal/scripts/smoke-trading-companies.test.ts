@@ -36,11 +36,10 @@ before(async () => {
   profiles = await import("../src/server/company");
   legal = await import("../src/server/legalDocuments");
   await storage.ensureHydrated();
-  await storage.reset();
 });
 
-test("Milesymedia parent owns separately branded trading companies", () => {
-  const agency = tenants.createAgency({ name: "Milesymedia", slug: "milesymedia-company-smoke" });
+test("AquaOasis-Web owns separately attributed service brands", () => {
+  const agency = tenants.createAgency({ name: "AquaOasis-Web", slug: "aqua-service-brand-smoke" });
   const actor = "user_ed";
   const studio = companies.createTradingCompany(agency.id, {
     name: "Milesy Studio",
@@ -56,8 +55,8 @@ test("Milesymedia parent owns separately branded trading companies", () => {
   assert.equal(companies.getTradingCompany(agency.id, studio.id)?.name, "Milesy Studio");
 });
 
-test("company profiles are isolated while records can be shared or restricted", () => {
-  const agency = tenants.createAgency({ name: "Milesymedia Scope", slug: "milesymedia-scope-smoke" });
+test("service-brand profiles are isolated while the owner workspace sees every record", () => {
+  const agency = tenants.createAgency({ name: "AquaOasis-Web Scope", slug: "aqua-brand-scope-smoke" });
   const actor = "user_ed";
   const studio = companies.createTradingCompany(agency.id, { name: "Studio" }, actor);
   const local = companies.createTradingCompany(agency.id, { name: "Local" }, actor);

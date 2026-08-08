@@ -188,7 +188,7 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
                 ))}
               </section>
             ) : null}
-            {loading ? <p className="px-3 py-4 text-center text-xs text-black/40">Searching AquaCRM...</p> : null}
+            {loading ? <p className="px-3 py-4 text-center text-xs text-black/40">Searching the workspace...</p> : null}
             {!loading && normalised && !recordResults.length && !pageResults.length ? <p className="px-3 py-5 text-center text-xs text-black/40">Nothing matched “{query.trim()}”.</p> : null}
           </div>
         </div>

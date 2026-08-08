@@ -1,6 +1,6 @@
 // Standalone portal nav smoke.
 //
-// This guards the simplified Milesymedia agency OS: one obvious client
+// This guards the simplified AquaOasis-Web operating system: one obvious client
 // workspace, one pipeline route, one phases/settings route, and no old
 // fulfilment client-list UI leaking back into the sidebar.
 
@@ -53,7 +53,7 @@ function read(path: string): string {
 }
 
 function agencyMainItemBlock(src: string): string {
-  const match = src.match(/Milesymedia canonical sidebar[\s\S]*?if \(input\.scope === "agency"\)/);
+  const match = src.match(/AquaOasis-Web canonical sidebar[\s\S]*?if \(input\.scope === "agency"\)/);
   return match?.[0] ?? src;
 }
 
@@ -89,7 +89,7 @@ describe("standalone portal nav audit", () => {
     assert.deepEqual([...positions].sort((a, b) => a - b), positions, "agency navigation should remain ordered by daily priority");
   });
 
-  it("allows only the canonical agency main ids through the Milesymedia override", () => {
+  it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     for (const id of ["home", "clients", "pipelines", "marketing", "actions", "development", "inbox", "performance", "products", "finance", "sop-library"]) {
@@ -269,7 +269,7 @@ describe("standalone portal nav audit", () => {
     }
   });
 
-  it("keeps Milesymedia single-agency and parks the old multi-agency controls", () => {
+  it("keeps AquaOasis-Web single-agency and parks the old multi-agency controls", () => {
     const src = read(SIDEBAR);
     assert.ok(src.includes('data-testid="tenant-identity"'));
     assert.ok(!src.includes("TenantSwitcher"));

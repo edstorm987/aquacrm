@@ -11,8 +11,7 @@ import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { CompanyWorkspace } from "./_CompanyWorkspace";
 import { TradingCompaniesPanel } from "./_TradingCompaniesPanel";
-import { listTradingCompanies, recordBelongsToCompany } from "@/server/tradingCompanies";
-import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
+import { listTradingCompanies } from "@/server/tradingCompanies";
 import { listAgencyProducts } from "@/server/agencyProducts";
 import { listUsersForAgency } from "@/server/users";
 
@@ -20,8 +19,7 @@ export default async function CompanyPage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId);
-  const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
-  const profile = getCompanyProfile(session.agencyId, activeCompanyId);
+  const profile = getCompanyProfile(session.agencyId, null);
   const products = listAgencyProducts(session.agencyId, true);
   const users = listUsersForAgency(session.agencyId).filter(user => user.role.startsWith("agency-"));
   const companies = listTradingCompanies(session.agencyId, true).map(company => ({
@@ -30,7 +28,6 @@ export default async function CompanyPage() {
     productCount: products.filter(product => product.companyIds?.includes(company.id)).length,
     staffCount: users.filter(user => user.companyIds?.includes(company.id)).length,
   }));
-  const activeCompany = activeCompanyId ? companies.find(company => company.id === activeCompanyId) ?? null : null;
   let monthRevenueCents = 0;
   let mrrCents = 0;
   let currency = "gbp";
@@ -80,21 +77,21 @@ export default async function CompanyPage() {
 
   const canEdit = session.role === "agency-owner" || session.role === "agency-manager";
   return <>
-    <TradingCompaniesPanel companies={companies} activeCompanyId={activeCompanyId} canEdit={canEdit} />
+    <TradingCompaniesPanel companies={companies} canEdit={canEdit} />
     <CompanyWorkspace
       initial={profile}
-      companyName={activeCompany?.name ?? "Milesymedia"}
+      companyName="AquaOasis-Web"
       actuals={{
         monthRevenueCents,
         mrrCents,
         currency,
-        activeClients: clients.filter(client => client.status === "active" && (!activeCompanyId || !client.companyId || client.companyId === activeCompanyId)).length,
+        activeClients: clients.filter(client => client.status === "active").length,
         leadCount,
         meetingsThisMonth,
         completedSalesCalls,
       }}
       canEdit={canEdit}
-      legalDocuments={listLegalDocuments(session.agencyId).filter(document => recordBelongsToCompany(document.companyIds, activeCompanyId))}
+      legalDocuments={listLegalDocuments(session.agencyId)}
     />
   </>;
 }

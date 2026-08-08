@@ -6,8 +6,7 @@ import { listSops } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { ProductDetailWorkspace } from "./_ProductDetailWorkspace";
-import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
-import { listTradingCompanies, recordBelongsToCompany } from "@/server/tradingCompanies";
+import { listTradingCompanies } from "@/server/tradingCompanies";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ productId: string }> }) {
   await ensureHydrated();
@@ -15,8 +14,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   ensureDefaultAgencyProducts(session.agencyId);
   const { productId } = await params;
   const product = getAgencyProduct(session.agencyId, productId);
-  const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
-  if (!product || !recordBelongsToCompany(product.companyIds, activeCompanyId)) notFound();
+  if (!product) notFound();
 
   return (
     <ProductDetailWorkspace

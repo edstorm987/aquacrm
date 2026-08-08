@@ -25,54 +25,43 @@ const blank = {
 
 export function TradingCompaniesPanel({
   companies,
-  activeCompanyId,
   canEdit,
 }: {
   companies: CompanySummary[];
-  activeCompanyId: string | null;
   canEdit: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<TradingCompany | "new" | null>(null);
   const [notice, setNotice] = useState("");
 
-  async function zoom(companyId: string | null) {
-    await fetch("/api/auth/company-context", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ companyId }),
-    });
-    router.refresh();
-  }
-
   return (
     <section className="mx-auto mb-8 w-full max-w-6xl border-b border-black/10 pb-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Business portfolio</p>
-          <h2 className="mt-1 text-xl font-semibold text-black/85">One company, multiple trading names.</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-black/50">Milesymedia is the parent view. Zoom into a trading name to apply its brand and focus the same shared system on its clients and offers.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Service brands</p>
+          <h2 className="mt-1 text-xl font-semibold text-black/85">One internal business, multiple customer-facing identities.</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-black/50">Everything is managed together in AquaOasis-Web. Attach a service brand to products, clients and portals only when the customer should see it.</p>
         </div>
         {canEdit ? (
           <button type="button" onClick={() => setEditing("new")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
-            <Plus size={15} /> Add trading name
+            <Plus size={15} /> Add service brand
           </button>
         ) : null}
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <article className={`border-l-4 bg-white px-4 py-4 shadow-sm ${!activeCompanyId ? "border-black" : "border-black/15"}`}>
+        <article className="border-l-4 border-black bg-white px-4 py-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="grid size-9 place-items-center rounded-md bg-black text-white"><Building2 size={17} /></span>
-              <div><h3 className="font-semibold text-black/85">Milesymedia</h3><p className="text-xs text-black/40">Legal parent · all records</p></div>
+              <div><h3 className="font-semibold text-black/85">AquaOasis-Web</h3><p className="text-xs text-black/40">Internal workspace · all records</p></div>
             </div>
-            {!activeCompanyId ? <span className="text-[10px] font-semibold uppercase text-brand">Viewing</span> : null}
+            <span className="text-[10px] font-semibold uppercase text-brand">Always active</span>
           </div>
-          <button type="button" onClick={() => void zoom(null)} className="mt-4 min-h-9 w-full rounded-md border border-black/10 text-xs font-medium text-black/65 hover:bg-black/[0.03]">View everything</button>
+          <p className="mt-4 text-xs leading-5 text-black/50">Clients, products, finance, fulfilment and reporting all live here together.</p>
         </article>
         {companies.map(company => (
-          <article key={company.id} className={`border-l-4 bg-white px-4 py-4 shadow-sm ${activeCompanyId === company.id ? "ring-1 ring-black/15" : ""}`} style={{ borderLeftColor: company.brand.primaryColor }}>
+          <article key={company.id} className="border-l-4 bg-white px-4 py-4 shadow-sm" style={{ borderLeftColor: company.brand.primaryColor }}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2"><span className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: company.brand.primaryColor }} /><h3 className="truncate font-semibold text-black/85">{company.name}</h3></div>
@@ -85,14 +74,14 @@ export function TradingCompaniesPanel({
               <Metric value={company.productCount} label="Offers" />
               <Metric value={company.staffCount} label="People" />
             </div>
-            <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => void zoom(company.id)} className="min-h-9 flex-1 rounded-md bg-black px-3 text-xs font-semibold text-white">Zoom in</button>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase text-black/40">Client-facing brand</span>
               {company.website ? <a href={company.website} target="_blank" rel="noreferrer" aria-label={`Open ${company.name} website`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><ExternalLink size={14} /></a> : null}
             </div>
           </article>
         ))}
       </div>
-      {!companies.length ? <p className="mt-4 border-y border-dashed border-black/10 py-6 text-center text-sm text-black/40">No trading names yet. Milesymedia remains the only operating view until you add one.</p> : null}
+      {!companies.length ? <p className="mt-4 border-y border-dashed border-black/10 py-6 text-center text-sm text-black/40">No service brands yet. AquaOasis-Web can still run every product directly.</p> : null}
       {notice ? <p role="status" className="mt-3 text-xs text-black/50">{notice}</p> : null}
       {editing ? <CompanyEditor
         company={editing === "new" ? null : editing}
@@ -149,7 +138,7 @@ function CompanyEditor({ company, onClose, onSaved }: { company: TradingCompany 
     const data = await response.json().catch(() => null);
     setBusy(false);
     if (!response.ok || !data?.ok) {
-      setError(data?.error ?? "Trading company could not be saved.");
+      setError(data?.error ?? "Service brand could not be saved.");
       return;
     }
     onSaved(company ? `${form.name} updated.` : `${form.name} added.`);
@@ -159,11 +148,11 @@ function CompanyEditor({ company, onClose, onSaved }: { company: TradingCompany 
     <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4">
       <form onSubmit={submit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md bg-[#F8F7F3] shadow-2xl">
         <header className="sticky top-0 z-10 flex items-start justify-between border-b border-black/10 bg-white px-5 py-4">
-          <div><p className="text-xs font-semibold uppercase text-brand">{company ? "Edit trading name" : "New trading name"}</p><h2 className="mt-1 text-xl font-semibold">{company ? company.name : "Add an operating brand"}</h2></div>
+          <div><p className="text-xs font-semibold uppercase text-brand">{company ? "Edit service brand" : "New service brand"}</p><h2 className="mt-1 text-xl font-semibold">{company ? company.name : "Add a customer-facing brand"}</h2></div>
           <button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10"><X size={15} /></button>
         </header>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs font-medium">Trading name<input required value={form.name} onChange={event => setForm(value => ({ ...value, name: event.target.value }))} className={control} /></label>
+          <label className="grid gap-1 text-xs font-medium">Brand name<input required value={form.name} onChange={event => setForm(value => ({ ...value, name: event.target.value }))} className={control} /></label>
           <label className="grid gap-1 text-xs font-medium">Short ID<input value={form.slug} onChange={event => setForm(value => ({ ...value, slug: event.target.value }))} className={control} placeholder="generated-from-name" /></label>
           <label className="grid gap-1 text-xs font-medium sm:col-span-2">What this company does<textarea rows={3} value={form.description} onChange={event => setForm(value => ({ ...value, description: event.target.value }))} className={`${control} py-2`} /></label>
           <label className="grid gap-1 text-xs font-medium">Website<input value={form.website} onChange={event => setForm(value => ({ ...value, website: event.target.value }))} className={control} placeholder="https://" /></label>
@@ -175,7 +164,7 @@ function CompanyEditor({ company, onClose, onSaved }: { company: TradingCompany 
         </div>
         <footer className="flex justify-end gap-2 border-t border-black/10 bg-white px-5 py-4">
           <button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button>
-          <button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save company"}</button>
+          <button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save brand"}</button>
         </footer>
       </form>
     </div>

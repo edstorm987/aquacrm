@@ -29,6 +29,7 @@ interface FormState {
   email: string;
   createPortal: boolean;
   productIds: string[];
+  clientFacingBrandId: string;
   brandColor: string;
   logoUrl: string;
   stage: string;
@@ -48,7 +49,9 @@ const FALLBACK_DEFAULTS: NewClientDefaults = {
   createPortalByDefault: false,
 };
 
-function defaultState(product: NewClientProductOption, defaults: NewClientDefaults): FormState {
+function defaultState(product: NewClientProductOption, defaults: NewClientDefaults, brands: NewClientBrandOption[]): FormState {
+  const initialBrandId = product.companyIds?.length === 1 ? product.companyIds[0]! : "";
+  const initialBrand = brands.find(brand => brand.id === initialBrandId);
   return {
   entityType: "company",
   contactName: "",
@@ -63,7 +66,8 @@ function defaultState(product: NewClientProductOption, defaults: NewClientDefaul
       ? false
       : defaults.createPortalByDefault,
   productIds: [product.id],
-  brandColor: product.accentColor ?? "#0B6F6D",
+  clientFacingBrandId: initialBrandId,
+  brandColor: initialBrand?.primaryColor ?? product.accentColor ?? "#0B6F6D",
   logoUrl: "",
   stage: defaults.defaultClientStage,
   stageReason: "",
@@ -100,6 +104,13 @@ export interface NewClientProductOption {
   contractBody?: string;
   sopIds?: string[];
   sopCategories?: string[];
+  companyIds?: string[];
+}
+
+export interface NewClientBrandOption {
+  id: string;
+  name: string;
+  primaryColor: string;
 }
 
 const FALLBACK_PRODUCTS: NewClientProductOption[] = PORTAL_PRODUCT_CATALOG.map(product => ({
@@ -129,7 +140,7 @@ function composedDisplayName(state: FormState): string {
   return state.entityType === "company" ? p || t : t || p;
 }
 
-export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLBACK_DEFAULTS }: { products?: NewClientProductOption[]; defaults?: NewClientDefaults }) {
+export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], defaults = FALLBACK_DEFAULTS }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults }) {
   const router = useRouter();
   const availableProducts = products.length ? products : FALLBACK_PRODUCTS;
   const initialProductId = availableProducts.find(product => product.name.toLowerCase() === "website")?.id
@@ -137,7 +148,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
     ?? "website";
   const initialProduct = availableProducts.find(product => product.id === initialProductId) ?? availableProducts[0]!;
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState<FormState>(() => defaultState(initialProduct, defaults));
+  const [state, setState] = useState<FormState>(() => defaultState(initialProduct, defaults, brands));
   const [presets, setPresets] = useState<PhasePreset[]>(FALLBACK_PRESETS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +156,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
 
   useEffect(() => {
     if (!open) return;
-    setState(defaultState(initialProduct, defaults));
+    setState(defaultState(initialProduct, defaults, brands));
     setError(null);
     slugTouched.current = false;
     fetch("/api/portal/fulfillment/presets")
@@ -156,7 +167,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
         }
       })
       .catch(() => undefined);
-  }, [open, initialProductId, defaults]);
+  }, [open, initialProductId, defaults, brands]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState(s => {
@@ -186,15 +197,23 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
             ? "none"
             : "optional";
         const primaryProduct = availableProducts.find(product => product.id === productIds[0]);
+        const selectedBrandIds = [...new Set(selected.flatMap(product => product.companyIds ?? []))];
+        const clientFacingBrandId = selectedBrandIds.length === 1
+          ? selectedBrandIds[0]!
+          : selectedBrandIds.includes(current.clientFacingBrandId)
+            ? current.clientFacingBrandId
+            : "";
+        const selectedBrand = brands.find(brand => brand.id === clientFacingBrandId);
 
         return {
           productIds,
+          clientFacingBrandId,
           createPortal: portalRequirement === "required"
             ? true
             : portalRequirement === "none"
               ? false
               : current.createPortal,
-          brandColor: primaryProduct?.accentColor ?? current.brandColor,
+          brandColor: selectedBrand?.primaryColor ?? primaryProduct?.accentColor ?? current.brandColor,
         };
       })(),
     }));
@@ -216,6 +235,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
       const selectedProduct = selectedProducts[0];
       const selectedProductIds = new Set(selectedProducts.flatMap(product => [product.id, ...(product.includedProductIds ?? [])]));
       const selectedProductNames = selectedProducts.map(product => product.name);
+      const selectedServiceBrandIds = [...new Set(selectedProducts.flatMap(product => product.companyIds ?? []))];
       const selectedSopIds = [...new Set(selectedProducts.flatMap(product => product.sopIds ?? []))];
       const selectedSopCategories = [...new Set(selectedProducts.flatMap(product => product.sopCategories ?? []))];
       const welcomePackItems = [...new Set(selectedProducts.flatMap(product => product.welcomePackItems ?? []))];
@@ -230,6 +250,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
           name: display,
           slug: state.slug.trim() || undefined,
           ownerEmail: state.email.trim() || undefined,
+          companyId: state.clientFacingBrandId || undefined,
           createPortal: state.createPortal,
           stage: state.stage,
           brand: {
@@ -258,6 +279,8 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
             portalServicePlan: selectedProductNames.join(" + "),
             agencyProductId: selectedProduct?.id,
             agencyProductIds: selectedProducts.map(product => product.id),
+            serviceBrandIds: selectedServiceBrandIds,
+            clientFacingBrandId: state.clientFacingBrandId || undefined,
             clientProducts: selectedProducts.map(product => ({
               id: product.id,
               name: product.name,
@@ -316,7 +339,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
             ? {
                 starterPortal: {
                   phase: presets.find(p => p.stage === state.stage)?.label ?? state.stage,
-                  planTier: selectedProductNames.join(" + ") || "Milesymedia product",
+                  planTier: selectedProductNames.join(" + ") || "AquaOasis-Web service",
                   contactName: state.contactName.trim() || undefined,
                   businessName: state.businessName.trim() || undefined,
                   onboardingStartedAt: new Date().toISOString().slice(0, 10),
@@ -478,6 +501,27 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, defaults = FALLB
                   {selectedProducts.length ? ` · ${selectedProducts.map(product => product.name).join(", ")}` : ""}
                 </small>
               </fieldset>
+
+              {brands.length ? (
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-medium text-black/70">Client-facing brand</span>
+                  <select
+                    value={state.clientFacingBrandId}
+                    onChange={(event) => {
+                      const brandId = event.target.value;
+                      update("clientFacingBrandId", brandId);
+                      const brand = brands.find(option => option.id === brandId);
+                      if (brand) update("brandColor", brand.primaryColor);
+                    }}
+                    disabled={busy}
+                    className="rounded-md border border-black/15 bg-white px-3 py-2"
+                  >
+                    <option value="">AquaOasis-Web (main brand)</option>
+                    {brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                  </select>
+                  <span className="text-[11px] leading-5 text-black/50">Controls the customer-facing portal and paperwork. Internally, every record stays together here.</span>
+                </label>
+              ) : null}
 
               <details className="group border-y border-black/10">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-medium text-black/65">

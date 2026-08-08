@@ -75,7 +75,7 @@ const fileBackend: Backend = {
   },
 };
 
-// ─── Memory backend (tests / read-only hosts) ─────────────────────────────
+// ─── Memory backend (tests / ephemeral local runs) ───────────────────────
 
 let memoryBlob: string | null = null;
 const memoryBackend: Backend = {
@@ -162,7 +162,10 @@ const backend = pickBackend();
 // ─── Cache + hydration + flush ────────────────────────────────────────────
 
 let cache: PortalState | null = null;
-let writable = backend.persistent;
+// Persistence and write capability are different properties. The memory
+// backend is deliberately ephemeral, but it must still accept writes so tests
+// and local previews exercise the same mutation/flush contract as production.
+let writable = backend.kind !== "kv";
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInFlight: Promise<void> | null = null;
 let fileSnapshotMtimeMs = 0;
@@ -416,7 +419,7 @@ export async function reset(): Promise<void> {
 }
 
 export function isPersistent(): boolean {
-  return writable;
+  return backend.persistent && writable;
 }
 
 export interface BackendInfo {

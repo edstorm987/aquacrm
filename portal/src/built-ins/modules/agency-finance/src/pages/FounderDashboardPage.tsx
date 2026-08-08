@@ -99,7 +99,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
       <FinanceNav active="overview" />
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-black/45">Milesymedia books</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-black/45">AquaOasis-Web books</p>
           <h1 className="mt-1 text-2xl font-semibold text-black/90">Finance overview</h1>
           <p className="mt-1 text-sm text-black/55">Actual recorded income, business spending, tax evidence, and client profitability.</p>
         </div>

@@ -9,6 +9,7 @@ import "server-only";
 // new code should prefer these accessors.
 
 import { requireEnv, optionalEnv } from "./env";
+import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
 
 // Required-in-prod. `requireEnv` throws in production when missing,
 // returns `undefined` in dev so devs can boot without setting one.
@@ -41,7 +42,7 @@ export function founderPassword(): string | undefined {
 }
 
 export function founderAgencyName(): string {
-  return optionalEnv("FOUNDER_AGENCY_NAME", "Milesy Media");
+  return optionalEnv("FOUNDER_AGENCY_NAME", INTERNAL_WORKSPACE_NAME);
 }
 
 // Optional / tunables.

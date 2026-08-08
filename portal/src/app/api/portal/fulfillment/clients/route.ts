@@ -14,12 +14,13 @@ import { setupClientStarterPortal, type ClientPortalSetupResult } from "@/server
 import { customerPortalProvisioningMetadata } from "@/lib/server/customerPortalProvisioning";
 import { createClientDelight } from "@/server/clientDelight";
 import type { ClientStage } from "@/server/types";
-import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
+import { getTradingCompany } from "@/server/tradingCompanies";
 
 interface Body {
   name?: string;
   slug?: string;
   ownerEmail?: string;
+  companyId?: string;
   createPortal?: boolean;
   stage?: ClientStage;
   brand?: { primaryColor?: string; logoUrl?: string };
@@ -61,13 +62,16 @@ export async function POST(req: NextRequest) {
     const beforeCreate = structuredClone(getState());
     const suppliedMetadata = body.metadata ?? {};
     const createPortal = body.createPortal === true;
-    const companyId = await getActiveTradingCompanyId(agencyId);
+    const companyId = body.companyId?.trim();
+    if (companyId && !getTradingCompany(agencyId, companyId)) {
+      return NextResponse.json({ ok: false, error: "client-facing brand not found" }, { status: 400 });
+    }
     const client = createClient(agencyId, {
       name,
       slug: body.slug?.trim() || undefined,
       ownerEmail: body.ownerEmail?.trim() || undefined,
       stage: body.stage,
-      companyId: companyId ?? undefined,
+      companyId: companyId || undefined,
       brand: body.brand?.primaryColor || body.brand?.logoUrl
         ? { primaryColor: body.brand.primaryColor, logoUrl: body.brand.logoUrl }
         : undefined,

@@ -24,7 +24,7 @@ export interface WorkspaceConfig {
   dashboardHref: string;
 }
 
-// Milesymedia scope: only Aqua HQ. Finance / Marketing / Operations
+// AquaOasis-Web scope: only the owner workspace. Finance, marketing and operations
 // workspaces and their dashboards have been parked in _attic/ for later.
 export const WORKSPACES: WorkspaceConfig[] = [
   {

@@ -12,7 +12,7 @@ import "server-only";
 //   - `FOUNDER_EMAIL` — defaults to the real AquaCRM owner account.
 //   - `FOUNDER_PASSWORD` — no default. Missing → log a warning + skip
 //     the seed (rather than create an unauthenticated founder).
-//   - `FOUNDER_AGENCY_NAME` — defaults to "Milesymedia".
+//   - `FOUNDER_AGENCY_NAME` — defaults to the AquaOasis-Web workspace.
 //   - Production guard: when `NODE_ENV === "production"`, refuse to
 //     seed when password length < 12.
 //     Throws — fail-closed startup error rather than silent insecure
@@ -23,10 +23,11 @@ import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { installCorePluginsForScope } from "@/built-ins/runtime/_runtime";
 import { getAgencyBySlug, updateAgency } from "@/server/tenants";
 import { createUser, getUser, updateUser } from "@/server/users";
+import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
 
 export const FOUNDER_AGENCY_SLUG = "milesymedia";
 export const DEFAULT_FOUNDER_EMAIL = "edwardhallam07@gmail.com";
-export const DEFAULT_FOUNDER_AGENCY_NAME = "Milesymedia";
+export const DEFAULT_FOUNDER_AGENCY_NAME = INTERNAL_WORKSPACE_NAME;
 export const FOUNDER_NAME = "Ed Hallam";
 export const FOUNDER_USERNAME = "Ed";
 
@@ -133,21 +134,6 @@ async function run(): Promise<void> {
   const { ensureZimanteTradingCompanies } = await import("@/server/zimanteTradingCompanies");
   ensureZimanteTradingCompanies(agency.id, founder.id);
 
-  // R026: seed AquaOasis Demo + make Ed a master. Idempotent — second
-  // run short-circuits on the slug check. Wrapped so a seed failure
-  // doesn't tank the founder-seed (the demo agency is nice-to-have,
-  // not load-bearing).
-  try {
-    const { seedAquaOasisDemo, addUserAgencyMembership } = await import("./aquaOasisSeed");
-    const { agency: aquaAgency } = await seedAquaOasisDemo(founder.id);
-    addUserAgencyMembership(founder.id, aquaAgency.id);
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "[founderSeed] AquaOasis Demo seed failed — switcher will only show Milesymedia:",
-      e instanceof Error ? e.message : e,
-    );
-  }
 }
 
 // Test helper — purely for the smoke to reset the module-level cache

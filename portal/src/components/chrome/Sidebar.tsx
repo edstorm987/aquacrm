@@ -59,7 +59,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             {(tenantLabel.trim().charAt(0) || "M").toUpperCase()}
           </span>
           <span className="min-w-0">
-            <span className="block text-[10px] font-medium uppercase tracking-wide text-black/45">AquaCRM</span>
+            <span className="block text-[10px] font-medium uppercase tracking-wide text-black/45">Internal workspace</span>
             <span className="block truncate text-sm font-semibold text-black/90">{tenantLabel}</span>
           </span>
         </div>

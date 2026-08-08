@@ -245,7 +245,7 @@ export function AssistantWorkspace({
             </span>
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold text-black/90">
-                {activeThread?.title || "Milesymedia Assistant"}
+                {activeThread?.title || "AquaOasis-Web Assistant"}
               </h1>
               <p className="text-xs text-black/45">
                 {configured ? `Connected · ${model}` : "Setup required"} · Read-only business access
@@ -423,7 +423,7 @@ function Welcome({
       <p className="text-xs font-semibold uppercase tracking-wide text-brand">Private business assistant</p>
       <h2 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">What do you need, {userName.split(" ")[0]}?</h2>
       <p className="mt-3 max-w-xl text-sm leading-6 text-black/55">
-        I read the current Milesymedia records each time you ask: clients, sales, delivery, finance, support, development, and recent activity.
+        I read the current AquaOasis-Web records each time you ask: clients, sales, delivery, finance, support, development, and recent activity.
       </p>
       <div className="mt-6 grid divide-y divide-black/10 border-y border-black/10 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
         <CoverageItem value={coverage.clients} label="Clients" />

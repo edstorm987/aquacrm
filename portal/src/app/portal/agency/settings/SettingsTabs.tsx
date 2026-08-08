@@ -213,7 +213,7 @@ function BusinessSettingsForm({ initial, canManage }: { initial: AgencyWorkspace
     <form onSubmit={submit}>
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-black/80">Business details</h3>
-        <p className="mt-1 text-xs leading-5 text-black/45">Used as the central Milesymedia identity for documents, client communication, and support.</p>
+        <p className="mt-1 text-xs leading-5 text-black/45">Used as the central AquaOasis-Web identity for documents, client communication, and support.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Legal or trading name"><input value={form.legalName} onChange={event => setForm(value => ({ ...value, legalName: event.target.value }))} className={control} disabled={!canManage} /></Field>
@@ -332,7 +332,7 @@ function DefaultsPane({ ctx }: { ctx: SettingsContext }) {
           <Field label="Default starting stage"><select value={form.defaultClientStage} onChange={event => setForm(value => ({ ...value, defaultClientStage: event.target.value as ClientStage }))} className={control} disabled={!ctx.canManageSettings}>{STAGES.map(stage => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</select></Field>
           <Field label="Access-code expiry"><select value={form.portalAccessDays} onChange={event => setForm(value => ({ ...value, portalAccessDays: event.target.value }))} className={control} disabled={!ctx.canManageSettings}><option value="1">1 day</option><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></Field>
           <label className="flex min-h-11 items-center gap-3 rounded-md border border-black/10 px-3 text-sm text-black/65 sm:col-span-2"><input type="checkbox" checked={form.createPortalByDefault} onChange={event => setForm(value => ({ ...value, createPortalByDefault: event.target.checked }))} disabled={!ctx.canManageSettings} /><span><strong className="font-medium text-black/75">Create client portals by default</strong><span className="block text-xs text-black/40">This remains optional on every new client.</span></span></label>
-          <div className="sm:col-span-2"><Field label="Default client welcome message"><textarea rows={4} value={form.clientWelcomeMessage} onChange={event => setForm(value => ({ ...value, clientWelcomeMessage: event.target.value }))} className={`${control} resize-none py-2`} placeholder="Welcome to your Milesymedia home..." disabled={!ctx.canManageSettings} /></Field></div>
+          <div className="sm:col-span-2"><Field label="Default client welcome message"><textarea rows={4} value={form.clientWelcomeMessage} onChange={event => setForm(value => ({ ...value, clientWelcomeMessage: event.target.value }))} className={`${control} resize-none py-2`} placeholder="Welcome to your project home..." disabled={!ctx.canManageSettings} /></Field></div>
         </div>
       </Section>
       <Section eyebrow="Finance defaults">

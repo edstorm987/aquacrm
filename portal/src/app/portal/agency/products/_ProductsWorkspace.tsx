@@ -39,7 +39,7 @@ export type Draft = {
 
 export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalHeadline: "", portalWelcomeNote: "", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [] };
 
-export function ProductsWorkspace({ initialProducts, sops, companies, activeCompanyId, defaults = { taxRatePercent: 0, paymentTermsDays: 7 } }: { initialProducts: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; activeCompanyId: string | null; defaults?: { taxRatePercent: number; paymentTermsDays: number } }) {
+export function ProductsWorkspace({ initialProducts, sops, companies, defaults = { taxRatePercent: 0, paymentTermsDays: 7 } }: { initialProducts: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; defaults?: { taxRatePercent: number; paymentTermsDays: number } }) {
   const [products, setProducts] = useState(initialProducts);
   const [showArchived, setShowArchived] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -59,8 +59,8 @@ export function ProductsWorkspace({ initialProducts, sops, companies, activeComp
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Products</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">What Milesymedia sells.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Create reusable services, set how they are priced, and keep deliverables clear before they reach an invoice or client portal.</p></div>
-        <button type="button" onClick={() => setDraft({ ...EMPTY_PRODUCT_DRAFT, companyIds: activeCompanyId ? [activeCompanyId] : [], taxRatePercent: String(defaults.taxRatePercent), paymentTermsDays: String(defaults.paymentTermsDays) })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New product</button>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Products</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Everything AquaOasis-Web offers.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Manage every service in one catalogue, then choose which public brand presents it to the customer.</p></div>
+        <button type="button" onClick={() => setDraft({ ...EMPTY_PRODUCT_DRAFT, companyIds: [], taxRatePercent: String(defaults.taxRatePercent), paymentTermsDays: String(defaults.paymentTermsDays) })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New product</button>
       </header>
 
       <div className="flex items-center justify-between border-y border-black/10 py-3">
@@ -162,9 +162,9 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
         <div className="mt-5 grid gap-4">
           <Field label="Offer type"><select value={form.kind} onChange={event => setForm(value => ({ ...value, kind: event.target.value as AgencyProductKind }))} className={control}><option value="product">Individual product</option><option value="package">Package of products</option></select></Field>
           <Field label="Product name"><input required value={form.name} onChange={event => setForm(value => ({ ...value, name: event.target.value }))} className={control} placeholder="Local visibility package" /></Field>
-          {companies.length ? <Field label="Available through">
+          {companies.length ? <Field label="Service brand">
             <div className="flex flex-wrap gap-2 rounded-md border border-black/10 bg-black/[0.015] p-3">
-              <label className="inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-2 text-xs text-black/65"><input type="checkbox" checked={!form.companyIds.length} onChange={() => setForm(value => ({ ...value, companyIds: [] }))} />All Milesymedia brands</label>
+              <label className="inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-2 text-xs text-black/65"><input type="checkbox" checked={!form.companyIds.length} onChange={() => setForm(value => ({ ...value, companyIds: [] }))} />Shared AquaOasis-Web offer</label>
               {companies.filter(company => company.status !== "archived").map(company => <label key={company.id} className="inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-2 text-xs text-black/65"><input type="checkbox" checked={form.companyIds.includes(company.id)} onChange={() => setForm(value => ({ ...value, companyIds: value.companyIds.includes(company.id) ? value.companyIds.filter(id => id !== company.id) : [...value.companyIds, company.id] }))} />{company.name}</label>)}
             </div>
           </Field> : null}
@@ -196,7 +196,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
               <Field label="Client portal"><select value={form.portalRequirement} onChange={event => setForm(value => ({ ...value, portalRequirement: event.target.value as AgencyProductPortalRequirement }))} className={control}><option value="required">Required for this product</option><option value="optional">Optional</option><option value="none">Not needed</option></select></Field>
               {form.portalRequirement !== "none" ? <>
                 <Field label="Portal headline"><input value={form.portalHeadline} onChange={event => setForm(value => ({ ...value, portalHeadline: event.target.value }))} className={control} placeholder="Your project, clearly managed." /></Field>
-                <Field label="Portal welcome message"><textarea rows={4} value={form.portalWelcomeNote} onChange={event => setForm(value => ({ ...value, portalWelcomeNote: event.target.value }))} className={`${control} py-2`} placeholder="The first message the client sees in their Milesymedia home." /></Field>
+                <Field label="Portal welcome message"><textarea rows={4} value={form.portalWelcomeNote} onChange={event => setForm(value => ({ ...value, portalWelcomeNote: event.target.value }))} className={`${control} py-2`} placeholder="The first message the client sees in their branded portal." /></Field>
               </> : null}
             </div>
           </details>

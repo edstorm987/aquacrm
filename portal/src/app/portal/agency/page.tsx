@@ -22,19 +22,18 @@ import { getUser } from "@/server/users";
 import { listAgencyTasks } from "@/server/tasks";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
-import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
-import { getTradingCompany, recordBelongsToCompany } from "@/server/tradingCompanies";
+import { listTradingCompanies } from "@/server/tradingCompanies";
+import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
 
 export default async function AgencyHome() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const agency = getAgency(session.agencyId)!;
-  const activeCompanyId = await getActiveTradingCompanyId(agency.id);
-  const activeCompany = activeCompanyId ? getTradingCompany(agency.id, activeCompanyId) : null;
-  const clients = listClients(agency.id).filter(client => !activeCompanyId || !client.companyId || client.companyId === activeCompanyId);
+  const clients = listClients(agency.id);
   const openTaskCount = listAgencyTasks(agency.id).filter(task => task.status !== "done").length;
   ensureDefaultAgencyProducts(agency.id);
-  const products = listAgencyProducts(agency.id).filter(product => recordBelongsToCompany(product.companyIds, activeCompanyId));
+  const products = listAgencyProducts(agency.id);
+  const serviceBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
   const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
@@ -57,7 +56,7 @@ export default async function AgencyHome() {
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">
-            {activeCompany?.name ?? "Milesymedia"}
+            {INTERNAL_WORKSPACE_NAME}
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">
             Welcome back, {greet}.
@@ -73,7 +72,11 @@ export default async function AgencyHome() {
           >
             Add lead
           </Link>
-          <NewClientButton defaults={workspaceSettings} products={products.map(product => ({
+          <NewClientButton defaults={workspaceSettings} brands={serviceBrands.map(company => ({
+            id: company.id,
+            name: company.name,
+            primaryColor: company.brand.primaryColor,
+          }))} products={products.map(product => ({
             id: product.id, kind: product.kind, name: product.name, category: product.category,
             description: product.description ?? "", deliverables: product.deliverables,
             buyerHeadline: product.buyerHeadline, coverImageUrl: product.coverImageUrl,
@@ -86,7 +89,7 @@ export default async function AgencyHome() {
             paymentTermsDays: product.paymentTermsDays, billingNotes: product.billingNotes,
             internalInfo: product.internalInfo, contractTitle: product.contractTitle,
             contractBody: product.contractBody, sopIds: product.sopIds,
-            sopCategories: product.sopCategories,
+            sopCategories: product.sopCategories, companyIds: product.companyIds,
           }))} />
         </div>
       </section>

@@ -124,18 +124,18 @@ export function MasterInbox({ alerts, conversations, updates }: { alerts: Operat
 
     {view === "updates" ? <section className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="divide-y divide-black/[0.08]">{visibleUpdates.map(item => <div key={item.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex text-xs font-medium text-brand">Open client</Link> : null}</div>)}</div></div>
-      <form onSubmit={sendTeamNote} className="h-fit rounded-lg border border-black/10 bg-white p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in Milesymedia.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" /><button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
+      <form onSubmit={sendTeamNote} className="h-fit rounded-lg border border-black/10 bg-white p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" /><button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
     {view === "channels" ? <section>
       <SectionHeader title="Connected channels" detail="Only live connections should claim to deliver messages. Add each provider when its credentials and webhook are ready." />
       <div className="grid gap-3 md:grid-cols-2">
         <Channel icon={<LifeBuoy size={19} />} name="Client portal & support" detail="Tickets, feedback, approvals, and customer replies." connected />
-        <Channel icon={<Users size={19} />} name="Milesymedia team" detail="Internal notes shared with staff inside this inbox." connected />
+        <Channel icon={<Users size={19} />} name="AquaOasis-Web team" detail="Internal notes shared with staff inside this inbox." connected />
         <Channel icon={<MessageCircle size={19} />} name="WhatsApp" detail="Connect the WhatsApp Business API to receive and reply here." />
-        <Channel icon={<Mail size={19} />} name="Shared email" detail="Connect a Milesymedia mailbox to receive and reply to email threads here." />
+        <Channel icon={<Mail size={19} />} name="Shared email" detail="Connect an AquaOasis-Web mailbox to receive and reply to email threads here." />
         <Channel icon={<MessageCircle size={19} />} name="Social messages" detail="Connect Meta, Instagram, LinkedIn, or another provider through their APIs." />
-        <Channel icon={<Radio size={19} />} name="Website forms" detail="New Milesymedia contact forms enter the lead pipeline and alert this inbox." connected />
+        <Channel icon={<Radio size={19} />} name="Website forms" detail="New AquaOasis-Web contact forms enter the lead pipeline and alert this inbox." connected />
         <Channel icon={<Bell size={19} />} name="Production monitoring" detail="Client telemetry errors, deployments, and health signals feed operational alerts." connected />
       </div>
     </section> : null}

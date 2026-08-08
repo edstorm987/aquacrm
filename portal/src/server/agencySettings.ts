@@ -74,7 +74,7 @@ export function updateAgencyWorkspaceSettings(
     actorUserId,
     category: "settings",
     action: "workspace.settings_updated",
-    message: "Updated AquaCRM workspace settings.",
+    message: "Updated AquaOasis-Web workspace settings.",
   });
   return updated;
 }

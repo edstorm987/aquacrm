@@ -39,16 +39,16 @@ const CONFIG: Record<MarketingAssetKind, {
   social: {
     eyebrow: "Owned channels",
     title: "Social media",
-    description: "Keep every Milesymedia profile, its purpose, owner, link and performance in one place.",
+    description: "Keep every service-brand profile, its purpose, owner, link and performance in one place.",
     addLabel: "Add social profile",
     platformLabel: "Network",
     platformOptions: ["Instagram", "Facebook", "LinkedIn", "TikTok", "YouTube", "X", "Pinterest", "Other"],
-    empty: "Add Milesymedia's social profiles to start tracking them.",
+    empty: "Add a service brand's social profiles to start tracking them.",
   },
   website: {
     eyebrow: "Owned channels",
     title: "Website",
-    description: "Track the Milesymedia website, landing pages and organic conversion points.",
+    description: "Track every AquaOasis-Web and service-brand website, landing page and organic conversion point.",
     addLabel: "Add website property",
     platformLabel: "Property type",
     platformOptions: ["Main website", "Landing page", "Blog", "Directory profile", "Other"],
@@ -66,7 +66,7 @@ const CONFIG: Record<MarketingAssetKind, {
   "google-ads": {
     eyebrow: "Paid acquisition",
     title: "Google Ads",
-    description: "Track Milesymedia's Google Ads campaigns, spend, leads and conversions without losing the commercial picture.",
+    description: "Track Google Ads campaigns, spend, leads and conversions across every service brand without losing the commercial picture.",
     addLabel: "Add Google Ads campaign",
     platformLabel: "Campaign type",
     platformOptions: ["Search", "Performance Max", "Display", "Video", "Demand Gen", "Local", "Other"],
@@ -279,11 +279,11 @@ export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { 
             </div>
             <div className="mt-5 grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Name" required value={draft.name} onChange={value => setDraft(current => current ? { ...current, name: value } : current)} placeholder={kind === "social" ? "Milesymedia Instagram" : kind === "website" ? "Milesymedia website" : kind === "funnel" ? "Website audit funnel" : kind === "reputation" ? "Google Business Profile" : "Local search campaign"} />
+                <Field label="Name" required value={draft.name} onChange={value => setDraft(current => current ? { ...current, name: value } : current)} placeholder={kind === "social" ? "Brand Instagram" : kind === "website" ? "Main website" : kind === "funnel" ? "Website audit funnel" : kind === "reputation" ? "Google Business Profile" : "Local search campaign"} />
                 <Select label={config.platformLabel} value={draft.platform} onChange={value => setDraft(current => current ? { ...current, platform: value } : current)} options={config.platformOptions} />
               </div>
               <Field label="Link" type="url" value={draft.url} onChange={value => setDraft(current => current ? { ...current, url: value } : current)} placeholder="https://..." />
-              <Field label="Objective" value={draft.objective} onChange={value => setDraft(current => current ? { ...current, objective: value } : current)} placeholder="What should this produce for Milesymedia?" />
+              <Field label="Objective" value={draft.objective} onChange={value => setDraft(current => current ? { ...current, objective: value } : current)} placeholder="What should this produce for the business?" />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Owner" value={draft.owner} onChange={value => setDraft(current => current ? { ...current, owner: value } : current)} placeholder="Ed" />
                 <Select label="Status" value={draft.status} onChange={value => setDraft(current => current ? { ...current, status: value as MarketingAssetStatus } : current)} options={["draft", "active", "paused", "complete", "archived"]} />

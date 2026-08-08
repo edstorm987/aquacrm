@@ -79,7 +79,7 @@ export function ExternalAiConnectionPanel() {
             <h3 className="text-sm font-semibold text-black/85">External AI data access</h3>
           </div>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-black/50">
-            Connect ChatGPT, Claude, or another assistant to live Milesymedia data through a private, read-only API.
+            Connect ChatGPT, Claude, or another assistant to live AquaOasis-Web data through a private, read-only API.
           </p>
         </div>
         <button

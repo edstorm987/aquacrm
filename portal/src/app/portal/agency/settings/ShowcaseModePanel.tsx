@@ -44,7 +44,7 @@ export function ShowcaseModePanel({
               {active ? "Showcase Mode is on" : "Present the portal safely"}
             </h3>
             <p className="text-xs text-black/42">
-              {active ? "Only fictional sample records are visible." : "Switch away from the live Milesymedia database."}
+              {active ? "Only fictional sample records are visible." : "Switch away from the live AquaOasis-Web database."}
             </p>
           </div>
         </div>

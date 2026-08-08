@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Building2, Mail, Phone, Plus, Search, UserRound, X } from "lucide-react";
 
-import { NewClientButton, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
+import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
 
 export type ContactRole = "lead" | "customer" | "account" | "vendor" | "employee" | "other";
 
@@ -52,12 +52,14 @@ export function PeopleHub({
   contacts,
   initialView,
   products,
+  brands,
   clientDefaults,
 }: {
   clients: HubClient[];
   contacts: HubContact[];
   initialView: View;
   products: NewClientProductOption[];
+  brands: NewClientBrandOption[];
   clientDefaults: NewClientDefaults;
 }) {
   const [view, setView] = useState<View>(initialView);
@@ -103,7 +105,7 @@ export function PeopleHub({
           <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
             <Plus size={16} /> Add contact
           </button>
-          <NewClientButton products={products} defaults={clientDefaults} />
+          <NewClientButton products={products} brands={brands} defaults={clientDefaults} />
         </div>
       </header>
 

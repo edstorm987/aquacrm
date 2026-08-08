@@ -74,7 +74,7 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
   if (input.scope === "agency") {
     items.push({ id: "home", label: "Dashboard", href: "/portal/agency", panelId: "main", order: -10 });
     if (isAgencyRole(input.role)) {
-      // Milesymedia canonical sidebar: the agency's daily operating areas.
+      // AquaOasis-Web canonical sidebar: the business's daily operating areas.
       // rows under Agency OS, in this order. Everything else stays parked.
       items.push({ id: "company",     label: "Company",            href: "/portal/agency/company",         panelId: "main", order: -9.5 });
       items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -9 });
@@ -202,7 +202,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
   // land in their declared range even if they entered before Settings.
   const sorted = result.sort((a, b) => a.order - b.order);
 
-  // Milesymedia override: one calm, flat agency navigation. Settings
+  // AquaOasis-Web override: one calm, flat agency navigation. Settings
   // remains separate because the Sidebar renders it in the footer.
   if (input.scope === "agency") {
     const settings = sorted.find(p => p.id === "settings");

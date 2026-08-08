@@ -925,7 +925,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                   {editingProspect ? "Update scouting record" : "Scout a prospect"}
                 </h2>
                 <p className="mt-1 max-w-xl text-sm leading-6 text-black/50">
-                  Save what caught your eye, research whether Milesymedia can genuinely help, and only qualify them when they are worth contacting.
+                  Save what caught your eye, research whether AquaOasis-Web can genuinely help, and only qualify them when they are worth contacting.
                 </p>
               </div>
               <button type="button" onClick={() => setShowProspectForm(false)} className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]" aria-label="Close">
@@ -955,7 +955,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
               <Field label="Email, when found" value={prospectForm.email} onChange={email => setProspectForm(current => ({ ...current, email }))} placeholder="hello@business.com" type="email" />
               <Field label="Phone" value={prospectForm.phone} onChange={phone => setProspectForm(current => ({ ...current, phone }))} placeholder="+44..." />
               <label className="block text-xs font-medium text-black/60 sm:col-span-2">
-                Why could Milesymedia help?
+                Why could AquaOasis-Web help?
                 <textarea value={prospectForm.opportunity} onChange={event => setProspectForm(current => ({ ...current, opportunity: event.target.value }))} rows={2} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm" placeholder="What looks missing, weak, outdated, invisible, or unnecessarily difficult?" />
               </label>
               <label className="block text-xs font-medium text-black/60 sm:col-span-2">

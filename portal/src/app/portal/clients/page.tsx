@@ -19,9 +19,8 @@ import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/fou
 import { PeopleHub, type ContactRole, type HubContact } from "./_PeopleHub";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
-import { CompanyContextSwitcher } from "@/components/chrome/CompanyContextSwitcher";
-import { getActiveTradingCompanyId } from "@/lib/server/tradingCompanyContext";
-import { getTradingCompany, listTradingCompanies, recordBelongsToCompany } from "@/server/tradingCompanies";
+import { listTradingCompanies } from "@/server/tradingCompanies";
+import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
 
 // /portal/clients — agency-side client list. Client-* roles redirect
 // straight to their own client portal (a list of "all clients" makes no
@@ -38,17 +37,11 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
 
-  const activeCompanyId = await getActiveTradingCompanyId(session.agencyId);
-  const activeCompany = activeCompanyId ? getTradingCompany(session.agencyId, activeCompanyId) : null;
   const currentUser = getUserById(session.userId);
-  const tradingCompanies = listTradingCompanies(session.agencyId).filter(company => !currentUser?.companyIds?.length || currentUser.companyIds.includes(company.id));
-  const activeLabel = activeCompany?.name ?? agency.name;
-  const activeBrand = activeCompany?.brand ?? agency.brand;
-  const clients = listClients(session.agencyId)
-    .filter(client => !activeCompanyId || !client.companyId || client.companyId === activeCompanyId);
+  const serviceBrands = listTradingCompanies(session.agencyId).filter(company => company.status !== "archived");
+  const clients = listClients(session.agencyId);
   ensureDefaultAgencyProducts(session.agencyId);
-  const products = listAgencyProducts(session.agencyId)
-    .filter(product => recordBelongsToCompany(product.companyIds, activeCompanyId));
+  const products = listAgencyProducts(session.agencyId);
   const workspaceSettings = getAgencyWorkspaceSettings(session.agencyId);
   const leadsInstall = getInstall({ agencyId: agency.id }, "leads-pipeline");
   let contacts: HubContact[] = [];
@@ -107,23 +100,23 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <ThemeInjector brand={activeBrand} scope={activeCompany ? `trading-company:${activeCompany.id}` : "agency"} />
+      <ThemeInjector brand={agency.brand} scope="agency" />
       <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar
           panels={panels}
-          tenantLabel={activeLabel}
+          tenantLabel={INTERNAL_WORKSPACE_NAME}
           currentPath={currentPath}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
-            title={activeLabel}
+            title={INTERNAL_WORKSPACE_NAME}
             subtitle="Clients & contacts"
             role={session.role}
             email={session.email}
             name={currentUser?.name}
             avatarUrl={currentUser?.avatarUrl}
             panels={panels}
-            tenantLabel={activeLabel}
+            tenantLabel={INTERNAL_WORKSPACE_NAME}
             currentPath={currentPath}
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
@@ -132,20 +125,17 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
               ...contacts.flatMap(contact => [contact.name ?? "", contact.email, contact.phone ?? "", contact.company ?? ""]),
             ]}
             notifications={<NotificationBell agencyId={agency.id} actor={session.userId} />}
-            companySwitcher={<CompanyContextSwitcher
-              activeCompanyId={activeCompanyId}
-              companies={tradingCompanies.map(company => ({
-                id: company.id,
-                name: company.name,
-                primaryColor: company.brand.primaryColor,
-              }))}
-            />}
           />
           <main id="main-content" className="mm-private-surface min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label="clients index">
               <PeopleHub
                 initialView={initialView}
                 clientDefaults={workspaceSettings}
+                brands={serviceBrands.map(company => ({
+                  id: company.id,
+                  name: company.name,
+                  primaryColor: company.brand.primaryColor,
+                }))}
                 products={products.map(product => ({
                   id: product.id, kind: product.kind, name: product.name, category: product.category,
                   description: product.description ?? "", deliverables: product.deliverables,
@@ -159,7 +149,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                   paymentTermsDays: product.paymentTermsDays, billingNotes: product.billingNotes,
                   internalInfo: product.internalInfo, contractTitle: product.contractTitle,
                   contractBody: product.contractBody, sopIds: product.sopIds,
-                  sopCategories: product.sopCategories,
+                  sopCategories: product.sopCategories, companyIds: product.companyIds,
                 }))}
                 clients={clients.map(client => {
                   const metadata = client.metadata as { leadSource?: string; lastContactedAt?: number; products?: unknown[]; niche?: string; customFields?: Record<string, unknown> } | undefined;
