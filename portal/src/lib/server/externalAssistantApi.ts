@@ -3,9 +3,14 @@ import "server-only";
 import crypto from "crypto";
 
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import {
+  EXTERNAL_ASSISTANT_PERMISSIONS,
+  findExternalAssistantApiKey,
+  touchExternalAssistantApiKey,
+} from "@/lib/server/externalAssistantKeys";
 import { logActivity } from "@/server/activity";
-import { getState } from "@/server/storage";
-import type { PortalState } from "@/server/types";
+import { flushPendingWrites, getState } from "@/server/storage";
+import type { ExternalAssistantApiPermission, PortalState } from "@/server/types";
 
 const SECRET_KEY = /(password|secret|token|api[-_]?key|cookie|authorization|credential|hash|nonce)/i;
 const STORED_FILE_KEY = /(avatar|base64|fileContent|contentBase64|dataUrl)/i;
@@ -45,6 +50,11 @@ export interface ExternalAssistantRecord {
 export interface ExternalAssistantAuth {
   agencyId: string;
   tokenFingerprint: string;
+  keyId?: string;
+  keyName: string;
+  modules: ExternalAssistantModule[];
+  permissions: ExternalAssistantApiPermission[];
+  managed: boolean;
 }
 
 export class ExternalAssistantApiError extends Error {
@@ -61,16 +71,18 @@ export class ExternalAssistantApiError extends Error {
   }
 }
 
-export function authenticateExternalAssistant(request: Request): ExternalAssistantAuth {
+export async function authenticateExternalAssistant(request: Request): Promise<ExternalAssistantAuth> {
   const configuredToken = process.env.MILESYMEDIA_ASSISTANT_API_TOKEN?.trim();
-  if (!configuredToken) {
+  const hasManagedKeys = Object.values(getState().externalAssistantApiKeys)
+    .some(key => !key.revokedAt && (!key.expiresAt || key.expiresAt > Date.now()));
+  if (!configuredToken && !hasManagedKeys) {
     throw new ExternalAssistantApiError(
       503,
       "assistant_api_not_configured",
       "The external assistant API is not configured.",
     );
   }
-  if (process.env.NODE_ENV === "production" && configuredToken.length < 32) {
+  if (configuredToken && process.env.NODE_ENV === "production" && configuredToken.length < 32 && !hasManagedKeys) {
     throw new ExternalAssistantApiError(
       503,
       "assistant_api_token_too_short",
@@ -82,11 +94,19 @@ export function authenticateExternalAssistant(request: Request): ExternalAssista
   const suppliedToken = authorization.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length).trim()
     : "";
-  if (!suppliedToken || !constantTimeEqual(suppliedToken, configuredToken)) {
+  const managedKey = suppliedToken ? findExternalAssistantApiKey(suppliedToken) : null;
+  const legacyMatches = Boolean(
+    suppliedToken
+    && configuredToken
+    && constantTimeEqual(suppliedToken, configuredToken),
+  );
+  if (!managedKey && !legacyMatches) {
     throw new ExternalAssistantApiError(401, "unauthorized", "A valid bearer token is required.");
   }
 
-  const agencyId = process.env.MILESYMEDIA_ASSISTANT_AGENCY_ID?.trim() || "milesymedia";
+  const agencyId = managedKey?.agencyId
+    || process.env.MILESYMEDIA_ASSISTANT_AGENCY_ID?.trim()
+    || "milesymedia";
   const state = getState();
   if (!state.agencies[agencyId]) {
     throw new ExternalAssistantApiError(
@@ -96,7 +116,8 @@ export function authenticateExternalAssistant(request: Request): ExternalAssista
     );
   }
 
-  const tokenFingerprint = crypto.createHash("sha256").update(configuredToken).digest("hex").slice(0, 16);
+  const tokenFingerprint = managedKey?.fingerprint
+    || crypto.createHash("sha256").update(configuredToken ?? "").digest("hex").slice(0, 16);
   const limit = rateLimit({
     key: `external-assistant:${tokenFingerprint}:${clientIpFromHeaders(request.headers)}`,
     max: 120,
@@ -112,6 +133,7 @@ export function authenticateExternalAssistant(request: Request): ExternalAssista
   }
 
   const url = new URL(request.url);
+  if (managedKey) touchExternalAssistantApiKey(managedKey.id);
   logActivity({
     agencyId,
     category: "integrations",
@@ -121,10 +143,24 @@ export function authenticateExternalAssistant(request: Request): ExternalAssista
       method: request.method,
       path: url.pathname,
       tokenFingerprint,
+      keyId: managedKey?.id,
+      keyName: managedKey?.name || "Legacy environment key",
     },
   });
 
-  return { agencyId, tokenFingerprint };
+  await flushPendingWrites();
+
+  return {
+    agencyId,
+    tokenFingerprint,
+    keyId: managedKey?.id,
+    keyName: managedKey?.name || "Legacy environment key",
+    modules: managedKey
+      ? managedKey.modules.filter(isExternalAssistantModule)
+      : [...EXTERNAL_ASSISTANT_MODULES],
+    permissions: managedKey?.permissions ?? [...EXTERNAL_ASSISTANT_PERMISSIONS],
+    managed: Boolean(managedKey),
+  };
 }
 
 export function externalApiErrorResponse(error: unknown): Response {
@@ -148,6 +184,24 @@ export function externalApiHeaders(): Headers {
 
 export function isExternalAssistantModule(value: string): value is ExternalAssistantModule {
   return EXTERNAL_ASSISTANT_MODULES.includes(value as ExternalAssistantModule);
+}
+
+export function requireExternalAssistantPermission(
+  auth: ExternalAssistantAuth,
+  permission: ExternalAssistantApiPermission,
+): void {
+  if (!auth.permissions.includes(permission)) {
+    throw new ExternalAssistantApiError(403, "permission_denied", `This API key does not allow ${permission}.`);
+  }
+}
+
+export function requireExternalAssistantModule(
+  auth: ExternalAssistantAuth,
+  module: ExternalAssistantModule,
+): void {
+  if (!auth.modules.includes(module)) {
+    throw new ExternalAssistantApiError(403, "module_denied", `This API key cannot access the ${module} module.`);
+  }
 }
 
 export function listExternalAssistantRecords(
@@ -236,10 +290,14 @@ export function listExternalAssistantRecords(
   }
 }
 
-export function buildExternalAssistantContext(agencyId: string) {
+export function buildExternalAssistantContext(
+  agencyId: string,
+  allowedModules: ExternalAssistantModule[] = [...EXTERNAL_ASSISTANT_MODULES],
+  permissions: ExternalAssistantApiPermission[] = [...EXTERNAL_ASSISTANT_PERMISSIONS],
+) {
   const state = getState();
   const agency = state.agencies[agencyId];
-  const modules = EXTERNAL_ASSISTANT_MODULES.map(module => {
+  const modules = allowedModules.map(module => {
     const records = listExternalAssistantRecords(agencyId, module);
     return {
       id: module,
@@ -247,10 +305,10 @@ export function buildExternalAssistantContext(agencyId: string) {
       description: moduleDescription(module),
     };
   });
-  const urgentTasks = listExternalAssistantRecords(agencyId, "tasks")
+  const urgentTasks = (allowedModules.includes("tasks") ? listExternalAssistantRecords(agencyId, "tasks") : [])
     .filter(item => item.status !== "done" && ["urgent", "high"].includes(String(item.data.priority)))
     .slice(0, 20);
-  const openLegalItems = listExternalAssistantRecords(agencyId, "legal")
+  const openLegalItems = (allowedModules.includes("legal") ? listExternalAssistantRecords(agencyId, "legal") : [])
     .filter(item => ["action-required", "expired"].includes(item.status ?? ""))
     .slice(0, 20);
 
@@ -264,10 +322,10 @@ export function buildExternalAssistantContext(agencyId: string) {
       legalItems: openLegalItems,
     },
     capabilities: {
-      listRecords: true,
-      getRecord: true,
-      search: true,
-      export: ["json", "csv"],
+      listRecords: permissions.includes("records:read"),
+      getRecord: permissions.includes("records:read"),
+      search: permissions.includes("search:read"),
+      export: permissions.includes("export:read") ? ["json", "csv"] : [],
       writeRecords: false,
     },
   };

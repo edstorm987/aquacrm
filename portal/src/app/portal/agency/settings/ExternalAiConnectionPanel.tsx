@@ -1,7 +1,33 @@
 "use client";
 
-import { Check, Clipboard, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
+import {
+  Check,
+  Clipboard,
+  ExternalLink,
+  KeyRound,
+  Plus,
+  RefreshCw,
+  RotateCw,
+  ShieldCheck,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+
+interface ApiKeySummary {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  fingerprint: string;
+  modules: string[];
+  permissions: string[];
+  createdAt: number;
+  createdBy: string;
+  expiresAt?: number;
+  lastUsedAt?: number;
+  revokedAt?: number;
+  status: "active" | "expired" | "revoked";
+}
 
 interface ConnectionStatus {
   ready: boolean;
@@ -13,7 +39,37 @@ interface ConnectionStatus {
   agencyExists: boolean;
   agencyMatchesWorkspace: boolean;
   modules: string[];
+  permissions: string[];
+  activeKeyCount: number;
+  legacyKeyConfigured: boolean;
+  legacyKeyReady: boolean;
+  keys: ApiKeySummary[];
 }
+
+const PERMISSION_LABELS: Record<string, { label: string; detail: string }> = {
+  "context:read": { label: "Business overview", detail: "Company context, totals and attention items." },
+  "records:read": { label: "Read records", detail: "List and inspect permitted records." },
+  "search:read": { label: "Search", detail: "Search across permitted modules." },
+  "export:read": { label: "Export", detail: "Download permitted data as JSON or CSV." },
+};
+
+const MODULE_LABELS: Record<string, string> = {
+  clients: "Clients",
+  contacts: "Contacts",
+  staff: "Staff",
+  leads: "Leads",
+  pipelines: "Pipelines",
+  tasks: "Actions",
+  sops: "SOPs",
+  products: "Products",
+  milestones: "Milestones",
+  "client-care": "Client care",
+  company: "Company",
+  legal: "Legal",
+  finance: "Finance",
+  activity: "Activity log",
+  "business-modules": "Business modules",
+};
 
 export function ExternalAiConnectionPanel() {
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
@@ -21,6 +77,13 @@ export function ExternalAiConnectionPanel() {
   const [status, setStatus] = useState("Checking connection...");
   const [testing, setTesting] = useState(false);
   const [copied, setCopied] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [revealed, setRevealed] = useState<{ token: string; name: string } | null>(null);
+  const [name, setName] = useState("My AI assistant");
+  const [expiresInDays, setExpiresInDays] = useState<number | null>(90);
+  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -32,18 +95,28 @@ export function ExternalAiConnectionPanel() {
       const response = await fetch("/api/portal/settings/external-ai", { cache: "no-store" });
       const json = await response.json() as { ok?: boolean; connection?: ConnectionStatus; error?: string };
       if (!response.ok || !json.connection) throw new Error(json.error || "Could not inspect the connection.");
-      setConnection(json.connection);
-      setStatus(json.connection.ready ? "External AI access is ready." : "Setup is still required.");
+      applyConnection(json.connection);
+      setStatus(json.connection.ready ? "External AI access is ready." : "Create your first private key to connect an assistant.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not inspect the connection.");
     }
+  }
+
+  function applyConnection(next: ConnectionStatus) {
+    setConnection(next);
+    setSelectedModules(current => current.length ? current : [...next.modules]);
+    setSelectedPermissions(current => current.length ? current : [...next.permissions]);
   }
 
   async function testConnection() {
     setTesting(true);
     setStatus("Testing live data access...");
     try {
-      const response = await fetch("/api/portal/settings/external-ai", { method: "POST" });
+      const response = await fetch("/api/portal/settings/external-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "test" }),
+      });
       const json = await response.json() as {
         ok?: boolean;
         error?: string;
@@ -51,7 +124,7 @@ export function ExternalAiConnectionPanel() {
         recordCount?: number;
         moduleCount?: number;
       };
-      if (json.connection) setConnection(json.connection);
+      if (json.connection) applyConnection(json.connection);
       if (!response.ok || !json.ok) throw new Error(json.error || "The connection test failed.");
       setStatus(`Connected. ${json.recordCount ?? 0} records are available across ${json.moduleCount ?? 0} modules.`);
     } catch (error) {
@@ -61,14 +134,107 @@ export function ExternalAiConnectionPanel() {
     }
   }
 
+  async function createKey() {
+    setCreating(true);
+    setStatus("Generating private key...");
+    try {
+      const response = await fetch("/api/portal/settings/external-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          name,
+          expiresInDays,
+          modules: selectedModules,
+          permissions: selectedPermissions,
+        }),
+      });
+      const json = await response.json() as {
+        ok?: boolean;
+        error?: string;
+        token?: string;
+        key?: ApiKeySummary;
+        connection?: ConnectionStatus;
+      };
+      if (!response.ok || !json.ok || !json.token || !json.key) {
+        throw new Error(json.error || "The key could not be created.");
+      }
+      if (json.connection) applyConnection(json.connection);
+      setCreateOpen(false);
+      setRevealed({ token: json.token, name: json.key.name });
+      setStatus(`Created ${json.key.name}. Copy the private token now.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "The key could not be created.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function rotateKey(key: ApiKeySummary) {
+    if (!window.confirm(`Rotate “${key.name}”? The existing token will stop working immediately.`)) return;
+    setStatus(`Rotating ${key.name}...`);
+    try {
+      const response = await fetch("/api/portal/settings/external-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "rotate", keyId: key.id }),
+      });
+      const json = await response.json() as {
+        ok?: boolean;
+        error?: string;
+        token?: string;
+        key?: ApiKeySummary;
+        connection?: ConnectionStatus;
+      };
+      if (!response.ok || !json.ok || !json.token || !json.key) {
+        throw new Error(json.error || "The key could not be rotated.");
+      }
+      if (json.connection) applyConnection(json.connection);
+      setRevealed({ token: json.token, name: json.key.name });
+      setStatus("Key rotated. Update your assistant with the new token now.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "The key could not be rotated.");
+    }
+  }
+
+  async function revokeKey(key: ApiKeySummary) {
+    if (!window.confirm(`Revoke “${key.name}”? Any assistant using it will lose access immediately.`)) return;
+    setStatus(`Revoking ${key.name}...`);
+    try {
+      const response = await fetch(`/api/portal/settings/external-ai?keyId=${encodeURIComponent(key.id)}`, {
+        method: "DELETE",
+      });
+      const json = await response.json() as { ok?: boolean; error?: string; connection?: ConnectionStatus };
+      if (!response.ok || !json.ok) throw new Error(json.error || "The key could not be revoked.");
+      if (json.connection) applyConnection(json.connection);
+      setStatus(`${key.name} was revoked.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "The key could not be revoked.");
+    }
+  }
+
   async function copy(value: string, label: string) {
     await navigator.clipboard.writeText(value);
     setCopied(label);
     window.setTimeout(() => setCopied(""), 1_500);
   }
 
+  function toggleModule(module: string) {
+    setSelectedModules(current => current.includes(module)
+      ? current.filter(item => item !== module)
+      : [...current, module]);
+  }
+
+  function togglePermission(permission: string) {
+    setSelectedPermissions(current => current.includes(permission)
+      ? current.filter(item => item !== permission)
+      : [...current, permission]);
+  }
+
   const baseUrl = `${origin}/api/v1`;
   const openApiUrl = `${origin}/api/v1/openapi.json`;
+  const activeKeys = connection?.keys.filter(key => key.status === "active") ?? [];
+  const inactiveKeys = connection?.keys.filter(key => key.status !== "active") ?? [];
 
   return (
     <div>
@@ -79,23 +245,24 @@ export function ExternalAiConnectionPanel() {
             <h3 className="text-sm font-semibold text-black/85">External AI data access</h3>
           </div>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-black/50">
-            Connect ChatGPT, Claude, or another assistant to live AquaOasis-Web data through a private, read-only API.
+            Give trusted assistants private, read-only access. Every key has its own data scope and can be revoked independently.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={testConnection}
-          disabled={testing}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={testing ? "animate-spin" : ""} />
-          Test connection
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={testConnection} disabled={testing || !connection?.ready} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-black/70 disabled:opacity-40">
+            <RefreshCw size={14} className={testing ? "animate-spin" : ""} />
+            Test
+          </button>
+          <button type="button" onClick={() => setCreateOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white">
+            <Plus size={15} />
+            Generate key
+          </button>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <StatusItem label="Private token" ready={Boolean(connection?.tokenConfigured && connection.tokenStrongEnough)} detail={connection?.tokenFingerprint ? `Configured · ${connection.tokenFingerprint}` : "Not configured"} />
-        <StatusItem label="Workspace scope" ready={Boolean(connection?.agencyExists && connection.agencyMatchesWorkspace)} detail={connection?.agencyId || "Checking..."} />
+        <StatusItem label="Active keys" ready={activeKeys.length > 0} detail={`${activeKeys.length} managed key${activeKeys.length === 1 ? "" : "s"}`} />
+        <StatusItem label="Workspace scope" ready={Boolean(connection?.agencyExists)} detail={connection?.agencyId || "Checking..."} />
         <StatusItem label="Access level" ready={Boolean(connection?.readOnly)} detail="Read-only · secrets excluded" />
       </div>
 
@@ -105,24 +272,159 @@ export function ExternalAiConnectionPanel() {
         <ConnectionValue label="Authentication" value="Authorization: Bearer YOUR_PRIVATE_TOKEN" onCopy={() => copy("Authorization: Bearer YOUR_PRIVATE_TOKEN", "auth")} copied={copied === "auth"} />
       </div>
 
-      {!connection?.ready && (
-        <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-semibold text-amber-900">Finish setup in the deployment environment</p>
-          <ol className="mt-2 grid gap-1 text-xs leading-5 text-amber-900/75">
-            <li>1. Create a private token with at least 32 random characters.</li>
-            <li>2. Add it as <code className="font-mono">MILESYMEDIA_ASSISTANT_API_TOKEN</code>.</li>
-            <li>3. Set <code className="font-mono">MILESYMEDIA_ASSISTANT_AGENCY_ID={connection?.agencyId || "milesymedia"}</code>, then restart or redeploy.</li>
-            <li>4. Give your assistant the OpenAPI schema URL and bearer token.</li>
-          </ol>
+      <section className="mt-6">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-black/80">Private keys</h4>
+            <p className="mt-1 text-xs leading-5 text-black/45">Use a separate key for each assistant or integration.</p>
+          </div>
+          <span className="text-xs font-medium text-black/40">{activeKeys.length} active</span>
         </div>
-      )}
+
+        <div className="mt-3 grid gap-2">
+          {activeKeys.length === 0 ? (
+            <button type="button" onClick={() => setCreateOpen(true)} className="flex min-h-24 items-center justify-center gap-2 rounded-lg border border-dashed border-black/15 bg-black/[0.015] px-4 text-sm font-semibold text-black/55 hover:bg-black/[0.03]">
+              <KeyRound size={17} />
+              Generate your first key
+            </button>
+          ) : activeKeys.map(key => (
+            <KeyRow key={key.id} apiKey={key} onRotate={() => rotateKey(key)} onRevoke={() => revokeKey(key)} />
+          ))}
+        </div>
+
+        {inactiveKeys.length > 0 ? (
+          <details className="mt-3 rounded-lg border border-black/10 bg-black/[0.015]">
+            <summary className="cursor-pointer list-none px-4 py-3 text-xs font-semibold text-black/55">
+              Revoked and expired keys ({inactiveKeys.length})
+            </summary>
+            <div className="divide-y divide-black/10 border-t border-black/10">
+              {inactiveKeys.map(key => <KeyRow key={key.id} apiKey={key} />)}
+            </div>
+          </details>
+        ) : null}
+      </section>
+
+      {connection?.legacyKeyConfigured ? (
+        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900/75">
+          A legacy environment key is still configured. Managed keys work alongside it; remove <code className="font-mono">MILESYMEDIA_ASSISTANT_API_TOKEN</code> from Vercel when every assistant has moved to a managed key.
+        </div>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <p role="status" className="text-xs text-black/50">{status}</p>
         <div className="inline-flex items-center gap-2 text-xs font-medium text-emerald-800">
           <ShieldCheck size={14} />
-          {connection?.modules.length ?? 0} business data modules
+          {connection?.modules.length ?? 0} available data modules
         </div>
+      </div>
+
+      {createOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="create-api-key-title">
+          <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-xl bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-xl sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="create-api-key-title" className="text-lg font-semibold text-black/90">Generate private key</h3>
+                <p className="mt-1 text-sm leading-6 text-black/50">Name the assistant, choose what it can read, then copy its token once.</p>
+              </div>
+              <button type="button" onClick={() => setCreateOpen(false)} className="rounded-md p-2 text-black/45 hover:bg-black/[0.05]" aria-label="Close"><X size={18} /></button>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-black/65">Key name<input value={name} onChange={event => setName(event.target.value)} maxLength={80} className="mt-2 h-11 w-full rounded-md border border-black/15 px-3 text-sm font-normal outline-none focus:border-black/40" placeholder="Claude business assistant" /></label>
+              <label className="text-xs font-semibold text-black/65">Expires<select value={expiresInDays ?? "never"} onChange={event => setExpiresInDays(event.target.value === "never" ? null : Number(event.target.value))} className="mt-2 h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm font-normal outline-none focus:border-black/40"><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">1 year</option><option value="never">Never</option></select></label>
+            </div>
+
+            <fieldset className="mt-5">
+              <legend className="text-xs font-semibold text-black/65">Allowed actions</legend>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {(connection?.permissions ?? []).map(permission => (
+                  <label key={permission} className="flex cursor-pointer items-start gap-3 rounded-md border border-black/10 p-3 hover:bg-black/[0.02]">
+                    <input type="checkbox" checked={selectedPermissions.includes(permission)} onChange={() => togglePermission(permission)} className="mt-0.5" />
+                    <span><strong className="block text-xs font-semibold text-black/70">{PERMISSION_LABELS[permission]?.label ?? permission}</strong><span className="mt-0.5 block text-[11px] leading-4 text-black/45">{PERMISSION_LABELS[permission]?.detail}</span></span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="mt-5">
+              <div className="flex items-center justify-between gap-3">
+                <legend className="text-xs font-semibold text-black/65">Data modules</legend>
+                <button type="button" onClick={() => setSelectedModules(selectedModules.length === connection?.modules.length ? [] : [...(connection?.modules ?? [])])} className="text-xs font-semibold text-black/50 underline underline-offset-2">
+                  {selectedModules.length === connection?.modules.length ? "Clear all" : "Select all"}
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                {(connection?.modules ?? []).map(module => (
+                  <label key={module} className="flex cursor-pointer items-center gap-2 py-1 text-xs text-black/65">
+                    <input type="checkbox" checked={selectedModules.includes(module)} onChange={() => toggleModule(module)} />
+                    {MODULE_LABELS[module] ?? module}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 border-t border-black/10 pt-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setCreateOpen(false)} className="min-h-11 rounded-md px-4 text-sm font-semibold text-black/55">Cancel</button>
+              <button type="button" onClick={createKey} disabled={creating || name.trim().length < 2 || selectedModules.length === 0 || selectedPermissions.length === 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-black px-5 text-sm font-semibold text-white disabled:opacity-40">
+                <KeyRound size={15} />
+                {creating ? "Generating..." : "Generate key"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {revealed ? (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="private-key-title">
+          <div className="w-full rounded-t-xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-xl sm:p-6">
+            <div className="flex size-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><KeyRound size={18} /></div>
+            <h3 id="private-key-title" className="mt-4 text-lg font-semibold text-black/90">Copy this key now</h3>
+            <p className="mt-1 text-sm leading-6 text-black/50">This is the only time the private token for <strong className="font-semibold text-black/70">{revealed.name}</strong> will be shown. AquaCRM stores only its hash.</p>
+            <div className="mt-4 rounded-lg bg-black p-4 text-white">
+              <code className="block break-all text-xs leading-5">{revealed.token}</code>
+              <button type="button" onClick={() => copy(revealed.token, "secret")} className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-md bg-white/10 px-3 text-xs font-semibold hover:bg-white/15">
+                {copied === "secret" ? <Check size={14} /> : <Clipboard size={14} />}
+                {copied === "secret" ? "Copied" : "Copy private key"}
+              </button>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button type="button" onClick={() => setRevealed(null)} className="min-h-11 rounded-md bg-black px-5 text-sm font-semibold text-white">I have saved it</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function KeyRow({ apiKey, onRotate, onRevoke }: {
+  apiKey: ApiKeySummary;
+  onRotate?: () => void;
+  onRevoke?: () => void;
+}) {
+  const statusClass = apiKey.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.05] text-black/45";
+  return (
+    <div className="rounded-lg border border-black/10 bg-white px-4 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="truncate text-sm font-semibold text-black/80">{apiKey.name}</strong>
+            <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${statusClass}`}>{apiKey.status}</span>
+          </div>
+          <p className="mt-1 font-mono text-xs text-black/45">{apiKey.tokenPrefix} · {apiKey.fingerprint}</p>
+          <p className="mt-2 text-[11px] leading-4 text-black/40">
+            {apiKey.modules.length} modules · {apiKey.permissions.map(permission => PERMISSION_LABELS[permission]?.label ?? permission).join(", ")}
+          </p>
+          <p className="mt-1 text-[11px] leading-4 text-black/40">
+            Created {formatDate(apiKey.createdAt)}{apiKey.lastUsedAt ? ` · Last used ${formatDate(apiKey.lastUsedAt)}` : " · Not used yet"}{apiKey.expiresAt ? ` · Expires ${formatDate(apiKey.expiresAt)}` : " · No expiry"}
+          </p>
+        </div>
+        {apiKey.status === "active" ? (
+          <div className="flex shrink-0 gap-1">
+            <button type="button" onClick={onRotate} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-xs font-semibold text-black/55 hover:bg-black/[0.04]" title="Rotate key"><RotateCw size={14} />Rotate</button>
+            <button type="button" onClick={onRevoke} className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-xs font-semibold text-red-700 hover:bg-red-50" title="Revoke key"><Trash2 size={14} />Revoke</button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -159,4 +461,8 @@ function ConnectionValue({ label, value, onCopy, copied, link = false }: {
       </div>
     </div>
   );
+}
+
+function formatDate(value: number) {
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(value);
 }

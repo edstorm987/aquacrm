@@ -264,11 +264,13 @@ describe("agency-finance smoke", () => {
     assert.equal(rejected?.status, "rejected");
     assert.equal(rejected?.decisionNote, "Out of policy");
 
-    // Cannot edit a rejected expense.
-    await assert.rejects(
-      services.expenses.update(exp.id, { vendor: "Different" }, ACTOR),
-      /Cannot edit/i,
-    );
+    const amended = await services.expenses.update(exp.id, {
+      vendor: "Corrected vendor",
+      reason: "Corrected after reconciliation.",
+    }, ACTOR);
+    assert.equal(amended?.status, "rejected", "amending must preserve the accounting status");
+    assert.equal(amended?.vendor, "Corrected vendor");
+    assert.equal(amended?.reason, "Corrected after reconciliation.");
   });
 
   test("step 6b: paid client cost preserves tax evidence and allocation", async () => {
@@ -319,8 +321,29 @@ describe("agency-finance smoke", () => {
       "cost-centres": ["Hosting", "Client delivery"],
     });
 
+    const amended = await services.expenses.update(exp.id, {
+      clientId: null,
+      vendor: "Cloud host Ltd",
+      amountCents: 18_000,
+      taxCents: 3_000,
+      receiptUrl: null,
+      attachments: [],
+      recurrence: null,
+      nextDueAt: null,
+    }, ACTOR);
+    assert.equal(amended?.status, "reimbursed", "paid expenses remain paid when amended");
+    assert.equal(amended?.vendor, "Cloud host Ltd");
+    assert.equal(amended?.amountCents, 18_000);
+    assert.equal(amended?.taxCents, 3_000);
+    assert.equal(amended?.netCents, 15_000);
+    assert.equal(amended?.clientId, undefined);
+    assert.equal(amended?.receiptUrl, undefined);
+    assert.equal(amended?.attachments, undefined);
+    assert.equal(amended?.recurrence, undefined);
+    assert.ok(world.inspect.activityLog.some(entry => entry.action === "expense.updated" && entry.metadata?.expenseId === exp.id));
+
     const clientCosts = await services.expenses.list({ clientId: CLIENT_ID });
-    assert.ok(clientCosts.some(cost => cost.id === exp.id));
+    assert.ok(!clientCosts.some(cost => cost.id === exp.id), "cleared client allocation must no longer match the old client filter");
   });
 
   test("step 6c: recurring schedules post a pending occurrence and advance the due date", async () => {

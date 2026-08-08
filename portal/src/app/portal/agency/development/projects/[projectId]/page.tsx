@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { requireRole } from "@/lib/server/auth";
+import { isGitHubPublishingConfigured } from "@/lib/server/githubProjectPublisher";
 import { getFirstPartyDevelopmentProject } from "@/lib/firstPartyDevelopmentProjects";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -15,12 +16,15 @@ export default async function FirstPartyDevelopmentProjectPage({
   await ensureHydrated();
   await requireRole([...AGENCY_ROLES]);
   const project = getFirstPartyDevelopmentProject((await params).projectId);
-  if (!project || project.id === "milesymedia-website") notFound();
+  if (!project) notFound();
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
       <DevelopmentNav active="systems" />
-      <FirstPartyProjectWorkspace project={project} />
+      <FirstPartyProjectWorkspace
+        project={project}
+        githubWriteConfigured={isGitHubPublishingConfigured()}
+      />
     </div>
   );
 }

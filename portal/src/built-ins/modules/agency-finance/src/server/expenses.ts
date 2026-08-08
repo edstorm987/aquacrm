@@ -13,6 +13,7 @@ import type {
   CreateExpenseInput,
   Currency,
   Expense,
+  ExpenseAttachment,
   ExpenseFilter,
   UpdateExpensePatch,
 } from "../lib/domain";
@@ -158,18 +159,93 @@ export class ExpenseService {
   async update(id: string, patch: UpdateExpensePatch, actor: UserId): Promise<Expense | null> {
     const existing = await this.get(id);
     if (!existing) return null;
-    if (existing.status !== "pending") {
-      throw new Error(`Cannot edit ${existing.status} expense — only pending expenses are editable.`);
+
+    const amountCents = patch.amountCents ?? existing.amountCents;
+    const taxCents = patch.taxCents ?? existing.taxCents ?? 0;
+    const businessUsePercent = patch.businessUsePercent ?? existing.businessUsePercent ?? 100;
+    if (amountCents <= 0) throw new Error("amountCents must be > 0.");
+    if (taxCents < 0 || taxCents > amountCents) {
+      throw new Error("taxCents must be between 0 and amountCents.");
     }
+    if (businessUsePercent < 0 || businessUsePercent > 100) {
+      throw new Error("businessUsePercent must be between 0 and 100.");
+    }
+
+    const categoryId = patch.categoryId ?? existing.categoryId;
+    if (categoryId !== existing.categoryId) {
+      const category = await this.categories.get(categoryId);
+      if (!category) throw new Error(`Category ${categoryId} not found.`);
+      if (category.status !== "active") throw new Error(`Category ${category.name} is archived.`);
+    }
+
+    const recurrence = patch.recurrence === null ? undefined : patch.recurrence ?? existing.recurrence;
+    const nextDueAt = recurrence
+      ? patch.nextDueAt === null
+        ? nextOccurrence(patch.incurredAt ?? existing.incurredAt, recurrence)
+        : patch.nextDueAt ?? existing.nextDueAt ?? nextOccurrence(patch.incurredAt ?? existing.incurredAt, recurrence)
+      : undefined;
+    const nextStaffId = optionalText(patch.staffId, existing.staffId, 180);
+    const nextClientId = optionalText(patch.clientId, existing.clientId, 180) as Expense["clientId"];
     const next: Expense = {
       ...existing,
       ...patch,
+      clientId: nextClientId,
+      staffId: nextStaffId,
+      categoryId,
+      vendor: optionalText(patch.vendor, existing.vendor, 180),
+      description: optionalText(patch.description, existing.description, 2_000),
+      reason: optionalText(patch.reason, existing.reason, 4_000),
+      amountCents,
+      taxCents,
+      taxRateBps: patch.taxRateBps === null ? undefined : patch.taxRateBps ?? existing.taxRateBps,
+      businessUsePercent,
+      receiptUrl: optionalText(patch.receiptUrl, existing.receiptUrl, 2_000),
+      attachments: patch.attachments ? cleanAttachments(patch.attachments) : existing.attachments,
+      paymentMethod: patch.paymentMethod === null ? undefined : patch.paymentMethod ?? existing.paymentMethod,
+      reference: optionalText(patch.reference, existing.reference, 500),
+      recurrence,
+      nextDueAt,
+      recurringActive: recurrence ? patch.recurringActive ?? existing.recurringActive ?? true : undefined,
       customFields: patch.customFields ? cleanCustomFields(patch.customFields) : existing.customFields,
-      netCents: (patch.amountCents ?? existing.amountCents) - (patch.taxCents ?? existing.taxCents ?? 0),
+      netCents: amountCents - taxCents,
       updatedAt: now(),
     };
     await this.storage.set(expKey(id), next);
+
+    if (categoryId !== existing.categoryId) {
+      await this.removeFromIndex(byCategoryKey(existing.categoryId), id);
+      await this.addToIndex(byCategoryKey(categoryId), id);
+    }
+    if (nextStaffId !== existing.staffId) {
+      if (existing.staffId) await this.removeFromIndex(byStaffKey(existing.staffId), id);
+      if (nextStaffId) await this.addToIndex(byStaffKey(nextStaffId), id);
+    }
+
+    const changedFields = Object.keys(patch).filter(key => {
+      const field = key as keyof UpdateExpensePatch;
+      return JSON.stringify(patch[field]) !== JSON.stringify(existing[field as keyof Expense]);
+    });
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      clientId: next.clientId,
+      actorUserId: actor,
+      category: "finance",
+      action: "expense.updated",
+      message: `Amended expense ${id}.`,
+      metadata: { expenseId: id, changedFields, previousClientId: existing.clientId, clientId: next.clientId },
+    });
+    this.events.emit({ agencyId: this.agencyId, clientId: next.clientId }, "expense.updated", { expenseId: id, changedFields });
     return next;
+  }
+
+  private async addToIndex(key: string, id: string): Promise<void> {
+    const ids = (await this.storage.get<string[]>(key)) ?? [];
+    if (!ids.includes(id)) await this.storage.set(key, [...ids, id]);
+  }
+
+  private async removeFromIndex(key: string, id: string): Promise<void> {
+    const ids = (await this.storage.get<string[]>(key)) ?? [];
+    if (ids.includes(id)) await this.storage.set(key, ids.filter(existingId => existingId !== id));
   }
 
   async approve(id: string, actor: UserId, decisionNote?: string): Promise<Expense | null> {
@@ -308,6 +384,26 @@ function cleanCustomFields(value: unknown): Record<string, string | string[] | b
     }
   }
   return Object.keys(cleaned).length ? cleaned : undefined;
+}
+
+function optionalText(value: string | null | undefined, existing: string | undefined, maxLength: number): string | undefined {
+  if (value === undefined) return existing;
+  if (value === null) return undefined;
+  return value.trim().slice(0, maxLength) || undefined;
+}
+
+function cleanAttachments(attachments: ExpenseAttachment[]): ExpenseAttachment[] | undefined {
+  const cleaned = attachments.slice(0, 8).map(attachment => ({
+    id: attachment.id.slice(0, 120),
+    name: attachment.name.trim().slice(0, 180),
+    url: attachment.url.slice(0, 2_000),
+    size: Math.max(0, Math.round(attachment.size)),
+    contentType: attachment.contentType.slice(0, 180),
+    storageProvider: attachment.storageProvider,
+    storageKey: attachment.storageKey.slice(0, 2_000),
+    uploadedAt: attachment.uploadedAt,
+  }));
+  return cleaned.length ? cleaned : undefined;
 }
 
 function nextOccurrence(from: number, recurrence: NonNullable<CreateExpenseInput["recurrence"]>): number {

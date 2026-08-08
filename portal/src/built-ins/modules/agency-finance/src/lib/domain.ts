@@ -152,25 +152,25 @@ export interface CreateExpenseInput {
 }
 
 export interface UpdateExpensePatch {
-  clientId?: ClientId;
-  staffId?: string;
+  clientId?: ClientId | null;
+  staffId?: string | null;
   categoryId?: string;
-  vendor?: string;
-  description?: string;
-  reason?: string;
+  vendor?: string | null;
+  description?: string | null;
+  reason?: string | null;
   amountCents?: number;
   taxCents?: number;
-  taxRateBps?: number;
+  taxRateBps?: number | null;
   taxDeductible?: boolean;
   businessUsePercent?: number;
   billableToClient?: boolean;
   incurredAt?: number;
-  receiptUrl?: string;
+  receiptUrl?: string | null;
   attachments?: ExpenseAttachment[];
-  paymentMethod?: Expense["paymentMethod"];
-  reference?: string;
-  recurrence?: ExpenseRecurrence;
-  nextDueAt?: number;
+  paymentMethod?: Expense["paymentMethod"] | null;
+  reference?: string | null;
+  recurrence?: ExpenseRecurrence | null;
+  nextDueAt?: number | null;
   recurringActive?: boolean;
   customFields?: Record<string, string | string[] | boolean>;
 }

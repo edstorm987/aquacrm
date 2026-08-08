@@ -18,7 +18,7 @@
     "smoke:vercel-domain": "tsx --test scripts/smoke-vercel-domain.test.ts",
     "smoke:auth-oauth": "tsx --test scripts/smoke-auth-oauth.test.ts",
     "smoke:assistant": "tsx --test scripts/smoke-assistant.test.ts",
-    "smoke:external-assistant-api": "tsx --test scripts/smoke-external-assistant-api.test.ts",
+    "smoke:external-assistant-api": "tsx --test scripts/smoke-external-assistant-api.test.ts scripts/smoke-external-assistant-keys.test.ts",
     "smoke:showcase-mode": "tsx --test scripts/smoke-showcase-mode.test.ts",
     "smoke:trading-companies": "tsx --test scripts/smoke-trading-companies.test.ts",
     "smoke:development-toolkit": "tsx --test scripts/smoke-development-toolkit.test.ts",

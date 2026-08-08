@@ -4,6 +4,8 @@ import {
   externalApiHeaders,
   findExternalAssistantRecord,
   isExternalAssistantModule,
+  requireExternalAssistantModule,
+  requireExternalAssistantPermission,
   ExternalAssistantApiError,
 } from "@/lib/server/externalAssistantApi";
 import { ensureHydrated } from "@/server/storage";
@@ -14,11 +16,13 @@ export async function GET(
 ) {
   try {
     await ensureHydrated();
-    const auth = authenticateExternalAssistant(request);
+    const auth = await authenticateExternalAssistant(request);
+    requireExternalAssistantPermission(auth, "records:read");
     const module = new URL(request.url).searchParams.get("module") ?? "";
     if (!isExternalAssistantModule(module)) {
       throw new ExternalAssistantApiError(400, "invalid_module", "Choose a supported module.");
     }
+    requireExternalAssistantModule(auth, module);
     const { recordId } = await context.params;
     const item = findExternalAssistantRecord(auth.agencyId, module, recordId);
     if (!item) {

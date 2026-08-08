@@ -33,6 +33,7 @@ export interface ProductionReadiness {
 export interface ReadinessContext {
   activeClientCount?: number;
   billingConfiguredClientCount?: number;
+  activeExternalAssistantKeyCount?: number;
 }
 
 function has(env: NodeJS.ProcessEnv, name: string): boolean {
@@ -92,8 +93,8 @@ export function inspectProductionReadiness(
   const githubReady = has(env, "GITHUB_TOKEN");
   const vercelReady = has(env, "VERCEL_TOKEN");
   const assistantReady = has(env, "OPENAI_API_KEY");
-  const assistantApiReady = has(env, "MILESYMEDIA_ASSISTANT_API_TOKEN")
-    && has(env, "MILESYMEDIA_ASSISTANT_AGENCY_ID");
+  const assistantApiReady = (context.activeExternalAssistantKeyCount ?? 0) > 0
+    || (has(env, "MILESYMEDIA_ASSISTANT_API_TOKEN") && has(env, "MILESYMEDIA_ASSISTANT_AGENCY_ID"));
   const billingConfigured = context.billingConfiguredClientCount ?? 0;
   const activeClients = context.activeClientCount ?? 0;
   const monitoringReady = has(env, "SENTRY_DSN") || has(env, "NEXT_PUBLIC_SENTRY_DSN");
@@ -208,7 +209,7 @@ export function inspectProductionReadiness(
       label: "External AI access",
       status: assistantApiReady ? "ready" : "optional",
       summary: assistantApiReady ? "Trusted external assistants can authenticate to the read-only business API." : "External AI tools cannot access business data.",
-      action: assistantApiReady ? "Manage allowed access from Launch settings." : "Generate a dedicated bearer token and set the Milesymedia agency ID.",
+      action: assistantApiReady ? "Manage keys and permissions from Settings." : "Generate a private key from Settings, then connect your assistant.",
       required: false,
       group: "intelligence",
       envKeys: ["MILESYMEDIA_ASSISTANT_API_TOKEN", "MILESYMEDIA_ASSISTANT_AGENCY_ID"],

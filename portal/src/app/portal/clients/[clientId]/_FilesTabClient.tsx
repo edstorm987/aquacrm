@@ -4,7 +4,7 @@ import { Link2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "misc";
+export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "misc";
 
 interface ClientFileRef {
   id: string;
@@ -24,10 +24,11 @@ const CATEGORY_META: Record<FileCategory, { label: string; emoji: string }> = {
   preview:     { label: "Build Previews",   emoji: "🖥️" },
   deliverable: { label: "Deliverables",     emoji: "📦" },
   invoice:     { label: "Invoices",         emoji: "🧾" },
+  contract:    { label: "Contracts",        emoji: "✍️" },
   misc:        { label: "Misc",             emoji: "📎" },
 };
 
-const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "misc"];
+const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "misc"];
 
 function formatFileDate(ts: number): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -68,6 +69,7 @@ export function FilesTabClient({
       preview: 0,
       deliverable: 0,
       invoice: 0,
+      contract: 0,
       misc: 0,
     };
     for (const f of files) c[f.category] = (c[f.category] ?? 0) + 1;
@@ -192,7 +194,7 @@ export function FilesTabClient({
           >
             {addMode === "upload" ? (
               <label className="grid gap-1 text-[11px] text-black/45">
-                PDF, document, image, video or text · up to 4 MB
+                PDF, document, image, video or text · up to 12 MB
                 <input
                   type="file"
                   onChange={e => setUploadFile(e.target.files?.[0] ?? null)}

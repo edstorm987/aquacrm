@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Blocks, BookOpen, GitBranch, Globe2, Workflow } from "lucide-react";
+import { Blocks, BookOpen, GitBranch, Workflow } from "lucide-react";
 
 const items = [
   { href: "/portal/agency/development", label: "Control centre", icon: GitBranch },
-  { href: "/portal/agency/development/website", label: "Milesymedia site", icon: Globe2 },
   { href: "/portal/agency/development/toolkit", label: "Toolkit", icon: Blocks },
   { href: "/portal/agency/development/workflow", label: "Build flow", icon: Workflow },
   { href: "/portal/agency/development/vault", label: "Knowledge vault", icon: BookOpen },

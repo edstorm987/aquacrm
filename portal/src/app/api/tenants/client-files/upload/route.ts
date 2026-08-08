@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
@@ -11,8 +11,8 @@ import type { ClientFileRef, FileCategory } from "../route";
 
 export const runtime = "nodejs";
 
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
-const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "misc"];
+const MAX_FILE_BYTES = 12 * 1024 * 1024;
+const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "misc"];
 const ALLOWED_TYPES = new Set([
   "application/pdf",
   "application/msword",
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "client, file and category are required" }, { status: 400 });
   }
   if (file.size <= 0 || file.size > MAX_FILE_BYTES) {
-    return NextResponse.json({ ok: false, error: "files must be smaller than 4 MB" }, { status: 413 });
+    return NextResponse.json({ ok: false, error: "files must be smaller than 12 MB" }, { status: 413 });
   }
   if (!ALLOWED_TYPES.has(file.type)) {
     return NextResponse.json({ ok: false, error: "this file type is not supported" }, { status: 415 });
@@ -117,6 +117,8 @@ export async function POST(req: Request) {
     message: `${session.email} uploaded “${ref.name}”.`,
     metadata: { fileId: ref.id, category, size: ref.size },
   });
+
+  await flushPendingWrites();
 
   return NextResponse.json({ ok: true, file: ref, files });
 }

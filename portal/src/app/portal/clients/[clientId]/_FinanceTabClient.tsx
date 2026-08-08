@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ClientContract } from "@/lib/clientContracts";
+import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
 import { ContractsPanel } from "./_ContractsPanel";
 
 interface Invoice {
@@ -83,10 +83,12 @@ export function FinanceTabClient({
   clientId,
   initial,
   initialContracts,
+  initialContractTemplates,
 }: {
   clientId: string;
   initial: InitialState;
   initialContracts: ClientContract[];
+  initialContractTemplates: ClientContractTemplate[];
 }) {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [clientExpenses, setClientExpenses] = useState<ClientExpense[]>([]);
@@ -378,7 +380,11 @@ export function FinanceTabClient({
         )}
       </section>
 
-      <ContractsPanel clientId={clientId} initialContracts={initialContracts} />
+      <ContractsPanel
+        clientId={clientId}
+        initialContracts={initialContracts}
+        initialTemplates={initialContractTemplates}
+      />
 
       {/* Invoices */}
       <section className="rounded-xl border border-black/10 bg-white">

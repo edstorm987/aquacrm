@@ -28,7 +28,9 @@ import { KanbanTabClient } from "./_KanbanTabClient";
 import { CommsRow } from "./_CommsRow";
 import { FilesTabClient, type FileCategory } from "./_FilesTabClient";
 import { FinanceTabClient } from "./_FinanceTabClient";
-import type { ClientContract } from "@/lib/clientContracts";
+import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
+import { listContractTemplates } from "@/server/contractTemplates";
+import { listAgencyProducts } from "@/server/agencyProducts";
 import { PropertiesTabClient, type ClientProperty } from "./_PropertiesTabClient";
 import { ClientSystemsWorkspace } from "./_ClientSystemsWorkspace";
 import { FulfilmentPortalPreview, type CustomerPortalMode } from "./_FulfilmentPortalPreview";
@@ -222,6 +224,25 @@ export default async function ClientHome({
   const customerPortalData = tab === "fulfilment"
     ? await loadCustomerPortalData(client, meta.portalContactName ?? client.name)
     : null;
+  const contractTemplates: ClientContractTemplate[] = tab === "finance"
+    ? [
+        ...listContractTemplates(session.agencyId),
+        ...listAgencyProducts(session.agencyId)
+          .filter(product => Boolean(product.contractBody?.trim()))
+          .map(product => ({
+            id: `product:${product.id}`,
+            agencyId: session.agencyId,
+            title: product.contractTitle?.trim() || `${product.name} agreement`,
+            summary: product.description,
+            body: product.contractBody!.trim(),
+            status: "active" as const,
+            source: "product" as const,
+            createdBy: "product-library",
+            createdAt: product.createdAt,
+            updatedAt: product.updatedAt,
+          })),
+      ]
+    : [];
 
   const live = isLivePhase(client.stage);
   const portalMaterialized = live && customPortalExists(client.slug);
@@ -563,6 +584,7 @@ export default async function ClientHome({
           <FinanceTabClient
             clientId={client.id}
             initialContracts={Array.isArray(meta.contracts) ? meta.contracts : []}
+            initialContractTemplates={contractTemplates}
             initial={{
               planTier: meta.planTier,
               servicePlan: servicePlanLabel ?? undefined,

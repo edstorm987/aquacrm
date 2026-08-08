@@ -205,13 +205,13 @@ test("navigation, APIs, upload and global search expose the complete Development
   assert.match(search, /listVisibleDevelopmentResources/);
 });
 
-test("Development control centre covers websites, portals and software", () => {
+test("Development control centre covers the Personal EcoSystem, client work and property-scoped telemetry", () => {
   const page = readFileSync("src/app/portal/agency/development/page.tsx", "utf8");
   const portfolio = readFileSync("src/app/portal/agency/development/_DevelopmentPortfolio.tsx", "utf8");
   const firstParty = readFileSync("src/lib/firstPartyDevelopmentProjects.ts", "utf8");
   const propertyApi = readFileSync("src/app/api/tenants/client-properties/route.ts", "utf8");
   assert.match(page, /FIRST_PARTY_DEVELOPMENT_PROJECTS/);
-  for (const project of ["Milesymedia website", "AquaCRM", "Business OS", "Health Check"]) {
+  for (const project of ["Milesymedia website", "AquaCRM", "AquaOasis-Web", "Zimante Group", "Edward Hallam", "Business OS", "Health Check"]) {
     assert.match(firstParty, new RegExp(project));
   }
   for (const view of ["All projects", "Websites", "Portals", "Software", "Lead magnets", "Needs attention"]) {
@@ -219,6 +219,10 @@ test("Development control centre covers websites, portals and software", () => {
   }
   assert.match(portfolio, /action: "update"/);
   assert.match(portfolio, /Filter project status/);
+  assert.match(portfolio, /Filter project folder/);
+  assert.match(portfolio, /Filter project tag/);
+  assert.match(portfolio, /Tag installed/);
+  assert.match(page, /event\.propertyId === project\.telemetryPropertyId/);
   assert.match(propertyApi, /"software"/);
   assert.match(propertyApi, /"lead-magnet"/);
 });

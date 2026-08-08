@@ -1,7 +1,7 @@
 import { summarizeClientTelemetry, type ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/firstPartyDevelopmentProjects";
 import { requireRole } from "@/lib/server/auth";
-import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
+import { ensureAgencyWebsite } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
@@ -38,43 +38,60 @@ export default async function DevelopmentPage() {
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId).filter(client => client.status !== "archived");
   const ownWebsite = ensureAgencyWebsite(session.agencyId);
-  const ownWebsiteSummary = summarizeAgencyWebsite(ownWebsite);
 
   const projects: DevelopmentProjectRow[] = FIRST_PARTY_DEVELOPMENT_PROJECTS.map(project => {
-    const isWebsite = project.id === "milesymedia-website";
+    const projectEvents = project.telemetryPropertyId
+      ? ownWebsite.telemetryEvents.filter(event => event.propertyId === project.telemetryPropertyId)
+      : [];
+    const telemetry = summarizeClientTelemetry(projectEvents);
+    const tagStatus = !project.telemetryPropertyId
+      ? "not-needed"
+      : telemetry.lastSeenAt || project.tagInstalled
+        ? "installed"
+        : "missing";
+    const issue = telemetry.errors24h
+      ? `${telemetry.errors24h} error${telemetry.errors24h === 1 ? "" : "s"} today`
+      : tagStatus === "missing"
+        ? "Monitoring tag missing"
+        : undefined;
+
     return {
       id: project.id,
       name: project.name,
       kind: project.kind,
-      status: isWebsite
-        ? ownWebsite.status === "live" ? "live" : ownWebsite.status === "maintenance" ? "review" : "building"
-        : project.status,
-      owner: "Milesymedia",
-      clientName: project.kind === "lead-magnet" ? "Milesymedia · Lead generation" : "Milesymedia",
-      managementHref: isWebsite
-        ? "/portal/agency/development/website"
-        : `/portal/agency/development/projects/${project.id}`,
+      status: project.status,
+      owner: "Ecosystem",
+      clientName: project.brand,
+      managementHref: `/portal/agency/development/projects/${project.id}`,
       previewUrl: project.previewUrl,
       liveUrl: project.publicUrl,
       repoUrl: project.repositoryUrl,
       localPath: project.sourcePath,
-      tagStatus: isWebsite && ownWebsite.telemetryLastSeenAt ? "installed" : isWebsite ? "planned" : "not-needed",
-      lastSignalAt: isWebsite ? ownWebsite.telemetryLastSeenAt : undefined,
-      views24h: isWebsite ? ownWebsiteSummary.pageviews24h : 0,
-      errors24h: isWebsite ? ownWebsiteSummary.errors24h : 0,
-      issue: isWebsite && ownWebsiteSummary.errors24h ? `${ownWebsiteSummary.errors24h} errors today` : undefined,
-      statusDetail: isWebsite
-        ? ownWebsite.status === "gated" ? "Public gate · full private build preview available" : `Public mode: ${ownWebsite.status}`
-        : project.description,
+      folder: project.folder,
+      tags: [...project.tags],
+      telemetrySiteKey: project.telemetrySiteKey,
+      telemetryPropertyId: project.telemetryPropertyId,
+      tagStatus,
+      lastSignalAt: telemetry.lastSeenAt,
+      views24h: telemetry.pageviews24h,
+      errors24h: telemetry.errors24h,
+      issue,
+      statusDetail: project.description,
     } satisfies DevelopmentProjectRow;
   });
 
   for (const client of clients) {
     const metadata = (client.metadata ?? {}) as ClientMetadata;
-    const telemetry = summarizeClientTelemetry(metadata.telemetryEvents ?? []);
+    const allTelemetry = metadata.telemetryEvents ?? [];
     const openRequests = (metadata.clientRequests ?? []).filter(item => item.status === "open").length;
+    const products = metadata.properties ?? [];
 
-    for (const [index, product] of (metadata.properties ?? []).entries()) {
+    for (const [index, product] of products.entries()) {
+      const projectId = product.id ?? `${client.id}-${index}`;
+      const projectEvents = allTelemetry.filter(event =>
+        event.propertyId === projectId || (products.length === 1 && !event.propertyId),
+      );
+      const telemetry = summarizeClientTelemetry(projectEvents);
       const status = product.status ?? "planning";
       const issue =
         product.tagStatus === "broken" ? "Monitoring broken"
@@ -84,7 +101,7 @@ export default async function DevelopmentPage() {
         : undefined;
 
       projects.push({
-        id: product.id ?? `${client.id}-${index}`,
+        id: projectId,
         name: product.label || product.name || prettyKind(product.kind),
         kind: product.kind ?? "website",
         status,
@@ -96,6 +113,9 @@ export default async function DevelopmentPage() {
         liveUrl: product.liveUrl,
         repoUrl: product.repoUrl,
         localPath: product.localPath,
+        folder: `Clients/${client.name}`,
+        tags: [product.kind ?? "website", status, "client"],
+        telemetryPropertyId: projectId,
         tagStatus: product.tagStatus,
         lastSignalAt: telemetry.lastSeenAt ?? metadata.telemetryLastSeenAt,
         views24h: telemetry.pageviews24h,

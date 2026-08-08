@@ -5,6 +5,8 @@ import {
   filterAndPaginateRecords,
   isExternalAssistantModule,
   listExternalAssistantRecords,
+  requireExternalAssistantModule,
+  requireExternalAssistantPermission,
   ExternalAssistantApiError,
 } from "@/lib/server/externalAssistantApi";
 import { ensureHydrated } from "@/server/storage";
@@ -12,12 +14,14 @@ import { ensureHydrated } from "@/server/storage";
 export async function GET(request: Request) {
   try {
     await ensureHydrated();
-    const auth = authenticateExternalAssistant(request);
+    const auth = await authenticateExternalAssistant(request);
+    requireExternalAssistantPermission(auth, "records:read");
     const search = new URL(request.url).searchParams;
     const module = search.get("module") ?? "";
     if (!isExternalAssistantModule(module)) {
       throw new ExternalAssistantApiError(400, "invalid_module", "Choose a supported module.");
     }
+    requireExternalAssistantModule(auth, module);
     const limit = boundedLimit(search.get("limit"));
     const result = filterAndPaginateRecords(
       listExternalAssistantRecords(auth.agencyId, module),

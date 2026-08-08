@@ -9,7 +9,7 @@
     aquaTag.src = '/aqua-tag.js';
     aquaTag.defer = true;
     aquaTag.dataset.siteKey = 'aqua_public_aquacrm_v1';
-    aquaTag.dataset.property = 'aquacrm';
+    aquaTag.dataset.property = 'business-os';
     aquaTag.dataset.aquaBusinessOs = 'true';
     document.head.appendChild(aquaTag);
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
@@ -11,8 +11,8 @@ import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 
 export const runtime = "nodejs";
 
-export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "misc";
-const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "misc"];
+export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "misc";
+const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "misc"];
 
 export interface ClientFileRef {
   id: string;
@@ -107,6 +107,7 @@ export async function POST(req: Request) {
       message: `${session.email} shared “${ref.name}”.`,
       metadata: { fileId: ref.id, category: ref.category },
     });
+    await flushPendingWrites();
     return NextResponse.json({ ok: true, file: ref, files });
   }
 
@@ -144,6 +145,7 @@ export async function POST(req: Request) {
       message: `${session.email} removed “${target?.name ?? "a project file"}”.`,
       metadata: { fileId: body.fileId, category: target?.category },
     });
+    await flushPendingWrites();
     return NextResponse.json({ ok: true, files: next });
   }
 

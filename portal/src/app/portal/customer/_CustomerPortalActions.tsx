@@ -779,8 +779,17 @@ export function CustomerAgreements({
                   ].join(" ")}>
                     {contract.status}
                   </span>
+                  <span className="text-[10px] text-black/35">Version {contract.version ?? 1}</span>
                 </div>
                 {contract.summary && <p className="mt-3 max-w-2xl text-sm leading-6 text-black/50">{contract.summary}</p>}
+                {contract.body && (
+                  <details className="mt-4 max-w-3xl rounded-md border border-black/10 bg-[#faf9f6] px-4 py-3">
+                    <summary className="cursor-pointer text-xs font-medium text-black/65">Review the full terms</summary>
+                    <div className="mt-4 whitespace-pre-wrap border-t border-black/10 pt-4 text-sm leading-7 text-black/65">
+                      {contract.body}
+                    </div>
+                  </details>
+                )}
                 {contract.acceptedAt && (
                   <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-emerald-700">
                     <CheckCircle2 size={13} aria-hidden="true" />

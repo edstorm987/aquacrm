@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   Boxes,
   ExternalLink,
+  FolderGit2,
   GitBranch,
   Globe2,
   LayoutDashboard,
@@ -40,7 +41,7 @@ export interface DevelopmentProjectRow {
   name: string;
   kind: DevelopmentProjectKind;
   status: DevelopmentProjectStatus;
-  owner: "Milesymedia" | "Client";
+  owner: "Ecosystem" | "Client";
   clientId?: string;
   clientName: string;
   managementHref: string;
@@ -48,6 +49,10 @@ export interface DevelopmentProjectRow {
   liveUrl?: string;
   repoUrl?: string;
   localPath?: string;
+  folder?: string;
+  tags?: string[];
+  telemetrySiteKey?: string;
+  telemetryPropertyId?: string;
   tagStatus?: "planned" | "installed" | "missing" | "broken" | "not-needed";
   lastSignalAt?: number;
   views24h: number;
@@ -58,7 +63,7 @@ export interface DevelopmentProjectRow {
 
 const views = [
   { id: "all", label: "All projects" },
-  { id: "owned", label: "Milesymedia" },
+  { id: "owned", label: "Our ecosystem" },
   { id: "website", label: "Websites" },
   { id: "portal", label: "Portals" },
   { id: "software", label: "Software" },
@@ -94,6 +99,8 @@ export function DevelopmentPortfolio({
   const [projects, setProjects] = useState(initialProjects);
   const [view, setView] = useState<(typeof views)[number]["id"]>("all");
   const [status, setStatus] = useState("active");
+  const [folder, setFolder] = useState("all");
+  const [tag, setTag] = useState("all");
   const [query, setQuery] = useState("");
   const [busyId, setBusyId] = useState("");
   const [notice, setNotice] = useState("");
@@ -103,7 +110,7 @@ export function DevelopmentPortfolio({
     return projects.filter(project => {
       const matchesView =
         view === "all"
-        || (view === "owned" && project.owner === "Milesymedia")
+        || (view === "owned" && project.owner === "Ecosystem")
         || (view === "website" && project.kind === "website")
         || (view === "portal" && ["client-portal", "dev-portal"].includes(project.kind))
         || (view === "software" && ["software", "repo", "template"].includes(project.kind))
@@ -112,6 +119,8 @@ export function DevelopmentPortfolio({
       const matchesStatus = status === "all"
         || (status === "active" && project.status !== "archived")
         || project.status === status;
+      const matchesFolder = folder === "all" || folderRoot(project.folder) === folder;
+      const matchesTag = tag === "all" || project.tags?.includes(tag);
       const matchesQuery = !needle || [
         project.name,
         project.clientName,
@@ -119,10 +128,16 @@ export function DevelopmentPortfolio({
         project.repoUrl,
         project.liveUrl,
         project.localPath,
+        project.folder,
+        project.telemetryPropertyId,
+        ...(project.tags ?? []),
       ].some(value => value?.toLowerCase().includes(needle));
-      return matchesView && matchesStatus && matchesQuery;
+      return matchesView && matchesStatus && matchesFolder && matchesTag && matchesQuery;
     });
-  }, [projects, query, status, view]);
+  }, [folder, projects, query, status, tag, view]);
+
+  const folders = useMemo(() => Array.from(new Set(projects.map(project => folderRoot(project.folder)))).sort(), [projects]);
+  const tags = useMemo(() => Array.from(new Set(projects.flatMap(project => project.tags ?? []))).sort(), [projects]);
 
   const counts = useMemo(() => ({
     total: projects.filter(project => project.status !== "archived").length,
@@ -166,7 +181,7 @@ export function DevelopmentPortfolio({
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Development</p>
           <h1 className="mt-1 text-3xl font-semibold text-black/90">Everything we build.</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
-            Every AquaOasis-Web and client website, portal, software product, repository, release and live signal in one control centre.
+            Every website, portal, software product, repository and live signal across the Personal EcoSystem and client work.
           </p>
         </div>
         <Link href="/portal/clients" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
@@ -195,7 +210,7 @@ export function DevelopmentPortfolio({
               </button>
             ))}
           </div>
-          <div className="flex gap-2">
+          <div className="grid gap-2 sm:grid-cols-2 xl:flex">
             <label className="relative min-w-0 flex-1 xl:w-64">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" size={15} />
               <span className="sr-only">Search projects</span>
@@ -210,11 +225,29 @@ export function DevelopmentPortfolio({
               value={status}
               onChange={event => setStatus(event.target.value)}
               aria-label="Filter project status"
-              className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm text-black/65 outline-none focus:border-brand"
+              className="min-h-10 min-w-32 rounded-md border border-black/10 bg-white px-3 text-sm text-black/65 outline-none focus:border-brand"
             >
               <option value="active">Active</option>
               <option value="all">All statuses</option>
               {statuses.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+            <select
+              value={folder}
+              onChange={event => setFolder(event.target.value)}
+              aria-label="Filter project folder"
+              className="min-h-10 min-w-32 rounded-md border border-black/10 bg-white px-3 text-sm text-black/65 outline-none focus:border-brand"
+            >
+              <option value="all">All folders</option>
+              {folders.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <select
+              value={tag}
+              onChange={event => setTag(event.target.value)}
+              aria-label="Filter project tag"
+              className="min-h-10 min-w-32 rounded-md border border-black/10 bg-white px-3 text-sm text-black/65 outline-none focus:border-brand"
+            >
+              <option value="all">All tags</option>
+              {tags.map(item => <option key={item} value={item}>{item}</option>)}
             </select>
           </div>
         </div>
@@ -232,11 +265,18 @@ export function DevelopmentPortfolio({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="truncate text-sm font-semibold text-black/85">{project.name}</h2>
-                      {project.owner === "Milesymedia" ? <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand">Ours</span> : null}
+                      {project.owner === "Ecosystem" ? <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand">Ours</span> : null}
                       {project.issue ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">{project.issue}</span> : null}
+                      <TagStatusBadge status={project.tagStatus} />
                     </div>
                     <p className="mt-1 text-xs text-black/45">{kindLabels[project.kind]} · {project.clientName}</p>
+                    {project.folder ? <p className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-[11px] font-medium text-black/40"><FolderGit2 size={12} className="shrink-0" />{project.folder}</p> : null}
                     <p className="mt-1 truncate text-[11px] text-black/35">{project.statusDetail || project.repoUrl || project.localPath || "Project record ready"}</p>
+                    {project.tags?.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {project.tags.slice(0, 5).map(item => <span key={item} className="rounded bg-black/[0.045] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-black/45">{item}</span>)}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -327,4 +367,24 @@ function lastSignal(value?: number) {
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.round(minutes / 60);
   return hours < 24 ? `${hours}h` : `${Math.round(hours / 24)}d`;
+}
+
+function folderRoot(folder?: string) {
+  return folder?.split("/").filter(Boolean)[0] ?? "Unfiled";
+}
+
+function TagStatusBadge({ status }: { status?: DevelopmentProjectRow["tagStatus"] }) {
+  if (!status || status === "not-needed") return null;
+  const labels = {
+    installed: "Tag installed",
+    planned: "Tag planned",
+    missing: "Tag missing",
+    broken: "Tag broken",
+  } as const;
+  const tone = status === "installed"
+    ? "bg-emerald-50 text-emerald-700"
+    : status === "broken" || status === "missing"
+      ? "bg-red-50 text-red-700"
+      : "bg-amber-50 text-amber-800";
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${tone}`}><RadioTower size={10} />{labels[status]}</span>;
 }

@@ -137,6 +137,13 @@ function supportUrl(value: unknown): string | undefined {
   }
 }
 
+function customerDocumentUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (trimmed.startsWith("/api/tenants/client-files/content?")) return trimmed;
+  return supportUrl(trimmed);
+}
+
 function customerActivityMessage(
   item: ActivityEntry,
   invoiceNumberById: Map<string, string>,
@@ -318,7 +325,24 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     id: contract.id,
     title: contract.title,
     summary: contract.summary,
-    documentUrl: supportUrl(contract.documentUrl),
+    body: contract.body,
+    documentUrl: customerDocumentUrl(contract.documentUrl),
+    documentName: contract.documentName,
+    templateId: contract.templateId,
+    version: contract.version ?? 1,
+    revisions: Array.isArray(contract.revisions)
+      ? contract.revisions.map(revision => ({
+          version: revision.version,
+          title: revision.title,
+          summary: revision.summary,
+          body: revision.body,
+          documentUrl: customerDocumentUrl(revision.documentUrl),
+          documentName: revision.documentName,
+          templateId: revision.templateId,
+          note: revision.note,
+          createdAt: revision.createdAt,
+        }))
+      : [],
     status: contract.status,
     createdAt: contract.createdAt,
     updatedAt: contract.updatedAt,

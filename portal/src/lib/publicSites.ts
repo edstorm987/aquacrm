@@ -2,6 +2,7 @@ export const PUBLIC_AQUA_SITES = {
   aqua_public_aquacrm_v1: {
     brand: "aquacrm",
     propertyId: "aquacrm",
+    propertyIds: ["aquacrm", "business-os", "health-check"],
     origins: ["https://aqua-crm.com", "https://www.aqua-crm.com", "https://aquacrm.vercel.app"],
   },
   aqua_public_aquaoasis_web_v1: {
@@ -30,6 +31,14 @@ export type PublicAquaSiteKey = keyof typeof PUBLIC_AQUA_SITES;
 
 export function publicAquaSite(siteKey: string) {
   return PUBLIC_AQUA_SITES[siteKey as PublicAquaSiteKey] ?? null;
+}
+
+export function publicAquaPropertyId(siteKey: string, requestedPropertyId: unknown) {
+  const site = publicAquaSite(siteKey);
+  if (!site) return null;
+  const requested = typeof requestedPropertyId === "string" ? requestedPropertyId.trim().slice(0, 120) : "";
+  const allowed = "propertyIds" in site ? site.propertyIds as readonly string[] : [site.propertyId];
+  return allowed.includes(requested) ? requested : site.propertyId;
 }
 
 export function isAllowedPublicSiteOrigin(siteKey: string, origin: string | null) {

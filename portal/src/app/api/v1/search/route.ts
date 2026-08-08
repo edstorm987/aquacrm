@@ -4,6 +4,7 @@ import {
   externalApiErrorResponse,
   externalApiHeaders,
   isExternalAssistantModule,
+  requireExternalAssistantPermission,
   searchExternalAssistantRecords,
   ExternalAssistantApiError,
   type ExternalAssistantModule,
@@ -13,7 +14,8 @@ import { ensureHydrated } from "@/server/storage";
 export async function POST(request: Request) {
   try {
     await ensureHydrated();
-    const auth = authenticateExternalAssistant(request);
+    const auth = await authenticateExternalAssistant(request);
+    requireExternalAssistantPermission(auth, "search:read");
     const body = await request.json().catch(() => null) as {
       query?: string;
       modules?: string[];
@@ -23,7 +25,7 @@ export async function POST(request: Request) {
     if (query.length < 2) {
       throw new ExternalAssistantApiError(400, "invalid_query", "Search query must contain at least 2 characters.");
     }
-    const modules = selectedModules(body?.modules);
+    const modules = selectedModules(body?.modules, auth.modules);
     const limit = body?.limit ?? 25;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
       throw new ExternalAssistantApiError(400, "invalid_limit", "limit must be between 1 and 100.");
@@ -44,10 +46,16 @@ export async function POST(request: Request) {
   }
 }
 
-function selectedModules(values?: string[]): ExternalAssistantModule[] {
-  if (!values?.length) return [...EXTERNAL_ASSISTANT_MODULES];
+function selectedModules(
+  values: string[] | undefined,
+  allowedModules: ExternalAssistantModule[],
+): ExternalAssistantModule[] {
+  if (!values?.length) return [...allowedModules];
   if (values.some(value => !isExternalAssistantModule(value))) {
     throw new ExternalAssistantApiError(400, "invalid_module", "One or more requested modules are unsupported.");
+  }
+  if (values.some(value => !allowedModules.includes(value as ExternalAssistantModule))) {
+    throw new ExternalAssistantApiError(403, "module_denied", "This API key cannot search one or more requested modules.");
   }
   return [...new Set(values)] as ExternalAssistantModule[];
 }

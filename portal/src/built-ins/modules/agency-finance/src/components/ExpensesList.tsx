@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Eye, FileUp, Paperclip, Plus, ReceiptText, Settings2, Trash2, X } from "lucide-react";
+import { ArrowUpDown, CalendarDays, Download, Eye, FileUp, Paperclip, Pencil, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
 
 import type { Client } from "../lib/tenancy";
 import type { Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
@@ -33,6 +33,10 @@ const STATUS_LABEL: Record<ExpenseStatus, string> = {
   rejected: "Excluded",
 };
 
+type ExpenseSort = "newest" | "oldest" | "amount-high" | "amount-low" | "supplier" | "category";
+type EvidenceFilter = "all" | "attached" | "missing";
+type RecurrenceFilter = "all" | "recurring" | "one-off";
+
 const inputClass = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
 const labelClass = "grid gap-1 text-xs font-medium text-black/60";
 
@@ -52,13 +56,20 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   const [records, setRecords] = useState(expenses);
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [evidenceFilter, setEvidenceFilter] = useState<EvidenceFilter>("all");
+  const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortBy, setSortBy] = useState<ExpenseSort>("newest");
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [postingId, setPostingId] = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
-  const catNameById = new Map(categories.map(category => [category.id, category.name]));
-  const clientNameById = new Map(clients.map(client => [client.id, client.name]));
+  const catNameById = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
+  const clientNameById = useMemo(() => new Map(clients.map(client => [client.id, client.name])), [clients]);
 
   useEffect(() => {
     setRecords(expenses);
@@ -75,14 +86,68 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const from = dateFrom ? Date.parse(`${dateFrom}T00:00:00`) : null;
+    const to = dateTo ? Date.parse(`${dateTo}T23:59:59.999`) : null;
     return records.filter(expense => {
       if (statusFilter !== "all" && expense.status !== statusFilter) return false;
       if (clientFilter === "unallocated" && expense.clientId) return false;
       if (clientFilter !== "all" && clientFilter !== "unallocated" && expense.clientId !== clientFilter) return false;
-      if (q && !`${expense.vendor ?? ""} ${expense.description ?? ""} ${expense.reason ?? ""} ${expense.reference ?? ""} ${expense.attachments?.map(file => file.name).join(" ") ?? ""} ${Object.values(expense.customFields ?? {}).flat().join(" ")}`.toLowerCase().includes(q)) return false;
+      if (categoryFilter !== "all" && expense.categoryId !== categoryFilter) return false;
+      const hasEvidence = Boolean(expense.receiptUrl || expense.attachments?.length);
+      if (evidenceFilter === "attached" && !hasEvidence) return false;
+      if (evidenceFilter === "missing" && hasEvidence) return false;
+      if (recurrenceFilter === "recurring" && !expense.recurrence) return false;
+      if (recurrenceFilter === "one-off" && expense.recurrence) return false;
+      if (from !== null && expense.incurredAt < from) return false;
+      if (to !== null && expense.incurredAt > to) return false;
+      const category = catNameById.get(expense.categoryId) ?? "Uncategorised";
+      const client = expense.clientId ? clientNameById.get(expense.clientId) ?? expense.clientId : "Business overhead";
+      const searchable = [
+        expense.vendor,
+        expense.description,
+        expense.reason,
+        expense.reference,
+        expense.paymentMethod?.replaceAll("-", " "),
+        expense.recurrence,
+        category,
+        client,
+        STATUS_LABEL[expense.status],
+        expense.currency,
+        (expense.amountCents / 100).toFixed(2),
+        new Date(expense.incurredAt).toLocaleDateString("en-GB"),
+        expense.attachments?.map(file => file.name).join(" "),
+        Object.values(expense.customFields ?? {}).flat().join(" "),
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (q && !searchable.includes(q)) return false;
       return true;
+    }).sort((left, right) => {
+      switch (sortBy) {
+        case "oldest": return left.incurredAt - right.incurredAt;
+        case "amount-high": return right.amountCents - left.amountCents;
+        case "amount-low": return left.amountCents - right.amountCents;
+        case "supplier": return (left.vendor || left.description || "").localeCompare(right.vendor || right.description || "", "en-GB", { sensitivity: "base" });
+        case "category": return (catNameById.get(left.categoryId) ?? "").localeCompare(catNameById.get(right.categoryId) ?? "", "en-GB", { sensitivity: "base" });
+        case "newest":
+        default: return right.incurredAt - left.incurredAt;
+      }
     });
-  }, [clientFilter, query, records, statusFilter]);
+  }, [catNameById, categoryFilter, clientFilter, clientNameById, dateFrom, dateTo, evidenceFilter, query, records, recurrenceFilter, sortBy, statusFilter]);
+
+  const hasActiveFilters = Boolean(
+    query || statusFilter !== "all" || clientFilter !== "all" || categoryFilter !== "all"
+    || evidenceFilter !== "all" || recurrenceFilter !== "all" || dateFrom || dateTo,
+  );
+
+  function clearFilters() {
+    setQuery("");
+    setStatusFilter("all");
+    setClientFilter("all");
+    setCategoryFilter("all");
+    setEvidenceFilter("all");
+    setRecurrenceFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  }
 
   const paid = records.filter(expense => expense.status === "reimbursed");
   const totalPaid = paid.reduce((sum, expense) => sum + expense.amountCents, 0);
@@ -182,7 +247,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close expense form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
           <div role="dialog" aria-modal="true" aria-labelledby="new-expense-heading" className="relative mx-auto max-h-[92vh] w-full max-w-5xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
-            <NewExpenseForm
+            <ExpenseForm
               apiBase={apiBase}
               categories={categories.filter(category => category.status === "active")}
               clients={clients}
@@ -197,33 +262,107 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
           </div>
         </div>
       ) : null}
+      {editingExpense ? (
+        <div className="fixed inset-0 z-[100] grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
+          <button type="button" aria-label="Close expense form" className="absolute inset-0 cursor-default" onClick={() => setEditingExpense(null)} />
+          <div role="dialog" aria-modal="true" aria-labelledby="edit-expense-heading" className="relative mx-auto max-h-[92vh] w-full max-w-5xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
+            <ExpenseForm
+              expense={editingExpense}
+              apiBase={apiBase}
+              categories={categories}
+              clients={clients}
+              customFields={customFields}
+              onClose={() => setEditingExpense(null)}
+              onSaved={expense => {
+                setRecords(current => current.map(item => item.id === expense.id ? expense : item));
+                setSelectedExpense(current => current?.id === expense.id ? expense : current);
+                setEditingExpense(null);
+                router.refresh();
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
       {selectedExpense ? <ExpenseDetail
         expense={selectedExpense}
         category={catNameById.get(selectedExpense.categoryId) ?? "Uncategorised"}
         client={selectedExpense.clientId ? clientNameById.get(selectedExpense.clientId) ?? "Unknown client" : "Business overhead"}
         customFields={customFields}
         onClose={() => setSelectedExpense(null)}
+        onEdit={canMutate ? () => {
+          setEditingExpense(selectedExpense);
+          setSelectedExpense(null);
+        } : undefined}
       /> : null}
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-black/10 pb-3">
-        <input
-          type="search"
-          value={query}
-          onChange={event => setQuery(event.target.value)}
-          placeholder="Search supplier, reason, reference, or evidence"
-          className={`${inputClass} min-w-56 flex-1`}
-        />
-        <select value={clientFilter} onChange={event => setClientFilter(event.target.value)} className={`${inputClass} min-w-44 sm:!w-auto`}>
-          <option value="all">All clients</option>
-          <option value="unallocated">Business overheads</option>
-          {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
-        </select>
-        <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as ExpenseStatus | "all")} className={`${inputClass} min-w-36 sm:!w-auto`}>
-          <option value="all">All statuses</option>
-          {(Object.keys(STATUS_LABEL) as ExpenseStatus[]).map(status => (
-            <option key={status} value={status}>{STATUS_LABEL[status]}</option>
-          ))}
-        </select>
+      <div className="space-y-3 border-b border-black/10 pb-4">
+        <div className="flex flex-col gap-2 lg:flex-row">
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">Search expenses</span>
+            <Search size={16} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
+            <input
+              type="search"
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              placeholder="Search any expense detail"
+              className={`${inputClass} pl-9 pr-9`}
+            />
+            {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded text-black/40 hover:bg-black/5"><X size={14} /></button> : null}
+          </label>
+          <label className="relative min-w-52">
+            <span className="sr-only">Sort expenses</span>
+            <ArrowUpDown size={15} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
+            <select value={sortBy} onChange={event => setSortBy(event.target.value as ExpenseSort)} className={`${inputClass} pl-9`}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="amount-high">Highest amount</option>
+              <option value="amount-low">Lowest amount</option>
+              <option value="supplier">Supplier A-Z</option>
+              <option value="category">Category A-Z</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <select value={clientFilter} onChange={event => setClientFilter(event.target.value)} aria-label="Filter by client" className={inputClass}>
+            <option value="all">All clients</option>
+            <option value="unallocated">Business overheads</option>
+            {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+          </select>
+          <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} aria-label="Filter by category" className={inputClass}>
+            <option value="all">All categories</option>
+            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as ExpenseStatus | "all")} aria-label="Filter by status" className={inputClass}>
+            <option value="all">All statuses</option>
+            {(Object.keys(STATUS_LABEL) as ExpenseStatus[]).map(status => (
+              <option key={status} value={status}>{STATUS_LABEL[status]}</option>
+            ))}
+          </select>
+          <select value={evidenceFilter} onChange={event => setEvidenceFilter(event.target.value as EvidenceFilter)} aria-label="Filter by evidence" className={inputClass}>
+            <option value="all">All evidence</option>
+            <option value="attached">Evidence attached</option>
+            <option value="missing">Missing evidence</option>
+          </select>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="grid min-w-40 flex-1 gap-1 text-xs font-medium text-black/50 sm:max-w-52">
+            <span className="inline-flex items-center gap-1.5"><CalendarDays size={13} aria-hidden /> From</span>
+            <input type="date" value={dateFrom} max={dateTo || undefined} onChange={event => setDateFrom(event.target.value)} className={inputClass} />
+          </label>
+          <label className="grid min-w-40 flex-1 gap-1 text-xs font-medium text-black/50 sm:max-w-52">
+            <span className="inline-flex items-center gap-1.5"><CalendarDays size={13} aria-hidden /> To</span>
+            <input type="date" value={dateTo} min={dateFrom || undefined} onChange={event => setDateTo(event.target.value)} className={inputClass} />
+          </label>
+          <select value={recurrenceFilter} onChange={event => setRecurrenceFilter(event.target.value as RecurrenceFilter)} aria-label="Filter by recurrence" className={`${inputClass} min-w-44 sm:!w-auto`}>
+            <option value="all">All frequencies</option>
+            <option value="recurring">Recurring only</option>
+            <option value="one-off">One-off only</option>
+          </select>
+          {hasActiveFilters ? <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/65 hover:bg-black/[0.03]"><X size={15} /> Clear filters</button> : null}
+          <p className="ml-auto pb-2 text-xs font-medium text-black/45" aria-live="polite">{filtered.length} of {records.length} expenses</p>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -283,6 +422,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
                   <td className="px-2 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
                     <button type="button" onClick={() => setSelectedExpense(expense)} aria-label={`Inspect ${expense.vendor || expense.description || "expense"}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Eye size={15} /></button>
+                    {canMutate ? <button type="button" onClick={() => setEditingExpense(expense)} aria-label={`Edit ${expense.vendor || expense.description || "expense"}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Pencil size={15} /></button> : null}
                     {canMutate && expense.recurrence && expense.recurringActive !== false ? (
                       <button
                         type="button"
@@ -309,7 +449,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   );
 }
 
-function ExpenseDetail({ expense, category, client, customFields, onClose }: { expense: Expense; category: string; client: string; customFields: CustomFieldDefinition[]; onClose: () => void }) {
+function ExpenseDetail({ expense, category, client, customFields, onClose, onEdit }: { expense: Expense; category: string; client: string; customFields: CustomFieldDefinition[]; onClose: () => void; onEdit?: () => void }) {
   const net = expense.netCents ?? expense.amountCents - (expense.taxCents ?? 0);
   return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6">
     <button type="button" className="absolute inset-0" aria-label="Close expense details" onClick={onClose} />
@@ -336,7 +476,10 @@ function ExpenseDetail({ expense, category, client, customFields, onClose }: { e
         <Detail label="Expense ID" value={expense.id} />
       </dl>
       {expense.attachments?.length ? <section className="mt-5"><h3 className="text-xs font-semibold uppercase tracking-wide text-black/45">Documents and receipts</h3><div className="mt-2 divide-y divide-black/10 border-y border-black/10">{expense.attachments.map(file => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-between gap-3 py-2 text-sm hover:bg-black/[0.02]"><span className="inline-flex min-w-0 items-center gap-2"><Paperclip size={15} className="shrink-0 text-black/40" /><span className="truncate font-medium text-black/75">{file.name}</span></span><span className="shrink-0 text-xs text-black/40">{fileSize(file.size)}</span></a>)}</div></section> : null}
-      <div className="mt-5 flex justify-end">{expense.receiptUrl ? <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center rounded-md bg-black px-4 text-sm font-semibold text-white">Open receipt link</a> : !expense.attachments?.length ? <span className="text-sm text-amber-700">No evidence attached</span> : null}</div>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div>{expense.receiptUrl ? <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center rounded-md border border-black/15 px-4 text-sm font-semibold text-black/75">Open receipt link</a> : !expense.attachments?.length ? <span className="text-sm text-amber-700">No evidence attached</span> : null}</div>
+        {onEdit ? <button type="button" onClick={onEdit} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Pencil size={15} /> Edit expense</button> : null}
+      </div>
     </section>
   </div>;
 }
@@ -354,12 +497,14 @@ function Summary({ label, value, alert }: { label: string; value: string; alert?
   );
 }
 
-function NewExpenseForm({ apiBase, categories, clients, customFields, onClose, onSaved }: { apiBase: string; categories: ExpenseCategory[]; clients: Client[]; customFields: CustomFieldDefinition[]; onClose: () => void; onSaved: (expense: Expense) => void }) {
+function ExpenseForm({ expense, apiBase, categories, clients, customFields, onClose, onSaved }: { expense?: Expense; apiBase: string; categories: ExpenseCategory[]; clients: Client[]; customFields: CustomFieldDefinition[]; onClose: () => void; onSaved: (expense: Expense) => void }) {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [taxRate, setTaxRate] = useState("20");
-  const [attachments, setAttachments] = useState<ExpenseAttachment[]>([]);
+  const initialTaxRate = String((expense?.taxRateBps ?? 2_000) / 100);
+  const [taxRate, setTaxRate] = useState(initialTaxRate);
+  const [attachments, setAttachments] = useState<ExpenseAttachment[]>(expense?.attachments ?? []);
+  const editing = Boolean(expense);
 
   async function uploadFiles(files: FileList | null) {
     if (!files?.length) return;
@@ -404,12 +549,14 @@ function NewExpenseForm({ apiBase, categories, clients, customFields, onClose, o
           if (field.type === "multi-select") return [field.id, data.getAll(key).map(String)];
           return [field.id, String(data.get(key) ?? "").trim()];
         }));
-        const body = {
+        const optionalValue = (value: FormDataEntryValue | null) => String(value ?? "").trim() || (editing ? null : undefined);
+        const recurrence = String(data.get("recurrence") ?? "");
+        const fields = {
           categoryId: String(data.get("categoryId") ?? ""),
-          clientId: String(data.get("clientId") ?? "") || undefined,
-          vendor: String(data.get("vendor") ?? "").trim() || undefined,
-          description: String(data.get("description") ?? "").trim() || undefined,
-          reason: String(data.get("reason") ?? "").trim() || undefined,
+          clientId: optionalValue(data.get("clientId")),
+          vendor: optionalValue(data.get("vendor")),
+          description: optionalValue(data.get("description")),
+          reason: optionalValue(data.get("reason")),
           amountCents,
           taxCents,
           taxRateBps: Math.round(rate * 100),
@@ -417,35 +564,37 @@ function NewExpenseForm({ apiBase, categories, clients, customFields, onClose, o
           businessUsePercent: Number(data.get("businessUsePercent") ?? 100),
           billableToClient: data.get("billableToClient") === "on",
           incurredAt: Date.parse(String(data.get("incurredAt") ?? "")) || undefined,
-          receiptUrl: String(data.get("receiptUrl") ?? "").trim() || undefined,
+          receiptUrl: optionalValue(data.get("receiptUrl")),
           attachments,
           paymentMethod: String(data.get("paymentMethod") ?? "card"),
-          reference: String(data.get("reference") ?? "").trim() || undefined,
-          recurrence: String(data.get("recurrence") ?? "") || undefined,
-          nextDueAt: Date.parse(String(data.get("nextDueAt") ?? "")) || undefined,
-          recurringActive: Boolean(data.get("recurrence")),
-          currency: "gbp",
-          recordAsPaid: data.get("recordAsPaid") === "on",
+          reference: optionalValue(data.get("reference")),
+          recurrence: recurrence || (editing ? null : undefined),
+          nextDueAt: Date.parse(String(data.get("nextDueAt") ?? "")) || (editing ? null : undefined),
+          recurringActive: Boolean(recurrence),
           customFields: customFieldValues,
         };
-        if (!body.categoryId || amountCents <= 0) {
+        if (!fields.categoryId || amountCents <= 0) {
           setError("Choose a category and enter a positive gross amount.");
           return;
         }
         setBusy(true);
         try {
           const response = await fetch(`${apiBase}/expenses`, {
-            method: "POST",
+            method: editing ? "PATCH" : "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify(body),
+            body: JSON.stringify(editing
+              ? { id: expense!.id, patch: fields }
+              : { ...fields, currency: "gbp", recordAsPaid: data.get("recordAsPaid") === "on" }),
           });
           const result = await response.json();
           if (!response.ok || !result.ok) {
             setError(result?.error ?? `Could not save expense (${response.status}).`);
             return;
           }
-          form.reset();
+          if (!editing) form.reset();
           onSaved(result.expense as Expense);
+        } catch (saveError) {
+          setError(saveError instanceof Error ? saveError.message : "The expense could not be saved.");
         } finally {
           setBusy(false);
         }
@@ -453,30 +602,31 @@ function NewExpenseForm({ apiBase, categories, clients, customFields, onClose, o
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-        <h2 id="new-expense-heading" className="text-lg font-semibold text-black/85">Record an expense</h2>
-        <p className="mt-1 text-sm text-black/50">Enter the amount exactly as it appears on the receipt or bank transaction.</p>
+        <h2 id={editing ? "edit-expense-heading" : "new-expense-heading"} className="text-lg font-semibold text-black/85">{editing ? "Edit expense" : "Record an expense"}</h2>
+        <p className="mt-1 text-sm text-black/50">{editing ? `Amend the record without changing its ${STATUS_LABEL[expense!.status].toLowerCase()} status.` : "Enter the amount exactly as it appears on the receipt or bank transaction."}</p>
         </div>
         <button type="button" onClick={onClose} aria-label="Close" title="Close" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/5"><X size={16} /></button>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <label className={labelClass}>Supplier<input name="vendor" className={inputClass} placeholder="Adobe" /></label>
+        <label className={labelClass}>Supplier<input name="vendor" defaultValue={expense?.vendor ?? ""} className={inputClass} placeholder="Adobe" /></label>
         <label className={labelClass}>Category
-          <select name="categoryId" className={inputClass} required defaultValue="">
+          <select name="categoryId" className={inputClass} required defaultValue={expense?.categoryId ?? ""}>
             <option value="" disabled>Choose category</option>
             {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
         </label>
-        <label className={labelClass}>Gross amount (£)<input name="amount" type="number" step="0.01" min="0.01" required className={inputClass} placeholder="0.00" /></label>
+        <label className={labelClass}>Gross amount (£)<input name="amount" type="number" step="0.01" min="0.01" required defaultValue={expense ? (expense.amountCents / 100).toFixed(2) : ""} className={inputClass} placeholder="0.00" /></label>
         <label className={labelClass}>Tax included
           <select name="taxRate" value={taxRate} onChange={event => setTaxRate(event.target.value)} className={inputClass}>
             <option value="0">No tax / exempt</option>
             <option value="5">5%</option>
             <option value="20">20% VAT</option>
+            {!['0', '5', '20'].includes(initialTaxRate) ? <option value={initialTaxRate}>{initialTaxRate}%</option> : null}
           </select>
         </label>
-        <label className={labelClass}>Expense date<input name="incurredAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className={inputClass} /></label>
+        <label className={labelClass}>Expense date<input name="incurredAt" type="date" defaultValue={toDateInputValue(expense?.incurredAt ?? Date.now())} className={inputClass} /></label>
         <label className={labelClass}>Paid using
-          <select name="paymentMethod" className={inputClass} defaultValue="card">
+          <select name="paymentMethod" className={inputClass} defaultValue={expense?.paymentMethod ?? "card"}>
             <option value="card">Card</option>
             <option value="bank-transfer">Bank transfer</option>
             <option value="direct-debit">Direct debit</option>
@@ -485,25 +635,25 @@ function NewExpenseForm({ apiBase, categories, clients, customFields, onClose, o
           </select>
         </label>
         <label className={labelClass}>Allocate to client
-          <select name="clientId" className={inputClass} defaultValue="">
+          <select name="clientId" className={inputClass} defaultValue={expense?.clientId ?? ""}>
             <option value="">Business overhead</option>
             {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
           </select>
         </label>
-        <label className={labelClass}>Business use (%)<input name="businessUsePercent" type="number" min="0" max="100" defaultValue="100" className={inputClass} /></label>
+        <label className={labelClass}>Business use (%)<input name="businessUsePercent" type="number" min="0" max="100" defaultValue={expense?.businessUsePercent ?? 100} className={inputClass} /></label>
         <label className={labelClass}>Repeats
-          <select name="recurrence" className={inputClass} defaultValue="">
+          <select name="recurrence" className={inputClass} defaultValue={expense?.recurrence ?? ""}>
             <option value="">One-off expense</option>
             <option value="monthly">Monthly</option>
             <option value="quarterly">Quarterly</option>
             <option value="annual">Annual</option>
           </select>
         </label>
-        <label className={labelClass}>Next payment date<input name="nextDueAt" type="date" className={inputClass} /></label>
-        <label className={`${labelClass} sm:col-span-2`}>What was purchased?<input name="description" className={inputClass} placeholder="Creative Cloud monthly subscription" /></label>
-        <label className={`${labelClass} sm:col-span-2`}>Reason for this expense<textarea name="reason" rows={3} className={`${inputClass} py-2`} placeholder="Why the business needed this cost" /></label>
-        <label className={labelClass}>Existing receipt link (optional)<input name="receiptUrl" type="url" className={inputClass} placeholder="https://…" /></label>
-        <label className={labelClass}>Bank / receipt reference<input name="reference" className={inputClass} placeholder="Transaction ID" /></label>
+        <label className={labelClass}>Next payment date<input name="nextDueAt" type="date" defaultValue={expense?.nextDueAt ? toDateInputValue(expense.nextDueAt) : ""} className={inputClass} /></label>
+        <label className={`${labelClass} sm:col-span-2`}>What was purchased?<input name="description" defaultValue={expense?.description ?? ""} className={inputClass} placeholder="Creative Cloud monthly subscription" /></label>
+        <label className={`${labelClass} sm:col-span-2`}>Reason for this expense<textarea name="reason" rows={3} defaultValue={expense?.reason ?? ""} className={`${inputClass} py-2`} placeholder="Why the business needed this cost" /></label>
+        <label className={labelClass}>Existing receipt link (optional)<input name="receiptUrl" type="url" defaultValue={expense?.receiptUrl ?? ""} className={inputClass} placeholder="https://…" /></label>
+        <label className={labelClass}>Bank / receipt reference<input name="reference" defaultValue={expense?.reference ?? ""} className={inputClass} placeholder="Transaction ID" /></label>
       </div>
       <section className="mt-4 border-y border-black/10 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -522,44 +672,50 @@ function NewExpenseForm({ apiBase, categories, clients, customFields, onClose, o
             <div key={section} className="mb-4 last:mb-0">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-black/40">{section}</p>
               <div className="grid gap-4 sm:grid-cols-2">
-                {customFields.filter(field => field.section === section).map(field => <CustomFieldInput key={field.id} field={field} />)}
+                {customFields.filter(field => field.section === section).map(field => <CustomFieldInput key={field.id} field={field} value={expense?.customFields?.[field.id]} />)}
               </div>
             </div>
           ))}
         </section>
       ) : null}
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-black/65">
-        <label className="inline-flex items-center gap-2"><input type="checkbox" name="recordAsPaid" defaultChecked className="size-4 shrink-0 accent-black" /> Money has left the business</label>
-        <label className="inline-flex items-center gap-2"><input type="checkbox" name="taxDeductible" defaultChecked className="size-4 shrink-0 accent-black" /> Tax is recoverable</label>
-        <label className="inline-flex items-center gap-2"><input type="checkbox" name="billableToClient" className="size-4 shrink-0 accent-black" /> Recharge this cost to the client</label>
+        {!editing ? <label className="inline-flex items-center gap-2"><input type="checkbox" name="recordAsPaid" defaultChecked className="size-4 shrink-0 accent-black" /> Money has left the business</label> : null}
+        <label className="inline-flex items-center gap-2"><input type="checkbox" name="taxDeductible" defaultChecked={expense?.taxDeductible ?? true} className="size-4 shrink-0 accent-black" /> Tax is recoverable</label>
+        <label className="inline-flex items-center gap-2"><input type="checkbox" name="billableToClient" defaultChecked={expense?.billableToClient ?? false} className="size-4 shrink-0 accent-black" /> Recharge this cost to the client</label>
       </div>
       {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
       <div className="mt-5 flex justify-end">
         <button type="submit" disabled={busy || uploading} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">
-          {busy ? "Saving…" : uploading ? "Waiting for uploads…" : "Save expense"}
+          {busy ? "Saving…" : uploading ? "Waiting for uploads…" : editing ? "Save changes" : "Save expense"}
         </button>
       </div>
     </form>
   );
 }
 
-function CustomFieldInput({ field }: { field: CustomFieldDefinition }) {
+function CustomFieldInput({ field, value }: { field: CustomFieldDefinition; value?: string | string[] | boolean }) {
   const name = `custom:${field.id}`;
   if (field.type === "checkbox") {
-    return <label className="inline-flex min-h-10 items-center gap-2 self-end text-sm text-black/65"><input type="checkbox" name={name} required={field.required} className="size-4 accent-black" />{field.label}</label>;
+    return <label className="inline-flex min-h-10 items-center gap-2 self-end text-sm text-black/65"><input type="checkbox" name={name} required={field.required} defaultChecked={value === true} className="size-4 accent-black" />{field.label}</label>;
   }
   if (field.type === "textarea") {
-    return <label className={`${labelClass} sm:col-span-2`}>{field.label}<textarea name={name} required={field.required} rows={3} className={`${inputClass} py-2`} /></label>;
+    return <label className={`${labelClass} sm:col-span-2`}>{field.label}<textarea name={name} required={field.required} rows={3} defaultValue={typeof value === "string" ? value : ""} className={`${inputClass} py-2`} /></label>;
   }
   if (field.type === "select" || field.type === "multi-select") {
     return <label className={labelClass}>{field.label}
-      <select name={name} required={field.required} multiple={field.type === "multi-select"} className={`${inputClass} ${field.type === "multi-select" ? "min-h-24 py-2" : ""}`} defaultValue={field.type === "multi-select" ? [] : ""}>
+      <select name={name} required={field.required} multiple={field.type === "multi-select"} className={`${inputClass} ${field.type === "multi-select" ? "min-h-24 py-2" : ""}`} defaultValue={field.type === "multi-select" ? (Array.isArray(value) ? value : []) : (typeof value === "string" ? value : "")}>
         {field.type === "select" ? <option value="">Choose an option</option> : null}
         {field.options.map(option => <option key={option} value={option}>{option}</option>)}
       </select>
     </label>;
   }
-  return <label className={labelClass}>{field.label}<input name={name} required={field.required} type={field.type} className={inputClass} /></label>;
+  return <label className={labelClass}>{field.label}<input name={name} required={field.required} type={field.type} defaultValue={typeof value === "string" ? value : ""} className={inputClass} /></label>;
+}
+
+function toDateInputValue(value: number): string {
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function formatCustomValue(value: string | string[] | boolean | undefined): string {

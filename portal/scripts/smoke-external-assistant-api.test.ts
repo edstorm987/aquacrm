@@ -6,11 +6,56 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("external assistant gateway is bearer-authenticated and tenant-scoped", () => {
   const gateway = read("src/lib/server/externalAssistantApi.ts");
+  const keys = read("src/lib/server/externalAssistantKeys.ts");
   assert.match(gateway, /MILESYMEDIA_ASSISTANT_API_TOKEN/);
   assert.match(gateway, /MILESYMEDIA_ASSISTANT_AGENCY_ID/);
   assert.match(gateway, /timingSafeEqual/);
+  assert.match(gateway, /findExternalAssistantApiKey/);
   assert.match(gateway, /agencyId/);
   assert.match(gateway, /rateLimit/);
+  assert.match(keys, /randomBytes\(32\)/);
+  assert.match(keys, /tokenHash/);
+  assert.match(keys, /createHash\("sha256"\)/);
+});
+
+test("owners can manage multiple scoped keys without persisting plaintext secrets", () => {
+  const route = read("src/app/api/portal/settings/external-ai/route.ts");
+  const keys = read("src/lib/server/externalAssistantKeys.ts");
+  const storage = read("src/server/storage.ts");
+  const types = read("src/server/types.ts");
+  const ui = read("src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx");
+
+  assert.match(route, /action === "create"/);
+  assert.match(route, /action === "rotate"/);
+  assert.match(route, /export async function DELETE/);
+  assert.match(keys, /external_ai\.key_created/);
+  assert.match(keys, /external_ai\.key_rotated/);
+  assert.match(keys, /external_ai\.key_revoked/);
+  assert.match(storage, /externalAssistantApiKeys: parsed\.externalAssistantApiKeys \?\? \{\}/);
+  assert.match(types, /externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>/);
+  assert.doesNotMatch(types, /interface ExternalAssistantApiKey[\s\S]*?\n\s+token:/);
+  assert.match(ui, /Generate key/);
+  assert.match(ui, /Copy this key now/);
+  assert.match(ui, /Rotate/);
+  assert.match(ui, /Revoke/);
+});
+
+test("managed key permissions and modules are enforced at every data route", () => {
+  const context = read("src/app/api/v1/assistant/context/route.ts");
+  const records = read("src/app/api/v1/records/route.ts");
+  const record = read("src/app/api/v1/records/[recordId]/route.ts");
+  const search = read("src/app/api/v1/search/route.ts");
+  const exportRoute = read("src/app/api/v1/export/route.ts");
+
+  assert.match(context, /requireExternalAssistantPermission\(auth, "context:read"\)/);
+  for (const source of [records, record]) {
+    assert.match(source, /requireExternalAssistantPermission\(auth, "records:read"\)/);
+    assert.match(source, /requireExternalAssistantModule/);
+  }
+  assert.match(search, /requireExternalAssistantPermission\(auth, "search:read"\)/);
+  assert.match(search, /allowedModules/);
+  assert.match(exportRoute, /requireExternalAssistantPermission\(auth, "export:read"\)/);
+  assert.match(exportRoute, /auth\.modules/);
 });
 
 test("external assistant data is sanitised before leaving the portal", () => {

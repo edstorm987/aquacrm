@@ -3,7 +3,7 @@ import { recordClientTelemetry } from "@/lib/server/clientTelemetry";
 import { recordAgencyWebsiteTelemetry } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isAllowedPublicSiteOrigin, publicAquaSite } from "@/lib/publicSites";
+import { isAllowedPublicSiteOrigin, publicAquaPropertyId, publicAquaSite } from "@/lib/publicSites";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 
 function corsHeaders(origin: string | null): HeadersInit {
@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
   }
 
   const telemetry = publicSite ? sanitizePublicTelemetry(body) : body;
+  if (publicSite) telemetry.propertyId = publicAquaPropertyId(siteKey, body.propertyId);
 
   const limit = rateLimit({
     key: `telemetry:${siteKey}:${clientIpFromHeaders(req.headers)}`,
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
     const { error } = await supabase.from("website_consent_events").insert({
       brand_slug: publicSite?.brand ?? null,
       site_key: siteKey,
-      property_id: publicSite?.propertyId ?? (clean(body.propertyId, 120) || "unassigned"),
+      property_id: publicAquaPropertyId(siteKey, body.propertyId) ?? (clean(body.propertyId, 120) || "unassigned"),
       anonymous_id: clean(body.anonymousId, 120) || null,
       necessary: true,
       preferences: body.consentPreferences === true,

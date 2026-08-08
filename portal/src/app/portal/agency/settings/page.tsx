@@ -15,6 +15,7 @@ import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { SettingsTabs } from "./SettingsTabs";
 import type { Role } from "@/server/types";
 import { listTradingCompanies } from "@/server/tradingCompanies";
+import { listExternalAssistantApiKeys } from "@/lib/server/externalAssistantKeys";
 
 type AgencyTeamRole = Extract<Role, "agency-owner" | "agency-manager" | "agency-staff">;
 
@@ -63,6 +64,8 @@ export default async function AgencySettingsPage() {
     readiness: inspectProductionReadiness(process.env, {
       activeClientCount: activeClients.length,
       billingConfiguredClientCount,
+      activeExternalAssistantKeyCount: listExternalAssistantApiKeys(agency.id)
+        .filter(key => key.status === "active").length,
     }),
     settings: getAgencyWorkspaceSettings(agency.id),
     canManageSettings: session.role === "agency-owner" || session.role === "agency-manager",

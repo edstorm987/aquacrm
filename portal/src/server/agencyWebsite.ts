@@ -14,9 +14,9 @@ import type {
   AgencyWebsiteReleaseStatus,
   AgencyWebsiteTelemetryEvent,
 } from "@/server/types";
-import { publicAquaSite } from "@/lib/publicSites";
+import { publicAquaPropertyId, publicAquaSite } from "@/lib/publicSites";
 
-const MAX_EVENTS = 500;
+const MAX_EVENTS = 5_000;
 const MAX_EVENTS_PER_MINUTE = 120;
 
 function defaults(agencyId: string): AgencyWebsiteProject {
@@ -149,7 +149,10 @@ export function recordAgencyWebsiteTelemetry(
     : Object.values(getState().agencyWebsites).find(item => item.telemetrySiteKey === siteKey);
   if (!project) return null;
   const minuteAgo = Date.now() - 60_000;
-  if (project.telemetryEvents.filter(event => event.receivedAt >= minuteAgo).length >= MAX_EVENTS_PER_MINUTE) {
+  const propertyId = publicSite
+    ? publicAquaPropertyId(siteKey, input.propertyId) ?? undefined
+    : cleanText(input.propertyId, 120);
+  if (project.telemetryEvents.filter(event => event.receivedAt >= minuteAgo && (!propertyId || event.propertyId === propertyId)).length >= MAX_EVENTS_PER_MINUTE) {
     return { status: "rate-limited" };
   }
   const now = Date.now();
@@ -163,7 +166,7 @@ export function recordAgencyWebsiteTelemetry(
     type,
     receivedAt: now,
     occurredAt: requestedAt && Math.abs(now - requestedAt) < 7 * 24 * 60 * 60 * 1_000 ? requestedAt : now,
-    propertyId: publicSite?.propertyId ?? cleanText(input.propertyId, 120),
+    propertyId,
     url: cleanUrl(input.url),
     path: cleanText(input.path, 1_024),
     title: cleanText(input.title, 240),
@@ -201,7 +204,7 @@ export function recordAgencyWebsiteTelemetry(
       agencyId: project.agencyId,
       category: event.type === "error" ? "support" : event.type === "deployment" ? "fulfillment" : "marketing",
       action: `website.${event.type}`,
-      message: `Milesymedia website recorded a ${event.type === "form" ? "form submission" : event.type}.`,
+      message: `${publicSite?.brand ?? project.name} recorded a ${event.type === "form" ? "form submission" : event.type}.`,
       metadata: {
         telemetryEventId: event.id,
         path: event.path,

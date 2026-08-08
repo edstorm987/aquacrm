@@ -6,6 +6,8 @@ import {
   isExternalAssistantModule,
   listExternalAssistantRecords,
   recordsToCsv,
+  requireExternalAssistantModule,
+  requireExternalAssistantPermission,
   ExternalAssistantApiError,
 } from "@/lib/server/externalAssistantApi";
 import { ensureHydrated } from "@/server/storage";
@@ -13,18 +15,20 @@ import { ensureHydrated } from "@/server/storage";
 export async function GET(request: Request) {
   try {
     await ensureHydrated();
-    const auth = authenticateExternalAssistant(request);
+    const auth = await authenticateExternalAssistant(request);
+    requireExternalAssistantPermission(auth, "export:read");
     const search = new URL(request.url).searchParams;
     const module = search.get("module");
     if (module && !isExternalAssistantModule(module)) {
       throw new ExternalAssistantApiError(400, "invalid_module", "Choose a supported module.");
     }
     const selectedModule = module && isExternalAssistantModule(module) ? module : null;
+    if (selectedModule) requireExternalAssistantModule(auth, selectedModule);
     const format = search.get("format") || "json";
     if (format !== "json" && format !== "csv") {
       throw new ExternalAssistantApiError(400, "invalid_format", "format must be json or csv.");
     }
-    const modules = selectedModule ? [selectedModule] : EXTERNAL_ASSISTANT_MODULES;
+    const modules = selectedModule ? [selectedModule] : auth.modules;
     const records = modules.flatMap(item => listExternalAssistantRecords(auth.agencyId, item));
     const stamp = new Date().toISOString().slice(0, 10);
     const filename = `milesymedia-${module || "all-data"}-${stamp}.${format}`;

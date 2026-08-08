@@ -487,6 +487,29 @@ export interface AssistantWorkspaceState {
   updatedAt: number;
 }
 
+export type ExternalAssistantApiPermission =
+  | "context:read"
+  | "records:read"
+  | "search:read"
+  | "export:read";
+
+export interface ExternalAssistantApiKey {
+  id: string;
+  agencyId: string;
+  name: string;
+  tokenHash: string;
+  tokenPrefix: string;
+  fingerprint: string;
+  modules: string[];
+  permissions: ExternalAssistantApiPermission[];
+  createdAt: number;
+  createdBy: string;
+  expiresAt?: number;
+  lastUsedAt?: number;
+  revokedAt?: number;
+  revokedBy?: string;
+}
+
 // ─── Agency tasks ────────────────────────────────────────────────────────
 
 export type AgencyTaskStatus = "todo" | "in-progress" | "done";
@@ -923,6 +946,7 @@ export interface PortalState {
   pipelineCards: Record<string, PipelineCard>;
   // `${agencyId}|${userId}` → private assistant history and memories.
   assistant?: Record<string, AssistantWorkspaceState>;
+  externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
   tasks: Record<string, AgencyTask>;
   sops: Record<string, SopDocument>;
   agencyProducts: Record<string, AgencyProduct>;
@@ -933,6 +957,7 @@ export interface PortalState {
   portalEditor: Record<string, PortalFormEditorState>;
   companyProfiles: Record<string, CompanyProfile>;
   legalDocuments: Record<string, LegalDocument>;
+  contractTemplates: Record<string, import("@/lib/clientContracts").ClientContractTemplate>;
   developmentResources: Record<string, DevelopmentResource>;
   developmentWorkflows: Record<string, DevelopmentWorkflow>;
   agencyWebsites: Record<string, AgencyWebsiteProject>;

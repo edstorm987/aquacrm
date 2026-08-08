@@ -1,13 +1,13 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
 import { AGENCY_ROLES, CLIENT_ROLES, isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import type { ClientContract } from "@/lib/clientContracts";
+import type { ClientContract, ClientContractRevision } from "@/lib/clientContracts";
 
-type Action = "create" | "send" | "accept" | "decline" | "delete";
+type Action = "create" | "update" | "send" | "accept" | "decline" | "delete";
 
 interface Body {
   clientId?: unknown;
@@ -15,16 +15,35 @@ interface Body {
   contractId?: unknown;
   title?: unknown;
   summary?: unknown;
+  body?: unknown;
   documentUrl?: unknown;
+  documentName?: unknown;
+  templateId?: unknown;
+  amendmentNote?: unknown;
 }
 
 function cleanText(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-function cleanUrl(value: unknown): string | undefined {
+function cleanUrl(value: unknown, clientId: string): string | undefined {
   const raw = cleanText(value, 2_000);
   if (!raw) return undefined;
+  if (raw.startsWith("/")) {
+    try {
+      const url = new URL(raw, "http://aquacrm.local");
+      if (
+        url.pathname === "/api/tenants/client-files/content"
+        && url.searchParams.get("clientId") === clientId
+        && Boolean(url.searchParams.get("fileId"))
+      ) {
+        return `${url.pathname}?${url.searchParams.toString()}`;
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
   try {
     const url = new URL(raw);
     return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : undefined;
@@ -38,7 +57,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null) as Body | null;
   const clientId = cleanText(body?.clientId, 120);
   const action = cleanText(body?.action, 30) as Action;
-  if (!clientId || !["create", "send", "accept", "decline", "delete"].includes(action)) {
+  if (!clientId || !["create", "update", "send", "accept", "decline", "delete"].includes(action)) {
     return NextResponse.json({ ok: false, error: "clientId + valid action required" }, { status: 400 });
   }
 
@@ -65,8 +84,11 @@ export async function POST(req: Request) {
   if (action === "create") {
     const title = cleanText(body?.title, 180);
     const summary = cleanText(body?.summary, 2_000);
+    const contractBody = cleanText(body?.body, 50_000);
     const suppliedUrl = cleanText(body?.documentUrl, 2_000);
-    const documentUrl = cleanUrl(body?.documentUrl);
+    const documentUrl = cleanUrl(body?.documentUrl, clientId);
+    const documentName = cleanText(body?.documentName, 200);
+    const templateId = cleanText(body?.templateId, 120);
     if (!title) return NextResponse.json({ ok: false, error: "agreement title required" }, { status: 400 });
     if (suppliedUrl && !documentUrl) {
       return NextResponse.json({ ok: false, error: "document link must use http or https" }, { status: 400 });
@@ -75,7 +97,12 @@ export async function POST(req: Request) {
       id: `ctr_${crypto.randomBytes(8).toString("hex")}`,
       title,
       summary: summary || undefined,
+      body: contractBody || undefined,
       documentUrl,
+      documentName: documentName || undefined,
+      templateId: templateId || undefined,
+      version: 1,
+      revisions: [],
       status: "draft",
       createdAt: now,
       updatedAt: now,
@@ -89,13 +116,63 @@ export async function POST(req: Request) {
     if (index < 0) return NextResponse.json({ ok: false, error: "agreement not found" }, { status: 404 });
     const current = contracts[index];
 
-    if (action === "send") {
+    if (action === "update") {
       if (!agencyUser) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+      const title = cleanText(body?.title, 180);
+      const summary = cleanText(body?.summary, 2_000);
+      const contractBody = cleanText(body?.body, 50_000);
+      const suppliedUrl = cleanText(body?.documentUrl, 2_000);
+      const documentUrl = cleanUrl(body?.documentUrl, clientId);
+      const documentName = cleanText(body?.documentName, 200);
+      const templateId = cleanText(body?.templateId, 120);
+      const amendmentNote = cleanText(body?.amendmentNote, 500);
+      if (!title) return NextResponse.json({ ok: false, error: "agreement title required" }, { status: 400 });
+      if (suppliedUrl && !documentUrl) {
+        return NextResponse.json({ ok: false, error: "document link must use http or https" }, { status: 400 });
+      }
+      const priorVersion = current.version ?? 1;
+      const revision: ClientContractRevision = {
+        version: priorVersion,
+        title: current.title,
+        summary: current.summary,
+        body: current.body,
+        documentUrl: current.documentUrl,
+        documentName: current.documentName,
+        templateId: current.templateId,
+        note: amendmentNote || undefined,
+        createdAt: now,
+        createdBy: session.email,
+      };
+      contracts[index] = {
+        ...current,
+        title,
+        summary: summary || undefined,
+        body: contractBody || undefined,
+        documentUrl,
+        documentName: documentName || undefined,
+        templateId: templateId || undefined,
+        version: priorVersion + 1,
+        revisions: [...(current.revisions ?? []), revision],
+        status: "draft",
+        issuedAt: undefined,
+        acceptedAt: undefined,
+        acceptedBy: undefined,
+        declinedAt: undefined,
+        declinedBy: undefined,
+        updatedAt: now,
+      };
+      message = `Amended agreement “${current.title}” for ${client.name} as version ${priorVersion + 1}.`;
+      activityAction = "contract.amended";
+    } else if (action === "send") {
+      if (!agencyUser) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+      if (!current.body && !current.documentUrl) {
+        return NextResponse.json({ ok: false, error: "write terms or attach a document before sending" }, { status: 409 });
+      }
       contracts[index] = { ...current, status: "sent", issuedAt: now, updatedAt: now };
       message = `Sent agreement “${current.title}” to ${client.name}.`;
       activityAction = "contract.sent";
     } else if (action === "accept") {
-      if (current.status !== "sent" && !agencyUser) {
+      if (current.status !== "sent") {
         return NextResponse.json({ ok: false, error: "only a sent agreement can be accepted" }, { status: 409 });
       }
       contracts[index] = {
@@ -147,6 +224,8 @@ export async function POST(req: Request) {
     action: activityAction,
     message,
   });
+
+  await flushPendingWrites();
 
   return NextResponse.json({ ok: true, contracts });
 }
