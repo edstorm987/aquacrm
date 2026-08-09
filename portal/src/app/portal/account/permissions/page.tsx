@@ -4,8 +4,9 @@ import { effectiveRole } from "@/lib/server/effectiveRole";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
+import { ArrowLeft, Check, ShieldCheck } from "lucide-react";
 
-export const metadata = { title: "Permissions · Milesy Media" };
+export const metadata = { title: "Permissions · AquaCRM" };
 
 const ROLE_LABEL: Record<string, string> = {
   "agency-owner": "Business owner",
@@ -41,17 +42,24 @@ export default async function PermissionsPage() {
   const eff = effectiveRole(session);
 
   return (
-    <main id="main-content" className="mm-portal-root relative flex min-h-screen w-full justify-center px-4 py-16 sm:py-20">
+    <main id="main-content" data-portal-area="account" className="mm-portal-root mm-route-canvas relative flex min-h-screen w-full justify-center px-4 py-16 sm:px-6 sm:py-20">
       <div className="absolute right-4 top-4 sm:right-6 sm:top-6"><ColorModeToggle /></div>
       <div className="w-full max-w-2xl">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-black/90">Permissions</h1>
-          <p className="mt-1 text-sm text-black/55">
+        <Link href="/portal/account" className="mb-7 inline-flex min-h-9 items-center gap-2 text-xs font-medium text-black/50 transition hover:text-black/80">
+          <ArrowLeft size={14} aria-hidden="true" /> Back to profile
+        </Link>
+        <header className="mb-7 flex items-start gap-4">
+          <span className="mm-area-icon grid size-11 shrink-0 place-items-center rounded-lg" aria-hidden="true"><ShieldCheck size={19} /></span>
+          <div>
+          <p className="text-[10px] font-semibold uppercase text-black/40">Account access</p>
+          <h1 className="mt-1 text-2xl font-semibold text-black/90">Permissions</h1>
+          <p className="mt-2 text-sm leading-6 text-black/55">
             A clear summary of what your account can view and change.
           </p>
+          </div>
         </header>
 
-        <section className="rounded-xl border border-black/8 bg-white p-6 shadow-sm">
+        <section className="mm-surface-card rounded-lg border p-5 sm:p-6">
           <div className="flex items-center justify-between gap-4 border-b border-black/6 pb-4">
             <div>
               <div className="text-xs uppercase tracking-wider text-black/45">Role</div>
@@ -71,8 +79,8 @@ export default async function PermissionsPage() {
               </li>
             ) : (
               eff.permissions.map(p => (
-                <li key={p} className="rounded-md border border-black/8 bg-[#FDFCF8] px-3 py-2 font-mono text-xs text-black/70">
-                  {permissionLabel(p)}
+                <li key={p} className="flex min-h-10 items-center gap-2 rounded-md border border-black/8 bg-[#FDFCF8] px-3 py-2 text-xs font-medium text-black/70">
+                  <Check size={13} className="shrink-0 text-emerald-700" aria-hidden="true" /> {permissionLabel(p)}
                 </li>
               ))
             )}

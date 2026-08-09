@@ -235,6 +235,15 @@ describe("agency-finance smoke", () => {
     expenseId = exp.id;
     assert.equal(exp.status, "pending");
 
+    const expenseIndex = (await world.storage.get<string[]>("expenses/index")) ?? [];
+    await world.storage.set("expenses/index", expenseIndex.filter(id => id !== expenseId));
+    assert.equal(
+      (await services.expenses.list()).some(row => row.id === expenseId),
+      true,
+      "expense records remain discoverable when an index entry is missing",
+    );
+    await world.storage.set("expenses/index", expenseIndex);
+
     // Cannot reimburse without approval first.
     await assert.rejects(
       services.expenses.reimburse(expenseId, ACTOR),

@@ -4,6 +4,7 @@ import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
 import { logActivity } from "@/server/activity";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/publicUrl";
 
 export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
 export type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived";
@@ -108,6 +109,29 @@ function cleanProperty(input: PropertyInput, existing?: ClientProperty): ClientP
   };
 }
 
+function normalizePropertyUrls(input: PropertyInput): { property?: PropertyInput; error?: string } {
+  const property = { ...input };
+
+  if (Object.prototype.hasOwnProperty.call(input, "liveUrl")) {
+    const raw = cleanString(input.liveUrl);
+    const normalized = normalizeWebsiteUrl(raw);
+    if (raw && !normalized) return { error: "Enter a valid official website URL." };
+    if (normalized && isLocalDevelopmentUrl(normalized)) {
+      return { error: "Live URL cannot use localhost. Put local addresses in Preview URL." };
+    }
+    property.liveUrl = normalized;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, "previewUrl")) {
+    const raw = cleanString(input.previewUrl);
+    const normalized = normalizeWebsiteUrl(raw);
+    if (raw && !normalized) return { error: "Enter a valid preview URL." };
+    property.previewUrl = normalized;
+  }
+
+  return { property };
+}
+
 export async function POST(req: Request) {
   try {
     await ensureHydrated();
@@ -127,7 +151,9 @@ export async function POST(req: Request) {
 
     if (body.action === "add") {
       if (!body.property) return NextResponse.json({ ok: false, error: "property required" }, { status: 400 });
-      changed = cleanProperty(body.property);
+      const normalized = normalizePropertyUrls(body.property);
+      if (!normalized.property) return NextResponse.json({ ok: false, error: normalized.error }, { status: 400 });
+      changed = cleanProperty(normalized.property);
       if (!changed) return NextResponse.json({ ok: false, error: "property label required" }, { status: 400 });
       next = [changed, ...properties];
     }
@@ -136,7 +162,9 @@ export async function POST(req: Request) {
       if (!body.property?.id) return NextResponse.json({ ok: false, error: "property.id required" }, { status: 400 });
       const existing = properties.find(p => p.id === body.property?.id);
       if (!existing) return NextResponse.json({ ok: false, error: "property not found" }, { status: 404 });
-      changed = cleanProperty(body.property, existing);
+      const normalized = normalizePropertyUrls(body.property);
+      if (!normalized.property) return NextResponse.json({ ok: false, error: normalized.error }, { status: 400 });
+      changed = cleanProperty(normalized.property, existing);
       if (!changed) return NextResponse.json({ ok: false, error: "property label required" }, { status: 400 });
       next = properties.map(p => p.id === changed?.id ? changed : p);
     }

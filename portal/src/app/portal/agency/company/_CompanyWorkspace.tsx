@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ChevronRight, CircleAlert, Compass, Flag, HeartPulse, Pencil, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, X } from "lucide-react";
+import { Check, ChevronRight, CircleAlert, Compass, Flag, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument } from "@/server/types";
+import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, SopDocument, TradingCompany } from "@/server/types";
 import { calculateCompanyHealth } from "@/lib/companyHealth";
 import { LegalCompliancePanel } from "./_LegalCompliancePanel";
+import { ProductsWorkspace } from "../products/_ProductsWorkspace";
+import { CompanyConnectionsWorkspace } from "./_CompanyConnectionsWorkspace";
 
 interface Actuals {
   monthRevenueCents: number;
@@ -20,11 +22,11 @@ interface Actuals {
   overdueTasks: number;
 }
 
-type View = "overview" | "direction" | "plans" | "legal";
+type View = "overview" | "direction" | "plans" | "products" | "connections" | "legal";
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/40";
 const textarea = `${control} min-h-28 py-2`;
 
-export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legalDocuments }: { initial: CompanyProfile; companyName: string; actuals: Actuals; canEdit: boolean; legalDocuments: LegalDocument[] }) {
+export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, productDefaults, clients, workspaceWebsite }: { initial: CompanyProfile; companyName: string; actuals: Actuals; canEdit: boolean; legalDocuments: LegalDocument[]; initialProducts: AgencyProduct[]; sops: SopDocument[]; tradingCompanies: TradingCompany[]; productDefaults: { taxRatePercent: number; paymentTermsDays: number }; clients: Array<{ id: string; name: string }>; workspaceWebsite?: string }) {
   const [company, setCompany] = useState(initial);
   const [view, setView] = useState<View>("overview");
   const [editingDirection, setEditingDirection] = useState(false);
@@ -32,8 +34,21 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    if (window.location.hash === "#legal") setView("legal");
+    const requestedView = new URLSearchParams(window.location.search).get("view");
+    if (requestedView === "products") setView("products");
+    else if (requestedView === "connections") setView("connections");
+    else if (window.location.hash === "#legal") setView("legal");
   }, []);
+
+  function selectView(nextView: View) {
+    setView(nextView);
+    const url = new URL(window.location.href);
+    if (nextView === "products") url.searchParams.set("view", "products");
+    else if (nextView === "connections") url.searchParams.set("view", "connections");
+    else url.searchParams.delete("view");
+    url.hash = nextView === "legal" ? "legal" : "";
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
 
   const target = company.monthlyRevenueTargetCents;
   const gap = Math.max(0, target - actuals.monthRevenueCents);
@@ -118,9 +133,11 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
           ["overview", "Overview", TrendingUp],
           ["direction", "Direction", Compass],
           ["plans", "Plans & reviews", Flag],
+          ["products", "Products", Package],
+          ["connections", "Connections", PlugZap],
           ["legal", "Legal & compliance", ShieldCheck],
         ] as const).map(([id, label, Icon]) => (
-          <button key={id} onClick={() => setView(id)} className={`inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium ${view === id ? "border-brand text-brand" : "border-transparent text-black/50 hover:text-black/75"}`}>
+          <button key={id} onClick={() => selectView(id)} className={`inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium ${view === id ? "border-brand text-brand" : "border-transparent text-black/50 hover:text-black/75"}`}>
             <Icon size={16} />{label}
           </button>
         ))}
@@ -220,6 +237,27 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
             <ReviewList reviews={company.reviews} />
           </section>
         </div>
+      ) : null}
+
+      {view === "products" ? (
+        <div className="mt-7">
+          <ProductsWorkspace
+            initialProducts={initialProducts}
+            sops={sops}
+            companies={tradingCompanies}
+            defaults={productDefaults}
+            embedded
+          />
+        </div>
+      ) : null}
+
+      {view === "connections" ? (
+        <CompanyConnectionsWorkspace
+          workspaceWebsite={workspaceWebsite}
+          tradingCompanies={tradingCompanies}
+          clients={clients}
+          canManage={canEdit}
+        />
       ) : null}
 
       {view === "legal" ? <LegalCompliancePanel initialDocuments={legalDocuments} canEdit={canEdit} /> : null}

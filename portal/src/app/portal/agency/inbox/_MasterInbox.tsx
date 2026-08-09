@@ -176,7 +176,7 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
 
     {view === "attention" ? <section>
       <SectionHeader title="What needs you now" detail="Critical items first. Resolve each item at its source." />
-      <div className="divide-y divide-black/[0.08]">
+      <div className="mt-3 grid gap-2">
         {visibleAlerts.map(alert => <AlertRow key={alert.id} alert={alert} />)}
       </div>
       {!visibleAlerts.length ? <Empty icon={<CircleCheck size={25} />} title="Nothing needs attention" detail="Support, monitoring, overdue money, meetings, client health, and campaign pacing are clear." /> : null}
@@ -261,8 +261,8 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
     /> : null}
 
     {view === "updates" ? <section className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="divide-y divide-black/[0.08]">{visibleUpdates.map(item => <div key={item.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex text-xs font-medium text-brand">Open client</Link> : null}</div>)}</div></div>
-      <form onSubmit={sendTeamNote} className="h-fit rounded-lg border border-black/10 bg-white p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" /><button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
+      <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="mt-3 grid gap-2">{visibleUpdates.map(item => <div key={item.id} className="mm-surface-card mm-interactive-row rounded-md p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex text-xs font-medium text-brand">Open client</Link> : null}</div>)}</div></div>
+      <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" /><button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
     {view === "channels" ? <section>
@@ -315,11 +315,11 @@ function WebsiteEnquirySection({
   return <section>
     <SectionHeader title={title} detail={detail} />
     {error ? <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">The message history could not be loaded. {error}</div> : null}
-    <div className="divide-y divide-black/[0.08]">
+    <div className="mt-3 grid gap-2">
       {items.map(item => {
         const icon = item.channel === "chatbot" ? <MessageCircle size={18} /> : item.channel === "support" ? <LifeBuoy size={18} /> : <FileText size={18} />;
-        return <article key={item.id} className="py-4">
-          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+        return <article key={item.id} className="mm-surface-card mm-hover-lift rounded-md p-4">
+          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start">
             <span className="grid size-10 place-items-center rounded-md bg-brand/10 text-brand">{icon}</span>
             <span className="min-w-0">
               <span className="flex flex-wrap items-center gap-2">
@@ -329,7 +329,10 @@ function WebsiteEnquirySection({
                 <Pill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : "neutral"}>{item.priority}</Pill>
                 <Pill tone={item.status === "resolved" ? "green" : item.status === "reviewed" ? "blue" : "amber"}>{item.status}</Pill>
               </span>
-              <span className="mt-1 block truncate text-xs text-black/50">{item.message || "No written message"} · {sourceLocation(item)} · {formatDate(item.submittedAt)}</span>
+              <span data-enquiry-message={item.id} className="mt-2 block whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-3 text-sm leading-6 text-black/70">
+                {item.message || "No written message was included."}
+              </span>
+              <span className="mt-2 block text-xs text-black/45">{sourceLocation(item)} · {formatDate(item.submittedAt)}</span>
             </span>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => onToggle(item.id)} className="rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openId === item.id ? "Close" : "Inspect"}</button>
@@ -341,12 +344,9 @@ function WebsiteEnquirySection({
           {openId === item.id ? <div className="ml-0 mt-3 grid gap-4 rounded-md border border-black/[0.07] bg-black/[0.025] p-4 sm:ml-[52px]">
             {leadError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{leadError[item.id]}</p> : null}
             {statusError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{statusError[item.id]}</p> : null}
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px]">
-              <p className="whitespace-pre-wrap text-sm leading-6 text-black/70">{item.message || "No written message was included."}</p>
-              <div className={`rounded-md border px-3 py-3 text-xs ${triageStyle(item.priority)}`}>
-                <p className="font-semibold">Automatic triage · {item.topic}</p>
-                <p className="mt-1 leading-5 opacity-80">{item.suggestedAction}</p>
-              </div>
+            <div className={`rounded-md border px-3 py-3 text-xs ${triageStyle(item.priority)}`}>
+              <p className="font-semibold">Automatic triage · {item.topic}</p>
+              <p className="mt-1 leading-5 opacity-80">{item.suggestedAction}</p>
             </div>
             <dl className="grid gap-x-6 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
               <Detail label="Site" value={item.siteName} />
@@ -388,8 +388,8 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
 }) {
   return <section>
     <SectionHeader title={title} detail={detail} />
-    <div className="divide-y divide-black/[0.08]">
-      {items.map(item => <article key={item.id} className="py-4">
+    <div className="mt-3 grid gap-2">
+      {items.map(item => <article key={item.id} className="mm-surface-card mm-hover-lift rounded-md p-4">
         <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
           <span className="grid size-10 place-items-center rounded-md bg-black/[0.04] text-black/45"><MessageCircle size={18} /></span>
           <span className="min-w-0">
@@ -434,11 +434,11 @@ function Tab({ active, onClick, label, count }: { active: boolean; onClick: () =
 
 function AlertRow({ alert }: { alert: OperationalAlert }) {
   const styles = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
-  return <Link href={alert.href} className="group grid gap-3 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span><span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/80">{alert.title}</strong><Pill>{alert.category}</Pill></span><span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span></span><ExternalLink size={16} className="text-black/25 group-hover:text-black/60" /></Link>;
+  return <Link href={alert.href} className="mm-surface-card mm-interactive-row group grid gap-3 rounded-md p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span><span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/80">{alert.title}</strong><Pill>{alert.category}</Pill></span><span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span></span><ExternalLink size={16} className="text-black/25 group-hover:text-black/60" /></Link>;
 }
 
 function Channel({ icon, name, detail, connected = false }: { icon: React.ReactNode; name: string; detail: string; connected?: boolean }) {
-  return <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-lg border border-black/10 bg-white p-4"><span className="grid size-9 place-items-center rounded-md bg-black/[0.04] text-black/45">{icon}</span><span><strong className="text-sm text-black/75">{name}</strong><span className="mt-1 block text-xs leading-5 text-black/45">{detail}</span></span><Pill tone={connected ? "green" : "neutral"}>{connected ? "Connected" : "Not connected"}</Pill></div>;
+  return <div className="mm-surface-card mm-hover-lift grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-md p-4"><span className={`grid size-9 place-items-center rounded-md ${connected ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.04] text-black/45"}`}>{icon}</span><span><strong className="text-sm text-black/75">{name}</strong><span className="mt-1 block text-xs leading-5 text-black/45">{detail}</span></span><Pill tone={connected ? "green" : "neutral"}>{connected ? "Connected" : "Not connected"}</Pill></div>;
 }
 
 function SectionHeader({ title, detail }: { title: string; detail: string }) { return <div className="border-b border-black/10 pb-3"><h2 className="text-lg font-semibold text-black/82">{title}</h2><p className="mt-1 text-sm text-black/45">{detail}</p></div>; }

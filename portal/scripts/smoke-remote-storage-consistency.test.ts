@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
+import { applyStoragePatch, type StoragePatchOperation } from "../src/server/storagePatch";
 
 test("remote portal storage flushes writes and refreshes warm-process state", async () => {
   const originalFetch = globalThis.fetch;
@@ -14,8 +15,18 @@ test("remote portal storage flushes writes and refreshes warm-process state", as
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-smoke";
   process.env.PORTAL_STATE_KEY = "remote-storage-smoke";
 
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = async (input, init) => {
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
     const method = init?.method ?? "GET";
+    if (method === "POST" && url.includes("/rpc/apply_app_datastore_patch")) {
+      const body = JSON.parse(String(init?.body)) as { p_operations: StoragePatchOperation[] };
+      remoteData = applyStoragePatch(remoteData ?? {}, body.p_operations);
+      return Response.json(structuredClone(remoteData));
+    }
     if (method === "POST") {
       const body = JSON.parse(String(init?.body)) as { data: Record<string, unknown> };
       remoteData = structuredClone(body.data);
@@ -39,6 +50,33 @@ test("remote portal storage flushes writes and refreshes warm-process state", as
       (remoteData?.assistant as Record<string, unknown>)?.storageSmoke,
       { version: 1 },
       "flushPendingWrites must persist before the mutation request completes",
+    );
+
+    remoteData = {
+      ...remoteData,
+      pluginData: {
+        finance: {
+          "expenses/by-id/exp_remote": {
+            id: "exp_remote",
+            vendor: "Remote expense",
+            amountCents: 2_500,
+          },
+        },
+      },
+    };
+    storage.mutate(state => {
+      state.assistant = { ...state.assistant, localWarmWrite: { kept: true } };
+    });
+    await storage.flushPendingWrites();
+    assert.deepEqual(
+      ((remoteData?.pluginData as Record<string, Record<string, unknown>>)?.finance)?.["expenses/by-id/exp_remote"],
+      { id: "exp_remote", vendor: "Remote expense", amountCents: 2_500 },
+      "a stale warm process must not erase fields written by another process",
+    );
+    assert.deepEqual(
+      storage.getState().assistant.localWarmWrite,
+      { kept: true },
+      "the local cache must retain the mutation after rebasing onto remote state",
     );
 
     remoteData = {

@@ -1475,6 +1475,155 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   --mm-border: rgb(0 0 0 / 0.14);
 }
 
+/* Route-aware workspace colour. The accent is deliberately quiet: it gives
+   each operational area an identity without turning the portal into a set of
+   unrelated mini-apps. */
+.mm-route-canvas {
+  --area-accent: #0b6f6d;
+  min-height: calc(100% + 2.5rem);
+  margin: -1.25rem -1rem;
+  padding: 1.25rem 1rem 2rem;
+  border-top: 3px solid color-mix(in srgb, var(--area-accent) 62%, transparent);
+  background: color-mix(in srgb, var(--area-accent) 3.5%, var(--brand-bg, #fafafa));
+}
+
+.mm-route-canvas[data-portal-area="company"] { --area-accent: #4f46e5; }
+.mm-route-canvas[data-portal-area="actions"] { --area-accent: #c77600; }
+.mm-route-canvas[data-portal-area="inbox"] { --area-accent: #0b78a6; }
+.mm-route-canvas[data-portal-area="clients"] { --area-accent: #7651a8; }
+.mm-route-canvas[data-portal-area="portals"] { --area-accent: #087f8c; }
+.mm-route-canvas[data-portal-area="delight"] { --area-accent: #be4365; }
+.mm-route-canvas[data-portal-area="journey"] { --area-accent: #b95d12; }
+.mm-route-canvas[data-portal-area="development"] { --area-accent: #2563a8; }
+.mm-route-canvas[data-portal-area="marketing"] { --area-accent: #a74478; }
+.mm-route-canvas[data-portal-area="finance"] { --area-accent: #187554; }
+.mm-route-canvas[data-portal-area="sops"] { --area-accent: #5c6675; }
+.mm-route-canvas[data-portal-area="settings"],
+.mm-route-canvas[data-portal-area="account"] { --area-accent: #62676f; }
+
+.mm-surface-card {
+  border-color: color-mix(in srgb, var(--area-accent, #0b6f6d) 14%, var(--mm-border));
+  background-color: var(--mm-surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.035);
+}
+
+.mm-interactive-row {
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+
+.mm-area-icon {
+  color: color-mix(in srgb, var(--area-accent, #0b6f6d) 88%, black);
+  background: color-mix(in srgb, var(--area-accent, #0b6f6d) 12%, var(--mm-surface));
+  border: 1px solid color-mix(in srgb, var(--area-accent, #0b6f6d) 20%, transparent);
+}
+
+.mm-kpi-card {
+  --kpi-tone: #0b7c76;
+  position: relative;
+  overflow: hidden;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.mm-kpi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--kpi-tone);
+}
+.mm-kpi-card[data-kpi-tone="blue"] { --kpi-tone: #3477b8; }
+.mm-kpi-card[data-kpi-tone="emerald"] { --kpi-tone: #25805e; }
+.mm-kpi-card[data-kpi-tone="violet"] { --kpi-tone: #7e5aad; }
+.mm-kpi-card[data-kpi-tone="amber"] { --kpi-tone: #c47a13; }
+.mm-kpi-icon {
+  color: var(--kpi-tone);
+  background: color-mix(in srgb, var(--kpi-tone) 11%, transparent);
+}
+
+.mm-finance-metric {
+  --finance-tone: #28795a;
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.mm-finance-metric[data-finance-tone="expense"] { --finance-tone: #ad5c48; }
+.mm-finance-metric[data-finance-tone="good"] { --finance-tone: #25805e; }
+.mm-finance-metric[data-finance-tone="bad"] { --finance-tone: #b64949; }
+.mm-finance-metric[data-finance-tone="outstanding"] { --finance-tone: #b27816; }
+.mm-finance-metric[data-finance-tone="reserve"] { --finance-tone: #526da5; }
+.mm-finance-metric-icon {
+  color: var(--finance-tone);
+  background: color-mix(in srgb, var(--finance-tone) 11%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mm-surface-card.mm-hover-lift:hover,
+  .mm-route-canvas :is(a, button).mm-hover-lift:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--area-accent, #0b6f6d) 28%, var(--mm-border));
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.05), 0 12px 30px rgb(0 0 0 / 0.06);
+  }
+
+  .mm-interactive-row:hover {
+    background: color-mix(in srgb, var(--area-accent, #0b6f6d) 5%, transparent);
+  }
+}
+
+@media (min-width: 640px) {
+  .mm-route-canvas {
+    margin-inline: -1.5rem;
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mm-route-canvas {
+    min-height: calc(100% + 3rem);
+    margin: -1.5rem -2rem;
+    padding: 1.5rem 2rem 2.5rem;
+  }
+}
+
+.mm-sidebar-link {
+  --nav-tone: #68717c;
+  border: 1px solid transparent;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.mm-sidebar-link[data-nav-tone="teal"] { --nav-tone: #0b7c76; }
+.mm-sidebar-link[data-nav-tone="indigo"] { --nav-tone: #5856b9; }
+.mm-sidebar-link[data-nav-tone="amber"] { --nav-tone: #b86b08; }
+.mm-sidebar-link[data-nav-tone="sky"] { --nav-tone: #1679a8; }
+.mm-sidebar-link[data-nav-tone="violet"] { --nav-tone: #7a56a5; }
+.mm-sidebar-link[data-nav-tone="cyan"] { --nav-tone: #0a7f8b; }
+.mm-sidebar-link[data-nav-tone="rose"] { --nav-tone: #bd4968; }
+.mm-sidebar-link[data-nav-tone="orange"] { --nav-tone: #bd641e; }
+.mm-sidebar-link[data-nav-tone="lime"] { --nav-tone: #577d2b; }
+.mm-sidebar-link[data-nav-tone="blue"] { --nav-tone: #2b67a5; }
+.mm-sidebar-link[data-nav-tone="pink"] { --nav-tone: #a64e7c; }
+.mm-sidebar-link[data-nav-tone="emerald"] { --nav-tone: #237556; }
+
+.mm-sidebar-link .mm-sidebar-link-icon {
+  color: var(--nav-tone) !important;
+  background: color-mix(in srgb, var(--nav-tone) 10%, transparent);
+}
+
+.mm-sidebar-link.is-active {
+  color: color-mix(in srgb, var(--nav-tone) 88%, black);
+  border-color: color-mix(in srgb, var(--nav-tone) 16%, transparent);
+  background: color-mix(in srgb, var(--nav-tone) 10%, transparent);
+}
+
+.mm-sidebar-link.is-active .mm-sidebar-link-icon {
+  color: #fff !important;
+  background: var(--nav-tone);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--nav-tone) 22%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mm-sidebar-link:hover {
+    color: color-mix(in srgb, var(--nav-tone) 88%, black);
+    background: color-mix(in srgb, var(--nav-tone) 7%, transparent);
+    transform: translateX(1px);
+  }
+}
+
 .mm-portal-root .text-black\/35,
 .mm-portal-root .text-black\/40,
 .mm-portal-root .text-black\/45,
@@ -1529,6 +1678,34 @@ html[data-color-mode="dark"] .mm-portal-root {
   --mm-border: rgb(255 255 255 / 0.14);
 }
 
+html[data-color-mode="dark"] .mm-route-canvas {
+  background: color-mix(in srgb, var(--area-accent) 7%, #111210);
+}
+
+html[data-color-mode="dark"] .mm-area-icon {
+  color: color-mix(in srgb, var(--area-accent) 55%, white);
+  background: color-mix(in srgb, var(--area-accent) 18%, #1a1b18);
+}
+
+html[data-color-mode="dark"] .mm-sidebar-link.is-active,
+html[data-color-mode="dark"] .mm-sidebar-link:hover {
+  color: color-mix(in srgb, var(--nav-tone) 52%, white);
+}
+
+html[data-color-mode="dark"] .mm-sidebar-link:not(.is-active) {
+  color: rgb(245 244 239 / 0.76) !important;
+}
+
+html[data-color-mode="dark"] .mm-sidebar-footer .mm-sidebar-link:hover {
+  color: #f5f4ef !important;
+  background: rgb(255 255 255 / 0.06);
+}
+
+html[data-color-mode="dark"] .mm-sidebar-heading,
+html[data-color-mode="dark"] .mm-sidebar-tenant {
+  color: rgb(245 244 239 / 0.78);
+}
+
 html[data-color-mode="dark"] .mm-portal-root .text-brand:not(.bg-brand) {
   color: #72d0ca !important;
 }
@@ -1561,6 +1738,18 @@ html[data-color-mode="dark"] .mm-portal-root [class*="text-blue-"] {
   color: #93c5fd !important;
 }
 
+html[data-color-mode="dark"] .mm-portal-root [class*="text-cyan-"] {
+  color: #67e8f9 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root [class*="text-violet-"] {
+  color: #c4b5fd !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root [class*="text-pink-"] {
+  color: #f9a8d4 !important;
+}
+
 html[data-color-mode="dark"] .mm-portal-root :is([class*="bg-red-50"], [class*="bg-red-100"]) {
   background-color: rgb(248 113 113 / 0.1) !important;
 }
@@ -1575,6 +1764,18 @@ html[data-color-mode="dark"] .mm-portal-root :is([class*="bg-amber-50"], [class*
 
 html[data-color-mode="dark"] .mm-portal-root :is([class*="bg-blue-50"], [class*="bg-blue-100"]) {
   background-color: rgb(96 165 250 / 0.1) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is([class*="bg-cyan-50"], [class*="bg-cyan-100"]) {
+  background-color: rgb(34 211 238 / 0.1) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is([class*="bg-violet-50"], [class*="bg-violet-100"]) {
+  background-color: rgb(167 139 250 / 0.1) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is([class*="bg-pink-50"], [class*="bg-pink-100"]) {
+  background-color: rgb(244 114 182 / 0.1) !important;
 }
 
 html[data-color-mode="dark"] .mm-portal-root .plugin-page-shell:not([data-plugin-id="website-editor"]) :is(

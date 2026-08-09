@@ -66,12 +66,14 @@ export function CustomerStageWorkspace({
   tasks,
   properties = [],
   readOnly = false,
+  providerName = "Milesymedia",
 }: {
   clientId: string;
   mode: CustomerPortalMode;
   tasks: CustomerStageTask[];
   properties?: CustomerProperty[];
   readOnly?: boolean;
+  providerName?: string;
 }) {
   const router = useRouter();
   const response = STAGE_RESPONSE[mode];
@@ -103,7 +105,7 @@ export function CustomerStageWorkspace({
       setMessage("");
       setLink("");
       setPropertyId("");
-      setNotice("Sent. Milesymedia can now see this in your project.");
+      setNotice(`Sent. ${providerName} can now see this in your project.`);
       router.refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We could not send that update.");
@@ -201,10 +203,12 @@ export function CustomerProjectBriefForm({
   clientId,
   initialBrief,
   readOnly = false,
+  providerName = "Milesymedia",
 }: {
   clientId: string;
   initialBrief: CustomerProjectBrief;
   readOnly?: boolean;
+  providerName?: string;
 }) {
   const [brief, setBrief] = useState<CustomerProjectBrief>(initialBrief);
   const [busy, setBusy] = useState(false);
@@ -231,7 +235,7 @@ export function CustomerProjectBriefForm({
       };
       if (!response.ok || !payload.ok) throw new Error(payload.error || "We could not save your brief.");
       if (payload.brief) setBrief(payload.brief);
-      setNotice("Saved. The Milesymedia team can see your latest answers.");
+      setNotice(`Saved. The ${providerName} team can see your latest answers.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We could not save your brief.");
     } finally {
@@ -349,10 +353,12 @@ export function CustomerApprovals({
   clientId,
   initialApprovals,
   readOnly = false,
+  providerName = "Milesymedia",
 }: {
   clientId: string;
   initialApprovals: ClientApproval[];
   readOnly?: boolean;
+  providerName?: string;
 }) {
   const [approvals, setApprovals] = useState(initialApprovals);
   const [note, setNote] = useState<Record<string, string>>({});
@@ -381,8 +387,8 @@ export function CustomerApprovals({
       if (!response.ok || !payload.ok) throw new Error(payload.error || "We could not record your response.");
       setApprovals(payload.approvals ?? approvals);
       setNotice(action === "approve"
-        ? "Approved. Milesymedia has been notified."
-        : "Your requested changes are with the Milesymedia team.");
+        ? `Approved. ${providerName} has been notified.`
+        : `Your requested changes are with the ${providerName} team.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We could not record your response.");
     } finally {
@@ -460,10 +466,12 @@ export function CustomerSupportForm({
   clientId,
   initialRequests,
   readOnly = false,
+  providerName = "Milesymedia",
 }: {
   clientId: string;
   initialRequests: ClientRequest[];
   readOnly?: boolean;
+  providerName?: string;
 }) {
   const [type, setType] = useState<ClientRequestType>("support-ticket");
   const [message, setMessage] = useState("");
@@ -489,7 +497,7 @@ export function CustomerSupportForm({
       setRequests(payload.requests ?? requests);
       setMessage("");
       setLink("");
-      setNotice("Your request is with the Milesymedia team.");
+      setNotice(`Your request is with the ${providerName} team.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We could not send your request.");
     } finally {
@@ -512,7 +520,7 @@ export function CustomerSupportForm({
       if (!response.ok || !payload.ok) throw new Error(payload.error || "We could not send your reply.");
       setRequests(payload.requests ?? requests);
       setReplyDrafts(current => ({ ...current, [requestId]: "" }));
-      setNotice("Your reply is with the Milesymedia team.");
+      setNotice(`Your reply is with the ${providerName} team.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We could not send your reply.");
     } finally {
@@ -560,7 +568,7 @@ export function CustomerSupportForm({
             className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#1b1a18] px-5 text-sm font-medium text-white transition hover:bg-black disabled:opacity-45"
           >
             <Send size={15} aria-hidden="true" />
-            {readOnly ? "Customer can send this" : busy ? "Sending..." : "Send to Milesymedia"}
+            {readOnly ? "Customer can send this" : busy ? "Sending..." : `Send to ${providerName}`}
           </button>
         </div>
       </form>
@@ -577,7 +585,7 @@ export function CustomerSupportForm({
                   <p className="text-sm font-medium capitalize">{request.type.replaceAll("-", " ")}</p>
                   <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-black/40">
                     <CheckCircle2 size={12} aria-hidden="true" />
-                    {request.status === "reviewed" ? "with Milesymedia" : request.status === "closed" ? "resolved" : "open"}
+                    {request.status === "reviewed" ? `with ${providerName}` : request.status === "closed" ? "resolved" : "open"}
                   </span>
                 </div>
                 <p className="mt-2 line-clamp-2 text-xs leading-5 text-black/50">{request.message}</p>
@@ -592,7 +600,7 @@ export function CustomerSupportForm({
                       <div key={item.id}>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-semibold uppercase tracking-wide text-black/45">
-                            {item.from === "milesymedia" ? "Milesymedia" : "You"}
+                            {item.from === "milesymedia" ? providerName : "You"}
                           </span>
                           <span className="text-[10px] text-black/30">{formatShortDate(item.createdAt)}</span>
                         </div>
@@ -738,10 +746,12 @@ export function CustomerAgreements({
   clientId,
   initialContracts,
   readOnly = false,
+  providerName = "Milesymedia",
 }: {
   clientId: string;
   initialContracts: ClientContract[];
   readOnly?: boolean;
+  providerName?: string;
 }) {
   const [contracts, setContracts] = useState(initialContracts);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -762,7 +772,7 @@ export function CustomerAgreements({
       setContracts(payload.contracts ?? contracts);
       setNotice(action === "accept"
         ? "Thank you. Your acceptance has been recorded."
-        : "Your response has been sent to Milesymedia.");
+        : `Your response has been sent to ${providerName}.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We could not update the agreement.");
     } finally {
@@ -782,7 +792,7 @@ export function CustomerAgreements({
       {visible.length === 0 ? (
         <div className="px-6 py-12 text-center">
           <p className="font-serif text-xl">No agreements need your attention.</p>
-          <p className="mt-2 text-sm text-black/45">Any agreement Milesymedia sends will appear here with its status.</p>
+          <p className="mt-2 text-sm text-black/45">Any agreement {providerName} sends will appear here with its status.</p>
         </div>
       ) : (
         <ul className="divide-y divide-black/8">

@@ -465,7 +465,7 @@ function SetupPanel() {
       <p className="mt-3 text-sm leading-6 text-black/58">
         ChatGPT subscriptions cannot authenticate a separate app. Create an OpenAI Platform API key, then save and test it in AquaCRM's secure connection manager.
       </p>
-      <a href="/portal/agency/settings#integrations" className="mt-5 inline-flex min-h-11 w-fit items-center rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
+      <a href="/portal/agency/company?view=connections" className="mt-5 inline-flex min-h-11 w-fit items-center rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
         Open integrations
       </a>
     </div>

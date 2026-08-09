@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { StoragePatchOperation } from "./storagePatch";
+
 const STATE_KEY = process.env.PORTAL_STATE_KEY?.trim() || "aquacrm-portal-state";
 
 function getConfig() {
@@ -48,4 +50,20 @@ export async function saveBlob(content: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`[supabase-storage] save failed (${response.status}): ${await response.text()}`);
   }
+}
+
+export async function applyPatch(operations: StoragePatchOperation[]): Promise<string> {
+  const { url, serviceRoleKey } = getConfig();
+  const response = await fetch(`${url}/rest/v1/rpc/apply_app_datastore_patch`, {
+    method: "POST",
+    headers: headers(serviceRoleKey),
+    body: JSON.stringify({
+      p_app_key: STATE_KEY,
+      p_operations: operations,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`[supabase-storage] patch failed (${response.status}): ${await response.text()}`);
+  }
+  return JSON.stringify(await response.json());
 }

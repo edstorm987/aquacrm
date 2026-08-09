@@ -607,7 +607,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
         </div>
       </header>
 
-      <details className="group border-y border-black/10">
+      <details className="mm-surface-card group rounded-lg border border-black/10 px-4">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-3">
           <span className="inline-flex items-center gap-2 text-sm font-medium text-black/70">
             <BarChart3 size={16} className="text-black/40" aria-hidden="true" />
@@ -631,7 +631,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
         </div>
       </details>
 
-      <section className="border-y border-black/10 py-3">
+      <section className="mm-surface-card rounded-lg border border-black/10 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <QuickFilter active={workFilter === "all"} onClick={() => setWorkFilter("all")}>All</QuickFilter>
           <QuickFilter active={workFilter === "scouting"} onClick={() => setWorkFilter("scouting")}>Scouting</QuickFilter>
@@ -733,7 +733,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                 if (id) void moveLead(id, col.id);
                 setDropColumnId("");
               }}
-              className={`flex min-h-[360px] flex-col rounded-xl border p-3 shadow-sm transition ${dropColumnId === col.id ? "border-brand bg-brand/[0.06]" : "border-black/10 bg-white/70"}`}
+              className={`mm-surface-card flex min-h-[360px] flex-col rounded-lg border p-3 transition ${dropColumnId === col.id ? "border-brand bg-brand/[0.06]" : "border-black/10"}`}
             >
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-black/85">
@@ -763,7 +763,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                       event.dataTransfer.setData("text/plain", lead.id);
                     }}
                     onDragEnd={() => { setDraggedLeadId(""); setDropColumnId(""); }}
-                    className={`rounded-lg border border-black/10 bg-white p-3 shadow-sm transition ${draggedLeadId === lead.id ? "opacity-45" : ""}`}
+                    className={`mm-surface-card mm-hover-lift rounded-lg border border-black/10 p-3 transition ${draggedLeadId === lead.id ? "opacity-45" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <GripVertical size={16} className="mt-0.5 shrink-0 cursor-grab text-black/25" aria-label={`Drag ${lead.name || lead.email || lead.phone || "lead"}`} />

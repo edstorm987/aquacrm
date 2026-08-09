@@ -1,4 +1,5 @@
-import { ArrowRight, CircleAlert } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ArrowDownToLine, ArrowRight, CircleAlert, Landmark, PoundSterling, ReceiptText } from "lucide-react";
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
@@ -109,12 +110,12 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
         </div>
       </header>
 
-      <dl className="grid grid-cols-2 border-y border-black/10 lg:grid-cols-5">
-        <Metric label="Income received" value={money(incomeCents, currency)} />
-        <Metric label="Paid expenses" value={money(expenseCents, currency)} />
-        <Metric label="Operating profit" value={money(netCents, currency)} tone={netCents < 0 ? "bad" : "good"} />
-        <Metric label="Outstanding invoices" value={money(outstandingCents, currency)} />
-        <Metric label={`Tax reserve (${taxReserveRate}%)`} value={money(indicativeTaxReserveCents, currency)} />
+      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Metric label="Income received" value={money(incomeCents, currency)} icon={ArrowDownToLine} tone="income" />
+        <Metric label="Paid expenses" value={money(expenseCents, currency)} icon={ReceiptText} tone="expense" />
+        <Metric label="Operating profit" value={money(netCents, currency)} icon={PoundSterling} tone={netCents < 0 ? "bad" : "good"} />
+        <Metric label="Outstanding invoices" value={money(outstandingCents, currency)} icon={Landmark} tone="outstanding" />
+        <Metric label={`Tax reserve (${taxReserveRate}%)`} value={money(indicativeTaxReserveCents, currency)} icon={CircleAlert} tone="reserve" />
       </dl>
 
       {(missingReceipts > 0 || expenses.some(expense => expense.status === "pending")) ? (
@@ -128,8 +129,8 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
       ) : null}
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
-        <section>
-          <header className="mb-3 flex items-baseline justify-between gap-3">
+        <section className="mm-surface-card overflow-hidden rounded-lg border">
+          <header className="flex items-baseline justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
             <div>
               <h2 className="text-base font-semibold text-black/85">Client profitability</h2>
               <p className="mt-1 text-sm text-black/45">Paid client revenue less costs allocated directly to that client.</p>
@@ -138,7 +139,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
           {profitability.length === 0 ? (
             <Empty text="Client income and allocated costs will appear here." />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto px-4 pb-2 sm:px-5">
               <table className="w-full min-w-[560px] text-sm">
                 <thead className="border-b border-black/10 text-left text-[11px] uppercase tracking-wide text-black/45">
                   <tr><th className="py-2">Client</th><th className="py-2 text-right">Income</th><th className="py-2 text-right">Direct costs</th><th className="py-2 text-right">Gross profit</th></tr>
@@ -158,9 +159,9 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
           )}
         </section>
 
-        <section>
-          <h2 className="text-base font-semibold text-black/85">Tax record</h2>
-          <p className="mt-1 text-sm text-black/45">Recorded tax only. Filing treatment depends on your registration and accountant.</p>
+        <section className="mm-surface-card rounded-lg border p-4 sm:p-5">
+          <div className="flex items-start gap-3"><span className="mm-area-icon grid size-9 shrink-0 place-items-center rounded-md"><Landmark size={16} /></span><div><h2 className="text-base font-semibold text-black/85">Tax record</h2>
+          <p className="mt-1 text-sm text-black/45">Recorded tax only. Filing treatment depends on your registration and accountant.</p></div></div>
           <dl className="mt-4 divide-y divide-black/10 border-y border-black/10 text-sm">
             <Row label="Tax charged on paid invoices" value={money(outputTaxCents, currency)} />
             <Row label="Recoverable tax on costs" value={money(inputTaxCents, currency)} />
@@ -172,12 +173,12 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
         </section>
       </div>
 
-      <section>
-        <h2 className="text-base font-semibold text-black/85">Recent money movement</h2>
+      <section className="mm-surface-card overflow-hidden rounded-lg border">
+        <div className="flex items-center gap-3 border-b border-black/10 px-4 py-4 sm:px-5"><span className="mm-area-icon grid size-9 shrink-0 place-items-center rounded-md"><PoundSterling size={16} /></span><h2 className="text-base font-semibold text-black/85">Recent money movement</h2></div>
         {recent.length === 0 ? <Empty text="No actual income or spending has been recorded." /> : (
-          <div className="mt-3 divide-y divide-black/10 border-y border-black/10">
+          <div className="divide-y divide-black/10">
             {recent.map(item => (
-              <div key={`${item.amountCents}-${item.id}`} className="flex items-center justify-between gap-4 py-3 text-sm">
+              <div key={`${item.amountCents}-${item.id}`} className="mm-interactive-row flex items-center justify-between gap-4 px-4 py-3 text-sm sm:px-5">
                 <div className="min-w-0"><p className="truncate font-medium text-black/80">{item.label}</p><p className="mt-0.5 text-xs text-black/45">{item.detail} · {new Date(item.at).toLocaleDateString("en-GB")}</p></div>
                 <span className={`shrink-0 font-mono font-semibold ${item.amountCents < 0 ? "text-black/65" : "text-emerald-800"}`}>{item.amountCents < 0 ? "−" : "+"}{money(Math.abs(item.amountCents), currency)}</span>
               </div>
@@ -193,8 +194,8 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
-  return <div className="px-3 py-4 first:pl-0"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-1 text-lg font-semibold ${tone === "good" ? "text-emerald-800" : tone === "bad" ? "text-red-700" : "text-black/85"}`}>{value}</dd></div>;
+function Metric({ label, value, tone, icon: Icon }: { label: string; value: string; tone?: "good" | "bad" | "income" | "expense" | "outstanding" | "reserve"; icon: LucideIcon }) {
+  return <div className="mm-finance-metric mm-surface-card mm-hover-lift min-w-0 rounded-lg border p-3 sm:p-4" data-finance-tone={tone ?? "income"}><div className="flex items-start justify-between gap-2"><dt className="text-xs font-medium leading-4 text-black/50">{label}</dt><span className="mm-finance-metric-icon grid size-8 shrink-0 place-items-center rounded-md"><Icon size={15} /></span></div><dd className={`mt-3 break-words text-base font-semibold sm:text-lg ${tone === "good" ? "text-emerald-800" : tone === "bad" ? "text-red-700" : "text-black/85"}`}>{value}</dd></div>;
 }
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {

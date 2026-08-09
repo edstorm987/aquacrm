@@ -14,6 +14,11 @@ import "server-only";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { dirname, resolve } from "path";
 import type { PortalState } from "./types";
+import {
+  applyStoragePatch,
+  diffStorageValue,
+  type StoragePatchOperation,
+} from "./storagePatch";
 
 const empty = (): PortalState => ({
   agencies: {},
@@ -56,6 +61,7 @@ interface Backend {
   description: string;
   loadBlob(): Promise<string | null>;
   saveBlob(content: string): Promise<void>;
+  applyPatch?(operations: StoragePatchOperation[]): Promise<string>;
 }
 
 // ─── File backend (dev default) ───────────────────────────────────────────
@@ -133,6 +139,10 @@ const supabaseBackend: Backend = {
     const { saveBlob } = await import("./storageSupabase");
     return saveBlob(content);
   },
+  async applyPatch(operations) {
+    const { applyPatch } = await import("./storageSupabase");
+    return applyPatch(operations);
+  },
 };
 
 function pickBackend(): Backend {
@@ -175,6 +185,7 @@ let fileSnapshotMtimeMs = 0;
 let mutationVersion = 0;
 let persistedVersion = 0;
 let lastFlushError: Error | null = null;
+let pendingPatchOperations: StoragePatchOperation[] = [];
 
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
@@ -263,6 +274,7 @@ export async function ensureHydrated(options?: { fresh?: boolean }): Promise<voi
         cache = raw ? parseBlob(raw) : empty();
         mutationVersion = 0;
         persistedVersion = 0;
+        pendingPatchOperations = [];
         lastFlushError = null;
         // R025: migrate legacy single-agency user rows in place. Pure +
         // idempotent — re-running on already-migrated rows is a no-op.
@@ -341,9 +353,21 @@ async function flush(options?: { throwOnError?: boolean }): Promise<void> {
 
   const targetVersion = mutationVersion;
   const snapshot = JSON.stringify(cache);
+  const operationCount = pendingPatchOperations.length;
+  const operations = pendingPatchOperations.slice(0, operationCount);
   flushInFlight = (async () => {
     try {
-      await backend.saveBlob(snapshot);
+      const savedBlob = backend.applyPatch && operations.length > 0
+        ? await backend.applyPatch(operations)
+        : (await backend.saveBlob(snapshot), null);
+
+      if (savedBlob) {
+        pendingPatchOperations.splice(0, operationCount);
+        const remoteState = parseBlob(savedBlob);
+        cache = pendingPatchOperations.length > 0
+          ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, pendingPatchOperations)))
+          : remoteState;
+      }
       persistedVersion = targetVersion;
       lastFlushError = null;
       if (backend.kind === "file" && existsSync(DATA_FILE)) {
@@ -380,7 +404,13 @@ export function getState(): PortalState {
 
 export function mutate(fn: (state: PortalState) => void): void {
   if (!cache) cache = empty();
+  const before = backend.applyPatch ? structuredClone(cache) : null;
   fn(cache);
+  if (before) {
+    const operations = diffStorageValue(before, cache);
+    if (operations.length === 0) return;
+    pendingPatchOperations.push(...operations);
+  }
   mutationVersion += 1;
   if (backend.kind === "file" && writable) {
     try {
@@ -419,6 +449,7 @@ export async function flushPendingWrites(): Promise<void> {
 
 export async function reset(): Promise<void> {
   cache = empty();
+  pendingPatchOperations = [];
   hydrated = true;
   mutationVersion += 1;
   await flush({ throwOnError: true });

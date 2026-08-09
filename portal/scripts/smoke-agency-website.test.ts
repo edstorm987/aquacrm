@@ -81,7 +81,7 @@ test("public site, Development and Marketing share the website source of truth",
   assert.match(layout, /data-site-key=\{website\.telemetrySiteKey\}/);
   assert.match(collector, /recordAgencyWebsiteTelemetry/);
   assert.match(development, /Website preview/);
-  assert.match(development, /Real build/);
+  assert.match(development, /Official site/);
   assert.match(development, /Public gate/);
   assert.match(development, /page-status/);
   assert.match(marketing, /Open website control/);

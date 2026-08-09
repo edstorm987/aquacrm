@@ -18,6 +18,7 @@ const ROOT = join(__dirname, "..");
 const SEED = join(ROOT, "src", "lib", "server", "founderSeed.ts");
 const ENV_EXAMPLE = join(ROOT, ".env.example");
 const README = join(ROOT, "README.md");
+const TRADING_COMPANY_SEED = join(ROOT, "src", "server", "zimanteTradingCompanies.ts");
 
 // We only want the pure helper — but importing the module pulls in
 // `server-only`. Read the source and `eval` the helper instead via a
@@ -28,6 +29,7 @@ const README = join(ROOT, "README.md");
 // still implements the same contract.
 
 const SEED_SRC = readFileSync(SEED, "utf8");
+const TRADING_COMPANY_SEED_SRC = readFileSync(TRADING_COMPANY_SEED, "utf8");
 
 describe("Founder seed — policy contract (R024)", () => {
   it("missing FOUNDER_PASSWORD → not ok", () => {
@@ -99,6 +101,13 @@ describe("Founder seed — standalone deploy docs (R024)", () => {
     assert.ok(rb.includes("`FOUNDER_EMAIL`"));
     assert.ok(rb.includes("`FOUNDER_PASSWORD`"));
     assert.ok(rb.toLowerCase().includes("rotate the local founder password before any public launch"));
+  });
+});
+
+describe("Founder seed — existing company safety", () => {
+  it("does not rewrite existing trading companies during sign-in", () => {
+    assert.ok(TRADING_COMPANY_SEED_SRC.includes("found ?? createTradingCompany"));
+    assert.ok(!TRADING_COMPANY_SEED_SRC.includes("updateTradingCompany"));
   });
 });
 

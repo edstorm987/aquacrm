@@ -154,10 +154,10 @@ export function PeopleHub({
       ) : null}
 
       {view === "health" ? (
-        <section className="mt-7">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 pb-3">
+        <section className="mm-surface-card mt-7 overflow-hidden rounded-lg border">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
             <div><h2 className="text-base font-semibold text-black/80">Client health</h2><p className="mt-1 text-sm text-black/45">A quick check for missing details, stale relationships, and delivery risks.</p></div>
-            <span className="text-xs text-black/40">{clients.filter(client => client.health === "attention").length} need attention</span>
+            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">{clients.filter(client => client.health === "attention").length} need attention</span>
           </div>
           <div className="divide-y divide-black/[0.07]">
             {filteredClients.map(client => <HealthRow key={client.id} client={client} />)}
@@ -194,10 +194,10 @@ function Tab({ active, onClick, label, count }: { active: boolean; onClick: () =
 function PeopleSection({ title, count, hidden, children }: { title: string; count: number; hidden?: boolean; children: React.ReactNode }) {
   if (hidden) return null;
   return (
-    <section className="mt-7">
-      <div className="flex items-center justify-between border-b border-black/10 pb-2">
+    <section className="mm-surface-card mt-7 overflow-hidden rounded-lg border">
+      <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold text-black/75">{title}</h2>
-        <span className="text-xs text-black/40">{count}</span>
+        <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-xs font-medium text-black/50">{count}</span>
       </div>
       <div className="divide-y divide-black/[0.07]">{children}</div>
     </section>
@@ -207,7 +207,7 @@ function PeopleSection({ title, count, hidden, children }: { title: string; coun
 function ClientRow({ client }: { client: HubClient }) {
   const initials = client.name.split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase()).join("") || "C";
   return (
-    <div className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+    <div className="mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5">
       <div className="grid size-10 place-items-center rounded-md text-xs font-semibold text-white" style={{ backgroundColor: client.primaryColor }}>{initials}</div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p><Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}</div>
@@ -219,7 +219,7 @@ function ClientRow({ client }: { client: HubClient }) {
 }
 
 function HealthRow({ client }: { client: HubClient }) {
-  return <div className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] sm:items-center">
+  return <div className="mm-interactive-row grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] sm:items-center sm:px-5">
     <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/80">{client.name}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${client.health === "healthy" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{client.health === "healthy" ? "Healthy" : "Needs attention"}</span></div><p className="mt-1 text-xs text-black/45">Source: {sourceLabel(client.source)} · {client.stageLabel}</p></div>
     <div className="text-xs leading-5 text-black/55">{client.healthNotes.length ? client.healthNotes.join(" · ") : "Details are complete and contact is current."}</div>
     <Link href={`/portal/clients/${client.id}`} className="w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Review</Link>
@@ -237,7 +237,7 @@ function sourceLabel(source: string): string {
 
 function ContactRow({ contact }: { contact: HubContact }) {
   return (
-    <div className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+    <div className="mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5">
       <div className="grid size-10 place-items-center rounded-md bg-black/[0.04] text-black/45"><UserRound size={18} /></div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { FilePenLine, Mail, Megaphone, PoundSterling, Send } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
 
 interface CampaignRow {
@@ -250,26 +251,26 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
       {!embedded ? <WorkflowSteps active="outreach" /> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Stat label="Campaigns" value={String(campaigns.length)} />
-        <Stat label="Drafts" value={String(draftCount)} />
-        <Stat label="Sent campaigns" value={String(sentCount)} />
-        <Stat label="Emails queued" value={String(totalSent)} />
-        <Stat label="Spend tracked" value={formatMoney(totalSpend)} />
+        <Stat label="Campaigns" value={String(campaigns.length)} icon={<Megaphone size={16} />} tone="blue" />
+        <Stat label="Drafts" value={String(draftCount)} icon={<FilePenLine size={16} />} tone="amber" />
+        <Stat label="Sent campaigns" value={String(sentCount)} icon={<Send size={16} />} tone="emerald" />
+        <Stat label="Emails queued" value={String(totalSent)} icon={<Mail size={16} />} tone="violet" />
+        <Stat label="Spend tracked" value={formatMoney(totalSpend)} icon={<PoundSterling size={16} />} tone="blue" />
       </section>
 
       {(notice || error) && (
-        <div className={`rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+        <div className={`rounded-md border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
           {error ?? notice}
         </div>
       )}
 
       {!emailSenderReady && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Email outbox setup needs attention before campaigns can send. Drafts and audience previews still work.
         </div>
       )}
 
-      <form onSubmit={createCampaign} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
+      <form onSubmit={createCampaign} className="mm-surface-card rounded-md p-4">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="grid gap-3">
             <CampaignBrandSelector companyIds={form.companyIds} companies={companies} onChange={companyIds => setForm(current => ({ ...current, companyIds }))} />
@@ -306,7 +307,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
             </div>
           </div>
 
-          <aside className="rounded-lg border border-black/10 bg-black/[0.02] p-3">
+          <aside className="rounded-md border border-black/10 bg-black/[0.02] p-3">
             <h2 className="text-sm font-semibold text-black/85">Audience</h2>
             <Field label="Tags" value={form.tags} onChange={v => setForm(f => ({ ...f, tags: v }))} placeholder={availableTags.slice(0, 3).join(", ") || "warm, local-business"} />
             <Field label="Sources" value={form.sourcedFrom} onChange={v => setForm(f => ({ ...f, sourcedFrom: v }))} placeholder={availableSources.slice(0, 2).join(", ") || "sheet-upload"} />
@@ -338,15 +339,15 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         </div>
       </form>
 
-      <section className="rounded-xl border border-black/10 bg-white/70 p-4 shadow-sm">
+      <section className="mm-surface-card rounded-md p-4">
         <h2 className="text-base font-semibold text-black/85">Campaign history</h2>
         <div className="mt-3 grid gap-3">
           {campaigns.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-black/10 p-6 text-center text-sm text-black/45">
+            <div className="rounded-md border border-dashed border-black/10 p-6 text-center text-sm text-black/45">
               No campaigns yet.
             </div>
           ) : campaigns.map(campaign => (
-            <article key={campaign.id} className="rounded-lg border border-black/10 bg-white p-3 shadow-sm">
+            <article key={campaign.id} className="mm-surface-card mm-hover-lift rounded-md p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold text-black/90">{campaign.name}</h3><CampaignBrandBadges companyIds={campaign.companyIds} companies={companies} /></div>
@@ -447,7 +448,7 @@ function CampaignEditor({
   });
 
   return (
-    <details className="mt-3 rounded-lg border border-black/10 bg-black/[0.02] p-3">
+    <details className="mt-3 rounded-md border border-black/10 bg-black/[0.02] p-3">
       <summary className="cursor-pointer text-xs font-medium text-black/65">Edit draft</summary>
       <div className="mt-3 grid gap-3">
         <CampaignBrandSelector companyIds={draft.companyIds} companies={companies} onChange={companyIds => setDraft(current => ({ ...current, companyIds }))} />
@@ -534,7 +535,7 @@ function CampaignBrandSelector({
   if (companies.length === 0) return null;
 
   return (
-    <fieldset className="rounded-lg border border-black/10 bg-black/[0.018] p-3">
+    <fieldset className="rounded-md border border-black/10 bg-black/[0.018] p-3">
       <legend className="px-1 text-xs font-semibold text-black/70">Brand scope</legend>
       <p className="text-xs leading-5 text-black/45">Choose every brand this campaign supports. Audience previews and sends only include leads linked to those brands.</p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -600,11 +601,11 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   return <label className="block text-xs font-medium text-black/60">{label}<select value={value} onChange={event => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/80">{options.map(([option, text]) => <option key={option} value={option}>{text}</option>)}</select></label>;
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, icon, tone }: { label: string; value: string; icon: React.ReactNode; tone: "blue" | "emerald" | "violet" | "amber" }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-white px-4 py-3 shadow-sm">
-      <div className="text-xs font-medium text-black/45">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-black/90">{value}</div>
+    <div className="mm-kpi-card mm-surface-card mm-hover-lift flex min-h-24 items-center gap-3 rounded-md p-4" data-kpi-tone={tone}>
+      <span className="mm-kpi-icon">{icon}</span>
+      <div><div className="text-xs font-medium text-black/45">{label}</div><div className="mt-1 text-xl font-semibold text-black/90">{value}</div></div>
     </div>
   );
 }

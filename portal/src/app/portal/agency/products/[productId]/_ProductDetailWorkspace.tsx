@@ -16,7 +16,7 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
       <header className="border-b border-black/10 pb-7">
-        <Link href="/portal/agency/products" className="inline-flex items-center gap-1.5 text-xs font-medium text-black/45 hover:text-black/75"><ArrowLeft size={14} />All products</Link>
+        <Link href="/portal/agency/company?view=products" className="inline-flex items-center gap-1.5 text-xs font-medium text-black/45 hover:text-black/75"><ArrowLeft size={14} />All products</Link>
         <div className="mt-5 flex flex-wrap items-start justify-between gap-5">
           <div className="flex min-w-0 items-start gap-4">
             <span className="mt-1 size-4 shrink-0 rounded-sm border border-black/10" style={{ backgroundColor: product.accentColor ?? "#8E7340" }} />

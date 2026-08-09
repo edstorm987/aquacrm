@@ -50,7 +50,7 @@ type CompanyShelf = {
   products: AgencyProduct[];
 };
 
-export function ProductsWorkspace({ initialProducts, sops, companies, defaults = { taxRatePercent: 0, paymentTermsDays: 7 } }: { initialProducts: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; defaults?: { taxRatePercent: number; paymentTermsDays: number } }) {
+export function ProductsWorkspace({ initialProducts, sops, companies, defaults = { taxRatePercent: 0, paymentTermsDays: 7 }, embedded = false }: { initialProducts: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; defaults?: { taxRatePercent: number; paymentTermsDays: number }; embedded?: boolean }) {
   const [products, setProducts] = useState(initialProducts);
   const [showArchived, setShowArchived] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -130,7 +130,7 @@ export function ProductsWorkspace({ initialProducts, sops, companies, defaults =
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Products</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Your complete offer catalogue.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Every service, package, price and delivery process, organised around the company that sells it.</p></div>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{embedded ? "Company catalogue" : "Products"}</p><h2 className={`${embedded ? "text-2xl" : "text-3xl"} mt-1 font-semibold tracking-tight text-black/90`}>Your complete offer catalogue.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Every service, package, price and delivery process, organised around the company that sells it.</p></div>
         <button type="button" onClick={() => openNewProduct()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New product</button>
       </header>
 

@@ -36,7 +36,7 @@ export function WebsiteWorkspace({
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const realBuildUrl = "http://localhost:3031/development-preview/site";
+  const realBuildUrl = website.productionUrl;
   const previewUrl = previewMode === "real"
     ? `${realBuildUrl}?v=${previewKey}`
     : `${previewRoute}${previewRoute.includes("?") ? "&" : "?"}preview=portal&v=${previewKey}`;
@@ -91,8 +91,8 @@ export function WebsiteWorkspace({
           <p className="mt-2 text-sm leading-6 text-black/55">Preview the public experience, control releases and individual page updates, and prove monitoring works before using the same pattern for clients.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href={realBuildUrl} target="_blank" className={secondary}><Eye size={15} />Open real build</a>
-          <a href="/" target="_blank" className={primary}><ExternalLink size={15} />Open public gate</a>
+          <a href={website.previewUrl} target="_blank" rel="noreferrer" className={secondary}><Eye size={15} />Open local preview</a>
+          <a href={realBuildUrl} target="_blank" rel="noreferrer" className={primary}><ExternalLink size={15} />Open official site</a>
         </div>
       </header>
 
@@ -134,12 +134,12 @@ export function WebsiteWorkspace({
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
           <div className="flex items-center gap-3">
             <span className="grid size-8 place-items-center rounded-md bg-black/[0.04] text-black/45"><Globe2 size={16} /></span>
-            <div><h2 className="text-sm font-semibold text-black/80">Website preview</h2><p className="text-xs text-black/40">{previewMode === "real" ? "Full website build" : previewRoute}</p></div>
+            <div><h2 className="text-sm font-semibold text-black/80">Website preview</h2><p className="text-xs text-black/40">{previewMode === "real" ? "Official live website" : previewRoute}</p></div>
           </div>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-md border border-black/10 bg-black/[0.025] p-1">
               <button type="button" onClick={() => setPreviewMode("public")} className={`${previewMode === "public" ? "bg-white text-black shadow-sm" : "text-black/45"} min-h-8 rounded px-3 text-xs font-semibold`}>Public gate</button>
-              <button type="button" onClick={() => setPreviewMode("real")} className={`${previewMode === "real" ? "bg-white text-black shadow-sm" : "text-black/45"} min-h-8 rounded px-3 text-xs font-semibold`}>Real build</button>
+              <button type="button" onClick={() => setPreviewMode("real")} className={`${previewMode === "real" ? "bg-white text-black shadow-sm" : "text-black/45"} min-h-8 rounded px-3 text-xs font-semibold`}>Official site</button>
             </div>
             {previewMode === "public" ? (
               <select value={previewRoute} onChange={event => setPreviewRoute(event.target.value)} aria-label="Preview page" className={control}>
@@ -206,8 +206,8 @@ export function WebsiteWorkspace({
         </summary>
         <form onSubmit={saveSettings} className="mt-5 grid gap-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <Field name="productionUrl" label="Production URL" defaultValue={website.productionUrl} />
-            <Field name="previewUrl" label="Preview URL" defaultValue={website.previewUrl} />
+            <Field name="productionUrl" label="Official production URL" defaultValue={website.productionUrl} />
+            <Field name="previewUrl" label="Local or staging preview URL" defaultValue={website.previewUrl} />
             <Field name="repositoryUrl" label="GitHub repository" defaultValue={website.repositoryUrl} />
             <Field name="localPath" label="Website source" defaultValue={website.localPath} />
           </div>

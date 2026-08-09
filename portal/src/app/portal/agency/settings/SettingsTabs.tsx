@@ -7,16 +7,14 @@
 // real editing.
 
 import Link from "next/link";
-import { ArrowUpRight, Bell, Boxes, Check, CircleUserRound, Eye, PanelsTopLeft, PlugZap, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
+import { ArrowUpRight, Bell, Boxes, Check, CircleUserRound, Eye, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { ProductionReadiness, ReadinessStatus } from "@/lib/server/productionReadiness";
 import type { AgencyWorkspaceSettings, ClientStage } from "@/server/types";
 import { TeamUsersPanel } from "./TeamUsersPanel";
-import { PortalEditorPanel } from "./PortalEditorPanel";
 import { ShowcaseModePanel } from "./ShowcaseModePanel";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { ExternalAiConnectionPanel } from "./ExternalAiConnectionPanel";
-import { IntegrationConnectionsPanel } from "./IntegrationConnectionsPanel";
 import {
   APP_VERSION,
   PRODUCT_RELEASES,
@@ -49,17 +47,15 @@ interface SettingsContext {
   }>;
 }
 
-type TabId = "account" | "team" | "workspace" | "showcase" | "portal-editor" | "defaults" | "notifications" | "integrations" | "updates" | "logs" | "launch";
+type TabId = "account" | "team" | "workspace" | "showcase" | "defaults" | "notifications" | "updates" | "logs" | "launch";
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: "account", label: "Account", icon: <CircleUserRound size={16} /> },
   { id: "team", label: "Team", icon: <UsersRound size={16} /> },
   { id: "workspace", label: "Workspace", icon: <Boxes size={16} /> },
   { id: "showcase", label: "Showcase", icon: <Eye size={16} /> },
-  { id: "portal-editor", label: "Portal editor", icon: <PanelsTopLeft size={16} /> },
   { id: "defaults", label: "Defaults", icon: <SlidersHorizontal size={16} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
-  { id: "integrations", label: "Integrations", icon: <PlugZap size={16} /> },
   { id: "updates", label: "What’s new", icon: <Sparkles size={16} /> },
   { id: "logs", label: "Activity log", icon: <ScrollText size={16} /> },
   { id: "launch", label: "Launch", icon: <ShieldCheck size={16} /> },
@@ -126,10 +122,8 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
         {active === "team"        && <TeamPane ctx={ctx} />}
         {active === "workspace"   && <WorkspacePane ctx={ctx} />}
         {active === "showcase"    && <Section eyebrow="Showcase Mode"><ShowcaseModePanel active={ctx.isShowcase} canManage={ctx.canManageSettings} /></Section>}
-        {active === "portal-editor" && <Section eyebrow="Portal editor"><PortalEditorPanel canManage={ctx.canManageSettings} /></Section>}
         {active === "defaults"    && <DefaultsPane ctx={ctx} />}
         {active === "notifications" && <NotificationsPane ctx={ctx} />}
-        {active === "integrations" && <IntegrationsPane readiness={ctx.readiness} clients={ctx.clients} canManage={ctx.canManageSettings} />}
         {active === "updates"     && <UpdatesPane />}
         {active === "logs"        && <Section eyebrow="Activity log"><ActivityLogPanel clients={ctx.clients} /></Section>}
         {active === "launch"      && <LaunchPane readiness={ctx.readiness} />}
@@ -152,7 +146,7 @@ function TeamPane({ ctx }: { ctx: SettingsContext }) {
 
 function Section({ eyebrow, children }: { eyebrow: string; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-black/10 bg-white/60 shadow-sm">
+    <section className="mm-surface-card rounded-lg border border-black/10">
       <header className="border-b border-black/10 px-5 py-3">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">‹ {eyebrow} ›</span>
       </header>
@@ -228,7 +222,7 @@ function GeneralPane({ ctx }: { ctx: SettingsContext }) {
 function UpdatesPane() {
   return (
     <>
-      <section className="overflow-hidden rounded-xl border border-black/10 bg-[#101513] text-white shadow-sm">
+      <section className="overflow-hidden rounded-lg border border-black/10 bg-[#101513] text-white shadow-sm">
         <div className="grid gap-6 px-5 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-7 sm:py-7">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
@@ -382,8 +376,8 @@ function WorkspacePane({ ctx }: { ctx: SettingsContext }) {
       </Section>
       <Section eyebrow="Manage the system">
         <div className="divide-y divide-black/10">
-          <SettingsDestination title="Clients and journey" detail="Contacts, lifecycle stages, pipelines, client portals, and delivery progress." links={[["Clients & contacts", "/portal/clients"], ["Journey", "/portal/agency/pipelines/leads"], ["Stages", "/portal/agency/phases"]]} />
-          <SettingsDestination title="Products and fulfilment" detail="Products, packages, contracts, billing defaults, welcome packs, and delivery knowledge." links={[["Products", "/portal/agency/products"], ["Development & performance", "/portal/agency/development/performance"]]} />
+          <SettingsDestination title="Clients and journey" detail="Contacts, lifecycle stages, pipelines, client portals, and delivery progress." links={[["Clients & contacts", "/portal/clients"], ["Portals", "/portal/agency/portals"], ["Journey", "/portal/agency/pipelines/leads"], ["Stages", "/portal/agency/phases"]]} />
+          <SettingsDestination title="Products and fulfilment" detail="Products, packages, contracts, billing defaults, welcome packs, and delivery knowledge." links={[["Company products", "/portal/agency/company?view=products"], ["Development & performance", "/portal/agency/development/performance"]]} />
           <SettingsDestination title="Work and knowledge" detail="Team actions, recurring work, reminders, and SOPs." links={[["Actions", "/portal/agency/actions"], ["SOP library", "/portal/agency/sop-library"]]} />
           <SettingsDestination title="Money and growth" detail="Invoices, income, expenses, campaigns, attribution, and client-care activity." links={[["Finance", "/portal/agency/agency-finance"], ["Marketing", "/portal/agency/marketing"], ["Client care", "/portal/agency/you-deserve-it"]]} />
         </div>
@@ -429,7 +423,7 @@ function DefaultsPane({ ctx }: { ctx: SettingsContext }) {
         </div>
       </Section>
       <Section eyebrow="Finance defaults">
-        <p className="mb-4 text-xs leading-5 text-black/45">Applied to new products and documents. Amend individual records in <InlineLink href="/portal/agency/agency-finance/invoices">Invoices</InlineLink> or edit agreement templates inside <InlineLink href="/portal/agency/products">Products</InlineLink>.</p>
+        <p className="mb-4 text-xs leading-5 text-black/45">Applied to new products and documents. Amend individual records in <InlineLink href="/portal/agency/agency-finance/invoices">Invoices</InlineLink> or edit agreement templates inside <InlineLink href="/portal/agency/company?view=products">Company products</InlineLink>.</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Currency"><select value={form.defaultCurrency} onChange={event => setForm(value => ({ ...value, defaultCurrency: event.target.value }))} className={control} disabled={!ctx.canManageSettings}><option>GBP</option><option>EUR</option><option>USD</option></select></Field>
           <Field label="Default tax %"><input type="number" min="0" max="100" step="0.01" value={form.defaultTaxRatePercent} onChange={event => setForm(value => ({ ...value, defaultTaxRatePercent: event.target.value }))} className={control} disabled={!ctx.canManageSettings} /></Field>
@@ -474,78 +468,15 @@ function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
       </Section>
       <Section eyebrow="Digest">
         <Field label="Summary frequency"><select value={notifications.digest} onChange={event => setNotifications(value => ({ ...value, digest: event.target.value as typeof notifications.digest }))} className={`${control} max-w-xs`} disabled={!ctx.canManageSettings}><option value="off">No digest</option><option value="daily">Daily summary</option><option value="weekly">Weekly summary</option></select></Field>
-        <p className="mt-2 text-xs leading-5 text-black/40">The preference is saved now. Email delivery requires the <InlineLink href="/portal/agency/settings#integrations">customer email connection</InlineLink>.</p>
+        <p className="mt-2 text-xs leading-5 text-black/40">The preference is saved now. Email delivery requires the <InlineLink href="/portal/agency/company?view=connections">customer email connection</InlineLink>.</p>
       </Section>
       <SaveRow status={status} canManage={ctx.canManageSettings} />
     </form>
   );
 }
 
-function IntegrationsPane({ readiness, clients, canManage }: {
-  readiness: ProductionReadiness;
-  clients: Array<{ id: string; name: string }>;
-  canManage: boolean;
-}) {
-  const foundationIds = new Set<ReadinessItemId>(["database", "security", "vault", "uploads", "google", "monitoring"]);
-  const foundation = readiness.items.filter(item => foundationIds.has(item.id));
-  return (
-    <>
-      <Section eyebrow="Connections">
-        <IntegrationConnectionsPanel clients={clients} canManage={canManage} />
-      </Section>
-      <Section eyebrow="One-time app foundation">
-        <div className="mb-4 max-w-3xl">
-          <h2 className="text-lg font-semibold text-black/85">Connections required before sign-in</h2>
-          <p className="mt-1 text-xs leading-5 text-black/50">These services start before AquaCRM knows which workspace or client is active, so they are configured once for the deployment. Everything customer-specific stays in the connection manager above.</p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {foundation.map(item => (
-            <details key={item.id} className="group rounded-lg border border-black/10 bg-white/70 open:bg-white">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
-                <span className="flex min-w-0 items-center gap-3">
-                  <StatusDot status={item.status} />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-black/75">{item.label}</span>
-                    <span className="mt-0.5 block truncate text-xs text-black/45">{item.summary}</span>
-                  </span>
-                </span>
-                <span className="shrink-0 text-xs font-medium text-black/40">{connectionStatusLabel(item.status)}</span>
-              </summary>
-              <div className="border-t border-black/[0.07] px-4 py-3">
-                <p className="text-xs leading-5 text-black/55">{item.action}</p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {item.envKeys.map(key => <code key={key} className="rounded bg-black/[0.05] px-2 py-1 text-[11px] font-medium text-black/60">{key}</code>)}
-                </div>
-                <ReadinessActionLink itemId={item.id} />
-              </div>
-            </details>
-          ))}
-        </div>
-        <div className="mt-4 rounded-lg border border-black/10 bg-black/[0.025] p-4">
-          <h3 className="text-sm font-semibold text-black/75">Why there is still one deployment secret</h3>
-          <p className="mt-1 text-xs leading-5 text-black/50">The vault encryption key protects every provider credential stored through this page. It is the only secret that must remain outside the database; storing the key beside the encrypted values would remove the protection.</p>
-          <ReadinessActionLink itemId="vault" />
-        </div>
-      </Section>
-      <Section eyebrow="Integration workspaces">
-        <div className="flex flex-wrap gap-2">
-          <PrimaryLink href="/portal/agency/agency-finance">Payments and finance</PrimaryLink>
-          <PrimaryLink href="/portal/agency/development">Repositories and deployments</PrimaryLink>
-          <PrimaryLink href="/portal/agency/marketing">Campaigns and attribution</PrimaryLink>
-          <PrimaryLink href="/portal/agency/inbox">Inbox channels</PrimaryLink>
-          <PrimaryLink href="/portal/agency/settings#launch">External AI access</PrimaryLink>
-        </div>
-      </Section>
-    </>
-  );
-}
-
 function SettingsDestination({ title, detail, links }: { title: string; detail: string; links: Array<[string, string]> }) {
   return <div className="grid gap-3 py-5 first:pt-0 last:pb-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div><h3 className="text-sm font-semibold text-black/75">{title}</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-black/45">{detail}</p></div><div className="flex flex-wrap gap-2">{links.map(([label, href]) => <PrimaryLink key={href} href={href}>{label}</PrimaryLink>)}</div></div>;
-}
-
-function StatusDot({ status }: { status: ReadinessStatus }) {
-  return <span className={`size-2 rounded-full ${status === "ready" ? "bg-emerald-500" : status === "needs-setup" ? "bg-amber-500" : "bg-black/20"}`} aria-hidden="true" />;
 }
 
 type ReadinessItemId = ProductionReadiness["items"][number]["id"];
@@ -621,12 +552,6 @@ function statusLabel(status: ReadinessStatus): string {
   if (status === "ready") return "Ready";
   if (status === "needs-setup") return "Setup needed";
   return "Optional";
-}
-
-function connectionStatusLabel(status: ReadinessStatus): string {
-  if (status === "ready") return "Connected";
-  if (status === "needs-setup") return "Required";
-  return "Not connected";
 }
 
 function LaunchPane({ readiness }: { readiness: ProductionReadiness }) {

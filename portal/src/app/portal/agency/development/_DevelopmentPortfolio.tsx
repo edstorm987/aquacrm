@@ -189,11 +189,11 @@ export function DevelopmentPortfolio({
         </Link>
       </header>
 
-      <section className="grid border-y border-black/10 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric icon={<LayoutDashboard size={16} />} label="Projects" value={counts.total} />
-        <Metric icon={<AppWindow size={16} />} label="In progress" value={counts.building} />
-        <Metric icon={<RadioTower size={16} />} label="Live" value={counts.live} />
-        <Metric icon={<AlertTriangle size={16} />} label="Needs attention" value={counts.attention} tone={counts.attention ? "warn" : "good"} />
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric icon={<LayoutDashboard size={16} />} label="Projects" value={counts.total} tone="blue" />
+        <Metric icon={<AppWindow size={16} />} label="In progress" value={counts.building} tone="violet" />
+        <Metric icon={<RadioTower size={16} />} label="Live" value={counts.live} tone="emerald" />
+        <Metric icon={<AlertTriangle size={16} />} label="Needs attention" value={counts.attention} tone={counts.attention ? "amber" : "emerald"} />
       </section>
 
       <section>
@@ -255,11 +255,11 @@ export function DevelopmentPortfolio({
         {notice ? <p role="status" className="mt-3 text-xs font-medium text-brand">{notice}</p> : null}
 
         {filtered.length ? (
-          <div className="divide-y divide-black/10">
+          <div className="grid gap-2 pt-4">
             {filtered.map(project => (
-              <article key={project.id} className="grid gap-4 py-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,.6fr)_160px_auto] lg:items-center">
+              <article key={project.id} className="mm-surface-card mm-hover-lift grid gap-4 rounded-md p-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,.6fr)_160px_auto] lg:items-center">
                 <div className="flex min-w-0 gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-md bg-black/[0.045] text-black/55">
+                  <span className={`grid size-10 shrink-0 place-items-center rounded-md ${projectIconTone(project.kind)}`}>
                     <ProjectIcon kind={project.kind} />
                   </span>
                   <div className="min-w-0">
@@ -315,7 +315,7 @@ export function DevelopmentPortfolio({
             ))}
           </div>
         ) : (
-          <div className="py-16 text-center">
+          <div className="mm-surface-card mt-4 rounded-md py-16 text-center">
             <Search className="mx-auto text-black/25" size={25} />
             <h2 className="mt-3 text-sm font-semibold text-black/75">No matching projects</h2>
             <p className="mt-1 text-xs text-black/45">Change the view, status or search.</p>
@@ -334,14 +334,21 @@ function ProjectIcon({ kind }: { kind: DevelopmentProjectKind }) {
   return <AppWindow size={17} />;
 }
 
-function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone?: "good" | "warn" }) {
-  const colour = tone === "good" ? "text-emerald-700" : tone === "warn" ? "text-amber-700" : "text-black/55";
+function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone: "blue" | "emerald" | "violet" | "amber" }) {
   return (
-    <div className="flex items-center gap-3 border-b border-black/10 px-4 py-4 last:border-b-0 sm:border-r sm:[&:nth-child(2)]:border-r-0 lg:border-b-0 lg:[&:nth-child(2)]:border-r lg:last:border-r-0">
-      <span className={colour}>{icon}</span>
-      <div><p className="text-[10px] font-semibold uppercase text-black/35">{label}</p><p className={`mt-0.5 text-xl font-semibold ${colour}`}>{value}</p></div>
+    <div className="mm-kpi-card mm-surface-card mm-hover-lift flex min-h-24 items-center gap-3 rounded-md p-4" data-kpi-tone={tone}>
+      <span className="mm-kpi-icon">{icon}</span>
+      <div><p className="text-[10px] font-semibold uppercase text-black/35">{label}</p><p className="mt-0.5 text-xl font-semibold text-black/80">{value}</p></div>
     </div>
   );
+}
+
+function projectIconTone(kind: DevelopmentProjectKind) {
+  if (kind === "website") return "bg-blue-50 text-blue-700";
+  if (["client-portal", "dev-portal"].includes(kind)) return "bg-violet-50 text-violet-700";
+  if (kind === "lead-magnet") return "bg-pink-50 text-pink-700";
+  if (kind === "tag") return "bg-emerald-50 text-emerald-700";
+  return "bg-cyan-50 text-cyan-700";
 }
 
 function MiniMetric({ label, value, bad }: { label: string; value: string; bad?: boolean }) {

@@ -147,6 +147,7 @@ function customerDocumentUrl(value: unknown): string | undefined {
 function customerActivityMessage(
   item: ActivityEntry,
   invoiceNumberById: Map<string, string>,
+  providerName: string,
 ): string | undefined {
   const requestType = typeof item.metadata?.requestType === "string"
     ? item.metadata.requestType.replaceAll("-", " ")
@@ -166,25 +167,29 @@ function customerActivityMessage(
     return "You approved the latest project decision.";
   }
   if (item.action.startsWith("client_approval.") && item.action.endsWith(".changes-requested")) {
-    return "Your requested changes were sent to Milesymedia.";
+    return `Your requested changes were sent to ${providerName}.`;
   }
   if (item.action === "contract.sent") return "A new agreement is ready in Billing.";
   if (item.action === "contract.accepted") return "Your agreement was accepted.";
-  if (item.action === "contract.declined") return "Your agreement query was sent to Milesymedia.";
+  if (item.action === "contract.declined") return `Your agreement query was sent to ${providerName}.`;
   if (item.action === "invoice.sent") return `${invoiceNumber ? `${invoiceNumber} is` : "A new invoice is"} ready in Billing.`;
   if (item.action === "invoice.paid") return `Payment received${invoiceNumber ? ` for ${invoiceNumber}` : ""}.`;
   if (item.action === "invoice.refunded") return `A refund was recorded${invoiceNumber ? ` for ${invoiceNumber}` : ""}.`;
   if (item.action.startsWith("client_request.") && item.action.endsWith(".opened")) {
-    return `Your ${requestType} request was sent to Milesymedia.`;
+    return `Your ${requestType} request was sent to ${providerName}.`;
   }
   if (item.action === "client_request.replied") return "Your support conversation has a new reply.";
-  if (item.action === "client_request.reviewed") return `Milesymedia is reviewing your ${requestType} request.`;
+  if (item.action === "client_request.reviewed") return `${providerName} is reviewing your ${requestType} request.`;
   if (item.action === "client_request.closed") return `Your ${requestType} request was resolved.`;
   if (item.category === "phase") return "Your project moved to its next stage.";
   return undefined;
 }
 
-export async function loadCustomerPortalData(client: Client, fallbackName: string): Promise<CustomerPortalData> {
+export async function loadCustomerPortalData(
+  client: Client,
+  fallbackName: string,
+  providerName = "Milesymedia",
+): Promise<CustomerPortalData> {
   const meta = (client.metadata ?? {}) as {
     portalMode?: CustomerPortalMode;
     portalContactName?: string;
@@ -269,7 +274,7 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     limit: 100,
   })
     .flatMap(item => {
-      const message = customerActivityMessage(item, invoiceNumberById);
+      const message = customerActivityMessage(item, invoiceNumberById, providerName);
       return message ? [{ id: item.id, ts: item.ts, message, category: item.category }] : [];
     })
     .slice(0, 20);
@@ -281,7 +286,7 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
       .map(value => value.trim().toLowerCase()),
   );
   const actorLabel = (value?: string, customerFallback = "Customer") =>
-    value && customerEmails.has(value.trim().toLowerCase()) ? "Customer" : value ? "Milesymedia" : customerFallback;
+    value && customerEmails.has(value.trim().toLowerCase()) ? "Customer" : value ? providerName : customerFallback;
   const safeFiles: CustomerFile[] = (Array.isArray(meta.files) ? meta.files : []).map(file => ({
     id: file.id,
     name: file.name,
@@ -315,9 +320,9 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     status: request.status,
     submittedBy: actorLabel(request.submittedBy),
     submittedAt: request.submittedAt,
-    reviewedBy: request.reviewedBy ? "Milesymedia" : undefined,
+    reviewedBy: request.reviewedBy ? providerName : undefined,
     reviewedAt: request.reviewedAt,
-    closedBy: request.closedBy ? "Milesymedia" : undefined,
+    closedBy: request.closedBy ? providerName : undefined,
     closedAt: request.closedAt,
     replies: Array.isArray(request.replies)
       ? request.replies.map(reply => ({
@@ -377,7 +382,7 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     detail: approval.detail,
     status: approval.status,
     requestedAt: approval.requestedAt,
-    requestedBy: "Milesymedia",
+    requestedBy: providerName,
     respondedAt: approval.respondedAt,
     respondedBy: approval.respondedBy ? "Customer" : undefined,
     responseNote: approval.responseNote,
@@ -441,7 +446,7 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
   return {
     mode: portalMode(meta.portalMode),
     contactName: meta.portalContactName?.trim() || fallbackName,
-    servicePlan: meta.portalServicePlan?.trim() || PLAN_LABELS[planKey] || planKey || "Milesymedia custom plan",
+    servicePlan: meta.portalServicePlan?.trim() || PLAN_LABELS[planKey] || planKey || `${providerName} custom plan`,
     planSummary: meta.portalPlanSummary?.trim() || undefined,
     planIncludes: Array.isArray(meta.portalPlanIncludes)
       ? meta.portalPlanIncludes
@@ -480,17 +485,21 @@ export async function loadCustomerPortalData(client: Client, fallbackName: strin
     },
     support: {
       email: meta.portalSupportEmail?.trim()
-        || process.env.MILESYMEDIA_SUPPORT_EMAIL?.trim()
-        || process.env.MILESYMEDIA_REPLY_TO?.trim()
-        || process.env.MILESYMEDIA_FROM_EMAIL?.trim()
-        || "hello@milesymedia.co",
+        || (providerName === "Milesymedia"
+          ? process.env.MILESYMEDIA_SUPPORT_EMAIL?.trim()
+            || process.env.MILESYMEDIA_REPLY_TO?.trim()
+            || process.env.MILESYMEDIA_FROM_EMAIL?.trim()
+            || "hello@milesymedia.co"
+          : undefined),
       phone: meta.portalSupportPhone?.trim()
-        || process.env.MILESYMEDIA_SUPPORT_PHONE?.trim()
-        || "+44 7707 020250",
+        || (providerName === "Milesymedia"
+          ? process.env.MILESYMEDIA_SUPPORT_PHONE?.trim() || "+44 7707 020250"
+          : undefined),
       whatsappUrl: supportUrl(meta.portalSupportWhatsappUrl)
         || supportUrl(meta.whatsappLink)
-        || supportUrl(process.env.MILESYMEDIA_SUPPORT_WHATSAPP_URL)
-        || "https://wa.me/447707020250",
+        || (providerName === "Milesymedia"
+          ? supportUrl(process.env.MILESYMEDIA_SUPPORT_WHATSAPP_URL) || "https://wa.me/447707020250"
+          : undefined),
     },
     activity,
   };

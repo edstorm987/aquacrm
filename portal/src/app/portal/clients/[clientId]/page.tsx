@@ -42,6 +42,7 @@ import { assertSopsAccess, familiesForStage, SopsAccessError } from "@/lib/serve
 import { RequirePermission } from "@/lib/server/RequirePermission";
 import { OnboardingDashboardPanel, type OnboardingPhase } from "./_OnboardingDashboardPanel";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
+import { getTradingCompany } from "@/server/tradingCompanies";
 import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/githubProjectPublisher";
 import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/vercelProjectDeployer";
 import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
@@ -221,8 +222,11 @@ export default async function ClientHome({
   };
   const planLabel = meta.planTier ? PLAN_LABELS[meta.planTier] : null;
   const servicePlanLabel = meta.portalServicePlan?.trim() || planLabel;
+  const portalProviderName = client.companyId
+    ? getTradingCompany(session.agencyId, client.companyId)?.name ?? "AquaOasis-Web"
+    : "AquaOasis-Web";
   const customerPortalData = tab === "fulfilment"
-    ? await loadCustomerPortalData(client, meta.portalContactName ?? client.name)
+    ? await loadCustomerPortalData(client, meta.portalContactName ?? client.name, portalProviderName)
     : null;
   const contractTemplates: ClientContractTemplate[] = tab === "finance"
     ? [
@@ -306,6 +310,9 @@ export default async function ClientHome({
                 {client.websiteUrl}
               </a>
             )}
+            <Link href={`/portal/clients/${client.id}/settings`} className="font-medium text-brand hover:underline">
+              {client.websiteUrl ? "Change domain" : "Add domain"}
+            </Link>
           </div>
         </div>
         {live && (

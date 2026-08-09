@@ -24,6 +24,7 @@ import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agency
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
+import { Check, Route } from "lucide-react";
 
 export default async function AgencyHome() {
   await ensureHydrated();
@@ -163,25 +164,28 @@ function OperatingLoop({
   const nextIndex = Math.max(0, steps.findIndex(step => !step.done));
 
   return (
-    <section aria-labelledby="operating-loop-heading" className="border-y border-black/10">
-      <div className="flex flex-wrap items-end justify-between gap-3 py-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Do next</p>
-          <h2 id="operating-loop-heading" className="mt-1 text-lg font-semibold text-black/85">One customer journey</h2>
-          <p className="mt-1 text-sm text-black/50">Move from opportunity to paid, delivered work without losing the next step.</p>
+    <section aria-labelledby="operating-loop-heading" className="mm-surface-card overflow-hidden rounded-lg border">
+      <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-4 sm:px-5">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md" aria-hidden><Route size={18} /></span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand">Do next</p>
+            <h2 id="operating-loop-heading" className="mt-1 text-lg font-semibold text-black/85">One customer journey</h2>
+            <p className="mt-1 text-sm text-black/50">Move from opportunity to paid, delivered work without losing the next step.</p>
+          </div>
         </div>
-        <span className="text-xs text-black/40">{steps.filter(step => step.done).length} of {steps.length} clear</span>
+        <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-xs font-medium text-black/50">{steps.filter(step => step.done).length} of {steps.length} clear</span>
       </div>
       <ol className="divide-y divide-black/[0.07] border-t border-black/10">
         {steps.map((step, index) => {
           const isNext = index === nextIndex && !step.done;
-          return <li key={step.label} className={`grid gap-3 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-center ${isNext ? "bg-[#faf7ef]" : ""}`}>
-            <span className={`grid size-7 place-items-center rounded-full text-xs font-semibold ${step.done ? "bg-emerald-50 text-emerald-700" : isNext ? "bg-black text-white" : "bg-black/[0.04] text-black/35"}`}>{step.done ? "✓" : index + 1}</span>
+          return <li key={step.label} className={`mm-interactive-row grid gap-3 px-4 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-center sm:px-5 ${isNext ? "bg-amber-50/60" : ""}`}>
+            <span className={`grid size-7 place-items-center rounded-full text-xs font-semibold ${step.done ? "bg-emerald-50 text-emerald-700" : isNext ? "bg-black text-white" : "bg-black/[0.04] text-black/35"}`}>{step.done ? <Check size={14} strokeWidth={2.5} /> : index + 1}</span>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-black/80">{step.label}{isNext ? <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Next</span> : null}</p>
               <p className="mt-0.5 text-xs text-black/45">{step.detail}</p>
             </div>
-            <Link href={step.href} className="w-fit rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:border-black/20">{step.action}</Link>
+            <Link href={step.href} className="mm-hover-lift w-fit rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:border-black/20">{step.action}</Link>
           </li>;
         })}
       </ol>

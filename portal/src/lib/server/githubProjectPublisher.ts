@@ -56,7 +56,7 @@ export function githubPublishingOwner(env: NodeJS.ProcessEnv = process.env): str
 export function githubConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GitHubPublishingConfig {
   const token = env.GITHUB_TOKEN?.trim();
   if (!token) {
-    throw new Error("GitHub publishing is not connected. Connect GitHub in Settings → Integrations.");
+    throw new Error("GitHub publishing is not connected. Connect GitHub in Company → Connections.");
   }
   return { token, owner: githubPublishingOwner(env) };
 }

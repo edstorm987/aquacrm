@@ -53,7 +53,7 @@ export function isVercelProjectDeploymentConfiguredForAgency(agencyId: string, c
 
 export function vercelDeploymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): VercelDeploymentConfig {
   const token = env.VERCEL_TOKEN?.trim();
-  if (!token) throw new Error("Vercel deployment is not connected. Connect Vercel in Settings → Integrations.");
+  if (!token) throw new Error("Vercel deployment is not connected. Connect Vercel in Company → Connections.");
   return { token, teamId: env.VERCEL_TEAM_ID?.trim() || undefined };
 }
 

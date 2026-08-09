@@ -249,7 +249,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
           </p>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <a href="/portal/agency/settings#portal-editor/expenses" className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
+          <a href="/portal/agency/portals?view=editor#forms/expenses" className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
             <Settings2 size={16} aria-hidden /> Edit form
           </a>
           <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
@@ -883,7 +883,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
         <section className="mt-4 border-b border-black/10 pb-4">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-black/80">Extra details</h3>
-            <p className="mt-0.5 text-xs text-black/45">Fields managed in Settings → Portal editor.</p>
+            <p className="mt-0.5 text-xs text-black/45">Fields managed in Portals → Portal editor.</p>
           </div>
           {Array.from(new Set(customFields.map(field => field.section))).map(section => (
             <div key={section} className="mb-4 last:mb-0">

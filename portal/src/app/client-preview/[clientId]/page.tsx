@@ -9,6 +9,7 @@ import { CustomerPortalChrome } from "@/app/portal/customer/_CustomerPortalChrom
 import { CustomerPortalContent, type CustomerPortalSection } from "@/app/portal/customer/_CustomerPortalViews";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
+import { getTradingCompany } from "@/server/tradingCompanies";
 
 const MODE_LABEL = {
   onboarding: "Onboarding",
@@ -45,7 +46,9 @@ export default async function ClientPreviewPage({
   if (!client) notFound();
 
   const user = getUserById(session.userId);
-  const data = await loadCustomerPortalData(client, client.name);
+  const provider = client.companyId ? getTradingCompany(agencyId, client.companyId) : null;
+  const providerName = provider?.name ?? "AquaOasis-Web";
+  const data = await loadCustomerPortalData(client, client.name, providerName);
   const backHref = `/portal/clients/${client.id}?tab=fulfilment`;
   const previewHrefPrefix = `/client-preview/${client.id}?${embedded ? "embedded=1&" : ""}section=`;
 
@@ -65,8 +68,10 @@ export default async function ClientPreviewPage({
         logoUrl={data.logoUrl}
         accentColor={data.accentColor}
         projectLabel={portalProjectLabel(data.products)}
+        providerName={providerName}
+        providerMark={providerName.charAt(0).toUpperCase()}
       >
-        <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} />
+        <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />
       </CustomerPortalChrome>
     </>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { Building2, ExternalLink, Pencil, Plus, X } from "lucide-react";
+import Link from "next/link";
+import { Building2, ExternalLink, Link2, Pencil, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { TradingCompany } from "@/server/types";
@@ -17,6 +18,7 @@ interface WorkspaceSummary {
   productCount: number;
   staffCount: number;
   healthScore: number;
+  website?: string;
 }
 
 const blank = {
@@ -60,7 +62,7 @@ export function TradingCompaniesPanel({
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <article className="border-l-4 border-black bg-white px-4 py-4 shadow-sm">
+        <article className="mm-surface-card mm-hover-lift rounded-md border-t-[3px] border-t-black p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="grid size-9 place-items-center rounded-md bg-black text-white"><Building2 size={17} /></span>
@@ -75,13 +77,16 @@ export function TradingCompaniesPanel({
             <Metric value={workspace.staffCount} label="People" />
           </div>
           <HealthBar score={workspace.healthScore} />
+          <div className="mt-3 flex justify-end">
+            {workspace.website ? <a href={workspace.website} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/55 hover:border-black/25 hover:text-black">Open website <ExternalLink size={13} /></a> : <Link href="/portal/agency/company?view=connections" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/55 hover:border-black/25 hover:text-black"><Link2 size={13} />Connect website</Link>}
+          </div>
         </article>
         {companies.map(company => (
-          <article key={company.id} className="border-l-4 bg-white px-4 py-4 shadow-sm" style={{ borderLeftColor: company.brand.primaryColor }}>
+          <article key={company.id} className="mm-surface-card mm-hover-lift rounded-md border-t-[3px] p-4" style={{ borderTopColor: company.brand.primaryColor }}>
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2"><span className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: company.brand.primaryColor }} /><h3 className="truncate font-semibold text-black/85">{company.name}</h3></div>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-black/45">{company.description || "No description added yet."}</p>
+              <div className="flex min-w-0 gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-md" style={{ backgroundColor: `color-mix(in srgb, ${company.brand.primaryColor} 12%, transparent)`, color: company.brand.primaryColor }}><Building2 size={17} /></span>
+                <div className="min-w-0"><h3 className="truncate font-semibold text-black/85">{company.name}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-black/45">{company.description || "No description added yet."}</p></div>
               </div>
               {canEdit ? <button type="button" onClick={() => setEditing(company)} aria-label={`Edit ${company.name}`} className="grid size-8 shrink-0 place-items-center rounded-md text-black/40 hover:bg-black/[0.04]"><Pencil size={14} /></button> : null}
             </div>
@@ -93,12 +98,12 @@ export function TradingCompaniesPanel({
             <HealthBar score={company.healthScore} />
             <div className="mt-3 flex items-center justify-between gap-2">
               <span className="text-[10px] font-semibold uppercase text-black/40">Client-facing brand</span>
-              {company.website ? <a href={company.website} target="_blank" rel="noreferrer" aria-label={`Open ${company.name} website`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><ExternalLink size={14} /></a> : null}
+              {company.website ? <a href={company.website} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/55" aria-label={`Open ${company.name} website`}>Open website <ExternalLink size={13} /></a> : canEdit ? <button type="button" onClick={() => setEditing(company)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/55"><Link2 size={13} />Connect website</button> : <span className="text-xs text-black/35">Not connected</span>}
             </div>
           </article>
         ))}
       </div>
-      {!companies.length ? <p className="mt-4 border-y border-dashed border-black/10 py-6 text-center text-sm text-black/40">No service brands yet. AquaOasis-Web can still run every product directly.</p> : null}
+      {!companies.length ? <p className="mm-surface-card mt-4 rounded-md border-dashed py-6 text-center text-sm text-black/40">No service brands yet. AquaOasis-Web can still run every product directly.</p> : null}
       {notice ? <p role="status" className="mt-3 text-xs text-black/50">{notice}</p> : null}
       {editing ? <CompanyEditor
         company={editing === "new" ? null : editing}

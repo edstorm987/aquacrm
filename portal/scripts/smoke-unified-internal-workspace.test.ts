@@ -15,16 +15,16 @@ describe("one AquaOasis-Web internal workspace", () => {
   it("shows every client and product without active-brand filtering", () => {
     const clients = read("src", "app", "portal", "clients", "page.tsx");
     const dashboard = read("src", "app", "portal", "agency", "page.tsx");
-    const products = read("src", "app", "portal", "agency", "products", "page.tsx");
+    const company = read("src", "app", "portal", "agency", "company", "page.tsx");
     const productApi = read("src", "app", "api", "portal", "products", "route.ts");
 
-    for (const src of [clients, dashboard, products, productApi]) {
+    for (const src of [clients, dashboard, company, productApi]) {
       assert.ok(!src.includes("getActiveTradingCompanyId"));
       assert.ok(!src.includes("recordBelongsToCompany"));
     }
     assert.ok(clients.includes("listTradingCompanies"));
     assert.ok(clients.includes("brands={serviceBrands.map"));
-    assert.ok(products.includes("listAgencyProducts(session.agencyId, true)"));
+    assert.ok(company.includes("listAgencyProducts(session.agencyId, true)"));
   });
 
   it("requires client-facing brand selection to be explicit and validated", () => {

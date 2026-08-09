@@ -65,7 +65,7 @@ export default async function CustomerLayout({ children }: { children: ReactNode
     portalAccentColor?: string;
   };
   const modeLabel = MODE_LABEL[portalMode(meta.portalMode)];
-  const portalData = await loadCustomerPortalData(client, user?.name ?? client.name);
+  const portalData = await loadCustomerPortalData(client, user?.name ?? client.name, authBrand.name);
   const accentColor = /^#[0-9a-f]{6}$/i.test(meta.portalAccentColor ?? "")
     ? meta.portalAccentColor
     : "#8b6c33";

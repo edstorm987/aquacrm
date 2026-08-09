@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            error: "Aqua Advisor needs an OpenAI connection. Open Settings → Integrations and connect it there.",
+            error: "Aqua Advisor needs an OpenAI connection. Open Company → Connections and connect it there.",
             code: "assistant_not_configured",
           },
           { status: 503 },
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "The assistant needs an OpenAI connection. Open Settings → Integrations and connect it there.",
+          error: "The assistant needs an OpenAI connection. Open Company → Connections and connect it there.",
           code: "assistant_not_configured",
         },
         { status: 503 },

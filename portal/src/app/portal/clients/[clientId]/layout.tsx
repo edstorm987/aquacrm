@@ -23,6 +23,7 @@ import { resolvePhaseTokens } from "@/server/phaseTokens";
 import { getAgency } from "@/server/tenants";
 import { WelcomeGate } from "@/components/chrome/WelcomeGate";
 import { cookies } from "next/headers";
+import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 
 export default async function ClientLayout({
   children,
@@ -190,7 +191,7 @@ export default async function ClientLayout({
               : undefined}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
-            <ErrorBoundary label={`${client.name} workspace`}>{children}</ErrorBoundary>
+            <ErrorBoundary label={`${client.name} workspace`}><PortalRouteCanvas>{children}</PortalRouteCanvas></ErrorBoundary>
           </main>
         </div>
       </div>

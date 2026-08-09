@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { seedFounder } from "@/lib/server/founderSeed";
 import { issueSession, sessionCookie } from "@/lib/server/auth";
 import {
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await ensureHydrated();
+  await ensureHydrated({ fresh: true });
   const founderEmail = (process.env.FOUNDER_EMAIL ?? "edwardhallam07@gmail.com").toLowerCase();
   if (email === founderEmail) {
     await seedFounder();
@@ -148,6 +148,18 @@ export async function POST(req: NextRequest) {
     action: "user.signed_in",
     message: `${portalUser.email} signed in through Supabase (${portalUser.role}).`,
   });
+
+  try {
+    await flushPendingWrites();
+  } catch {
+    await supabase.auth.signOut();
+    return applyCookies(
+      NextResponse.json(
+        { ok: false, error: "Your workspace could not be saved. Please try signing in again." },
+        { status: 503 },
+      ),
+    );
+  }
 
   const response = NextResponse.json({
     ok: true,

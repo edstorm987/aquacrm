@@ -65,12 +65,12 @@ describe("standalone portal nav audit", () => {
     const block = agencyMainItemBlock(src);
     const expected = [
       ["clients", "/portal/clients"],
+      ["portals", "/portal/agency/portals"],
       ["pipelines", "/portal/agency/pipelines/leads"],
       ["marketing", "/portal/agency/marketing"],
       ["actions", "/portal/agency/actions"],
       ["development", "/portal/agency/development"],
       ["inbox", "/portal/agency/inbox"],
-      ["products", "/portal/agency/products"],
       ["finance", "/portal/agency/agency-finance"],
       ["sop-library", "/portal/agency/sop-library"],
     ];
@@ -81,9 +81,10 @@ describe("standalone portal nav audit", () => {
     }
     assert.ok(!block.includes('id: "contacts"'), "contacts should live inside the clients hub");
     assert.ok(!block.includes('id: "sales"'), "sales should live inside Pipelines");
+    assert.ok(!block.includes('id: "products"'), "products should live inside Company");
     assert.ok(!block.includes('id: "fulfillment", label: "Fulfilment"'), "duplicate Fulfilment main nav item should stay removed");
 
-    const priorityOrder = ["home", "actions", "inbox", "clients", "pipelines", "products", "development", "marketing", "finance", "sop-library"];
+    const priorityOrder = ["home", "actions", "inbox", "clients", "portals", "pipelines", "development", "marketing", "finance", "sop-library"];
     const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
     assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
@@ -93,10 +94,11 @@ describe("standalone portal nav audit", () => {
   it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "clients", "pipelines", "marketing", "actions", "development", "inbox", "products", "finance", "sop-library"]) {
+    for (const id of ["home", "company", "clients", "portals", "pipelines", "marketing", "actions", "development", "inbox", "finance", "sop-library"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
     assert.ok(!canonical.includes('"performance"'), "performance should live inside Development rather than the main sidebar");
+    assert.ok(!canonical.includes('"products"'), "products should live inside Company rather than the main sidebar");
     assert.ok(!canonical.includes('"sops"'), "the duplicate systems dashboard should not be a main nav item");
     assert.ok(!canonical.includes('"contacts"'), "contacts should not be a standalone main nav id");
     assert.ok(!canonical.includes('"sales"'), "sales should not be a standalone main nav id");

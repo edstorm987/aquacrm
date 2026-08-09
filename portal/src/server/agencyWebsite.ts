@@ -29,10 +29,10 @@ function defaults(agencyId: string): AgencyWebsiteProject {
     gateHeadline: "Website redesign in progress",
     gateMessage: "The new Milesymedia website is being prepared. The studio and client support remain open.",
     maintenanceMessage: "We are carrying out a planned update. Client support and portal access remain available.",
-    productionUrl: "http://localhost:3030",
+    productionUrl: "https://milesymedia.com",
     previewUrl: "http://localhost:3030/?preview=portal",
-    repositoryUrl: "https://github.com/edstorm987/aquacrm",
-    localPath: "04-milesymedia-portal/milesymedia-portal/portal/src/app/(website)",
+    repositoryUrl: "https://github.com/edstorm987/milesymedia-photography-brand",
+    localPath: "/Users/eds/Desktop/Projects/Web Development/Personal EcoSystem/milesymedia/website",
     pages: [
       { route: "/", label: "Home", status: "live", updatedAt: 0 },
       { route: "/client-centre", label: "Client centre", status: "live", updatedAt: 0 },
@@ -45,7 +45,30 @@ function defaults(agencyId: string): AgencyWebsiteProject {
 
 export function ensureAgencyWebsite(agencyId: string): AgencyWebsiteProject {
   const existing = getState().agencyWebsites[agencyId];
-  if (existing) return { ...defaults(agencyId), ...existing, pages: existing.pages?.length ? existing.pages : defaults(agencyId).pages };
+  if (existing) {
+    const fallback = defaults(agencyId);
+    const merged = { ...fallback, ...existing, pages: existing.pages?.length ? existing.pages : fallback.pages };
+    const upgraded: AgencyWebsiteProject = {
+      ...merged,
+      productionUrl: /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(merged.productionUrl)
+        ? fallback.productionUrl
+        : merged.productionUrl,
+      repositoryUrl: merged.repositoryUrl === "https://github.com/edstorm987/aquacrm"
+        ? fallback.repositoryUrl
+        : merged.repositoryUrl,
+      localPath: merged.localPath === "04-milesymedia-portal/milesymedia-portal/portal/src/app/(website)"
+        ? fallback.localPath
+        : merged.localPath,
+    };
+    if (
+      upgraded.productionUrl !== existing.productionUrl
+      || upgraded.repositoryUrl !== existing.repositoryUrl
+      || upgraded.localPath !== existing.localPath
+    ) {
+      mutate(state => { state.agencyWebsites[agencyId] = upgraded; });
+    }
+    return upgraded;
+  }
   const project = defaults(agencyId);
   mutate(state => { state.agencyWebsites[agencyId] = project; });
   return project;

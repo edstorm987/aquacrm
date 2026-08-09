@@ -25,6 +25,7 @@ import {
   MonitorCog,
   Package,
   PanelTop,
+  PanelsTopLeft,
   ReceiptText,
   Settings,
   Ship,
@@ -44,6 +45,7 @@ const NAV_ICONS: Record<string, typeof Circle> = {
   inbox: Inbox,
   performance: Gauge,
   clients: ContactRound,
+  portals: PanelsTopLeft,
   "you-deserve-it": Gift,
   pipelines: Ship,
   products: Package,
@@ -77,6 +79,27 @@ const NAV_ICONS: Record<string, typeof Circle> = {
   leads: Target,
 };
 
+const NAV_TONES: Record<string, string> = {
+  home: "teal",
+  dashboard: "teal",
+  company: "indigo",
+  actions: "amber",
+  inbox: "sky",
+  clients: "violet",
+  portals: "cyan",
+  "you-deserve-it": "rose",
+  pipelines: "orange",
+  products: "lime",
+  development: "blue",
+  performance: "blue",
+  marketing: "pink",
+  finance: "emerald",
+  "agency-finance": "emerald",
+  "sop-library": "slate",
+  settings: "slate",
+  "agency-settings": "slate",
+};
+
 export function SidebarNavLink({
   id,
   href,
@@ -102,14 +125,15 @@ export function SidebarNavLink({
       aria-current={active ? "page" : undefined}
       title={label}
       data-sidebar-nav-link
+      data-nav-tone={NAV_TONES[id] ?? "slate"}
       className={[
         "mm-sidebar-link flex min-h-10 items-center gap-2 rounded-md px-2 py-2",
-        active ? "bg-brand/10 text-brand font-medium" : "text-black/80 hover:bg-black/5",
+        active ? "is-active font-medium" : "text-black/80",
       ].join(" ")}
     >
       <span
         aria-hidden
-        className="mm-sidebar-link-icon inline-flex h-5 w-5 shrink-0 items-center justify-center text-black/55"
+        className="mm-sidebar-link-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
       >
         {icon ?? <Icon size={16} strokeWidth={1.8} />}
       </span>

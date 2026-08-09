@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AvatarUploader } from "./AvatarUploader";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
+import { ArrowLeft, ArrowRight, KeyRound, ShieldCheck, UserRound } from "lucide-react";
 
 function deriveInitials(seed: string): string {
   const t = seed.trim();
@@ -14,7 +15,7 @@ function deriveInitials(seed: string): string {
   return parts[0]!.slice(0, 2).toUpperCase();
 }
 
-export const metadata = { title: "Edit profile · Milesy Media" };
+export const metadata = { title: "Edit profile · AquaCRM" };
 
 export default async function AccountPage() {
   await ensureHydrated();
@@ -29,20 +30,31 @@ export default async function AccountPage() {
   const isCustomer = session.role === "end-customer";
 
   return (
-    <main id="main-content" className="mm-portal-root relative flex min-h-screen w-full justify-center px-4 py-16 sm:py-20">
+    <main id="main-content" data-portal-area="account" className="mm-portal-root mm-route-canvas relative flex min-h-screen w-full justify-center px-4 py-16 sm:px-6 sm:py-20">
       <div className="absolute right-4 top-4 sm:right-6 sm:top-6"><ColorModeToggle /></div>
       <div className="w-full max-w-xl">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-black/90">Edit profile</h1>
-          <p className="mt-1 text-sm text-black/55">
+        <Link href={isCustomer ? "/portal/customer" : "/portal/agency"} className="mb-7 inline-flex min-h-9 items-center gap-2 text-xs font-medium text-black/50 transition hover:text-black/80">
+          <ArrowLeft size={14} aria-hidden="true" />
+          {isCustomer ? "Back to my portal" : "Back to workspace"}
+        </Link>
+        <header className="mb-7 flex items-start gap-4">
+          <span className="mm-area-icon grid size-11 shrink-0 place-items-center rounded-lg" aria-hidden="true"><UserRound size={19} /></span>
+          <div>
+          <p className="text-[10px] font-semibold uppercase text-black/40">Account</p>
+          <h1 className="mt-1 text-2xl font-semibold text-black/90">Edit profile</h1>
+          <p className="mt-2 text-sm leading-6 text-black/55">
             {isCustomer
-              ? "Manage the personal details used in your Milesymedia home."
+              ? "Manage the personal details used in your client portal."
               : <>Your basic details. Email and role are managed from <Link href="/portal/agency/settings#team" className="font-medium underline decoration-black/25 underline-offset-2 hover:text-black">Team settings</Link>.</>}
           </p>
+          </div>
         </header>
 
-        <section className="mb-4">
-          <h2 className="mb-2 text-sm font-medium text-black/70">Profile picture</h2>
+        <section className="mm-surface-card mb-5 rounded-lg border p-5 sm:p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <UserRound size={16} className="text-black/40" aria-hidden="true" />
+            <h2 className="text-sm font-semibold text-black/75">Profile picture</h2>
+          </div>
           <AvatarUploader
             initialAvatarUrl={user.avatarUrl}
             displayInitials={deriveInitials(user.name || user.email)}
@@ -55,7 +67,7 @@ export default async function AccountPage() {
         <form
           method="post"
           action="/api/auth/profile/update"
-          className="flex flex-col gap-4 rounded-xl border border-black/8 bg-white p-6 shadow-sm"
+          className="mm-surface-card flex flex-col gap-4 rounded-lg border p-5 sm:p-6"
         >
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-black/70">Name</span>
@@ -90,29 +102,29 @@ export default async function AccountPage() {
             )}
           </div>
           <div className="flex items-center justify-between gap-3 pt-2">
-            {isCustomer ? (
-              <a href="/portal/customer" className="text-xs text-black/55 underline underline-offset-2 hover:text-black/80">
-                Back to my portal
-              </a>
-            ) : (
-              <a href="/portal/account/permissions" className="text-xs text-black/55 underline underline-offset-2 hover:text-black/80">
-                View my permissions →
-              </a>
-            )}
+            <Link href={isCustomer ? "/portal/customer/details" : "/portal/account/permissions"} className="inline-flex items-center gap-1.5 text-xs font-medium text-black/55 hover:text-black/80">
+              {isCustomer ? "View account details" : "View my permissions"} <ArrowRight size={13} aria-hidden="true" />
+            </Link>
             <button type="submit" className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/85">
               Save changes
             </button>
           </div>
         </form>
 
-        <details className="mt-6 rounded-xl border border-black/8 bg-white p-4 text-sm">
-          <summary className="cursor-pointer text-black/70">Change password</summary>
-          <p className="mt-3 text-xs leading-5 text-black/55">
-            Use the secure password reset flow and we will send the next step to your email.
-          </p>
-          <a href="/login/forgot" className="mt-3 inline-flex text-xs font-medium text-black underline underline-offset-2">
-            Reset my password
-          </a>
+        <details className="mm-surface-card group mt-5 rounded-lg border p-4 text-sm sm:p-5">
+          <summary className="flex cursor-pointer list-none items-center gap-3 text-black/75">
+            <span className="mm-area-icon grid size-9 place-items-center rounded-md" aria-hidden="true"><KeyRound size={16} /></span>
+            <span className="font-semibold">Change password</span>
+            <ShieldCheck size={15} className="ml-auto text-black/30" aria-hidden="true" />
+          </summary>
+          <div className="ml-12 border-t border-black/8 pt-4">
+            <p className="text-xs leading-5 text-black/55">
+              Use the secure password reset flow and we will send the next step to your email.
+            </p>
+            <a href="/login/forgot" className="mt-3 inline-flex text-xs font-medium text-black underline underline-offset-2">
+              Reset my password
+            </a>
+          </div>
         </details>
       </div>
     </main>

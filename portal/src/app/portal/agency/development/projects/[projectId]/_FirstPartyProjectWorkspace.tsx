@@ -78,7 +78,7 @@ export function FirstPartyProjectWorkspace({
   githubWriteConfigured: boolean;
 }) {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("preview");
-  const [environment, setEnvironment] = useState<EnvironmentMode>("preview");
+  const [environment, setEnvironment] = useState<EnvironmentMode>("public");
   const [previewKey, setPreviewKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [deviceState, setDeviceState] = useState<DeviceState>(DEFAULT_DEVICE_STATE);
@@ -265,7 +265,7 @@ export function FirstPartyProjectWorkspace({
           <p className="mt-2 text-sm leading-6 text-black/55">{project.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href={frameUrl} target="_blank" rel="noreferrer" className={secondary}><MonitorPlay size={15} />Open build</a>
+          <a href={frameUrl} target="_blank" rel="noreferrer" className={secondary}><MonitorPlay size={15} />{environment === "public" ? "Open official site" : "Open local preview"}</a>
           <a href={project.repositoryUrl} target="_blank" rel="noreferrer" className={primary}><GitBranch size={15} />Repository</a>
         </div>
       </header>
@@ -285,8 +285,8 @@ export function FirstPartyProjectWorkspace({
           </div>
 
           <div className="inline-flex min-h-10 items-center rounded-md border border-white/10 bg-white/[0.04] p-1">
-            <ToolbarTextButton active={environment === "preview"} label="Local" onClick={() => setEnvironment("preview")} />
             <ToolbarTextButton active={environment === "public"} label="Live" onClick={() => setEnvironment("public")} />
+            <ToolbarTextButton active={environment === "preview"} label="Local preview" onClick={() => setEnvironment("preview")} />
           </div>
 
           <div className="min-w-[180px] flex-1 md:max-w-[330px]">
@@ -419,7 +419,7 @@ export function FirstPartyProjectWorkspace({
             state="Separate authorisation"
             detail="Search Console and provider data connect server-to-server. Visitor consent continues to control browser telemetry."
           >
-            <Link href="/portal/agency/settings" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">Manage integrations <ExternalLink size={12} /></Link>
+            <Link href="/portal/agency/company?view=connections" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">Manage connections <ExternalLink size={12} /></Link>
           </Connection>
         </div>
       </section>

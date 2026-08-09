@@ -35,7 +35,11 @@ export class ExpenseService {
   ) {}
 
   async list(filter?: ExpenseFilter): Promise<Expense[]> {
-    const ids = (await this.storage.get<string[]>(EXP_INDEX_KEY)) ?? [];
+    const indexedIds = (await this.storage.get<string[]>(EXP_INDEX_KEY)) ?? [];
+    const storedIds = (await this.storage.list("expenses/by-id/"))
+      .map(key => key.slice("expenses/by-id/".length))
+      .filter(Boolean);
+    const ids = [...new Set([...indexedIds, ...storedIds])];
     const out: Expense[] = [];
     for (const id of ids) {
       const row = await this.storage.get<Expense>(expKey(id));

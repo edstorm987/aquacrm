@@ -7,9 +7,11 @@ import { AGENCY_ROLES } from "@/server/types";
 import { CompanyWorkspace } from "./_CompanyWorkspace";
 import { TradingCompaniesPanel } from "./_TradingCompaniesPanel";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { listAgencyProducts } from "@/server/agencyProducts";
+import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { listSops } from "@/server/sops";
 import { listUsersForAgency } from "@/server/users";
 import { calculateServiceBrandHealth } from "@/lib/companyHealth";
+import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 
 export default async function CompanyPage() {
   await ensureHydrated();
@@ -17,9 +19,11 @@ export default async function CompanyPage() {
   const clients = listClients(session.agencyId);
   const companyHealth = await buildCompanyHealthSnapshot(session.agencyId);
   const profile = companyHealth.profile;
+  ensureDefaultAgencyProducts(session.agencyId);
   const products = listAgencyProducts(session.agencyId, true);
   const users = listUsersForAgency(session.agencyId).filter(user => user.role.startsWith("agency-"));
-  const companies = listTradingCompanies(session.agencyId, true).map(company => ({
+  const tradingCompanies = listTradingCompanies(session.agencyId, true);
+  const companies = tradingCompanies.map(company => ({
     company,
     companyClients: clients.filter(client => client.companyId === company.id),
     productCount: products.filter(product => product.companyIds?.includes(company.id)).length,
@@ -39,6 +43,7 @@ export default async function CompanyPage() {
       staffCount,
     }).overall,
   }));
+  const settings = getAgencyWorkspaceSettings(session.agencyId);
   const canEdit = session.role === "agency-owner" || session.role === "agency-manager";
   return <>
     <TradingCompaniesPanel
@@ -49,6 +54,7 @@ export default async function CompanyPage() {
         productCount: products.length,
         staffCount: users.length,
         healthScore: companyHealth.health.overall,
+        website: settings.website,
       }}
     />
     <CompanyWorkspace
@@ -57,6 +63,12 @@ export default async function CompanyPage() {
       actuals={companyHealth.actuals}
       canEdit={canEdit}
       legalDocuments={listLegalDocuments(session.agencyId)}
+      initialProducts={products}
+      sops={listSops(session.agencyId)}
+      tradingCompanies={tradingCompanies}
+      productDefaults={{ taxRatePercent: settings.defaultTaxRatePercent, paymentTermsDays: settings.defaultPaymentTermsDays }}
+      clients={clients.map(client => ({ id: client.id, name: client.name }))}
+      workspaceWebsite={settings.website}
     />
   </>;
 }

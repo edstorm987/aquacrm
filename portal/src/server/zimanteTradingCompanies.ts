@@ -2,7 +2,7 @@ import "server-only";
 
 import { TRADING_BRANDS, type TradingBrandSlug } from "@/lib/tradingBrands";
 import { createAgencyProduct, listAgencyProducts } from "./agencyProducts";
-import { createTradingCompany, listTradingCompanies, updateTradingCompany } from "./tradingCompanies";
+import { createTradingCompany, listTradingCompanies } from "./tradingCompanies";
 import type { TradingCompany } from "./types";
 
 export function ensureZimanteTradingCompanies(
@@ -27,9 +27,7 @@ export function ensureZimanteTradingCompanies(
         borderRadius: "8px",
       },
     };
-    companies[brand.slug] = found
-      ? updateTradingCompany(agencyId, found.id, input, actorUserId) ?? found
-      : createTradingCompany(agencyId, input, actorUserId);
+    companies[brand.slug] = found ?? createTradingCompany(agencyId, input, actorUserId);
   }
 
   ensureZimanteProducts(agencyId, actorUserId, companies);

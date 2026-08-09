@@ -44,6 +44,8 @@ test("website enquiries appear in alerts and a first-class inbox feed", () => {
   assert.match(inboxUi, /label="Chatbot"/);
   assert.match(inboxUi, /label="Support"/);
   assert.match(inboxUi, /Automatic triage/);
+  assert.match(inboxUi, /data-enquiry-message/);
+  assert.match(inboxUi, /whitespace-pre-wrap break-words/);
   assert.match(inboxUi, /sourceLocation\(item\)/);
   assert.match(inboxUi, /Campaign/);
   assert.match(inboxUi, /Create lead/);

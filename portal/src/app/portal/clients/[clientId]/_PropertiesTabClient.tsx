@@ -231,7 +231,7 @@ export function PropertiesTabClient({
 
   async function publishRepository(property: ClientProperty) {
     if (!githubPublishingConfigured) {
-      setError("GitHub is not connected. Connect it in Settings → Integrations first.");
+      setError("GitHub is not connected. Connect it in Company → Connections first.");
       return;
     }
     setPublishingId(property.id);
@@ -257,7 +257,7 @@ export function PropertiesTabClient({
 
   async function deployPreview(property: ClientProperty) {
     if (!vercelDeploymentConfigured) {
-      setError("Vercel is not connected. Connect it in Settings → Integrations first.");
+      setError("Vercel is not connected. Connect it in Company → Connections first.");
       return;
     }
     setDeployingId(property.id);
@@ -480,10 +480,10 @@ export function PropertiesTabClient({
               </select>
             </Field>
           </div>
-          <Field label="Preview URL" htmlFor="property-preview-url">
-            <input id="property-preview-url" type="url" value={draft.previewUrl} onChange={e => setDraft(d => ({ ...d, previewUrl: e.target.value }))} className={CONTROL_CLASS} placeholder="https://project.vercel.app" />
+          <Field label="Preview URL (local or staging)" htmlFor="property-preview-url">
+            <input id="property-preview-url" type="url" value={draft.previewUrl} onChange={e => setDraft(d => ({ ...d, previewUrl: e.target.value }))} className={CONTROL_CLASS} placeholder="http://localhost:3000 or https://preview.vercel.app" />
           </Field>
-          <Field label="Live URL" htmlFor="property-live-url">
+          <Field label="Official live URL" htmlFor="property-live-url">
             <input id="property-live-url" type="url" value={draft.liveUrl} onChange={e => setDraft(d => ({ ...d, liveUrl: e.target.value }))} className={CONTROL_CLASS} placeholder="https://client-domain.com" />
           </Field>
           <details className="group border-t border-black/10 pt-4 lg:col-span-2">
@@ -641,7 +641,7 @@ export function PropertiesTabClient({
                             type="button"
                             disabled={!githubPublishingConfigured || publishingId === property.id}
                             onClick={() => void publishRepository(property)}
-                            title={githubPublishingConfigured ? "Create and push a private GitHub repository" : "Connect GitHub in Settings → Integrations"}
+                            title={githubPublishingConfigured ? "Create and push a private GitHub repository" : "Connect GitHub in Company → Connections"}
                             className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/68 hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             {publishingId === property.id
@@ -657,7 +657,7 @@ export function PropertiesTabClient({
                             type="button"
                             disabled={!vercelDeploymentConfigured || deployingId === property.id}
                             onClick={() => void deployPreview(property)}
-                            title={vercelDeploymentConfigured ? "Upload a private review preview to Vercel" : "Connect Vercel in Settings → Integrations"}
+                            title={vercelDeploymentConfigured ? "Upload a private review preview to Vercel" : "Connect Vercel in Company → Connections"}
                             className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {deployingId === property.id
@@ -713,11 +713,11 @@ function PropertyEditorFields({
       <Field label="GitHub repo" htmlFor={`${prefix}-repo`}>
         <input id={`${prefix}-repo`} type="url" value={draft.repoUrl} onChange={event => setDraft(value => ({ ...value, repoUrl: event.target.value }))} className={CONTROL_CLASS} placeholder="https://github.com/..." />
       </Field>
-      <Field label="Live URL" htmlFor={`${prefix}-live`}>
+      <Field label="Official live URL" htmlFor={`${prefix}-live`}>
         <input id={`${prefix}-live`} type="url" value={draft.liveUrl} onChange={event => setDraft(value => ({ ...value, liveUrl: event.target.value }))} className={CONTROL_CLASS} placeholder="https://..." />
       </Field>
-      <Field label="Preview URL" htmlFor={`${prefix}-preview`}>
-        <input id={`${prefix}-preview`} type="url" value={draft.previewUrl} onChange={event => setDraft(value => ({ ...value, previewUrl: event.target.value }))} className={CONTROL_CLASS} placeholder="https://...vercel.app" />
+      <Field label="Preview URL (local or staging)" htmlFor={`${prefix}-preview`}>
+        <input id={`${prefix}-preview`} type="url" value={draft.previewUrl} onChange={event => setDraft(value => ({ ...value, previewUrl: event.target.value }))} className={CONTROL_CLASS} placeholder="http://localhost:3000 or https://...vercel.app" />
       </Field>
       <Field label="Vercel project" htmlFor={`${prefix}-vercel`}>
         <input id={`${prefix}-vercel`} value={draft.vercelProject} onChange={event => setDraft(value => ({ ...value, vercelProject: event.target.value }))} className={CONTROL_CLASS} placeholder="Project name or dashboard URL" />

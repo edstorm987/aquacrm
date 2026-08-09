@@ -27,7 +27,7 @@ export async function sendTransactionalEmail(
     return {
       delivered: false,
       via: "unconfigured",
-      reason: "Connect Resend and add a sender email in Settings → Integrations.",
+      reason: "Connect Resend and add a sender email in Company → Connections.",
     };
   }
 

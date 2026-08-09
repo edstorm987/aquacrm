@@ -29,6 +29,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
 import { getClientForAgency } from "@/server/tenants";
@@ -59,6 +60,7 @@ import type { PerformanceEvent } from "@/lib/performanceAnalytics";
 import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@/lib/performanceReports";
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { listClientMilestones } from "@/server/clientMilestones";
+import { getAuthBrand } from "@/lib/authBrand";
 
 export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details";
 
@@ -109,6 +111,14 @@ const MODE: Record<CustomerPortalMode, {
   },
 };
 
+function modeContent(mode: CustomerPortalMode, providerName: string) {
+  const content = MODE[mode];
+  return {
+    ...content,
+    body: content.body.replaceAll("Milesymedia", providerName),
+  };
+}
+
 async function context() {
   await ensureHydrated();
   const session = await requireRole("end-customer");
@@ -116,10 +126,13 @@ async function context() {
   const client = getClientForAgency(session.agencyId, session.clientId);
   if (!client) notFound();
   const fallbackName = (session.email.split("@")[0] || "there").replace(/[._-]+/g, " ");
+  const cookieStore = await cookies();
+  const providerName = getAuthBrand(cookieStore.get("aqua_public_brand")?.value).name;
   return {
     session,
     client,
-    data: await loadCustomerPortalData(client, fallbackName),
+    providerName,
+    data: await loadCustomerPortalData(client, fallbackName, providerName),
   };
 }
 
@@ -217,12 +230,12 @@ function InvoiceStatus({ status }: { status: string }) {
 }
 
 export async function CustomerPortalView({ section }: { section: CustomerPortalSection }) {
-  const { client, data } = await context();
+  const { client, data, providerName } = await context();
   if (section === "home") {
     const handoff = data.properties.find(property => property.status === "redirected" && safeExternalUrl(property.redirectTarget));
     if (handoff?.redirectTarget) redirect(handoff.redirectTarget);
   }
-  return <CustomerPortalContent section={section} client={client} data={data} />;
+  return <CustomerPortalContent section={section} client={client} data={data} providerName={providerName} />;
 }
 
 export function CustomerPortalContent({
@@ -230,21 +243,23 @@ export function CustomerPortalContent({
   client,
   data,
   previewHrefPrefix,
+  providerName = "Milesymedia",
 }: {
   section: CustomerPortalSection;
   client: Client;
   data: CustomerPortalData;
   previewHrefPrefix?: string;
+  providerName?: string;
 }) {
-  if (section === "project") return <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} />;
+  if (section === "project") return <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   const readOnly = Boolean(previewHrefPrefix);
   if (section === "results") return <ResultsView client={client} />;
-  if (section === "files") return <FilesView client={client} data={data} readOnly={readOnly} />;
-  if (section === "billing") return <BillingView client={client} data={data} readOnly={readOnly} />;
-  if (section === "support") return <SupportView client={client} data={data} readOnly={readOnly} />;
-  if (section === "resources") return <ResourcesView />;
+  if (section === "files") return <FilesView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
+  if (section === "billing") return <BillingView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
+  if (section === "support") return <SupportView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
+  if (section === "resources") return <ResourcesView previewHrefPrefix={previewHrefPrefix} />;
   if (section === "details") return <RecordView client={client} data={data} previewHrefPrefix={previewHrefPrefix} />;
-  return <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} />;
+  return <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
 }
 
 function ResultsView({ client }: { client: Client }) {
@@ -307,12 +322,14 @@ function HomeView({
   client,
   data,
   previewHrefPrefix,
+  providerName,
 }: {
   client: Client;
   data: CustomerPortalData;
   previewHrefPrefix?: string;
+  providerName: string;
 }) {
-  const active = MODE[data.mode];
+  const active = modeContent(data.mode, providerName);
   const projectLabel = portalProjectLabel(data.products);
   const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
   const latestFile = data.files[0];
@@ -426,7 +443,7 @@ function HomeView({
         <Surface className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Milesymedia care</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">{providerName} care</p>
               <h2 className="mt-2 font-serif text-2xl">We are within reach.</h2>
             </div>
             <ShieldCheck size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
@@ -469,12 +486,14 @@ function ProjectView({
   client,
   data,
   previewHrefPrefix,
+  providerName,
 }: {
   client: Client;
   data: CustomerPortalData;
   previewHrefPrefix?: string;
+  providerName: string;
 }) {
-  const active = MODE[data.mode];
+  const active = modeContent(data.mode, providerName);
   const projectLabel = portalProjectLabel(data.products);
   const stages: CustomerPortalMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
   const activeIndex = stages.indexOf(data.mode);
@@ -493,7 +512,7 @@ function ProjectView({
     onboarding: [
       {
         label: "Complete your project brief",
-        detail: data.brief.submittedAt ? "Your latest answers are with Milesymedia." : "Give the team the context needed to start well.",
+        detail: data.brief.submittedAt ? `Your latest answers are with ${providerName}.` : "Give the team the context needed to start well.",
         complete: Boolean(data.brief.submittedAt),
         href: "#project-brief",
       },
@@ -515,7 +534,7 @@ function ProjectView({
     designing: [
       {
         label: "Review the latest direction",
-        detail: hasPreview ? "Your connected preview is ready to open above." : "Milesymedia will connect a preview here when it is ready.",
+        detail: hasPreview ? "Your connected preview is ready to open above." : `${providerName} will connect a preview here when it is ready.`,
         complete: hasPreview,
         href: hasPreview ? "#connected-work" : undefined,
       },
@@ -541,7 +560,7 @@ function ProjectView({
       },
       {
         label: "Send final checks",
-        detail: hasOpenStageRequest ? "Your latest build note is with Milesymedia." : "Flag anything to check before launch.",
+        detail: hasOpenStageRequest ? `Your latest build note is with ${providerName}.` : "Flag anything to check before launch.",
         complete: hasOpenStageRequest,
         href: "#stage-actions",
       },
@@ -555,13 +574,13 @@ function ProjectView({
     maintenance: [
       {
         label: "Open your live experience",
-        detail: hasLiveProperty ? "Your live destination is connected above." : "Milesymedia is preparing the live connection.",
+        detail: hasLiveProperty ? "Your live destination is connected above." : `${providerName} is preparing the live connection.`,
         complete: hasLiveProperty,
         href: hasLiveProperty ? "#connected-work" : undefined,
       },
       {
         label: "Request support when needed",
-        detail: hasOpenStageRequest ? "Your current request is visible to Milesymedia." : "Changes and issues stay attached to the project.",
+        detail: hasOpenStageRequest ? `Your current request is visible to ${providerName}.` : "Changes and issues stay attached to the project.",
         complete: hasOpenStageRequest,
         href: "#stage-actions",
       },
@@ -598,7 +617,7 @@ function ProjectView({
       {data.products.length > 0 ? (
         <Surface className="mb-5 overflow-hidden">
           <div className="border-b border-black/8 px-6 py-5">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Your work with Milesymedia</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Your work with {providerName}</p>
             <h2 className="mt-2 font-serif text-2xl">{data.products.length === 1 ? data.products[0].name : `${data.products.length} parts of your project`}</h2>
           </div>
           <div className={`grid gap-px bg-black/8 ${data.products.length > 1 ? "md:grid-cols-2" : ""}`}>
@@ -721,12 +740,14 @@ function ProjectView({
         tasks={adaptiveTasks}
         properties={customerProperties}
         readOnly={Boolean(previewHrefPrefix)}
+        providerName={providerName}
       />
-      <CustomerProjectBriefForm clientId={client.id} initialBrief={data.brief} readOnly={Boolean(previewHrefPrefix)} />
+      <CustomerProjectBriefForm clientId={client.id} initialBrief={data.brief} readOnly={Boolean(previewHrefPrefix)} providerName={providerName} />
       <CustomerApprovals
         clientId={client.id}
         initialApprovals={data.approvals}
         readOnly={Boolean(previewHrefPrefix)}
+        providerName={providerName}
       />
     </>
   );
@@ -741,7 +762,7 @@ function ProjectDetail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FilesView({ client, data, readOnly }: { client: Client; data: CustomerPortalData; readOnly: boolean }) {
+function FilesView({ client, data, readOnly, providerName }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string }) {
   return (
     <>
       <PageIntro eyebrow="Files & inspiration" title="One home for every detail." body="Briefs, recordings, working files, invoices, previews, and the links you share with us stay connected to the work." />
@@ -757,7 +778,7 @@ function FilesView({ client, data, readOnly }: { client: Client; data: CustomerP
           <div className="flex min-h-56 flex-col items-center justify-center border-b border-black/10 text-center">
             <File size={24} strokeWidth={1.3} className="text-black/25" aria-hidden="true" />
             <p className="mt-4 font-serif text-xl">Your file room is ready.</p>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-black/45">Milesymedia documents will appear here. You can share inspiration, feedback, or useful links below.</p>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-black/45">{providerName} documents will appear here. You can share inspiration, feedback, or useful links below.</p>
           </div>
         ) : (
           <ul className="mt-6 divide-y divide-black/8 border-y border-black/10">
@@ -765,7 +786,7 @@ function FilesView({ client, data, readOnly }: { client: Client; data: CustomerP
           </ul>
         )}
         <div className="mt-8">
-          <p className="mb-4 text-[10px] uppercase tracking-[0.16em] text-black/40">Share with Milesymedia</p>
+          <p className="mb-4 text-[10px] uppercase tracking-[0.16em] text-black/40">Share with {providerName}</p>
           <CustomerFileLinkForm clientId={client.id} readOnly={readOnly} />
         </div>
       </Surface>
@@ -788,7 +809,7 @@ function CustomerFileRow({ file }: { file: CustomerFile }) {
   );
 }
 
-function BillingView({ client, data, readOnly }: { client: Client; data: CustomerPortalData; readOnly: boolean }) {
+function BillingView({ client, data, readOnly, providerName }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string }) {
   const paid = data.invoices.filter(invoice => invoice.status === "paid").reduce((sum, invoice) => sum + invoice.totalCents, 0);
   const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").reduce((sum, invoice) => sum + invoice.totalCents, 0);
   const currency = data.invoices[0]?.currency || "gbp";
@@ -823,7 +844,7 @@ function BillingView({ client, data, readOnly }: { client: Client; data: Custome
           <div className="mt-8 grid gap-4 border-t border-black/10 pt-5 sm:grid-cols-2 xl:grid-cols-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.13em] text-black/35">Account status</p>
-              <p className="mt-2 text-sm font-medium">Active with Milesymedia</p>
+              <p className="mt-2 text-sm font-medium">Active with {providerName}</p>
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.13em] text-black/35">Agreed investment</p>
@@ -894,12 +915,12 @@ function BillingView({ client, data, readOnly }: { client: Client; data: Custome
           </ul>
         )}
       </Surface>
-      <CustomerAgreements clientId={client.id} initialContracts={data.contracts} readOnly={readOnly} />
+      <CustomerAgreements clientId={client.id} initialContracts={data.contracts} readOnly={readOnly} providerName={providerName} />
     </>
   );
 }
 
-function SupportView({ client, data, readOnly }: { client: Client; data: CustomerPortalData; readOnly: boolean }) {
+function SupportView({ client, data, readOnly, providerName }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string }) {
   const supportLinks = [
     {
       label: "Send a request",
@@ -909,14 +930,14 @@ function SupportView({ client, data, readOnly }: { client: Client; data: Custome
       external: false,
     },
     ...(data.support.email ? [{
-      label: "Email Milesymedia",
+      label: `Email ${providerName}`,
       detail: data.support.email,
       href: `mailto:${data.support.email}`,
       icon: <Mail size={17} aria-hidden="true" />,
       external: false,
     }] : []),
     ...(data.support.phone ? [{
-      label: "Call Milesymedia",
+      label: `Call ${providerName}`,
       detail: data.support.phone,
       href: `tel:${data.support.phone.replace(/[^\d+]/g, "")}`,
       icon: <Phone size={17} aria-hidden="true" />,
@@ -960,11 +981,11 @@ function SupportView({ client, data, readOnly }: { client: Client; data: Custome
       <Surface className="p-6 sm:p-8">
         <div className="grid gap-6 sm:grid-cols-3">
           <SupportPromise icon={<CircleHelp size={18} />} title="One clear place" body="Every request stays attached to your account." />
-          <SupportPromise icon={<MessageSquareText size={18} />} title="Human response" body="The Milesymedia team reads and handles it." />
+          <SupportPromise icon={<MessageSquareText size={18} />} title="Human response" body={`The ${providerName} team reads and handles it.`} />
           <SupportPromise icon={<ShieldCheck size={18} />} title="Full context" body="We can see the project behind your request." />
         </div>
         <div className="mt-8">
-          <CustomerSupportForm clientId={client.id} initialRequests={data.requests} readOnly={readOnly} />
+          <CustomerSupportForm clientId={client.id} initialRequests={data.requests} readOnly={readOnly} providerName={providerName} />
         </div>
       </Surface>
     </>
@@ -981,7 +1002,30 @@ function SupportPromise({ icon, title, body }: { icon: React.ReactNode; title: s
   );
 }
 
-function ResourcesView() {
+function ResourcesView({ previewHrefPrefix }: { previewHrefPrefix?: string }) {
+  const resources = [
+    {
+      title: "Your project guide",
+      body: "See the current stage, the work underway, pending decisions, and exactly what happens next.",
+      href: customerHref("project", previewHrefPrefix),
+      icon: <FolderKanban size={20} aria-hidden="true" />,
+      label: "Open project",
+    },
+    {
+      title: "Files and handover",
+      body: "Keep briefs, recordings, references, working files, and final handover material in one place.",
+      href: customerHref("files", previewHrefPrefix),
+      icon: <Files size={20} aria-hidden="true" />,
+      label: "Open files",
+    },
+    {
+      title: "Support and care",
+      body: "Ask a question, request a change, or report an issue without losing the project context.",
+      href: customerHref("support", previewHrefPrefix),
+      icon: <CircleHelp size={20} aria-hidden="true" />,
+      label: "Open support",
+    },
+  ];
   return (
     <>
       <PageIntro
@@ -989,11 +1033,38 @@ function ResourcesView() {
         title="A place reserved for you."
         body="Guides, handover notes, and useful material selected for your work will live here."
       />
-      <section
-        aria-label="Resources"
-        className="min-h-[420px] border-y border-black/10"
-      />
+      <div className="grid gap-5 lg:grid-cols-3" aria-label="Resources">
+        {resources.map(resource => (
+          <Link key={resource.title} href={resource.href} className="group flex min-h-64 flex-col rounded-md border border-black/10 bg-[#fbfaf8] p-6 transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:bg-white hover:shadow-[0_18px_45px_rgba(35,29,18,0.08)] sm:p-7">
+            <span className="grid size-11 place-items-center rounded-md border border-black/10 bg-white text-[var(--portal-accent)] transition group-hover:border-[var(--portal-accent)]">
+              {resource.icon}
+            </span>
+            <h2 className="mt-8 font-serif text-2xl text-[#1b1a18]">{resource.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-black/50">{resource.body}</p>
+            <span className="mt-auto inline-flex items-center gap-2 pt-8 text-sm font-medium text-[var(--portal-accent)]">
+              {resource.label} <ArrowRight size={14} aria-hidden="true" />
+            </span>
+          </Link>
+        ))}
+      </div>
+      <Surface className="mt-5 overflow-hidden">
+        <div className="grid gap-px bg-black/8 md:grid-cols-3">
+          <ResourceStep number="01" title="Check what needs you" body="Your home and project pages surface approvals, billing, and the next useful action." />
+          <ResourceStep number="02" title="Keep context together" body="Share files and feedback inside the portal so every decision remains attached to the work." />
+          <ResourceStep number="03" title="Return whenever needed" body="Invoices, agreements, results, and support history remain available from the same account." />
+        </div>
+      </Surface>
     </>
+  );
+}
+
+function ResourceStep({ number, title, body }: { number: string; title: string; body: string }) {
+  return (
+    <div className="bg-[#fbfaf8] p-6 sm:p-7">
+      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--portal-accent)]">{number}</p>
+      <h3 className="mt-5 text-sm font-medium text-[#1b1a18]">{title}</h3>
+      <p className="mt-2 text-xs leading-5 text-black/45">{body}</p>
+    </div>
   );
 }
 

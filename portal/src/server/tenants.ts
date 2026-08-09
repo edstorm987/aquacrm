@@ -177,7 +177,7 @@ export function listClients(agencyId: string, options: { includeArchived?: boole
 export interface UpdateClientPatch {
   name?: string;
   ownerEmail?: string;
-  websiteUrl?: string;
+  websiteUrl?: string | null;
   brand?: Partial<BrandKit>;
   status?: AgencyStatus;
   stage?: ClientStage;
@@ -201,7 +201,7 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
       companyId: patch.companyId === null ? undefined : patch.companyId ?? existing.companyId,
       name: patch.name ?? existing.name,
       ownerEmail: patch.ownerEmail ?? existing.ownerEmail,
-      websiteUrl: patch.websiteUrl ?? existing.websiteUrl,
+      websiteUrl: patch.websiteUrl === null ? undefined : patch.websiteUrl ?? existing.websiteUrl,
       brand: patch.brand ? { ...existing.brand, ...patch.brand } : existing.brand,
       status: patch.status ?? existing.status,
       stage: patch.stage ?? existing.stage,

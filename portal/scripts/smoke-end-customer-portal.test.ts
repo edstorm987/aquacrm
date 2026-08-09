@@ -53,16 +53,19 @@ describe("End-customer portal sub-routes (R019)", () => {
     assert.ok(src.includes("portal-customer-embed"), "should set the embed testid");
   });
 
-  it("keeps Resources empty and client history in Your details", () => {
+  it("provides a linked Resources hub and keeps client history in Your details", () => {
     const chrome = readFileSync(join(CUSTOMER, "_CustomerPortalChrome.tsx"), "utf8");
     const views = readFileSync(join(CUSTOMER, "_CustomerPortalViews.tsx"), "utf8");
     const catchAll = readFileSync(join(CUSTOMER, "[...rest]", "page.tsx"), "utf8");
 
     assert.ok(chrome.includes('{ label: "Resources"'));
     assert.ok(chrome.includes('{ label: "Your details"'));
-    assert.ok(views.includes('if (section === "resources") return <ResourcesView />'));
+    assert.ok(views.includes('if (section === "resources") return <ResourcesView previewHrefPrefix={previewHrefPrefix} />'));
     assert.ok(views.includes('if (section === "details") return <RecordView'));
     assert.ok(views.includes('aria-label="Resources"'));
+    assert.ok(views.includes('label: "Open project"'));
+    assert.ok(views.includes('label: "Open files"'));
+    assert.ok(views.includes('label: "Open support"'));
     assert.ok(catchAll.includes('"resources", "details"'));
   });
 

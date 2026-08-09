@@ -61,7 +61,7 @@ export default async function AquaAccountEmbed({
     return <ErrorState message="The linked Aqua client record is no longer available." />;
   }
 
-  const data = await loadCustomerPortalData(client, client.name);
+  const data = await loadCustomerPortalData(client, client.name, "AquaCRM");
   const openInvoices = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
   const paidInvoices = data.invoices.filter(invoice => invoice.status === "paid");
 

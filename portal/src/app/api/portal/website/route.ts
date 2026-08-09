@@ -11,6 +11,7 @@ import {
 } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import type { AgencyWebsitePageStatus, AgencyWebsiteReleaseStatus } from "@/server/types";
+import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/publicUrl";
 
 export async function GET() {
   try {
@@ -43,7 +44,17 @@ export async function POST(request: Request) {
     if (!body?.action) return NextResponse.json({ ok: false, error: "Action required." }, { status: 400 });
 
     if (body.action === "update") {
-      const website = updateAgencyWebsite(session.agencyId, body, session.userId);
+      const submittedProductionUrl = body.productionUrl?.trim();
+      const submittedPreviewUrl = body.previewUrl?.trim();
+      const productionUrl = submittedProductionUrl ? normalizeWebsiteUrl(submittedProductionUrl) : undefined;
+      const previewUrl = submittedPreviewUrl ? normalizeWebsiteUrl(submittedPreviewUrl) : undefined;
+      if (submittedProductionUrl && (!productionUrl || isLocalDevelopmentUrl(productionUrl))) {
+        return NextResponse.json({ ok: false, error: "Production URL must be a valid official domain, not localhost." }, { status: 400 });
+      }
+      if (submittedPreviewUrl && !previewUrl) {
+        return NextResponse.json({ ok: false, error: "Preview URL is not valid." }, { status: 400 });
+      }
+      const website = updateAgencyWebsite(session.agencyId, { ...body, productionUrl, previewUrl }, session.userId);
       return NextResponse.json({ ok: true, website });
     }
     if (body.action === "page-status") {

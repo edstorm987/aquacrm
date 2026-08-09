@@ -17,6 +17,7 @@ import { SettingsTabs } from "./SettingsTabs";
 import type { Role } from "@/server/types";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { listExternalAssistantApiKeys } from "@/lib/server/externalAssistantKeys";
+import { Settings2 } from "lucide-react";
 
 type AgencyTeamRole = Extract<Role, "agency-owner" | "agency-manager" | "agency-staff">;
 
@@ -89,11 +90,8 @@ export default async function AgencySettingsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <header className="mb-8 flex items-start gap-4">
-        <span aria-hidden className="inline-flex h-14 w-14 items-center justify-center rounded-lg bg-black/[0.06] shadow-inner">
-          <svg viewBox="0 0 24 24" className="h-8 w-8 text-black/55" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
+        <span aria-hidden className="mm-area-icon inline-flex h-14 w-14 items-center justify-center rounded-lg">
+          <Settings2 size={29} strokeWidth={1.7} />
         </span>
         <div className="min-w-0">
           <h1 className="text-3xl font-semibold text-black/90">Settings</h1>

@@ -249,7 +249,7 @@ export async function createCommercialStripeCheckoutHandler(req: Request, ctx: P
   if (!body?.partyId || !body.partyKind) return badRequest("partyKind + partyId required.");
   const stripe = resolveIntegrationValues(ctx.agencyId, "stripe");
   const secret = stripe.secretKey;
-  if (!secret) return unprocessable("Stripe is not connected. Open Settings → Integrations and connect it there.");
+  if (!secret) return unprocessable("Stripe is not connected. Open Company → Connections and connect it there.");
   const c = buildContainer(ctx);
   const pack = await c.commercial.get(body.partyKind, body.partyId);
   if (!pack) return notFound("commercial_pack_not_found");
