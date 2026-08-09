@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Activity, AlertTriangle, Check, ChevronRight, CircleGauge, Code2, ExternalLink, FileCheck2, FolderOpen, Gauge, Globe2, HeartPulse, Image, MousePointerClick, Plus, Search, Server, Target, Trash2, UsersRound, X } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Check, ChevronRight, CircleGauge, Code2, ExternalLink, FileCheck2, FolderOpen, Gauge, Globe2, HeartPulse, Image, MousePointerClick, Plus, Search, Server, Target, Trash2, UsersRound, X } from "lucide-react";
 import type { ClientMilestone, ClientMilestoneStatus, PerformanceExperiment } from "@/server/types";
 import type { PerformanceAnalytics } from "@/lib/performanceAnalytics";
+import type { MonthlyPerformanceReport } from "@/lib/performanceReports";
 import { ExperimentsPanel } from "./_ExperimentsPanel";
+import { AquaTagDashboard } from "./_AquaTagDashboard";
 
 export interface PerformanceProduct {
   id: string;
@@ -31,6 +33,7 @@ export interface PerformanceProperty {
   averageLoadMs?: number;
   lastSeenAt?: number;
   heartbeats24h: number;
+  analyticsByPeriod: Record<"7" | "28" | "90", PerformanceAnalytics>;
 }
 
 export interface PerformanceClient {
@@ -55,12 +58,14 @@ export interface PerformanceClient {
   requests: { open: number; closed: number };
   milestones: ClientMilestone[];
   analyticsByPeriod: Record<"7" | "28" | "90", PerformanceAnalytics>;
+  reports: MonthlyPerformanceReport[];
   experiments: PerformanceExperiment[];
 }
 
 export function PerformanceWorkspace({ initialClients }: { initialClients: PerformanceClient[] }) {
   const [clients, setClients] = useState(initialClients);
-  const [selectedId, setSelectedId] = useState("all");
+  const [view, setView] = useState<"tag" | "outcomes">("tag");
+  const [selectedId, setSelectedId] = useState(initialClients[0]?.id ?? "all");
   const [period, setPeriod] = useState<7 | 28 | 90>(28);
   const [adding, setAdding] = useState(false);
   const selected = clients.find(client => client.id === selectedId);
@@ -80,33 +85,54 @@ export function PerformanceWorkspace({ initialClients }: { initialClients: Perfo
     setClients(current => current.map(client => client.id === clientId ? { ...client, milestones: client.milestones.filter(item => item.id !== id) } : client));
   }
 
+  function changeView(next: "tag" | "outcomes") {
+    setView(next);
+    if (next === "tag" && selectedId === "all") setSelectedId(initialClients[0]?.id ?? "all");
+  }
+
+  function updateReports(clientId: string, reports: MonthlyPerformanceReport[]) {
+    setClients(current => current.map(client => client.id === clientId ? { ...client, reports } : client));
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Performance</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Every result, clearly.</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Compare AquaOasis-Web and every client across visibility, conversions, progress, live signals, and milestones.</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">{view === "tag" ? "Web performance, without blind spots." : "Every client outcome, clearly."}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">{view === "tag" ? "Aqua Tag activity, forms and Google search performance joined by website and page." : "Compare AquaOasis-Web and every client across progress, delivery, live signals, and milestones."}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select value={period} onChange={event => setPeriod(Number(event.target.value) as 7 | 28 | 90)} aria-label="Choose reporting period" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75">
             <option value="7">Last 7 days</option><option value="28">Last 28 days</option><option value="90">Last 90 days</option>
           </select>
           <select value={selectedId} onChange={event => setSelectedId(event.target.value)} aria-label="Choose account" className="min-h-11 min-w-56 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75">
-            <option value="all">Everyone</option>
+            {view === "outcomes" ? <option value="all">Everyone</option> : null}
             {clients.map(client => <option key={client.id} value={client.id}>{client.scope === "agency" ? "AquaOasis-Web · " : ""}{client.name}</option>)}
           </select>
         </div>
       </header>
 
-      <dl className="grid grid-cols-2 border-y border-black/10 lg:grid-cols-4">
+      <div className="flex w-fit max-w-full rounded-md border border-black/10 bg-white p-1" aria-label="Performance view">
+        <button type="button" onClick={() => changeView("tag")} className={`inline-flex min-h-10 items-center gap-2 rounded px-3 text-sm font-semibold ${view === "tag" ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04]"}`}><BarChart3 size={15} />Aqua Tag analytics</button>
+        <button type="button" onClick={() => changeView("outcomes")} className={`inline-flex min-h-10 items-center gap-2 rounded px-3 text-sm font-semibold ${view === "outcomes" ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04]"}`}><Target size={15} />Client outcomes</button>
+      </div>
+
+      {view === "outcomes" ? <dl className="grid grid-cols-2 border-y border-black/10 lg:grid-cols-4">
         <Metric label="Active clients" value={String(clientRows.length)} />
         <Metric label={`Views · ${period}d`} value={String(totalViews)} />
         <Metric label={`Conversions · ${period}d`} value={String(totalConversions)} />
         <Metric label="Need attention" value={String(clientRows.filter(client => client.health === "attention").length)} bad={clientRows.some(client => client.health === "attention")} />
-      </dl>
+      </dl> : null}
 
-      {selected ? (
+      {view === "tag" && selected ? (
+        <AquaTagDashboard
+          key={selected.id}
+          client={selected}
+          period={period}
+          onReportsChange={reports => updateReports(selected.id, reports)}
+        />
+      ) : selected ? (
         <ClientPerformance
           client={selected}
           adding={adding}
@@ -200,7 +226,7 @@ function ClientPerformance({ client, adding, setAdding, onUpdate, onDelete, peri
   );
 }
 
-function GrowthPerformance({ analytics }: { analytics: PerformanceAnalytics }) {
+export function GrowthPerformance({ analytics }: { analytics: PerformanceAnalytics }) {
   const maxSeries = Math.max(1, ...analytics.series.map(item => item.views));
   return (
     <section>
@@ -214,6 +240,13 @@ function GrowthPerformance({ analytics }: { analytics: PerformanceAnalytics }) {
         <GrowthMetric label="Conversions" value={analytics.current.conversions} change={analytics.changes.conversions} icon={<MousePointerClick size={15} />} />
         <GrowthMetric label="Conversion rate" value={`${analytics.current.conversionRate.toFixed(1)}%`} change={analytics.changes.conversionRate} icon={<Target size={15} />} />
       </div>
+
+      {analytics.current.searchImpressions > 0 ? <div className="mt-5 grid grid-cols-2 border-y border-black/10 lg:grid-cols-4">
+        <GrowthMetric label="Search impressions" value={analytics.current.searchImpressions} change={analytics.changes.searchImpressions} icon={<Search size={15} />} />
+        <GrowthMetric label="Search clicks" value={analytics.current.searchClicks} change={analytics.changes.searchClicks} icon={<MousePointerClick size={15} />} />
+        <GrowthMetric label="Search CTR" value={`${analytics.current.searchCtr.toFixed(1)}%`} change={null} icon={<Target size={15} />} />
+        <GrowthMetric label="Average position" value={analytics.current.averagePosition?.toFixed(1) ?? "—"} change={null} icon={<BarChart3 size={15} />} />
+      </div> : null}
 
       <div className="mt-5 border-b border-black/10 pb-5">
         <div className="flex h-36 items-end gap-1" aria-label={`Daily views over ${analytics.days} days`}>
@@ -256,6 +289,13 @@ function GrowthPerformance({ analytics }: { analytics: PerformanceAnalytics }) {
           rows={analytics.queries.map(row => [row.query, String(row.clicks), String(row.impressions), row.position?.toFixed(1) ?? "—"])}
           empty="Search queries appear when Search Console or another search data source sends search signals."
         />
+        <PerformanceTable
+          title="Organic landing pages"
+          icon={<Globe2 size={15} />}
+          headers={["Page", "Clicks", "Impressions", "CTR", "Position"]}
+          rows={analytics.searchPages.map(row => [row.path, String(row.clicks), String(row.impressions), `${row.ctr.toFixed(1)}%`, row.position?.toFixed(1) ?? "—"])}
+          empty="Connect Search Console to see which pages earn organic search visibility."
+        />
       </div>
     </section>
   );
@@ -276,7 +316,7 @@ function PerformanceTable({ title, icon, headers, rows, empty }: { title: string
   return (
     <div>
       <div className="flex items-center gap-2 border-b border-black/10 pb-2 text-sm font-semibold text-black/75">{icon}{title}</div>
-      {rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[420px] text-xs"><thead className="text-left text-black/35"><tr>{headers.map((header, index) => <th key={header} className={`py-2 font-medium ${index ? "text-right" : ""}`}>{header}</th>)}</tr></thead><tbody className="divide-y divide-black/[0.07]">{rows.slice(0, 8).map((row, index) => <tr key={`${row[0]}-${index}`}>{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`py-2.5 ${cellIndex ? "text-right tabular-nums text-black/55" : "max-w-56 truncate font-medium text-black/70"}`}>{cell}</td>)}</tr>)}</tbody></table></div> : <p className="py-8 text-center text-xs leading-5 text-black/40">{empty}</p>}
+      {rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[420px] text-xs"><thead className="text-left text-black/35"><tr>{headers.map((header, index) => <th key={header} className={`py-2 font-medium ${index ? "text-right" : ""}`}>{header}</th>)}</tr></thead><tbody className="divide-y divide-black/[0.07]">{rows.slice(0, 8).map((row, index) => <tr key={`${row[0]}-${index}`}>{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`} className={`py-2.5 ${cellIndex ? "text-right tabular-nums text-black/55" : "max-w-56 truncate font-medium text-black/70"}`}>{cell}</td>)}</tr>)}</tbody></table></div> : <p className="break-words px-4 py-8 text-center text-xs leading-5 text-black/40">{empty}</p>}
     </div>
   );
 }

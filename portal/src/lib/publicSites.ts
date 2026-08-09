@@ -29,8 +29,58 @@ export const PUBLIC_AQUA_SITES = {
 
 export type PublicAquaSiteKey = keyof typeof PUBLIC_AQUA_SITES;
 
+export interface ResolvedPublicAquaSite {
+  siteKey: PublicAquaSiteKey;
+  brand: string;
+  propertyId: string;
+  siteName: string;
+}
+
+const PUBLIC_SITE_NAMES: Record<PublicAquaSiteKey, string> = {
+  aqua_public_aquacrm_v1: "AquaCRM",
+  aqua_public_aquaoasis_web_v1: "AquaOasis-Web",
+  aqua_public_milesymedia_v1: "Milesymedia",
+  aqua_public_zimante_group_v1: "Zimante Group",
+  aqua_public_edward_hallam_v1: "Edward Hallam",
+};
+
 export function publicAquaSite(siteKey: string) {
   return PUBLIC_AQUA_SITES[siteKey as PublicAquaSiteKey] ?? null;
+}
+
+export function resolvePublicAquaSite(brand: string, origin?: string | null): ResolvedPublicAquaSite | null {
+  const normalizedOrigin = origin?.replace(/\/$/, "") ?? "";
+  const entries = Object.entries(PUBLIC_AQUA_SITES) as Array<
+    [PublicAquaSiteKey, (typeof PUBLIC_AQUA_SITES)[PublicAquaSiteKey]]
+  >;
+  const match = entries.find(([, site]) => {
+    if (site.brand !== brand) return false;
+    if (!normalizedOrigin) return true;
+    try {
+      const parsed = new URL(normalizedOrigin);
+      if (
+        process.env.NODE_ENV !== "production"
+        && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1")
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return (site.origins as readonly string[]).includes(normalizedOrigin);
+  });
+  if (!match) return null;
+  const [siteKey, site] = match;
+  return {
+    siteKey,
+    brand: site.brand,
+    propertyId: site.propertyId,
+    siteName: PUBLIC_SITE_NAMES[siteKey],
+  };
+}
+
+export function publicAquaSiteName(siteKey: string): string | null {
+  return PUBLIC_SITE_NAMES[siteKey as PublicAquaSiteKey] ?? null;
 }
 
 export function publicAquaPropertyId(siteKey: string, requestedPropertyId: unknown) {

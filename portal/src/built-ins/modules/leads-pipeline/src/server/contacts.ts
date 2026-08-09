@@ -147,6 +147,7 @@ export class ContactService {
   // re-runs only stamp `promotedFromLeadId` if the contact didn't
   // already have one.
   async promoteLead(lead: Lead, actor: UserId): Promise<Contact> {
+    if (!lead.email) throw new Error("Add an email address before converting this lead to a customer.");
     const result = await this.upsert(
       {
         email: lead.email,

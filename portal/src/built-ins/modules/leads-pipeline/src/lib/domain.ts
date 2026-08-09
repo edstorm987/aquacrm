@@ -250,6 +250,7 @@ export interface CreateLeadInput {
 }
 
 export interface UpdateLeadPatch {
+  email?: string;
   companyId?: string;
   companyIds?: string[];
   brandSlugs?: string[];
@@ -412,6 +413,7 @@ export type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "send
 export type CampaignChannel = "email" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "event" | "referral" | "other";
 
 export interface AudienceFilter {
+  companyIds?: string[];            // OR — leads related to any selected trading brand
   tags?: string[];                 // OR — match any tag
   sourcedFrom?: string[];          // OR — match any source
   notContactedSinceMs?: number;    // exclude leads contacted within N ms
@@ -422,6 +424,7 @@ export interface Campaign {
   id: string;
   agencyId: AgencyId;
   name: string;
+  companyIds?: string[];            // empty/undefined = group-wide shared activity
   channel?: CampaignChannel;
   sourceKey?: string;
   subject: string;
@@ -450,6 +453,7 @@ export interface Campaign {
 
 export interface CreateCampaignInput {
   name: string;
+  companyIds?: string[];
   channel?: CampaignChannel;
   sourceKey?: string;
   subject?: string;
@@ -468,6 +472,7 @@ export interface CreateCampaignInput {
 
 export interface UpdateCampaignPatch {
   name?: string;
+  companyIds?: string[];
   channel?: CampaignChannel;
   sourceKey?: string;
   subject?: string;

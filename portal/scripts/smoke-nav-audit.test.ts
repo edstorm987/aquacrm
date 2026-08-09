@@ -38,6 +38,8 @@ const ACTIVITY_INBOX_PAGE = join(ROOT, "src", "app", "portal", "agency", "activi
 const AGENCY_ACTIVITY_FEED = join(ROOT, "src", "app", "portal", "agency", "_AgencyActivityFeed.tsx");
 const AGENCY_SETTINGS_PAGE = join(ROOT, "src", "app", "portal", "agency", "settings", "page.tsx");
 const AGENCY_SETTINGS_TABS = join(ROOT, "src", "app", "portal", "agency", "settings", "SettingsTabs.tsx");
+const DEVELOPMENT_NAV = join(ROOT, "src", "app", "portal", "agency", "development", "_DevelopmentNav.tsx");
+const DEVELOPMENT_PERFORMANCE = join(ROOT, "src", "app", "portal", "agency", "development", "performance", "page.tsx");
 const PORTAL_NOT_FOUND = join(ROOT, "src", "app", "portal", "not-found.tsx");
 const CUSTOMER_HOME = join(ROOT, "src", "app", "portal", "customer", "page.tsx");
 const CUSTOMER_SUBROUTE = join(ROOT, "src", "app", "portal", "customer", "_subroute.tsx");
@@ -68,7 +70,6 @@ describe("standalone portal nav audit", () => {
       ["actions", "/portal/agency/actions"],
       ["development", "/portal/agency/development"],
       ["inbox", "/portal/agency/inbox"],
-      ["performance", "/portal/agency/performance"],
       ["products", "/portal/agency/products"],
       ["finance", "/portal/agency/agency-finance"],
       ["sop-library", "/portal/agency/sop-library"],
@@ -82,7 +83,7 @@ describe("standalone portal nav audit", () => {
     assert.ok(!block.includes('id: "sales"'), "sales should live inside Pipelines");
     assert.ok(!block.includes('id: "fulfillment", label: "Fulfilment"'), "duplicate Fulfilment main nav item should stay removed");
 
-    const priorityOrder = ["home", "actions", "inbox", "performance", "clients", "pipelines", "products", "development", "marketing", "finance", "sop-library"];
+    const priorityOrder = ["home", "actions", "inbox", "clients", "pipelines", "products", "development", "marketing", "finance", "sop-library"];
     const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
     assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
@@ -92,13 +93,23 @@ describe("standalone portal nav audit", () => {
   it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "clients", "pipelines", "marketing", "actions", "development", "inbox", "performance", "products", "finance", "sop-library"]) {
+    for (const id of ["home", "clients", "pipelines", "marketing", "actions", "development", "inbox", "products", "finance", "sop-library"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
+    assert.ok(!canonical.includes('"performance"'), "performance should live inside Development rather than the main sidebar");
     assert.ok(!canonical.includes('"sops"'), "the duplicate systems dashboard should not be a main nav item");
     assert.ok(!canonical.includes('"contacts"'), "contacts should not be a standalone main nav id");
     assert.ok(!canonical.includes('"sales"'), "sales should not be a standalone main nav id");
     assert.ok(!canonical.includes('"fulfillment"'), "legacy fulfillment id should not be allowed into main nav");
+  });
+
+  it("keeps performance inside the Development workspace", () => {
+    const nav = read(DEVELOPMENT_NAV);
+    const page = read(DEVELOPMENT_PERFORMANCE);
+    assert.ok(nav.includes('/portal/agency/development/performance'));
+    assert.ok(nav.includes('label: "Performance"'));
+    assert.ok(page.includes('<DevelopmentNav active="performance" />'));
+    assert.ok(page.includes('PerformancePage'));
   });
 
   it("keeps a single agency phases/settings path", () => {
@@ -192,11 +203,11 @@ describe("standalone portal nav audit", () => {
     assert.ok(route.includes("portalRequired: createPortal"), "client metadata should remember whether a portal is needed");
     assert.ok(route.includes("structuredClone(getState())"), "create route should snapshot state before portal setup");
     assert.ok(route.includes("client portal setup failed"), "create route should report portal setup failures clearly");
-    assert.ok(modal.includes('product.portalRequirement === "required"'), "products should be able to require portal creation");
-    assert.ok(modal.includes('product.portalRequirement === "none"'), "products should be able to disable portal creation");
-    assert.ok(modal.includes('portalRequirement: "optional"'), "ordinary products should keep portal creation optional");
+    assert.ok(modal.includes("What are we helping with?"), "new-client modal should capture a flexible service brief");
+    assert.ok(modal.includes("serviceBrief: helpingWith || undefined"), "service brief should be saved with the client");
+    assert.ok(!modal.includes("selectedProducts.map"), "product setup should stay out of the initial client form");
     assert.ok(modal.includes("Create a client portal now"), "new-client modal should offer portal creation");
-    assert.ok(modal.includes("You can create it later from their client record."), "modal should explain the later option");
+    assert.ok(modal.includes("set up their portal later from the client record"), "modal should explain the later option");
     assert.ok(modal.includes("? {") && modal.includes("starterPortal:"), "starter portal details should only be sent when selected");
     assert.ok(read(CLIENT_HOME).includes('meta.portalBuiltAt ? "Portal preview" : "Create client portal"'), "client record should expose later portal creation");
     assert.ok(!modal.includes('fetch("/api/tenants/apply-incubator-variant"'), "modal should not fire a second portal setup request");

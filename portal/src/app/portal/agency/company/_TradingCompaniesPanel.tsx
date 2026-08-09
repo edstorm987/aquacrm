@@ -9,6 +9,14 @@ interface CompanySummary extends TradingCompany {
   clientCount: number;
   productCount: number;
   staffCount: number;
+  healthScore: number;
+}
+
+interface WorkspaceSummary {
+  clientCount: number;
+  productCount: number;
+  staffCount: number;
+  healthScore: number;
 }
 
 const blank = {
@@ -26,9 +34,11 @@ const blank = {
 export function TradingCompaniesPanel({
   companies,
   canEdit,
+  workspace,
 }: {
   companies: CompanySummary[];
   canEdit: boolean;
+  workspace: WorkspaceSummary;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<TradingCompany | "new" | null>(null);
@@ -59,6 +69,12 @@ export function TradingCompaniesPanel({
             <span className="text-[10px] font-semibold uppercase text-brand">Always active</span>
           </div>
           <p className="mt-4 text-xs leading-5 text-black/50">Clients, products, finance, fulfilment and reporting all live here together.</p>
+          <div className="mt-4 grid grid-cols-3 border-y border-black/8 py-2 text-center">
+            <Metric value={workspace.clientCount} label="Clients" />
+            <Metric value={workspace.productCount} label="Offers" />
+            <Metric value={workspace.staffCount} label="People" />
+          </div>
+          <HealthBar score={workspace.healthScore} />
         </article>
         {companies.map(company => (
           <article key={company.id} className="border-l-4 bg-white px-4 py-4 shadow-sm" style={{ borderLeftColor: company.brand.primaryColor }}>
@@ -74,6 +90,7 @@ export function TradingCompaniesPanel({
               <Metric value={company.productCount} label="Offers" />
               <Metric value={company.staffCount} label="People" />
             </div>
+            <HealthBar score={company.healthScore} />
             <div className="mt-3 flex items-center justify-between gap-2">
               <span className="text-[10px] font-semibold uppercase text-black/40">Client-facing brand</span>
               {company.website ? <a href={company.website} target="_blank" rel="noreferrer" aria-label={`Open ${company.name} website`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50"><ExternalLink size={14} /></a> : null}
@@ -94,6 +111,22 @@ export function TradingCompaniesPanel({
 
 function Metric({ value, label }: { value: number; label: string }) {
   return <div><strong className="block text-sm text-black/75">{value}</strong><span className="text-[10px] text-black/40">{label}</span></div>;
+}
+
+function HealthBar({ score }: { score: number }) {
+  const label = score >= 80 ? "Strong" : score >= 60 ? "Watch" : "Needs attention";
+  const tone = score >= 80 ? "bg-emerald-600" : score >= 60 ? "bg-amber-500" : "bg-red-600";
+  return (
+    <div className="mt-3" title="Health uses live clients, offers, people, profile completeness and operating status.">
+      <div className="mb-1.5 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase">
+        <span className="text-black/45">Company health</span>
+        <span className="text-black/65">{label} · {score}%</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.07]" role="meter" aria-label="Company health" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>
+        <span className={`block h-full rounded-full transition-all ${tone}`} style={{ width: `${score}%` }} />
+      </div>
+    </div>
+  );
 }
 
 function CompanyEditor({ company, onClose, onSaved }: { company: TradingCompany | null; onClose: () => void; onSaved: (message: string) => void }) {

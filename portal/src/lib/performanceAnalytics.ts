@@ -1,6 +1,8 @@
 export interface PerformanceEvent {
   type: string;
   occurredAt: number;
+  propertyId?: string;
+  url?: string;
   path?: string;
   referrer?: string;
   sessionId?: string;
@@ -34,6 +36,7 @@ export interface PerformanceAnalytics {
   changes: Record<"views" | "visitors" | "conversions" | "conversionRate" | "searchImpressions" | "searchClicks", number | null>;
   series: Array<{ date: string; views: number; conversions: number; searchClicks: number }>;
   pages: Array<{ path: string; views: number; conversions: number; conversionRate: number }>;
+  searchPages: Array<{ path: string; impressions: number; clicks: number; ctr: number; position?: number }>;
   sources: Array<{ source: string; views: number; conversions: number }>;
   queries: Array<{ query: string; impressions: number; clicks: number; ctr: number; position?: number }>;
   forms: Array<{ name: string; submissions: number; valueCents: number }>;
@@ -49,14 +52,34 @@ export function buildPerformanceAnalytics(
 ): PerformanceAnalytics {
   const safeDays = [7, 28, 90].includes(days) ? days : 28;
   const start = now - safeDays * DAY;
-  const previousStart = start - safeDays * DAY;
-  const currentEvents = events.filter(event => event.occurredAt >= start && event.occurredAt <= now);
+  return buildAnalyticsWindow(events, start, now, safeDays);
+}
+
+export function buildPerformanceAnalyticsForRange(
+  events: PerformanceEvent[],
+  start: number,
+  end: number,
+): PerformanceAnalytics {
+  const safeStart = Math.min(start, end);
+  const safeEnd = Math.max(start, end);
+  const days = Math.max(1, Math.ceil((safeEnd - safeStart + 1) / DAY));
+  return buildAnalyticsWindow(events, safeStart, safeEnd, days);
+}
+
+function buildAnalyticsWindow(
+  events: PerformanceEvent[],
+  start: number,
+  end: number,
+  days: number,
+): PerformanceAnalytics {
+  const previousStart = start - days * DAY;
+  const currentEvents = events.filter(event => event.occurredAt >= start && event.occurredAt <= end);
   const previousEvents = events.filter(event => event.occurredAt >= previousStart && event.occurredAt < start);
   const current = metrics(currentEvents);
   const previous = metrics(previousEvents);
 
   return {
-    days: safeDays,
+    days,
     current,
     previous,
     changes: {
@@ -67,8 +90,9 @@ export function buildPerformanceAnalytics(
       searchImpressions: change(current.searchImpressions, previous.searchImpressions),
       searchClicks: change(current.searchClicks, previous.searchClicks),
     },
-    series: dailySeries(currentEvents, safeDays, now),
+    series: dailySeries(currentEvents, days, end),
     pages: groupedPages(currentEvents),
+    searchPages: groupedSearchPages(currentEvents),
     sources: groupedSources(currentEvents),
     queries: groupedQueries(currentEvents),
     forms: groupedForms(currentEvents),
@@ -171,6 +195,32 @@ function groupedQueries(events: PerformanceEvent[]) {
   return [...rows.entries()]
     .map(([query, row]) => ({
       query,
+      impressions: row.impressions,
+      clicks: row.clicks,
+      ctr: rate(row.clicks, row.impressions),
+      position: row.positionWeight ? row.weightedPosition / row.positionWeight : undefined,
+    }))
+    .sort((left, right) => right.clicks - left.clicks || right.impressions - left.impressions)
+    .slice(0, 20);
+}
+
+function groupedSearchPages(events: PerformanceEvent[]) {
+  const rows = new Map<string, { impressions: number; clicks: number; weightedPosition: number; positionWeight: number }>();
+  for (const event of events.filter(item => item.type === "search" && item.path)) {
+    const path = event.path as string;
+    const current = rows.get(path) ?? { impressions: 0, clicks: 0, weightedPosition: 0, positionWeight: 0 };
+    current.impressions += count(event.impressions);
+    current.clicks += count(event.clicks);
+    if (typeof event.position === "number") {
+      const weight = Math.max(1, count(event.impressions));
+      current.weightedPosition += event.position * weight;
+      current.positionWeight += weight;
+    }
+    rows.set(path, current);
+  }
+  return [...rows.entries()]
+    .map(([path, row]) => ({
+      path,
       impressions: row.impressions,
       clicks: row.clicks,
       ctr: rate(row.clicks, row.impressions),

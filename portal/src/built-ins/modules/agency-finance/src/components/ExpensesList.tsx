@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpDown, CalendarDays, Download, Eye, FileUp, Paperclip, Pencil, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
+import { ArrowUpDown, CalendarDays, ChartPie, Download, Eye, FileUp, Paperclip, Pencil, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
 
 import type { Client } from "../lib/tenancy";
 import type { Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
@@ -54,6 +54,7 @@ function csvCell(value: unknown): string {
 export function ExpensesList({ expenses, categories, clients, apiBase, canMutate }: ExpensesListProps) {
   const router = useRouter();
   const [records, setRecords] = useState(expenses);
+  const [categoryRecords, setCategoryRecords] = useState(categories);
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -68,12 +69,23 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [postingId, setPostingId] = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
-  const catNameById = useMemo(() => new Map(categories.map(category => [category.id, category.name])), [categories]);
+  const catNameById = useMemo(() => new Map(categoryRecords.map(category => [category.id, category.name])), [categoryRecords]);
   const clientNameById = useMemo(() => new Map(clients.map(client => [client.id, client.name])), [clients]);
 
   useEffect(() => {
     setRecords(expenses);
   }, [expenses]);
+
+  useEffect(() => {
+    setCategoryRecords(categories);
+  }, [categories]);
+
+  function rememberCategory(category: ExpenseCategory) {
+    setCategoryRecords(current => (
+      [...current.filter(item => item.id !== category.id), category]
+        .sort((left, right) => left.name.localeCompare(right.name, "en-GB", { sensitivity: "base" }))
+    ));
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -96,15 +108,14 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
       .catch(() => undefined);
   }, []);
 
-  const filtered = useMemo(() => {
+  const { filtered, chartExpenses } = useMemo(() => {
     const q = query.trim().toLowerCase();
     const from = dateFrom ? Date.parse(`${dateFrom}T00:00:00`) : null;
     const to = dateTo ? Date.parse(`${dateTo}T23:59:59.999`) : null;
-    return records.filter(expense => {
+    const matching = records.filter(expense => {
       if (statusFilter !== "all" && expense.status !== statusFilter) return false;
       if (clientFilter === "unallocated" && expense.clientId) return false;
       if (clientFilter !== "all" && clientFilter !== "unallocated" && expense.clientId !== clientFilter) return false;
-      if (categoryFilter !== "all" && expense.categoryId !== categoryFilter) return false;
       const hasEvidence = Boolean(expense.receiptUrl || expense.attachments?.length);
       if (evidenceFilter === "attached" && !hasEvidence) return false;
       if (evidenceFilter === "missing" && hasEvidence) return false;
@@ -132,7 +143,12 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
       ].filter(Boolean).join(" ").toLowerCase();
       if (q && !searchable.includes(q)) return false;
       return true;
-    }).sort((left, right) => {
+    });
+    const visible = matching.filter(expense => (
+      categoryFilter === "all"
+      || (categoryFilter === "__uncategorised__" ? !expense.categoryId : expense.categoryId === categoryFilter)
+    ));
+    visible.sort((left, right) => {
       switch (sortBy) {
         case "oldest": return left.incurredAt - right.incurredAt;
         case "amount-high": return right.amountCents - left.amountCents;
@@ -143,6 +159,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
         default: return right.incurredAt - left.incurredAt;
       }
     });
+    return { filtered: visible, chartExpenses: matching };
   }, [catNameById, categoryFilter, clientFilter, clientNameById, dateFrom, dateTo, evidenceFilter, query, records, recurrenceFilter, sortBy, statusFilter]);
 
   const hasActiveFilters = Boolean(
@@ -231,15 +248,15 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
             Keep evidence for every business cost and allocate direct costs to the client they belong to.
           </p>
         </div>
-        <div className="flex gap-2">
-          <a href="/portal/agency/settings#portal-editor/expenses" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <a href="/portal/agency/settings#portal-editor/expenses" className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
             <Settings2 size={16} aria-hidden /> Edit form
           </a>
-          <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]">
+          <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
             <Download size={16} aria-hidden /> Export CSV
           </button>
           {canMutate ? (
-            <button type="button" onClick={() => setAdding(value => !value)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
+            <button type="button" onClick={() => setAdding(value => !value)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85 sm:flex-none">
               {adding ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
               {adding ? "Close" : "Add expense"}
             </button>
@@ -247,7 +264,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
         </div>
       </header>
 
-      <dl className="grid grid-cols-2 border-y border-black/10 sm:grid-cols-5">
+      <dl className="grid grid-cols-2 border-y border-black/10 [&>*:last-child]:col-span-2 sm:grid-cols-5 sm:[&>*:last-child]:col-span-1">
         <Summary label="Paid costs" value={money(totalPaid)} />
         <Summary label="Tax recorded" value={money(taxRecorded)} />
         <Summary label="Client costs" value={money(clientCosts)} />
@@ -258,13 +275,14 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
       {adding ? (
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close expense form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
-          <div role="dialog" aria-modal="true" aria-labelledby="new-expense-heading" className="relative mx-auto max-h-[92vh] w-full max-w-5xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
+          <div role="dialog" aria-modal="true" aria-labelledby="new-expense-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-5xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <ExpenseForm
               apiBase={apiBase}
-              categories={categories.filter(category => category.status === "active")}
+              categories={categoryRecords.filter(category => category.status === "active")}
               clients={clients}
               customFields={customFields}
               onClose={() => setAdding(false)}
+              onCategoryCreated={rememberCategory}
               onSaved={expense => {
                 setRecords(current => [expense, ...current.filter(item => item.id !== expense.id)]);
                 setAdding(false);
@@ -277,14 +295,15 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
       {editingExpense ? (
         <div className="fixed inset-0 z-[100] grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close expense form" className="absolute inset-0 cursor-default" onClick={() => setEditingExpense(null)} />
-          <div role="dialog" aria-modal="true" aria-labelledby="edit-expense-heading" className="relative mx-auto max-h-[92vh] w-full max-w-5xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
+          <div role="dialog" aria-modal="true" aria-labelledby="edit-expense-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-5xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <ExpenseForm
               expense={editingExpense}
               apiBase={apiBase}
-              categories={categories}
+              categories={categoryRecords}
               clients={clients}
               customFields={customFields}
               onClose={() => setEditingExpense(null)}
+              onCategoryCreated={rememberCategory}
               onSaved={expense => {
                 setRecords(current => current.map(item => item.id === expense.id ? expense : item));
                 setSelectedExpense(current => current?.id === expense.id ? expense : current);
@@ -317,14 +336,14 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
               value={query}
               onChange={event => setQuery(event.target.value)}
               placeholder="Search any expense detail"
-              className={`${inputClass} pl-9 pr-9`}
+              className={`${inputClass} !pl-9 !pr-9`}
             />
             {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded text-black/40 hover:bg-black/5"><X size={14} /></button> : null}
           </label>
-          <label className="relative min-w-52">
+          <label className="relative min-w-0 w-full lg:w-auto lg:min-w-52">
             <span className="sr-only">Sort expenses</span>
             <ArrowUpDown size={15} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
-            <select value={sortBy} onChange={event => setSortBy(event.target.value as ExpenseSort)} className={`${inputClass} pl-9`}>
+            <select value={sortBy} onChange={event => setSortBy(event.target.value as ExpenseSort)} className={`${inputClass} !pl-9`}>
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
               <option value="amount-high">Highest amount</option>
@@ -343,7 +362,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
           </select>
           <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} aria-label="Filter by category" className={inputClass}>
             <option value="all">All categories</option>
-            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+            {categoryRecords.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
           <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as ExpenseStatus | "all")} aria-label="Filter by status" className={inputClass}>
             <option value="all">All statuses</option>
@@ -367,15 +386,22 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
             <span className="inline-flex items-center gap-1.5"><CalendarDays size={13} aria-hidden /> To</span>
             <input type="date" value={dateTo} min={dateFrom || undefined} onChange={event => setDateTo(event.target.value)} className={inputClass} />
           </label>
-          <select value={recurrenceFilter} onChange={event => setRecurrenceFilter(event.target.value as RecurrenceFilter)} aria-label="Filter by recurrence" className={`${inputClass} min-w-44 sm:!w-auto`}>
+          <select value={recurrenceFilter} onChange={event => setRecurrenceFilter(event.target.value as RecurrenceFilter)} aria-label="Filter by recurrence" className={`${inputClass} w-full sm:!w-auto sm:min-w-44`}>
             <option value="all">All frequencies</option>
             <option value="recurring">Recurring only</option>
             <option value="one-off">One-off only</option>
           </select>
           {hasActiveFilters ? <button type="button" onClick={clearFilters} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/65 hover:bg-black/[0.03]"><X size={15} /> Clear filters</button> : null}
-          <p className="ml-auto pb-2 text-xs font-medium text-black/45" aria-live="polite">{filtered.length} of {records.length} expenses</p>
+          <p className="w-full pb-2 text-right text-xs font-medium text-black/45 sm:ml-auto sm:w-auto" aria-live="polite">{filtered.length} of {records.length} expenses</p>
         </div>
       </div>
+
+      <ExpenseCategoryBreakdown
+        expenses={chartExpenses}
+        categoryNames={catNameById}
+        selectedCategoryId={categoryFilter}
+        onSelectCategory={categoryId => setCategoryFilter(current => current === categoryId ? "all" : categoryId)}
+      />
 
       {filtered.length === 0 ? (
         <div className="grid min-h-56 place-items-center border-b border-black/10 text-center">
@@ -386,7 +412,33 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
           </div>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="divide-y divide-black/[0.07] border-y border-black/10 sm:hidden">
+          {filtered.map(expense => {
+            const evidenceCount = expense.attachments?.length ?? 0;
+            const hasEvidence = evidenceCount > 0 || Boolean(expense.receiptUrl);
+            return <article key={expense.id} className="py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-black/85">{expense.vendor || expense.description || "Expense"}</p>
+                  <p className="mt-1 text-xs text-black/45">{new Date(expense.incurredAt).toLocaleDateString("en-GB")} · {catNameById.get(expense.categoryId) ?? "Uncategorised"}</p>
+                </div>
+                <p className="shrink-0 font-mono text-sm font-semibold text-black/85">{money(expense.amountCents, expense.currency)}</p>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="rounded-full bg-black/5 px-2 py-1 font-semibold uppercase tracking-wide text-black/60">{STATUS_LABEL[expense.status]}</span>
+                <span className="text-black/50">{expense.clientId ? clientNameById.get(expense.clientId) ?? "Client" : "Business overhead"}</span>
+                <span className={hasEvidence ? "text-emerald-700" : "text-amber-700"}>{hasEvidence ? `${evidenceCount || 1} evidence ${evidenceCount === 1 ? "item" : "items"}` : "Missing evidence"}</span>
+              </div>
+              {expense.description && expense.description !== expense.vendor ? <p className="mt-3 text-xs leading-5 text-black/50">{expense.description}</p> : null}
+              <div className="mt-3 flex items-center justify-end gap-2">
+                <button type="button" onClick={() => setSelectedExpense(expense)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-medium text-black/65"><Eye size={15} /> Inspect</button>
+                {canMutate ? <button type="button" onClick={() => setEditingExpense(expense)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Pencil size={15} /> Edit</button> : null}
+              </div>
+            </article>;
+          })}
+        </div>
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[940px] text-sm">
             <thead className="border-b border-black/10 text-left text-[11px] font-semibold uppercase tracking-wide text-black/45">
               <tr>
@@ -452,6 +504,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <p className="text-xs leading-5 text-black/40">
@@ -465,7 +518,7 @@ function ExpenseDetail({ expense, category, client, customFields, onClose, onEdi
   const net = expense.netCents ?? expense.amountCents - (expense.taxCents ?? 0);
   return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6">
     <button type="button" className="absolute inset-0" aria-label="Close expense details" onClick={onClose} />
-    <section role="dialog" aria-modal="true" aria-label="Expense details" className="relative mx-auto max-h-[92vh] w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-2xl sm:rounded-lg sm:p-6">
+    <section role="dialog" aria-modal="true" aria-label="Expense details" className="relative mx-auto max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6">
       <header className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Expense</p><h2 className="mt-1 text-xl font-semibold text-black/85">{expense.vendor || expense.description || "Expense details"}</h2></div><button type="button" aria-label="Close" onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>
       <dl className="divide-y divide-black/10 border-y border-black/10">
         <Detail label="Gross amount" value={money(expense.amountCents, expense.currency)} strong />
@@ -509,7 +562,131 @@ function Summary({ label, value, alert }: { label: string; value: string; alert?
   );
 }
 
-function ExpenseForm({ expense, apiBase, categories, clients, customFields, onClose, onSaved }: { expense?: Expense; apiBase: string; categories: ExpenseCategory[]; clients: Client[]; customFields: CustomFieldDefinition[]; onClose: () => void; onSaved: (expense: Expense) => void }) {
+const CATEGORY_COLOURS = [
+  "#0f766e",
+  "#1d4ed8",
+  "#d97706",
+  "#be123c",
+  "#15803d",
+  "#7e22ce",
+  "#0369a1",
+  "#c2410c",
+  "#475569",
+  "#a21caf",
+];
+
+function ExpenseCategoryBreakdown({ expenses, categoryNames, selectedCategoryId, onSelectCategory }: {
+  expenses: Expense[];
+  categoryNames: Map<string, string>;
+  selectedCategoryId: string;
+  onSelectCategory: (categoryId: string) => void;
+}) {
+  const breakdown = useMemo(() => {
+    const totals = new Map<string, { amountCents: number; count: number; currency: string }>();
+    for (const expense of expenses) {
+      const key = expense.categoryId || "__uncategorised__";
+      const current = totals.get(key) ?? { amountCents: 0, count: 0, currency: expense.currency };
+      current.amountCents += expense.amountCents;
+      current.count += 1;
+      totals.set(key, current);
+    }
+    return [...totals.entries()]
+      .map(([id, value]) => ({
+        id,
+        name: categoryNames.get(id) ?? "Uncategorised",
+        ...value,
+      }))
+      .sort((left, right) => right.amountCents - left.amountCents);
+  }, [categoryNames, expenses]);
+  const total = breakdown.reduce((sum, item) => sum + item.amountCents, 0);
+  let cursor = 0;
+  const segments = breakdown.map((item, index) => {
+    const start = total > 0 ? cursor / total * 100 : 0;
+    cursor += item.amountCents;
+    const end = total > 0 ? cursor / total * 100 : 0;
+    return { ...item, colour: CATEGORY_COLOURS[index % CATEGORY_COLOURS.length]!, start, end };
+  });
+  const gradient = segments.length
+    ? `conic-gradient(${segments.map(segment => `${segment.colour} ${segment.start}% ${segment.end}%`).join(", ")})`
+    : "conic-gradient(#e5e7eb 0 100%)";
+  const currency = breakdown[0]?.currency ?? "gbp";
+
+  return (
+    <section className="border-y border-black/10 py-5" aria-labelledby="expense-category-heading">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-black/45">
+            <ChartPie size={14} aria-hidden /> Category breakdown
+          </p>
+          <h2 id="expense-category-heading" className="mt-1 text-lg font-semibold text-black/85">Where the money is going</h2>
+          <p className="mt-1 text-sm text-black/50">Updates with the current search, date and expense filters.</p>
+        </div>
+        {selectedCategoryId !== "all" ? (
+          <button type="button" onClick={() => onSelectCategory(selectedCategoryId)} className="min-h-9 rounded-md border border-black/15 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">
+            Show all categories
+          </button>
+        ) : null}
+      </div>
+
+      {segments.length ? (
+        <div className="mt-5 grid items-center gap-6 md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="relative mx-auto size-52 lg:size-60" role="img" aria-label={`Expense category chart. Total ${money(total, currency)} across ${segments.length} categories.`}>
+            <div className="absolute inset-0 rounded-full" style={{ background: gradient }} />
+            <div className="absolute inset-[22%] grid place-items-center rounded-full bg-white text-center shadow-[0_0_0_1px_rgba(0,0,0,0.06)]">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Total shown</p>
+                <p className="mt-1 text-xl font-semibold text-black/85">{money(total, currency)}</p>
+                <p className="mt-0.5 text-xs text-black/45">{expenses.length} {expenses.length === 1 ? "expense" : "expenses"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-1 sm:grid-cols-2">
+            {segments.map(segment => {
+              const selected = selectedCategoryId === segment.id;
+              const percent = total > 0 ? segment.amountCents / total * 100 : 0;
+              return (
+                <button
+                  key={segment.id}
+                  type="button"
+                  onClick={() => onSelectCategory(segment.id)}
+                  aria-pressed={selected}
+                  className={`grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-2 text-left transition ${selected ? "bg-black text-white" : "hover:bg-black/[0.035]"}`}
+                >
+                  <span className="size-3 rounded-sm" style={{ backgroundColor: segment.colour }} aria-hidden />
+                  <span className="min-w-0">
+                    <span className={`block truncate text-sm font-semibold ${selected ? "text-white" : "text-black/75"}`}>{segment.name}</span>
+                    <span className={`block text-xs ${selected ? "text-white/65" : "text-black/45"}`}>{segment.count} {segment.count === 1 ? "expense" : "expenses"} · {percent.toFixed(percent >= 10 ? 0 : 1)}%</span>
+                  </span>
+                  <span className={`whitespace-nowrap text-right font-mono text-sm font-semibold ${selected ? "text-white" : "text-black/75"}`}>{money(segment.amountCents, segment.currency)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-5 grid min-h-36 place-items-center rounded-md border border-dashed border-black/15 text-center">
+          <div>
+            <ChartPie className="mx-auto text-black/20" size={24} aria-hidden />
+            <p className="mt-2 text-sm font-medium text-black/65">No category totals to chart</p>
+            <p className="mt-1 text-xs text-black/40">Add an expense or loosen the current filters.</p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ExpenseForm({ expense, apiBase, categories, clients, customFields, onClose, onCategoryCreated, onSaved }: {
+  expense?: Expense;
+  apiBase: string;
+  categories: ExpenseCategory[];
+  clients: Client[];
+  customFields: CustomFieldDefinition[];
+  onClose: () => void;
+  onCategoryCreated: (category: ExpenseCategory) => void;
+  onSaved: (expense: Expense) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -517,6 +694,8 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
   const [taxRate, setTaxRate] = useState(initialTaxRate);
   const [attachments, setAttachments] = useState<ExpenseAttachment[]>(expense?.attachments ?? []);
   const editing = Boolean(expense);
+  const categoryListId = `expense-category-options-${expense?.id ?? "new"}`;
+  const initialCategoryName = categories.find(category => category.id === expense?.categoryId)?.name ?? "";
 
   async function uploadFiles(files: FileList | null) {
     if (!files?.length) return;
@@ -553,6 +732,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
         const form = event.currentTarget;
         const data = new FormData(form);
         const amountCents = Math.round(Number(data.get("amount") ?? 0) * 100);
+        const categoryName = String(data.get("categoryName") ?? "").trim();
         const rate = Number(data.get("taxRate") ?? 0);
         const taxCents = rate > 0 ? Math.round(amountCents - amountCents / (1 + rate / 100)) : 0;
         const customFieldValues = Object.fromEntries(customFields.map(field => {
@@ -563,34 +743,50 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
         }));
         const optionalValue = (value: FormDataEntryValue | null) => String(value ?? "").trim() || (editing ? null : undefined);
         const recurrence = String(data.get("recurrence") ?? "");
-        const fields = {
-          categoryId: String(data.get("categoryId") ?? ""),
-          clientId: optionalValue(data.get("clientId")),
-          vendor: optionalValue(data.get("vendor")),
-          description: optionalValue(data.get("description")),
-          reason: optionalValue(data.get("reason")),
-          amountCents,
-          taxCents,
-          taxRateBps: Math.round(rate * 100),
-          taxDeductible: data.get("taxDeductible") === "on",
-          businessUsePercent: Number(data.get("businessUsePercent") ?? 100),
-          billableToClient: data.get("billableToClient") === "on",
-          incurredAt: Date.parse(String(data.get("incurredAt") ?? "")) || undefined,
-          receiptUrl: optionalValue(data.get("receiptUrl")),
-          attachments,
-          paymentMethod: String(data.get("paymentMethod") ?? "card"),
-          reference: optionalValue(data.get("reference")),
-          recurrence: recurrence || (editing ? null : undefined),
-          nextDueAt: Date.parse(String(data.get("nextDueAt") ?? "")) || (editing ? null : undefined),
-          recurringActive: Boolean(recurrence),
-          customFields: customFieldValues,
-        };
-        if (!fields.categoryId || amountCents <= 0) {
-          setError("Choose a category and enter a positive gross amount.");
+        if (!categoryName || amountCents <= 0) {
+          setError("Enter a category and a positive gross amount.");
           return;
         }
         setBusy(true);
         try {
+          let categoryId = categories.find(category => category.name.localeCompare(categoryName, undefined, { sensitivity: "accent" }) === 0)?.id;
+          if (!categoryId) {
+            const categoryResponse = await fetch(`${apiBase}/categories`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ name: categoryName }),
+            });
+            const categoryResult = await categoryResponse.json().catch(() => null);
+            if (!categoryResponse.ok || !categoryResult?.ok || !categoryResult.category) {
+              setError(categoryResult?.error ?? `Could not save category (${categoryResponse.status}).`);
+              return;
+            }
+            const createdCategory = categoryResult.category as ExpenseCategory;
+            categoryId = createdCategory.id;
+            onCategoryCreated(createdCategory);
+          }
+          const fields = {
+            categoryId,
+            clientId: optionalValue(data.get("clientId")),
+            vendor: optionalValue(data.get("vendor")),
+            description: optionalValue(data.get("description")),
+            reason: optionalValue(data.get("reason")),
+            amountCents,
+            taxCents,
+            taxRateBps: Math.round(rate * 100),
+            taxDeductible: data.get("taxDeductible") === "on",
+            businessUsePercent: Number(data.get("businessUsePercent") ?? 100),
+            billableToClient: data.get("billableToClient") === "on",
+            incurredAt: Date.parse(String(data.get("incurredAt") ?? "")) || undefined,
+            receiptUrl: optionalValue(data.get("receiptUrl")),
+            attachments,
+            paymentMethod: String(data.get("paymentMethod") ?? "card"),
+            reference: optionalValue(data.get("reference")),
+            recurrence: recurrence || (editing ? null : undefined),
+            nextDueAt: Date.parse(String(data.get("nextDueAt") ?? "")) || (editing ? null : undefined),
+            recurringActive: Boolean(recurrence),
+            customFields: customFieldValues,
+          };
           const response = await fetch(`${apiBase}/expenses`, {
             method: editing ? "PATCH" : "POST",
             headers: { "content-type": "application/json" },
@@ -622,10 +818,19 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <label className={labelClass}>Supplier<input name="vendor" defaultValue={expense?.vendor ?? ""} className={inputClass} placeholder="Adobe" /></label>
         <label className={labelClass}>Category
-          <select name="categoryId" className={inputClass} required defaultValue={expense?.categoryId ?? ""}>
-            <option value="" disabled>Choose category</option>
-            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-          </select>
+          <input
+            name="categoryName"
+            list={categoryListId}
+            required
+            defaultValue={initialCategoryName}
+            className={inputClass}
+            placeholder="Type or choose a category"
+            autoComplete="off"
+          />
+          <datalist id={categoryListId}>
+            {categories.filter(category => category.status === "active").map(category => <option key={category.id} value={category.name} />)}
+          </datalist>
+          <span className="font-normal text-black/40">New categories are saved for future expenses.</span>
         </label>
         <label className={labelClass}>Gross amount (£)<input name="amount" type="number" step="0.01" min="0.01" required defaultValue={expense ? (expense.amountCents / 100).toFixed(2) : ""} className={inputClass} placeholder="0.00" /></label>
         <label className={labelClass}>Tax included

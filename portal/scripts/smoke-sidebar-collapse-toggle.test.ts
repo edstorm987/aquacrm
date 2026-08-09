@@ -57,7 +57,7 @@ describe("Sidebar wires the toggle (R035)", () => {
     const src = readFileSync(SIDEBAR, "utf8");
     const footer = readFileSync(SIDEBAR_FOOTER, "utf8");
     assert.ok(src.includes('data-collapsed="false"'));
-    assert.ok(src.includes("!mobile && <SidebarFooter"));
+    assert.ok(src.includes("<SidebarFooter settingsItems={settingsItems} mobile={mobile} />"));
     assert.ok(!src.includes("<SidebarCollapseToggle"));
     assert.ok(footer.includes("import { SidebarCollapseToggle }"));
     assert.ok(footer.includes("<SidebarCollapseToggle />"));

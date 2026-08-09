@@ -7,9 +7,9 @@
 // already computed server-side; no client-side fetching.
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-import { useIsEmbedded } from "@/lib/a11y/isEmbedded";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import { usePathname } from "next/navigation";
 
@@ -22,7 +22,6 @@ interface Props {
 export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
   const [open, setOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const embedded = useIsEmbedded();
   const pathname = usePathname();
   useFocusTrap(drawerRef, open);
 
@@ -48,7 +47,7 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
         aria-expanded={open}
         aria-controls="aqua-mobile-nav-drawer"
         onClick={() => setOpen(v => !v)}
-        className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-md border border-black/10 bg-white text-black/80 hover:bg-black/5"
+        className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-black/10 bg-white text-black/80 hover:bg-black/5 md:hidden"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
           {open ? (
@@ -61,16 +60,8 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
         </svg>
       </button>
 
-      {open && (
-        <div
-          // When embedded, use absolute positioning so the drawer stays
-          // inside the iframe rather than overlaying the parent frame.
-          className={[
-            embedded ? "absolute" : "fixed",
-            "inset-0 z-[60] md:hidden",
-          ].join(" ")}
-          onClick={() => setOpen(false)}
-        >
+      {open && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[60] md:hidden" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40" aria-hidden />
           <div
             ref={drawerRef}
@@ -78,12 +69,23 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
-            className="absolute left-0 top-0 h-full w-72 max-w-[85%] bg-white shadow-xl"
+            className="absolute left-0 top-0 h-full w-[min(22rem,88vw)] overflow-hidden bg-white shadow-xl"
             onClick={e => e.stopPropagation()}
           >
+            <button
+              type="button"
+              aria-label="Close navigation menu"
+              onClick={() => setOpen(false)}
+              className="absolute right-5 top-5 z-20 inline-flex size-10 items-center justify-center rounded-md border border-black/10 bg-white text-black/75 shadow-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
+                <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
             <Sidebar panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} mobile />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

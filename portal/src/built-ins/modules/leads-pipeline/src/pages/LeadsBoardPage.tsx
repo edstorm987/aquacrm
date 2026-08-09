@@ -29,7 +29,7 @@ export default async function LeadsBoardPage(props: PluginPageProps) {
         <ul>
           {newColumn.map(l => (
             <li key={l.id}>
-              {l.email}{l.name ? ` — ${l.name}` : ""}{l.company ? ` · ${l.company}` : ""}
+              {l.email || l.phone || "No contact detail"}{l.name ? ` — ${l.name}` : ""}{l.company ? ` · ${l.company}` : ""}
             </li>
           ))}
         </ul>
@@ -39,7 +39,7 @@ export default async function LeadsBoardPage(props: PluginPageProps) {
         <ul>
           {tracked.map(l => (
             <li key={l.id}>
-              {l.email} (card {l.pipelineCardId})
+              {l.email || l.phone || "No contact detail"} (card {l.pipelineCardId})
             </li>
           ))}
         </ul>

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { buildAssistantBusinessContext } from "@/lib/server/assistantBusinessContext";
+import { buildAdvisorContext } from "@/lib/server/advisorContext";
 import {
   addAssistantMemory,
   appendAssistantMessage,
@@ -15,12 +16,14 @@ import {
   askMilesymediaAssistant,
   assistantModel,
   isAssistantConfigured,
+  suggestAdvisorActions,
 } from "@/lib/server/openaiAssistant";
 import { getSessionFromRequest } from "@/lib/server/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { logActivity } from "@/server/activity";
+import { listAgencyTasks } from "@/server/tasks";
 
 const ASSISTANT_ROLES = new Set(["agency-owner", "agency-manager"]);
 
@@ -35,8 +38,8 @@ function responseState(agencyId: string, userId: string) {
   const context = buildAssistantBusinessContext(agencyId);
   return {
     workspace: getAssistantWorkspace(agencyId, userId),
-    configured: isAssistantConfigured(),
-    model: assistantModel(),
+    configured: isAssistantConfigured(agencyId),
+    model: assistantModel(agencyId),
     coverage: {
       clients: context.summary.clients.length,
       team: context.summary.team.length,
@@ -96,6 +99,50 @@ export async function POST(req: NextRequest) {
       deleteAssistantMemory(session.agencyId, session.userId, body.memoryId);
       return NextResponse.json({ ok: true, ...responseState(session.agencyId, session.userId) });
     }
+    if (body.action === "suggest-actions") {
+      if (!isAssistantConfigured(session.agencyId)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Aqua Advisor needs an OpenAI connection. Open Settings → Integrations and connect it there.",
+            code: "assistant_not_configured",
+          },
+          { status: 503 },
+        );
+      }
+      const limit = rateLimit({
+        key: `advisor-actions:${session.userId}:${clientIpFromHeaders(req.headers)}`,
+        max: 8,
+        windowMs: 60_000,
+      });
+      if (!limit.allowed) {
+        return NextResponse.json(
+          { ok: false, error: `Too many advisor reviews. Try again in ${limit.retryAfterSec} seconds.` },
+          { status: 429, headers: { "retry-after": String(limit.retryAfterSec) } },
+        );
+      }
+      const [workspaceContext, advisorContext] = await Promise.all([
+        Promise.resolve(buildAssistantBusinessContext(session.agencyId)),
+        buildAdvisorContext(session.agencyId),
+      ]);
+      const openTasks = listAgencyTasks(session.agencyId).filter(task => task.status !== "done");
+      const suggestions = await suggestAdvisorActions({
+        agencyId: session.agencyId,
+        businessContext: `${workspaceContext.serialized}\n\nLIVE ADVISOR SNAPSHOT\n${JSON.stringify(advisorContext)}`,
+        alerts: advisorContext.operationalAlerts,
+        existingTaskTitles: openTasks.map(task => task.title),
+      });
+      logActivity({
+        agencyId: session.agencyId,
+        actorUserId: session.userId,
+        actorEmail: session.email,
+        category: "system",
+        action: "assistant.actions.reviewed",
+        message: `Aqua Advisor proposed ${suggestions.length} prioritised action${suggestions.length === 1 ? "" : "s"}.`,
+        metadata: { model: assistantModel(session.agencyId), count: suggestions.length },
+      });
+      return NextResponse.json({ ok: true, suggestions, generatedAt: Date.now() });
+    }
     if (body.action !== "message") {
       return NextResponse.json({ ok: false, error: "Unknown assistant action." }, { status: 400 });
     }
@@ -107,11 +154,11 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    if (!isAssistantConfigured()) {
+    if (!isAssistantConfigured(session.agencyId)) {
       return NextResponse.json(
         {
           ok: false,
-          error: "The assistant needs an OpenAI API key. Add OPENAI_API_KEY to .env.local, then restart the app.",
+          error: "The assistant needs an OpenAI connection. Open Settings → Integrations and connect it there.",
           code: "assistant_not_configured",
         },
         { status: 503 },
@@ -154,14 +201,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const context = buildAssistantBusinessContext(session.agencyId);
+    const [context, advisorContext] = await Promise.all([
+      Promise.resolve(buildAssistantBusinessContext(session.agencyId)),
+      buildAdvisorContext(session.agencyId),
+    ]);
     const user = getUserById(session.userId);
     const workspace = getAssistantWorkspace(session.agencyId, session.userId);
     const answer = await askMilesymediaAssistant({
+      agencyId: session.agencyId,
       userName: user?.name || session.email,
       memories: workspace.memories,
       history,
-      businessContext: context.serialized,
+      businessContext: `${context.serialized}\n\nLIVE ADVISOR SNAPSHOT\n${JSON.stringify(advisorContext)}`,
       contextTruncated: context.truncated,
       question: message,
     });
@@ -178,10 +229,10 @@ export async function POST(req: NextRequest) {
       actorEmail: session.email,
       category: "system",
       action: "assistant.conversation.completed",
-      message: "Milesymedia assistant answered a workspace question.",
+      message: "Aqua Advisor answered a workspace question.",
       metadata: {
         threadId: thread.id,
-        model: assistantModel(),
+        model: assistantModel(session.agencyId),
         questionLength: message.length,
         answerLength: answer.length,
         memoryCreated: Boolean(memoryMatch?.[1]?.trim()),

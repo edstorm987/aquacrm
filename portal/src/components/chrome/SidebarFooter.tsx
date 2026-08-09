@@ -13,11 +13,12 @@ interface SettingsItem { label: string; href: string }
 interface Props {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   settingsItems?: SettingsItem[];
+  mobile?: boolean;
 }
 
-export function SidebarFooter(_props: Props) {
+export function SidebarFooter({ mobile = false }: Props) {
   return (
-    <div className="mm-sidebar-footer mt-6 flex flex-col gap-1 border-t border-black/10 pt-3">
+    <div className={`mm-sidebar-footer flex shrink-0 flex-col gap-1 border-t border-black/10 pt-3 ${mobile ? "mt-3" : "mt-6"}`}>
       <Link
         href="/portal/agency/settings"
         title="Settings"
@@ -47,7 +48,7 @@ export function SidebarFooter(_props: Props) {
         </button>
       </form>
 
-      <SidebarCollapseToggle />
+      {!mobile ? <SidebarCollapseToggle /> : null}
     </div>
   );
 }

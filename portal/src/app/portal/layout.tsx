@@ -11,7 +11,7 @@ import { getSession } from "@/lib/server/auth";
 export default async function PortalLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
   const session = await getSession();
-  if (!session) redirect("/login?next=/portal");
+  if (!session) redirect("/login?brand=aquacrm&next=/portal");
 
   return <>{children}</>;
 }

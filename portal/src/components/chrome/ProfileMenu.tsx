@@ -86,7 +86,7 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
       </button>
 
       {open && (
-        <div role="menu" className="absolute right-0 top-full z-40 mt-2 w-80 overflow-hidden rounded-lg border border-[#D4B888]/35 bg-[#FFFDF8] shadow-2xl shadow-black/20">
+        <div role="menu" className="fixed inset-x-3 top-16 z-[80] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-lg border border-[#D4B888]/35 bg-[#FFFDF8] shadow-2xl shadow-black/20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
           <div className="bg-[#171009] px-4 pb-4 pt-3 text-[#F7EFE2]">
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-[#D4B888]">{accountLabel}</p>
             <div className="flex items-center gap-3">

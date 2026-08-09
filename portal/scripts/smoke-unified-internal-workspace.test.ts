@@ -33,7 +33,9 @@ describe("one AquaOasis-Web internal workspace", () => {
 
     assert.ok(form.includes("Client-facing brand"));
     assert.ok(form.includes("companyId: state.clientFacingBrandId || undefined"));
-    assert.ok(form.includes("serviceBrandIds: selectedServiceBrandIds"));
+    assert.ok(form.includes("clientFacingBrandId: state.clientFacingBrandId || undefined"));
+    assert.ok(form.includes("What are we helping with?"));
+    assert.ok(!form.includes("selectedServiceBrandIds"));
     assert.ok(route.includes("body.companyId?.trim()"));
     assert.ok(route.includes("getTradingCompany(agencyId, companyId)"));
     assert.ok(route.includes("companyId: companyId || undefined"));

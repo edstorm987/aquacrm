@@ -34,6 +34,7 @@ export interface ReadinessContext {
   activeClientCount?: number;
   billingConfiguredClientCount?: number;
   activeExternalAssistantKeyCount?: number;
+  managedIntegrationProviders?: string[];
 }
 
 function has(env: NodeJS.ProcessEnv, name: string): boolean {
@@ -64,6 +65,7 @@ export function inspectProductionReadiness(
   env: NodeJS.ProcessEnv = process.env,
   context: ReadinessContext = {},
 ): ProductionReadiness {
+  const managedProviders = new Set(context.managedIntegrationProviders ?? []);
   const explicitBackend = env.PORTAL_BACKEND?.trim().toLowerCase();
   const isPublicDeployment = env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview";
   const supabaseReady = has(env, "NEXT_PUBLIC_SUPABASE_URL")
@@ -81,18 +83,19 @@ export function inspectProductionReadiness(
     && env.NEXT_PUBLIC_PORTAL_SECURITY === "strict"
     && isSecurePublicOrigin(env.NEXT_PUBLIC_PORTAL_BASE_URL);
   const vaultReady = (env.PORTAL_VAULT_ENCRYPTION_KEY?.length ?? 0) >= 32;
-  const transactionalEmailReady = has(env, "RESEND_API_KEY") && has(env, "MILESYMEDIA_FROM_EMAIL");
-  const enquiryEmailReady = has(env, "RESEND_API_KEY") && has(env, "ENQUIRY_NOTIFY_TO") && has(env, "ENQUIRY_EMAIL_FROM");
+  const managedEmailReady = managedProviders.has("resend");
+  const transactionalEmailReady = managedEmailReady || (has(env, "RESEND_API_KEY") && has(env, "MILESYMEDIA_FROM_EMAIL"));
+  const enquiryEmailReady = managedEmailReady || (has(env, "RESEND_API_KEY") && has(env, "ENQUIRY_NOTIFY_TO") && has(env, "ENQUIRY_EMAIL_FROM"));
   const emailReady = transactionalEmailReady && enquiryEmailReady;
   const uploadsReady = (supabaseReady && has(env, "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET"))
     || has(env, "BLOB_READ_WRITE_TOKEN")
     || has(env, "BLOB_STORE_ID")
     || has(env, "VERCEL_OIDC_TOKEN");
-  const stripeReady = has(env, "STRIPE_SECRET_KEY") && has(env, "STRIPE_WEBHOOK_SECRET");
+  const stripeReady = managedProviders.has("stripe") || (has(env, "STRIPE_SECRET_KEY") && has(env, "STRIPE_WEBHOOK_SECRET"));
   const googleReady = has(env, "GOOGLE_OAUTH_CLIENT_ID") && has(env, "GOOGLE_OAUTH_CLIENT_SECRET");
-  const githubReady = has(env, "GITHUB_TOKEN");
-  const vercelReady = has(env, "VERCEL_TOKEN");
-  const assistantReady = has(env, "OPENAI_API_KEY");
+  const githubReady = managedProviders.has("github") || has(env, "GITHUB_TOKEN");
+  const vercelReady = managedProviders.has("vercel") || has(env, "VERCEL_TOKEN");
+  const assistantReady = managedProviders.has("openai") || has(env, "OPENAI_API_KEY");
   const assistantApiReady = (context.activeExternalAssistantKeyCount ?? 0) > 0
     || (has(env, "MILESYMEDIA_ASSISTANT_API_TOKEN") && has(env, "MILESYMEDIA_ASSISTANT_AGENCY_ID"));
   const billingConfigured = context.billingConfiguredClientCount ?? 0;

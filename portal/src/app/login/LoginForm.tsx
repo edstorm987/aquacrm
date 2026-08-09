@@ -95,7 +95,7 @@ export function LoginForm({
         res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password, clientId }),
+          body: JSON.stringify({ email, password, clientId, brand: brandParam }),
         });
       }
       const data = (await res.json()) as { ok: boolean; error?: string; returnUrl?: string; redirect?: string };

@@ -7,13 +7,13 @@ import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/fo
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { logActivity } from "@/server/activity";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
 import { getUser } from "@/server/users";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { notifyBrandEnquiry } from "@/lib/server/enquiryNotifications";
-import { PUBLIC_AQUA_SITES } from "@/lib/publicSites";
+import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/publicSites";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
@@ -37,6 +37,7 @@ const CONTACT_METHOD_ALIASES: Record<string, string> = {
 
 interface BrandEnquiryBody {
   brand?: unknown;
+  channel?: unknown;
   services?: unknown;
   name?: unknown;
   email?: unknown;
@@ -48,6 +49,8 @@ interface BrandEnquiryBody {
   consent?: unknown;
   website?: unknown;
 }
+
+type EnquiryChannel = "form" | "chatbot" | "support";
 
 function clean(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -67,12 +70,25 @@ function normalizeContactMethod(value: unknown): string {
   return CONTACT_METHOD_ALIASES[clean(value, 30).toLowerCase()] ?? "";
 }
 
-function cleanPublicUrl(value: unknown): string {
+function normalizeChannel(value: unknown, contactMethod: string, services: string[]): EnquiryChannel {
+  const requested = clean(value, 30).toLowerCase();
+  if (requested === "chat" || requested === "chatbot") return "chatbot";
+  if (requested === "support" || requested === "ticket") return "support";
+  if (requested === "form" || requested === "enquiry") return "form";
+  if (contactMethod === "chat" || services.some(service => /\b(chat|chatbot)\b/i.test(service))) return "chatbot";
+  if (contactMethod === "support" || services.some(service => /\b(support|ticket)\b/i.test(service))) return "support";
+  return "form";
+}
+
+function cleanPublicUrl(value: unknown, requestOrigin: string | null): string {
   const raw = clean(value, 500);
   if (!raw) return "";
   try {
     const url = new URL(raw);
     if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (requestOrigin && url.origin !== requestOrigin.replace(/\/$/, "")) {
+      return `${requestOrigin.replace(/\/$/, "")}/`;
+    }
     url.username = "";
     url.password = "";
     url.search = "";
@@ -171,8 +187,9 @@ export async function POST(req: NextRequest) {
   const email = clean(body.email, 254).toLowerCase();
   const phone = clean(body.phone, 40);
   const contactMethod = normalizeContactMethod(body.contactMethod);
+  const channel = normalizeChannel(body.channel, contactMethod, services);
   const message = clean(body.message, 4_000);
-  const sourceUrl = cleanPublicUrl(body.sourceUrl);
+  const sourceUrl = cleanPublicUrl(body.sourceUrl, origin);
   const campaign = clean(body.campaign, 120);
   const hasEmail = EMAIL.test(email);
   const hasPhone = PHONE.test(phone);
@@ -188,6 +205,11 @@ export async function POST(req: NextRequest) {
       ok: false,
       error: "Please add your name, a valid email or phone number, contact preference and consent.",
     }, 400, origin);
+  }
+
+  const publicSite = resolvePublicAquaSite(brand, origin);
+  if (requestedOrigin && !publicSite) {
+    return response({ ok: false, error: "This website and brand combination is not allowed." }, 403, origin);
   }
 
   const ip = clientIpFromHeaders(req.headers);
@@ -233,6 +255,7 @@ export async function POST(req: NextRequest) {
     const companies = ensureZimanteTradingCompanies(agency.id, founder.id);
     const company = companies[brand as TradingBrandSlug];
     const brandDefinition = tradingBrandDefinition(brand as TradingBrandSlug);
+    const pagePath = sourceUrl ? new URL(sourceUrl).pathname : "/";
     const capturedAt = new Date().toISOString();
     const supabase = createSupabaseAdminClient();
     const { data: captured, error: captureError } = await supabase
@@ -253,6 +276,12 @@ export async function POST(req: NextRequest) {
           consentVersion: 1,
           consentCapturedAt: capturedAt,
           origin: origin || "same-origin",
+          channel,
+          siteKey: publicSite?.siteKey ?? null,
+          propertyId: publicSite?.propertyId ?? brand,
+          siteName: publicSite?.siteName ?? brandDefinition.name,
+          pagePath,
+          inboxStatus: "open",
           notification: "pending",
         },
       })
@@ -262,13 +291,14 @@ export async function POST(req: NextRequest) {
       throw new Error(`Supabase enquiry capture failed: ${captureError?.message || "no record returned"}`);
     }
 
-    if (hasEmail) {
+    let leadId: string | undefined;
+    if (hasEmail || hasPhone) {
       const { leads } = containerFor({
         agencyId: agency.id,
         storage: makePluginStorage(install.id) as never,
       });
-      await leads.upsert({
-        email,
+      const result = await leads.upsert({
+        email: hasEmail ? email : "",
         name,
         phone: hasPhone ? phone : undefined,
         source: `website:${brand}`,
@@ -279,6 +309,7 @@ export async function POST(req: NextRequest) {
         tags: [
           "website-enquiry",
           `brand:${brand}`,
+          `channel:${channel}`,
           `contact:${contactMethod}`,
           ...services.map((service) => `service:${service.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`),
         ],
@@ -292,16 +323,20 @@ export async function POST(req: NextRequest) {
           consentCaptured: true,
           consentCapturedAt: capturedAt,
           publicBrand: brandDefinition.name,
+          enquiryChannel: channel,
+          propertyId: publicSite?.propertyId ?? brand,
+          pagePath,
         },
       }, founder.id);
+      leadId = result.lead.id;
     }
 
     logActivity({
       agencyId: agency.id,
       actorEmail: hasEmail ? email : undefined,
       category: "public-funnel",
-      action: "form.brand_enquiry.submitted",
-      message: `${brandDefinition.name} enquiry submitted by ${name}.`,
+      action: `${channel}.brand_enquiry.submitted`,
+      message: `${brandDefinition.name} ${channel === "chatbot" ? "chat message" : channel === "support" ? "support request" : "enquiry"} submitted by ${name}.`,
       metadata: {
         form: "brand-enquiry",
         brand,
@@ -310,15 +345,29 @@ export async function POST(req: NextRequest) {
         sourceUrl,
         campaign,
         contactMethod,
+        channel,
+        siteKey: publicSite?.siteKey,
+        propertyId: publicSite?.propertyId ?? brand,
+        siteName: publicSite?.siteName ?? brandDefinition.name,
+        pagePath,
         hasPhone,
+        message,
+        email: hasEmail ? email : undefined,
+        phone: hasPhone ? phone : undefined,
         enquiryId: captured.id,
-        leadCreated: hasEmail,
+        leadCreated: Boolean(leadId),
+        leadId,
       },
     });
+
+    // Plugin leads and activity use the shared portal datastore. Persist them
+    // before a serverless response can end this invocation.
+    await flushPendingWrites();
 
     let notification = "not-configured";
     try {
       const result = await notifyBrandEnquiry({
+        agencyId: agency.id,
         id: captured.id,
         brandName: brandDefinition.name,
         name,
@@ -342,7 +391,16 @@ export async function POST(req: NextRequest) {
         consentVersion: 1,
         consentCapturedAt: capturedAt,
         origin: origin || "same-origin",
+        channel,
+        siteKey: publicSite?.siteKey ?? null,
+        propertyId: publicSite?.propertyId ?? brand,
+        siteName: publicSite?.siteName ?? brandDefinition.name,
+        pagePath,
+        inboxStatus: "open",
         notification,
+        source: `website:${brand}`,
+        leadId: leadId ?? null,
+        leadCreated: Boolean(leadId),
       } })
       .eq("id", captured.id);
 

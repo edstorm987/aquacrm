@@ -129,7 +129,7 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
       </button>
 
       {open ? (
-        <div className="fixed inset-x-3 top-16 z-50 rounded-md border border-black/10 bg-white p-2 shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+8px)] sm:w-[38rem]">
+        <div className="fixed inset-x-3 top-16 z-50 flex max-h-[calc(100dvh-5rem)] flex-col overflow-hidden rounded-md border border-black/10 bg-white p-2 shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+8px)] sm:max-h-[min(36rem,calc(100dvh-6rem))] sm:w-[38rem]">
           <div className="flex items-center gap-2 border-b border-black/8 px-2 pb-2">
             <Search size={15} className="shrink-0 text-black/35" aria-hidden="true" />
             <input
@@ -164,7 +164,7 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
               </div>
             </div>
           ) : null}
-          <div className="mt-1 max-h-[28rem] overflow-y-auto">
+          <div className="mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {groupedRecords.map(([category, results]) => (
               <section key={category} className="border-b border-black/[0.06] py-1 last:border-0">
                 <p className="px-3 py-1 text-[10px] font-semibold uppercase text-black/35">{category}</p>

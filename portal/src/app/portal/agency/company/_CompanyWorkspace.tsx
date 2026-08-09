@@ -1,8 +1,10 @@
 "use client";
 
-import { Check, ChevronRight, CircleAlert, Compass, Flag, Pencil, Plus, Save, ShieldCheck, Trash2, TrendingUp, X } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronRight, CircleAlert, Compass, Flag, HeartPulse, Pencil, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument } from "@/server/types";
+import { calculateCompanyHealth } from "@/lib/companyHealth";
 import { LegalCompliancePanel } from "./_LegalCompliancePanel";
 
 interface Actuals {
@@ -10,9 +12,12 @@ interface Actuals {
   mrrCents: number;
   currency: string;
   activeClients: number;
+  clientsNeedingAttention: number;
   leadCount: number;
   meetingsThisMonth: number;
   completedSalesCalls: number;
+  openTasks: number;
+  overdueTasks: number;
 }
 
 type View = "overview" | "direction" | "plans" | "legal";
@@ -39,6 +44,46 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const daysLeft = Math.max(0, daysInMonth - now.getDate());
   const dailyGap = daysLeft > 0 ? Math.ceil(gap / daysLeft) : gap;
+  const healthyClients = Math.max(0, actuals.activeClients - actuals.clientsNeedingAttention);
+  const health = calculateCompanyHealth({
+    monthRevenueCents: actuals.monthRevenueCents,
+    monthlyRevenueTargetCents: target,
+    dayOfMonth: now.getDate(),
+    daysInMonth,
+    activeClients: actuals.activeClients,
+    clientsNeedingAttention: actuals.clientsNeedingAttention,
+    revenueGapCents: gap,
+    estimatedCallsNeeded: callsNeeded,
+    meetingsThisMonth: actuals.meetingsThisMonth,
+    openTasks: actuals.openTasks,
+    overdueTasks: actuals.overdueTasks,
+  });
+  const healthSignals: CompanyHealthSignal[] = [
+    {
+      label: "Income pace",
+      score: health.income,
+      detail: `${money(actuals.monthRevenueCents, actuals.currency)} recorded · ${health.monthElapsedPercent}% of the month elapsed`,
+      href: "/portal/agency/agency-finance/income",
+    },
+    {
+      label: "Client health",
+      score: health.clients,
+      detail: actuals.activeClients ? `${healthyClients} clear · ${actuals.clientsNeedingAttention} need attention` : "No active clients yet",
+      href: "/portal/clients",
+    },
+    {
+      label: "Pipeline coverage",
+      score: health.pipeline,
+      detail: gap <= 0 ? "Monthly target reached" : `${actuals.meetingsThisMonth} meeting${actuals.meetingsThisMonth === 1 ? "" : "s"} booked · about ${callsNeeded} calls needed`,
+      href: "/portal/agency/pipelines/leads",
+    },
+    {
+      label: "Operations",
+      score: health.operations,
+      detail: actuals.openTasks ? `${actuals.openTasks} open task${actuals.openTasks === 1 ? "" : "s"} · ${actuals.overdueTasks} overdue` : "No open or overdue tasks",
+      href: "/portal/agency/actions",
+    },
+  ];
 
   async function save(next = company, message = "Company updated.") {
     setStatus("Saving...");
@@ -62,7 +107,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Executive</p>
-          <h1 className="mt-1 text-3xl font-semibold text-black/90">{companyName}</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-black/90 sm:text-3xl">{companyName}</h1>
           <p className="mt-1 max-w-2xl text-sm text-black/55">Direction, targets and decisions connected to what {companyName} is actually doing.</p>
         </div>
         {status ? <p role="status" className="text-xs font-medium text-black/50">{status}</p> : null}
@@ -83,6 +128,8 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
 
       {view === "overview" ? (
         <div className="mt-7 space-y-8">
+          <CompanyHealth score={health.overall} signals={healthSignals} />
+
           <section>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -91,7 +138,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
               </div>
               {canEdit ? <TargetEditor company={company} onSave={async next => { await save(next, "Targets updated."); }} /> : null}
             </div>
-            <div className="mt-5 grid gap-x-6 border-y border-black/10 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-5 grid grid-cols-2 gap-x-4 border-y border-black/10 lg:grid-cols-4 lg:gap-x-6">
               <Metric label="Recorded this month" value={money(actuals.monthRevenueCents, actuals.currency)} />
               <Metric label="Monthly target" value={money(target, actuals.currency)} />
               <Metric label="Revenue gap" value={money(gap, actuals.currency)} tone={gap > 0 ? "warn" : "good"} />
@@ -184,6 +231,59 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
   );
 }
 
+interface CompanyHealthSignal {
+  label: string;
+  score: number;
+  detail: string;
+  href: string;
+}
+
+function CompanyHealth({ score: healthScore, signals }: { score: number; signals: CompanyHealthSignal[] }) {
+  const status = healthScore >= 80 ? "Strong" : healthScore >= 60 ? "Watch closely" : "Needs attention";
+  const tone = healthScore >= 80 ? "text-emerald-700" : healthScore >= 60 ? "text-amber-700" : "text-red-700";
+  return (
+    <section className="border-y border-black/10 py-6" aria-labelledby="company-health-heading">
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+        <div>
+          <div className="flex items-center gap-2 text-brand"><HeartPulse size={18} /><p id="company-health-heading" className="text-xs font-semibold uppercase tracking-wide">Company health</p></div>
+          <div className="mt-3 flex items-end gap-2">
+            <strong className="text-5xl font-semibold tracking-tight text-black/90">{healthScore}</strong>
+            <span className="pb-1 text-sm text-black/40">/ 100</span>
+          </div>
+          <p className={`mt-2 text-sm font-semibold ${tone}`}>{status}</p>
+          <Link href="/portal/agency/assistant" className="mt-4 inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/60 hover:border-brand/30 hover:text-brand"><Sparkles size={14} />Ask Advisor</Link>
+          <details className="mt-3 text-xs text-black/45">
+            <summary className="cursor-pointer font-medium underline decoration-black/20 underline-offset-4">How this is calculated</summary>
+            <p className="mt-2 max-w-xs leading-5">Income pace contributes 35%, client health 25%, pipeline coverage 25%, and overdue work 15%. It updates from the live records below.</p>
+          </details>
+        </div>
+
+        <div className="divide-y divide-black/10 border-t border-black/10 lg:border-t-0">
+          {signals.map(signal => (
+            <Link key={signal.label} href={signal.href} className="group grid gap-2 py-3.5 sm:grid-cols-[150px_minmax(0,1fr)_46px_18px] sm:items-center">
+              <span className="text-sm font-semibold text-black/75">{signal.label}</span>
+              <span className="min-w-0">
+                <span className="block h-2 overflow-hidden rounded-full bg-black/[0.07]">
+                  <span className={`block h-full rounded-full transition-all ${healthBarTone(signal.score)}`} style={{ width: `${signal.score}%` }} />
+                </span>
+                <span className="mt-1.5 block text-xs text-black/45">{signal.detail}</span>
+              </span>
+              <span className="text-right text-sm font-semibold tabular-nums text-black/65">{signal.score}%</span>
+              <ChevronRight size={16} className="hidden text-black/25 transition-transform group-hover:translate-x-0.5 group-hover:text-black/55 sm:block" />
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function healthBarTone(value: number): string {
+  if (value >= 80) return "bg-emerald-600";
+  if (value >= 60) return "bg-amber-500";
+  return "bg-red-600";
+}
+
 function TargetEditor({ company, onSave }: { company: CompanyProfile; onSave: (next: CompanyProfile) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [monthly, setMonthly] = useState(String(company.monthlyRevenueTargetCents / 100));
@@ -221,7 +321,7 @@ function ReviewDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (item: C
   return <Modal title="Quarterly review" onClose={onClose}><form className="grid gap-4" onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); onAdd({ id: `review-${Date.now()}`, period: String(data.get("period")), wins: String(data.get("wins")), lessons: String(data.get("lessons")), decisions: String(data.get("decisions")), nextPriorities: String(data.get("nextPriorities")), updatedAt: Date.now() }); }}><Field label="Period"><input name="period" required defaultValue={quarter} className={control} /></Field><Field label="Wins"><textarea name="wins" className={textarea} /></Field><Field label="Lessons"><textarea name="lessons" className={textarea} /></Field><Field label="Decisions"><textarea name="decisions" className={textarea} /></Field><Field label="Next priorities"><textarea name="nextPriorities" className={textarea} /></Field><Submit label="Save review" /></form></Modal>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[90] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[92vh] w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl sm:rounded-lg sm:p-6"><header className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold text-black/85">{title}</h2><button onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>{children}</section></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[90] grid items-end bg-black/40 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close dialog" onClick={onClose} /><section role="dialog" aria-modal="true" aria-label={title} className="relative mx-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"><header className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold text-black/85">{title}</h2><button onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></header>{children}</section></div>; }
 function Submit({ label }: { label: string }) { return <div className="flex justify-end"><button className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Check size={15} />{label}</button></div>; }
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}{hint ? <span className="font-normal text-black/40">{hint}</span> : null}{children}</label>; }
 function MoneyInput({ label, value, setValue }: { label: string; value: string; setValue: (value: string) => void }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}<div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-black/40">£</span><input type="number" min="0" value={value} onChange={event => setValue(event.target.value)} className={`${control} pl-7`} /></div></label>; }

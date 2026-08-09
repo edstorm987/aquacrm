@@ -22,8 +22,8 @@ export default async function AssistantPage() {
   return (
     <AssistantWorkspace
       initialWorkspace={getAssistantWorkspace(session.agencyId, session.userId)}
-      configured={isAssistantConfigured()}
-      model={assistantModel()}
+      configured={isAssistantConfigured(session.agencyId)}
+      model={assistantModel(session.agencyId)}
       userName={user?.name || session.email}
       coverage={{
         clients: context.summary.clients.length,
@@ -35,4 +35,3 @@ export default async function AssistantPage() {
     />
   );
 }
-

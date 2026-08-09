@@ -12,6 +12,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { phaseLabel } from "@/server/phases";
 import { PerformanceWorkspace, type PerformanceClient } from "./_PerformanceWorkspace";
 import { buildPerformanceAnalytics, type PerformanceEvent } from "@/lib/performanceAnalytics";
+import { cleanMonthlyPerformanceReports } from "@/lib/performanceReports";
 import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 import { listPerformanceExperiments } from "@/server/performanceExperiments";
 
@@ -80,6 +81,8 @@ export default async function PerformancePage() {
     const metadata = client.metadata ?? {};
     const clientMilestones = milestones.filter(item => item.clientId === client.id);
     const telemetryEvents = Array.isArray(metadata.telemetryEvents) ? metadata.telemetryEvents as ClientTelemetryEvent[] : [];
+    const searchConsoleEvents = Array.isArray(metadata.searchConsoleEvents) ? metadata.searchConsoleEvents as PerformanceEvent[] : [];
+    const analyticsEvents: PerformanceEvent[] = [...telemetryEvents, ...searchConsoleEvents];
     const telemetry = summarizeClientTelemetry(telemetryEvents);
     const products = cleanPortalProducts(metadata.portalProducts);
     const properties = Array.isArray(metadata.properties) ? metadata.properties as StoredProperty[] : [];
@@ -115,8 +118,9 @@ export default async function PerformancePage() {
         catalogKey: product.catalogKey,
       })),
       properties: properties.map(property => {
-        const propertyEvents = telemetryEvents.filter(event => eventMatchesProperty(event, property));
-        const propertyTelemetry = summarizeClientTelemetry(propertyEvents);
+        const propertyTelemetryEvents = telemetryEvents.filter(event => eventMatchesProperty(event, property));
+        const propertyEvents = analyticsEvents.filter(event => eventMatchesProperty(event, property));
+        const propertyTelemetry = summarizeClientTelemetry(propertyTelemetryEvents);
         return {
           ...property,
           pageviews24h: propertyTelemetry.pageviews24h,
@@ -124,7 +128,8 @@ export default async function PerformancePage() {
           deployments30d: propertyTelemetry.deployments30d,
           averageLoadMs: propertyTelemetry.averageLoadMs,
           lastSeenAt: propertyTelemetry.lastSeenAt,
-          heartbeats24h: propertyEvents.filter(event => event.type === "heartbeat" && event.occurredAt >= Date.now() - 86_400_000).length,
+          heartbeats24h: propertyTelemetryEvents.filter(event => event.type === "heartbeat" && event.occurredAt >= Date.now() - 86_400_000).length,
+          analyticsByPeriod: analyticsByPeriod(propertyEvents),
         };
       }),
       files: {
@@ -144,7 +149,8 @@ export default async function PerformancePage() {
         closed: requests.filter(item => item.status === "closed").length,
       },
       milestones: clientMilestones,
-      analyticsByPeriod: analyticsByPeriod(telemetryEvents),
+      analyticsByPeriod: analyticsByPeriod(analyticsEvents),
+      reports: cleanMonthlyPerformanceReports(metadata.monthlyPerformanceReports),
       experiments: experiments.filter(experiment => experiment.clientId === client.id),
     };
   });
@@ -183,12 +189,14 @@ export default async function PerformancePage() {
       averageLoadMs: ownSummary.averageLoadMs,
       lastSeenAt: ownSummary.lastSeenAt,
       heartbeats24h: ownWebsite.telemetryEvents.filter(event => event.type === "heartbeat" && event.occurredAt >= Date.now() - 86_400_000).length,
+      analyticsByPeriod: analyticsByPeriod(ownWebsite.telemetryEvents),
     }],
     files: { total: 0, brand: 0, inspiration: 0, feedback: 0, deliverables: 0 },
     approvals: { pending: 0, approved: 0, changesRequested: 0 },
     requests: { open: 0, closed: 0 },
     milestones: [],
     analyticsByPeriod: analyticsByPeriod(ownWebsite.telemetryEvents),
+    reports: [],
     experiments: experiments.filter(experiment => !experiment.clientId),
   };
 
@@ -203,7 +211,7 @@ function analyticsByPeriod(events: PerformanceEvent[]): PerformanceClient["analy
   };
 }
 
-function eventMatchesProperty(event: ClientTelemetryEvent, property: StoredProperty): boolean {
+function eventMatchesProperty(event: PerformanceEvent, property: StoredProperty): boolean {
   if (event.propertyId === property.id) return true;
   const eventHost = safeHost(event.url);
   if (!eventHost) return false;

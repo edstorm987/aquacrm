@@ -2,16 +2,12 @@
 
 // Inline modal for "+ New client" on the agency home.
 //
-// The display name composes "<Primary contact> · <Business>" (with sensible
-// fallback when only one is supplied). Product / WhatsApp link /
-// lock-in deposit / Stripe link all ride on `client.metadata` so no
-// foundation schema needs to change. Phase preset list is fetched from
-// the fulfillment plugin (`/api/portal/fulfillment/presets`) which now
-// returns Aqua's six phases (chapter #59 §5).
+// The display name composes the primary contact and business with sensible
+// fallbacks. New records only capture the work in the client's own words;
+// products, billing and portal details can be configured later.
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
 
 interface PhasePreset {
   stage: string;
@@ -28,7 +24,7 @@ interface FormState {
   slug: string;
   email: string;
   createPortal: boolean;
-  productIds: string[];
+  helpingWith: string;
   clientFacingBrandId: string;
   brandColor: string;
   logoUrl: string;
@@ -49,9 +45,7 @@ const FALLBACK_DEFAULTS: NewClientDefaults = {
   createPortalByDefault: false,
 };
 
-function defaultState(product: NewClientProductOption, defaults: NewClientDefaults, brands: NewClientBrandOption[]): FormState {
-  const initialBrandId = product.companyIds?.length === 1 ? product.companyIds[0]! : "";
-  const initialBrand = brands.find(brand => brand.id === initialBrandId);
+function defaultState(defaults: NewClientDefaults): FormState {
   return {
   entityType: "company",
   contactName: "",
@@ -60,14 +54,10 @@ function defaultState(product: NewClientProductOption, defaults: NewClientDefaul
   niche: "",
   slug: "",
   email: "",
-  createPortal: product.portalRequirement === "required"
-    ? true
-    : product.portalRequirement === "none"
-      ? false
-      : defaults.createPortalByDefault,
-  productIds: [product.id],
-  clientFacingBrandId: initialBrandId,
-  brandColor: initialBrand?.primaryColor ?? product.accentColor ?? "#0B6F6D",
+  createPortal: defaults.createPortalByDefault,
+  helpingWith: "",
+  clientFacingBrandId: "",
+  brandColor: "#0B6F6D",
   logoUrl: "",
   stage: defaults.defaultClientStage,
   stageReason: "",
@@ -113,14 +103,6 @@ export interface NewClientBrandOption {
   primaryColor: string;
 }
 
-const FALLBACK_PRODUCTS: NewClientProductOption[] = PORTAL_PRODUCT_CATALOG.map(product => ({
-  id: product.id,
-  name: product.name,
-  description: product.description,
-  deliverables: product.deliverables,
-  portalRequirement: "optional",
-}));
-
 const FALLBACK_PRESETS: PhasePreset[] = [
   { stage: "aqua-epic-intro",    label: "Onboarding",                   pluginPreset: [] },
   { stage: "aqua-blueprint",     label: "Planning",                     pluginPreset: ["website-editor", "client-crm"] },
@@ -140,15 +122,10 @@ function composedDisplayName(state: FormState): string {
   return state.entityType === "company" ? p || t : t || p;
 }
 
-export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], defaults = FALLBACK_DEFAULTS }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults }) {
+export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults }) {
   const router = useRouter();
-  const availableProducts = products.length ? products : FALLBACK_PRODUCTS;
-  const initialProductId = availableProducts.find(product => product.name.toLowerCase() === "website")?.id
-    ?? availableProducts[0]?.id
-    ?? "website";
-  const initialProduct = availableProducts.find(product => product.id === initialProductId) ?? availableProducts[0]!;
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState<FormState>(() => defaultState(initialProduct, defaults, brands));
+  const [state, setState] = useState<FormState>(() => defaultState(defaults));
   const [presets, setPresets] = useState<PhasePreset[]>(FALLBACK_PRESETS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,7 +133,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
 
   useEffect(() => {
     if (!open) return;
-    setState(defaultState(initialProduct, defaults, brands));
+    setState(defaultState(defaults));
     setError(null);
     slugTouched.current = false;
     fetch("/api/portal/fulfillment/presets")
@@ -167,7 +144,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
         }
       })
       .catch(() => undefined);
-  }, [open, initialProductId, defaults, brands]);
+  }, [open, defaults]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState(s => {
@@ -180,45 +157,6 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
     });
   }
 
-  function toggleProduct(productId: string) {
-    setState(current => ({
-      ...current,
-      ...(() => {
-        const alreadySelected = current.productIds.includes(productId);
-        if (alreadySelected && current.productIds.length === 1) return {};
-
-        const productIds = alreadySelected
-          ? current.productIds.filter(id => id !== productId)
-          : [...current.productIds, productId];
-        const selected = availableProducts.filter(product => productIds.includes(product.id));
-        const portalRequirement = selected.some(product => product.portalRequirement === "required")
-          ? "required"
-          : selected.every(product => product.portalRequirement === "none")
-            ? "none"
-            : "optional";
-        const primaryProduct = availableProducts.find(product => product.id === productIds[0]);
-        const selectedBrandIds = [...new Set(selected.flatMap(product => product.companyIds ?? []))];
-        const clientFacingBrandId = selectedBrandIds.length === 1
-          ? selectedBrandIds[0]!
-          : selectedBrandIds.includes(current.clientFacingBrandId)
-            ? current.clientFacingBrandId
-            : "";
-        const selectedBrand = brands.find(brand => brand.id === clientFacingBrandId);
-
-        return {
-          productIds,
-          clientFacingBrandId,
-          createPortal: portalRequirement === "required"
-            ? true
-            : portalRequirement === "none"
-              ? false
-              : current.createPortal,
-          brandColor: selectedBrand?.primaryColor ?? primaryProduct?.accentColor ?? current.brandColor,
-        };
-      })(),
-    }));
-  }
-
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const display = composedDisplayName(state);
@@ -229,20 +167,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
     setBusy(true);
     setError(null);
     try {
-      const selectedProducts = state.productIds
-        .map(productId => availableProducts.find(product => product.id === productId))
-        .filter((product): product is NewClientProductOption => Boolean(product));
-      const selectedProduct = selectedProducts[0];
-      const selectedProductIds = new Set(selectedProducts.flatMap(product => [product.id, ...(product.includedProductIds ?? [])]));
-      const selectedProductNames = selectedProducts.map(product => product.name);
-      const selectedServiceBrandIds = [...new Set(selectedProducts.flatMap(product => product.companyIds ?? []))];
-      const selectedSopIds = [...new Set(selectedProducts.flatMap(product => product.sopIds ?? []))];
-      const selectedSopCategories = [...new Set(selectedProducts.flatMap(product => product.sopCategories ?? []))];
-      const welcomePackItems = [...new Set(selectedProducts.flatMap(product => product.welcomePackItems ?? []))];
-      const welcomePackNotes = selectedProducts
-        .map(product => product.welcomePackNotes?.trim())
-        .filter((note): note is string => Boolean(note))
-        .join("\n\n");
+      const helpingWith = state.helpingWith.trim();
       const res = await fetch("/api/portal/fulfillment/clients", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -276,70 +201,20 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
             niche: state.niche.trim() || undefined,
             therapistName: state.contactName.trim() || undefined,
             practiceName:  state.businessName.trim()  || undefined,
-            portalServicePlan: selectedProductNames.join(" + "),
-            agencyProductId: selectedProduct?.id,
-            agencyProductIds: selectedProducts.map(product => product.id),
-            serviceBrandIds: selectedServiceBrandIds,
+            helpingWith: helpingWith || undefined,
+            serviceBrief: helpingWith || undefined,
+            portalServicePlan: helpingWith || undefined,
             clientFacingBrandId: state.clientFacingBrandId || undefined,
-            clientProducts: selectedProducts.map(product => ({
-              id: product.id,
-              name: product.name,
-              kind: product.kind,
-              category: product.category,
-              pricing: product.pricing,
-              priceCents: product.priceCents,
-              billingInterval: product.billingInterval,
-              depositPercent: product.depositPercent,
-              taxRatePercent: product.taxRatePercent,
-              paymentTermsDays: product.paymentTermsDays,
-              billingNotes: product.billingNotes,
-              internalInfo: product.internalInfo,
-              contractTitle: product.contractTitle,
-              contractBody: product.contractBody,
-              sopIds: product.sopIds ?? [],
-              sopCategories: product.sopCategories ?? [],
-            })),
-            productKind: selectedProduct?.kind,
-            productCategory: selectedProduct?.category,
-            productPricing: selectedProduct?.pricing,
-            productPriceCents: selectedProduct?.priceCents,
-            productBillingInterval: selectedProduct?.billingInterval,
-            productDepositPercent: selectedProduct?.depositPercent,
-            productTaxRatePercent: selectedProduct?.taxRatePercent,
-            productPaymentTermsDays: selectedProduct?.paymentTermsDays,
-            productBillingNotes: selectedProduct?.billingNotes,
-            productInternalInfo: selectedProduct?.internalInfo,
-            productContractTitle: selectedProduct?.contractTitle,
-            productContractBody: selectedProduct?.contractBody,
-            productSopIds: selectedSopIds,
-            productSopCategories: selectedSopCategories,
             lifecycleStartReason: state.stageReason.trim() || undefined,
             whatsappLink:  state.whatsappLink.trim()  || undefined,
             stripeLink:    state.stripeLink.trim()    || undefined,
-            portalExperienceHeadline: selectedProduct?.portalHeadline || selectedProduct?.buyerHeadline || undefined,
-            portalWelcomeNote: selectedProduct?.portalWelcomeNote || defaults.clientWelcomeMessage || undefined,
-            portalAccentColor: selectedProduct?.accentColor || undefined,
-            welcomePackItems,
-            welcomePackNotes: welcomePackNotes || undefined,
-            portalProducts: availableProducts
-              .filter(product => selectedProductIds.has(product.id))
-              .map(product => ({
-                id: product.id,
-                name: product.name,
-                description: product.description,
-                deliverables: product.deliverables,
-                buyerHeadline: product.buyerHeadline,
-                coverImageUrl: product.coverImageUrl,
-                accentColor: product.accentColor,
-                portalHeadline: product.portalHeadline,
-                portalWelcomeNote: product.portalWelcomeNote,
-              })),
+            portalWelcomeNote: defaults.clientWelcomeMessage || undefined,
           },
           ...(state.createPortal
             ? {
                 starterPortal: {
                   phase: presets.find(p => p.stage === state.stage)?.label ?? state.stage,
-                  planTier: selectedProductNames.join(" + ") || "AquaOasis-Web service",
+                  planTier: helpingWith || "Custom work",
                   contactName: state.contactName.trim() || undefined,
                   businessName: state.businessName.trim() || undefined,
                   onboardingStartedAt: new Date().toISOString().slice(0, 10),
@@ -366,12 +241,6 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
   }
 
   const selectedPreset = presets.find(p => p.stage === state.stage);
-  const selectedProducts = availableProducts.filter(product => state.productIds.includes(product.id));
-  const portalRequirement = selectedProducts.some(product => product.portalRequirement === "required")
-    ? "required"
-    : selectedProducts.every(product => product.portalRequirement === "none")
-      ? "none"
-      : "optional";
   return (
     <>
       <button
@@ -393,7 +262,7 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
         >
           <form
             onSubmit={submit}
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+            className="max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-4 shadow-xl sm:max-h-[92dvh] sm:rounded-xl sm:p-6"
           >
             <h3 id="new-client-title" className="text-lg font-semibold text-black/90">New client</h3>
             <p className="mt-1 text-xs text-black/60">
@@ -466,41 +335,19 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
                 />
               </label>
 
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-xs font-medium text-black/70">What are we helping with?</legend>
-                <p className="text-[11px] text-black/50">Choose one or more products or services.</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {availableProducts.map(product => {
-                    const checked = state.productIds.includes(product.id);
-                    return (
-                      <label
-                        key={product.id}
-                        className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 transition ${
-                          checked
-                            ? "border-brand/45 bg-brand/[0.06] text-black"
-                            : "border-black/10 bg-white text-black/65 hover:border-black/20"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleProduct(product.id)}
-                          disabled={busy || (checked && state.productIds.length === 1)}
-                          className="size-4 shrink-0 accent-brand"
-                        />
-                        <span className="min-w-0">
-                          <span className="block truncate text-xs font-medium">{product.name}</span>
-                          {product.category ? <span className="block truncate text-[10px] text-black/45">{product.category}</span> : null}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <small className="text-[11px] text-black/55">
-                  {selectedProducts.length} selected
-                  {selectedProducts.length ? ` · ${selectedProducts.map(product => product.name).join(", ")}` : ""}
-                </small>
-              </fieldset>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-black/70">What are we helping with?</span>
+                <textarea
+                  value={state.helpingWith}
+                  onChange={(event) => update("helpingWith", event.target.value)}
+                  rows={4}
+                  maxLength={2_000}
+                  disabled={busy}
+                  placeholder="Write whatever is useful: a website, photoshoot, software idea, ongoing support, or a mix of things. You can organise products and the portal later."
+                  className="min-h-28 resize-y rounded-md border border-black/15 px-3 py-2 text-sm leading-6 outline-none placeholder:text-black/35 focus:border-black/35"
+                />
+                <span className="text-[11px] leading-5 text-black/50">A simple internal brief. Products, billing and portal setup can be added from the client record later.</span>
+              </label>
 
               {brands.length ? (
                 <label className="flex flex-col gap-1">
@@ -530,10 +377,10 @@ export function NewClientButton({ products = FALLBACK_PRODUCTS, brands = [], def
                 </summary>
                 <div className="grid gap-3 border-t border-black/10 py-4">
                   <label className="flex items-start gap-3 rounded-md border border-[#9b7a3e]/20 bg-[#f8f4ec] px-3 py-3">
-                    <input type="checkbox" checked={state.createPortal} onChange={(e) => update("createPortal", e.target.checked)} disabled={busy || portalRequirement !== "optional"} className="mt-0.5 size-4 accent-[#725724]" />
+                    <input type="checkbox" checked={state.createPortal} onChange={(e) => update("createPortal", e.target.checked)} disabled={busy} className="mt-0.5 size-4 accent-[#725724]" />
                     <span>
-                      <span className="block text-xs font-medium text-[#725724]">{portalRequirement === "required" ? "Client portal required" : portalRequirement === "none" ? "Client portal not needed" : "Create a client portal now"}</span>
-                      <span className="mt-1 block text-[11px] leading-5 text-[#725724]/75">{portalRequirement === "required" ? "One or more selected products include a client portal." : portalRequirement === "none" ? "The selected products are configured without a portal." : "Optional. You can create it later from their client record."}</span>
+                      <span className="block text-xs font-medium text-[#725724]">Create a client portal now</span>
+                      <span className="mt-1 block text-[11px] leading-5 text-[#725724]/75">Optional. Leave this off and set up their portal later from the client record.</span>
                     </span>
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">

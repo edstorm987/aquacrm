@@ -171,7 +171,7 @@ export function CustomerPortalChrome({
             className="absolute inset-0 bg-black/35 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="mm-private-sidebar mm-customer-dark relative flex h-full w-[84vw] max-w-xs flex-col bg-[#131210] p-5 text-white shadow-2xl">
+          <aside className="mm-private-sidebar mm-customer-dark relative flex h-full w-[min(22rem,88vw)] flex-col overflow-hidden bg-[#131210] p-5 text-white shadow-2xl">
             <div className="mb-6 flex items-center justify-between border-b border-white/10 px-1 pb-5">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] text-[var(--portal-accent)]">
@@ -201,16 +201,25 @@ export function CustomerPortalChrome({
                 <X size={18} aria-hidden="true" />
               </button>
             </div>
-            <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} />
+            </div>
+            <div className="shrink-0 border-t border-white/10 px-3 pt-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">Current stage</p>
+              <div className="mt-2 flex items-center gap-2 text-xs font-medium text-white/78">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
+                {modeLabel}
+              </div>
+            </div>
           </aside>
         </div>
       )}
 
       <div className="flex h-dvh min-h-0 flex-col overflow-hidden md:pl-72">
         {previewBackHref && (
-          <div className="flex min-h-10 items-center justify-between border-b border-white/10 bg-[#131210] px-4 text-white sm:px-6 lg:px-10">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-white/55">Agency preview · customers do not see this bar</p>
-            <Link href={previewBackHref} className="inline-flex items-center gap-1.5 text-xs font-medium text-white/80 hover:text-white">
+          <div className="flex min-h-10 items-center justify-between gap-3 border-b border-white/10 bg-[#131210] px-4 text-white sm:px-6 lg:px-10">
+            <p className="min-w-0 truncate text-[10px] uppercase tracking-[0.12em] text-white/55 sm:tracking-[0.16em]">Agency preview · customers do not see this bar</p>
+            <Link href={previewBackHref} className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-white/80 hover:text-white">
               <ArrowLeft size={13} aria-hidden="true" />
               Back to client work
             </Link>
@@ -231,8 +240,8 @@ export function CustomerPortalChrome({
               <p className="mt-0.5 truncate text-sm font-medium">{clientName}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <ColorModeToggle />
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+            <div className="hidden sm:block"><ColorModeToggle /></div>
             <PrivacyModeControl canEnterShowcase={false} sensitiveTerms={[clientName, email, name ?? ""]} />
             {!isPreview && (
               <Link
@@ -247,7 +256,7 @@ export function CustomerPortalChrome({
           </div>
         </header>
         <main id="main-content" className="mm-private-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <div className="mx-auto w-full max-w-[1360px] px-4 py-8 sm:px-7 lg:px-12 lg:py-12">
+          <div className="mx-auto w-full max-w-[1360px] px-4 py-6 sm:px-7 sm:py-8 lg:px-12 lg:py-12">
             {children}
           </div>
         </main>

@@ -240,7 +240,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
       category: "Milestone",
       title: milestone.title,
       subtitle: [client?.name, readable(milestone.status), `${milestone.progress}%`].filter(Boolean).join(" · "),
-      href: client ? `/portal/clients/${client.id}` : "/portal/agency/performance",
+      href: client ? `/portal/clients/${client.id}` : "/portal/agency/development/performance",
     }, [milestone.description]);
   }
 
@@ -355,7 +355,7 @@ function addWorkspaceCandidates(
       category: "Experiment",
       title: experiment.name,
       subtitle: [client?.name ?? "Milesymedia", readable(experiment.status), experiment.primaryMetric].filter(Boolean).join(" · "),
-      href: "/portal/agency/performance",
+      href: "/portal/agency/development/performance",
     }, [experiment.hypothesis, experiment.variants.map(variant => variant.name).join(" ")]);
   }
 
@@ -385,7 +385,7 @@ function addWorkspaceCandidates(
         category: event.type === "form" ? "Form" : "Website",
         title: event.formName || event.query || event.title || readable(event.type),
         subtitle: [event.path, event.message].filter(Boolean).join(" · "),
-        href: "/portal/agency/performance",
+        href: "/portal/agency/development/performance",
       }, [searchable]);
     }
   }

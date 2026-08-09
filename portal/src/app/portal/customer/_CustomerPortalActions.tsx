@@ -8,6 +8,7 @@ import type { ClientContract } from "@/lib/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
 import type { CustomerPortalMode } from "./_portalData";
+import type { CustomerProperty } from "./_portalData";
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/12 bg-white px-3 text-sm text-[#292621] outline-none transition placeholder:text-black/30 focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-black/10";
 
@@ -63,17 +64,20 @@ export function CustomerStageWorkspace({
   clientId,
   mode,
   tasks,
+  properties = [],
   readOnly = false,
 }: {
   clientId: string;
   mode: CustomerPortalMode;
   tasks: CustomerStageTask[];
+  properties?: CustomerProperty[];
   readOnly?: boolean;
 }) {
   const router = useRouter();
   const response = STAGE_RESPONSE[mode];
   const [message, setMessage] = useState("");
   const [link, setLink] = useState("");
+  const [propertyId, setPropertyId] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -91,12 +95,14 @@ export function CustomerStageWorkspace({
           type: response.type,
           message,
           link: link.trim() || undefined,
+          propertyId: propertyId || undefined,
         }),
       });
       const payload = await request.json() as { ok: boolean; error?: string };
       if (!request.ok || !payload.ok) throw new Error(payload.error || "We could not send that update.");
       setMessage("");
       setLink("");
+      setPropertyId("");
       setNotice("Sent. Milesymedia can now see this in your project.");
       router.refresh();
     } catch (error) {
@@ -144,6 +150,22 @@ export function CustomerStageWorkspace({
             className={`${CONTROL} mt-5 min-h-32 resize-y py-3`}
             placeholder={response.placeholder}
           />
+          {properties.length ? (
+            <label className="mt-3 grid gap-2 text-xs font-medium text-black/50">
+              Which project is this about?
+              <select
+                value={propertyId}
+                onChange={event => setPropertyId(event.target.value)}
+                disabled={readOnly}
+                className={CONTROL}
+              >
+                <option value="">My overall project</option>
+                {properties.map(property => (
+                  <option key={property.id} value={property.id}>{property.label || "Connected project"}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label className="mt-3 grid gap-2 text-xs font-medium text-black/50">
             Helpful link <span className="font-normal text-black/35">(optional)</span>
             <span className="relative">

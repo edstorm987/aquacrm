@@ -21,6 +21,7 @@ import { parseXlsxToDelimitedText } from "../server/csv";
 import { parseCsv } from "../server/csv";
 import type { PortalState } from "@/server/types";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { resolveIntegrationValues } from "@/lib/server/integrationConnections";
 import type {
   AudienceFilter,
   Contact,
@@ -195,7 +196,7 @@ export async function getCommercialPackHandler(req: Request, ctx: PluginCtx): Pr
   const party = commercialParty(new URL(req.url));
   if (!party) return badRequest("partyKind + partyId required.");
   const pack = await buildContainer(ctx).commercial.get(party.kind, party.id);
-  return json({ ok: true, pack, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY) });
+  return json({ ok: true, pack, stripeConfigured: Boolean(resolveIntegrationValues(ctx.agencyId, "stripe").secretKey) });
 }
 
 export async function saveCommercialPackHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -246,8 +247,9 @@ export async function recordCommercialPaymentHandler(req: Request, ctx: PluginCt
 export async function createCommercialStripeCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const body = await safeJson<{ partyKind: CommercialPartyKind; partyId: string }>(req);
   if (!body?.partyId || !body.partyKind) return badRequest("partyKind + partyId required.");
-  const secret = process.env.STRIPE_SECRET_KEY;
-  if (!secret) return unprocessable("Stripe is not connected. Add STRIPE_SECRET_KEY to the server environment.");
+  const stripe = resolveIntegrationValues(ctx.agencyId, "stripe");
+  const secret = stripe.secretKey;
+  if (!secret) return unprocessable("Stripe is not connected. Open Settings → Integrations and connect it there.");
   const c = buildContainer(ctx);
   const pack = await c.commercial.get(body.partyKind, body.partyId);
   if (!pack) return notFound("commercial_pack_not_found");
@@ -310,7 +312,8 @@ export async function createCommercialStripeCheckoutHandler(req: Request, ctx: P
 }
 
 export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const stripe = resolveIntegrationValues(ctx.agencyId, "stripe");
+  const webhookSecret = stripe.webhookSecret;
   if (!webhookSecret) return unprocessable("Stripe webhook secret is not configured.");
   const signature = req.headers.get("stripe-signature");
   if (!signature) return badRequest("Missing Stripe signature.");
@@ -342,9 +345,9 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
   }
   let metadata = object.metadata ?? object.parent?.subscription_details?.metadata ?? {};
   const subscriptionId = object.subscription ?? object.parent?.subscription_details?.subscription;
-  if ((!metadata.partyKind || !metadata.partyId) && subscriptionId && process.env.STRIPE_SECRET_KEY) {
+  if ((!metadata.partyKind || !metadata.partyId) && subscriptionId && stripe.secretKey) {
     const response = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
-      headers: { authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
+      headers: { authorization: `Bearer ${stripe.secretKey}` },
     });
     if (response.ok) {
       const subscription = await response.json() as { metadata?: Record<string, string> };
@@ -372,12 +375,12 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
     && pack.installmentCount
     && subscriptionId
     && pack.payments.filter(payment => payment.method === "stripe").length >= pack.installmentCount
-    && process.env.STRIPE_SECRET_KEY
+    && stripe.secretKey
   ) {
     await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+        authorization: `Bearer ${stripe.secretKey}`,
         "content-type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({ cancel_at_period_end: "true" }),

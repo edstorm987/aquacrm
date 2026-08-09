@@ -79,7 +79,6 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       items.push({ id: "company",     label: "Company",            href: "/portal/agency/company",         panelId: "main", order: -9.5 });
       items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -9 });
       items.push({ id: "inbox",       label: "Master inbox",       href: "/portal/agency/inbox",           panelId: "main", order: -8 });
-      items.push({ id: "performance", label: "Performance",        href: "/portal/agency/performance",     panelId: "main", order: -7 });
       items.push({ id: "clients",     label: "Clients & contacts", href: "/portal/clients",                panelId: "main", order: -6 });
       items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -5.5 });
       items.push({ id: "pipelines",   label: "Journey",            href: "/portal/agency/pipelines/leads", panelId: "main", order: -5 });
@@ -208,7 +207,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
-      "home", "company", "actions", "inbox", "performance", "clients", "you-deserve-it",
+      "home", "company", "actions", "inbox", "clients", "you-deserve-it",
       "pipelines", "products", "development", "marketing", "finance", "sop-library",
     ]);
     const canonicalOrder = [...canonicalMainIds];

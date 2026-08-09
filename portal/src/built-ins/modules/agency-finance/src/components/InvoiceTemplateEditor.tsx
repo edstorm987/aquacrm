@@ -70,7 +70,7 @@ export function InvoiceTemplateEditor({
   }
 
   return (
-    <div className="grid max-h-[92vh] overflow-y-auto lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+    <div className="grid max-h-[100dvh] overflow-y-auto sm:max-h-[92dvh] lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
       <div className="border-b border-black/10 p-5 lg:border-b-0 lg:border-r lg:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>

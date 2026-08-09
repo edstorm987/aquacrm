@@ -144,6 +144,7 @@ interface SalesPresentation {
 }
 
 interface LeadDetailsPatch {
+  email?: string;
   name?: string;
   phone?: string;
   company?: string;
@@ -765,17 +766,17 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                     className={`rounded-lg border border-black/10 bg-white p-3 shadow-sm transition ${draggedLeadId === lead.id ? "opacity-45" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <GripVertical size={16} className="mt-0.5 shrink-0 cursor-grab text-black/25" aria-label={`Drag ${lead.name || lead.email}`} />
+                      <GripVertical size={16} className="mt-0.5 shrink-0 cursor-grab text-black/25" aria-label={`Drag ${lead.name || lead.email || lead.phone || "lead"}`} />
                       <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold text-black/90">{lead.name || lead.company || lead.email}</h3>
-                        <p className="mt-0.5 truncate text-xs text-black/50">{lead.company ? `${lead.company} · ` : ""}{lead.email}</p>
+                        <h3 className="truncate text-sm font-semibold text-black/90">{lead.name || lead.company || lead.email || lead.phone || "Lead"}</h3>
+                        <p className="mt-0.5 truncate text-xs text-black/50">{lead.company ? `${lead.company} · ` : ""}{lead.email || lead.phone || "Contact details pending"}</p>
                       </div>
                       <select
                         value={columnOverrides[lead.id] ?? lead.columnId}
                         onChange={e => moveLead(lead.id, e.target.value)}
                         disabled={busy === `move:${lead.id}`}
                         className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs"
-                        aria-label={`Move ${lead.email}`}
+                        aria-label={`Move ${lead.email || lead.phone || lead.name || "lead"}`}
                       >
                         {columns.filter(option => option.id !== "scouting").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                       </select>
@@ -798,6 +799,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                       </p>
                     )}
                     <DetailsEditor
+                      email={lead.email}
                       name={lead.name}
                       phone={lead.phone}
                       company={lead.company}
@@ -839,8 +841,8 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                       </summary>
                       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-black/10 pt-3">
                       {lead.phone && <a href={`tel:${lead.phone}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Call</a>}
-                      <a href={`mailto:${lead.email}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email</a>
-                      <a href={`mailto:${lead.email}?subject=${encodeURIComponent("Quick chat?")}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email invite</a>
+                      {lead.email ? <a href={`mailto:${lead.email}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email</a> : null}
+                      {lead.email ? <a href={`mailto:${lead.email}?subject=${encodeURIComponent("Quick chat?")}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email invite</a> : null}
                       <button
                         type="button"
                         onClick={() => markContacted(lead.id)}
@@ -878,7 +880,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                       )}
                       <button
                         type="button"
-                        onClick={() => archiveLead(lead.id, lead.name || lead.company || lead.email)}
+                          onClick={() => archiveLead(lead.id, lead.name || lead.company || lead.email || lead.phone || "lead")}
                         disabled={busy === `archive:${lead.id}`}
                         className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
                       >
@@ -1240,6 +1242,7 @@ function ConvertLeadModal({
 }
 
 function DetailsEditor({
+  email,
   name,
   phone,
   company,
@@ -1268,6 +1271,7 @@ function DetailsEditor({
   busy,
   onSave,
 }: {
+  email: string;
   name?: string;
   phone?: string;
   company?: string;
@@ -1297,6 +1301,7 @@ function DetailsEditor({
   onSave: (patch: LeadDetailsPatch, meeting: LeadMeetingDraft) => void;
 }) {
   const [draft, setDraft] = useState({
+    email,
     name: name ?? "",
     phone: phone ?? "",
     company: company ?? "",
@@ -1365,6 +1370,7 @@ function DetailsEditor({
         <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Contact</p>
         <div className="grid gap-2 sm:grid-cols-2">
           <SmallInput label="Name" value={draft.name} onChange={value => setDraft(d => ({ ...d, name: value }))} />
+          <SmallInput label="Email" value={draft.email} onChange={value => setDraft(d => ({ ...d, email: value }))} type="email" placeholder="Add before invoicing or conversion" />
           <SmallInput label="Phone" value={draft.phone} onChange={value => setDraft(d => ({ ...d, phone: value }))} />
           <SmallInput label="Company" value={draft.company} onChange={value => setDraft(d => ({ ...d, company: value }))} />
           <SmallInput label="Tags" value={draft.tags} onChange={value => setDraft(d => ({ ...d, tags: value }))} />
@@ -1591,6 +1597,7 @@ function DetailsEditor({
           type="button"
           onClick={() => {
             onSave({
+              email: draft.email.trim(),
               name: draft.name.trim() || undefined,
               phone: draft.phone.trim() || undefined,
               company: draft.company.trim() || undefined,
@@ -1646,16 +1653,19 @@ function SmallInput({
   value,
   onChange,
   placeholder,
+  type = "text",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  type?: React.HTMLInputTypeAttribute;
 }) {
   return (
     <label className="text-[11px] font-medium text-black/55">
       {label}
       <input
+        type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}

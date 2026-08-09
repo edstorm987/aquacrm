@@ -75,6 +75,7 @@ export class CampaignService {
       id,
       agencyId: this.agencyId,
       name: input.name.trim(),
+      companyIds: cleanIds(input.companyIds),
       channel,
       sourceKey: input.sourceKey?.trim() || undefined,
       subject: input.subject?.trim() ?? "",
@@ -89,7 +90,10 @@ export class CampaignService {
       notes: input.notes?.trim() || undefined,
       status,
       scheduleAt: input.scheduleAt,
-      audienceFilter: input.audienceFilter,
+      audienceFilter: {
+        ...input.audienceFilter,
+        companyIds: cleanIds(input.audienceFilter.companyIds),
+      },
       recipients: 0,
       sentCount: 0,
       createdAt: ts,
@@ -122,6 +126,11 @@ export class CampaignService {
     const updated: Campaign = {
       ...existing,
       ...patch,
+      companyIds: patch.companyIds === undefined ? existing.companyIds : cleanIds(patch.companyIds),
+      audienceFilter: patch.audienceFilter === undefined ? existing.audienceFilter : {
+        ...patch.audienceFilter,
+        companyIds: cleanIds(patch.audienceFilter.companyIds),
+      },
       updatedAt: now(),
     };
     await this.storage.set(campaignKey(id), updated);
@@ -159,6 +168,17 @@ export class CampaignService {
     let sent = 0;
     const sendStamp = now();
     for (const lead of audience) {
+      if (!lead.email) {
+        await this.activity.logActivity({
+          agencyId: this.agencyId,
+          actorUserId: actor,
+          category: "leads",
+          action: "leads.campaign.send_skip",
+          message: `Skipped ${lead.phone || lead.name || lead.id}: no email address.`,
+          metadata: { campaignId: id, leadId: lead.id, reason: "missing_email" },
+        });
+        continue;
+      }
       try {
         await this.emailEnqueue.enqueue({
           agencyId: this.agencyId,
@@ -209,4 +229,9 @@ export class CampaignService {
     });
     return finalRow;
   }
+}
+
+function cleanIds(values: string[] | undefined): string[] {
+  if (!Array.isArray(values)) return [];
+  return Array.from(new Set(values.map(value => value.trim()).filter(Boolean))).slice(0, 30);
 }

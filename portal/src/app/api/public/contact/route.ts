@@ -6,7 +6,7 @@ import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/fo
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { logActivity } from "@/server/activity";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
 import { getUser } from "@/server/users";
 import { ensureAgencyWebsite, recordAgencyWebsiteTelemetry } from "@/server/agencyWebsite";
@@ -128,6 +128,8 @@ export async function POST(req: NextRequest) {
       path: "/",
       occurredAt: Date.now(),
     }, req.headers.get("user-agent") ?? undefined);
+
+    await flushPendingWrites();
 
     return NextResponse.json({ ok: true });
   } catch (cause) {
