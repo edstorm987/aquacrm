@@ -130,6 +130,7 @@ export interface AddLeadCardInput {
   agencyId: AgencyId;
   leadId: string;
   email: string;
+  phone?: string;
   name?: string;
   company?: string;
   source: string;

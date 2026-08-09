@@ -1,4 +1,5 @@
 import { sendResendEmail } from "./resendEmail";
+import { resolveIntegrationValues } from "./integrationConnections";
 
 interface TransactionalEmailInput {
   to: string;
@@ -19,21 +20,23 @@ export interface TransactionalEmailResult {
 export async function sendTransactionalEmail(
   input: TransactionalEmailInput,
 ): Promise<TransactionalEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const fromEmail = process.env.MILESYMEDIA_FROM_EMAIL?.trim();
+  const managed = resolveIntegrationValues(input.agencyId, "resend", { clientId: input.clientId });
+  const apiKey = managed.apiKey || process.env.RESEND_API_KEY?.trim();
+  const fromEmail = managed.fromEmail || process.env.MILESYMEDIA_FROM_EMAIL?.trim();
   if (!apiKey || !fromEmail) {
     return {
       delivered: false,
       via: "unconfigured",
-      reason: "RESEND_API_KEY and MILESYMEDIA_FROM_EMAIL are required.",
+      reason: "Connect Resend and add a sender email in Settings → Integrations.",
     };
   }
 
-  const fromName = process.env.MILESYMEDIA_FROM_NAME?.trim() || "Milesymedia";
+  const fromName = managed.fromName || process.env.MILESYMEDIA_FROM_NAME?.trim() || "AquaOasis-Web";
   const result = await sendResendEmail({
+    apiKey,
     to: input.to,
     from: `${fromName} <${fromEmail}>`,
-    replyTo: process.env.MILESYMEDIA_REPLY_TO?.trim() || fromEmail,
+    replyTo: managed.replyTo || process.env.MILESYMEDIA_REPLY_TO?.trim() || fromEmail,
     subject: input.subject,
     text: input.bodyText,
     html: input.bodyHtml,

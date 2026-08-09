@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { isProvisionedClientProjectPath } from "./clientProjectProvisioner";
+import { resolveIntegrationValues } from "./integrationConnections";
 
 const VERCEL_API = "https://api.vercel.com";
 const MAX_FILES = 150;
@@ -46,9 +47,13 @@ export function isVercelProjectDeploymentConfigured(env: NodeJS.ProcessEnv = pro
   return Boolean(env.VERCEL_TOKEN?.trim());
 }
 
+export function isVercelProjectDeploymentConfiguredForAgency(agencyId: string, clientId?: string): boolean {
+  return Boolean(resolveIntegrationValues(agencyId, "vercel", { clientId }).token);
+}
+
 export function vercelDeploymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): VercelDeploymentConfig {
   const token = env.VERCEL_TOKEN?.trim();
-  if (!token) throw new Error("Vercel deployment is not connected. Add VERCEL_TOKEN to the server environment.");
+  if (!token) throw new Error("Vercel deployment is not connected. Connect Vercel in Settings → Integrations.");
   return { token, teamId: env.VERCEL_TEAM_ID?.trim() || undefined };
 }
 
@@ -101,6 +106,8 @@ async function vercelRequest(
 }
 
 export async function deployProjectPreviewToVercel(input: {
+  agencyId?: string;
+  clientId?: string;
   localPath: string;
   projectSlug: string;
   config?: VercelDeploymentConfig;
@@ -108,7 +115,12 @@ export async function deployProjectPreviewToVercel(input: {
   if (!isProvisionedClientProjectPath(input.localPath)) {
     throw new Error("Only projects provisioned inside the Milesymedia client-projects workspace can be deployed.");
   }
-  const config = input.config ?? vercelDeploymentConfigFromEnv();
+  const managed = input.agencyId
+    ? resolveIntegrationValues(input.agencyId, "vercel", { clientId: input.clientId })
+    : {};
+  const config = input.config ?? (managed.token
+    ? { token: managed.token, teamId: managed.teamId || undefined }
+    : vercelDeploymentConfigFromEnv());
   const fetchImpl = dependencies.fetchImpl ?? fetch;
   const files = collectFiles(input.localPath);
 

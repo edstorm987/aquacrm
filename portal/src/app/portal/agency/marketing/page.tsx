@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ArrowUpRight, Globe2, RadioTower } from "lucide-react";
+import { Activity, ArrowUpRight, Building2, Globe2, LockKeyhole, RadioTower } from "lucide-react";
 
 import { CampaignsWorkspace } from "@/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace";
 import { MarketingChannelsWorkspace, type MarketingAssetKind } from "./_MarketingChannelsWorkspace";
@@ -13,6 +13,8 @@ import { getPipelineBySlug } from "@/server/pipelines";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { listClients } from "@/server/tenants";
+import { listTradingCompanies } from "@/server/tradingCompanies";
+import type { TradingCompany } from "@/server/types";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 
@@ -25,7 +27,7 @@ type MarketingView = "campaigns" | "social" | "website" | "funnels" | "google-ad
 export default async function MarketingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; brand?: string }>;
 }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
@@ -76,23 +78,35 @@ export default async function MarketingPage({
   const clients = listClients(session.agencyId);
   const attributedCampaigns = campaignRows.map(campaign => ({
     ...campaign,
-    attributedLeads: campaign.sourceKey ? leadRows.filter(lead => lead.source === campaign.sourceKey).length : 0,
+    attributedLeads: campaign.sourceKey ? leadRows.filter(lead =>
+      lead.source === campaign.sourceKey
+      && recordBelongsToCampaign(lead.companyIds ?? (lead.companyId ? [lead.companyId] : []), campaign.companyIds)
+    ).length : 0,
     attributedClients: campaign.sourceKey ? clients.filter(client => {
       const metadata = client.metadata as { leadSource?: string } | undefined;
-      return metadata?.leadSource === campaign.sourceKey;
+      return metadata?.leadSource === campaign.sourceKey
+        && recordBelongsToCampaign(client.companyId ? [client.companyId] : [], campaign.companyIds);
     }).length : 0,
   }));
-  const tags = [...new Set(leadRows.flatMap(lead => lead.tags))].sort();
-  const sources = [...new Set(leadRows.map(lead => lead.source || "Unknown"))].sort();
   const pipeline = getPipelineBySlug(session.agencyId, "leads");
   const columns = pipeline?.columns.map(column => column.label) ?? ["New", "Contacted", "Qualified", "Won", "Lost"];
-  const requestedView = (await searchParams).view;
+  const params = await searchParams;
+  const requestedView = params.view;
   const view: MarketingView = isMarketingView(requestedView) ? requestedView : "campaigns";
+  const companies = listTradingCompanies(session.agencyId, true).filter(company => company.status !== "archived");
+  const selectedCompany = companies.find(company => company.slug === params.brand) ?? null;
+  const brandScope = params.brand === "shared" ? "shared" : selectedCompany?.slug ?? "all";
+  const selectedCompanyId = selectedCompany?.id ?? null;
   const marketingAssets = marketingInstall
     ? (await makePluginStorage(marketingInstall.id).get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? []
     : [];
-  const sourceRows = sources.map(source => {
-    const rows = leadRows.filter(lead => (lead.source || "Unknown") === source);
+  const scopedMarketingAssets = marketingAssets.filter(asset => recordMatchesBrand(asset.companyIds, brandScope, selectedCompanyId));
+  const scopedCampaigns = attributedCampaigns.filter(campaign => recordMatchesBrand(campaign.companyIds, brandScope, selectedCompanyId));
+  const scopedLeads = leadRows.filter(lead => recordMatchesBrand(lead.companyIds ?? (lead.companyId ? [lead.companyId] : []), brandScope, selectedCompanyId));
+  const scopedTags = [...new Set(scopedLeads.flatMap(lead => lead.tags))].sort();
+  const scopedSources = [...new Set(scopedLeads.map(lead => lead.source || "Unknown"))].sort();
+  const sourceRows = scopedSources.map(source => {
+    const rows = scopedLeads.filter(lead => (lead.source || "Unknown") === source);
     return {
       source,
       leads: rows.length,
@@ -103,32 +117,45 @@ export default async function MarketingPage({
   }).sort((a, b) => b.leads - a.leads);
   const ownWebsite = ensureAgencyWebsite(session.agencyId);
   const ownWebsiteSummary = summarizeAgencyWebsite(ownWebsite);
+  const companyOptions = companies.map(company => ({ id: company.id, name: company.name, slug: company.slug, colour: company.brand.primaryColor }));
+  const defaultCompanyIds = selectedCompanyId ? [selectedCompanyId] : [];
+  const selectedScopeLabel = selectedCompany?.name ?? (brandScope === "shared" ? "Group / shared" : "All brands");
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand">Growth</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Marketing</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Run campaigns, social channels, websites, funnels and Google Ads across every service brand, then see what produces conversations and clients.</p>
+      <header className="grid gap-5 border-b border-black/10 pb-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
+        <div>
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><LockKeyhole size={13} aria-hidden /> Internal workspace</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing across the business</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Plan and measure AquaOasis-Web, AquaCRM, Milesymedia, Zimante Group and shared campaigns from one internal view. This is your operating workspace, not a client marketing page.</p>
+        </div>
+        <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Building2 size={17} aria-hidden /></span>
+          <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Viewing</p><p className="truncate text-sm font-semibold text-black/75">{selectedScopeLabel}</p></div>
+        </div>
       </header>
 
+      <BrandScopeNavigation companies={companies} view={view} activeScope={brandScope} />
+
       <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
-        <MarketingTab href="/portal/agency/marketing" active={view === "campaigns"}>Campaigns</MarketingTab>
-        <MarketingTab href="/portal/agency/marketing?view=social" active={view === "social"}>Social media</MarketingTab>
-        <MarketingTab href="/portal/agency/marketing?view=website" active={view === "website"}>Website</MarketingTab>
-        <MarketingTab href="/portal/agency/marketing?view=funnels" active={view === "funnels"}>Funnels</MarketingTab>
-        <MarketingTab href="/portal/agency/marketing?view=google-ads" active={view === "google-ads"}>Google Ads</MarketingTab>
-        <MarketingTab href="/portal/agency/marketing?view=reputation" active={view === "reputation"}>Reputation</MarketingTab>
-        <MarketingTab href="/portal/agency/marketing?view=sources" active={view === "sources"}>Lead sources</MarketingTab>
+        <MarketingTab href={marketingHref("campaigns", brandScope)} active={view === "campaigns"}>Campaigns</MarketingTab>
+        <MarketingTab href={marketingHref("social", brandScope)} active={view === "social"}>Social media</MarketingTab>
+        <MarketingTab href={marketingHref("website", brandScope)} active={view === "website"}>Websites</MarketingTab>
+        <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"}>Funnels</MarketingTab>
+        <MarketingTab href={marketingHref("google-ads", brandScope)} active={view === "google-ads"}>Google Ads</MarketingTab>
+        <MarketingTab href={marketingHref("reputation", brandScope)} active={view === "reputation"}>Reputation</MarketingTab>
+        <MarketingTab href={marketingHref("sources", brandScope)} active={view === "sources"}>Lead sources</MarketingTab>
       </nav>
 
       {view === "campaigns" ? (
         <CampaignsWorkspace
-          campaigns={attributedCampaigns}
-          availableTags={tags}
-          availableSources={sources}
+          campaigns={scopedCampaigns}
+          availableTags={scopedTags}
+          availableSources={scopedSources}
           pipelineColumns={columns}
           emailSenderReady={Boolean(emailInstall?.enabled)}
+          companies={companyOptions}
+          defaultCompanyIds={defaultCompanyIds}
           embedded
         />
       ) : view === "sources" ? (
@@ -168,7 +195,7 @@ export default async function MarketingPage({
         </section>
       ) : view === "website" ? (
         <div className="space-y-7">
-          <section className="border-y border-black/10">
+          {brandScope === "all" || selectedCompany?.slug === "aquaoasis-web" ? <section className="border-y border-black/10">
             <div className="flex flex-wrap items-start justify-between gap-4 py-5">
               <div className="flex items-start gap-4">
                 <span className="grid size-11 shrink-0 place-items-center rounded-md bg-brand text-white"><Globe2 size={20} /></span>
@@ -185,22 +212,44 @@ export default async function MarketingPage({
               <WebsiteMetric icon={<Activity size={15} />} label="Load time" value={ownWebsiteSummary.averageLoadMs ? `${ownWebsiteSummary.averageLoadMs} ms` : "Waiting"} />
               <WebsiteMetric icon={<RadioTower size={15} />} label="Tag" value={ownWebsite.telemetryLastSeenAt ? "Connected" : "Waiting"} />
             </div>
-          </section>
+          </section> : null}
           <MarketingChannelsWorkspace
             kind="website"
-            assets={marketingAssets.filter(asset => asset.kind === "website")}
-            activeCompanyId={null}
+            assets={scopedMarketingAssets.filter(asset => asset.kind === "website")}
+            companies={companyOptions}
+            defaultCompanyIds={defaultCompanyIds}
           />
         </div>
       ) : (
         <MarketingChannelsWorkspace
           kind={viewToAssetKind(view)}
-          assets={marketingAssets.filter(asset => asset.kind === viewToAssetKind(view))}
-          activeCompanyId={null}
+          assets={scopedMarketingAssets.filter(asset => asset.kind === viewToAssetKind(view))}
+          companies={companyOptions}
+          defaultCompanyIds={defaultCompanyIds}
         />
       )}
     </div>
   );
+}
+
+function BrandScopeNavigation({ companies, view, activeScope }: { companies: TradingCompany[]; view: MarketingView; activeScope: string }) {
+  return (
+    <section aria-labelledby="brand-scope-heading">
+      <div className="flex items-center justify-between gap-4">
+        <div><h2 id="brand-scope-heading" className="text-sm font-semibold text-black/75">Brand scope</h2><p className="mt-0.5 text-xs text-black/45">Switch the whole workspace without splitting the CRM.</p></div>
+        <Link href="/portal/agency/company" className="shrink-0 text-xs font-medium text-brand hover:underline">Manage brands</Link>
+      </div>
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        <BrandScopeLink href={marketingHref(view, "all")} active={activeScope === "all"} label="All brands" colour="#111111" />
+        <BrandScopeLink href={marketingHref(view, "shared")} active={activeScope === "shared"} label="Group / shared" colour="#8E7340" />
+        {companies.map(company => <BrandScopeLink key={company.id} href={marketingHref(view, company.slug)} active={activeScope === company.slug} label={company.name} colour={company.brand.primaryColor} />)}
+      </div>
+    </section>
+  );
+}
+
+function BrandScopeLink({ href, active, label, colour }: { href: string; active: boolean; label: string; colour: string }) {
+  return <Link href={href} aria-current={active ? "true" : undefined} className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${active ? "border-black bg-black text-white" : "border-black/10 bg-white text-black/60 hover:border-black/25 hover:text-black/80"}`}><span className="size-2 rounded-full ring-1 ring-white/30" style={{ backgroundColor: colour }} aria-hidden />{label}</Link>;
 }
 
 function WebsiteMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -222,6 +271,25 @@ function isMarketingView(value: string | undefined): value is MarketingView {
 
 function viewToAssetKind(view: Exclude<MarketingView, "campaigns" | "sources">): MarketingAssetKind {
   return view === "funnels" ? "funnel" : view;
+}
+
+function marketingHref(view: MarketingView, brandScope: string): string {
+  const params = new URLSearchParams();
+  if (view !== "campaigns") params.set("view", view);
+  if (brandScope !== "all") params.set("brand", brandScope);
+  const query = params.toString();
+  return `/portal/agency/marketing${query ? `?${query}` : ""}`;
+}
+
+function recordMatchesBrand(companyIds: string[] | undefined, brandScope: string, selectedCompanyId: string | null): boolean {
+  if (brandScope === "all") return true;
+  if (brandScope === "shared") return !companyIds?.length;
+  return Boolean(selectedCompanyId && companyIds?.includes(selectedCompanyId));
+}
+
+function recordBelongsToCampaign(recordCompanyIds: string[], campaignCompanyIds: string[] | undefined): boolean {
+  if (!campaignCompanyIds?.length) return true;
+  return recordCompanyIds.some(companyId => campaignCompanyIds.includes(companyId));
 }
 
 function sourceLabel(source: string): string {

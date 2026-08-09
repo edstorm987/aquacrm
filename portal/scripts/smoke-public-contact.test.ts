@@ -5,9 +5,20 @@ import test from "node:test";
 
 const ROOT = process.cwd();
 const route = readFileSync(join(ROOT, "src/app/api/public/brand-enquiry/route.ts"), "utf8");
+const legacyRoute = readFileSync(join(ROOT, "src/app/api/public/contact/route.ts"), "utf8");
 const form = readFileSync(join(ROOT, "src/app/(website)/LaunchGateForm.tsx"), "utf8");
 const websiteShell = readFileSync(join(ROOT, "src/app/(website)/WebsiteShell.tsx"), "utf8");
 const starter = readFileSync(join(ROOT, "../github-templates/starters/luxury-service-site/index.html"), "utf8");
+const inboxPage = readFileSync(join(ROOT, "src/app/portal/agency/inbox/page.tsx"), "utf8");
+const inboxUi = readFileSync(join(ROOT, "src/app/portal/agency/inbox/_MasterInbox.tsx"), "utf8");
+const alerts = readFileSync(join(ROOT, "src/lib/server/operationalAlerts.ts"), "utf8");
+const repairRoute = readFileSync(join(ROOT, "src/app/api/portal/website-enquiries/lead/route.ts"), "utf8");
+const enquiryReader = readFileSync(join(ROOT, "src/lib/server/websiteEnquiries.ts"), "utf8");
+const enquiryStatusRoute = readFileSync(join(ROOT, "src/app/api/portal/website-enquiries/status/route.ts"), "utf8");
+const clientRequestRoute = readFileSync(join(ROOT, "src/app/api/tenants/client-requests/route.ts"), "utf8");
+const publicSites = readFileSync(join(ROOT, "src/lib/publicSites.ts"), "utf8");
+const aquaChatbot = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/ChatBot.tsx"), "utf8");
+const aquaSupport = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/SupportForm.tsx"), "utf8");
 
 test("public website enquiries enter the real sales system", () => {
   assert.match(route, /leads\.upsert\(/);
@@ -16,6 +27,59 @@ test("public website enquiries enter the real sales system", () => {
   assert.match(route, /brandSlugs:\s*\[brand\]/);
   assert.match(route, /preferredContactMethod/);
   assert.match(route, /enquiryMessage/);
+  assert.match(route, /leadId\s*=\s*result\.lead\.id/);
+  assert.match(route, /await flushPendingWrites\(\)/);
+  assert.match(legacyRoute, /await flushPendingWrites\(\)/);
+});
+
+test("website enquiries appear in alerts and a first-class inbox feed", () => {
+  assert.match(alerts, /lead\.tags\.includes\("website-enquiry"\)/);
+  assert.match(alerts, /lead\.source\.startsWith\("website:"\)/);
+  assert.match(alerts, /listWebsiteEnquiries\(\)/);
+  assert.match(alerts, /website-message:\$\{enquiry\.id\}/);
+  assert.match(alerts, /enquiryTitle\(enquiry/);
+  assert.match(alerts, /enquiry\.channel === "support"/);
+  assert.match(inboxPage, /listWebsiteEnquiries\(\)/);
+  assert.match(inboxUi, /label="Enquiries"/);
+  assert.match(inboxUi, /label="Chatbot"/);
+  assert.match(inboxUi, /label="Support"/);
+  assert.match(inboxUi, /Automatic triage/);
+  assert.match(inboxUi, /sourceLocation\(item\)/);
+  assert.match(inboxUi, /Campaign/);
+  assert.match(inboxUi, /Create lead/);
+});
+
+test("chatbot, support, and website forms preserve exact source context", () => {
+  assert.match(route, /normalizeChannel/);
+  assert.match(route, /siteKey: publicSite\?\.siteKey/);
+  assert.match(route, /propertyId: publicSite\?\.propertyId/);
+  assert.match(route, /siteName: publicSite\?\.siteName/);
+  assert.match(route, /pagePath/);
+  assert.match(route, /website and brand combination is not allowed/);
+  assert.match(publicSites, /resolvePublicAquaSite/);
+  assert.match(enquiryReader, /inferChannel/);
+  assert.match(enquiryReader, /triageWebsiteEnquiry/);
+  assert.match(enquiryReader, /Outage or security/);
+  assert.match(aquaChatbot, /channel: "chatbot"/);
+  assert.match(aquaSupport, /channel: "support"/);
+});
+
+test("public messages and client tickets can be triaged and resolved in the inbox", () => {
+  assert.match(enquiryStatusRoute, /inboxStatus: status/);
+  assert.match(enquiryStatusRoute, /status === "resolved"/);
+  assert.match(clientRequestRoute, /propertyId/);
+  assert.match(clientRequestRoute, /siteLabel/);
+  assert.match(clientRequestRoute, /triageWebsiteEnquiry/);
+  assert.match(inboxUi, /Mark reviewed/);
+  assert.match(inboxUi, /Resolve/);
+  assert.match(inboxUi, /Close ticket/);
+});
+
+test("historical website enquiries can be safely linked to sales", () => {
+  assert.match(repairRoute, /requireRole/);
+  assert.match(repairRoute, /leads\.upsert\(/);
+  assert.match(repairRoute, /await flushPendingWrites\(\)/);
+  assert.match(repairRoute, /leadLinkedAt/);
 });
 
 test("public enquiry endpoint validates origin, fields, bots, and request volume", () => {

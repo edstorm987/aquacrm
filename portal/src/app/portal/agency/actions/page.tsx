@@ -7,6 +7,7 @@ import { listSops } from "@/server/sops";
 import { AGENCY_ROLES } from "@/server/types";
 import { getInstall } from "@/server/pluginInstalls";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { isAssistantConfigured } from "@/lib/server/openaiAssistant";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 
@@ -67,6 +68,7 @@ export default async function AgencyActionsPage() {
   return <ActionsWorkspace
     initialTasks={listAgencyTasks(session.agencyId)}
     generatedActions={actions.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER))}
+    advisorConfigured={isAssistantConfigured(session.agencyId)}
     team={team}
     sops={listSops(session.agencyId)}
   />;

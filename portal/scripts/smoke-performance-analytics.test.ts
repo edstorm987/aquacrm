@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildPerformanceAnalytics, performanceMetricValue } from "../src/lib/performanceAnalytics";
+import { buildPerformanceAnalytics, buildPerformanceAnalyticsForRange, performanceMetricValue } from "../src/lib/performanceAnalytics";
 
 test("performance analytics joins views, forms, search and experiments", () => {
   const now = Date.parse("2026-07-27T12:00:00Z");
@@ -11,7 +11,7 @@ test("performance analytics joins views, forms, search and experiments", () => {
     { type: "pageview", occurredAt: now - 3_000, path: "/services", sessionId: "two" },
     { type: "form", occurredAt: now - 500, path: "/services", formName: "Contact", sessionId: "two", experimentId: "exp_one", variant: "a" },
     { type: "interaction", occurredAt: now - 4_000, metric: "experiment-view", sessionId: "two", experimentId: "exp_one", variant: "a" },
-    { type: "search", occurredAt: now - 5_000, query: "web design derby", impressions: 100, clicks: 8, position: 3.5 },
+    { type: "search", occurredAt: now - 5_000, path: "/services", query: "web design derby", impressions: 100, clicks: 8, position: 3.5 },
   ];
   const result = buildPerformanceAnalytics(events, 28, now);
   assert.equal(result.current.views, 3);
@@ -19,8 +19,22 @@ test("performance analytics joins views, forms, search and experiments", () => {
   assert.equal(result.current.conversions, 1);
   assert.equal(result.current.conversionRate, 33.33);
   assert.deepEqual(result.queries[0], { query: "web design derby", impressions: 100, clicks: 8, ctr: 8, position: 3.5 });
+  assert.deepEqual(result.searchPages[0], { path: "/services", impressions: 100, clicks: 8, ctr: 8, position: 3.5 });
   assert.equal(result.pages.find(page => page.path === "/services")?.conversions, 1);
   assert.equal(result.variants[0]?.conversionRate, 100);
+});
+
+test("calendar reports include only the requested month", () => {
+  const june = Date.parse("2026-06-15T12:00:00Z");
+  const july = Date.parse("2026-07-15T12:00:00Z");
+  const result = buildPerformanceAnalyticsForRange([
+    { type: "pageview", occurredAt: june, path: "/june" },
+    { type: "pageview", occurredAt: july, path: "/july" },
+    { type: "form", occurredAt: july, formName: "Project enquiry" },
+  ], Date.parse("2026-07-01T00:00:00Z"), Date.parse("2026-07-31T23:59:59Z"));
+  assert.equal(result.current.views, 1);
+  assert.equal(result.current.conversions, 1);
+  assert.equal(result.pages.some(page => page.path === "/june"), false);
 });
 
 test("performance milestones use the same metric definitions", () => {
@@ -41,10 +55,15 @@ test("performance workspace exposes agency, customer, experiments and automated 
   const customer = readFileSync("src/app/portal/customer/_CustomerPortalViews.tsx", "utf8");
   const tag = readFileSync("src/lib/aquaTagSource.ts", "utf8");
   const api = readFileSync("src/app/api/portal/performance/experiments/route.ts", "utf8");
+  const dashboard = readFileSync("src/app/portal/agency/performance/_AquaTagDashboard.tsx", "utf8");
+  const reports = readFileSync("src/app/api/portal/performance/reports/route.ts", "utf8");
   assert.match(workspace, /Visibility and conversions/);
   assert.match(workspace, /ExperimentsPanel/);
   assert.match(customer, /Your results/);
   assert.match(tag, /document\.addEventListener\("submit"/);
   assert.match(tag, /data-aqua-conversion/);
   assert.match(api, /createPerformanceExperiment/);
+  assert.match(dashboard, /Google Search Console/);
+  assert.match(dashboard, /Monthly client reports/);
+  assert.match(reports, /monthlyPerformanceReports/);
 });

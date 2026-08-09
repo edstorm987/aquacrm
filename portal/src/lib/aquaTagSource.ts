@@ -11,6 +11,17 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
   const preferenceKey = "aqua-cookie-preferences";
   const consentEvent = "aqua:consent-updated";
   const anonymousKey = "aqua-anonymous-id";
+  const explorerProtocolVersion = 1;
+  const explorerErrors = [];
+  const explorerElements = new Map();
+  const explorerIds = new WeakMap();
+  const explorerOriginals = new Map();
+  const explorerSelector = "[data-aqua-edit], [data-portal-edit], h1, h2, h3, h4, h5, h6, p, figcaption, img, a, button";
+  let explorerEnabled = false;
+  let explorerElementSequence = 0;
+  let explorerSelected = null;
+  let explorerHover = null;
+  let explorerParentOrigin = "*";
   let preferences = null;
   let sessionId = "";
   let lastPath = "";
@@ -83,6 +94,231 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     || (category === "analytics" && preferences && preferences.analytics)
     || (category === "marketing" && preferences && preferences.marketing);
 
+  const editableElements = () => document.querySelectorAll(explorerSelector).length;
+  const explorerCapabilities = () => ({
+    inspect: true,
+    visualEditing: true,
+    editableElements: editableElements(),
+  });
+  const explorerIdFor = element => {
+    const existing = explorerIds.get(element);
+    if (existing) return existing;
+    explorerElementSequence += 1;
+    const id = "aqua-element-" + explorerElementSequence;
+    explorerIds.set(element, id);
+    explorerElements.set(id, element);
+    return id;
+  };
+  const explorerDescribe = element => {
+    const styles = getComputedStyle(element);
+    const isImage = element instanceof HTMLImageElement;
+    const text = isImage ? "" : String(element.textContent || "").replace(/\s+/g, " ").trim();
+    return {
+      id: explorerIdFor(element),
+      tagName: element.tagName.toLowerCase(),
+      kind: isImage ? "image" : "text",
+      label: element.getAttribute("data-aqua-edit") || element.getAttribute("data-portal-edit") || element.getAttribute("aria-label") || element.getAttribute("alt") || text.slice(0, 80) || element.tagName.toLowerCase(),
+      text: isImage ? undefined : text.slice(0, 5000),
+      src: isImage ? element.currentSrc || element.src || "" : undefined,
+      alt: isImage ? element.alt || "" : undefined,
+      styles: {
+        color: styles.color,
+        backgroundColor: styles.backgroundColor,
+        fontSize: styles.fontSize,
+        fontWeight: styles.fontWeight,
+        textAlign: styles.textAlign,
+      },
+    };
+  };
+  const explorerReportSelection = () => sendToExplorer({
+    type: "aqua-explorer:selected",
+    version: explorerProtocolVersion,
+    element: explorerSelected ? explorerDescribe(explorerSelected) : null,
+  });
+  const explorerRememberOriginal = element => {
+    const id = explorerIdFor(element);
+    if (explorerOriginals.has(id)) return;
+    explorerOriginals.set(id, {
+      html: element instanceof HTMLImageElement ? undefined : element.innerHTML,
+      src: element instanceof HTMLImageElement ? element.getAttribute("src") : undefined,
+      alt: element instanceof HTMLImageElement ? element.getAttribute("alt") : undefined,
+      style: element.getAttribute("style"),
+    });
+  };
+  const explorerSafeImageSource = value => {
+    if (!value) return "";
+    try {
+      const url = new URL(value, location.href);
+      return ["http:", "https:", "blob:", "data:"].includes(url.protocol) ? url.href : "";
+    } catch { return ""; }
+  };
+  const explorerPatchElement = (element, patch) => {
+    if (!patch || typeof patch !== "object") return;
+    explorerRememberOriginal(element);
+    if (!(element instanceof HTMLImageElement) && typeof patch.text === "string") element.textContent = patch.text.slice(0, 5000);
+    if (element instanceof HTMLImageElement) {
+      if (typeof patch.src === "string") {
+        const safeSource = explorerSafeImageSource(patch.src);
+        if (safeSource) element.src = safeSource;
+      }
+      if (typeof patch.alt === "string") element.alt = patch.alt.slice(0, 500);
+    }
+    if (patch.styles && typeof patch.styles === "object") {
+      const allowed = ["color", "backgroundColor", "fontSize", "fontWeight", "textAlign"];
+      for (const name of allowed) {
+        const value = patch.styles[name];
+        if (typeof value === "string" && value.length <= 100) element.style[name] = value;
+      }
+    }
+  };
+  const explorerReset = () => {
+    for (const [id, original] of explorerOriginals.entries()) {
+      const element = explorerElements.get(id);
+      if (!element || !element.isConnected) continue;
+      if (!(element instanceof HTMLImageElement) && original.html !== undefined) element.innerHTML = original.html;
+      if (element instanceof HTMLImageElement) {
+        if (original.src === null || original.src === undefined) element.removeAttribute("src");
+        else element.setAttribute("src", original.src);
+        if (original.alt === null || original.alt === undefined) element.removeAttribute("alt");
+        else element.setAttribute("alt", original.alt);
+      }
+      if (original.style === null || original.style === undefined) element.removeAttribute("style");
+      else element.setAttribute("style", original.style);
+    }
+    explorerOriginals.clear();
+  };
+  const explorerTarget = target => target instanceof Element ? target.closest(explorerSelector) : null;
+  const explorerSetHover = element => {
+    if (explorerHover && explorerHover !== explorerSelected) explorerHover.classList.remove("aqua-explorer-hover");
+    explorerHover = element;
+    if (explorerHover && explorerHover !== explorerSelected) explorerHover.classList.add("aqua-explorer-hover");
+  };
+  const explorerSetSelected = element => {
+    if (explorerSelected) explorerSelected.classList.remove("aqua-explorer-selected");
+    explorerSelected = element;
+    if (explorerSelected) {
+      explorerSelected.classList.remove("aqua-explorer-hover");
+      explorerSelected.classList.add("aqua-explorer-selected");
+    }
+  };
+  const explorerStyle = document.createElement("style");
+  explorerStyle.dataset.aquaExplorer = "true";
+  explorerStyle.textContent = ".aqua-explorer-hover{outline:2px dashed #0e7490!important;outline-offset:3px!important;cursor:crosshair!important}.aqua-explorer-selected{outline:3px solid #0891b2!important;outline-offset:3px!important;cursor:crosshair!important}";
+  document.head.appendChild(explorerStyle);
+  document.addEventListener("mouseover", event => {
+    if (!explorerEnabled) return;
+    explorerSetHover(explorerTarget(event.target));
+  }, true);
+  document.addEventListener("mouseout", event => {
+    if (!explorerEnabled) return;
+    const next = explorerTarget(event.relatedTarget);
+    if (next !== explorerHover) explorerSetHover(next);
+  }, true);
+  document.addEventListener("click", event => {
+    if (!explorerEnabled) return;
+    const element = explorerTarget(event.target);
+    if (!element) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    explorerSetSelected(element);
+    explorerReportSelection();
+  }, true);
+  const explorerPerformance = () => {
+    const navigation = performance.getEntriesByType("navigation")[0];
+    const paints = performance.getEntriesByType("paint");
+    const firstContentfulPaint = paints.find(entry => entry.name === "first-contentful-paint");
+    return {
+      responseMs: navigation ? Math.round(navigation.responseEnd) : undefined,
+      domContentLoadedMs: navigation ? Math.round(navigation.domContentLoadedEventEnd) : undefined,
+      loadMs: navigation && navigation.loadEventEnd ? Math.round(navigation.loadEventEnd) : undefined,
+      firstContentfulPaintMs: firstContentfulPaint ? Math.round(firstContentfulPaint.startTime) : undefined,
+    };
+  };
+  const explorerConnection = () => {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!connection) return undefined;
+    return {
+      effectiveType: connection.effectiveType,
+      downlinkMbps: connection.downlink,
+      saveData: Boolean(connection.saveData),
+    };
+  };
+  const explorerDiagnostics = () => ({
+    path: location.pathname,
+    title: document.title,
+    readyState: document.readyState,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    document: {
+      width: Math.max(document.documentElement.scrollWidth, document.body ? document.body.scrollWidth : 0),
+      height: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0),
+    },
+    counts: {
+      editableElements: editableElements(),
+      forms: document.forms.length,
+      images: document.images.length,
+      links: document.links.length,
+      resources: performance.getEntriesByType("resource").length,
+    },
+    performance: explorerPerformance(),
+    connection: explorerConnection(),
+    recentErrors: explorerErrors.slice(-8),
+  });
+  const sendToExplorer = payload => {
+    if (window.parent === window) return;
+    try { window.parent.postMessage(payload, explorerParentOrigin); } catch {}
+  };
+  const respondToExplorer = (event, payload) => {
+    if (event.source !== window.parent || window.parent === window) return;
+    explorerParentOrigin = event.origin && event.origin !== "null" ? event.origin : "*";
+    sendToExplorer(payload);
+  };
+  window.addEventListener("message", event => {
+    const message = event.data;
+    if (!message || typeof message !== "object" || message.version !== explorerProtocolVersion) return;
+    if (message.type === "aqua-explorer:ping" && typeof message.requestId === "string") {
+      respondToExplorer(event, {
+        type: "aqua-explorer:ready",
+        version: explorerProtocolVersion,
+        requestId: message.requestId,
+        propertyId,
+        path: location.pathname,
+        title: document.title,
+        capabilities: explorerCapabilities(),
+      });
+    }
+    if (message.type === "aqua-explorer:inspect" && typeof message.requestId === "string") {
+      respondToExplorer(event, {
+        type: "aqua-explorer:diagnostics",
+        version: explorerProtocolVersion,
+        requestId: message.requestId,
+        diagnostics: explorerDiagnostics(),
+      });
+    }
+    if (message.type === "aqua-explorer:enable") {
+      explorerEnabled = true;
+      document.documentElement.dataset.aquaExplorerActive = "true";
+    }
+    if (message.type === "aqua-explorer:disable") {
+      explorerEnabled = false;
+      delete document.documentElement.dataset.aquaExplorerActive;
+      explorerSetHover(null);
+      explorerSetSelected(null);
+      explorerReportSelection();
+    }
+    if (message.type === "aqua-explorer:patch" && typeof message.elementId === "string") {
+      const element = explorerElements.get(message.elementId);
+      if (element && element.isConnected) {
+        explorerPatchElement(element, message.patch);
+        explorerSetSelected(element);
+        explorerReportSelection();
+      }
+    }
+    if (message.type === "aqua-explorer:reset") {
+      explorerReset();
+      explorerReportSelection();
+    }
+  });
+
   const send = (type, data = {}, requestedCategory) => {
     const category = requestedCategory || categoryFor(type);
     if (!permitted(category)) return false;
@@ -151,10 +387,16 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     const supplied = event instanceof CustomEvent ? event.detail : null;
     applyPreferences(supplied || readPreferences(), true);
   });
-  window.addEventListener("error", event => send("error", { message: event.message || "Browser error" }));
+  window.addEventListener("error", event => {
+    const message = redactMessage(event.message || "Browser error") || "Browser error";
+    explorerErrors.push(message);
+    send("error", { message });
+  });
   window.addEventListener("unhandledrejection", event => {
     const reason = event.reason;
-    send("error", { message: reason && reason.message ? reason.message : String(reason || "Unhandled promise rejection") });
+    const message = redactMessage(reason && reason.message ? reason.message : String(reason || "Unhandled promise rejection")) || "Unhandled promise rejection";
+    explorerErrors.push(message);
+    send("error", { message });
   });
   window.addEventListener("load", startAnalytics, { once: true });
   for (const method of ["pushState", "replaceState"]) {

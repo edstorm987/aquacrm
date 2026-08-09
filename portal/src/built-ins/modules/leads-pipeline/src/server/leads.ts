@@ -31,8 +31,20 @@ import { parseCsv } from "./csv";
 const LEAD_INDEX_KEY = "leads/index";
 const leadKey = (id: string): string => `lead:${id}`;
 const emailPtrKey = (email: string): string => `leads/email/${email}`;
+const phonePtrKey = (phone: string): string => `leads/phone/${phone}`;
 
 const PLAUSIBLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PLAUSIBLE_PHONE = /^\+?\d{7,15}$/;
+
+function canonPhone(raw: string): string {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  return `${trimmed.startsWith("+") ? "+" : ""}${digits}`;
+}
+
+function leadLabel(lead: Pick<Lead, "email" | "phone" | "name" | "id">): string {
+  return lead.email || lead.phone || lead.name || lead.id;
+}
 
 export class LeadService {
   constructor(
@@ -72,19 +84,32 @@ export class LeadService {
     return id ? this.get(id) : null;
   }
 
+  async getByPhone(phone: string): Promise<Lead | null> {
+    const canonical = canonPhone(phone);
+    if (!canonical) return null;
+    const id = await this.storage.get<string>(phonePtrKey(canonical));
+    return id ? this.get(id) : null;
+  }
+
   // Create-or-update on canonical email. Returns `{lead, created}` so
   // CSV import can tell whether a row was new or merged.
   async upsert(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
     const email = canonEmail(input.email);
-    if (!PLAUSIBLE_EMAIL.test(email)) {
+    const phone = canonPhone(input.phone ?? "");
+    if (email && !PLAUSIBLE_EMAIL.test(email)) {
       throw new Error(`Implausible email: ${input.email}`);
     }
-    const existingId = await this.storage.get<string>(emailPtrKey(email));
+    if (!email && !PLAUSIBLE_PHONE.test(phone)) {
+      throw new Error("A valid email address or phone number is required.");
+    }
+    const existingId = (email ? await this.storage.get<string>(emailPtrKey(email)) : undefined)
+      ?? (phone ? await this.storage.get<string>(phonePtrKey(phone)) : undefined);
     if (existingId) {
       const existing = await this.get(existingId);
       if (existing) {
         const patched = await this.update(existing.id, {
           // Only fill blanks — never clobber existing notes/tags from a re-import.
+          email: existing.email || email,
           name: existing.name ?? input.name,
           phone: existing.phone ?? input.phone,
           company: existing.company ?? input.company,
@@ -136,7 +161,8 @@ export class LeadService {
       sentCount: 0,
     };
     await this.storage.set(leadKey(id), lead);
-    await this.storage.set(emailPtrKey(email), id);
+    if (email) await this.storage.set(emailPtrKey(email), id);
+    if (phone) await this.storage.set(phonePtrKey(phone), id);
     const index = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
     if (!index.includes(id)) {
       await this.storage.set(LEAD_INDEX_KEY, [...index, id]);
@@ -146,7 +172,7 @@ export class LeadService {
       actorUserId: actor,
       category: "leads",
       action: "leads.lead.created",
-      message: `Captured lead ${lead.email} from ${lead.source}.`,
+      message: `Captured lead ${leadLabel(lead)} from ${lead.source}.`,
       metadata: { leadId: id, source: lead.source },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.lead.created", { leadId: id });
@@ -158,6 +184,7 @@ export class LeadService {
         agencyId: this.agencyId,
         leadId: id,
         email: lead.email,
+        phone: lead.phone,
         name: lead.name,
         company: lead.company,
         source: lead.source,
@@ -173,18 +200,32 @@ export class LeadService {
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
+    const email = patch.email === undefined ? existing.email : canonEmail(patch.email);
+    const phone = patch.phone === undefined ? existing.phone : patch.phone.trim() || undefined;
+    if (email && !PLAUSIBLE_EMAIL.test(email)) throw new Error(`Implausible email: ${patch.email}`);
+    if (!email && !PLAUSIBLE_PHONE.test(canonPhone(phone ?? ""))) {
+      throw new Error("A valid email address or phone number is required.");
+    }
     const updated: Lead = {
       ...existing,
       ...patch,
+      email,
+      phone,
       tags: patch.tags ?? existing.tags,
     };
     await this.storage.set(leadKey(id), updated);
+    if (existing.email && existing.email !== updated.email) await this.storage.del(emailPtrKey(existing.email));
+    if (updated.email) await this.storage.set(emailPtrKey(updated.email), id);
+    const existingPhone = canonPhone(existing.phone ?? "");
+    const updatedPhone = canonPhone(updated.phone ?? "");
+    if (existingPhone && existingPhone !== updatedPhone) await this.storage.del(phonePtrKey(existingPhone));
+    if (updatedPhone) await this.storage.set(phonePtrKey(updatedPhone), id);
     await this.activity.logActivity({
       agencyId: this.agencyId,
       actorUserId: actor,
       category: "leads",
       action: "leads.lead.updated",
-      message: `Updated lead ${updated.email}.`,
+      message: `Updated lead ${leadLabel(updated)}.`,
       metadata: { leadId: id, fields: Object.keys(patch) },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.lead.updated", { leadId: id });
@@ -195,7 +236,9 @@ export class LeadService {
     const existing = await this.get(id);
     if (!existing) return false;
     await this.storage.del(leadKey(id));
-    await this.storage.del(emailPtrKey(existing.email));
+    if (existing.email) await this.storage.del(emailPtrKey(existing.email));
+    const phone = canonPhone(existing.phone ?? "");
+    if (phone) await this.storage.del(phonePtrKey(phone));
     const index = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
     await this.storage.set(LEAD_INDEX_KEY, index.filter(x => x !== id));
     await this.activity.logActivity({
@@ -203,7 +246,7 @@ export class LeadService {
       actorUserId: actor,
       category: "leads",
       action: "leads.lead.archived",
-      message: `Archived lead ${existing.email}.`,
+      message: `Archived lead ${leadLabel(existing)}.`,
       metadata: { leadId: id },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.lead.archived", { leadId: id });
@@ -318,6 +361,7 @@ export class LeadService {
 
   async resolveAudience(filter: AudienceFilter): Promise<Lead[]> {
     const all = await this.list();
+    const companySet = filter.companyIds && filter.companyIds.length > 0 ? new Set(filter.companyIds) : null;
     const tagSet = filter.tags && filter.tags.length > 0 ? new Set(filter.tags) : null;
     const sourceSet = filter.sourcedFrom && filter.sourcedFrom.length > 0 ? new Set(filter.sourcedFrom) : null;
     const cutoffStamp = filter.notContactedSinceMs != null ? now() - filter.notContactedSinceMs : null;
@@ -332,6 +376,8 @@ export class LeadService {
     }
 
     return all.filter(lead => {
+      const leadCompanyIds = lead.companyIds ?? (lead.companyId ? [lead.companyId] : []);
+      if (companySet && !leadCompanyIds.some(companyId => companySet.has(companyId))) return false;
       if (tagSet && !lead.tags.some(t => tagSet.has(t))) return false;
       if (sourceSet && !sourceSet.has(lead.source)) return false;
       if (cutoffStamp != null && (lead.lastContactedAt ?? 0) > cutoffStamp) return false;

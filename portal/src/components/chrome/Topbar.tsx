@@ -17,6 +17,7 @@ import { PortalSearch } from "@/components/chrome/PortalSearch";
 import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
 import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
+import { Sparkles } from "lucide-react";
 
 interface Props {
   title: string;
@@ -48,9 +49,10 @@ interface Props {
 export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, publicShowcase, previewActive, notifications, companySwitcher, privacyTerms }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = role === "agency-owner" || role === "agency-manager" || role === "agency-staff";
+  const advisorEnabled = role === "agency-owner" || role === "agency-manager";
   return (
-    <header className="z-40 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-black/10 bg-white/40 px-4 py-2 backdrop-blur-xl md:px-6">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="mm-portal-topbar relative z-40 flex min-h-14 shrink-0 items-center justify-between gap-1.5 border-b border-black/10 bg-white/40 px-3 py-2 backdrop-blur-xl sm:gap-2 sm:px-4 md:px-6">
+      <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-3">
         {panels && tenantLabel && currentPath && (
           <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} />
         )}
@@ -60,16 +62,17 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           {subtitle ? <p className="truncate text-[11px] text-black/40">{subtitle}</p> : null}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-xs sm:gap-3">
-        {!publicShowcase && companySwitcher ? <div className="mm-private-chrome">{companySwitcher}</div> : null}
+      <div className="ml-auto flex min-w-0 flex-nowrap items-center gap-1 text-xs sm:gap-2 lg:gap-3">
+        {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden md:block">{companySwitcher}</div> : null}
         {searchItems.length ? <PortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
+        {advisorEnabled ? <Link href="/portal/agency/assistant" aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
         <PrivacyModeControl
           canEnterShowcase={!publicShowcase && (role === "agency-owner" || role === "agency-manager")}
           showcaseMode={showcaseMode}
           sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
         />
         {publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}
-        <ColorModeToggle />
+        <div className="hidden sm:block"><ColorModeToggle /></div>
         {previewActive ? (
           <Link
             href="/portal/agency/phases"

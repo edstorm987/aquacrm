@@ -661,6 +661,22 @@ svg[class*="-card"] {
   }
 }
 
+/* Mobile portal chrome stays on one intentional row. The controls remain
+   large enough to tap while labels and desktop-only utilities step away. */
+@media (max-width: 639px) {
+  .mm-portal-topbar :is(button, a) {
+    min-width: 2.25rem;
+  }
+
+  .mm-portal-root main#main-content {
+    overflow-x: hidden;
+  }
+
+  .mm-portal-root :is(h1, h2, h3, p, dd) {
+    overflow-wrap: anywhere;
+  }
+}
+
 /* Empty-state helper for plugins (consumed via the inline pattern;
    matches our shared <EmptyState>). */
 [class$="-empty"] {
@@ -1459,6 +1475,9 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   --mm-border: rgb(0 0 0 / 0.14);
 }
 
+.mm-portal-root .text-black\/35,
+.mm-portal-root .text-black\/40,
+.mm-portal-root .text-black\/45,
 .mm-portal-root .text-black\/46,
 .mm-portal-root .text-black\/48,
 .mm-portal-root .text-black\/50,
@@ -1471,7 +1490,7 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 }
 
 .mm-portal-root :is(input, textarea)::placeholder {
-  color: rgb(0 0 0 / 0.5);
+  color: rgb(0 0 0 / 0.58);
   opacity: 1;
 }
 
@@ -1589,5 +1608,10 @@ html[data-color-mode="dark"] .mm-portal-root .plugin-page-shell:not([data-plugin
 @media (max-width: 639px) {
   .mm-portal-root main#main-content {
     scroll-padding: 1rem;
+  }
+
+  .mm-portal-root [role="dialog"] {
+    max-height: 100dvh;
+    overscroll-behavior: contain;
   }
 }

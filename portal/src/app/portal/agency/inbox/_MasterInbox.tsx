@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AlertTriangle, Bell, CircleCheck, ExternalLink, Inbox, LifeBuoy, Mail, MessageCircle, Radio, Send, Users } from "lucide-react";
+import { AlertTriangle, Bell, CircleCheck, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, Send, UserPlus, Users } from "lucide-react";
 
 import type { OperationalAlert } from "@/lib/server/operationalAlerts";
+import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 
 type Conversation = {
   id: string;
@@ -17,6 +18,13 @@ type Conversation = {
   submittedBy: string;
   submittedAt: number;
   replyCount: number;
+  propertyId?: string;
+  siteName: string;
+  siteUrl?: string;
+  siteKind: string;
+  priority: "urgent" | "high" | "normal";
+  topic: string;
+  suggestedAction: string;
 };
 
 type Update = {
@@ -29,20 +37,36 @@ type Update = {
   ts: number;
 };
 
-type View = "attention" | "conversations" | "updates" | "channels";
+type View = "attention" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
 
-export function MasterInbox({ alerts, conversations, updates }: { alerts: OperationalAlert[]; conversations: Conversation[]; updates: Update[] }) {
+export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversations, updates }: { alerts: OperationalAlert[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; updates: Update[] }) {
   const router = useRouter();
-  const [view, setView] = useState<View>("attention");
+  const searchParams = useSearchParams();
+  const requestedView = searchParams.get("view");
+  const initialView: View = requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations"
+    ? requestedView
+    : "attention";
+  const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
   const [teamNote, setTeamNote] = useState("");
-  const [openThread, setOpenThread] = useState<string | null>(null);
+  const [openThread, setOpenThread] = useState<string | null>(searchParams.get("thread"));
+  const [openForm, setOpenForm] = useState<string | null>(searchParams.get("form"));
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [leadBusyId, setLeadBusyId] = useState<string | null>(null);
+  const [leadError, setLeadError] = useState<Record<string, string>>({});
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<Record<string, string>>({});
   const urgent = alerts.filter(alert => alert.severity === "critical").length;
 
   const visibleAlerts = useMemo(() => filterRows(alerts, query, alert => `${alert.title} ${alert.detail} ${alert.clientName ?? ""}`), [alerts, query]);
-  const visibleConversations = useMemo(() => filterRows(conversations, query, item => `${item.clientName} ${item.message} ${item.type} ${item.submittedBy}`), [conversations, query]);
+  const visibleWebsiteForms = useMemo(() => filterRows(websiteForms, query, item => `${item.name} ${item.email ?? ""} ${item.phone ?? ""} ${item.brandName} ${item.siteName} ${item.siteHost ?? ""} ${item.pagePath} ${item.source} ${item.channel} ${item.topic} ${item.services.join(" ")} ${item.message ?? ""} ${item.campaign ?? ""}`), [websiteForms, query]);
+  const visibleConversations = useMemo(() => filterRows(conversations, query, item => `${item.clientName} ${item.siteName} ${item.siteKind} ${item.message} ${item.type} ${item.topic} ${item.submittedBy}`), [conversations, query]);
+  const enquiryForms = visibleWebsiteForms.filter(item => item.channel === "form");
+  const chatbotMessages = visibleWebsiteForms.filter(item => item.channel === "chatbot");
+  const websiteSupport = visibleWebsiteForms.filter(item => item.channel === "support");
+  const clientSupport = visibleConversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type));
+  const clientMessages = visibleConversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type));
   const visibleUpdates = useMemo(() => filterRows(updates, query, item => `${item.message} ${item.category} ${item.action} ${item.actorEmail ?? ""}`), [updates, query]);
 
   async function sendTeamNote(event: React.FormEvent) {
@@ -77,6 +101,54 @@ export function MasterInbox({ alerts, conversations, updates }: { alerts: Operat
     }
   }
 
+  async function updateConversationStatus(item: Conversation, status: "open" | "reviewed" | "closed") {
+    setBusy(true);
+    const response = await fetch("/api/tenants/client-requests", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId: item.clientId, requestId: item.id, status }),
+    });
+    setBusy(false);
+    if (response.ok) router.refresh();
+  }
+
+  async function linkFormToLead(item: WebsiteEnquiry) {
+    setLeadBusyId(item.id);
+    setLeadError(current => ({ ...current, [item.id]: "" }));
+    const response = await fetch("/api/portal/website-enquiries/lead", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enquiryId: item.id }),
+    });
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    setLeadBusyId(null);
+    if (!response.ok) {
+      setLeadError(current => ({
+        ...current,
+        [item.id]: payload?.error || "The submission could not be linked to sales.",
+      }));
+      return;
+    }
+    router.refresh();
+  }
+
+  async function updateWebsiteStatus(item: WebsiteEnquiry, status: WebsiteEnquiry["status"]) {
+    setStatusBusyId(item.id);
+    setStatusError(current => ({ ...current, [item.id]: "" }));
+    const response = await fetch("/api/portal/website-enquiries/status", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enquiryId: item.id, status }),
+    });
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    setStatusBusyId(null);
+    if (!response.ok) {
+      setStatusError(current => ({ ...current, [item.id]: payload?.error || "The status could not be updated." }));
+      return;
+    }
+    router.refresh();
+  }
+
   return <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
@@ -92,7 +164,10 @@ export function MasterInbox({ alerts, conversations, updates }: { alerts: Operat
 
     <nav className="flex gap-6 overflow-x-auto border-b border-black/10" aria-label="Inbox view">
       <Tab active={view === "attention"} onClick={() => setView("attention")} label="Needs attention" count={alerts.length} />
-      <Tab active={view === "conversations"} onClick={() => setView("conversations")} label="Conversations" count={conversations.filter(item => item.status === "open").length} />
+      <Tab active={view === "forms"} onClick={() => setView("forms")} label="Enquiries" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} />
+      <Tab active={view === "chatbot"} onClick={() => setView("chatbot")} label="Chatbot" count={websiteForms.filter(item => item.channel === "chatbot" && item.status !== "resolved").length} />
+      <Tab active={view === "support"} onClick={() => setView("support")} label="Support" count={websiteForms.filter(item => item.channel === "support" && item.status !== "resolved").length + conversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} />
+      <Tab active={view === "conversations"} onClick={() => setView("conversations")} label="Client messages" count={conversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} />
       <Tab active={view === "updates"} onClick={() => setView("updates")} label="Updates" count={updates.length} />
       <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" />
     </nav>
@@ -107,20 +182,83 @@ export function MasterInbox({ alerts, conversations, updates }: { alerts: Operat
       {!visibleAlerts.length ? <Empty icon={<CircleCheck size={25} />} title="Nothing needs attention" detail="Support, monitoring, overdue money, meetings, client health, and campaign pacing are clear." /> : null}
     </section> : null}
 
-    {view === "conversations" ? <section>
-      <SectionHeader title="All conversations" detail="Client requests and support threads remain attached to the client record." />
-      <div className="divide-y divide-black/[0.08]">
-        {visibleConversations.map(item => <article key={item.id} className="py-4">
-          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
-            <span className="grid size-10 place-items-center rounded-md bg-black/[0.04] text-black/45"><MessageCircle size={18} /></span>
-            <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/80">{item.clientName}</strong><Pill>{requestLabel(item.type)}</Pill>{item.status === "open" ? <Pill tone="amber">Open</Pill> : null}</span><span className="mt-1 block truncate text-xs text-black/50">{item.message} · {item.replyCount} replies · {formatDate(item.submittedAt)}</span></span>
-            <div className="flex gap-2"><button type="button" onClick={() => setOpenThread(current => current === item.id ? null : item.id)} className="rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openThread === item.id ? "Close" : "Reply"}</button><Link href={`/portal/clients/${item.clientId}?tab=overview`} aria-label={`Open ${item.clientName}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><ExternalLink size={15} /></Link></div>
-          </div>
-          {openThread === item.id ? <div className="ml-0 mt-3 grid gap-2 rounded-md bg-black/[0.025] p-3 sm:ml-[52px]"><p className="whitespace-pre-wrap text-sm leading-6 text-black/65">{item.message}</p><textarea value={replyDrafts[item.id] ?? ""} onChange={event => setReplyDrafts(current => ({ ...current, [item.id]: event.target.value }))} rows={3} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm" placeholder={`Reply to ${item.clientName}`} /><button type="button" onClick={() => void replyToConversation(item)} disabled={busy || !replyDrafts[item.id]?.trim()} className="inline-flex min-h-10 w-fit items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />Send reply</button></div> : null}
-        </article>)}
-      </div>
-      {!visibleConversations.length ? <Empty icon={<Inbox size={25} />} title="No conversations yet" detail="Support tickets, feedback, suggestions, and handover messages will appear here." /> : null}
-    </section> : null}
+    {view === "forms" ? <WebsiteEnquirySection
+      title="Website enquiries"
+      detail="Contact and callback forms, separated from chat and support, with their exact public site and page."
+      items={enquiryForms}
+      error={websiteFormsError}
+      emptyTitle="No website enquiries found"
+      emptyDetail="New contact and callback forms will appear here as soon as they are saved."
+      openId={openForm}
+      onToggle={id => setOpenForm(current => current === id ? null : id)}
+      onLinkLead={linkFormToLead}
+      onStatus={updateWebsiteStatus}
+      leadBusyId={leadBusyId}
+      statusBusyId={statusBusyId}
+      leadError={leadError}
+      statusError={statusError}
+    /> : null}
+
+    {view === "chatbot" ? <WebsiteEnquirySection
+      title="Chatbot messages"
+      detail="Every chat message shows the site and page it came from, with automatic topic and urgency triage."
+      items={chatbotMessages}
+      error={websiteFormsError}
+      emptyTitle="No chatbot messages"
+      emptyDetail="Messages sent through connected website chatbots will appear here."
+      openId={openForm}
+      onToggle={id => setOpenForm(current => current === id ? null : id)}
+      onLinkLead={linkFormToLead}
+      onStatus={updateWebsiteStatus}
+      leadBusyId={leadBusyId}
+      statusBusyId={statusBusyId}
+      leadError={leadError}
+      statusError={statusError}
+    /> : null}
+
+    {view === "support" ? <div className="grid gap-9">
+      <WebsiteEnquirySection
+        title="Website support requests"
+        detail="Unauthenticated support requests from public brand sites, including their originating page and automatic triage."
+        items={websiteSupport}
+        error={websiteFormsError}
+        emptyTitle="No website support requests"
+        emptyDetail="Support forms from connected sites will appear here."
+        openId={openForm}
+        onToggle={id => setOpenForm(current => current === id ? null : id)}
+        onLinkLead={linkFormToLead}
+        onStatus={updateWebsiteStatus}
+        leadBusyId={leadBusyId}
+        statusBusyId={statusBusyId}
+        leadError={leadError}
+        statusError={statusError}
+      />
+      <ConversationSection
+        title="Client support tickets"
+        detail="Authenticated client tickets stay attached to the client and the project or website they selected."
+        items={clientSupport}
+        openId={openThread}
+        replyDrafts={replyDrafts}
+        busy={busy}
+        onToggle={id => setOpenThread(current => current === id ? null : id)}
+        onReplyChange={(id, value) => setReplyDrafts(current => ({ ...current, [id]: value }))}
+        onReply={replyToConversation}
+        onStatus={updateConversationStatus}
+      />
+    </div> : null}
+
+    {view === "conversations" ? <ConversationSection
+      title="Client messages"
+      detail="Project feedback and suggestions remain attached to the client and the work they refer to."
+      items={clientMessages}
+      openId={openThread}
+      replyDrafts={replyDrafts}
+      busy={busy}
+      onToggle={id => setOpenThread(current => current === id ? null : id)}
+      onReplyChange={(id, value) => setReplyDrafts(current => ({ ...current, [id]: value }))}
+      onReply={replyToConversation}
+      onStatus={updateConversationStatus}
+    /> : null}
 
     {view === "updates" ? <section className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="divide-y divide-black/[0.08]">{visibleUpdates.map(item => <div key={item.id} className="py-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex text-xs font-medium text-brand">Open client</Link> : null}</div>)}</div></div>
@@ -135,11 +273,159 @@ export function MasterInbox({ alerts, conversations, updates }: { alerts: Operat
         <Channel icon={<MessageCircle size={19} />} name="WhatsApp" detail="Connect the WhatsApp Business API to receive and reply here." />
         <Channel icon={<Mail size={19} />} name="Shared email" detail="Connect an AquaOasis-Web mailbox to receive and reply to email threads here." />
         <Channel icon={<MessageCircle size={19} />} name="Social messages" detail="Connect Meta, Instagram, LinkedIn, or another provider through their APIs." />
-        <Channel icon={<Radio size={19} />} name="Website forms" detail="New AquaOasis-Web contact forms enter the lead pipeline and alert this inbox." connected />
+        <Channel icon={<Radio size={19} />} name="Website forms" detail="Forms are attributed to AquaCRM, AquaOasis-Web, Milesymedia, Zimante Group, or Edward Hallam." connected />
+        <Channel icon={<MessageCircle size={19} />} name="Website chatbot" detail="AquaOasis-Web chatbot messages are captured with the exact source page." connected />
         <Channel icon={<Bell size={19} />} name="Production monitoring" detail="Client telemetry errors, deployments, and health signals feed operational alerts." connected />
       </div>
     </section> : null}
   </div>;
+}
+
+function WebsiteEnquirySection({
+  title,
+  detail,
+  items,
+  error,
+  emptyTitle,
+  emptyDetail,
+  openId,
+  onToggle,
+  onLinkLead,
+  onStatus,
+  leadBusyId,
+  statusBusyId,
+  leadError,
+  statusError,
+}: {
+  title: string;
+  detail: string;
+  items: WebsiteEnquiry[];
+  error: string | null;
+  emptyTitle: string;
+  emptyDetail: string;
+  openId: string | null;
+  onToggle: (id: string) => void;
+  onLinkLead: (item: WebsiteEnquiry) => Promise<void>;
+  onStatus: (item: WebsiteEnquiry, status: WebsiteEnquiry["status"]) => Promise<void>;
+  leadBusyId: string | null;
+  statusBusyId: string | null;
+  leadError: Record<string, string>;
+  statusError: Record<string, string>;
+}) {
+  return <section>
+    <SectionHeader title={title} detail={detail} />
+    {error ? <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">The message history could not be loaded. {error}</div> : null}
+    <div className="divide-y divide-black/[0.08]">
+      {items.map(item => {
+        const icon = item.channel === "chatbot" ? <MessageCircle size={18} /> : item.channel === "support" ? <LifeBuoy size={18} /> : <FileText size={18} />;
+        return <article key={item.id} className="py-4">
+          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+            <span className="grid size-10 place-items-center rounded-md bg-brand/10 text-brand">{icon}</span>
+            <span className="min-w-0">
+              <span className="flex flex-wrap items-center gap-2">
+                <strong className="text-sm text-black/80">{item.name}</strong>
+                <Pill tone="blue">{item.siteName}</Pill>
+                <Pill>{item.topic}</Pill>
+                <Pill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : "neutral"}>{item.priority}</Pill>
+                <Pill tone={item.status === "resolved" ? "green" : item.status === "reviewed" ? "blue" : "amber"}>{item.status}</Pill>
+              </span>
+              <span className="mt-1 block truncate text-xs text-black/50">{item.message || "No written message"} · {sourceLocation(item)} · {formatDate(item.submittedAt)}</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => onToggle(item.id)} className="rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openId === item.id ? "Close" : "Inspect"}</button>
+              {!item.leadId && (item.email || item.phone) ? <button type="button" onClick={() => void onLinkLead(item)} disabled={leadBusyId === item.id} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50"><UserPlus size={14} />{leadBusyId === item.id ? "Linking..." : "Create lead"}</button> : null}
+              {item.email ? <a href={`mailto:${item.email}`} aria-label={`Email ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Mail size={15} /></a> : null}
+              {item.phone ? <a href={`tel:${item.phone}`} aria-label={`Call ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Phone size={15} /></a> : null}
+            </div>
+          </div>
+          {openId === item.id ? <div className="ml-0 mt-3 grid gap-4 rounded-md border border-black/[0.07] bg-black/[0.025] p-4 sm:ml-[52px]">
+            {leadError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{leadError[item.id]}</p> : null}
+            {statusError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{statusError[item.id]}</p> : null}
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px]">
+              <p className="whitespace-pre-wrap text-sm leading-6 text-black/70">{item.message || "No written message was included."}</p>
+              <div className={`rounded-md border px-3 py-3 text-xs ${triageStyle(item.priority)}`}>
+                <p className="font-semibold">Automatic triage · {item.topic}</p>
+                <p className="mt-1 leading-5 opacity-80">{item.suggestedAction}</p>
+              </div>
+            </div>
+            <dl className="grid gap-x-6 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              <Detail label="Site" value={item.siteName} />
+              <Detail label="Page" value={sourceLocation(item)} />
+              <Detail label="Channel" value={item.channel} />
+              <Detail label="Contact" value={[item.email, item.phone].filter(Boolean).join(" · ") || "Not supplied"} />
+              <Detail label="Preferred reply" value={item.contactMethod?.replaceAll("-", " ") || "Not supplied"} />
+              <Detail label="Campaign" value={item.campaign || "Direct / not supplied"} />
+              <Detail label="Services" value={item.services.join(", ") || "Not specified"} />
+              <Detail label="Email notification" value={item.notification.replaceAll("-", " ")} />
+              <Detail label="Sales record" value={item.leadId ? `Linked · ${item.leadId}` : "Not linked yet"} />
+              <Detail label="Submission ID" value={item.id} />
+              {item.sourceUrl ? <div><dt className="font-medium text-black/40">Source page</dt><dd className="mt-1"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand">Open page <ExternalLink size={12} /></a></dd></div> : null}
+            </dl>
+            <div className="flex flex-wrap gap-2 border-t border-black/[0.07] pt-3">
+              {item.status === "open" ? <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "reviewed")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Mark reviewed</button> : null}
+              {item.status !== "resolved" ? <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "resolved")} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Resolve</button> : <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "open")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Reopen</button>}
+              <Link href="/portal/agency/pipelines/leads" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open sales <ExternalLink size={13} /></Link>
+            </div>
+          </div> : null}
+        </article>;
+      })}
+    </div>
+    {!items.length && !error ? <Empty icon={<Inbox size={25} />} title={emptyTitle} detail={emptyDetail} /> : null}
+  </section>;
+}
+
+function ConversationSection({ title, detail, items, openId, replyDrafts, busy, onToggle, onReplyChange, onReply, onStatus }: {
+  title: string;
+  detail: string;
+  items: Conversation[];
+  openId: string | null;
+  replyDrafts: Record<string, string>;
+  busy: boolean;
+  onToggle: (id: string) => void;
+  onReplyChange: (id: string, value: string) => void;
+  onReply: (item: Conversation) => Promise<void>;
+  onStatus: (item: Conversation, status: "open" | "reviewed" | "closed") => Promise<void>;
+}) {
+  return <section>
+    <SectionHeader title={title} detail={detail} />
+    <div className="divide-y divide-black/[0.08]">
+      {items.map(item => <article key={item.id} className="py-4">
+        <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+          <span className="grid size-10 place-items-center rounded-md bg-black/[0.04] text-black/45"><MessageCircle size={18} /></span>
+          <span className="min-w-0">
+            <span className="flex flex-wrap items-center gap-2">
+              <strong className="text-sm text-black/80">{item.clientName}</strong>
+              <Pill tone="blue">{item.siteName}</Pill>
+              <Pill>{requestLabel(item.type)}</Pill>
+              <Pill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : "neutral"}>{item.priority}</Pill>
+              <Pill tone={item.status === "closed" ? "green" : item.status === "reviewed" ? "blue" : "amber"}>{item.status}</Pill>
+            </span>
+            <span className="mt-1 block truncate text-xs text-black/50">{item.message} · {item.replyCount} replies · {formatDate(item.submittedAt)}</span>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => onToggle(item.id)} className="rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openId === item.id ? "Close" : "Reply"}</button>
+            {item.siteUrl ? <a href={item.siteUrl} target="_blank" rel="noreferrer" aria-label={`Open ${item.siteName}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><ExternalLink size={15} /></a> : null}
+            <Link href={`/portal/clients/${item.clientId}?tab=overview`} aria-label={`Open ${item.clientName}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><Users size={15} /></Link>
+          </div>
+        </div>
+        {openId === item.id ? <div className="ml-0 mt-3 grid gap-3 rounded-md bg-black/[0.025] p-3 sm:ml-[52px]">
+          <p className="whitespace-pre-wrap text-sm leading-6 text-black/65">{item.message}</p>
+          <div className={`rounded-md border px-3 py-3 text-xs ${triageStyle(item.priority)}`}>
+            <p className="font-semibold">Automatic triage · {item.topic}</p>
+            <p className="mt-1 leading-5 opacity-80">{item.suggestedAction}</p>
+            <p className="mt-2 font-medium">Attached to {item.siteName} · {item.siteKind.replaceAll("-", " ")}</p>
+          </div>
+          <textarea value={replyDrafts[item.id] ?? ""} onChange={event => onReplyChange(item.id, event.target.value)} rows={3} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm" placeholder={`Reply to ${item.clientName}`} />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void onReply(item)} disabled={busy || !replyDrafts[item.id]?.trim()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />Send reply</button>
+            {item.status === "open" ? <button type="button" onClick={() => void onStatus(item, "reviewed")} disabled={busy} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40">Mark reviewed</button> : null}
+            {item.status !== "closed" ? <button type="button" onClick={() => void onStatus(item, "closed")} disabled={busy} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40">Close ticket</button> : <button type="button" onClick={() => void onStatus(item, "open")} disabled={busy} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40">Reopen</button>}
+          </div>
+        </div> : null}
+      </article>)}
+    </div>
+    {!items.length ? <Empty icon={<MessageCircle size={25} />} title="No messages here" detail="New messages will appear with their client, project, site, urgency, and next action." /> : null}
+  </section>;
 }
 
 function Tab({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count?: number }) {
@@ -156,8 +442,11 @@ function Channel({ icon, name, detail, connected = false }: { icon: React.ReactN
 }
 
 function SectionHeader({ title, detail }: { title: string; detail: string }) { return <div className="border-b border-black/10 pb-3"><h2 className="text-lg font-semibold text-black/82">{title}</h2><p className="mt-1 text-sm text-black/45">{detail}</p></div>; }
-function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "amber" | "green" }) { const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.05] text-black/50"; return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${style}`}>{children}</span>; }
+function Detail({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><dt className="font-medium text-black/40">{label}</dt><dd className="mt-1 break-words capitalize text-black/65">{value}</dd></div>; }
+function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "amber" | "green" | "red" | "blue" }) { const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : tone === "blue" ? "bg-blue-50 text-blue-700" : "bg-black/[0.05] text-black/50"; return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${style}`}>{children}</span>; }
 function Empty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <div className="py-16 text-center text-black/30">{<span className="inline-grid">{icon}</span>}<h3 className="mt-3 text-sm font-semibold text-black/70">{title}</h3><p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-black/45">{detail}</p></div>; }
 function requestLabel(type: string) { return ({ "support-ticket": "Support", "design-feedback": "Design feedback", suggestion: "Suggestion", cancel: "Cancellation", "move-provider": "Handover" } as Record<string, string>)[type] ?? "Message"; }
+function triageStyle(priority: "urgent" | "high" | "normal") { return priority === "urgent" ? "border-red-200 bg-red-50 text-red-800" : priority === "high" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"; }
 function formatDate(value: number) { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
+function sourceLocation(item: WebsiteEnquiry) { return `${item.siteHost ?? item.siteName}${item.pagePath === "/" ? "" : item.pagePath}`; }
 function filterRows<T>(rows: T[], query: string, text: (row: T) => string): T[] { const q = query.trim().toLowerCase(); return q ? rows.filter(row => text(row).toLowerCase().includes(q)) : rows; }

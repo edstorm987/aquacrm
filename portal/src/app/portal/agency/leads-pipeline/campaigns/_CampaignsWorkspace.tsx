@@ -8,6 +8,7 @@ import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps
 interface CampaignRow {
   id: string;
   name: string;
+  companyIds?: string[];
   subject: string;
   bodyHtml: string;
   bodyText?: string;
@@ -28,6 +29,7 @@ interface CampaignRow {
   sentAt?: number;
   createdAt: number;
   audienceFilter: {
+    companyIds?: string[];
     tags?: string[];
     sourcedFrom?: string[];
     notContactedSinceMs?: number;
@@ -41,11 +43,21 @@ interface CampaignsWorkspaceProps {
   availableSources: string[];
   pipelineColumns: string[];
   emailSenderReady: boolean;
+  companies?: CampaignCompanyOption[];
+  defaultCompanyIds?: string[];
   embedded?: boolean;
+}
+
+interface CampaignCompanyOption {
+  id: string;
+  name: string;
+  slug: string;
+  colour: string;
 }
 
 const EMPTY_FORM = {
   name: "",
+  companyIds: [] as string[],
   channel: "email" as CampaignChannel,
   sourceKey: "",
   subject: "",
@@ -69,9 +81,9 @@ const CHANNEL_LABELS: Record<CampaignChannel, string> = {
   referral: "Referral", other: "Other",
 };
 
-export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady, embedded = false }: CampaignsWorkspaceProps) {
+export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady, companies = [], defaultCompanyIds = [], embedded = false }: CampaignsWorkspaceProps) {
   const router = useRouter();
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({ ...EMPTY_FORM, companyIds: [...defaultCompanyIds] });
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -83,10 +95,11 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
   const totalSpend = campaigns.reduce((sum, c) => sum + (c.spendCents ?? 0), 0);
 
   const audienceFilter = useMemo(() => ({
+    companyIds: form.companyIds,
     tags: splitList(form.tags),
     sourcedFrom: splitList(form.sourcedFrom),
     pipelineColumn: form.pipelineColumn || undefined,
-  }), [form.tags, form.sourcedFrom, form.pipelineColumn]);
+  }), [form.companyIds, form.tags, form.sourcedFrom, form.pipelineColumn]);
 
   async function previewAudience() {
     setBusy("preview");
@@ -120,6 +133,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: form.name,
+          companyIds: form.companyIds,
           channel: form.channel,
           sourceKey: form.sourceKey,
           subject: form.subject,
@@ -138,7 +152,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
       const data = await res.json() as { ok: boolean; error?: string; campaign?: CampaignRow };
       if (!data.ok) throw new Error(data.error ?? "Could not create campaign.");
       setNotice(`Campaign "${data.campaign?.name ?? form.name}" saved as a draft.`);
-      setForm(EMPTY_FORM);
+      setForm({ ...EMPTY_FORM, companyIds: [...defaultCompanyIds] });
       setAudienceCount(null);
       router.refresh();
     } catch (err) {
@@ -175,6 +189,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
     setError(null);
     try {
       const audienceFilter = {
+        companyIds: draft.companyIds,
         tags: splitList(draft.tags),
         sourcedFrom: splitList(draft.sourcedFrom),
         pipelineColumn: draft.pipelineColumn || undefined,
@@ -184,6 +199,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: draft.name,
+          companyIds: draft.companyIds,
           channel: draft.channel,
           sourceKey: draft.sourceKey,
           subject: draft.subject,
@@ -256,6 +272,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
       <form onSubmit={createCampaign} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="grid gap-3">
+            <CampaignBrandSelector companyIds={form.companyIds} companies={companies} onChange={companyIds => setForm(current => ({ ...current, companyIds }))} />
             <Field label="Campaign name" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="July website audit follow-up" required />
             <div className="grid gap-3 sm:grid-cols-2">
               <SelectField label="Channel" value={form.channel} onChange={v => setForm(f => ({ ...f, channel: v as CampaignChannel }))} options={Object.entries(CHANNEL_LABELS)} />
@@ -332,7 +349,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
             <article key={campaign.id} className="rounded-lg border border-black/10 bg-white p-3 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold text-black/90">{campaign.name}</h3>
+                  <div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold text-black/90">{campaign.name}</h3><CampaignBrandBadges companyIds={campaign.companyIds} companies={companies} /></div>
                   <p className="mt-1 truncate text-xs text-black/50">{CHANNEL_LABELS[campaign.channel ?? "email"]}{campaign.sourceKey ? ` · ${campaign.sourceKey}` : ""}{campaign.subject ? ` · ${campaign.subject}` : ""}</p>
                 </div>
                 <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium capitalize text-black/55">{campaign.status}</span>
@@ -351,6 +368,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                 <CampaignEditor
                   campaign={campaign}
                   pipelineColumns={pipelineColumns}
+                  companies={companies}
                   busy={busy === `update:${campaign.id}`}
                   onSave={draft => updateCampaign(campaign.id, draft)}
                 />
@@ -377,6 +395,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
 
 interface CampaignDraft {
   name: string;
+  companyIds: string[];
   channel: CampaignChannel;
   sourceKey: string;
   subject: string;
@@ -397,16 +416,19 @@ interface CampaignDraft {
 function CampaignEditor({
   campaign,
   pipelineColumns,
+  companies,
   busy,
   onSave,
 }: {
   campaign: CampaignRow;
   pipelineColumns: string[];
+  companies: CampaignCompanyOption[];
   busy: boolean;
   onSave: (draft: CampaignDraft) => void;
 }) {
   const [draft, setDraft] = useState<CampaignDraft>({
     name: campaign.name,
+    companyIds: campaign.companyIds ?? [],
     channel: campaign.channel ?? "email",
     sourceKey: campaign.sourceKey ?? "",
     subject: campaign.subject,
@@ -428,6 +450,7 @@ function CampaignEditor({
     <details className="mt-3 rounded-lg border border-black/10 bg-black/[0.02] p-3">
       <summary className="cursor-pointer text-xs font-medium text-black/65">Edit draft</summary>
       <div className="mt-3 grid gap-3">
+        <CampaignBrandSelector companyIds={draft.companyIds} companies={companies} onChange={companyIds => setDraft(current => ({ ...current, companyIds }))} />
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Campaign name" value={draft.name} onChange={value => setDraft(d => ({ ...d, name: value }))} required />
           <SelectField label="Channel" value={draft.channel} onChange={value => setDraft(d => ({ ...d, channel: value as CampaignChannel }))} options={Object.entries(CHANNEL_LABELS)} />
@@ -476,6 +499,70 @@ function CampaignEditor({
         </button>
       </div>
     </details>
+  );
+}
+
+function CampaignBrandBadges({ companyIds, companies }: { companyIds?: string[]; companies: CampaignCompanyOption[] }) {
+  if (!companyIds?.length) {
+    return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Group / shared</span>;
+  }
+
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      {companyIds.map(companyId => {
+        const company = companies.find(option => option.id === companyId);
+        return (
+          <span key={companyId} className="inline-flex items-center gap-1 rounded-full bg-black/[0.045] px-2 py-0.5 text-[10px] font-semibold text-black/60">
+            <span className="size-1.5 rounded-full" style={{ backgroundColor: company?.colour ?? "#737373" }} aria-hidden />
+            {company?.name ?? "Assigned brand"}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function CampaignBrandSelector({
+  companyIds,
+  companies,
+  onChange,
+}: {
+  companyIds: string[];
+  companies: CampaignCompanyOption[];
+  onChange: (companyIds: string[]) => void;
+}) {
+  if (companies.length === 0) return null;
+
+  return (
+    <fieldset className="rounded-lg border border-black/10 bg-black/[0.018] p-3">
+      <legend className="px-1 text-xs font-semibold text-black/70">Brand scope</legend>
+      <p className="text-xs leading-5 text-black/45">Choose every brand this campaign supports. Audience previews and sends only include leads linked to those brands.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          aria-pressed={companyIds.length === 0}
+          onClick={() => onChange([])}
+          className={`min-h-9 rounded-md border px-3 text-xs font-semibold ${companyIds.length === 0 ? "border-black bg-black text-white" : "border-black/10 bg-white text-black/55 hover:border-black/25"}`}
+        >
+          Group / shared
+        </button>
+        {companies.map(company => {
+          const selected = companyIds.includes(company.id);
+          return (
+            <button
+              key={company.id}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(selected ? companyIds.filter(id => id !== company.id) : [...companyIds, company.id])}
+              className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold ${selected ? "border-black bg-black text-white" : "border-black/10 bg-white text-black/55 hover:border-black/25"}`}
+            >
+              <span className="size-2 rounded-full ring-1 ring-white/30" style={{ backgroundColor: company.colour }} aria-hidden />
+              {company.name}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 

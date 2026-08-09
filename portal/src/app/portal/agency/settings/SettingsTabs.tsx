@@ -7,15 +7,23 @@
 // real editing.
 
 import Link from "next/link";
-import { ArrowUpRight, Bell, Boxes, CircleUserRound, Eye, PanelsTopLeft, PlugZap, Save, ScrollText, ShieldCheck, SlidersHorizontal, UsersRound } from "lucide-react";
+import { ArrowUpRight, Bell, Boxes, Check, CircleUserRound, Eye, PanelsTopLeft, PlugZap, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import type { ProductionReadiness, ReadinessGroup, ReadinessStatus } from "@/lib/server/productionReadiness";
+import type { ProductionReadiness, ReadinessStatus } from "@/lib/server/productionReadiness";
 import type { AgencyWorkspaceSettings, ClientStage } from "@/server/types";
 import { TeamUsersPanel } from "./TeamUsersPanel";
 import { PortalEditorPanel } from "./PortalEditorPanel";
 import { ShowcaseModePanel } from "./ShowcaseModePanel";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { ExternalAiConnectionPanel } from "./ExternalAiConnectionPanel";
+import { IntegrationConnectionsPanel } from "./IntegrationConnectionsPanel";
+import {
+  APP_VERSION,
+  PRODUCT_RELEASES,
+  RELEASE_SEEN_EVENT,
+  RELEASE_STORAGE_KEY,
+  formatReleaseDate,
+} from "@/lib/releases";
 
 interface SettingsContext {
   user: { name?: string; email: string; role: string; avatarUrl?: string };
@@ -41,7 +49,7 @@ interface SettingsContext {
   }>;
 }
 
-type TabId = "account" | "team" | "workspace" | "showcase" | "portal-editor" | "defaults" | "notifications" | "integrations" | "logs" | "launch";
+type TabId = "account" | "team" | "workspace" | "showcase" | "portal-editor" | "defaults" | "notifications" | "integrations" | "updates" | "logs" | "launch";
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: "account", label: "Account", icon: <CircleUserRound size={16} /> },
@@ -52,6 +60,7 @@ const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: "defaults", label: "Defaults", icon: <SlidersHorizontal size={16} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
   { id: "integrations", label: "Integrations", icon: <PlugZap size={16} /> },
+  { id: "updates", label: "What’s new", icon: <Sparkles size={16} /> },
   { id: "logs", label: "Activity log", icon: <ScrollText size={16} /> },
   { id: "launch", label: "Launch", icon: <ShieldCheck size={16} /> },
 ];
@@ -68,6 +77,12 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
     window.addEventListener("hashchange", syncHash);
     return () => window.removeEventListener("hashchange", syncHash);
   }, []);
+
+  useEffect(() => {
+    if (active !== "updates") return;
+    window.localStorage.setItem(RELEASE_STORAGE_KEY, APP_VERSION);
+    window.dispatchEvent(new Event(RELEASE_SEEN_EVENT));
+  }, [active]);
 
   function selectTab(id: TabId) {
     setActive(id);
@@ -114,7 +129,8 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
         {active === "portal-editor" && <Section eyebrow="Portal editor"><PortalEditorPanel canManage={ctx.canManageSettings} /></Section>}
         {active === "defaults"    && <DefaultsPane ctx={ctx} />}
         {active === "notifications" && <NotificationsPane ctx={ctx} />}
-        {active === "integrations" && <IntegrationsPane readiness={ctx.readiness} />}
+        {active === "integrations" && <IntegrationsPane readiness={ctx.readiness} clients={ctx.clients} canManage={ctx.canManageSettings} />}
+        {active === "updates"     && <UpdatesPane />}
         {active === "logs"        && <Section eyebrow="Activity log"><ActivityLogPanel clients={ctx.clients} /></Section>}
         {active === "launch"      && <LaunchPane readiness={ctx.readiness} />}
       </div>
@@ -191,6 +207,75 @@ function GeneralPane({ ctx }: { ctx: SettingsContext }) {
           <PrimaryLink href="/portal/agency/settings#notifications">Notification preferences</PrimaryLink>
           {ctx.agency && <PrimaryLink href="/portal/agency/phases">Phases</PrimaryLink>}
           {ctx.agency && <PrimaryLink href="/portal/agency">Agency dashboard</PrimaryLink>}
+        </div>
+      </Section>
+      <Section eyebrow="Software">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-semibold text-black/85">AquaCRM {APP_VERSION}</h3>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700"><Check size={11} />Current</span>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-black/45">You are running the latest connected operations release.</p>
+          </div>
+          <PrimaryLink href="/portal/agency/settings#updates">Explore what&apos;s new</PrimaryLink>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+function UpdatesPane() {
+  return (
+    <>
+      <section className="overflow-hidden rounded-xl border border-black/10 bg-[#101513] text-white shadow-sm">
+        <div className="grid gap-6 px-5 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-7 sm:py-7">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
+              <Sparkles size={14} aria-hidden />
+              What&apos;s new in AquaCRM
+            </div>
+            <h2 className="mt-3 text-2xl font-semibold sm:text-3xl">Connected operations</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">One place to understand the business, see what needs attention, and move the work forward.</p>
+          </div>
+          <div className="sm:text-right">
+            <div className="text-2xl font-semibold">v{APP_VERSION}</div>
+            <div className="mt-1 text-xs text-white/45">Current release</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-white/[0.035] px-5 py-3 text-xs text-white/55 sm:px-7">
+          <span>Released {formatReleaseDate(PRODUCT_RELEASES[0].releasedAt)}</span>
+          <span className="inline-flex items-center gap-1.5 text-emerald-300"><Check size={13} />You are up to date</span>
+        </div>
+      </section>
+
+      <Section eyebrow="Release history">
+        <div className="divide-y divide-black/10">
+          {PRODUCT_RELEASES.map((release, index) => (
+            <article key={release.version} className="py-6 first:pt-0 last:pb-0">
+              <div className="grid gap-4 lg:grid-cols-[10rem_minmax(0,1fr)]">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-black/85">Version {release.version}</span>
+                    {index === 0 ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-semibold uppercase text-emerald-700">Latest</span> : null}
+                  </div>
+                  <time dateTime={release.releasedAt} className="mt-1 block text-xs text-black/40">{formatReleaseDate(release.releasedAt)}</time>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-black/85">{release.title}</h3>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-black/55">{release.summary}</p>
+                  <div className="mt-4 divide-y divide-black/[0.07] border-y border-black/[0.07]">
+                    {release.highlights.map(highlight => (
+                      <div key={highlight.title} className="grid gap-1 py-3 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-4">
+                        <strong className="text-xs font-semibold text-black/70">{highlight.title}</strong>
+                        <p className="text-xs leading-5 text-black/45">{highlight.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       </Section>
     </>
@@ -298,7 +383,7 @@ function WorkspacePane({ ctx }: { ctx: SettingsContext }) {
       <Section eyebrow="Manage the system">
         <div className="divide-y divide-black/10">
           <SettingsDestination title="Clients and journey" detail="Contacts, lifecycle stages, pipelines, client portals, and delivery progress." links={[["Clients & contacts", "/portal/clients"], ["Journey", "/portal/agency/pipelines/leads"], ["Stages", "/portal/agency/phases"]]} />
-          <SettingsDestination title="Products and fulfilment" detail="Products, packages, contracts, billing defaults, welcome packs, and delivery knowledge." links={[["Products", "/portal/agency/products"], ["Performance", "/portal/agency/performance"], ["Development", "/portal/agency/development"]]} />
+          <SettingsDestination title="Products and fulfilment" detail="Products, packages, contracts, billing defaults, welcome packs, and delivery knowledge." links={[["Products", "/portal/agency/products"], ["Development & performance", "/portal/agency/development/performance"]]} />
           <SettingsDestination title="Work and knowledge" detail="Team actions, recurring work, reminders, and SOPs." links={[["Actions", "/portal/agency/actions"], ["SOP library", "/portal/agency/sop-library"]]} />
           <SettingsDestination title="Money and growth" detail="Invoices, income, expenses, campaigns, attribution, and client-care activity." links={[["Finance", "/portal/agency/agency-finance"], ["Marketing", "/portal/agency/marketing"], ["Client care", "/portal/agency/you-deserve-it"]]} />
         </div>
@@ -396,86 +481,59 @@ function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
   );
 }
 
-function IntegrationsPane({ readiness }: { readiness: ProductionReadiness }) {
-  const groups: Array<{ id: ReadinessGroup; label: string; detail: string }> = [
-    { id: "core", label: "App foundation", detail: "Data, security, private files and encrypted credentials." },
-    { id: "communication", label: "Access and communication", detail: "Customer email and optional Google sign-in." },
-    { id: "money", label: "Payments", detail: "Card payments, subscriptions and payment reconciliation." },
-    { id: "development", label: "Development and reliability", detail: "Repositories, deployments, domains and incident monitoring." },
-    { id: "intelligence", label: "AI access", detail: "The built-in assistant and model-independent external access." },
-  ];
-
+function IntegrationsPane({ readiness, clients, canManage }: {
+  readiness: ProductionReadiness;
+  clients: Array<{ id: string; name: string }>;
+  canManage: boolean;
+}) {
+  const foundationIds = new Set<ReadinessItemId>(["database", "security", "vault", "uploads", "google", "monitoring"]);
+  const foundation = readiness.items.filter(item => foundationIds.has(item.id));
   return (
     <>
       <Section eyebrow="Connections">
-        <div className="flex flex-col gap-3 border-b border-black/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-black/90">Everything the app can connect to</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-black/55">
-              This page checks configuration without exposing any private value to the browser.
-            </p>
-          </div>
-          <div className="shrink-0 text-sm font-semibold text-black/70">
-            {readiness.items.filter(item => item.status === "ready").length} of {readiness.items.length} connected
-          </div>
-        </div>
-
-        <div className="divide-y divide-black/10">
-          {groups.map(group => {
-            const items = readiness.items.filter(item => item.group === group.id);
-            return (
-              <section key={group.id} className="py-5 first:pt-5 last:pb-0">
-                <div className="mb-3">
-                  <h3 className="text-sm font-semibold text-black/80">{group.label}</h3>
-                  <p className="mt-0.5 text-xs leading-5 text-black/45">{group.detail}</p>
-                </div>
-                <div className="grid gap-2">
-                  {items.map(item => (
-                    <details key={item.id} className="group rounded-lg border border-black/10 bg-white/70 open:bg-white">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
-                        <span className="flex min-w-0 items-center gap-3">
-                          <StatusDot status={item.status} />
-                          <span className="min-w-0">
-                            <span className="block text-sm font-semibold text-black/75">{item.label}</span>
-                            <span className="mt-0.5 block truncate text-xs text-black/45">{item.summary}</span>
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-xs font-medium text-black/40">{connectionStatusLabel(item.status)}</span>
-                      </summary>
-                      <div className="border-t border-black/[0.07] px-4 py-3">
-                        <p className="text-xs leading-5 text-black/55">{item.action}</p>
-                        <div className="mt-3 flex flex-wrap gap-1.5" aria-label={`${item.label} environment variables`}>
-                          {item.envKeys.map(key => <code key={key} className="rounded bg-black/[0.05] px-2 py-1 text-[11px] font-medium text-black/60">{key}</code>)}
-                        </div>
-                        <ReadinessActionLink itemId={item.id} />
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+        <IntegrationConnectionsPanel clients={clients} canManage={canManage} />
       </Section>
-      <Section eyebrow="Where keys live">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-black/10 bg-white/70 p-4">
-            <h3 className="text-sm font-semibold text-black/80">This computer</h3>
-            <p className="mt-1 text-xs leading-5 text-black/50">Add local credentials to <code className="font-semibold">.env.local</code>, then restart the local server.</p>
-          </div>
-          <div className="rounded-lg border border-black/10 bg-white/70 p-4">
-            <h3 className="text-sm font-semibold text-black/80">Live on Vercel</h3>
-            <p className="mt-1 text-xs leading-5 text-black/50">Add the same names in <InlineLink href={SERVICE_DESTINATIONS.vercelEnvironment.href} external>Vercel environment variables</InlineLink>, then redeploy.</p>
-          </div>
+      <Section eyebrow="One-time app foundation">
+        <div className="mb-4 max-w-3xl">
+          <h2 className="text-lg font-semibold text-black/85">Connections required before sign-in</h2>
+          <p className="mt-1 text-xs leading-5 text-black/50">These services start before AquaCRM knows which workspace or client is active, so they are configured once for the deployment. Everything customer-specific stays in the connection manager above.</p>
         </div>
-        <p className="mt-4 text-xs leading-5 text-black/45">Keys are never saved in workspace data, activity logs, client portals or browser storage.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {foundation.map(item => (
+            <details key={item.id} className="group rounded-lg border border-black/10 bg-white/70 open:bg-white">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3">
+                <span className="flex min-w-0 items-center gap-3">
+                  <StatusDot status={item.status} />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-black/75">{item.label}</span>
+                    <span className="mt-0.5 block truncate text-xs text-black/45">{item.summary}</span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs font-medium text-black/40">{connectionStatusLabel(item.status)}</span>
+              </summary>
+              <div className="border-t border-black/[0.07] px-4 py-3">
+                <p className="text-xs leading-5 text-black/55">{item.action}</p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {item.envKeys.map(key => <code key={key} className="rounded bg-black/[0.05] px-2 py-1 text-[11px] font-medium text-black/60">{key}</code>)}
+                </div>
+                <ReadinessActionLink itemId={item.id} />
+              </div>
+            </details>
+          ))}
+        </div>
+        <div className="mt-4 rounded-lg border border-black/10 bg-black/[0.025] p-4">
+          <h3 className="text-sm font-semibold text-black/75">Why there is still one deployment secret</h3>
+          <p className="mt-1 text-xs leading-5 text-black/50">The vault encryption key protects every provider credential stored through this page. It is the only secret that must remain outside the database; storing the key beside the encrypted values would remove the protection.</p>
+          <ReadinessActionLink itemId="vault" />
+        </div>
       </Section>
       <Section eyebrow="Integration workspaces">
         <div className="flex flex-wrap gap-2">
           <PrimaryLink href="/portal/agency/agency-finance">Payments and finance</PrimaryLink>
-          <PrimaryLink href="/portal/agency/development">GitHub, Vercel and monitoring</PrimaryLink>
+          <PrimaryLink href="/portal/agency/development">Repositories and deployments</PrimaryLink>
           <PrimaryLink href="/portal/agency/marketing">Campaigns and attribution</PrimaryLink>
           <PrimaryLink href="/portal/agency/inbox">Inbox channels</PrimaryLink>
+          <PrimaryLink href="/portal/agency/settings#launch">External AI access</PrimaryLink>
         </div>
       </Section>
     </>

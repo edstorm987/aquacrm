@@ -141,7 +141,7 @@ function ExperimentDialog({
 
   return (
     <div className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4">
-      <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="experiment-title" className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
+      <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="experiment-title" className="max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-xs font-semibold uppercase text-brand">Split test</p><h2 id="experiment-title" className="mt-1 text-xl font-semibold">{experiment ? "Edit test" : "Create a test"}</h2></div>
           <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>

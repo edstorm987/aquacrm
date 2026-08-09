@@ -149,6 +149,7 @@ export const pipelinePort: PipelinePort = {
       // LeadSnapshot shape is permissive; extra fields are preserved.
       lead: {
         email: input.email,
+        phone: input.phone,
         name: input.name,
         source: input.source,
         capturedAt: Date.now(),

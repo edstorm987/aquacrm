@@ -15,6 +15,7 @@ import type {
   AgencyWebsiteTelemetryEvent,
 } from "@/server/types";
 import { publicAquaPropertyId, publicAquaSite } from "@/lib/publicSites";
+import type { PerformanceEvent } from "@/lib/performanceAnalytics";
 
 const MAX_EVENTS = 5_000;
 const MAX_EVENTS_PER_MINUTE = 120;
@@ -230,6 +231,38 @@ export function summarizeAgencyWebsite(project: AgencyWebsiteProject): ClientTel
     averageLoadMs: loads.length ? Math.round(loads.reduce((sum, event) => sum + (event.value ?? 0), 0) / loads.length) : undefined,
     lastSeenAt: project.telemetryLastSeenAt,
   };
+}
+
+export function replaceAgencyWebsiteSearchEvents(
+  agencyId: string,
+  connectionId: string,
+  events: PerformanceEvent[],
+  actorUserId: string,
+): AgencyWebsiteProject {
+  const current = ensureAgencyWebsite(agencyId);
+  const metric = `search-console:${connectionId}`;
+  const imported: AgencyWebsiteTelemetryEvent[] = events.map((event, index) => ({
+    id: `gsc_${crypto.randomBytes(8).toString("hex")}_${index}`,
+    type: "search",
+    receivedAt: Date.now(),
+    occurredAt: event.occurredAt,
+    propertyId: event.propertyId,
+    path: event.path,
+    query: event.query,
+    impressions: event.impressions,
+    clicks: event.clicks,
+    position: event.position,
+    metric,
+  }));
+  const retained = current.telemetryEvents.filter(event => event.metric !== metric);
+  const updated: AgencyWebsiteProject = {
+    ...current,
+    telemetryEvents: [...imported, ...retained].slice(0, MAX_EVENTS),
+    updatedBy: actorUserId,
+    updatedAt: Date.now(),
+  };
+  mutate(state => { state.agencyWebsites[agencyId] = updated; });
+  return updated;
 }
 
 export function websitePageIsUpdating(project: AgencyWebsiteProject | null, route: string): AgencyWebsitePage | null {

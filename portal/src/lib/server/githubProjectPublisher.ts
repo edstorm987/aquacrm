@@ -3,6 +3,7 @@ import "server-only";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { isProvisionedClientProjectPath } from "./clientProjectProvisioner";
+import { resolveIntegrationValues } from "./integrationConnections";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -44,6 +45,10 @@ export function isGitHubPublishingConfigured(env: NodeJS.ProcessEnv = process.en
   return Boolean(env.GITHUB_TOKEN?.trim());
 }
 
+export function isGitHubPublishingConfiguredForAgency(agencyId: string, clientId?: string): boolean {
+  return Boolean(resolveIntegrationValues(agencyId, "github", { clientId }).token);
+}
+
 export function githubPublishingOwner(env: NodeJS.ProcessEnv = process.env): string | undefined {
   return env.GITHUB_OWNER?.trim() || undefined;
 }
@@ -51,7 +56,7 @@ export function githubPublishingOwner(env: NodeJS.ProcessEnv = process.env): str
 export function githubConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GitHubPublishingConfig {
   const token = env.GITHUB_TOKEN?.trim();
   if (!token) {
-    throw new Error("GitHub publishing is not connected. Add a fresh GITHUB_TOKEN to the server environment.");
+    throw new Error("GitHub publishing is not connected. Connect GitHub in Settings → Integrations.");
   }
   return { token, owner: githubPublishingOwner(env) };
 }
@@ -90,6 +95,8 @@ async function githubJson<T>(
 }
 
 export async function publishProjectToGitHub(input: {
+  agencyId?: string;
+  clientId?: string;
   localPath: string;
   projectSlug: string;
   description: string;
@@ -99,7 +106,12 @@ export async function publishProjectToGitHub(input: {
   if (!isProvisionedClientProjectPath(input.localPath) || !existsSync(input.localPath)) {
     throw new Error("Only projects provisioned inside the Milesymedia client-projects workspace can be published.");
   }
-  const config = input.config ?? githubConfigFromEnv();
+  const managed = input.agencyId
+    ? resolveIntegrationValues(input.agencyId, "github", { clientId: input.clientId })
+    : {};
+  const config = input.config ?? (managed.token
+    ? { token: managed.token, owner: managed.owner || undefined }
+    : githubConfigFromEnv());
   const fetchImpl = dependencies.fetchImpl ?? fetch;
   const runGit = dependencies.runGit ?? defaultRunGit(input.localPath);
   const user = await githubJson<GitHubUserResponse>(fetchImpl, config, "/user");

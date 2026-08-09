@@ -11,6 +11,7 @@ import { getUserById, listUsersForAgency } from "@/server/users";
 import { listPhasesForAgency } from "@/server/phases";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
+import { listManagedIntegrationProviders } from "@/lib/server/integrationConnections";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { SettingsTabs } from "./SettingsTabs";
 import type { Role } from "@/server/types";
@@ -66,6 +67,7 @@ export default async function AgencySettingsPage() {
       billingConfiguredClientCount,
       activeExternalAssistantKeyCount: listExternalAssistantApiKeys(agency.id)
         .filter(key => key.status === "active").length,
+      managedIntegrationProviders: listManagedIntegrationProviders(agency.id),
     }),
     settings: getAgencyWorkspaceSettings(agency.id),
     canManageSettings: session.role === "agency-owner" || session.role === "agency-manager",

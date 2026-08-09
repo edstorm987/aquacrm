@@ -27,6 +27,13 @@ export interface MarketingAsset {
   notes?: string;
 }
 
+export interface MarketingCompanyOption {
+  id: string;
+  name: string;
+  slug: string;
+  colour: string;
+}
+
 const CONFIG: Record<MarketingAssetKind, {
   eyebrow: string;
   title: string;
@@ -99,14 +106,15 @@ type AssetDraft = {
   reviewCount: string;
   unansweredReviews: string;
   notes: string;
+  companyIds: string[];
 };
 
 const EMPTY_DRAFT: AssetDraft = {
   name: "", platform: "", url: "", objective: "", owner: "", status: "draft",
-  budget: "", spend: "", leads: "", conversions: "", rating: "", reviewCount: "", unansweredReviews: "", notes: "",
+  budget: "", spend: "", leads: "", conversions: "", rating: "", reviewCount: "", unansweredReviews: "", notes: "", companyIds: [],
 };
 
-export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { kind: MarketingAssetKind; assets: MarketingAsset[]; activeCompanyId: string | null }) {
+export function MarketingChannelsWorkspace({ kind, assets, companies = [], defaultCompanyIds = [] }: { kind: MarketingAssetKind; assets: MarketingAsset[]; companies?: MarketingCompanyOption[]; defaultCompanyIds?: string[] }) {
   const router = useRouter();
   const config = CONFIG[kind];
   const [draft, setDraft] = useState<AssetDraft | null>(null);
@@ -134,6 +142,7 @@ export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { 
       reviewCount: String(asset.reviewCount ?? 0),
       unansweredReviews: String(asset.unansweredReviews ?? 0),
       notes: asset.notes ?? "",
+      companyIds: asset.companyIds ?? [],
     });
     setError(null);
   }
@@ -158,7 +167,7 @@ export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { 
       reviewCount: countValue(draft.reviewCount),
       unansweredReviews: countValue(draft.unansweredReviews),
       notes: draft.notes,
-      companyIds: activeCompanyId ? [activeCompanyId] : undefined,
+      companyIds: draft.companyIds,
     };
     try {
       const response = await fetch("/api/portal/agency-marketing/assets", {
@@ -220,7 +229,7 @@ export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { 
           <h2 className="mt-1 text-xl font-semibold text-black/85">{config.title}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">{config.description}</p>
         </div>
-        <button type="button" onClick={() => { setDraft({ ...EMPTY_DRAFT }); setError(null); }} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
+        <button type="button" onClick={() => { setDraft({ ...EMPTY_DRAFT, companyIds: [...defaultCompanyIds] }); setError(null); }} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
           <Plus size={16} /> {config.addLabel}
         </button>
       </div>
@@ -241,6 +250,7 @@ export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { 
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="truncate text-sm font-semibold text-black/80">{asset.name}</h3>
                 {asset.platform ? <span className="rounded-full bg-black/[0.045] px-2 py-0.5 text-[10px] font-medium text-black/55">{asset.platform}</span> : null}
+                <BrandBadges companyIds={asset.companyIds} companies={companies} />
               </div>
               <p className="mt-1 truncate text-xs text-black/45">{asset.objective || "No objective added yet."}</p>
               {asset.url ? <a href={asset.url} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 truncate text-xs font-medium text-brand hover:underline">{displayUrl(asset.url)} <ExternalLink size={11} /></a> : null}
@@ -272,12 +282,13 @@ export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { 
 
       {draft ? (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4">
-          <form onSubmit={save} role="dialog" aria-modal="true" aria-labelledby="marketing-item-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
+          <form onSubmit={save} role="dialog" aria-modal="true" aria-labelledby="marketing-item-title" className="max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-xs font-semibold uppercase text-brand">{config.title}</p><h2 id="marketing-item-title" className="mt-1 text-xl font-semibold">{draft.id ? "Edit item" : config.addLabel}</h2></div>
               <button type="button" onClick={() => setDraft(null)} aria-label="Close"><X size={18} /></button>
             </div>
             <div className="mt-5 grid gap-4">
+              <BrandAssignment companyIds={draft.companyIds} companies={companies} onChange={companyIds => setDraft(current => current ? { ...current, companyIds } : current)} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Name" required value={draft.name} onChange={value => setDraft(current => current ? { ...current, name: value } : current)} placeholder={kind === "social" ? "Brand Instagram" : kind === "website" ? "Main website" : kind === "funnel" ? "Website audit funnel" : kind === "reputation" ? "Google Business Profile" : "Local search campaign"} />
                 <Select label={config.platformLabel} value={draft.platform} onChange={value => setDraft(current => current ? { ...current, platform: value } : current)} options={config.platformOptions} />
@@ -309,6 +320,30 @@ export function MarketingChannelsWorkspace({ kind, assets, activeCompanyId }: { 
         </div>
       ) : null}
     </section>
+  );
+}
+
+function BrandBadges({ companyIds, companies }: { companyIds: string[] | undefined; companies: MarketingCompanyOption[] }) {
+  if (!companyIds?.length) return <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">Group / shared</span>;
+  return <>{companyIds.map(id => {
+    const company = companies.find(option => option.id === id);
+    return company ? <span key={id} className="inline-flex items-center gap-1 rounded-full bg-black/[0.045] px-2 py-0.5 text-[10px] font-medium text-black/55"><span className="size-1.5 rounded-full" style={{ backgroundColor: company.colour }} aria-hidden />{company.name}</span> : null;
+  })}</>;
+}
+
+function BrandAssignment({ companyIds, companies, onChange }: { companyIds: string[]; companies: MarketingCompanyOption[]; onChange: (companyIds: string[]) => void }) {
+  return (
+    <fieldset className="rounded-md border border-black/10 bg-black/[0.02] p-3">
+      <legend className="px-1 text-xs font-semibold text-black/65">Brand ownership</legend>
+      <p className="mb-3 text-xs leading-5 text-black/45">Choose every public brand this activity supports. Leave it shared for group-wide work.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => onChange([])} aria-pressed={companyIds.length === 0} className={`min-h-9 rounded-md border px-3 text-xs font-medium ${companyIds.length === 0 ? "border-black bg-black text-white" : "border-black/10 bg-white text-black/55"}`}>Group / shared</button>
+        {companies.map(company => {
+          const selected = companyIds.includes(company.id);
+          return <button key={company.id} type="button" onClick={() => onChange(selected ? companyIds.filter(id => id !== company.id) : [...companyIds, company.id])} aria-pressed={selected} className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-medium ${selected ? "border-black bg-black text-white" : "border-black/10 bg-white text-black/55"}`}><span className="size-2 rounded-full" style={{ backgroundColor: company.colour }} aria-hidden />{company.name}</button>;
+        })}
+      </div>
+    </fieldset>
   );
 }
 

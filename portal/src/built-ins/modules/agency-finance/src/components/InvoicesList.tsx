@@ -96,7 +96,7 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template }
       {adding ? (
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close invoice form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
-          <div role="dialog" aria-modal="true" aria-labelledby="new-invoice-heading" className="relative mx-auto max-h-[92vh] w-full max-w-4xl overflow-y-auto bg-white shadow-2xl sm:rounded-lg">
+          <div role="dialog" aria-modal="true" aria-labelledby="new-invoice-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
             <NewInvoiceForm apiBase={apiBase} clients={clients} busy={busy} onBusy={setBusy} onError={setError} onClose={() => setAdding(false)} />
           </div>
         </div>

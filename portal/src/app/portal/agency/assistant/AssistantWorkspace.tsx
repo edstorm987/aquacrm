@@ -2,6 +2,7 @@
 
 import {
   Brain,
+  ClipboardCheck,
   Database,
   History,
   Mic,
@@ -58,10 +59,10 @@ declare global {
 }
 
 const STARTERS = [
-  "What needs my attention today?",
+  "Explain my company health score and what is pulling it down.",
+  "What are the three most valuable actions I should take next?",
   "Give me a clear summary of every active client.",
   "What are the biggest financial or delivery blind spots?",
-  "Which leads and clients need a follow-up?",
 ];
 
 export function AssistantWorkspace({
@@ -226,7 +227,7 @@ export function AssistantWorkspace({
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-[1500px] overflow-hidden border-y border-black/10 bg-white/35">
+    <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[1500px] overflow-hidden border-y border-black/10 bg-white/35 sm:min-h-[calc(100dvh-7rem)]">
       <aside className="hidden w-64 shrink-0 border-r border-black/10 lg:flex lg:flex-col">
         <HistoryPanel
           threads={workspace.threads}
@@ -245,14 +246,17 @@ export function AssistantWorkspace({
             </span>
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold text-black/90">
-                {activeThread?.title || "AquaOasis-Web Assistant"}
+                {activeThread?.title || "Aqua Advisor"}
               </h1>
-              <p className="text-xs text-black/45">
+              <p className="truncate text-xs text-black/45">
                 {configured ? `Connected · ${model}` : "Setup required"} · Read-only business access
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <a href="/portal/agency/actions" className="hidden min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/60 hover:bg-black/[0.03] sm:inline-flex">
+              <ClipboardCheck size={15} /> Smart actions
+            </a>
             <IconButton label="Conversation history" onClick={() => setShowHistory(true)} className="lg:hidden">
               <History size={17} />
             </IconButton>
@@ -325,7 +329,7 @@ export function AssistantWorkspace({
           </div>
         )}
 
-        <footer className="border-t border-black/10 bg-white/70 px-4 py-4 sm:px-6">
+        <footer className="border-t border-black/10 bg-white/70 px-4 py-3 sm:px-6 sm:py-4">
           <form
             className="mx-auto flex w-full max-w-3xl items-end gap-2"
             onSubmit={event => {
@@ -346,11 +350,11 @@ export function AssistantWorkspace({
                 disabled={!configured || busy}
                 rows={2}
                 maxLength={6_000}
-                placeholder={configured ? "Ask about clients, cash flow, delivery, leads, or what needs attention…" : "Connect the OpenAI API to begin"}
+                placeholder={configured ? "Ask about company health, clients, cash, delivery, risks, or the best next move…" : "Connect the OpenAI API to begin"}
                 className="max-h-40 min-h-12 w-full resize-none bg-transparent text-sm leading-6 text-black/80 outline-none placeholder:text-black/35 disabled:cursor-not-allowed"
               />
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] text-black/35">Enter to send · Shift+Enter for a new line</span>
+                <span className="hidden text-[10px] text-black/35 sm:inline">Enter to send · Shift+Enter for a new line</span>
                 {voiceAvailable && (
                   <button
                     type="button"
@@ -373,8 +377,8 @@ export function AssistantWorkspace({
               <Send size={17} aria-hidden="true" />
             </button>
           </form>
-          <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-black/35">
-            Business records are read-only. Check important financial, legal, or client decisions before acting.
+          <p className="mx-auto mt-2 hidden max-w-3xl text-center text-[10px] text-black/35 sm:block">
+            Advisor answers are grounded in current records. Review important financial, legal, or client decisions before acting.
           </p>
         </footer>
       </section>
@@ -420,12 +424,12 @@ function Welcome({
 }) {
   return (
     <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center py-10">
-      <p className="text-xs font-semibold uppercase tracking-wide text-brand">Private business assistant</p>
-      <h2 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">What do you need, {userName.split(" ")[0]}?</h2>
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand">Private operating advisor</p>
+      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black/90 sm:text-3xl">What do you need, {userName.split(" ")[0]}?</h2>
       <p className="mt-3 max-w-xl text-sm leading-6 text-black/55">
-        I read the current AquaOasis-Web records each time you ask: clients, sales, delivery, finance, support, development, and recent activity.
+        I read current AquaOasis-Web records each time you ask, including Company health, clients, sales, delivery, finance, support, development, alerts, and open work.
       </p>
-      <div className="mt-6 grid divide-y divide-black/10 border-y border-black/10 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+      <div className="mt-6 grid grid-cols-2 gap-px border-y border-black/10 bg-black/10 sm:grid-cols-4">
         <CoverageItem value={coverage.clients} label="Clients" />
         <CoverageItem value={coverage.team} label="Team" />
         <CoverageItem value={coverage.pipelines} label="Journey boards" />
@@ -459,14 +463,11 @@ function SetupPanel() {
       <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">One-time setup</p>
       <h2 className="mt-2 text-2xl font-semibold text-black/90">Connect the OpenAI API</h2>
       <p className="mt-3 text-sm leading-6 text-black/58">
-        ChatGPT subscriptions cannot authenticate a separate app. Add a server-side API key to the local environment; it is never sent to the browser or stored in chat history.
+        ChatGPT subscriptions cannot authenticate a separate app. Create an OpenAI Platform API key, then save and test it in AquaCRM's secure connection manager.
       </p>
-      <div className="mt-5 rounded-md border border-black/10 bg-black/[0.025] p-4 font-mono text-sm text-black/70">
-        OPENAI_API_KEY=your_api_key
-      </div>
-      <p className="mt-3 text-xs leading-5 text-black/42">
-        Put this in <code>.env.local</code>, optionally set <code>OPENAI_ASSISTANT_MODEL</code>, then restart the local server.
-      </p>
+      <a href="/portal/agency/settings#integrations" className="mt-5 inline-flex min-h-11 w-fit items-center rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
+        Open integrations
+      </a>
     </div>
   );
 }
@@ -630,7 +631,7 @@ function IconButton({
 
 function CoverageItem({ value, label }: { value: number; label: string }) {
   return (
-    <div className="px-4 py-3">
+    <div className="bg-[#fbfaf8] px-4 py-3">
       <p className="text-xl font-semibold text-black/85">{value}</p>
       <p className="mt-0.5 text-xs text-black/42">{label}</p>
     </div>

@@ -42,8 +42,8 @@ import { assertSopsAccess, familiesForStage, SopsAccessError } from "@/lib/serve
 import { RequirePermission } from "@/lib/server/RequirePermission";
 import { OnboardingDashboardPanel, type OnboardingPhase } from "./_OnboardingDashboardPanel";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
-import { isGitHubPublishingConfigured } from "@/lib/server/githubProjectPublisher";
-import { isVercelProjectDeploymentConfigured } from "@/lib/server/vercelProjectDeployer";
+import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/githubProjectPublisher";
+import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/vercelProjectDeployer";
 import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
 import { ClientContactsPanel } from "./_ClientContactsPanel";
 import {
@@ -570,8 +570,8 @@ export default async function ClientHome({
           clientId={client.id}
           clientName={client.name}
           initialProperties={Array.isArray(meta.properties) ? meta.properties : []}
-          githubPublishingConfigured={isGitHubPublishingConfigured()}
-          vercelDeploymentConfigured={isVercelProjectDeploymentConfigured()}
+          githubPublishingConfigured={isGitHubPublishingConfiguredForAgency(session.agencyId, client.id)}
+          vercelDeploymentConfigured={isVercelProjectDeploymentConfiguredForAgency(session.agencyId, client.id)}
         />
       )}
 

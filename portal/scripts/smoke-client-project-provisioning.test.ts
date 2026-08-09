@@ -114,6 +114,23 @@ describe("client project provisioning", () => {
     assert.match(source, /"x-robots-tag": "noindex, nofollow"/);
   });
 
+  it("wires provision, GitHub publish and Vercel deploy actions to tenant-scoped routes", () => {
+    const routeRoot = path.join(process.cwd(), "src/app/api/tenants/client-projects");
+    const provision = readFileSync(path.join(routeRoot, "provision/route.ts"), "utf8");
+    const publish = readFileSync(path.join(routeRoot, "publish/route.ts"), "utf8");
+    const deploy = readFileSync(path.join(routeRoot, "deploy/route.ts"), "utf8");
+
+    for (const source of [provision, publish, deploy]) {
+      assert.match(source, /requireRoleForClient\(\[\.\.\.AGENCY_ROLES\], clientId\)/);
+      assert.match(source, /getClientForAgency\(session\.agencyId, clientId\)/);
+      assert.match(source, /flushPendingWrites\(\)/);
+      assert.doesNotMatch(source, /GITHUB_TOKEN|VERCEL_TOKEN/);
+    }
+    assert.match(provision, /provisionClientProject\(/);
+    assert.match(publish, /publishProjectToGitHub\(\{[\s\S]*agencyId: session\.agencyId,[\s\S]*clientId,/);
+    assert.match(deploy, /deployProjectPreviewToVercel\(\{[\s\S]*agencyId: session\.agencyId,[\s\S]*clientId,/);
+  });
+
   it("publishes privately without storing a GitHub token in the remote", async () => {
     const { publishProjectToGitHub } = await import("../src/lib/server/githubProjectPublisher");
     const localPath = path.join(tempRoot, "publish-client", "publish-site");

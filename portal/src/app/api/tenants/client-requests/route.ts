@@ -4,6 +4,8 @@ import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
+import type { ClientProperty } from "@/app/api/tenants/client-properties/route";
+import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/websiteEnquiries";
 
 export type ClientRequestType = "suggestion" | "design-feedback" | "support-ticket" | "cancel" | "move-provider";
 
@@ -27,6 +29,13 @@ export interface ClientRequest {
   type: ClientRequestType;
   message: string;
   link?: string;
+  propertyId?: string;
+  siteLabel?: string;
+  siteUrl?: string;
+  siteKind?: string;
+  priority?: WebsiteEnquiryPriority;
+  topic?: string;
+  suggestedAction?: string;
   status: "open" | "reviewed" | "closed";
   submittedBy: string;
   submittedAt: number;
@@ -42,6 +51,7 @@ interface AddBody {
   type: ClientRequestType;
   message: string;
   link?: string;
+  propertyId?: string;
 }
 
 function makeId(): string {
@@ -65,13 +75,26 @@ export async function POST(req: Request) {
     const client = getClientForAgency(session.agencyId, body.clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
-    const meta = (client.metadata ?? {}) as { clientRequests?: ClientRequest[] };
+    const meta = (client.metadata ?? {}) as { clientRequests?: ClientRequest[]; properties?: ClientProperty[] };
     const requests: ClientRequest[] = Array.isArray(meta.clientRequests) ? [...meta.clientRequests] : [];
+    const properties = Array.isArray(meta.properties) ? meta.properties : [];
+    const propertyId = body.propertyId?.trim();
+    const property = propertyId ? properties.find(item => item.id === propertyId) : undefined;
+    if (propertyId && !property) {
+      return NextResponse.json({ ok: false, error: "The selected project could not be found." }, { status: 400 });
+    }
+    const triage = triageWebsiteEnquiry(body.type === "support-ticket" ? "support" : "form", body.message);
+    const siteUrl = property?.liveUrl || property?.previewUrl;
     const item: ClientRequest = {
       id: makeId(),
       type: body.type,
       message: body.message.trim(),
       link: body.link?.trim() || undefined,
+      propertyId: property?.id,
+      siteLabel: property?.label,
+      siteUrl,
+      siteKind: property?.kind,
+      ...triage,
       status: "open",
       submittedBy: session.email,
       submittedAt: Date.now(),
@@ -89,7 +112,15 @@ export async function POST(req: Request) {
       category: "support",
       action: `client_request.${body.type}.opened`,
       message: `${client.name} submitted a ${body.type.replaceAll("-", " ")} request.`,
-      metadata: { requestId: item.id, requestType: item.type },
+      metadata: {
+        requestId: item.id,
+        requestType: item.type,
+        propertyId: item.propertyId,
+        siteLabel: item.siteLabel,
+        siteUrl: item.siteUrl,
+        priority: item.priority,
+        topic: item.topic,
+      },
     });
 
     return NextResponse.json({ ok: true, request: item, requests });

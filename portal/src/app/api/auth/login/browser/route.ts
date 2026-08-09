@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { POST as loginWithJson } from "../route";
-import { getAuthBrand } from "@/lib/authBrand";
 
 const localLoginOrigins = new Set([
   "http://localhost:3030",
@@ -69,7 +68,7 @@ export async function POST(req: NextRequest) {
           req.headers.get("x-real-ip") ??
           "browser-form",
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, brand }),
     },
   );
   const loginResponse = await loginWithJson(internalRequest);
@@ -93,13 +92,6 @@ export async function POST(req: NextRequest) {
     new URL(destination, req.nextUrl.origin),
     303,
   );
-  response.cookies.set("aqua_public_brand", getAuthBrand(brand).id, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
   const sessionCookie = loginResponse.headers.get("set-cookie");
   if (sessionCookie) response.headers.append("set-cookie", sessionCookie);
   return response;

@@ -83,6 +83,7 @@ describe("Agency OS navigation", () => {
       join(PORTAL, "agency", "pipelines", "[slug]", "page.tsx"),
       join(PORTAL, "agency", "activity-inbox", "page.tsx"),
       join(PORTAL, "agency", "performance", "page.tsx"),
+      join(PORTAL, "agency", "development", "performance", "page.tsx"),
       join(PORTAL, "agency", "products", "page.tsx"),
       join(PORTAL, "agency", "sops", "page.tsx"),
       join(PORTAL, "agency", "settings", "page.tsx"),
@@ -97,15 +98,15 @@ describe("Agency OS navigation", () => {
     const createRoute = read(join(API, "portal", "fulfillment", "clients", "route.ts"));
 
     assert.equal((peopleHub.match(/<NewClientButton/g) ?? []).length, 1);
-    assert.ok(modal.includes('product.portalRequirement === "required"'));
-    assert.ok(modal.includes('product.portalRequirement === "none"'));
+    assert.ok(modal.includes("What are we helping with?"));
+    assert.ok(modal.includes('helpingWith: ""'));
+    assert.ok(modal.includes("serviceBrief: helpingWith || undefined"));
+    assert.ok(modal.includes("Client-facing brand"));
     assert.ok(modal.includes("Create a client portal now"));
     assert.ok(modal.includes("More setup"));
-    assert.ok(modal.includes("PORTAL_PRODUCT_CATALOG"));
-    assert.ok(modal.includes("productIds: string[]"));
-    assert.ok(modal.includes("Choose one or more products or services."));
-    assert.ok(modal.includes("agencyProductIds: selectedProducts.map"));
-    assert.ok(modal.includes("clientProducts: selectedProducts.map"));
+    assert.ok(modal.includes("set up their portal later from the client record"));
+    assert.ok(!modal.includes("PORTAL_PRODUCT_CATALOG"));
+    assert.ok(!modal.includes("selectedProducts.map"));
     assert.ok(!modal.includes("lockInPaid"));
     assert.ok(modal.includes("starterPortal:"));
     assert.ok(createRoute.includes("const createPortal = body.createPortal === true"));
@@ -222,14 +223,19 @@ describe("Sales, pipelines, finance, inbox, and systems", () => {
     assert.ok(sopLibrary.includes("SopLibrary"));
   });
 
-  it("gives Milesymedia one marketing workspace for campaigns and owned channels", () => {
+  it("gives the internal team one cross-brand marketing workspace", () => {
     const page = read(join(PORTAL, "agency", "marketing", "page.tsx"));
     const workspace = read(join(PORTAL, "agency", "marketing", "_MarketingChannelsWorkspace.tsx"));
     const routes = read(join(BUILT_INS, "modules", "agency-marketing", "src", "api", "routes.ts"));
 
-    for (const label of ["Campaigns", "Social media", "Website", "Funnels", "Google Ads", "Lead sources"]) {
+    for (const label of ["Campaigns", "Social media", "Websites", "Funnels", "Google Ads", "Lead sources"]) {
       assert.ok(page.includes(`>${label}<`), `${label} marketing view missing`);
     }
+    assert.ok(page.includes("Internal workspace"));
+    assert.ok(page.includes("Marketing across the business"));
+    assert.ok(page.includes("Brand scope"));
+    assert.ok(page.includes("listTradingCompanies"));
+    assert.ok(workspace.includes("BrandAssignment"));
     assert.ok(workspace.includes("Add social profile"));
     assert.ok(workspace.includes("Add website property"));
     assert.ok(workspace.includes("Add funnel"));

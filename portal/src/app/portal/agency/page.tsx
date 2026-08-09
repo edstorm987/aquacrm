@@ -58,14 +58,14 @@ export default async function AgencyHome() {
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">
             {INTERNAL_WORKSPACE_NAME}
           </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-black/90 sm:text-3xl">
             Welcome back, {greet}.
           </h1>
           <p className="mt-2 text-sm leading-6 text-black/60">
             Sales, clients, project work, support, and money in one clear place.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <Link
             href="/portal/agency/pipelines/leads#new-lead"
             className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 shadow-sm hover:bg-black/[0.03]"

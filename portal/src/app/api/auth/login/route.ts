@@ -14,11 +14,13 @@ import { getAgency } from "@/server/tenants";
 import { getUserByLogin } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
+import { getAuthBrand } from "@/lib/authBrand";
 
 interface Body {
   email?: unknown;
   username?: unknown;
   password?: unknown;
+  brand?: unknown;
 }
 
 function loginEmail(value: string): string {
@@ -161,5 +163,19 @@ export async function POST(req: NextRequest) {
     redirect,
   });
   response.cookies.set(cookie.name, cookie.value, cookie.options);
+  const requestedBrand =
+    typeof body.brand === "string"
+      ? body.brand
+      : req.cookies.get("aqua_public_brand")?.value;
+  const publicBrand = portalUser.role.startsWith("agency-")
+    ? "aquacrm"
+    : getAuthBrand(requestedBrand).id;
+  response.cookies.set("aqua_public_brand", publicBrand, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
   return applyCookies(response);
 }

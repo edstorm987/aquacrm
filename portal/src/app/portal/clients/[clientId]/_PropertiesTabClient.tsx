@@ -231,7 +231,7 @@ export function PropertiesTabClient({
 
   async function publishRepository(property: ClientProperty) {
     if (!githubPublishingConfigured) {
-      setError("GitHub is not connected. Add a fresh GITHUB_TOKEN to the server environment first.");
+      setError("GitHub is not connected. Connect it in Settings → Integrations first.");
       return;
     }
     setPublishingId(property.id);
@@ -257,7 +257,7 @@ export function PropertiesTabClient({
 
   async function deployPreview(property: ClientProperty) {
     if (!vercelDeploymentConfigured) {
-      setError("Vercel is not connected. Add VERCEL_TOKEN to the server environment first.");
+      setError("Vercel is not connected. Connect it in Settings → Integrations first.");
       return;
     }
     setDeployingId(property.id);
@@ -641,7 +641,7 @@ export function PropertiesTabClient({
                             type="button"
                             disabled={!githubPublishingConfigured || publishingId === property.id}
                             onClick={() => void publishRepository(property)}
-                            title={githubPublishingConfigured ? "Create and push a private GitHub repository" : "Add GITHUB_TOKEN to connect GitHub"}
+                            title={githubPublishingConfigured ? "Create and push a private GitHub repository" : "Connect GitHub in Settings → Integrations"}
                             className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/68 hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             {publishingId === property.id
@@ -657,7 +657,7 @@ export function PropertiesTabClient({
                             type="button"
                             disabled={!vercelDeploymentConfigured || deployingId === property.id}
                             onClick={() => void deployPreview(property)}
-                            title={vercelDeploymentConfigured ? "Upload a private review preview to Vercel" : "Add VERCEL_TOKEN to connect Vercel"}
+                            title={vercelDeploymentConfigured ? "Upload a private review preview to Vercel" : "Connect Vercel in Settings → Integrations"}
                             className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {deployingId === property.id

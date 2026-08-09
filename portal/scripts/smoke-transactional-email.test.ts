@@ -1,6 +1,27 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { sendTransactionalEmail } from "../src/lib/server/transactionalEmail";
+import { createRequire } from "node:module";
+import { before, test } from "node:test";
+
+const require = createRequire(import.meta.url);
+const serverOnlyPath = require.resolve("server-only");
+require.cache[serverOnlyPath] = {
+  id: serverOnlyPath,
+  filename: serverOnlyPath,
+  loaded: true,
+  exports: {},
+  paths: [],
+  children: [],
+} as never;
+
+type TransactionalEmail = typeof import("../src/lib/server/transactionalEmail");
+
+let sendTransactionalEmail: TransactionalEmail["sendTransactionalEmail"];
+
+before(async () => {
+  process.env.PORTAL_BACKEND = "memory";
+  process.env.PORTAL_VAULT_ENCRYPTION_KEY = "transactional-email-smoke-vault-key-longer-than-thirty-two-characters";
+  ({ sendTransactionalEmail } = await import("../src/lib/server/transactionalEmail"));
+});
 
 const input = {
   to: "client@example.com",

@@ -1,4 +1,5 @@
 type ResendEmailInput = {
+  apiKey?: string;
   from: string;
   to: string | string[];
   replyTo?: string;
@@ -21,7 +22,7 @@ function failureReason(payload: unknown, status: number): string {
 }
 
 export async function sendResendEmail(input: ResendEmailInput): Promise<ResendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const apiKey = input.apiKey?.trim() || process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
     return { ok: false, reason: "RESEND_API_KEY is required.", unconfigured: true };
   }

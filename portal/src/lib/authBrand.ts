@@ -12,6 +12,13 @@ export interface AuthBrand {
 }
 
 export function getAuthBrand(value: string | undefined): AuthBrand {
+  // AquaCRM is the identity of this application. Public brand fronts pass
+  // their brand explicitly; missing or stale values must never fall through
+  // to an unrelated client brand.
+  if (!value || !["milesymedia", "aqua", "aquacrm", "zimante"].includes(value)) {
+    value = "aquacrm";
+  }
+
   if (value === "aquacrm") {
     return {
       id: "aquacrm",

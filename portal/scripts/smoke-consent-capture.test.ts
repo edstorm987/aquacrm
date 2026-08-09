@@ -41,6 +41,9 @@ test("Aqua Tag sends only consented, non-personal telemetry", async () => {
     title: "AquaCRM",
     referrer: "https://search.example/results?private=yes",
     readyState: "loading",
+    createElement: () => ({ dataset: {}, textContent: "" }),
+    head: { appendChild() {} },
+    querySelectorAll: () => [],
     addEventListener: (type: string, callback: (event: unknown) => void) => on(documentListeners, type, callback),
   };
   const localStorage = {

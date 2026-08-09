@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Archive, ArrowRight, Check, Plus, RotateCcw, X } from "lucide-react";
+import { Archive, ArrowRight, Building2, Check, ChevronRight, FolderOpen, Grid2X2, Layers3, Package, Plus, RotateCcw, X } from "lucide-react";
 import type { AgencyProduct, AgencyProductKind, AgencyProductPortalRequirement, AgencyProductPricing, SopDocument, TradingCompany } from "@/server/types";
 import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/agencyProductCategories";
 
@@ -39,12 +39,58 @@ export type Draft = {
 
 export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalHeadline: "", portalWelcomeNote: "", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [] };
 
+const AQUA_COMPANY_ID = "aqua-oasis-web";
+
+type CompanyShelf = {
+  id: string;
+  draftCompanyId: string | null;
+  name: string;
+  description: string;
+  colour: string;
+  products: AgencyProduct[];
+};
+
 export function ProductsWorkspace({ initialProducts, sops, companies, defaults = { taxRatePercent: 0, paymentTermsDays: 7 } }: { initialProducts: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; defaults?: { taxRatePercent: number; paymentTermsDays: number } }) {
   const [products, setProducts] = useState(initialProducts);
   const [showArchived, setShowArchived] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [view, setView] = useState<"browse" | "all">("browse");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const visible = useMemo(() => products.filter(product => showArchived || product.active), [products, showArchived]);
-  const categories = [...new Set(visible.map(product => product.category))];
+  const categories = useMemo(() => [...new Set(visible.map(product => product.category))].sort(), [visible]);
+  const companyShelves = useMemo<CompanyShelf[]>(() => {
+    const activeCompanies = companies.filter(company => showArchived || company.status !== "archived");
+    const primaryCompany = activeCompanies.find(company => company.slug === "aquaoasis-web" || company.name.toLowerCase() === "aquaoasis-web");
+    const sharedProducts = visible.filter(product => !(product.companyIds ?? []).length);
+    const shelves = activeCompanies.map(company => ({
+      id: company.id,
+      draftCompanyId: company.id === primaryCompany?.id ? null : company.id,
+      name: company.name,
+      description: company.description || "Products and services presented through this company.",
+      colour: company.brand.primaryColor || "#171717",
+      products: visible.filter(product => (product.companyIds ?? []).includes(company.id) || (company.id === primaryCompany?.id && !(product.companyIds ?? []).length)),
+    }));
+    if (!primaryCompany) {
+      shelves.unshift({
+        id: AQUA_COMPANY_ID,
+        draftCompanyId: null,
+        name: "AquaOasis-Web",
+        description: "Shared offers delivered directly through the main business.",
+        colour: "#0F766E",
+        products: sharedProducts,
+      });
+    }
+    return shelves;
+  }, [companies, showArchived, visible]);
+  const selectedShelf = companyShelves.find(company => company.id === selectedCompanyId) ?? null;
+  const shelfCategories = useMemo(() => {
+    if (!selectedShelf) return [];
+    return [...new Set(selectedShelf.products.map(product => product.category))].sort();
+  }, [selectedShelf]);
+  const categoryProducts = selectedShelf && selectedCategory
+    ? selectedShelf.products.filter(product => product.category === selectedCategory)
+    : [];
 
   function upsert(product: AgencyProduct) {
     setProducts(current => current.some(item => item.id === product.id) ? current.map(item => item.id === product.id ? product : item) : [...current, product]);
@@ -56,43 +102,161 @@ export function ProductsWorkspace({ initialProducts, sops, companies, defaults =
     if (response.ok && json?.product) upsert(json.product);
   }
 
+  function openNewProduct(companyId = selectedCompanyId, category = selectedCategory) {
+    const company = companyShelves.find(item => item.id === companyId);
+    setDraft({
+      ...EMPTY_PRODUCT_DRAFT,
+      includedProductIds: [],
+      sopIds: [],
+      sopCategories: [],
+      companyIds: company?.draftCompanyId ? [company.draftCompanyId] : [],
+      category: category || "Digital",
+      taxRatePercent: String(defaults.taxRatePercent),
+      paymentTermsDays: String(defaults.paymentTermsDays),
+    });
+  }
+
+  function selectCompany(companyId: string) {
+    setSelectedCompanyId(companyId);
+    setSelectedCategory(null);
+    window.requestAnimationFrame(() => document.getElementById("categories-heading")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function selectCategory(category: string) {
+    setSelectedCategory(category);
+    window.requestAnimationFrame(() => document.getElementById("category-products-heading")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Products</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Everything AquaOasis-Web offers.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Manage every service in one catalogue, then choose which public brand presents it to the customer.</p></div>
-        <button type="button" onClick={() => setDraft({ ...EMPTY_PRODUCT_DRAFT, companyIds: [], taxRatePercent: String(defaults.taxRatePercent), paymentTermsDays: String(defaults.paymentTermsDays) })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New product</button>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Products</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Your complete offer catalogue.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Every service, package, price and delivery process, organised around the company that sells it.</p></div>
+        <button type="button" onClick={() => openNewProduct()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New product</button>
       </header>
 
-      <div className="flex items-center justify-between border-y border-black/10 py-3">
-        <p className="text-sm text-black/55">{products.filter(product => product.active).length} active product{products.filter(product => product.active).length === 1 ? "" : "s"} · {categories.length} categor{categories.length === 1 ? "y" : "ies"}</p>
-        <label className="inline-flex items-center gap-2 text-xs font-medium text-black/55"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />Show archived</label>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-black/10 py-3">
+        <p className="text-sm text-black/55">{products.filter(product => product.active).length} active product{products.filter(product => product.active).length === 1 ? "" : "s"} · {categories.length} categor{categories.length === 1 ? "y" : "ies"} · {companyShelves.length} compan{companyShelves.length === 1 ? "y" : "ies"}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex rounded-md border border-black/10 bg-black/[0.025] p-1" aria-label="Catalogue view">
+            <button type="button" onClick={() => setView("browse")} className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 text-xs font-semibold ${view === "browse" ? "bg-white text-black shadow-sm" : "text-black/50"}`}><Layers3 size={14} />Browse</button>
+            <button type="button" onClick={() => setView("all")} className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 text-xs font-semibold ${view === "all" ? "bg-white text-black shadow-sm" : "text-black/50"}`}><Grid2X2 size={14} />View all</button>
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs font-medium text-black/55"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />Show archived</label>
+        </div>
       </div>
 
-      {visible.length ? (
-        <div className="divide-y divide-black/10 border-y border-black/10">
-          {visible.map(product => (
-            <article key={product.id} className={`grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-center ${product.active ? "" : "opacity-55"}`}>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><span className="size-3 rounded-sm border border-black/10" style={{ backgroundColor: product.accentColor ?? "#8E7340" }} /><h2 className="font-semibold text-black/85"><Link href={`/portal/agency/products/${product.id}`} className="hover:underline">{product.name}</Link></h2><span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-semibold text-black/50">{product.category}</span>{product.kind === "package" ? <span className="text-[10px] font-semibold uppercase text-brand">Package · {(product.includedProductIds ?? []).length} products</span> : null}<span className="text-[10px] font-medium text-black/40">Portal {portalLabel(product.portalRequirement)}</span>{product.active ? null : <span className="text-[10px] font-semibold uppercase text-black/40">Archived</span>}</div>
-                <p className="mt-1 text-sm font-medium text-black/65">{product.buyerHeadline || product.description || "No buyer-facing headline yet."}</p>
-                {product.buyerHeadline && product.description ? <p className="mt-1 text-xs text-black/45">{product.description}</p> : null}
-                {product.deliverables.length ? <p className="mt-2 truncate text-xs text-black/40">{product.deliverables.join(" · ")}</p> : null}
-                <p className={`mt-2 text-[11px] font-medium ${product.contractBody ? "text-emerald-700" : "text-amber-700"}`}>{product.contractBody ? "Contract ready" : "Contract not added"}</p>
-                <p className="mt-1 text-[11px] text-black/45">{linkedSopCount(product, sops)} linked SOP{linkedSopCount(product, sops) === 1 ? "" : "s"} · {(product.welcomePackItems ?? []).length} welcome item{(product.welcomePackItems ?? []).length === 1 ? "" : "s"} · {product.paymentTermsDays ?? 7} day payment terms</p>
-              </div>
-              <div><p className="text-[10px] font-semibold uppercase text-black/40">Pricing</p><p className="mt-1 font-semibold text-black/75">{priceLabel(product)}</p></div>
-              <div className="flex justify-end gap-1">
-                <Link href={`/portal/agency/products/${product.id}`} aria-label={`Open ${product.name}`} className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-black/60 hover:bg-black/[0.04]">Open <ArrowRight size={14} /></Link>
-                <button type="button" onClick={() => void toggle(product)} aria-label={`${product.active ? "Archive" : "Restore"} ${product.name}`} className="grid size-9 place-items-center rounded-md text-black/50 hover:bg-black/[0.04]">{product.active ? <Archive size={15} /> : <RotateCcw size={15} />}</button>
-              </div>
-            </article>
-          ))}
+      {view === "browse" ? <>
+        <section aria-labelledby="companies-heading">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Company</p><h2 id="companies-heading" className="mt-0.5 text-lg font-semibold text-black/85">Companies</h2></div>
+            {selectedShelf ? <button type="button" onClick={() => { setSelectedCompanyId(null); setSelectedCategory(null); }} className="text-xs font-semibold text-black/50 hover:text-black">Clear selection</button> : null}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {companyShelves.map(company => <CompanyCard key={company.id} company={company} selected={company.id === selectedCompanyId} onSelect={() => selectCompany(company.id)} />)}
+          </div>
+        </section>
+
+        {selectedShelf ? <section aria-labelledby="categories-heading" className="scroll-mt-20 border-t border-black/10 pt-6">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">{selectedShelf.name}</p><h2 id="categories-heading" className="mt-0.5 text-lg font-semibold text-black/85">Categories</h2></div>
+            <button type="button" onClick={() => openNewProduct(selectedShelf.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-2.5 text-xs font-semibold text-black/65"><Plus size={14} />Add to {selectedShelf.name}</button>
+          </div>
+          {shelfCategories.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {shelfCategories.map(category => <CategoryCard key={category} category={category} products={selectedShelf.products.filter(product => product.category === category)} colour={selectedShelf.colour} selected={category === selectedCategory} onSelect={() => selectCategory(category)} />)}
+          </div> : <EmptyCatalogue title={`No products for ${selectedShelf.name}.`} actionLabel="Add the first product" onAction={() => openNewProduct(selectedShelf.id)} />}
+        </section> : null}
+
+        {selectedShelf && selectedCategory ? <section aria-labelledby="category-products-heading" className="scroll-mt-20 border-t border-black/10 pt-6">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">{selectedShelf.name} <ChevronRight className="mx-1 inline" size={11} /> {selectedCategory}</p><h2 id="category-products-heading" className="mt-1 text-xl font-semibold text-black/90">{selectedCategory}</h2></div>
+            <button type="button" onClick={() => openNewProduct(selectedShelf.id, selectedCategory)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-2.5 text-xs font-semibold text-black/65"><Plus size={14} />New product</button>
+          </div>
+          <ProductGrid products={categoryProducts} sops={sops} companies={companies} onToggle={toggle} />
+        </section> : null}
+      </> : <section aria-labelledby="all-products-heading">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Complete catalogue</p><h2 id="all-products-heading" className="mt-0.5 text-xl font-semibold text-black/90">All products</h2></div>
+          <button type="button" onClick={() => setView("browse")} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-2.5 text-xs font-semibold text-black/65"><Layers3 size={14} />Browse by company</button>
         </div>
-      ) : <div className="border-y border-dashed border-black/15 py-12 text-center"><p className="font-semibold text-black/70">No products in this view.</p><p className="mt-1 text-sm text-black/45">Create one or show archived products.</p></div>}
+        {visible.length ? <ProductGrid products={visible} sops={sops} companies={companies} onToggle={toggle} /> : <EmptyCatalogue title="No products in this view." actionLabel="Create a product" onAction={() => openNewProduct()} />}
+      </section>}
 
       {draft ? <ProductEditor draft={draft} products={products} sops={sops} companies={companies} onClose={() => setDraft(null)} onSaved={product => { upsert(product); setDraft(null); }} /> : null}
     </div>
   );
+}
+
+function CompanyCard({ company, selected, onSelect }: { company: CompanyShelf; selected: boolean; onSelect: () => void }) {
+  const cover = company.products.find(product => product.coverImageUrl)?.coverImageUrl;
+  const categoryCount = new Set(company.products.map(product => product.category)).size;
+  const coverColours = [...new Set(company.products.map(product => product.accentColor).filter(Boolean))].slice(0, 4);
+  return <button type="button" onClick={onSelect} aria-pressed={selected} className={`group overflow-hidden rounded-lg border bg-white text-left transition ${selected ? "border-black shadow-md" : "border-black/10 hover:border-black/25 hover:shadow-sm"}`}>
+    <div className="relative aspect-[16/7] overflow-hidden" style={{ backgroundColor: company.colour }}>
+      {cover ? <div className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-[1.02]" style={{ backgroundImage: `url(${cover})` }} /> : coverColours.length ? <div className="absolute inset-0 flex">{coverColours.map(colour => <span key={colour} className="h-full flex-1" style={{ backgroundColor: colour }} />)}</div> : null}
+      {cover ? <div className="absolute inset-0 bg-black/20" /> : <div className="absolute inset-0 grid place-items-center bg-black/15 text-white/90"><Building2 size={28} /></div>}
+      <span className="absolute right-3 top-3 rounded-md bg-white/90 px-2 py-1 text-[10px] font-bold text-black/65">{company.products.length} product{company.products.length === 1 ? "" : "s"}</span>
+    </div>
+    <div className="flex min-h-32 flex-col p-4">
+      <div className="flex items-start justify-between gap-3"><h3 className="font-semibold text-black/85">{company.name}</h3><ChevronRight className={`mt-0.5 shrink-0 ${selected ? "text-black" : "text-black/35"}`} size={17} /></div>
+      <p className="mt-1 line-clamp-2 text-xs leading-5 text-black/50">{company.description}</p>
+      <p className="mt-auto pt-3 text-[10px] font-semibold uppercase text-black/40">{categoryCount} categor{categoryCount === 1 ? "y" : "ies"}</p>
+    </div>
+  </button>;
+}
+
+function CategoryCard({ category, products, colour, selected, onSelect }: { category: string; products: AgencyProduct[]; colour: string; selected: boolean; onSelect: () => void }) {
+  const cover = products.find(product => product.coverImageUrl)?.coverImageUrl;
+  return <button type="button" onClick={onSelect} aria-pressed={selected} className={`grid min-h-28 grid-cols-[92px_1fr] overflow-hidden rounded-lg border bg-white text-left transition ${selected ? "border-black shadow-md" : "border-black/10 hover:border-black/25 hover:shadow-sm"}`}>
+    <div className="relative h-full min-h-28 bg-cover bg-center" style={{ backgroundColor: colour, backgroundImage: cover ? `url(${cover})` : undefined }}>
+      {cover ? <div className="absolute inset-0 bg-black/15" /> : <div className="grid h-full place-items-center text-white/85"><FolderOpen size={24} /></div>}
+    </div>
+    <div className="flex min-w-0 flex-col p-3">
+      <div className="flex items-start justify-between gap-2"><h3 className="truncate text-sm font-semibold text-black/85">{category}</h3><ChevronRight className={`shrink-0 ${selected ? "text-black" : "text-black/35"}`} size={16} /></div>
+      <p className="mt-1 text-xs text-black/45">{products.length} product{products.length === 1 ? "" : "s"}</p>
+      <div className="mt-auto flex gap-1 pt-3">{products.slice(0, 4).map(product => <span key={product.id} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: product.accentColor || colour }} />)}</div>
+    </div>
+  </button>;
+}
+
+function ProductGrid({ products, sops, companies, onToggle }: { products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; onToggle: (product: AgencyProduct) => Promise<void> }) {
+  return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    {products.map(product => <ProductCard key={product.id} product={product} sops={sops} companies={companies} onToggle={onToggle} />)}
+  </div>;
+}
+
+function ProductCard({ product, sops, companies, onToggle }: { product: AgencyProduct; sops: SopDocument[]; companies: TradingCompany[]; onToggle: (product: AgencyProduct) => Promise<void> }) {
+  const brandNames = (product.companyIds ?? []).length
+    ? companies.filter(company => (product.companyIds ?? []).includes(company.id)).map(company => company.name).join(" · ")
+    : "AquaOasis-Web";
+  const sopCount = linkedSopCount(product, sops);
+  return <article className={`group overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm transition hover:border-black/20 hover:shadow-md ${product.active ? "" : "opacity-60"}`}>
+    <div className="relative aspect-[16/9] overflow-hidden bg-cover bg-center" style={{ backgroundColor: product.accentColor || "#8E7340", backgroundImage: product.coverImageUrl ? `url(${product.coverImageUrl})` : undefined }}>
+      {product.coverImageUrl ? <div className="absolute inset-0 bg-black/20 transition group-hover:bg-black/10" /> : <div className="grid h-full place-items-center text-white/85">{product.kind === "package" ? <Layers3 size={34} /> : <Package size={34} />}</div>}
+      <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+        <span className="rounded-md bg-white/90 px-2 py-1 text-[10px] font-bold text-black/65">{product.category}</span>
+        {product.active ? null : <span className="rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white">Archived</span>}
+      </div>
+    </div>
+    <div className="flex min-h-64 flex-col p-4">
+      <p className="truncate text-[10px] font-semibold uppercase text-black/40">{brandNames}</p>
+      <h3 className="mt-1 text-lg font-semibold text-black/90"><Link href={`/portal/agency/products/${product.id}`} className="hover:underline">{product.name}</Link></h3>
+      <p className="mt-1 line-clamp-2 text-sm leading-5 text-black/55">{product.buyerHeadline || product.description || "Buyer-facing summary not added yet."}</p>
+      <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-black/10 pt-3 text-[11px] text-black/50">
+        <span><strong className="block font-semibold text-black/70">{priceLabel(product)}</strong>Pricing</span>
+        <span><strong className="block font-semibold text-black/70">{portalLabel(product.portalRequirement)}</strong>Portal</span>
+        <span><strong className={`block font-semibold ${product.contractBody ? "text-emerald-700" : "text-amber-700"}`}>{product.contractBody ? "Ready" : "Missing"}</strong>Contract</span>
+        <span><strong className="block font-semibold text-black/70">{sopCount}</strong>Linked SOP{sopCount === 1 ? "" : "s"}</span>
+      </div>
+      <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+        <Link href={`/portal/agency/products/${product.id}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white">Open product <ArrowRight size={14} /></Link>
+        <button type="button" onClick={() => void onToggle(product)} aria-label={`${product.active ? "Archive" : "Restore"} ${product.name}`} className="grid size-9 place-items-center rounded-md text-black/50 hover:bg-black/[0.04]">{product.active ? <Archive size={15} /> : <RotateCcw size={15} />}</button>
+      </div>
+    </div>
+  </article>;
+}
+
+function EmptyCatalogue({ title, actionLabel, onAction }: { title: string; actionLabel: string; onAction: () => void }) {
+  return <div className="border-y border-dashed border-black/15 py-10 text-center"><p className="font-semibold text-black/70">{title}</p><button type="button" onClick={onAction} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65"><Plus size={14} />{actionLabel}</button></div>;
 }
 
 export function ProductEditor({ draft, products, sops, companies, onClose, onSaved }: { draft: Draft; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; onClose: () => void; onSaved: (product: AgencyProduct) => void }) {

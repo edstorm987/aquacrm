@@ -1,8 +1,10 @@
 import "server-only";
 
 import { sendResendEmail } from "./resendEmail";
+import { resolveIntegrationValues } from "./integrationConnections";
 
 type EnquiryEmailInput = {
+  agencyId: string;
   id: string;
   brandName: string;
   name: string;
@@ -24,11 +26,14 @@ function escapeHtml(value: string) {
 }
 
 export async function notifyBrandEnquiry(input: EnquiryEmailInput) {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const managed = resolveIntegrationValues(input.agencyId, "resend");
+  const apiKey = managed.apiKey || process.env.RESEND_API_KEY?.trim();
   if (!apiKey) return { attempted: false, sent: false };
 
-  const notifyTo = process.env.ENQUIRY_NOTIFY_TO?.trim() || "edwardhallam07@gmail.com";
-  const from = process.env.ENQUIRY_EMAIL_FROM?.trim() || "AquaCRM <onboarding@resend.dev>";
+  const notifyTo = managed.notifyTo || process.env.ENQUIRY_NOTIFY_TO?.trim() || "edwardhallam07@gmail.com";
+  const senderEmail = managed.fromEmail || process.env.ENQUIRY_EMAIL_FROM?.trim() || "onboarding@resend.dev";
+  const senderName = managed.fromName || input.brandName;
+  const from = senderEmail.includes("<") ? senderEmail : `${senderName} <${senderEmail}>`;
   const services = input.services.length ? input.services.join(", ") : "Not specified";
   const details = [
     `Reference: ${input.id}`,
@@ -43,6 +48,7 @@ export async function notifyBrandEnquiry(input: EnquiryEmailInput) {
   ];
   const subject = `New ${input.brandName} enquiry from ${input.name}`;
   const result = await sendResendEmail({
+    apiKey,
     from,
     to: notifyTo,
     replyTo: input.email || undefined,

@@ -45,7 +45,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
       className={[
         "mm-private-sidebar shrink-0 bg-white/60 p-4 text-sm",
         "flex h-dvh min-h-0 flex-col overflow-hidden",
-        mobile ? "w-60" : "hidden md:flex border-r border-black/10 mm-sidebar-collapsible",
+        mobile ? "w-full" : "hidden md:flex border-r border-black/10 mm-sidebar-collapsible",
       ].join(" ")}
     >
       <div
@@ -65,7 +65,13 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
         </div>
       </div>
 
-      <nav aria-label="Primary" className="mm-sidebar-primary-nav flex min-h-0 flex-1 flex-col gap-1">
+      <nav
+        aria-label="Primary"
+        className={[
+          "mm-sidebar-primary-nav flex min-h-0 flex-1 flex-col gap-1",
+          mobile ? "overflow-y-auto overscroll-contain pr-1" : "",
+        ].join(" ")}
+      >
         {panels.length === 0 && (
           <p
             data-testid="sidebar-empty-state"
@@ -140,7 +146,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
           </div>
         );
       })}
-      {!mobile && <SidebarFooter settingsItems={settingsItems} />}
+      <SidebarFooter settingsItems={settingsItems} mobile={mobile} />
     </aside>
   );
 }

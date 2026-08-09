@@ -35,7 +35,7 @@ test("assistant reads fresh business context without exposing secrets", () => {
   assert.match(openai, /OPENAI_API_KEY/);
 });
 
-test("legacy assistant UI remains available as an unlinked rollback path", () => {
+test("Aqua Advisor remains available globally with history, memory, and voice", () => {
   const ui = read("src/app/portal/agency/assistant/AssistantWorkspace.tsx");
   const topbar = read("src/components/chrome/Topbar.tsx");
   assert.match(ui, /Conversation history/);
@@ -43,5 +43,7 @@ test("legacy assistant UI remains available as an unlinked rollback path", () =>
   assert.match(ui, /SpeechRecognition/);
   assert.match(ui, /speechSynthesis/);
   assert.match(ui, /Connect the OpenAI API/);
-  assert.doesNotMatch(topbar, /assistantHref/);
+  assert.match(ui, /Aqua Advisor/);
+  assert.match(topbar, /\/portal\/agency\/assistant/);
+  assert.match(topbar, /Open Aqua Advisor/);
 });

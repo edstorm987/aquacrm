@@ -1,0 +1,88 @@
+import { NextResponse } from "next/server";
+
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { publishProjectToGitHub } from "@/lib/server/githubProjectPublisher";
+import { logActivity } from "@/server/activity";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { getClientForAgency, updateClient } from "@/server/tenants";
+import { AGENCY_ROLES } from "@/server/types";
+
+type Body = { clientId?: string; propertyId?: string };
+type StoredProperty = {
+  id: string;
+  label: string;
+  localPath?: string;
+  projectSlug?: string;
+  repoUrl?: string;
+  repositoryStatus?: "not-created" | "local" | "connected";
+  updatedAt: number;
+  [key: string]: unknown;
+};
+
+export async function POST(request: Request) {
+  try {
+    await ensureHydrated();
+    if (!validOrigin(request)) {
+      return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
+    }
+    const body = await request.json().catch(() => null) as Body | null;
+    const clientId = body?.clientId?.trim();
+    const propertyId = body?.propertyId?.trim();
+    if (!clientId || !propertyId) {
+      return NextResponse.json({ ok: false, error: "Client and project are required." }, { status: 400 });
+    }
+
+    const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
+    const client = getClientForAgency(session.agencyId, clientId);
+    if (!client) return NextResponse.json({ ok: false, error: "Client not found." }, { status: 404 });
+    const metadata = (client.metadata ?? {}) as { properties?: StoredProperty[] };
+    const current = Array.isArray(metadata.properties) ? metadata.properties : [];
+    const property = current.find(item => item.id === propertyId);
+    if (!property) return NextResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
+    if (!property.localPath || !property.projectSlug) {
+      return NextResponse.json({ ok: false, error: "Provision this project locally before publishing it." }, { status: 400 });
+    }
+
+    const repository = await publishProjectToGitHub({
+      agencyId: session.agencyId,
+      clientId,
+      localPath: property.localPath,
+      projectSlug: property.projectSlug,
+      description: `${client.name}: ${property.label}`,
+      private: true,
+    });
+    const changed: StoredProperty = {
+      ...property,
+      repoUrl: repository.repoUrl,
+      repositoryStatus: "connected",
+      updatedAt: Date.now(),
+    };
+    const properties = current.map(item => item.id === propertyId ? changed : item);
+    if (!updateClient(session.agencyId, clientId, { metadata: { properties } })) {
+      return NextResponse.json({ ok: false, error: "Repository record could not be saved." }, { status: 500 });
+    }
+    logActivity({
+      agencyId: session.agencyId,
+      clientId,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: "tenant",
+      action: "client.project_published",
+      message: `Published "${property.label}" to a private GitHub repository.`,
+      metadata: { propertyId, repoUrl: repository.repoUrl },
+    });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, property: changed, properties, repository });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Repository publishing failed.";
+    if (!(error instanceof Error) || error.name !== "AuthError") {
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    }
+    return authErrorResponse(error);
+  }
+}
+
+function validOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  return !origin || origin === new URL(request.url).origin;
+}

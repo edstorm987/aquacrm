@@ -932,6 +932,24 @@ export interface AgencyWebsiteProject {
   updatedAt: number;
 }
 
+export interface IntegrationConnection {
+  id: string;
+  agencyId: string;
+  provider: import("@/lib/integrations/catalog").IntegrationProvider;
+  label: string;
+  clientId?: string;
+  config: Record<string, string>;
+  encryptedSecrets: Record<string, string>;
+  status: import("@/lib/integrations/types").IntegrationConnectionStatus;
+  lastTestedAt?: number;
+  lastTestStatus?: "passed" | "failed";
+  lastTestMessage?: string;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export interface PortalState {
@@ -951,6 +969,7 @@ export interface PortalState {
   // `${agencyId}|${userId}` → private assistant history and memories.
   assistant?: Record<string, AssistantWorkspaceState>;
   externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
+  integrationConnections: Record<string, IntegrationConnection>;
   tasks: Record<string, AgencyTask>;
   sops: Record<string, SopDocument>;
   agencyProducts: Record<string, AgencyProduct>;

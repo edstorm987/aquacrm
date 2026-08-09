@@ -12,6 +12,7 @@ import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
 import type { ClientContract } from "@/lib/clientContracts";
+import { listWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 
 export type OperationalAlertSeverity = "critical" | "warning" | "notice";
 
@@ -117,7 +118,17 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   for (const client of clients) {
     const metadata = client.metadata as {
       lastContactedAt?: number;
-      clientRequests?: Array<{ id: string; type: string; message: string; status: string; submittedAt: number; replies?: unknown[] }>;
+      clientRequests?: Array<{
+        id: string;
+        type: string;
+        message: string;
+        status: string;
+        submittedAt: number;
+        replies?: unknown[];
+        siteLabel?: string;
+        priority?: "urgent" | "high" | "normal";
+        topic?: string;
+      }>;
       telemetryEvents?: ClientTelemetryEvent[];
       commercialPack?: { invoiceNumber?: string; invoiceStatus?: string; dueAt?: number; totalCents?: number; payments?: Array<{ amountCents: number }> };
       contracts?: ClientContract[];
@@ -128,14 +139,14 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
 
     for (const request of notificationSettings.supportRequests ? metadata?.clientRequests ?? [] : []) {
       if (request.status !== "open") continue;
-      const critical = request.type === "support-ticket" || request.type === "cancel" || request.type === "move-provider";
+      const critical = request.priority === "urgent" || request.type === "cancel" || request.type === "move-provider";
       alerts.push({
         id: `request:${client.id}:${request.id}`,
-        severity: critical ? "critical" : "warning",
+        severity: critical ? "critical" : request.priority === "normal" ? "notice" : "warning",
         category: "support",
         title: `${requestLabel(request.type)} from ${client.name}`,
-        detail: request.message,
-        href: `/portal/clients/${client.id}?tab=overview`,
+        detail: `${request.siteLabel ? `${request.siteLabel} · ` : ""}${request.topic ? `${request.topic} · ` : ""}${request.message}`,
+        href: `/portal/agency/inbox?view=support&thread=${encodeURIComponent(request.id)}`,
         clientName: client.name,
         occurredAt: request.submittedAt,
       });
@@ -223,7 +234,13 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   if (leadsInstall?.enabled) {
     ensureLeadsPipelineFoundationRegistered();
     const { campaigns, leads } = containerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
-    const [campaignRows, leadRows] = await Promise.all([campaigns.list(), leads.list()]);
+    const [campaignRows, leadRows, websiteEnquiries] = await Promise.all([
+      campaigns.list(),
+      leads.list(),
+      listWebsiteEnquiries().catch(() => []),
+    ]);
+    const websiteEnquiryById = new Map(websiteEnquiries.map(enquiry => [enquiry.id, enquiry]));
+    const alertedEnquiryIds = new Set<string>();
 
     for (const lead of leadRows) {
       const label = lead.name || lead.company || lead.email;
@@ -238,15 +255,46 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           occurredAt: lead.meetingReminderAt,
         });
       }
-      if (notificationSettings.clientAlerts && ["public-contact", "website-contact", "milesymedia-website"].includes(lead.source) && !lead.lastContactedAt) {
+      const isWebsiteEnquiry = lead.tags.includes("website-enquiry")
+        || lead.source.startsWith("website:")
+        || ["public-contact", "website-contact", "milesymedia-website"].includes(lead.source);
+      if (notificationSettings.clientAlerts && isWebsiteEnquiry && !lead.lastContactedAt) {
+        const enquiryId = typeof lead.customFields?.enquiryId === "string" ? lead.customFields.enquiryId : undefined;
+        const enquiry = enquiryId ? websiteEnquiryById.get(enquiryId) : undefined;
+        if (enquiry?.status === "resolved") continue;
+        if (enquiryId) alertedEnquiryIds.add(enquiryId);
         alerts.push({
           id: `enquiry:${lead.id}`,
-          severity: now - lead.capturedAt > DAY ? "warning" : "notice",
-          category: "client",
-          title: `New website enquiry from ${label}`,
-          detail: "Review the message and record the first response.",
-          href: "/portal/agency/pipelines/leads",
+          severity: enquirySeverity(enquiry, lead.capturedAt, now),
+          category: enquiry?.channel === "support" ? "support" : "client",
+          title: enquiryTitle(enquiry, label),
+          detail: enquiryDetail(enquiry, lead.source),
+          href: enquiry
+            ? `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`
+            : "/portal/agency/pipelines/leads",
           occurredAt: lead.capturedAt,
+        });
+      }
+    }
+
+    if (notificationSettings.clientAlerts) {
+      for (const enquiry of websiteEnquiries) {
+        if (alertedEnquiryIds.has(enquiry.id)) continue;
+        if (enquiry.status === "resolved") continue;
+        const matchingLead = leadRows.find(lead =>
+          lead.id === enquiry.leadId
+          || (Boolean(enquiry.email) && lead.email.toLowerCase() === enquiry.email?.toLowerCase()),
+        );
+        if (matchingLead?.lastContactedAt) continue;
+
+        alerts.push({
+          id: `website-message:${enquiry.id}`,
+          severity: enquirySeverity(enquiry, enquiry.submittedAt, now),
+          category: enquiry.channel === "support" ? "support" : "client",
+          title: enquiryTitle(enquiry, enquiry.name),
+          detail: enquiryDetail(enquiry),
+          href: `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`,
+          occurredAt: enquiry.submittedAt,
         });
       }
     }
@@ -282,6 +330,29 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
 
   const severityOrder = { critical: 0, warning: 1, notice: 2 };
   return alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || b.occurredAt - a.occurredAt);
+}
+
+function enquiryView(enquiry: WebsiteEnquiry): "forms" | "chatbot" | "support" {
+  return enquiry.channel === "form" ? "forms" : enquiry.channel;
+}
+
+function enquirySeverity(enquiry: WebsiteEnquiry | undefined, submittedAt: number, now: number): OperationalAlertSeverity {
+  if (enquiry?.priority === "urgent") return "critical";
+  if (enquiry?.priority === "high" || now - submittedAt > DAY) return "warning";
+  return "notice";
+}
+
+function enquiryTitle(enquiry: WebsiteEnquiry | undefined, sender: string): string {
+  if (!enquiry) return `New website enquiry from ${sender}`;
+  if (enquiry.channel === "chatbot") return `New chat message from ${sender}`;
+  if (enquiry.channel === "support") return `New support request from ${sender}`;
+  return `New ${enquiry.siteName} enquiry from ${sender}`;
+}
+
+function enquiryDetail(enquiry: WebsiteEnquiry | undefined, fallbackSource = "Website"): string {
+  if (!enquiry) return `${fallbackSource.replace(/^website:/, "").replaceAll("-", " ")} · Review the message and record the first response.`;
+  const location = `${enquiry.siteName}${enquiry.pagePath === "/" ? "" : ` · ${enquiry.pagePath}`}`;
+  return `${location} · ${enquiry.topic} · ${enquiry.suggestedAction}`;
 }
 
 function addFinanceAlerts(alerts: OperationalAlert[], agencyId: string, now: number): void {

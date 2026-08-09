@@ -188,16 +188,14 @@ describe("adaptive product performance", () => {
     assert.match(commercial, /product\.paymentTermsDays/);
   });
 
-  it("applies product presentation and portal requirements during client creation", async () => {
+  it("keeps initial client creation simple and product configuration available afterwards", async () => {
     const clientCreator = await readFile(new URL("../src/app/portal/agency/_NewClientButton.tsx", import.meta.url), "utf8");
     const createRoute = await readFile(new URL("../src/app/api/portal/fulfillment/clients/route.ts", import.meta.url), "utf8");
-    assert.match(clientCreator, /portalRequirement === "required"/);
-    assert.match(clientCreator, /portalRequirement === "none"/);
-    assert.match(clientCreator, /portalExperienceHeadline/);
-    assert.match(clientCreator, /portalWelcomeNote/);
-    assert.match(clientCreator, /portalAccentColor/);
-    assert.match(clientCreator, /includedProductIds/);
-    assert.match(clientCreator, /welcomePackItems/);
+    assert.match(clientCreator, /What are we helping with\?/);
+    assert.match(clientCreator, /serviceBrief: helpingWith \|\| undefined/);
+    assert.match(clientCreator, /Create a client portal now/);
+    assert.match(clientCreator, /set up their portal later from the client record/);
+    assert.doesNotMatch(clientCreator, /selectedProducts\.map/);
     assert.match(createRoute, /createClientDelight/);
     assert.match(createRoute, /occasion: "welcome"/);
   });

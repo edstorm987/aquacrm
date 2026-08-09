@@ -101,8 +101,8 @@ export function PeopleHub({
           <h1 className="mt-1 text-2xl font-semibold text-black/90">Clients & contacts</h1>
           <p className="mt-1 max-w-2xl text-sm text-black/55">Every relationship in one place, from first lead to active client, supplier, or team member.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
             <Plus size={16} /> Add contact
           </button>
           <NewClientButton products={products} brands={brands} defaults={clientDefaults} />
@@ -110,7 +110,7 @@ export function PeopleHub({
       </header>
 
       <div className="mt-6 border-b border-black/10">
-        <div className="flex gap-6 overflow-x-auto" role="tablist" aria-label="People view">
+        <div className="flex gap-3 overflow-x-auto sm:gap-6" role="tablist" aria-label="People view">
           <Tab active={view === "clients"} onClick={() => setView("clients")} label="Clients" count={clients.length} />
           <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} />
           <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contacts.length} />
@@ -120,24 +120,24 @@ export function PeopleHub({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-black/10 py-4">
-        <label className="relative min-w-64 flex-1">
+        <label className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" size={16} />
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name, company, email, phone, notes, or tags" className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search people, notes, or tags" className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
         </label>
         {view !== "clients" && view !== "health" && view !== "staff" ? (
-          <select value={role} onChange={event => setRole(event.target.value as ContactRole | "all")} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm text-black/70">
+          <select value={role} onChange={event => setRole(event.target.value as ContactRole | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto">
             <option value="all">Every contact type</option>
             {Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         ) : null}
         {(view === "clients" || view === "health" || view === "all") && availableNiches.length ? (
-          <select value={niche} onChange={event => setNiche(event.target.value)} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm text-black/70" aria-label="Filter clients by niche">
+          <select value={niche} onChange={event => setNiche(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter clients by niche">
             <option value="">Every niche</option>
             {availableNiches.map(option => <option key={option} value={option}>{option}</option>)}
           </select>
         ) : null}
         {view === "clients" || view === "health" || view === "all" ? (
-          <select value={clientStatus} onChange={event => setClientStatus(event.target.value as "all" | "active" | "suspended")} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm text-black/70" aria-label="Filter clients by status">
+          <select value={clientStatus} onChange={event => setClientStatus(event.target.value as "all" | "active" | "suspended")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter clients by status">
             <option value="all">Active and paused</option>
             <option value="active">Active only</option>
             <option value="suspended">Paused only</option>
@@ -155,7 +155,7 @@ export function PeopleHub({
 
       {view === "health" ? (
         <section className="mt-7">
-          <div className="flex items-end justify-between border-b border-black/10 pb-3">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 pb-3">
             <div><h2 className="text-base font-semibold text-black/80">Client health</h2><p className="mt-1 text-sm text-black/45">A quick check for missing details, stale relationships, and delivery risks.</p></div>
             <span className="text-xs text-black/40">{clients.filter(client => client.health === "attention").length} need attention</span>
           </div>
@@ -207,13 +207,13 @@ function PeopleSection({ title, count, hidden, children }: { title: string; coun
 function ClientRow({ client }: { client: HubClient }) {
   const initials = client.name.split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase()).join("") || "C";
   return (
-    <div className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3">
+    <div className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
       <div className="grid size-10 place-items-center rounded-md text-xs font-semibold text-white" style={{ backgroundColor: client.primaryColor }}>{initials}</div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p><Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}</div>
         <p className="mt-0.5 truncate text-xs text-black/45">{client.ownerEmail || "No account email"} · Source: {sourceLabel(client.source)}{client.websiteUrl ? ` · ${client.websiteUrl}` : ""}</p>
       </div>
-      <Link href={`/portal/clients/${client.id}`} className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Open</Link>
+      <Link href={`/portal/clients/${client.id}`} className="col-start-2 w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03] sm:col-start-auto">Open</Link>
     </div>
   );
 }
@@ -237,7 +237,7 @@ function sourceLabel(source: string): string {
 
 function ContactRow({ contact }: { contact: HubContact }) {
   return (
-    <div className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3">
+    <div className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
       <div className="grid size-10 place-items-center rounded-md bg-black/[0.04] text-black/45"><UserRound size={18} /></div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -247,7 +247,7 @@ function ContactRow({ contact }: { contact: HubContact }) {
         </div>
         <p className="mt-0.5 truncate text-xs text-black/45">{contact.email}{contact.phone ? ` · ${contact.phone}` : ""}{contact.tags.length ? ` · ${contact.tags.join(", ")}` : ""}</p>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="col-start-2 flex flex-wrap items-center gap-1 sm:col-start-auto">
         {contact.phone ? <a href={`tel:${contact.phone}`} title="Call" aria-label={`Call ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Phone size={15} /></a> : null}
         <a href={`mailto:${contact.email}`} title="Email" aria-label={`Email ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Mail size={15} /></a>
         <Link href="/portal/agency/leads-pipeline/contacts" className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Manage</Link>
@@ -271,7 +271,7 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[80] grid items-end bg-black/40 sm:items-center sm:p-6">
       <button type="button" aria-label="Close contact form" className="absolute inset-0" onClick={onClose} />
       <form
-        className="relative mx-auto w-full max-w-xl bg-white p-5 shadow-2xl sm:rounded-lg sm:p-6"
+        className="relative mx-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"
         onSubmit={async event => {
           event.preventDefault();
           setBusy(true);

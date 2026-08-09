@@ -1,16 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { clearSessionCookie } from "@/lib/server/auth";
+import { clearSessionCookie, getSessionFromRequest } from "@/lib/server/auth";
 import { getAuthBrand } from "@/lib/authBrand";
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
 
 export async function POST(_req: NextRequest) {
+  const session = await getSessionFromRequest(_req);
   const { client: supabase, applyCookies } = createRouteSupabaseClient(_req);
   await supabase.auth.signOut();
   const cookie = clearSessionCookie();
   // Form post → redirect home. JSON callers get { ok: true }.
   const isFormPost = _req.headers.get("content-type")?.includes("application/x-www-form-urlencoded");
   if (isFormPost) {
-    const authBrand = getAuthBrand(_req.cookies.get("aqua_public_brand")?.value);
+    const authBrand = getAuthBrand(
+      session?.role.startsWith("agency-")
+        ? "aquacrm"
+        : _req.cookies.get("aqua_public_brand")?.value,
+    );
     const destination =
       authBrand.id === "aqua"
         ? new URL("/sign-in", authBrand.homeUrl)

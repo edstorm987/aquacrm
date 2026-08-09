@@ -50,7 +50,7 @@ next-env.d.ts
 .data
 
 # Generated customer projects are independent repositories.
-client-projects/
+/client-projects/
 
 # R8 milesymedia stitch — public/_milesy/ is a build artefact copied
 # from `04-the-final-portal/milesymedia website/` by

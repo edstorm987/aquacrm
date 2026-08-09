@@ -55,6 +55,8 @@ import {
   portalStageFocus,
 } from "@/lib/portalProducts";
 import { buildPerformanceAnalytics } from "@/lib/performanceAnalytics";
+import type { PerformanceEvent } from "@/lib/performanceAnalytics";
+import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@/lib/performanceReports";
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { listClientMilestones } from "@/server/clientMilestones";
 
@@ -246,15 +248,20 @@ export function CustomerPortalContent({
 }
 
 function ResultsView({ client }: { client: Client }) {
-  const events = Array.isArray(client.metadata?.telemetryEvents)
+  const firstPartyEvents = Array.isArray(client.metadata?.telemetryEvents)
     ? client.metadata.telemetryEvents as ClientTelemetryEvent[]
     : [];
+  const searchEvents = Array.isArray(client.metadata?.searchConsoleEvents)
+    ? client.metadata.searchConsoleEvents as PerformanceEvent[]
+    : [];
+  const events: PerformanceEvent[] = [...firstPartyEvents, ...searchEvents];
   const analytics = buildPerformanceAnalytics(events, 28);
+  const reports = cleanMonthlyPerformanceReports(client.metadata?.monthlyPerformanceReports).filter(report => report.status === "published");
   const milestones = listClientMilestones(client.agencyId, client.id);
   const maxViews = Math.max(1, ...analytics.series.map(item => item.views));
   return (
     <>
-      <PageIntro eyebrow="Your results" title="See what the work is producing." body="A clear view of visibility, visits, enquiries, and the outcomes Milesymedia is helping you reach." />
+      <PageIntro eyebrow="Your results" title="See what the work is producing." body="A clear view of visibility, visits, enquiries, search performance, and the outcomes your work is reaching." />
       <Surface className="overflow-hidden">
         <div className="grid grid-cols-2 border-b border-black/8 lg:grid-cols-4">
           <ResultMetric icon={<UsersRound size={16} />} label="Visitors" value={String(analytics.current.visitors)} />
@@ -279,9 +286,18 @@ function ResultsView({ client }: { client: Client }) {
           {milestones.length ? <div className="mt-5 divide-y divide-black/8 border-y border-black/10">{milestones.slice(0, 6).map(milestone => <div key={milestone.id} className="py-3"><div className="flex items-center justify-between gap-4"><span className="text-sm font-medium text-black/65">{milestone.title}</span><span className="text-xs font-semibold text-[var(--portal-accent)]">{milestone.progress}%</span></div><div className="mt-2 h-1 overflow-hidden rounded-full bg-black/8"><div className="h-full bg-[var(--portal-accent)]" style={{ width: `${milestone.progress}%` }} /></div></div>)}</div> : <p className="mt-5 text-sm leading-6 text-black/45">Your shared outcome milestones will appear here as they are agreed.</p>}
         </Surface>
       </div>
+      <MonthlyReportHistory reports={reports} />
     </>
   );
 }
+
+function MonthlyReportHistory({ reports }: { reports: MonthlyPerformanceReport[] }) {
+  return <Surface className="mt-5 overflow-hidden"><div className="border-b border-black/8 p-6 sm:p-8"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full border border-black/10 text-[var(--portal-accent)]"><ReceiptText size={17} /></span><div><p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Shared reports</p><h2 className="mt-1 font-serif text-2xl">Monthly performance</h2><p className="mt-2 text-sm leading-6 text-black/48">A lasting record of what happened, what worked, and what comes next.</p></div></div></div>{reports.length ? <div className="divide-y divide-black/8">{reports.map(report => <details key={report.id} className="group p-6 sm:p-8"><summary className="flex cursor-pointer list-none flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-black/75">{report.label}</p><p className="mt-1 text-xs text-black/40">Published {report.publishedAt ? new Date(report.publishedAt).toLocaleDateString("en-GB") : "for your portal"}</p></div><div className="grid grid-cols-3 gap-5 text-left sm:min-w-80 sm:text-right"><ClientReportMetric label="Views" value={report.analytics.current.views} /><ClientReportMetric label="Enquiries" value={report.analytics.current.conversions} /><ClientReportMetric label="Search clicks" value={report.analytics.current.searchClicks} /></div></summary><div className="mt-6 grid gap-6 border-t border-black/8 pt-6 md:grid-cols-2"><ClientReportList title="Highlights" rows={report.highlights} /><ClientReportList title="Next steps" rows={report.nextSteps} /></div><div className="mt-6 grid gap-5 md:grid-cols-2"><ClientReportTable title="Top pages" rows={report.analytics.pages.slice(0, 5).map(page => [page.path, `${page.views} views`])} /><ClientReportTable title="Search visibility" rows={report.analytics.queries.slice(0, 5).map(query => [query.query, `${query.clicks} clicks`])} /></div></details>)}</div> : <div className="p-8 text-center sm:p-10"><CalendarDays className="mx-auto text-black/20" /><p className="mt-3 font-medium text-black/65">Your first monthly report will appear here</p><p className="mt-1 text-sm text-black/42">Live results above continue updating in the meantime.</p></div>}</Surface>;
+}
+
+function ClientReportMetric({ label, value }: { label: string; value: number }) { return <div><p className="text-[9px] uppercase tracking-[0.12em] text-black/35">{label}</p><p className="mt-1 font-serif text-xl tabular-nums">{value.toLocaleString("en-GB")}</p></div>; }
+function ClientReportList({ title, rows }: { title: string; rows: string[] }) { return <div><h3 className="text-[10px] uppercase tracking-[0.14em] text-black/38">{title}</h3><ul className="mt-3 space-y-2">{rows.map(row => <li key={row} className="text-sm leading-6 text-black/55">{row}</li>)}</ul></div>; }
+function ClientReportTable({ title, rows }: { title: string; rows: string[][] }) { return <div><h3 className="text-[10px] uppercase tracking-[0.14em] text-black/38">{title}</h3>{rows.length ? <div className="mt-3 divide-y divide-black/8 border-y border-black/8">{rows.map(row => <div key={row[0]} className="flex items-center justify-between gap-4 py-2.5 text-sm"><span className="min-w-0 truncate text-black/58">{row[0]}</span><span className="shrink-0 text-xs tabular-nums text-black/42">{row[1]}</span></div>)}</div> : <p className="mt-3 text-sm text-black/40">No data in this report.</p>}</div>; }
 
 function ResultMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return <div className="border-b border-r border-black/8 p-5 lg:border-b-0"><div className="flex items-center gap-2 text-[var(--portal-accent)]">{icon}<span className="text-[10px] uppercase tracking-[0.13em] text-black/38">{label}</span></div><p className="mt-3 font-serif text-3xl">{value}</p></div>;
@@ -703,6 +719,7 @@ function ProjectView({
         clientId={client.id}
         mode={data.mode}
         tasks={adaptiveTasks}
+        properties={customerProperties}
         readOnly={Boolean(previewHrefPrefix)}
       />
       <CustomerProjectBriefForm clientId={client.id} initialBrief={data.brief} readOnly={Boolean(previewHrefPrefix)} />

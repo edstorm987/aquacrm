@@ -374,6 +374,30 @@ describe("leads-pipeline / LeadService", () => {
     assert.equal(all.length, 1);
   });
 
+  test("upsert accepts and deduplicates phone-only website enquiries", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    const first = await c.leads.upsert({
+      email: "",
+      phone: "+44 7700 900123",
+      source: "website:edward-hallam",
+    }, ACTOR);
+    const second = await c.leads.upsert({
+      email: "",
+      phone: "+44 (7700) 900123",
+      source: "website:edward-hallam",
+    }, ACTOR);
+
+    assert.equal(first.created, true);
+    assert.equal(first.lead.email, "");
+    assert.equal(first.lead.phone, "+44 7700 900123");
+    assert.equal(second.created, false);
+    assert.equal((await c.leads.list()).length, 1);
+  });
+
   test("CSV import — happy path", async () => {
     const w = buildWorld();
     const c = buildLeadsPipelineContainer({
@@ -741,6 +765,21 @@ describe("leads-pipeline / AudienceFilter", () => {
     const out = await c.leads.resolveAudience({ sourcedFrom: ["public-funnel"] });
     assert.equal(out.length, 1);
     assert.equal(out[0]?.email, "b@x.com");
+  });
+
+  test("filter by trading brand without leaking leads across brands", async () => {
+    const w = buildWorld();
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+    });
+    await c.leads.upsert({ email: "aqua@x.com", source: "manual", companyIds: ["brand_aqua"] }, ACTOR);
+    await c.leads.upsert({ email: "milesy@x.com", source: "manual", companyIds: ["brand_milesy"] }, ACTOR);
+    await c.leads.upsert({ email: "shared@x.com", source: "manual", companyIds: ["brand_aqua", "brand_milesy"] }, ACTOR);
+
+    const out = await c.leads.resolveAudience({ companyIds: ["brand_aqua"] });
+
+    assert.deepEqual(out.map(lead => lead.email).sort(), ["aqua@x.com", "shared@x.com"]);
   });
 
   test("filter by pipelineColumn through PipelinePort", async () => {
