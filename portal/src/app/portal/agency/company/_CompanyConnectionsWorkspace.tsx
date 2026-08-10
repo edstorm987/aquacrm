@@ -5,6 +5,7 @@ import { ArrowUpRight, Check, Globe2, Pencil, PlugZap, Save, X } from "lucide-re
 import { useState, type FormEvent, type ReactNode } from "react";
 import type { TradingCompany } from "@/server/types";
 import { IntegrationConnectionsPanel } from "../settings/IntegrationConnectionsPanel";
+import type { IntegrationProvider } from "@/lib/integrations/catalog";
 
 interface WebsiteConnection {
   id: string;
@@ -18,11 +19,13 @@ export function CompanyConnectionsWorkspace({
   tradingCompanies,
   clients,
   canManage,
+  initialIntegration,
 }: {
   workspaceWebsite?: string;
   tradingCompanies: TradingCompany[];
   clients: Array<{ id: string; name: string }>;
   canManage: boolean;
+  initialIntegration?: IntegrationProvider;
 }) {
   const [websites, setWebsites] = useState<WebsiteConnection[]>([
     { id: "workspace", name: "AquaOasis-Web", website: workspaceWebsite ?? "" },
@@ -112,7 +115,7 @@ export function CompanyConnectionsWorkspace({
 
       <section aria-labelledby="company-integrations-heading">
         <div className="mb-5 flex items-center gap-2 text-brand"><PlugZap size={17} /><p id="company-integrations-heading" className="text-xs font-semibold uppercase tracking-wide">Service connections</p></div>
-        <IntegrationConnectionsPanel clients={clients} canManage={canManage} />
+        <IntegrationConnectionsPanel clients={clients} canManage={canManage} initialProvider={initialIntegration} />
       </section>
 
       <section className="border-y border-black/10 py-5" aria-labelledby="connected-work-heading">

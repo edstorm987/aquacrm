@@ -21,17 +21,19 @@ import { ProfileMenu } from "@/components/chrome/ProfileMenu";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { contrastRatio } from "@/lib/a11y/contrastValidator";
+import { formatPortalCopy } from "@/lib/clientPortalDesign";
+import type { ClientPortalDesignDocument } from "@/server/types";
 
 const NAV = [
-  { label: "Home", href: "/portal/customer", section: "home", icon: Home },
-  { label: "Project", href: "/portal/customer/project", section: "project", icon: FolderKanban },
-  { label: "Results", href: "/portal/customer/results", section: "results", icon: ChartNoAxesCombined },
-  { label: "Files", href: "/portal/customer/files", section: "files", icon: Files },
-  { label: "Billing", href: "/portal/customer/billing", section: "billing", icon: CreditCard },
-  { label: "Support", href: "/portal/customer/support", section: "support", icon: CircleHelp },
-  { label: "Resources", href: "/portal/customer/resources", section: "resources", icon: BookOpen },
-  { label: "Your details", href: "/portal/customer/details", section: "details", icon: IdCard },
-];
+  { href: "/portal/customer", section: "home", icon: Home },
+  { href: "/portal/customer/project", section: "project", icon: FolderKanban },
+  { href: "/portal/customer/results", section: "results", icon: ChartNoAxesCombined },
+  { href: "/portal/customer/files", section: "files", icon: Files },
+  { href: "/portal/customer/billing", section: "billing", icon: CreditCard },
+  { href: "/portal/customer/support", section: "support", icon: CircleHelp },
+  { href: "/portal/customer/resources", section: "resources", icon: BookOpen },
+  { href: "/portal/customer/details", section: "details", icon: IdCard },
+] as const;
 
 function NavItems({
   pathname,
@@ -39,16 +41,20 @@ function NavItems({
   previewHrefPrefix,
   activePreviewSection,
   projectLabel,
+  presentation,
 }: {
   pathname: string;
   close?: () => void;
   previewHrefPrefix?: string;
   activePreviewSection?: string;
   projectLabel: string;
+  presentation: ClientPortalDesignDocument;
 }) {
   return (
     <nav aria-label="Client portal" className="grid gap-1">
       {NAV.map(item => {
+        const page = presentation.pages[item.section];
+        if (!page.visible) return null;
         const active = previewHrefPrefix
           ? activePreviewSection === item.section
           : item.href === "/portal/customer"
@@ -70,7 +76,9 @@ function NavItems({
             ].join(" ")}
           >
             <Icon size={17} strokeWidth={1.65} aria-hidden="true" />
-            <span>{item.section === "project" ? projectLabel : item.label}</span>
+            <span>{item.section === "project" && page.label === "Project"
+              ? projectLabel
+              : formatPortalCopy(page.label, { projectLabel })}</span>
           </Link>
         );
       })}
@@ -85,6 +93,7 @@ export function CustomerPortalChrome({
   name,
   avatarUrl,
   modeLabel,
+  presentation,
   previewBackHref,
   previewHrefPrefix,
   activePreviewSection,
@@ -101,6 +110,7 @@ export function CustomerPortalChrome({
   name?: string;
   avatarUrl?: string;
   modeLabel: string;
+  presentation: ClientPortalDesignDocument;
   previewBackHref?: string;
   previewHrefPrefix?: string;
   activePreviewSection?: string;
@@ -116,19 +126,27 @@ export function CustomerPortalChrome({
   const [logoFailed, setLogoFailed] = useState(false);
   const isPreview = Boolean(previewBackHref || hideAccountMenu);
   const showLogo = Boolean(logoUrl) && !logoFailed;
-  const lightAccent = (contrastRatio(accentColor, "#f2f0eb") ?? 0) >= 4.5
-    ? accentColor
+  const resolvedAccent = presentation.theme.accentColor || accentColor;
+  const lightAccent = (contrastRatio(resolvedAccent, presentation.theme.backgroundColor) ?? 0) >= 4.5
+    ? resolvedAccent
     : "#765a2c";
-  const darkAccent = (contrastRatio(accentColor, "#131210") ?? 0) >= 4.5
-    ? accentColor
+  const darkAccent = (contrastRatio(resolvedAccent, presentation.theme.darkColor) ?? 0) >= 4.5
+    ? resolvedAccent
     : "#c9a76a";
 
   return (
     <div
-      className="mm-customer-portal mm-portal-root h-dvh overflow-hidden bg-[#f2f0eb] text-[#171512]"
-      style={{ "--portal-accent": lightAccent, "--portal-accent-dark": darkAccent } as CSSProperties}
+      className="mm-customer-portal mm-portal-root h-dvh overflow-hidden bg-[var(--portal-bg)] text-[#171512]"
+      style={{
+        "--portal-accent": lightAccent,
+        "--portal-accent-dark": darkAccent,
+        "--portal-bg": presentation.theme.backgroundColor,
+        "--portal-surface": presentation.theme.surfaceColor,
+        "--portal-dark": presentation.theme.darkColor,
+        "--portal-hero": presentation.theme.heroColor,
+      } as CSSProperties}
     >
-      <aside className="mm-private-sidebar mm-customer-dark fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-white/8 bg-[#131210] px-5 py-6 text-white md:flex">
+      <aside className="mm-private-sidebar mm-customer-dark fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-white/8 bg-[var(--portal-dark)] px-5 py-6 text-white md:flex">
         <div className="flex min-h-14 items-center gap-3 border-b border-white/10 px-1 pb-6">
           <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] text-[var(--portal-accent)]">
             {showLogo ? (
@@ -138,24 +156,24 @@ export function CustomerPortalChrome({
             )}
             {showLogo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" onError={() => setLogoFailed(true)} className="absolute inset-0 h-full w-full bg-[#131210] object-contain p-1" />
+              <img src={logoUrl} alt="" onError={() => setLogoFailed(true)} className="absolute inset-0 h-full w-full bg-[var(--portal-dark)] object-contain p-1" />
             ) : null}
           </span>
           <div className="min-w-0">
             <p className="truncate font-serif text-xl leading-none text-[#f7f2e9]">{providerName}</p>
-            <p className="mt-1.5 truncate text-[10px] uppercase tracking-[0.18em] text-white/38">Private client service</p>
+            <p className="mt-1.5 truncate text-[10px] uppercase tracking-[0.18em] text-white/38">{presentation.chrome.serviceLabel}</p>
           </div>
         </div>
 
         <div className="px-2 py-7">
-          <p className="truncate text-[10px] uppercase tracking-[0.16em] text-white/35">Prepared for</p>
+          <p className="truncate text-[10px] uppercase tracking-[0.16em] text-white/35">{presentation.chrome.preparedForLabel}</p>
           <p className="mt-2 truncate font-serif text-lg text-[#f7f2e9]">{clientName}</p>
         </div>
 
-        <NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} />
+        <NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} presentation={presentation} />
 
         <div className="mt-auto border-t border-white/10 px-2 pt-5">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">Current stage</p>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>
           <div className="mt-2 flex items-center gap-2 text-xs font-medium text-white/78">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
             {modeLabel}
@@ -171,7 +189,7 @@ export function CustomerPortalChrome({
             className="absolute inset-0 bg-black/35 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="mm-private-sidebar mm-customer-dark relative flex h-full w-[min(22rem,88vw)] flex-col overflow-hidden bg-[#131210] p-5 text-white shadow-2xl">
+          <aside className="mm-private-sidebar mm-customer-dark relative flex h-full w-[min(22rem,88vw)] flex-col overflow-hidden bg-[var(--portal-dark)] p-5 text-white shadow-2xl">
             <div className="mb-6 flex items-center justify-between border-b border-white/10 px-1 pb-5">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] text-[var(--portal-accent)]">
@@ -183,7 +201,7 @@ export function CustomerPortalChrome({
                   {showLogo ? (
                     <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={logoUrl} alt="" onError={() => setLogoFailed(true)} className="absolute inset-0 h-full w-full bg-[#131210] object-contain p-1" />
+                    <img src={logoUrl} alt="" onError={() => setLogoFailed(true)} className="absolute inset-0 h-full w-full bg-[var(--portal-dark)] object-contain p-1" />
                     </>
                   ) : null}
                 </span>
@@ -202,10 +220,10 @@ export function CustomerPortalChrome({
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} />
+              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} presentation={presentation} />
             </div>
             <div className="shrink-0 border-t border-white/10 px-3 pt-4">
-              <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">Current stage</p>
+              <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>
               <div className="mt-2 flex items-center gap-2 text-xs font-medium text-white/78">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
                 {modeLabel}
@@ -217,7 +235,7 @@ export function CustomerPortalChrome({
 
       <div className="flex h-dvh min-h-0 flex-col overflow-hidden md:pl-72">
         {previewBackHref && (
-          <div className="flex min-h-10 items-center justify-between gap-3 border-b border-white/10 bg-[#131210] px-4 text-white sm:px-6 lg:px-10">
+          <div className="flex min-h-10 items-center justify-between gap-3 border-b border-white/10 bg-[var(--portal-dark)] px-4 text-white sm:px-6 lg:px-10">
             <p className="min-w-0 truncate text-[10px] uppercase tracking-[0.12em] text-white/55 sm:tracking-[0.16em]">Agency preview · customers do not see this bar</p>
             <Link href={previewBackHref} className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-white/80 hover:text-white">
               <ArrowLeft size={13} aria-hidden="true" />
@@ -225,7 +243,7 @@ export function CustomerPortalChrome({
             </Link>
           </div>
         )}
-        <header className="z-20 flex min-h-[68px] shrink-0 items-center justify-between border-b border-black/8 bg-[#f2f0eb]/92 px-4 backdrop-blur-xl sm:px-6 lg:px-10">
+        <header className="z-20 flex min-h-[68px] shrink-0 items-center justify-between border-b border-black/8 bg-[var(--portal-bg)] px-4 sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -236,7 +254,7 @@ export function CustomerPortalChrome({
               <Menu size={18} aria-hidden="true" />
             </button>
             <div className="mm-private-chrome min-w-0">
-              <p className="truncate text-[10px] uppercase tracking-[0.16em] text-black/38">Private client home</p>
+              <p className="truncate text-[10px] uppercase tracking-[0.16em] text-black/38">{presentation.chrome.privateHomeLabel}</p>
               <p className="mt-0.5 truncate text-sm font-medium">{clientName}</p>
             </div>
           </div>

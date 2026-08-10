@@ -1,7 +1,7 @@
 // Standalone portal nav smoke.
 //
 // This guards the simplified AquaOasis-Web operating system: one obvious client
-// workspace, one pipeline route, one phases/settings route, and no old
+// workspace, one merged journey route, one phases/settings route, and no old
 // fulfilment client-list UI leaking back into the sidebar.
 
 import { describe, it } from "node:test";
@@ -64,9 +64,8 @@ describe("standalone portal nav audit", () => {
     const src = read(SIDEBAR_LAYOUT);
     const block = agencyMainItemBlock(src);
     const expected = [
-      ["clients", "/portal/clients"],
       ["portals", "/portal/agency/portals"],
-      ["pipelines", "/portal/agency/pipelines/leads"],
+      ["pipelines", "/portal/clients?view=journey"],
       ["marketing", "/portal/agency/marketing"],
       ["actions", "/portal/agency/actions"],
       ["development", "/portal/agency/development"],
@@ -79,12 +78,16 @@ describe("standalone portal nav audit", () => {
       assert.ok(block.includes(`id: "${id}"`), `${id} main nav item missing`);
       assert.ok(block.includes(`href: "${href}"`), `${href} main nav href missing`);
     }
+    assert.ok(!block.includes('label: "Clients & contacts"'), "clients and contacts should live inside Journey");
     assert.ok(!block.includes('id: "contacts"'), "contacts should live inside the clients hub");
     assert.ok(!block.includes('id: "sales"'), "sales should live inside Pipelines");
     assert.ok(!block.includes('id: "products"'), "products should live inside Company");
     assert.ok(!block.includes('id: "fulfillment", label: "Fulfilment"'), "duplicate Fulfilment main nav item should stay removed");
+    assert.ok(read(PEOPLE_HUB).includes('label="Clients"'), "clients should remain available inside Journey");
+    assert.ok(read(PEOPLE_HUB).includes('label="Contacts"'), "contacts should remain available inside Journey");
+    assert.ok(read(CLIENTS_PAGE).includes(': "journey";'), "Journey should be the default people-hub view");
 
-    const priorityOrder = ["home", "actions", "inbox", "clients", "portals", "pipelines", "development", "marketing", "finance", "sop-library"];
+    const priorityOrder = ["home", "actions", "inbox", "portals", "pipelines", "development", "marketing", "finance", "sop-library"];
     const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
     assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
@@ -94,9 +97,10 @@ describe("standalone portal nav audit", () => {
   it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "company", "clients", "portals", "pipelines", "marketing", "actions", "development", "inbox", "finance", "sop-library"]) {
+    for (const id of ["home", "company", "portals", "pipelines", "marketing", "actions", "development", "inbox", "finance", "sop-library"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
+    assert.ok(!canonical.includes('"clients"'), "clients should be merged into the Journey sidebar item");
     assert.ok(!canonical.includes('"performance"'), "performance should live inside Development rather than the main sidebar");
     assert.ok(!canonical.includes('"products"'), "products should live inside Company rather than the main sidebar");
     assert.ok(!canonical.includes('"sops"'), "the duplicate systems dashboard should not be a main nav item");

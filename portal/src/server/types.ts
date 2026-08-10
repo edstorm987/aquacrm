@@ -536,6 +536,46 @@ export interface AgencyTask {
   completedAt?: number;
 }
 
+// ─── Founder dashboard planning ──────────────────────────────────────────
+
+export interface DashboardDayPlan {
+  id: string;
+  agencyId: string;
+  userId: string;
+  date: string;
+  focus?: string;
+  planNotes?: string;
+  doneNotes?: string;
+  plannedHours?: number;
+  targetRevenuePounds?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DashboardWeekPlan {
+  id: string;
+  agencyId: string;
+  userId: string;
+  weekStart: string;
+  outcome?: string;
+  reviewNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DashboardWorkSession {
+  id: string;
+  agencyId: string;
+  userId: string;
+  date: string;
+  startedAt: number;
+  endedAt?: number;
+  focus?: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SopDocument {
   id: string;
   agencyId: string;
@@ -558,6 +598,8 @@ export interface SopDocument {
 export type AgencyProductPricing = "fixed" | "from" | "recurring" | "custom";
 export type AgencyProductPortalRequirement = "required" | "optional" | "none";
 export type AgencyProductKind = "product" | "package";
+export type AgencyProductPortalTemplateKey = "website" | "brand-identity" | "photography" | "google-profile" | "content" | "automation" | "custom-software" | "ongoing-care" | "business-os" | "health-check";
+export type AgencyProductPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
 export interface AgencyProduct {
   id: string;
@@ -571,8 +613,11 @@ export interface AgencyProduct {
   coverImageUrl?: string;
   accentColor?: string;
   portalRequirement: AgencyProductPortalRequirement;
+  portalTemplateKey?: AgencyProductPortalTemplateKey;
   portalHeadline?: string;
   portalWelcomeNote?: string;
+  portalStageFocus?: Partial<Record<AgencyProductPortalMode, string>>;
+  portalSupportCta?: string;
   includedProductIds: string[];
   welcomePackItems: string[];
   welcomePackNotes?: string;
@@ -641,7 +686,7 @@ export interface PerformanceExperiment {
   updatedAt: number;
 }
 
-export type ClientDelightOccasion = "welcome" | "birthday" | "christmas" | "milestone" | "random" | "shock-and-awe" | "other";
+export type ClientDelightOccasion = "welcome" | "birthday" | "christmas" | "milestone" | "event" | "trip" | "random" | "shock-and-awe" | "other";
 export type ClientDelightStatus = "idea" | "planned" | "ordered" | "sent" | "delivered" | "cancelled";
 
 export interface ClientDelightRecord {
@@ -680,6 +725,7 @@ export interface AgencyWorkspaceSettings {
   createPortalByDefault: boolean;
   portalAccessDays: number;
   clientWelcomeMessage?: string;
+  sopCategories?: string[];
   notifications: {
     overdueTasks: boolean;
     outages: boolean;
@@ -718,6 +764,97 @@ export interface PortalFormEditorState {
   updatedAt: number;
 }
 
+export type ClientPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
+export type ClientPortalSectionId = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details";
+
+export interface ClientPortalStagePresentation {
+  label: string;
+  eyebrow: string;
+  heading: string;
+  body: string;
+  progress: number;
+  focus: string;
+}
+
+export interface ClientPortalPagePresentation {
+  label: string;
+  visible: boolean;
+  eyebrow: string;
+  title: string;
+  body: string;
+}
+
+export interface ClientPortalDesignDocument {
+  schemaVersion: 1;
+  theme: {
+    accentColor: string;
+    backgroundColor: string;
+    surfaceColor: string;
+    darkColor: string;
+    heroColor: string;
+  };
+  chrome: {
+    serviceLabel: string;
+    preparedForLabel: string;
+    currentStageLabel: string;
+    privateHomeLabel: string;
+  };
+  stages: Record<ClientPortalMode, ClientPortalStagePresentation>;
+  pages: Record<ClientPortalSectionId, ClientPortalPagePresentation>;
+  home: {
+    welcomeBody: string;
+    nextMoveEyebrow: string;
+    recentUpdatesEyebrow: string;
+    projectLogTitle: string;
+    careEyebrow: string;
+    careTitle: string;
+    careBody: string;
+    careButtonLabel: string;
+  };
+}
+
+export interface ClientPortalDesignVersion {
+  id: string;
+  label?: string;
+  source: "autosave" | "checkpoint" | "publish" | "restore";
+  document: ClientPortalDesignDocument;
+  createdBy: string;
+  createdAt: number;
+}
+
+export interface ClientPortalTemplateRecord {
+  id: string;
+  agencyId: string;
+  name: string;
+  slug: string;
+  draft: ClientPortalDesignDocument;
+  published: ClientPortalDesignDocument;
+  publishedVersionId: string;
+  versions: ClientPortalDesignVersion[];
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+  publishedAt: number;
+}
+
+export interface ClientPortalInstanceRecord {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  templateId: string;
+  templateVersionId: string;
+  draft: ClientPortalDesignDocument;
+  published: ClientPortalDesignDocument;
+  publishedVersionId: string;
+  versions: ClientPortalDesignVersion[];
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+  publishedAt: number;
+}
+
 export interface CompanyObjective {
   id: string;
   title: string;
@@ -748,6 +885,15 @@ export interface CompanyQuarterlyReview {
   updatedAt: number;
 }
 
+export interface CompanyCapacityPlan {
+  weeklyAvailableHours: number;
+  deliveryHoursPerActiveClient: number;
+  salesHoursPerCall: number;
+  adminBufferPercent: number;
+  hiringTriggerPercent: number;
+  notes?: string;
+}
+
 export interface CompanyProfile {
   agencyId: string;
   companyId?: string;
@@ -758,6 +904,7 @@ export interface CompanyProfile {
   averageDealValueCents: number;
   salesCallCloseRatePercent: number;
   annualRevenueTargetCents: number;
+  capacity: CompanyCapacityPlan;
   objectives: CompanyObjective[];
   plans: CompanyPlan[];
   reviews: CompanyQuarterlyReview[];
@@ -971,6 +1118,9 @@ export interface PortalState {
   externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
   integrationConnections: Record<string, IntegrationConnection>;
   tasks: Record<string, AgencyTask>;
+  dashboardDayPlans: Record<string, DashboardDayPlan>;
+  dashboardWeekPlans: Record<string, DashboardWeekPlan>;
+  dashboardWorkSessions: Record<string, DashboardWorkSession>;
   sops: Record<string, SopDocument>;
   agencyProducts: Record<string, AgencyProduct>;
   clientMilestones: Record<string, ClientMilestone>;
@@ -978,6 +1128,8 @@ export interface PortalState {
   clientDelight: Record<string, ClientDelightRecord>;
   agencySettings: Record<string, AgencyWorkspaceSettings>;
   portalEditor: Record<string, PortalFormEditorState>;
+  clientPortalTemplates: Record<string, ClientPortalTemplateRecord>;
+  clientPortalInstances: Record<string, ClientPortalInstanceRecord>;
   companyProfiles: Record<string, CompanyProfile>;
   legalDocuments: Record<string, LegalDocument>;
   contractTemplates: Record<string, import("@/lib/clientContracts").ClientContractTemplate>;

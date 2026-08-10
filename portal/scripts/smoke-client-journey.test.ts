@@ -251,7 +251,7 @@ describe("Milesymedia client journey", () => {
     assert.ok(clientAfterPortal);
     assert.equal(clientAfterPortal.metadata?.callRecordingUrl, "https://drive.example.com/call-recording.mp4");
     assert.equal(clientAfterPortal.metadata?.portalProvisioningSource, "built-in");
-    assert.equal(clientAfterPortal.metadata?.portalShellVersion, "milesymedia-customer-home-v2");
+    assert.equal(clientAfterPortal.metadata?.portalShellVersion, "stunning-standard-v1");
     assert.equal(getUser("buyer@example.com", { clientId: client.id, role: "end-customer" })?.clientId, client.id);
     assert.equal(getInstall({ agencyId: agency.id, clientId: client.id }, "website-editor"), null);
 

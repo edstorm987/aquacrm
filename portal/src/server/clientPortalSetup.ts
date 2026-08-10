@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getClientForAgency, updateClient } from "./tenants";
+import { ensureClientPortalInstance } from "./clientPortalDesigns";
 
 export interface ClientPortalSetupMetadata {
   phase?: string;
@@ -20,7 +21,7 @@ export type ClientPortalSetupResult =
     }
   | { ok: false; error: string; installedWebsiteEditor: false };
 
-const PORTAL_VERSION = "milesymedia-customer-home-v2";
+const PORTAL_VERSION = "stunning-standard-v1";
 
 /**
  * Provisions the core Milesymedia customer home.
@@ -42,6 +43,12 @@ export async function setupClientStarterPortal(input: {
 
   const metadata = input.metadata ?? {};
   const builtAt = Date.now();
+  const portalInstance = ensureClientPortalInstance({
+    agencyId: input.agencyId,
+    clientId: input.clientId,
+    actorUserId: input.actor,
+    accentColor: typeof client.metadata?.portalAccentColor === "string" ? client.metadata.portalAccentColor : undefined,
+  });
   const saved = updateClient(input.agencyId, input.clientId, {
     endCustomers: {
       signupsEnabled: true,
@@ -51,6 +58,9 @@ export async function setupClientStarterPortal(input: {
       portalMode: "onboarding",
       portalBuiltAt: builtAt,
       portalShellVersion: PORTAL_VERSION,
+      portalTemplateId: portalInstance.templateId,
+      portalTemplateVersionId: portalInstance.templateVersionId,
+      portalDesignVersionId: portalInstance.publishedVersionId,
       portalProvisioningSource: "built-in",
       portalAccessUpdatedAt: builtAt,
       portalServicePlan: metadata.planTier?.trim()

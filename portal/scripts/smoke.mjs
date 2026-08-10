@@ -154,7 +154,7 @@ async function main() {
   record("create client 200/201", res.status === 200 || res.status === 201, `status=${res.status}`);
   record("create client returns id", typeof clientId === "string");
   record("create client returns starter portal", created?.portalSetup?.ok === true);
-  record("create client returns built-in customer portal", created?.portalSetup?.variantId === "milesymedia-customer-home-v2");
+  record("create client returns built-in customer portal", created?.portalSetup?.variantId === "stunning-standard-v1");
 
   if (clientId) {
     console.log("\n§ Created client workspace");

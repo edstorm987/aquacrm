@@ -10,6 +10,8 @@ export type PortalProductKey =
   | "business-os"
   | "health-check";
 
+export type PortalProductMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
+
 export interface PortalProductSelection {
   id: string;
   catalogKey?: PortalProductKey;
@@ -21,6 +23,8 @@ export interface PortalProductSelection {
   accentColor?: string;
   portalHeadline?: string;
   portalWelcomeNote?: string;
+  stageFocusOverrides?: Partial<Record<PortalProductMode, string>>;
+  supportCta?: string;
 }
 
 export interface PortalProductDefinition extends PortalProductSelection {
@@ -231,6 +235,8 @@ export function cleanPortalProducts(value: unknown): PortalProductSelection[] {
       accentColor,
       portalHeadline: cleanOptionalString(raw.portalHeadline, 180),
       portalWelcomeNote: cleanOptionalString(raw.portalWelcomeNote, 1_000),
+      stageFocusOverrides: cleanStageFocus(raw.stageFocusOverrides),
+      supportCta: cleanOptionalString(raw.supportCta, 80),
     }];
   }).slice(0, 12);
 }
@@ -238,6 +244,17 @@ export function cleanPortalProducts(value: unknown): PortalProductSelection[] {
 function cleanOptionalString(value: unknown, limit: number): string | undefined {
   if (typeof value !== "string") return undefined;
   return value.trim().slice(0, limit) || undefined;
+}
+
+function cleanStageFocus(value: unknown): PortalProductSelection["stageFocusOverrides"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const modes: PortalProductMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
+  const cleaned = Object.fromEntries(modes.flatMap(mode => {
+    const focus = cleanOptionalString(source[mode], 280);
+    return focus ? [[mode, focus]] : [];
+  })) as Partial<Record<PortalProductMode, string>>;
+  return Object.keys(cleaned).length ? cleaned : undefined;
 }
 
 function cleanHttpUrl(value: unknown): string | undefined {
@@ -269,10 +286,11 @@ export function portalHomeHeading(products: PortalProductSelection[], override?:
 
 export function portalStageFocus(
   product: PortalProductSelection,
-  mode: "onboarding" | "designing" | "developed-launch" | "maintenance",
+  mode: PortalProductMode,
 ): string {
-  return portalProductDefinition(product)?.stageFocus[mode]
-    ?? (mode === "onboarding"
+  return product.stageFocusOverrides?.[mode]?.trim()
+    || portalProductDefinition(product)?.stageFocus[mode]
+    || (mode === "onboarding"
       ? `Share the details and references we need to begin ${product.name.toLowerCase()}.`
       : mode === "designing"
         ? `Review the current direction for ${product.name.toLowerCase()} and leave feedback.`

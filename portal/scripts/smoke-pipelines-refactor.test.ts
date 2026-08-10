@@ -313,9 +313,10 @@ describe("Pipelines — wiring (source markers)", () => {
     assert.match(src, /notFound\(\)/);
   });
 
-  it("sidebar nav opens the unified Pipelines workspace on sales and leads", () => {
+  it("sidebar nav opens the unified Journey people workspace", () => {
     const src = readFileSync(NAV, "utf-8");
-    assert.match(src, /\/portal\/agency\/pipelines\/leads/);
+    assert.match(src, /label: "Journey"/);
+    assert.match(src, /\/portal\/clients\?view=journey/);
     assert.doesNotMatch(src, /\/portal\/agency#clients/);
   });
 });

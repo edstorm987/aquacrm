@@ -70,6 +70,34 @@ export interface UpdateCampaignPatch {
 export type MarketingAssetKind = "social" | "website" | "funnel" | "google-ads" | "reputation";
 export type MarketingAssetStatus = "draft" | "active" | "paused" | "complete" | "archived";
 
+export type FunnelFormat = "one-page" | "multi-step" | "multi-page";
+export type FunnelStepKind = "landing" | "form" | "booking" | "checkout" | "thank-you" | "custom";
+
+export interface FunnelStep {
+  id: string;
+  name: string;
+  path: string;
+  kind: FunnelStepKind;
+  headline?: string;
+  ctaLabel?: string;
+}
+
+export interface FunnelWorkspaceConfig {
+  format: FunnelFormat;
+  previewUrl?: string;
+  productionUrl?: string;
+  editorUrl?: string;
+  repositoryUrl?: string;
+  localPath?: string;
+  developmentProjectId?: string;
+  primaryGoal?: string;
+  primaryCta?: string;
+  conversionEvent?: string;
+  telemetrySiteKey?: string;
+  telemetryPropertyId?: string;
+  steps: FunnelStep[];
+}
+
 export interface MarketingAsset {
   id: string;
   agencyId: AgencyId;
@@ -89,6 +117,7 @@ export interface MarketingAsset {
   reviewCount?: number;
   unansweredReviews?: number;
   notes?: string;
+  funnel?: FunnelWorkspaceConfig;
   createdAt: number;
   updatedAt: number;
 }
@@ -110,6 +139,7 @@ export interface CreateMarketingAssetInput {
   reviewCount?: number;
   unansweredReviews?: number;
   notes?: string;
+  funnel?: FunnelWorkspaceConfig;
 }
 
 export type UpdateMarketingAssetPatch = Partial<Omit<CreateMarketingAssetInput, "kind">>;

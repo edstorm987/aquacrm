@@ -38,6 +38,11 @@ test("assistant reads fresh business context without exposing secrets", () => {
 test("Aqua Advisor remains available globally with history, memory, and voice", () => {
   const ui = read("src/app/portal/agency/assistant/AssistantWorkspace.tsx");
   const topbar = read("src/components/chrome/Topbar.tsx");
+  const drawer = read("src/components/chrome/GlobalAdvisorDrawer.tsx");
+  const control = read("src/components/chrome/AdvisorDrawerControl.tsx");
+  const agencyLayout = read("src/app/portal/agency/layout.tsx");
+  const journeyPage = read("src/app/portal/clients/page.tsx");
+  const clientLayout = read("src/app/portal/clients/[clientId]/layout.tsx");
   assert.match(ui, /Conversation history/);
   assert.match(ui, /Assistant memory/);
   assert.match(ui, /SpeechRecognition/);
@@ -46,4 +51,17 @@ test("Aqua Advisor remains available globally with history, memory, and voice", 
   assert.match(ui, /Aqua Advisor/);
   assert.match(topbar, /\/portal\/agency\/assistant/);
   assert.match(topbar, /Open Aqua Advisor/);
+  assert.match(drawer, /aria-modal="false"/);
+  assert.match(drawer, /pointer-events-none/);
+  assert.match(drawer, /createPortal/);
+  assert.match(drawer, /setPortalRoot\(document\.body\)/);
+  assert.match(drawer, /openRef\.current/);
+  assert.match(drawer, /Aqua Advisor reply is ready/);
+  assert.match(drawer, /aria-live="polite"/);
+  assert.match(drawer, /event\.key === "Escape"/);
+  assert.match(drawer, /aqua-advisor:open/);
+  assert.match(control, /buildAssistantBusinessContext/);
+  assert.match(agencyLayout, /AdvisorDrawerControl/);
+  assert.match(journeyPage, /AdvisorDrawerControl/);
+  assert.match(clientLayout, /AdvisorDrawerControl/);
 });

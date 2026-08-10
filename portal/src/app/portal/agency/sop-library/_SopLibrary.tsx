@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   BookOpen,
   Download,
   FileText,
   FileUp,
+  Folder,
   FolderOpen,
+  FolderPlus,
   PenLine,
+  Plus,
   Search,
   Trash2,
   X,
@@ -25,18 +28,47 @@ type EditorDraft = {
 
 const EMPTY_DRAFT: EditorDraft = { title: "", category: "", tags: "", content: "" };
 
-export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
+export function SopLibrary({ initialSops, initialCategories }: { initialSops: SopDocument[]; initialCategories: string[] }) {
   const [sops, setSops] = useState(initialSops);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [manualCategories, setManualCategories] = useState(initialCategories);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
   const [editor, setEditor] = useState<EditorDraft | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<SopDocument | null>(null);
   const [error, setError] = useState("");
 
-  const categories = useMemo(() => [...new Set(sops.map(sop => sop.category).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)), [sops]);
+  const categories = useMemo(() => [...new Set([...manualCategories, ...uniqueCategories(sops)])].sort((a, b) => a.localeCompare(b)), [manualCategories, sops]);
   const writtenCount = sops.filter(sop => sop.kind === "written").length;
   const uploadedCount = sops.length - writtenCount;
+  const selectedCategory = categoryFilter === "all" || categoryFilter === "uncategorised" ? "" : categoryFilter;
+  const categoryFolders = useMemo(() => {
+    const folders = categories.map(category => {
+      const items = sops.filter(sop => sop.category === category);
+      return {
+        id: category,
+        label: category,
+        count: items.length,
+        written: items.filter(sop => sop.kind === "written").length,
+        uploaded: items.filter(sop => sop.kind === "file").length,
+        updatedAt: items.reduce((latest, sop) => Math.max(latest, sop.updatedAt), 0),
+      };
+    });
+    const uncategorised = sops.filter(sop => !sop.category);
+    if (uncategorised.length) {
+      folders.push({
+        id: "uncategorised",
+        label: "Uncategorised",
+        count: uncategorised.length,
+        written: uncategorised.filter(sop => sop.kind === "written").length,
+        uploaded: uncategorised.filter(sop => sop.kind === "file").length,
+        updatedAt: uncategorised.reduce((latest, sop) => Math.max(latest, sop.updatedAt), 0),
+      });
+    }
+    return folders.sort((a, b) => Number(b.updatedAt > a.updatedAt) - Number(a.updatedAt > b.updatedAt) || a.label.localeCompare(b.label));
+  }, [categories, sops]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -51,6 +83,31 @@ export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
 
   function upsert(sop: SopDocument) {
     setSops(current => [sop, ...current.filter(item => item.id !== sop.id)]);
+    if (sop.category) setManualCategories(current => current.includes(sop.category!) ? current : [...current, sop.category!]);
+  }
+
+  function openWriter(category = selectedCategory) {
+    setEditor({ ...EMPTY_DRAFT, category });
+  }
+
+  async function createCategory() {
+    const category = newCategory.trim().slice(0, 80);
+    if (!category) return;
+    setError("");
+    const response = await fetch("/api/portal/sops/categories", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ category }),
+    });
+    const result = await response.json().catch(() => null) as { ok?: boolean; category?: string; error?: string } | null;
+    if (!response.ok || !result?.category) {
+      setError(result?.error ?? "The category could not be created.");
+      return;
+    }
+    setManualCategories(current => current.some(item => item.toLowerCase() === result.category!.toLowerCase()) ? current : [...current, result.category!]);
+    setCategoryFilter(result.category);
+    setNewCategory("");
+    setCreatingCategory(false);
   }
 
   async function remove(sop: SopDocument) {
@@ -74,10 +131,13 @@ export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
           <p className="mt-1 text-sm text-black/50">Your written procedures and uploaded documents.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setCreatingCategory(current => !current)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
+            <FolderPlus size={16} /> Create category
+          </button>
           <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
             <FileUp size={16} /> Upload file
           </button>
-          <button type="button" onClick={() => setEditor({ ...EMPTY_DRAFT })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
+          <button type="button" onClick={() => openWriter()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
             <PenLine size={16} /> Write SOP
           </button>
         </div>
@@ -85,13 +145,32 @@ export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
 
       {error ? <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
+      {creatingCategory ? (
+        <section className="mt-4 grid gap-2 rounded-lg border border-black/10 bg-black/[0.025] p-3 sm:grid-cols-[1fr_auto_auto]">
+          <input
+            autoFocus
+            value={newCategory}
+            onChange={event => setNewCategory(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              void createCategory();
+            }}
+            className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/40"
+            placeholder="New SOP category name"
+          />
+          <button type="button" onClick={() => void createCategory()} disabled={!newCategory.trim()} className="min-h-10 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:opacity-40">Create folder</button>
+          <button type="button" onClick={() => setCreatingCategory(false)} className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/60">Cancel</button>
+        </section>
+      ) : null}
+
       <dl className="mt-5 grid grid-cols-3 gap-3">
         <LibraryMetric label="Procedures" value={String(sops.length)} icon={<BookOpen size={17} />} tone="blue" />
         <LibraryMetric label="Categories" value={String(categories.length)} icon={<FolderOpen size={17} />} tone="violet" />
         <LibraryMetric label="Uploaded" value={String(uploadedCount)} icon={<FileUp size={17} />} tone="emerald" />
       </dl>
 
-      {sops.length === 0 ? (
+      {sops.length === 0 && categories.length === 0 ? (
         <section className="mm-surface-card mt-4 grid min-h-[360px] place-items-center rounded-lg border border-dashed border-black/15 px-5 py-12 text-center">
           <div className="max-w-sm">
             <span className="mm-area-icon mx-auto grid size-12 place-items-center rounded-lg"><BookOpen size={21} /></span>
@@ -99,7 +178,7 @@ export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
             <p className="mt-1 text-sm leading-6 text-black/45">Write your first procedure or upload an existing document when you are ready.</p>
             <div className="mt-5 flex justify-center gap-2">
               <button type="button" onClick={() => setUploadOpen(true)} className="min-h-10 rounded-md border border-black/12 px-3 text-sm font-medium">Upload file</button>
-              <button type="button" onClick={() => setEditor({ ...EMPTY_DRAFT })} className="min-h-10 rounded-md bg-black px-3 text-sm font-semibold text-white">Write SOP</button>
+              <button type="button" onClick={() => openWriter()} className="min-h-10 rounded-md bg-black px-3 text-sm font-semibold text-white">Write SOP</button>
             </div>
           </div>
         </section>
@@ -120,7 +199,35 @@ export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
               </select>
             </label>
           </div>
-          <section className="mt-4 grid gap-2">
+          <section className="mt-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-black/78">{categoryFilter === "all" ? "Folders" : categoryFilter === "uncategorised" ? "Uncategorised SOPs" : categoryFilter}</h2>
+                <p className="mt-0.5 text-xs text-black/42">{categoryFilter === "all" ? "Open a folder to reveal its SOPs." : `${visible.length} SOP${visible.length === 1 ? "" : "s"} in this folder.`}</p>
+              </div>
+              {categoryFilter !== "all" ? <button type="button" onClick={() => setCategoryFilter("all")} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62">Back to folders</button> : null}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {categoryFolders.map(folder => {
+                const active = categoryFilter === folder.id;
+                return (
+                  <button key={folder.id} type="button" onClick={() => setCategoryFilter(active ? "all" : folder.id)} className={`min-h-32 rounded-lg border p-4 text-left transition ${active ? "border-black bg-black text-white shadow-sm" : "border-black/10 bg-white text-black/72 hover:border-black/25 hover:bg-black/[0.02]"}`}>
+                    <span className="flex items-start justify-between gap-3">
+                      <span className={`grid size-10 place-items-center rounded-md ${active ? "bg-white/12 text-white" : "bg-black/[0.045] text-black/55"}`}>{active ? <FolderOpen size={18} /> : <Folder size={18} />}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/12 text-white/75" : "bg-black/[0.045] text-black/45"}`}>{folder.count}</span>
+                    </span>
+                    <strong className="mt-3 block truncate text-sm">{folder.label}</strong>
+                    <span className={`mt-1 block text-xs ${active ? "text-white/58" : "text-black/42"}`}>{folder.written} written · {folder.uploaded} files</span>
+                  </button>
+                );
+              })}
+              <button type="button" onClick={() => setCreatingCategory(true)} className="grid min-h-32 place-items-center rounded-lg border border-dashed border-black/15 bg-white p-4 text-center text-sm font-semibold text-black/45 hover:border-black/30 hover:text-black/65">
+                <span><FolderPlus className="mx-auto mb-2" size={20} />Create category</span>
+              </button>
+            </div>
+          </section>
+
+          {categoryFilter !== "all" ? <section className="mt-4 grid gap-2">
             {visible.length ? visible.map(sop => (
               <article key={sop.id} className="mm-surface-card mm-hover-lift flex flex-col gap-3 rounded-lg border border-black/10 p-4 sm:flex-row sm:items-center">
                 <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md">
@@ -145,8 +252,11 @@ export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
                   <button type="button" title="Delete SOP" onClick={() => void remove(sop)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button>
                 </div>
               </article>
-            )) : <div className="mm-surface-card rounded-lg border border-dashed border-black/15 px-4 py-12 text-center text-sm text-black/45">No SOPs match your search.</div>}
-          </section>
+            )) : <div className="mm-surface-card rounded-lg border border-dashed border-black/15 px-4 py-12 text-center text-sm text-black/45">
+              <p>No SOPs in this folder yet.</p>
+              <button type="button" onClick={() => openWriter(selectedCategory)} className="mt-3 min-h-10 rounded-md bg-black px-3 text-sm font-semibold text-white">Write SOP here</button>
+            </div>}
+          </section> : null}
         </>
       )}
 
@@ -159,6 +269,7 @@ export function SopLibrary({ initialSops }: { initialSops: SopDocument[] }) {
       /> : null}
       {uploadOpen ? <UploadSopModal
         categories={categories}
+        initialCategory={selectedCategory}
         onClose={() => setUploadOpen(false)}
         onUploaded={sop => { upsert(sop); setUploadOpen(false); }}
         onError={setError}
@@ -209,8 +320,9 @@ function WrittenSopModal({ draft, categories, onClose, onSaved, onError }: {
   </Modal>;
 }
 
-function UploadSopModal({ categories, onClose, onUploaded, onError }: {
+function UploadSopModal({ categories, initialCategory, onClose, onUploaded, onError }: {
   categories: string[];
+  initialCategory: string;
   onClose: () => void;
   onUploaded: (sop: SopDocument) => void;
   onError: (message: string) => void;
@@ -230,7 +342,7 @@ function UploadSopModal({ categories, onClose, onUploaded, onError }: {
     }}>
       <Field label="File"><input required name="file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.jpg,.jpeg,.png,.webp" className="min-h-11 w-full rounded-md border border-dashed border-black/20 p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-black file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white" /><span className="text-[11px] font-normal text-black/40">PDF, Word, spreadsheet, text, or image. Maximum 8 MB.</span></Field>
       <Field label="Title"><input name="title" className={inputClass} placeholder="Defaults to the file name" /></Field>
-      <div className="grid gap-3 sm:grid-cols-2"><CategoryField name="category" value="" categories={categories} /><Field label="Tags"><input name="tags" className={inputClass} placeholder="Separate with commas" /></Field></div>
+      <div className="grid gap-3 sm:grid-cols-2"><CategoryField name="category" value={initialCategory} categories={categories} /><Field label="Tags"><input name="tags" className={inputClass} placeholder="Separate with commas" /></Field></div>
       <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}>{busy ? "Uploading..." : "Upload file"}</button></div>
     </form>
   </Modal>;
@@ -278,11 +390,71 @@ function LibraryMetric({ label, value, icon, tone }: { label: string; value: str
 }
 
 function CategoryField({ value, categories, onChange, name }: { value: string; categories: string[]; onChange?: (value: string) => void; name?: string }) {
-  const listId = `sop-category-${name ?? "editor"}`;
-  return <Field label="Category">
-    <input name={name} list={listId} value={onChange ? value : undefined} defaultValue={onChange ? undefined : value} onChange={event => onChange?.(event.target.value)} className={inputClass} placeholder="Type or choose a category" />
+  const fieldId = useId();
+  const listId = `${fieldId}-options`;
+  const [localValue, setLocalValue] = useState(value);
+  const [creating, setCreating] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const selectedValue = onChange ? value : localValue;
+
+  function selectCategory(nextValue: string) {
+    const cleanValue = nextValue.trimStart().slice(0, 80);
+    if (onChange) onChange(cleanValue);
+    else setLocalValue(cleanValue);
+  }
+
+  function createCategory() {
+    const cleanCategory = newCategory.trim().slice(0, 80);
+    if (!cleanCategory) return;
+    selectCategory(cleanCategory);
+    setNewCategory("");
+    setCreating(false);
+  }
+
+  return <div className="grid gap-1.5">
+    <div className="flex min-h-6 items-center justify-between gap-3">
+      <label htmlFor={fieldId} className="text-xs font-medium text-black/55">Category</label>
+      <button
+        type="button"
+        onClick={() => setCreating(current => !current)}
+        className="inline-flex items-center gap-1 text-xs font-semibold text-black/55 hover:text-black"
+        aria-expanded={creating}
+      >
+        <Plus size={13} aria-hidden="true" /> New category
+      </button>
+    </div>
+    <input
+      id={fieldId}
+      name={name}
+      list={listId}
+      value={selectedValue}
+      onChange={event => selectCategory(event.target.value)}
+      className={inputClass}
+      placeholder="Choose a category"
+    />
     <datalist id={listId}>{categories.map(category => <option key={category} value={category} />)}</datalist>
-  </Field>;
+    {creating ? <div className="grid gap-2 rounded-md border border-black/10 bg-black/[0.025] p-2 sm:grid-cols-[1fr_auto]">
+      <input
+        autoFocus
+        value={newCategory}
+        onChange={event => setNewCategory(event.target.value)}
+        onKeyDown={event => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          createCategory();
+        }}
+        className="min-h-9 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/40"
+        placeholder="Category name"
+        aria-label="New category name"
+      />
+      <button type="button" onClick={createCategory} disabled={!newCategory.trim()} className="min-h-9 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40">Add category</button>
+    </div> : null}
+    <p className="text-[11px] text-black/40">The category is saved when you save this SOP.</p>
+  </div>;
+}
+
+function uniqueCategories(sops: SopDocument[]) {
+  return [...new Set(sops.map(sop => sop.category).filter((value): value is string => Boolean(value)))];
 }
 
 function splitTags(value: string) {

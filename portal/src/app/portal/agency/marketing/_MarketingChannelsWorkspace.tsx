@@ -114,7 +114,7 @@ const EMPTY_DRAFT: AssetDraft = {
   budget: "", spend: "", leads: "", conversions: "", rating: "", reviewCount: "", unansweredReviews: "", notes: "", companyIds: [],
 };
 
-export function MarketingChannelsWorkspace({ kind, assets, companies = [], defaultCompanyIds = [] }: { kind: MarketingAssetKind; assets: MarketingAsset[]; companies?: MarketingCompanyOption[]; defaultCompanyIds?: string[] }) {
+export function MarketingChannelsWorkspace({ kind, assets, companies = [], defaultCompanyIds = [], defaultPlatform = "" }: { kind: MarketingAssetKind; assets: MarketingAsset[]; companies?: MarketingCompanyOption[]; defaultCompanyIds?: string[]; defaultPlatform?: string }) {
   const router = useRouter();
   const config = CONFIG[kind];
   const [draft, setDraft] = useState<AssetDraft | null>(null);
@@ -229,7 +229,7 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
           <h2 className="mt-1 text-xl font-semibold text-black/85">{config.title}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">{config.description}</p>
         </div>
-        <button type="button" onClick={() => { setDraft({ ...EMPTY_DRAFT, companyIds: [...defaultCompanyIds] }); setError(null); }} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
+        <button type="button" onClick={() => { setDraft({ ...EMPTY_DRAFT, platform: defaultPlatform, companyIds: [...defaultCompanyIds] }); setError(null); }} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
           <Plus size={16} /> {config.addLabel}
         </button>
       </div>

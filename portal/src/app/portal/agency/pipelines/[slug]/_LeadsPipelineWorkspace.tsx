@@ -260,6 +260,18 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
   const contacted = filteredLeads.filter(l => l.lastContactedAt || (l.sentCount ?? 0) > 0).length;
   const meetings = filteredLeads.filter(l => l.nextMeetingAt || l.tags.some(t => /meeting|booked|call/i.test(t))).length;
   const won = filteredLeads.filter(l => l.tags.includes("converted") || l.columnId === "won").length;
+  const stageRows = columns.map(column => {
+    const leadCount = leads.filter(lead => (columnOverrides[lead.id] ?? lead.columnId) === column.id).length;
+    const prospectCount = column.id === "scouting" ? prospects.length : 0;
+    return { id: column.id, label: column.label, color: column.color, count: leadCount + prospectCount };
+  });
+  const sourceRows = [...new Set([...leads.map(lead => lead.source), ...prospects.map(prospect => prospect.source)].filter(Boolean))]
+    .map(source => ({
+      source,
+      count: leads.filter(lead => lead.source === source).length + prospects.filter(prospect => prospect.source === source).length,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
   const upcomingMeetings = useMemo(() => {
     return leads
       .filter(lead => typeof lead.nextMeetingAt === "number")
@@ -607,11 +619,24 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
         </div>
       </header>
 
+      <JourneyOverviewDashboard
+        prospects={prospects.length}
+        leads={leads.length}
+        contacted={contacted}
+        meetings={meetings}
+        won={won}
+        stageRows={stageRows}
+        sourceRows={sourceRows}
+        upcomingMeetings={upcomingMeetings.length}
+        onScout={() => openProspectForm()}
+        onLead={() => setShowLeadForm(true)}
+      />
+
       <details className="mm-surface-card group rounded-lg border border-black/10 px-4">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-3">
           <span className="inline-flex items-center gap-2 text-sm font-medium text-black/70">
             <BarChart3 size={16} className="text-black/40" aria-hidden="true" />
-            Overview
+            Workflow and meetings
             <span className="text-xs font-normal text-black/40">
               {filteredProspects.length} scouting · {filteredLeads.length} leads · {meetings} meeting{meetings === 1 ? "" : "s"}
             </span>
@@ -631,7 +656,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
         </div>
       </details>
 
-      <section className="mm-surface-card rounded-lg border border-black/10 p-3">
+      <section id="journey-board" className="mm-surface-card rounded-lg border border-black/10 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <QuickFilter active={workFilter === "all"} onClick={() => setWorkFilter("all")}>All</QuickFilter>
           <QuickFilter active={workFilter === "scouting"} onClick={() => setWorkFilter("scouting")}>Scouting</QuickFilter>
@@ -1077,6 +1102,95 @@ function ProspectCard({
       </button>
     </li>
   );
+}
+
+function JourneyOverviewDashboard({
+  prospects,
+  leads,
+  contacted,
+  meetings,
+  won,
+  stageRows,
+  sourceRows,
+  upcomingMeetings,
+  onScout,
+  onLead,
+}: {
+  prospects: number;
+  leads: number;
+  contacted: number;
+  meetings: number;
+  won: number;
+  stageRows: Array<{ id: string; label: string; color?: string; count: number }>;
+  sourceRows: Array<{ source: string; count: number }>;
+  upcomingMeetings: number;
+  onScout: () => void;
+  onLead: () => void;
+}) {
+  const total = prospects + leads;
+  const contactedRate = leads ? Math.round(contacted / leads * 100) : 0;
+  const winRate = leads ? Math.round(won / leads * 100) : 0;
+
+  return (
+    <section className="space-y-5" aria-labelledby="journey-overview-heading">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <JourneyMetric label="Total journey" value={String(total)} detail={`${prospects} scouting · ${leads} qualified`} />
+        <JourneyMetric label="Contacted" value={`${contactedRate}%`} detail={`${contacted} lead${contacted === 1 ? "" : "s"} touched`} />
+        <JourneyMetric label="Meetings" value={String(meetings)} detail={`${upcomingMeetings} scheduled with dates`} />
+        <JourneyMetric label="Won" value={String(won)} detail={`${winRate}% visible win rate`} />
+        <JourneyMetric label="Stages" value={String(stageRows.length)} detail="Scouting through client conversion" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+        <div className="rounded-lg border border-black/10 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand">Journey overview</p>
+              <h2 id="journey-overview-heading" className="mt-1 text-base font-semibold text-black/85">Pipeline health</h2>
+              <p className="mt-1 text-xs text-black/45">A quick read before drilling into the board.</p>
+            </div>
+            <a href="#journey-board" className="inline-flex min-h-9 items-center rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85">Open board</a>
+          </div>
+          <div className="divide-y divide-black/[0.07]">
+            {stageRows.map(row => (
+              <div key={row.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(160px,0.6fr)_48px] sm:items-center">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-black/75"><span className="size-2 rounded-full" style={{ backgroundColor: row.color ?? "#0EA5A4" }} />{row.label}</p>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.07]">
+                  <span className="block h-full rounded-full bg-brand" style={{ width: `${total ? Math.max(4, Math.round(row.count / total * 100)) : 0}%` }} />
+                </div>
+                <p className="text-right text-sm font-semibold tabular-nums text-black/70">{row.count}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <aside className="rounded-lg border border-black/10 bg-black/[0.018] p-4">
+          <h2 className="text-base font-semibold text-black/85">Next actions</h2>
+          <div className="mt-3 grid gap-2">
+            <button type="button" onClick={onScout} className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-left text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Scout a prospect</button>
+            <button type="button" onClick={onLead} className="min-h-10 rounded-md bg-black px-3 text-left text-xs font-semibold text-white hover:bg-black/85">Add qualified lead</button>
+            <Link href="/portal/agency/marketing" className="min-h-10 rounded-md border border-black/10 bg-white px-3 py-2.5 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Open campaigns</Link>
+          </div>
+          <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-black/40">Top sources</h3>
+          <div className="mt-2 divide-y divide-black/10">
+            {sourceRows.map(row => (
+              <div key={row.source} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0 truncate text-black/55">{sourceLabel(row.source)}</span>
+                <span className="font-semibold tabular-nums text-black/75">{row.count}</span>
+              </div>
+            ))}
+            {!sourceRows.length ? <p className="py-3 text-xs text-black/40">Sources appear when prospects or leads are added.</p> : null}
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function JourneyMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className="mt-2 text-2xl font-semibold text-black/85">{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
 }
 
 function sourceLabel(source: string): string {

@@ -70,7 +70,7 @@ export class ExpenseService {
     return out;
   }
 
-  async create(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "usd"): Promise<Expense> {
+  async create(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<Expense> {
     if (input.amountCents <= 0) throw new Error("amountCents must be > 0.");
     if ((input.taxCents ?? 0) < 0 || (input.taxCents ?? 0) > input.amountCents) {
       throw new Error("taxCents must be between 0 and amountCents.");

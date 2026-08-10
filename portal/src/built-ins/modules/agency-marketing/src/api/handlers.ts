@@ -13,6 +13,9 @@ import type {
   MarketingAsset,
   MarketingAssetKind,
   MarketingAssetStatus,
+  FunnelWorkspaceConfig,
+  FunnelFormat,
+  FunnelStepKind,
   CreateMarketingAssetInput,
   UpdateMarketingAssetPatch,
   TemplateFilter,
@@ -47,6 +50,8 @@ const defaultCurrency = (ctx: PluginCtx): Currency =>
 const MARKETING_ASSETS_KEY = "milesymedia/channel-assets/v1";
 const MARKETING_ASSET_KINDS = new Set<MarketingAssetKind>(["social", "website", "funnel", "google-ads", "reputation"]);
 const MARKETING_ASSET_STATUSES = new Set<MarketingAssetStatus>(["draft", "active", "paused", "complete", "archived"]);
+const FUNNEL_FORMATS = new Set<FunnelFormat>(["one-page", "multi-step", "multi-page"]);
+const FUNNEL_STEP_KINDS = new Set<FunnelStepKind>(["landing", "form", "booking", "checkout", "thank-you", "custom"]);
 
 function cleanMarketingAssetInput(input: CreateMarketingAssetInput): Omit<MarketingAsset, "id" | "agencyId" | "createdAt" | "updatedAt"> | null {
   const name = typeof input.name === "string" ? input.name.trim().slice(0, 120) : "";
@@ -54,6 +59,41 @@ function cleanMarketingAssetInput(input: CreateMarketingAssetInput): Omit<Market
   const status = input.status && MARKETING_ASSET_STATUSES.has(input.status) ? input.status : "draft";
   const text = (value: unknown, max = 500) => typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
   const count = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+  const cleanFunnel = (value: FunnelWorkspaceConfig | undefined): FunnelWorkspaceConfig | undefined => {
+    if (!value || typeof value !== "object") return undefined;
+    const format = FUNNEL_FORMATS.has(value.format) ? value.format : "one-page";
+    const steps = Array.isArray(value.steps)
+      ? value.steps.slice(0, 30).flatMap((step, index) => {
+          if (!step || typeof step !== "object") return [];
+          const stepName = text(step.name, 100);
+          if (!stepName) return [];
+          const kind = FUNNEL_STEP_KINDS.has(step.kind) ? step.kind : "custom";
+          return [{
+            id: text(step.id, 80) ?? "step_" + (index + 1),
+            name: stepName,
+            path: text(step.path, 240) ?? "/",
+            kind,
+            headline: text(step.headline, 240),
+            ctaLabel: text(step.ctaLabel, 100),
+          }];
+        })
+      : [];
+    return {
+      format,
+      previewUrl: text(value.previewUrl, 500),
+      productionUrl: text(value.productionUrl, 500),
+      editorUrl: text(value.editorUrl, 500),
+      repositoryUrl: text(value.repositoryUrl, 500),
+      localPath: text(value.localPath, 500),
+      developmentProjectId: text(value.developmentProjectId, 120),
+      primaryGoal: text(value.primaryGoal, 300),
+      primaryCta: text(value.primaryCta, 100),
+      conversionEvent: text(value.conversionEvent, 120),
+      telemetrySiteKey: text(value.telemetrySiteKey, 160),
+      telemetryPropertyId: text(value.telemetryPropertyId, 160),
+      steps,
+    };
+  };
   return {
     kind: input.kind,
     companyIds: Array.isArray(input.companyIds)
@@ -75,6 +115,7 @@ function cleanMarketingAssetInput(input: CreateMarketingAssetInput): Omit<Market
     reviewCount: count(input.reviewCount),
     unansweredReviews: count(input.unansweredReviews),
     notes: text(input.notes, 2_000),
+    funnel: input.kind === "funnel" ? cleanFunnel(input.funnel) : undefined,
   };
 }
 

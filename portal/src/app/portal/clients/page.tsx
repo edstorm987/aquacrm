@@ -12,6 +12,7 @@ import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
 import { NotificationBell } from "@/components/chrome/NotificationBell";
+import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
@@ -64,10 +65,14 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
         phone: contact.phone,
         company: contact.company,
         tags: contact.tags,
-        type: contact.type as ContactRole,
-        source: contact.source,
-        notes: contact.notes,
-        recordKind: "contact" as const,
+	        type: contact.type as ContactRole,
+	        source: contact.source,
+	        notes: contact.notes,
+	        lastContactedAt: contact.lastContactedAt,
+	        nextMeetingAt: contact.nextMeetingAt,
+	        promotedFromLeadId: contact.promotedFromLeadId,
+	        createdAt: contact.createdAt,
+	        recordKind: "contact" as const,
       })),
       ...leadRows
         .filter(lead => !contactEmails.has(lead.email.toLowerCase()))
@@ -79,14 +84,18 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
           company: lead.company,
           tags: lead.tags,
           type: "lead" as const,
-          source: lead.source,
-          notes: lead.notes,
-          recordKind: "lead" as const,
+	          source: lead.source,
+	          notes: lead.notes,
+	          lastContactedAt: lead.lastContactedAt,
+	          nextMeetingAt: lead.nextMeetingAt,
+	          capturedAt: lead.capturedAt,
+	          pipelineCardId: lead.pipelineCardId,
+	          recordKind: "lead" as const,
         })),
     ];
   }
   const requestedView = (await searchParams).view;
-  const initialView = requestedView === "contacts" || requestedView === "staff" || requestedView === "health" || requestedView === "all" ? requestedView : "clients";
+  const initialView = requestedView === "contacts" || requestedView === "staff" || requestedView === "health" || requestedView === "journey" || requestedView === "all" ? requestedView : "journey";
   const installs = listInstalledFor({ agencyId: agency.id });
   const eff = effectiveRole(session);
   const panels = buildSidebar({
@@ -96,7 +105,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     permissions: eff.permissions,
     isFounder: eff.isFounder,
   });
-  const currentPath = "/portal/clients";
+  const currentPath = initialView === "journey" ? "/portal/clients?view=journey" : "/portal/clients";
 
   return (
     <>
@@ -110,7 +119,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             title={INTERNAL_WORKSPACE_NAME}
-            subtitle="Clients & contacts"
+            subtitle="Journey"
             role={session.role}
             email={session.email}
             name={currentUser?.name}
@@ -125,6 +134,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
               ...contacts.flatMap(contact => [contact.name ?? "", contact.email, contact.phone ?? "", contact.company ?? ""]),
             ]}
             notifications={<NotificationBell agencyId={agency.id} actor={session.userId} />}
+            advisorControl={session.role === "agency-owner" || session.role === "agency-manager" ? (
+              <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} />
+            ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label="clients index">
@@ -152,7 +164,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                   sopCategories: product.sopCategories, companyIds: product.companyIds,
                 }))}
                 clients={clients.map(client => {
-                  const metadata = client.metadata as { leadSource?: string; lastContactedAt?: number; products?: unknown[]; niche?: string; customFields?: Record<string, unknown> } | undefined;
+	                  const metadata = client.metadata as { leadId?: string; contactId?: string; promotedFromLeadId?: string; leadSource?: string; lastContactedAt?: number; products?: unknown[]; niche?: string; customFields?: Record<string, unknown> } | undefined;
                   const healthNotes = [
                     !client.ownerEmail ? "Account email missing" : null,
                     !metadata?.leadSource ? "Acquisition source missing" : null,
@@ -165,9 +177,12 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                   websiteUrl: client.websiteUrl,
                   stageLabel: phaseLabel(client.stage),
                   status: client.status,
-                  primaryColor: client.brand.primaryColor,
-                  source: metadata?.leadSource ?? "Unknown",
-                  niche: metadata?.niche ?? (typeof metadata?.customFields?.niche === "string" ? metadata.customFields.niche : undefined),
+	                  primaryColor: client.brand.primaryColor,
+	                  source: metadata?.leadSource ?? "Unknown",
+	                  leadId: metadata?.leadId,
+	                  contactId: metadata?.contactId,
+	                  promotedFromLeadId: metadata?.promotedFromLeadId,
+	                  niche: metadata?.niche ?? (typeof metadata?.customFields?.niche === "string" ? metadata.customFields.niche : undefined),
                   lastContactedAt: metadata?.lastContactedAt,
                   health: healthNotes.length ? "attention" as const : "healthy" as const,
                   healthNotes,

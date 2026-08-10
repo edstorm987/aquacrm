@@ -43,10 +43,11 @@ interface Props {
   previewActive?: boolean;
   notifications?: ReactNode;
   companySwitcher?: ReactNode;
+  advisorControl?: ReactNode;
   privacyTerms?: string[];
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, publicShowcase, previewActive, notifications, companySwitcher, privacyTerms }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, publicShowcase, previewActive, notifications, companySwitcher, advisorControl, privacyTerms }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = role === "agency-owner" || role === "agency-manager" || role === "agency-staff";
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
@@ -65,7 +66,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
       <div className="ml-auto flex min-w-0 flex-nowrap items-center gap-1 text-xs sm:gap-2 lg:gap-3">
         {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden md:block">{companySwitcher}</div> : null}
         {searchItems.length ? <PortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
-        {advisorEnabled ? <Link href="/portal/agency/assistant" aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
+        {advisorEnabled ? advisorControl ?? <Link href="/portal/agency/assistant" aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
         <PrivacyModeControl
           canEnterShowcase={!publicShowcase && (role === "agency-owner" || role === "agency-manager")}
           showcaseMode={showcaseMode}

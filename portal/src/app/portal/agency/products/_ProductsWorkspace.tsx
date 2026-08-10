@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Archive, ArrowRight, Building2, Check, ChevronRight, FolderOpen, Grid2X2, Layers3, Package, Plus, RotateCcw, X } from "lucide-react";
-import type { AgencyProduct, AgencyProductKind, AgencyProductPortalRequirement, AgencyProductPricing, SopDocument, TradingCompany } from "@/server/types";
+import type { AgencyProduct, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, SopDocument, TradingCompany } from "@/server/types";
 import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/agencyProductCategories";
+import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
 
 export type Draft = {
   id?: string;
@@ -16,8 +17,11 @@ export type Draft = {
   coverImageUrl: string;
   accentColor: string;
   portalRequirement: AgencyProductPortalRequirement;
+  portalTemplateKey: AgencyProductPortalTemplateKey | "";
   portalHeadline: string;
   portalWelcomeNote: string;
+  portalStageFocus: Record<AgencyProductPortalMode, string>;
+  portalSupportCta: string;
   includedProductIds: string[];
   welcomePackItems: string;
   welcomePackNotes: string;
@@ -37,7 +41,7 @@ export type Draft = {
   companyIds: string[];
 };
 
-export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalHeadline: "", portalWelcomeNote: "", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [] };
+export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalTemplateKey: "", portalHeadline: "", portalWelcomeNote: "", portalStageFocus: { onboarding: "", designing: "", "developed-launch": "", maintenance: "" }, portalSupportCta: "Send request", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [] };
 
 const AQUA_COMPANY_ID = "aqua-oasis-web";
 
@@ -290,8 +294,11 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
         coverImageUrl: form.coverImageUrl,
         accentColor: form.accentColor,
         portalRequirement: form.portalRequirement,
+        portalTemplateKey: form.portalTemplateKey || undefined,
         portalHeadline: form.portalHeadline,
         portalWelcomeNote: form.portalWelcomeNote,
+        portalStageFocus: form.portalStageFocus,
+        portalSupportCta: form.portalSupportCta,
         includedProductIds: form.includedProductIds,
         welcomePackItems: form.welcomePackItems.split("\n").map(item => item.trim()).filter(Boolean),
         welcomePackNotes: form.welcomePackNotes,
@@ -359,8 +366,18 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
               </div>
               <Field label="Client portal"><select value={form.portalRequirement} onChange={event => setForm(value => ({ ...value, portalRequirement: event.target.value as AgencyProductPortalRequirement }))} className={control}><option value="required">Required for this product</option><option value="optional">Optional</option><option value="none">Not needed</option></select></Field>
               {form.portalRequirement !== "none" ? <>
+                <Field label="Portal template"><select value={form.portalTemplateKey} onChange={event => setForm(value => ({ ...value, portalTemplateKey: event.target.value as AgencyProductPortalTemplateKey | "" }))} className={control}><option value="">No template attached</option>{PORTAL_PRODUCT_CATALOG.map(template => <option key={template.catalogKey} value={template.catalogKey}>{template.name} portal</option>)}</select></Field>
                 <Field label="Portal headline"><input value={form.portalHeadline} onChange={event => setForm(value => ({ ...value, portalHeadline: event.target.value }))} className={control} placeholder="Your project, clearly managed." /></Field>
                 <Field label="Portal welcome message"><textarea rows={4} value={form.portalWelcomeNote} onChange={event => setForm(value => ({ ...value, portalWelcomeNote: event.target.value }))} className={`${control} py-2`} placeholder="The first message the client sees in their branded portal." /></Field>
+                <Field label="Portal support button"><input value={form.portalSupportCta} onChange={event => setForm(value => ({ ...value, portalSupportCta: event.target.value }))} className={control} placeholder="Send request" /></Field>
+                <details className="border-t border-black/10 pt-4" open={Boolean(Object.values(form.portalStageFocus).some(Boolean))}>
+                  <summary className="cursor-pointer text-sm font-semibold text-black/75">Lifecycle stage copy</summary>
+                  <p className="mt-1 text-xs leading-5 text-black/45">Optional custom guidance for each client portal stage. Template defaults remain available when these are blank.</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {(Object.entries({ onboarding: "Onboarding", designing: "Designing", "developed-launch": "Review & launch", maintenance: "Live care" }) as Array<[AgencyProductPortalMode, string]>).map(([stage, label]) => <Field key={stage} label={label}><textarea rows={3} value={form.portalStageFocus[stage]} onChange={event => setForm(value => ({ ...value, portalStageFocus: { ...value.portalStageFocus, [stage]: event.target.value } }))} className={`${control} py-2`} /></Field>)}
+                  </div>
+                </details>
+                <Link href="/portal/agency/portals?view=templates" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.05]">Preview and edit portal templates <ArrowRight size={13} /></Link>
               </> : null}
             </div>
           </details>
@@ -416,7 +433,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
 
 const control = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm";
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/60">{label}{children}</label>; }
-export function toDraft(product: AgencyProduct): Draft { return { id: product.id, kind: product.kind ?? "product", name: product.name, category: product.category, description: product.description ?? "", buyerHeadline: product.buyerHeadline ?? "", coverImageUrl: product.coverImageUrl ?? "", accentColor: product.accentColor ?? "#8E7340", portalRequirement: product.portalRequirement ?? "optional", portalHeadline: product.portalHeadline ?? "", portalWelcomeNote: product.portalWelcomeNote ?? "", includedProductIds: product.includedProductIds ?? [], welcomePackItems: (product.welcomePackItems ?? []).join("\n"), welcomePackNotes: product.welcomePackNotes ?? "", pricing: product.pricing, price: product.priceCents === undefined ? "" : (product.priceCents / 100).toFixed(2), billingInterval: product.billingInterval ?? "month", depositPercent: String(product.depositPercent ?? 0), taxRatePercent: String(product.taxRatePercent ?? 0), paymentTermsDays: String(product.paymentTermsDays ?? 7), billingNotes: product.billingNotes ?? "", internalInfo: product.internalInfo ?? "", deliverables: product.deliverables.join("\n"), contractTitle: product.contractTitle ?? "", contractBody: product.contractBody ?? "", sopIds: product.sopIds ?? [], sopCategories: product.sopCategories ?? [], companyIds: product.companyIds ?? [] }; }
+export function toDraft(product: AgencyProduct): Draft { return { id: product.id, kind: product.kind ?? "product", name: product.name, category: product.category, description: product.description ?? "", buyerHeadline: product.buyerHeadline ?? "", coverImageUrl: product.coverImageUrl ?? "", accentColor: product.accentColor ?? "#8E7340", portalRequirement: product.portalRequirement ?? "optional", portalTemplateKey: product.portalTemplateKey ?? "", portalHeadline: product.portalHeadline ?? "", portalWelcomeNote: product.portalWelcomeNote ?? "", portalStageFocus: { onboarding: product.portalStageFocus?.onboarding ?? "", designing: product.portalStageFocus?.designing ?? "", "developed-launch": product.portalStageFocus?.["developed-launch"] ?? "", maintenance: product.portalStageFocus?.maintenance ?? "" }, portalSupportCta: product.portalSupportCta ?? "Send request", includedProductIds: product.includedProductIds ?? [], welcomePackItems: (product.welcomePackItems ?? []).join("\n"), welcomePackNotes: product.welcomePackNotes ?? "", pricing: product.pricing, price: product.priceCents === undefined ? "" : (product.priceCents / 100).toFixed(2), billingInterval: product.billingInterval ?? "month", depositPercent: String(product.depositPercent ?? 0), taxRatePercent: String(product.taxRatePercent ?? 0), paymentTermsDays: String(product.paymentTermsDays ?? 7), billingNotes: product.billingNotes ?? "", internalInfo: product.internalInfo ?? "", deliverables: product.deliverables.join("\n"), contractTitle: product.contractTitle ?? "", contractBody: product.contractBody ?? "", sopIds: product.sopIds ?? [], sopCategories: product.sopCategories ?? [], companyIds: product.companyIds ?? [] }; }
 export function priceLabel(product: AgencyProduct): string { if (product.pricing === "custom" || product.priceCents === undefined) return "Custom quote"; const amount = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(product.priceCents / 100); if (product.pricing === "from") return `From ${amount}`; if (product.pricing === "recurring") return `${amount} / ${product.billingInterval ?? "month"}`; return amount; }
 export function linkedSopCount(product: AgencyProduct, sops: SopDocument[]): number { return new Set(sops.filter(sop => (product.sopIds ?? []).includes(sop.id) || Boolean(sop.category && (product.sopCategories ?? []).includes(sop.category))).map(sop => sop.id)).size; }
 export function portalLabel(requirement?: AgencyProductPortalRequirement): string { return requirement === "required" ? "required" : requirement === "none" ? "not needed" : "optional"; }

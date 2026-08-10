@@ -11,6 +11,55 @@ export function listSops(agencyId: string): SopDocument[] {
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+export function listSopCategories(agencyId: string): string[] {
+  const stored = getState().agencySettings[agencyId]?.sopCategories ?? [];
+  const fromSops = Object.values(getState().sops)
+    .filter(sop => sop.agencyId === agencyId)
+    .map(sop => sop.category)
+    .filter((category): category is string => Boolean(category));
+  return cleanCategories([...stored, ...fromSops]);
+}
+
+export function createSopCategory(agencyId: string, category: string, actorUserId: string): string {
+  const cleanCategory = category.trim().slice(0, 80);
+  if (!cleanCategory) throw new Error("Category name required.");
+  const categories = cleanCategories([...listSopCategories(agencyId), cleanCategory]);
+  mutate(state => {
+    const existing = state.agencySettings[agencyId];
+    state.agencySettings[agencyId] = {
+      ...(existing ?? {
+        agencyId,
+        timezone: "Europe/London",
+        defaultCurrency: "GBP",
+        defaultTaxRatePercent: 0,
+        defaultPaymentTermsDays: 7,
+        invoicePrefix: "MM",
+        defaultClientStage: "aqua-epic-intro",
+        createPortalByDefault: false,
+        portalAccessDays: 7,
+        notifications: {
+          overdueTasks: true,
+          outages: true,
+          supportRequests: true,
+          meetingReminders: true,
+          financeAlerts: true,
+          marketingAlerts: true,
+          clientAlerts: true,
+          contractAlerts: true,
+          complianceAlerts: true,
+          developmentAlerts: true,
+          digest: "daily",
+        },
+        updatedAt: 0,
+      }),
+      sopCategories: categories,
+      updatedAt: Date.now(),
+    };
+  });
+  logActivity({ agencyId, actorUserId, category: "system", action: "sop.category.created", message: `Created SOP category “${cleanCategory}”.`, metadata: { category: cleanCategory } });
+  return cleanCategory;
+}
+
 export function getSop(agencyId: string, id: string): SopDocument | null {
   const sop = getState().sops[id];
   return sop?.agencyId === agencyId ? sop : null;
@@ -71,4 +120,17 @@ export function deleteSopRecord(agencyId: string, id: string): SopDocument | nul
 
 function cleanTags(tags?: string[]): string[] {
   return [...new Set((tags ?? []).map(tag => tag.trim().slice(0, 40)).filter(Boolean))].slice(0, 20);
+}
+
+function cleanCategories(categories: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const category of categories) {
+    const clean = category.trim().slice(0, 80);
+    const key = clean.toLowerCase();
+    if (!clean || seen.has(key)) continue;
+    seen.add(key);
+    result.push(clean);
+  }
+  return result.sort((a, b) => a.localeCompare(b));
 }

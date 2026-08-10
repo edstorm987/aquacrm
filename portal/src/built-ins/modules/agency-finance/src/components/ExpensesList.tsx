@@ -6,6 +6,7 @@ import { ArrowUpDown, CalendarDays, ChartPie, Download, Eye, FileUp, Paperclip, 
 
 import type { Client } from "../lib/tenancy";
 import type { Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
+import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { FinanceNav } from "./FinanceNav";
 
 export interface ExpensesListProps {
@@ -14,6 +15,7 @@ export interface ExpensesListProps {
   clients: Client[];
   apiBase: string;
   canMutate: boolean;
+  defaultCurrency: string;
 }
 
 interface CustomFieldDefinition {
@@ -40,18 +42,13 @@ type RecurrenceFilter = "all" | "recurring" | "one-off";
 const inputClass = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
 const labelClass = "grid gap-1 text-xs font-medium text-black/60";
 
-function money(cents: number, currency = "gbp"): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  }).format(cents / 100);
-}
+function money(cents: number, currency = "gbp"): string { return formatMoney(cents, currency); }
 
 function csvCell(value: unknown): string {
   return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`;
 }
 
-export function ExpensesList({ expenses, categories, clients, apiBase, canMutate }: ExpensesListProps) {
+export function ExpensesList({ expenses, categories, clients, apiBase, canMutate, defaultCurrency }: ExpensesListProps) {
   const router = useRouter();
   const [records, setRecords] = useState(expenses);
   const [categoryRecords, setCategoryRecords] = useState(categories);
@@ -249,7 +246,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
           </p>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <a href="/portal/agency/portals?view=editor#forms/expenses" className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
+          <a href="/portal/agency/portals/forms#forms/expenses" className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
             <Settings2 size={16} aria-hidden /> Edit form
           </a>
           <button type="button" onClick={downloadCsv} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] sm:flex-none">
@@ -281,6 +278,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
               categories={categoryRecords.filter(category => category.status === "active")}
               clients={clients}
               customFields={customFields}
+              defaultCurrency={defaultCurrency}
               onClose={() => setAdding(false)}
               onCategoryCreated={rememberCategory}
               onSaved={expense => {
@@ -302,6 +300,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
               categories={categoryRecords}
               clients={clients}
               customFields={customFields}
+              defaultCurrency={defaultCurrency}
               onClose={() => setEditingExpense(null)}
               onCategoryCreated={rememberCategory}
               onSaved={expense => {
@@ -677,12 +676,13 @@ function ExpenseCategoryBreakdown({ expenses, categoryNames, selectedCategoryId,
   );
 }
 
-function ExpenseForm({ expense, apiBase, categories, clients, customFields, onClose, onCategoryCreated, onSaved }: {
+function ExpenseForm({ expense, apiBase, categories, clients, customFields, defaultCurrency, onClose, onCategoryCreated, onSaved }: {
   expense?: Expense;
   apiBase: string;
   categories: ExpenseCategory[];
   clients: Client[];
   customFields: CustomFieldDefinition[];
+  defaultCurrency: string;
   onClose: () => void;
   onCategoryCreated: (category: ExpenseCategory) => void;
   onSaved: (expense: Expense) => void;
@@ -772,6 +772,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
             description: optionalValue(data.get("description")),
             reason: optionalValue(data.get("reason")),
             amountCents,
+            currency: String(data.get("currency") ?? expense?.currency ?? defaultCurrency),
             taxCents,
             taxRateBps: Math.round(rate * 100),
             taxDeductible: data.get("taxDeductible") === "on",
@@ -792,7 +793,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
             headers: { "content-type": "application/json" },
             body: JSON.stringify(editing
               ? { id: expense!.id, patch: fields }
-              : { ...fields, currency: "gbp", recordAsPaid: data.get("recordAsPaid") === "on" }),
+              : { ...fields, recordAsPaid: data.get("recordAsPaid") === "on" }),
           });
           const result = await response.json();
           if (!response.ok || !result.ok) {
@@ -832,7 +833,8 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, onCl
           </datalist>
           <span className="font-normal text-black/40">New categories are saved for future expenses.</span>
         </label>
-        <label className={labelClass}>Gross amount (£)<input name="amount" type="number" step="0.01" min="0.01" required defaultValue={expense ? (expense.amountCents / 100).toFixed(2) : ""} className={inputClass} placeholder="0.00" /></label>
+        <label className={labelClass}>Currency<select name="currency" defaultValue={expense?.currency ?? defaultCurrency} className={inputClass}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
+        <label className={labelClass}>Gross amount<input name="amount" type="number" step="0.01" min="0.01" required defaultValue={expense ? (expense.amountCents / 100).toFixed(2) : ""} className={inputClass} placeholder="0.00" /></label>
         <label className={labelClass}>Tax included
           <select name="taxRate" value={taxRate} onChange={event => setTaxRate(event.target.value)} className={inputClass}>
             <option value="0">No tax / exempt</option>

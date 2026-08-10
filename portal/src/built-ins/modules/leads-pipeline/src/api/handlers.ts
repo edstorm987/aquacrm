@@ -516,6 +516,7 @@ function resolvedProductConversion(
   const selectedProducts = allProducts.filter(product => includedIds.has(product.id));
   const products: PortalProductSelection[] = selectedProducts.map(product => ({
     id: product.id,
+    catalogKey: product.portalTemplateKey,
     name: product.name,
     description: product.description ?? "",
     deliverables: product.deliverables,
@@ -524,6 +525,8 @@ function resolvedProductConversion(
     accentColor: product.accentColor,
     portalHeadline: product.portalHeadline,
     portalWelcomeNote: product.portalWelcomeNote,
+    stageFocusOverrides: product.portalStageFocus,
+    supportCta: product.portalSupportCta,
   }));
   const createPortal = selected.portalRequirement === "required"
     ? true

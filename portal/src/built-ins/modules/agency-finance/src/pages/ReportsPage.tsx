@@ -1,7 +1,9 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import type { Currency } from "../lib/domain";
+import { normaliseCurrency, SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { FinanceNav } from "../components/FinanceNav";
+import Link from "next/link";
 
 function money(cents: number, currency: Currency): string {
   return new Intl.NumberFormat("en-GB", {
@@ -14,12 +16,16 @@ export default async function ReportsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
   const to = Date.now();
   const from = Date.UTC(new Date().getUTCFullYear(), 0, 1);
-  const currency = (props.install.config.defaultCurrency as Currency | undefined) ?? "gbp";
-  const [snapshot, invoices, expenses] = await Promise.all([
-    c.reports.revenueSnapshot({ from, to, currency }),
-    c.invoices.list(),
-    c.expenses.list(),
-  ]);
+  const [invoices, expenses, income] = await Promise.all([c.invoices.list(), c.expenses.list(), c.income.list()]);
+  const availableCurrencies = Array.from(new Set([
+    normaliseCurrency(props.install.config.defaultCurrency, "gbp"),
+    ...invoices.map(row => row.currency),
+    ...expenses.map(row => row.currency),
+    ...income.map(row => row.currency),
+  ])).sort((a, b) => a.localeCompare(b));
+  const requestedCurrency = typeof props.searchParams.currency === "string" ? props.searchParams.currency : undefined;
+  const currency = normaliseCurrency(requestedCurrency, normaliseCurrency(props.install.config.defaultCurrency, "gbp"));
+  const snapshot = await c.reports.revenueSnapshot({ from, to, currency });
   const paidExpenses = expenses.filter(expense => expense.status === "reimbursed" && expense.currency === currency);
   const outputTax = invoices
     .filter(invoice => invoice.status === "paid" && invoice.currency === currency && invoice.paidAt && invoice.paidAt >= from)
@@ -39,6 +45,15 @@ export default async function ReportsPage(props: PluginPageProps) {
         <h1 className="mt-1 text-2xl font-semibold text-black/90">Tax and profit report</h1>
         <p className="mt-1 text-sm text-black/55">Calendar year to date · actual transactions recorded in AquaOasis-Web.</p>
       </header>
+
+      <nav aria-label="Report currency" className="flex flex-wrap items-center gap-2 rounded-md border border-black/10 bg-black/[0.018] p-3">
+        <span className="mr-1 text-xs font-semibold text-black/50">Currency</span>
+        {availableCurrencies.map(code => {
+          const active = code === currency;
+          const label = SUPPORTED_CURRENCIES.find(item => item.code === code)?.code.toUpperCase() ?? code.toUpperCase();
+          return <Link key={code} href={`/portal/agency/agency-finance/reports?currency=${code}`} aria-current={active ? "page" : undefined} className={`min-h-9 rounded-md border px-3 py-2 text-xs font-semibold ${active ? "border-black bg-black text-white" : "border-black/10 bg-white text-black/60 hover:bg-black/[0.03]"}`}>{label}</Link>;
+        })}
+      </nav>
 
       <dl className="grid grid-cols-2 border-y border-black/10 lg:grid-cols-5">
         <Metric label="Income received" value={money(snapshot.totalPaidCents, currency)} />

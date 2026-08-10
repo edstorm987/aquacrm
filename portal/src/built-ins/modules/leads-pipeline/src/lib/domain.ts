@@ -410,7 +410,52 @@ export interface ContactFilter {
 // ─── Campaign ─────────────────────────────────────────────────────────────
 
 export type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed";
-export type CampaignChannel = "email" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "event" | "referral" | "other";
+export type CampaignChannel = "email" | "newsletter" | "cold-outreach" | "dm" | "direct-mail" | "print" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "social" | "event" | "referral" | "charity" | "other";
+export type CampaignKind = "social-media" | "physical" | "newsletter" | "cold" | "dm" | "charity" | "paid" | "organic" | "event" | "other";
+
+export type CampaignPlacement =
+  | "instagram-feed"
+  | "instagram-story"
+  | "instagram-reel"
+  | "facebook-feed"
+  | "facebook-story"
+  | "linkedin-feed"
+  | "google-display";
+
+export interface CampaignCreativeAsset {
+  fileName: string;
+  contentType: string;
+  size: number;
+  storageProvider: "supabase" | "vercel-blob" | "local";
+  storageKey: string;
+}
+
+export interface CampaignCreative {
+  asset?: CampaignCreativeAsset;
+  brandName?: string;
+  accountHandle?: string;
+  primaryText?: string;
+  headline?: string;
+  description?: string;
+  callToAction?: string;
+  destinationUrl?: string;
+  placements: CampaignPlacement[];
+  mediaFit?: "cover" | "contain";
+  focalX?: number;
+  focalY?: number;
+  overlayTone?: "light" | "dark";
+  showSafeAreas?: boolean;
+}
+
+export interface CampaignStep {
+  id: string;
+  name: string;
+  channel?: CampaignChannel;
+  owner?: string;
+  dueAt?: number;
+  status: "todo" | "in-progress" | "ready" | "done";
+  notes?: string;
+}
 
 export interface AudienceFilter {
   companyIds?: string[];            // OR — leads related to any selected trading brand
@@ -426,6 +471,7 @@ export interface Campaign {
   name: string;
   companyIds?: string[];            // empty/undefined = group-wide shared activity
   channel?: CampaignChannel;
+  kind?: CampaignKind;
   sourceKey?: string;
   subject: string;
   bodyHtml: string;
@@ -437,6 +483,8 @@ export interface Campaign {
   endsAt?: number;
   externalUrl?: string;
   notes?: string;
+  steps?: CampaignStep[];
+  creative?: CampaignCreative;
   status: CampaignStatus;
   scheduleAt?: number;
   audienceFilter: AudienceFilter;
@@ -455,6 +503,7 @@ export interface CreateCampaignInput {
   name: string;
   companyIds?: string[];
   channel?: CampaignChannel;
+  kind?: CampaignKind;
   sourceKey?: string;
   subject?: string;
   bodyHtml?: string;
@@ -466,6 +515,8 @@ export interface CreateCampaignInput {
   endsAt?: number;
   externalUrl?: string;
   notes?: string;
+  steps?: CampaignStep[];
+  creative?: CampaignCreative;
   audienceFilter: AudienceFilter;
   scheduleAt?: number;
 }
@@ -474,6 +525,7 @@ export interface UpdateCampaignPatch {
   name?: string;
   companyIds?: string[];
   channel?: CampaignChannel;
+  kind?: CampaignKind;
   sourceKey?: string;
   subject?: string;
   bodyHtml?: string;
@@ -485,6 +537,8 @@ export interface UpdateCampaignPatch {
   endsAt?: number;
   externalUrl?: string;
   notes?: string;
+  steps?: CampaignStep[];
+  creative?: CampaignCreative;
   audienceFilter?: AudienceFilter;
   scheduleAt?: number;
   status?: CampaignStatus;

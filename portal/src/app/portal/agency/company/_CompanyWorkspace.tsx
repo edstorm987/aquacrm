@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ChevronRight, CircleAlert, Compass, Flag, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, X } from "lucide-react";
+import { Building2, ChartPie, Check, ChevronRight, CircleAlert, Compass, Flag, Gauge, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, SopDocument, TradingCompany } from "@/server/types";
 import { calculateCompanyHealth } from "@/lib/companyHealth";
 import { LegalCompliancePanel } from "./_LegalCompliancePanel";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import { CompanyConnectionsWorkspace } from "./_CompanyConnectionsWorkspace";
+import type { IntegrationProvider } from "@/lib/integrations/catalog";
 
 interface Actuals {
   monthRevenueCents: number;
@@ -22,13 +23,20 @@ interface Actuals {
   overdueTasks: number;
 }
 
-type View = "overview" | "direction" | "plans" | "products" | "connections" | "legal";
+interface ServiceBrandSummary extends TradingCompany {
+  clientCount: number;
+  productCount: number;
+  staffCount: number;
+  healthScore: number;
+}
+
+type View = "overview" | "direction" | "plans" | "capacity" | "products" | "connections" | "legal";
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/40";
 const textarea = `${control} min-h-28 py-2`;
 
-export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, productDefaults, clients, workspaceWebsite }: { initial: CompanyProfile; companyName: string; actuals: Actuals; canEdit: boolean; legalDocuments: LegalDocument[]; initialProducts: AgencyProduct[]; sops: SopDocument[]; tradingCompanies: TradingCompany[]; productDefaults: { taxRatePercent: number; paymentTermsDays: number }; clients: Array<{ id: string; name: string }>; workspaceWebsite?: string }) {
+export function CompanyWorkspace({ initial, companyName, actuals, staffCount, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, serviceBrands, productDefaults, clients, workspaceWebsite, initialView, initialIntegration }: { initial: CompanyProfile; companyName: string; actuals: Actuals; staffCount: number; canEdit: boolean; legalDocuments: LegalDocument[]; initialProducts: AgencyProduct[]; sops: SopDocument[]; tradingCompanies: TradingCompany[]; serviceBrands: ServiceBrandSummary[]; productDefaults: { taxRatePercent: number; paymentTermsDays: number }; clients: Array<{ id: string; name: string }>; workspaceWebsite?: string; initialView?: View; initialIntegration?: IntegrationProvider }) {
   const [company, setCompany] = useState(initial);
-  const [view, setView] = useState<View>("overview");
+  const [view, setView] = useState<View>(initialView ?? "overview");
   const [editingDirection, setEditingDirection] = useState(false);
   const [dialog, setDialog] = useState<"objective" | "plan" | "review" | null>(null);
   const [status, setStatus] = useState("");
@@ -36,6 +44,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
   useEffect(() => {
     const requestedView = new URLSearchParams(window.location.search).get("view");
     if (requestedView === "products") setView("products");
+    else if (requestedView === "capacity") setView("capacity");
     else if (requestedView === "connections") setView("connections");
     else if (window.location.hash === "#legal") setView("legal");
   }, []);
@@ -44,8 +53,10 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
     setView(nextView);
     const url = new URL(window.location.href);
     if (nextView === "products") url.searchParams.set("view", "products");
+    else if (nextView === "capacity") url.searchParams.set("view", "capacity");
     else if (nextView === "connections") url.searchParams.set("view", "connections");
     else url.searchParams.delete("view");
+    if (nextView !== "connections") url.searchParams.delete("integration");
     url.hash = nextView === "legal" ? "legal" : "";
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }
@@ -99,6 +110,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
       href: "/portal/agency/actions",
     },
   ];
+  const capacity = calculateCapacity(company, actuals, callsNeeded);
 
   async function save(next = company, message = "Company updated.") {
     setStatus("Saving...");
@@ -133,6 +145,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
           ["overview", "Overview", TrendingUp],
           ["direction", "Direction", Compass],
           ["plans", "Plans & reviews", Flag],
+          ["capacity", "Capacity", Gauge],
           ["products", "Products", Package],
           ["connections", "Connections", PlugZap],
           ["legal", "Legal & compliance", ShieldCheck],
@@ -145,6 +158,20 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
 
       {view === "overview" ? (
         <div className="mt-7 space-y-8">
+          <CompanyDashboard
+            companyName={companyName}
+            company={company}
+            actuals={actuals}
+            staffCount={staffCount}
+            tradingCompanies={tradingCompanies}
+            serviceBrands={serviceBrands}
+            productCount={initialProducts.length}
+            legalCount={legalDocuments.length}
+            healthScore={health.overall}
+            capacity={capacity}
+            onSelect={selectView}
+          />
+
           <CompanyHealth score={health.overall} signals={healthSignals} />
 
           <section>
@@ -239,6 +266,55 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
         </div>
       ) : null}
 
+      {view === "capacity" ? (
+        <div className="mt-7 space-y-8">
+          <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand">Delivery capacity</p>
+              <h2 className="mt-1 text-xl font-semibold text-black/85">Can the company deliver the plan?</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-black/50">Capacity turns clients, sales calls, admin load and delivery assumptions into a simple weekly utilisation view.</p>
+            </div>
+            {canEdit ? <CapacityEditor company={company} onSave={async next => { await save(next, "Capacity assumptions updated."); }} /> : null}
+          </section>
+
+          <div className="grid grid-cols-2 gap-x-4 border-y border-black/10 lg:grid-cols-4 lg:gap-x-6">
+            <Metric label="Weekly capacity" value={`${company.capacity.weeklyAvailableHours}h`} />
+            <Metric label="Planned load" value={`${capacity.requiredHours}h`} tone={capacity.utilisationPercent >= company.capacity.hiringTriggerPercent ? "warn" : undefined} />
+            <Metric label="Utilisation" value={`${capacity.utilisationPercent}%`} tone={capacity.utilisationPercent >= company.capacity.hiringTriggerPercent ? "warn" : "good"} />
+            <Metric label="Headroom" value={`${capacity.headroomHours}h`} tone={capacity.headroomHours > 0 ? "good" : "warn"} />
+          </div>
+
+          <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.75fr)]">
+            <div>
+              <h3 className="text-base font-semibold text-black/80">Capacity model</h3>
+              <div className="mt-3 divide-y divide-black/10 border-y border-black/10 text-sm">
+                <CapacityRow label="Client delivery" detail={`${actuals.activeClients} active clients × ${company.capacity.deliveryHoursPerActiveClient}h/week`} value={`${capacity.deliveryHours}h`} />
+                <CapacityRow label="Sales pipeline" detail={`${callsNeeded} estimated calls/month × ${company.capacity.salesHoursPerCall}h`} value={`${capacity.salesHours}h`} />
+                <CapacityRow label="Admin buffer" detail={`${company.capacity.adminBufferPercent}% buffer on delivery and sales load`} value={`${capacity.bufferHours}h`} />
+                <CapacityRow label="Hiring trigger" detail="When utilisation reaches this, capacity needs attention." value={`${company.capacity.hiringTriggerPercent}%`} />
+              </div>
+            </div>
+            <aside className="border-l-2 border-brand/40 pl-5">
+              <h3 className="text-base font-semibold text-black/80">Executive signal</h3>
+              <p className={`mt-2 text-sm font-semibold ${capacity.utilisationPercent >= company.capacity.hiringTriggerPercent ? "text-amber-700" : "text-emerald-700"}`}>
+                {capacity.utilisationPercent >= company.capacity.hiringTriggerPercent ? "Capacity is near the trigger point." : "Capacity has workable headroom."}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-black/50">
+                {capacity.utilisationPercent >= company.capacity.hiringTriggerPercent
+                  ? "Before adding more sales targets, reduce delivery load, raise prices, simplify fulfilment, or plan support capacity."
+                  : "There is still room to sell, deliver and improve operations before capacity becomes the limiting factor."}
+              </p>
+              <dl className="mt-4 divide-y divide-black/10 text-sm">
+                <Row label="Team members" value={String(staffCount)} />
+                <Row label="Open tasks" value={String(actuals.openTasks)} />
+                <Row label="Overdue tasks" value={String(actuals.overdueTasks)} />
+              </dl>
+              {company.capacity.notes ? <p className="mt-4 whitespace-pre-wrap text-xs leading-5 text-black/45">{company.capacity.notes}</p> : null}
+            </aside>
+          </section>
+        </div>
+      ) : null}
+
       {view === "products" ? (
         <div className="mt-7">
           <ProductsWorkspace
@@ -257,6 +333,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
           tradingCompanies={tradingCompanies}
           clients={clients}
           canManage={canEdit}
+          initialIntegration={initialIntegration}
         />
       ) : null}
 
@@ -268,6 +345,197 @@ export function CompanyWorkspace({ initial, companyName, actuals, canEdit, legal
     </section>
   );
 }
+
+function CompanyDashboard({
+  companyName,
+  company,
+  actuals,
+  staffCount,
+  tradingCompanies,
+  serviceBrands,
+  productCount,
+  legalCount,
+  healthScore,
+  capacity,
+  onSelect,
+}: {
+  companyName: string;
+  company: CompanyProfile;
+  actuals: Actuals;
+  staffCount: number;
+  tradingCompanies: TradingCompany[];
+  serviceBrands: ServiceBrandSummary[];
+  productCount: number;
+  legalCount: number;
+  healthScore: number;
+  capacity: ReturnType<typeof calculateCapacity>;
+  onSelect: (view: View) => void;
+}) {
+  const activeBrands = tradingCompanies.filter(item => item.status === "active").length;
+  const activeObjectives = company.objectives.filter(item => item.status !== "complete").length;
+  const activePlans = company.plans.filter(item => item.status === "active" || item.status === "planned").length;
+  const capacityTone = capacity.utilisationPercent >= company.capacity.hiringTriggerPercent ? "warn" : "good";
+  const aggregateHealth = aggregateScore([healthScore, ...serviceBrands.filter(item => item.status !== "archived").map(item => item.healthScore)]);
+  const pieSegments = companyPieSegments(companyName, actuals.activeClients, serviceBrands);
+  return (
+    <section aria-labelledby="company-dashboard-heading" className="space-y-5">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-stretch">
+        <div className="rounded-lg border border-black/10 bg-white p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Company dashboard</p>
+          <h2 id="company-dashboard-heading" className="mt-1 text-xl font-semibold text-black/86">Combined operating group</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-black/50">{companyName} and every service brand rolled into one executive view across money, clients, capacity, objectives, products, connections and compliance.</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <DashboardMetric label="Group health" value={`${aggregateHealth}/100`} detail={aggregateHealth >= 80 ? "Strong" : aggregateHealth >= 60 ? "Watch closely" : "Needs attention"} icon={<HeartPulse size={16} />} tone={aggregateHealth >= 80 ? "good" : aggregateHealth >= 60 ? "warn" : "bad"} />
+            <DashboardMetric label="Revenue this month" value={money(actuals.monthRevenueCents, actuals.currency)} detail={`${money(company.monthlyRevenueTargetCents, actuals.currency)} target`} icon={<TrendingUp size={16} />} />
+            <DashboardMetric label="Unique clients" value={String(actuals.activeClients)} detail={`${actuals.clientsNeedingAttention} need attention`} icon={<HeartPulse size={16} />} tone={actuals.clientsNeedingAttention ? "warn" : "good"} />
+            <DashboardMetric label="Group capacity" value={`${capacity.utilisationPercent}%`} detail={`${capacity.headroomHours}h headroom`} icon={<Gauge size={16} />} tone={capacityTone} />
+          </div>
+        </div>
+
+        <aside className="rounded-lg border border-brand/20 bg-brand/[0.045] p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Focus</p>
+          <h3 className="mt-1 text-base font-semibold text-black/82">{activeObjectives ? `${activeObjectives} objective${activeObjectives === 1 ? "" : "s"} active` : "No active objectives yet"}</h3>
+          <p className="mt-2 text-sm leading-6 text-black/50">{activePlans ? `${activePlans} planned or active company plan${activePlans === 1 ? "" : "s"} are in motion.` : "Add the first company plan when the next move is clear."}</p>
+          <button type="button" onClick={() => onSelect("plans")} className="mt-4 inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white">Open plans <ChevronRight size={13} /></button>
+        </aside>
+      </div>
+
+      <div className="rounded-lg border border-black/10 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand">Aggregate</p>
+            <h3 className="mt-1 text-lg font-semibold text-black/84">All companies combined</h3>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">AquaOasis-Web is the operating workspace. Service brands are customer-facing identities attached to clients, products and staff where needed.</p>
+          </div>
+          <Link href="/portal/agency/company?view=companies" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold text-black/65 hover:border-black/20 hover:text-black">
+            <Building2 size={15} /> Open grid view
+          </Link>
+        </div>
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 xl:grid-cols-3">
+            <AggregateStat label="Companies" value={String(1 + tradingCompanies.length)} detail={`${activeBrands} active brands`} />
+            <AggregateStat label="Clients" value={String(actuals.activeClients)} detail="Unique active clients" />
+            <AggregateStat label="Products" value={String(productCount)} detail="All sellable offers" />
+            <AggregateStat label="People" value={String(staffCount)} detail="Agency team" />
+            <AggregateStat label="Health" value={`${aggregateHealth}/100`} detail="Workspace + brands" />
+          </div>
+          <CompanyPieChart segments={pieSegments} />
+        </div>
+        <div className="mt-5 divide-y divide-black/10 border-y border-black/10">
+          <AggregateRow name={companyName} kind="Operating workspace" clients={actuals.activeClients} products={productCount} staff={staffCount} healthScore={healthScore} />
+          {serviceBrands.filter(item => item.status !== "archived").slice(0, 5).map(item => (
+            <AggregateRow key={item.id} name={item.name} kind={`${item.status} service brand`} clients={item.clientCount} products={item.productCount} staff={item.staffCount} healthScore={item.healthScore} />
+          ))}
+        </div>
+        {serviceBrands.filter(item => item.status !== "archived").length > 5 ? <p className="mt-3 text-xs text-black/40">Open grid view to see every service brand.</p> : null}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <DashboardLink title="Service brands" value={String(activeBrands)} detail={`${tradingCompanies.length} total service brands`} icon={<Building2 size={16} />} href="/portal/agency/company?view=companies" />
+        <DashboardAction title="Products" value={String(productCount)} detail="Offers, packages, pricing and welcome packs" icon={<Package size={16} />} onClick={() => onSelect("products")} />
+        <DashboardAction title="Connections" value={actuals.leadCount ? String(actuals.leadCount) : "Open"} detail="Website, tools, integrations and client links" icon={<PlugZap size={16} />} onClick={() => onSelect("connections")} />
+        <DashboardAction title="Compliance" value={String(legalCount)} detail="Policies, contracts and legal documents" icon={<ShieldCheck size={16} />} onClick={() => onSelect("legal")} />
+      </div>
+    </section>
+  );
+}
+
+function DashboardMetric({ label, value, detail, icon, tone }: { label: string; value: string; detail: string; icon: React.ReactNode; tone?: "good" | "warn" | "bad" }) {
+  const toneClass = tone === "good" ? "text-emerald-700" : tone === "warn" ? "text-amber-700" : tone === "bad" ? "text-red-700" : "text-black/85";
+  return <div className="rounded-md border border-black/10 bg-black/[0.018] p-4"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{label}</p><span className="text-brand">{icon}</span></div><p className={`mt-2 text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
+}
+
+function AggregateStat({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return <div className="rounded-md border border-black/10 bg-black/[0.018] px-3 py-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{label}</p><p className="mt-1 text-xl font-semibold text-black/85">{value}</p><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
+}
+
+interface CompanyPieSegment {
+  label: string;
+  value: number;
+  percent: number;
+  colour: string;
+  start: number;
+  end: number;
+}
+
+function CompanyPieChart({ segments }: { segments: CompanyPieSegment[] }) {
+  const gradient = segments.length
+    ? `conic-gradient(${segments.map(segment => `${segment.colour} ${segment.start}% ${segment.end}%`).join(", ")})`
+    : "conic-gradient(#e5e7eb 0 100%)";
+  return <div className="rounded-md border border-black/10 bg-black/[0.018] p-4">
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-black/40"><ChartPie size={14} /> Company split</div>
+    <div className="mt-4 grid grid-cols-[120px_minmax(0,1fr)] items-center gap-4">
+      <div className="relative size-28 rounded-full border border-black/10 shadow-inner" style={{ background: gradient }}>
+        <div className="absolute inset-8 rounded-full border border-black/10 bg-white" />
+      </div>
+      <div className="min-w-0 space-y-2">
+        {segments.map(segment => (
+          <div key={segment.label} className="grid grid-cols-[10px_minmax(0,1fr)_42px] items-center gap-2 text-xs">
+            <span className="size-2.5 rounded-full" style={{ backgroundColor: segment.colour }} />
+            <span className="truncate text-black/60">{segment.label}</span>
+            <span className="text-right font-semibold text-black/70">{segment.percent}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <p className="mt-3 text-[11px] leading-4 text-black/38">Split by attached clients. If there are no clients yet, it shows an even company split.</p>
+  </div>;
+}
+
+function AggregateRow({ name, kind, clients, products, staff, healthScore }: { name: string; kind: string; clients: number; products: number; staff: number; healthScore: number }) {
+  return <div className="grid gap-3 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_80px_80px_80px_90px] sm:items-center">
+    <div className="min-w-0"><p className="truncate font-semibold text-black/78">{name}</p><p className="mt-0.5 text-xs capitalize text-black/42">{kind}</p></div>
+    <AggregateCell label="Clients" value={clients} />
+    <AggregateCell label="Offers" value={products} />
+    <AggregateCell label="People" value={staff} />
+    <div className="text-left sm:text-right"><span className={`font-semibold ${healthScore >= 80 ? "text-emerald-700" : healthScore >= 60 ? "text-amber-700" : "text-red-700"}`}>{healthScore}/100</span><p className="text-[10px] uppercase tracking-wide text-black/35">Health</p></div>
+  </div>;
+}
+
+function AggregateCell({ label, value }: { label: string; value: number }) {
+  return <div><span className="font-semibold text-black/75">{value}</span><p className="text-[10px] uppercase tracking-wide text-black/35">{label}</p></div>;
+}
+
+function DashboardAction({ title, value, detail, icon, onClick }: { title: string; value: string; detail: string; icon: React.ReactNode; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="rounded-lg border border-black/10 bg-white p-4 text-left transition hover:border-black/20 hover:bg-black/[0.018]"><span className="flex items-start justify-between gap-3"><span className="text-sm font-semibold text-black/78">{title}</span><span className="text-brand">{icon}</span></span><span className="mt-2 block text-2xl font-semibold text-black/85">{value}</span><span className="mt-1 block text-xs leading-5 text-black/45">{detail}</span></button>;
+}
+
+function DashboardLink({ title, value, detail, icon, href }: { title: string; value: string; detail: string; icon: React.ReactNode; href: string }) {
+  return <Link href={href} className="rounded-lg border border-black/10 bg-white p-4 text-left transition hover:border-black/20 hover:bg-black/[0.018]"><span className="flex items-start justify-between gap-3"><span className="text-sm font-semibold text-black/78">{title}</span><span className="text-brand">{icon}</span></span><span className="mt-2 block text-2xl font-semibold text-black/85">{value}</span><span className="mt-1 block text-xs leading-5 text-black/45">{detail}</span></Link>;
+}
+
+function aggregateScore(scores: number[]): number {
+  const valid = scores.filter(score => Number.isFinite(score));
+  if (!valid.length) return 0;
+  return Math.round(valid.reduce((total, score) => total + score, 0) / valid.length);
+}
+
+function companyPieSegments(companyName: string, activeClientCount: number, serviceBrands: ServiceBrandSummary[]): CompanyPieSegment[] {
+  const activeServiceBrands = serviceBrands.filter(item => item.status !== "archived");
+  const brandClientTotal = activeServiceBrands.reduce((total, item) => total + item.clientCount, 0);
+  const workspaceClientCount = Math.max(0, activeClientCount - brandClientTotal);
+  const raw = [
+    { label: companyName, value: workspaceClientCount, colour: "#171717" },
+    ...activeServiceBrands.map((item, index) => ({
+      label: item.name,
+      value: item.clientCount,
+      colour: item.brand.primaryColor || fallbackColours[index % fallbackColours.length]!,
+    })),
+  ];
+  const valued = raw.some(item => item.value > 0)
+    ? raw.filter(item => item.value > 0)
+    : raw.map(item => ({ ...item, value: 1 }));
+  const total = valued.reduce((sum, item) => sum + item.value, 0);
+  let cursor = 0;
+  return valued.map((item, index) => {
+    const start = cursor;
+    const percent = index === valued.length - 1 ? 100 - Math.round(start) : Math.round(item.value / total * 100);
+    cursor += item.value / total * 100;
+    return { ...item, percent, start, end: index === valued.length - 1 ? 100 : cursor };
+  });
+}
+
+const fallbackColours = ["#0B6F6D", "#B68A4A", "#4F46E5", "#059669", "#BE123C", "#7C3AED"];
 
 interface CompanyHealthSignal {
   label: string;
@@ -322,6 +590,65 @@ function healthBarTone(value: number): string {
   return "bg-red-600";
 }
 
+function CapacityEditor({ company, onSave }: { company: CompanyProfile; onSave: (next: CompanyProfile) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [weekly, setWeekly] = useState(String(company.capacity.weeklyAvailableHours));
+  const [delivery, setDelivery] = useState(String(company.capacity.deliveryHoursPerActiveClient));
+  const [sales, setSales] = useState(String(company.capacity.salesHoursPerCall));
+  const [buffer, setBuffer] = useState(String(company.capacity.adminBufferPercent));
+  const [trigger, setTrigger] = useState(String(company.capacity.hiringTriggerPercent));
+  const [notes, setNotes] = useState(company.capacity.notes ?? "");
+
+  if (!open) return <button onClick={() => setOpen(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 px-3 text-sm font-medium"><Pencil size={15} /> Edit capacity</button>;
+
+  return (
+    <div className="rounded-md border border-black/10 bg-black/[0.018] p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberField label="Weekly available hours" value={weekly} setValue={setWeekly} />
+        <NumberField label="Hours per active client" value={delivery} setValue={setDelivery} />
+        <NumberField label="Hours per sales call" value={sales} setValue={setSales} />
+        <NumberField label="Admin buffer (%)" value={buffer} setValue={setBuffer} />
+        <NumberField label="Hiring trigger (%)" value={trigger} setValue={setTrigger} />
+      </div>
+      <label className="mt-3 grid gap-1 text-xs font-medium text-black/55">Capacity notes<textarea value={notes} onChange={event => setNotes(event.target.value)} className={`${control} min-h-20 py-2`} /></label>
+      <div className="mt-3 flex justify-end gap-2">
+        <button onClick={() => setOpen(false)} className="min-h-9 px-3 text-sm">Cancel</button>
+        <button onClick={async () => {
+          await onSave({
+            ...company,
+            capacity: {
+              weeklyAvailableHours: Math.max(1, Number(weekly || 0)),
+              deliveryHoursPerActiveClient: Math.max(0, Number(delivery || 0)),
+              salesHoursPerCall: Math.max(0, Number(sales || 0)),
+              adminBufferPercent: Math.max(0, Number(buffer || 0)),
+              hiringTriggerPercent: Math.max(1, Number(trigger || 0)),
+              notes,
+            },
+          });
+          setOpen(false);
+        }} className="min-h-9 rounded-md bg-black px-3 text-sm font-semibold text-white">Save capacity</button>
+      </div>
+    </div>
+  );
+}
+
+function calculateCapacity(company: CompanyProfile, actuals: Actuals, callsNeeded: number) {
+  const deliveryHours = roundHours(actuals.activeClients * company.capacity.deliveryHoursPerActiveClient);
+  const salesHours = roundHours((callsNeeded * company.capacity.salesHoursPerCall) / 4.33);
+  const baseHours = deliveryHours + salesHours;
+  const bufferHours = roundHours(baseHours * company.capacity.adminBufferPercent / 100);
+  const requiredHours = roundHours(baseHours + bufferHours);
+  const headroomHours = roundHours(company.capacity.weeklyAvailableHours - requiredHours);
+  const utilisationPercent = company.capacity.weeklyAvailableHours > 0
+    ? Math.max(0, Math.round(requiredHours / company.capacity.weeklyAvailableHours * 100))
+    : 0;
+  return { deliveryHours, salesHours, bufferHours, requiredHours, headroomHours, utilisationPercent };
+}
+
+function CapacityRow({ label, detail, value }: { label: string; detail: string; value: string }) {
+  return <div className="grid gap-1 py-3 sm:grid-cols-[160px_minmax(0,1fr)_80px] sm:items-center"><dt className="font-medium text-black/70">{label}</dt><dd className="text-black/45">{detail}</dd><dd className="font-mono font-semibold text-black/75 sm:text-right">{value}</dd></div>;
+}
+
 function TargetEditor({ company, onSave }: { company: CompanyProfile; onSave: (next: CompanyProfile) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [monthly, setMonthly] = useState(String(company.monthlyRevenueTargetCents / 100));
@@ -363,6 +690,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 function Submit({ label }: { label: string }) { return <div className="flex justify-end"><button className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Check size={15} />{label}</button></div>; }
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}{hint ? <span className="font-normal text-black/40">{hint}</span> : null}{children}</label>; }
 function MoneyInput({ label, value, setValue }: { label: string; value: string; setValue: (value: string) => void }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}<div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-black/40">£</span><input type="number" min="0" value={value} onChange={event => setValue(event.target.value)} className={`${control} pl-7`} /></div></label>; }
+function NumberField({ label, value, setValue }: { label: string; value: string; setValue: (value: string) => void }) { return <label className="grid gap-1 text-xs font-medium text-black/55">{label}<input type="number" min="0" step="0.1" value={value} onChange={event => setValue(event.target.value)} className={control} /></label>; }
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "good" | "warn" }) { return <div className="py-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-1 text-2xl font-semibold ${tone === "good" ? "text-emerald-700" : tone === "warn" ? "text-amber-700" : "text-black/85"}`}>{value}</dd></div>; }
 function Row({ label, value }: { label: string; value: string }) { return <div className="flex justify-between gap-4 py-2.5"><dt className="text-black/50">{label}</dt><dd className="font-semibold text-black/75">{value}</dd></div>; }
 function DirectionBlock({ label, value, empty }: { label: string; value: string; empty: string }) { return <section className="grid gap-2 py-5 sm:grid-cols-[140px_1fr]"><h3 className="text-sm font-semibold text-black/60">{label}</h3><p className={`text-sm leading-6 ${value ? "text-black/70" : "italic text-black/35"}`}>{value || empty}</p></section>; }
@@ -370,3 +698,4 @@ function ReviewText({ label, value }: { label: string; value: string }) { return
 function Empty({ text }: { text: string }) { return <div className="border-y border-dashed border-black/15 py-8 text-center text-sm text-black/40">{text}</div>; }
 function money(cents: number, currency: string) { return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase(), maximumFractionDigits: 0 }).format(cents / 100); }
 function pounds(value: string) { return Math.max(0, Math.round(Number(value || 0) * 100)); }
+function roundHours(value: number) { return Math.round(value * 10) / 10; }

@@ -101,7 +101,7 @@ export class InvoiceService {
     return out.sort((a, b) => b.issuedAt - a.issuedAt);
   }
 
-  async create(input: CreateInvoiceInput, actor: UserId, defaultCurrency: Currency = "usd"): Promise<Invoice> {
+  async create(input: CreateInvoiceInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<Invoice> {
     if (!input.lineItems || input.lineItems.length === 0) {
       throw new Error("Invoice must have at least one line item.");
     }

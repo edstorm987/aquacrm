@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
 import { createAgencyProduct, ensureDefaultAgencyProducts, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
 import { ensureHydrated } from "@/server/storage";
-import { AGENCY_ROLES, type AgencyProductKind, type AgencyProductPortalRequirement, type AgencyProductPricing } from "@/server/types";
+import { AGENCY_ROLES, type AgencyProductKind, type AgencyProductPortalMode, type AgencyProductPortalRequirement, type AgencyProductPortalTemplateKey, type AgencyProductPricing } from "@/server/types";
 
 type Body = {
   action?: "create" | "update";
@@ -15,8 +15,11 @@ type Body = {
   coverImageUrl?: string;
   accentColor?: string;
   portalRequirement?: AgencyProductPortalRequirement;
+  portalTemplateKey?: AgencyProductPortalTemplateKey;
   portalHeadline?: string;
   portalWelcomeNote?: string;
+  portalStageFocus?: Partial<Record<AgencyProductPortalMode, string>>;
+  portalSupportCta?: string;
   includedProductIds?: string[];
   welcomePackItems?: string[];
   welcomePackNotes?: string;
@@ -66,8 +69,11 @@ export async function POST(request: Request) {
       coverImageUrl: body.coverImageUrl,
       accentColor: body.accentColor,
       portalRequirement: body.portalRequirement,
+      portalTemplateKey: body.portalTemplateKey,
       portalHeadline: body.portalHeadline,
       portalWelcomeNote: body.portalWelcomeNote,
+      portalStageFocus: body.portalStageFocus,
+      portalSupportCta: body.portalSupportCta,
       includedProductIds: body.includedProductIds,
       welcomePackItems: body.welcomePackItems,
       welcomePackNotes: body.welcomePackNotes,

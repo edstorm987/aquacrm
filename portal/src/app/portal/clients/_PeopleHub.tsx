@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Building2, Mail, Phone, Plus, Search, UserRound, X } from "lucide-react";
+import { Building2, ClipboardPenLine, Mail, Phone, Plus, Route, Search, UserRound, X } from "lucide-react";
 
 import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
 
@@ -17,6 +17,9 @@ export interface HubClient {
   status: string;
   primaryColor: string;
   source: string;
+  leadId?: string;
+  contactId?: string;
+  promotedFromLeadId?: string;
   niche?: string;
   lastContactedAt?: number;
   health: "healthy" | "attention";
@@ -33,10 +36,16 @@ export interface HubContact {
   type: ContactRole;
   source: string;
   notes?: string;
+  lastContactedAt?: number;
+  nextMeetingAt?: number;
+  promotedFromLeadId?: string;
+  capturedAt?: number;
+  createdAt?: number;
+  pipelineCardId?: string;
   recordKind: "contact" | "lead";
 }
 
-type View = "all" | "clients" | "health" | "contacts" | "staff";
+type View = "all" | "clients" | "health" | "journey" | "contacts" | "staff";
 
 const roleLabels: Record<ContactRole, string> = {
   lead: "Lead",
@@ -62,12 +71,14 @@ export function PeopleHub({
   brands: NewClientBrandOption[];
   clientDefaults: NewClientDefaults;
 }) {
+  const [contactRows, setContactRows] = useState(contacts);
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<ContactRole | "all">("all");
   const [niche, setNiche] = useState("");
   const [clientStatus, setClientStatus] = useState<"all" | "active" | "suspended">("all");
   const [addingContact, setAddingContact] = useState(false);
+  const [reviewing, setReviewing] = useState<HubContact | null>(null);
 
   const filteredClients = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -84,22 +95,23 @@ export function PeopleHub({
 
   const filteredContacts = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return contacts.filter(contact => {
+    return contactRows.filter(contact => {
       if (view === "staff" && contact.type !== "employee") return false;
       if (view !== "staff" && role !== "all" && contact.type !== role) return false;
       return !q || `${contact.name ?? ""} ${contact.email} ${contact.phone ?? ""} ${contact.company ?? ""} ${contact.notes ?? ""} ${contact.tags.join(" ")}`.toLowerCase().includes(q);
     });
-  }, [contacts, query, role, view]);
+  }, [contactRows, query, role, view]);
 
-  const staffCount = useMemo(() => contacts.filter(contact => contact.type === "employee").length, [contacts]);
+  const staffCount = useMemo(() => contactRows.filter(contact => contact.type === "employee").length, [contactRows]);
+  const journeyRows = useMemo(() => buildJourneyRows(clients, contactRows), [clients, contactRows]);
 
   return (
     <div className="mx-auto w-full max-w-7xl">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">People</p>
-          <h1 className="mt-1 text-2xl font-semibold text-black/90">Clients & contacts</h1>
-          <p className="mt-1 max-w-2xl text-sm text-black/55">Every relationship in one place, from first lead to active client, supplier, or team member.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Journey</p>
+          <h1 className="mt-1 text-2xl font-semibold text-black/90">Journey, clients & contacts</h1>
+          <p className="mt-1 max-w-2xl text-sm text-black/55">Trace campaign and enquiry sources into contacts, manual relationships and clients without forcing every person to become a customer.</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
@@ -113,9 +125,10 @@ export function PeopleHub({
         <div className="flex gap-3 overflow-x-auto sm:gap-6" role="tablist" aria-label="People view">
           <Tab active={view === "clients"} onClick={() => setView("clients")} label="Clients" count={clients.length} />
           <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} />
-          <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contacts.length} />
+          <Tab active={view === "journey"} onClick={() => setView("journey")} label="Journey" count={journeyRows.length} />
+          <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contactRows.length} />
           <Tab active={view === "staff"} onClick={() => setView("staff")} label="Staff" count={staffCount} />
-          <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={clients.length + contacts.length} />
+          <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={clients.length + contactRows.length} />
         </div>
       </div>
 
@@ -124,7 +137,7 @@ export function PeopleHub({
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" size={16} />
           <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search people, notes, or tags" className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
         </label>
-        {view !== "clients" && view !== "health" && view !== "staff" ? (
+        {view !== "clients" && view !== "health" && view !== "staff" && view !== "journey" ? (
           <select value={role} onChange={event => setRole(event.target.value as ContactRole | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto">
             <option value="all">Every contact type</option>
             {Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -166,11 +179,13 @@ export function PeopleHub({
         </section>
       ) : null}
 
+      {view === "journey" ? <JourneySection rows={journeyRows} onReview={setReviewing} /> : null}
+
       {view === "all" || view === "contacts" || view === "staff" ? (
         <PeopleSection title={view === "staff" ? "Staff" : "Contacts"} count={filteredContacts.length} hidden={view === "all" && filteredContacts.length === 0}>
-          {filteredContacts.map(contact => <ContactRow key={`${contact.recordKind}:${contact.id}`} contact={contact} />)}
+          {filteredContacts.map(contact => <ContactRow key={`${contact.recordKind}:${contact.id}`} contact={contact} onReview={setReviewing} />)}
           {filteredContacts.length === 0 ? (
-            <Empty text={view === "staff" ? (staffCount ? "No staff match this search." : "No staff added yet.") : (contacts.length ? "No contacts match these filters." : "No contacts yet.")} />
+            <Empty text={view === "staff" ? (staffCount ? "No staff match this search." : "No staff added yet.") : (contactRows.length ? "No contacts match these filters." : "No contacts yet.")} />
           ) : null}
         </PeopleSection>
       ) : null}
@@ -178,6 +193,10 @@ export function PeopleHub({
       {view === "all" && filteredClients.length === 0 && filteredContacts.length === 0 ? <Empty text="No people match this search." /> : null}
 
       {addingContact ? <AddContactModal onClose={() => setAddingContact(false)} /> : null}
+      {reviewing ? <ContactScratchpad contact={reviewing} onClose={() => setReviewing(null)} onSaved={updated => {
+        setContactRows(current => current.map(row => row.id === updated.id && row.recordKind === updated.recordKind ? updated : row));
+        setReviewing(updated);
+      }} /> : null}
     </div>
   );
 }
@@ -235,7 +254,63 @@ function sourceLabel(source: string): string {
   return source.replace(/^csv:/, "CSV · ").replace(/[-_]+/g, " ").replace(/\b\w/g, character => character.toUpperCase());
 }
 
-function ContactRow({ contact }: { contact: HubContact }) {
+function journeyStatusLabel(status: JourneyRow["status"]) {
+  if (status === "enquiry") return "Enquiry";
+  if (status === "client") return "Client";
+  if (status === "manual") return "Manual contact";
+  return "Contact";
+}
+
+function buildJourneyRows(clients: HubClient[], contacts: HubContact[]): JourneyRow[] {
+  const rows: JourneyRow[] = [];
+  const clientTraceIds = new Set<string>();
+  for (const client of clients) {
+    if (client.leadId) clientTraceIds.add(`lead:${client.leadId}`);
+    if (client.contactId) clientTraceIds.add(`contact:${client.contactId}`);
+    if (client.promotedFromLeadId) clientTraceIds.add(`lead:${client.promotedFromLeadId}`);
+    rows.push({
+      id: `client:${client.id}`,
+      title: client.name,
+      subtitle: [client.ownerEmail, client.websiteUrl].filter(Boolean).join(" · ") || "Client record",
+      source: client.source,
+      stage: client.stageLabel,
+      status: "client",
+      client,
+      notes: client.health === "attention" ? client.healthNotes.join(" · ") : undefined,
+      href: `/portal/clients/${client.id}`,
+    });
+  }
+  for (const contact of contacts) {
+    const key = `${contact.recordKind}:${contact.id}`;
+    const promotedKey = contact.promotedFromLeadId ? `lead:${contact.promotedFromLeadId}` : "";
+    if (clientTraceIds.has(key) || (promotedKey && clientTraceIds.has(promotedKey))) continue;
+    const isMarketingIntake = contact.recordKind === "lead" || contact.type === "lead";
+    const isManualRelationship = ["vendor", "employee", "account", "other"].includes(contact.type);
+    rows.push({
+      id: key,
+      title: contact.name || contact.company || contact.email,
+      subtitle: [contact.company, contact.email, contact.phone].filter(Boolean).join(" · "),
+      source: contact.source,
+      stage: contact.nextMeetingAt ? "Meeting booked" : contact.lastContactedAt ? "Contacted" : isMarketingIntake ? "Captured" : "Relationship",
+      status: isMarketingIntake ? "enquiry" : isManualRelationship ? "manual" : "contact",
+      contact,
+      notes: contact.notes,
+      href: contact.recordKind === "lead" ? "/portal/agency/pipelines/leads" : "/portal/agency/leads-pipeline/contacts",
+    });
+  }
+  return rows.sort((a, b) => journeySortTime(b) - journeySortTime(a));
+}
+
+function journeySortTime(row: JourneyRow): number {
+  if (row.client?.lastContactedAt) return row.client.lastContactedAt;
+  if (row.contact?.nextMeetingAt) return row.contact.nextMeetingAt;
+  if (row.contact?.lastContactedAt) return row.contact.lastContactedAt;
+  if (row.contact?.capturedAt) return row.contact.capturedAt;
+  if (row.contact?.createdAt) return row.contact.createdAt;
+  return 0;
+}
+
+function ContactRow({ contact, onReview }: { contact: HubContact; onReview: (contact: HubContact) => void }) {
   return (
     <div className="mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5">
       <div className="grid size-10 place-items-center rounded-md bg-black/[0.04] text-black/45"><UserRound size={18} /></div>
@@ -245,13 +320,126 @@ function ContactRow({ contact }: { contact: HubContact }) {
           <Badge>{roleLabels[contact.type]}</Badge>
           {contact.company && contact.name ? <span className="truncate text-xs text-black/40">{contact.company}</span> : null}
         </div>
-        <p className="mt-0.5 truncate text-xs text-black/45">{contact.email}{contact.phone ? ` · ${contact.phone}` : ""}{contact.tags.length ? ` · ${contact.tags.join(", ")}` : ""}</p>
+        <p className="mt-0.5 truncate text-xs text-black/45">{contact.email}{contact.phone ? ` · ${contact.phone}` : ""} · Source: {sourceLabel(contact.source)}{contact.tags.length ? ` · ${contact.tags.join(", ")}` : ""}</p>
+        {contact.notes ? <p className="mt-1 truncate text-xs text-black/42">{contact.notes}</p> : null}
       </div>
       <div className="col-start-2 flex flex-wrap items-center gap-1 sm:col-start-auto">
         {contact.phone ? <a href={`tel:${contact.phone}`} title="Call" aria-label={`Call ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Phone size={15} /></a> : null}
         <a href={`mailto:${contact.email}`} title="Email" aria-label={`Email ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Mail size={15} /></a>
+        <button type="button" onClick={() => onReview(contact)} title="Review notes" aria-label={`Review ${contact.name || contact.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><ClipboardPenLine size={15} /></button>
         <Link href="/portal/agency/leads-pipeline/contacts" className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Manage</Link>
       </div>
+    </div>
+  );
+}
+
+type JourneyRow = {
+  id: string;
+  title: string;
+  subtitle: string;
+  source: string;
+  stage: string;
+  status: "enquiry" | "contact" | "client" | "manual";
+  contact?: HubContact;
+  client?: HubClient;
+  notes?: string;
+  href: string;
+};
+
+function JourneySection({ rows, onReview }: { rows: JourneyRow[]; onReview: (contact: HubContact) => void }) {
+  const totals = {
+    enquiries: rows.filter(row => row.status === "enquiry").length,
+    contacts: rows.filter(row => row.status === "contact" || row.status === "manual").length,
+    clients: rows.filter(row => row.status === "client").length,
+    review: rows.filter(row => row.contact?.notes || row.client?.health === "attention").length,
+  };
+  return (
+    <section className="mt-7">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <JourneyMetric label="Enquiries" value={totals.enquiries} />
+        <JourneyMetric label="Contacts" value={totals.contacts} />
+        <JourneyMetric label="Clients" value={totals.clients} />
+        <JourneyMetric label="Review notes" value={totals.review} />
+      </div>
+      <div className="mm-surface-card mt-4 overflow-hidden rounded-lg border">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
+          <div><h2 className="text-base font-semibold text-black/80">Relationship journey</h2><p className="mt-1 text-sm text-black/45">Follow people from campaign or form source into contact records and client accounts.</p></div>
+          <Link href="/portal/agency/marketing" className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Open marketing</Link>
+        </div>
+        <div className="divide-y divide-black/[0.07]">
+          {rows.map(row => (
+            <article key={row.id} className="grid gap-3 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_210px_150px_auto] lg:items-center">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2"><Route size={15} className="text-brand" /><h3 className="truncate text-sm font-semibold text-black/82">{row.title}</h3><Badge>{journeyStatusLabel(row.status)}</Badge></div>
+                <p className="mt-1 truncate text-xs text-black/45">{row.subtitle}</p>
+                {row.notes ? <p className="mt-1 truncate text-xs text-black/40">{row.notes}</p> : null}
+              </div>
+              <div><p className="text-[10px] font-semibold uppercase text-black/35">Trace source</p><p className="mt-1 truncate text-xs font-medium text-black/62">{sourceLabel(row.source)}</p></div>
+              <div><p className="text-[10px] font-semibold uppercase text-black/35">Stage</p><p className="mt-1 text-xs font-medium text-black/62">{row.stage}</p></div>
+              <div className="flex flex-wrap gap-1 lg:justify-end">
+                {row.contact ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Review</button> : null}
+                <Link href={row.href} className="min-h-9 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link>
+              </div>
+            </article>
+          ))}
+          {!rows.length ? <Empty text="No journey records yet." /> : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function JourneyMetric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-lg border border-black/10 bg-white p-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-black/85">{value}</p></div>;
+}
+
+function ContactScratchpad({ contact, onClose, onSaved }: { contact: HubContact; onClose: () => void; onSaved: (contact: HubContact) => void }) {
+  const [notes, setNotes] = useState(contact.notes ?? "");
+  const [type, setType] = useState<ContactRole>(contact.type);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const endpoint = contact.recordKind === "lead" ? "leads" : "contacts";
+      const response = await fetch(`/api/portal/leads-pipeline/${endpoint}?id=${encodeURIComponent(contact.id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(contact.recordKind === "lead" ? { notes } : { notes, type }),
+      });
+      const result = await response.json() as { ok?: boolean; error?: string };
+      if (!response.ok || !result.ok) throw new Error(result.error ?? "Could not save notes.");
+      onSaved({ ...contact, notes, type: contact.recordKind === "lead" ? contact.type : type });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save notes.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-[80] grid items-end bg-black/40 sm:items-center sm:p-6">
+      <button type="button" aria-label="Close notes" className="absolute inset-0" onClick={onClose} />
+      <form onSubmit={save} className="relative mx-auto max-h-[100dvh] w-full max-w-2xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6">
+        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Manual review</p><h2 className="mt-1 text-xl font-semibold">{contact.name || contact.company || contact.email}</h2><p className="mt-1 text-sm text-black/45">{contact.email} · Source: {sourceLabel(contact.source)}</p></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></div>
+        {contact.recordKind === "contact" ? (
+          <label className="mt-5 grid gap-1 text-xs font-medium text-black/55">Relationship
+            <select value={type} onChange={event => setType(event.target.value as ContactRole)} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm">
+              {Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+        ) : null}
+        <label className="mt-4 grid gap-1 text-xs font-medium text-black/55">Scratchpad notes
+          <textarea value={notes} onChange={event => setNotes(event.target.value)} rows={10} className="rounded-md border border-black/15 px-3 py-2 text-sm leading-6" placeholder="Call notes, context, what they asked for, campaign trace, things to check, next step..." />
+        </label>
+        <div className="mt-4 rounded-md bg-black/[0.025] p-3 text-xs leading-5 text-black/50">
+          <p><strong className="font-semibold text-black/65">Trace:</strong> {contact.recordKind === "lead" ? "Lead / enquiry intake" : contact.promotedFromLeadId ? `Promoted from lead ${contact.promotedFromLeadId}` : "Manual or imported contact"}</p>
+          {contact.nextMeetingAt ? <p><strong className="font-semibold text-black/65">Meeting:</strong> {new Date(contact.nextMeetingAt).toLocaleString()}</p> : null}
+        </div>
+        {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
+        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/15 px-4 text-sm">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save notes"}</button></div>
+      </form>
     </div>
   );
 }
@@ -289,6 +477,7 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
                 company: String(data.get("company") ?? "").trim() || undefined,
                 type: String(data.get("type") ?? "other"),
                 source: "people-hub",
+                notes: String(data.get("notes") ?? "").trim() || undefined,
                 tags: [],
               }),
             });
@@ -309,6 +498,9 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
           <Input label="Email" name="email" type="email" placeholder="jane@company.com" required />
           <Input label="Phone" name="phone" placeholder="+44..." />
           <Input label="Company" name="company" placeholder="Company Ltd" />
+          <label className="grid gap-1 text-xs font-medium text-black/55 sm:col-span-2">Scratchpad notes
+            <textarea name="notes" rows={4} placeholder="Where they came from, why they matter, what to check next..." className="min-h-24 rounded-md border border-black/15 px-3 py-2 text-sm" />
+          </label>
           <label className="grid gap-1 text-xs font-medium text-black/55 sm:col-span-2">Relationship
             <select name="type" defaultValue="lead" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm">
               {Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

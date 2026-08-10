@@ -6,17 +6,15 @@ import {
   CheckCircle2,
   CircleDashed,
   Eye,
-  FilePenLine,
   LayoutPanelTop,
   MailCheck,
   MonitorCog,
   Search,
-  Settings2,
   Sparkles,
   UserRoundCheck,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { PortalEditorPanel } from "@/app/portal/agency/settings/PortalEditorPanel";
+import type { PortalProductDefinition } from "@/lib/portalProducts";
 
 export type PortalWorkspaceRecord = {
   id: string;
@@ -33,10 +31,23 @@ export type PortalWorkspaceRecord = {
   portalLoginEmail?: string;
   portalMode: "onboarding" | "designing" | "developed-launch" | "maintenance";
   portalServicePlan?: string;
-  hasVisualEditor: boolean;
 };
 
-type View = "library" | "editor";
+export type PortalTemplateProductRecord = {
+  id: string;
+  name: string;
+  active: boolean;
+  portalRequirement: "required" | "optional" | "none";
+  portalTemplateKey?: PortalProductDefinition["catalogKey"];
+  portalHeadline?: string;
+  portalWelcomeNote?: string;
+  portalStageFocus?: Partial<Record<PortalWorkspaceRecord["portalMode"], string>>;
+  portalSupportCta?: string;
+  accentColor?: string;
+  deliverables: string[];
+};
+
+type View = "library" | "templates";
 type Filter = "all" | "ready" | "needs-setup" | "access-sent" | "live";
 
 const MODE_LABELS: Record<PortalWorkspaceRecord["portalMode"], string> = {
@@ -48,10 +59,12 @@ const MODE_LABELS: Record<PortalWorkspaceRecord["portalMode"], string> = {
 
 export function PortalsWorkspace({
   portals,
+  products,
   initialView,
   canManage,
 }: {
   portals: PortalWorkspaceRecord[];
+  products: PortalTemplateProductRecord[];
   initialView: View;
   canManage: boolean;
 }) {
@@ -87,9 +100,16 @@ export function PortalsWorkspace({
   function chooseView(next: View) {
     setView(next);
     const url = new URL(window.location.href);
-    if (next === "editor") url.searchParams.set("view", "editor");
+    if (next === "templates") url.searchParams.set("view", "templates");
     else url.searchParams.delete("view");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  function openEditor() {
+    const firstPortal = portals.find(portal => portal.portalBuiltAt) ?? portals[0];
+    const query = new URLSearchParams({ scope: firstPortal ? "client" : "template" });
+    if (firstPortal) query.set("clientId", firstPortal.id);
+    window.location.assign(`/portal/agency/portals/editor?${query.toString()}`);
   }
 
   return (
@@ -99,12 +119,13 @@ export function PortalsWorkspace({
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Client experience</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90 sm:text-4xl">Portals</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
-            See every client portal, check access, preview the customer experience, and open the right editor from one place.
+            See every client portal, preview demo templates, check access, and open the right editor from one place.
           </p>
         </div>
         <div className="inline-flex w-full rounded-md border border-black/10 bg-white p-1 sm:w-auto" role="tablist" aria-label="Portal workspace views">
           <ViewButton active={view === "library"} onClick={() => chooseView("library")} icon={<LayoutPanelTop size={16} />} label="All portals" />
-          <ViewButton active={view === "editor"} onClick={() => chooseView("editor")} icon={<MonitorCog size={16} />} label="Portal editor" />
+          <ViewButton active={view === "templates"} onClick={() => chooseView("templates")} icon={<Eye size={16} />} label="Demo templates" />
+          <ViewButton active={false} onClick={openEditor} icon={<MonitorCog size={16} />} label="Portal editor" />
         </div>
       </header>
 
@@ -155,37 +176,77 @@ export function PortalsWorkspace({
           )}
         </div>
       ) : (
-        <div className="pt-6">
-          <section>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Client portals</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-black/85">Choose what you want to edit</h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Edit the customer-facing content and access flow, or open the advanced visual editor where it is installed.</p>
-              </div>
-              <Link href="/portal/clients" className="inline-flex min-h-10 items-center gap-2 self-start rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70 hover:bg-black/[0.03]">
-                Manage clients <ArrowUpRight size={15} />
-              </Link>
-            </div>
-
-            <div className="mt-5 grid gap-2">
-              {portals.map(portal => <EditorRow key={portal.id} portal={portal} />)}
-            </div>
-          </section>
-
-          <section id="forms" className="mt-10 scroll-mt-6 border-t border-black/10 pt-8">
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Portal data forms</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-black/85">Control the information you collect</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Manage custom fields used across clients, contacts, leads, expenses, actions, and products.</p>
-            </div>
-            <PortalEditorPanel canManage={canManage} />
-          </section>
-        </div>
+        <CanonicalPortalTemplatePreview portals={portals} products={products} canManage={canManage} />
       )}
     </div>
   );
 }
+
+function CanonicalPortalTemplatePreview({
+  portals,
+  products,
+  canManage,
+}: {
+  portals: PortalWorkspaceRecord[];
+  products: PortalTemplateProductRecord[];
+  canManage: boolean;
+}) {
+  const previewClient = portals.find(portal => portal.portalBuiltAt) ?? portals[0];
+  const connectedProducts = products.filter(product => product.active && product.portalRequirement !== "none");
+  const previewHref = previewClient
+    ? `/client-preview/${previewClient.id}?portalScope=template&portalMode=onboarding`
+    : "";
+  const editorHref = `/portal/agency/portals/editor?scope=template${previewClient ? `&clientId=${encodeURIComponent(previewClient.id)}` : ""}`;
+
+  return (
+    <div className="pt-6">
+      <section className="overflow-hidden rounded-md border border-black/10 bg-white">
+        <div className="flex flex-col gap-5 border-b border-black/10 p-5 lg:flex-row lg:items-center lg:justify-between lg:p-6">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Master portal template</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-black/85">Stunning Standard</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-black/50">The exact client portal currently used for onboarding, project delivery, results, files, billing, support, resources, and client details.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {previewClient ? <Link href={previewHref} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03]"><Eye size={15} /> View portal <ArrowUpRight size={14} /></Link> : null}
+            <Link href={editorHref} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85"><MonitorCog size={15} /> Portal editor</Link>
+          </div>
+        </div>
+
+        {previewClient ? (
+          <div className="bg-[#d9d9d4] p-4 sm:p-6">
+            <div className="mx-auto max-w-[1280px] overflow-hidden rounded-md border border-black/15 bg-white shadow-[0_18px_50px_rgba(0,0,0,.12)]">
+              <iframe title="Stunning Standard portal template" src={`${previewHref}&embedded=1`} className="block h-[720px] w-full bg-white" />
+            </div>
+          </div>
+        ) : (
+          <div className="grid min-h-64 place-items-center bg-black/[0.025] px-6 text-center text-sm text-black/50">Create a client record to supply realistic preview data for the master template.</div>
+        )}
+      </section>
+
+      <section className="mt-6 border-t border-black/10 pt-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Product connections</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-black/82">Products using a client portal</h2>
+          </div>
+          <p className="text-xs text-black/42">{connectedProducts.length} active product{connectedProducts.length === 1 ? "" : "s"}</p>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {connectedProducts.map(product => (
+            <Link key={product.id} href={`/portal/agency/products/${product.id}`} className="mm-interactive-row mm-surface-card flex min-h-16 items-center justify-between gap-3 rounded-md p-3">
+              <div className="min-w-0"><p className="truncate text-sm font-semibold text-black/75">{product.name}</p><p className="mt-1 text-xs text-black/40">{product.portalRequirement === "required" ? "Portal required" : "Portal optional"}</p></div>
+              <ArrowUpRight size={15} className="shrink-0 text-black/30" />
+            </Link>
+          ))}
+          {!connectedProducts.length ? <p className="text-sm text-black/45">No active products currently require a portal.</p> : null}
+        </div>
+        {!canManage ? <p className="mt-3 text-xs text-black/40">Manager access is required to publish template changes.</p> : null}
+      </section>
+    </div>
+  );
+}
+
 
 function ViewButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
   return (
@@ -236,43 +297,15 @@ function PortalCard({ portal }: { portal: PortalWorkspaceRecord }) {
         <div className="mt-4 flex flex-wrap gap-2">
           {isBuilt ? (
             <Link href={`/client-preview/${portal.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
-              <Eye size={15} /> Preview <ArrowUpRight size={14} />
+              <Eye size={15} /> View portal <ArrowUpRight size={14} />
             </Link>
           ) : null}
-          <Link href={`/portal/clients/${portal.id}?tab=fulfilment`} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBuilt ? "border border-black/12 bg-white text-black/70 hover:bg-black/[0.03]" : "bg-black text-white hover:bg-black/85"}`}>
-            {isBuilt ? <FilePenLine size={15} /> : <Sparkles size={15} />}{isBuilt ? "Edit portal" : "Create portal"}
-          </Link>
-          <Link href={`/portal/clients/${portal.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-black/50 hover:bg-black/[0.035] hover:text-black/75">
-            Client record
+          <Link href={isBuilt ? `/portal/agency/portals/editor?scope=client&clientId=${portal.id}` : `/portal/clients/${portal.id}?tab=fulfilment`} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBuilt ? "border border-black/12 bg-white text-black/70 hover:bg-black/[0.03]" : "bg-black text-white hover:bg-black/85"}`}>
+            {isBuilt ? <MonitorCog size={15} /> : <Sparkles size={15} />}{isBuilt ? "Portal editor" : "Create portal"}
           </Link>
         </div>
       </div>
     </article>
-  );
-}
-
-function EditorRow({ portal }: { portal: PortalWorkspaceRecord }) {
-  const isBuilt = Boolean(portal.portalBuiltAt);
-  return (
-    <div className="mm-interactive-row mm-surface-card flex flex-col gap-3 rounded-md p-3 sm:flex-row sm:items-center">
-      <span className="grid size-10 shrink-0 place-items-center rounded-md text-xs font-bold text-white" style={{ backgroundColor: portal.accentColor }}>{initials(portal.name)}</span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-semibold text-black/80">{portal.name}</p>
-          <StatusChip tone={isBuilt ? "ready" : "neutral"}>{isBuilt ? MODE_LABELS[portal.portalMode] : "No portal"}</StatusChip>
-        </div>
-        <p className="mt-0.5 text-xs text-black/42">{portal.portalServicePlan || portal.companyName || "Client portal"}</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {isBuilt ? <Link href={`/client-preview/${portal.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/65 hover:bg-black/[0.03]"><Eye size={15} /> Preview</Link> : null}
-        <Link href={`/portal/clients/${portal.id}?tab=fulfilment`} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85"><Settings2 size={15} /> {isBuilt ? "Edit portal" : "Create portal"}</Link>
-        {portal.hasVisualEditor ? (
-          <Link href={`/portal/clients/${portal.id}/portals`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-brand/20 bg-brand/5 px-3 text-sm font-semibold text-brand hover:bg-brand/10"><MonitorCog size={15} /> Visual editor</Link>
-        ) : (
-          <Link href={`/portal/clients/${portal.id}?tab=systems`} className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-black/45 hover:bg-black/[0.035] hover:text-black/70">Add visual editor</Link>
-        )}
-      </div>
-    </div>
   );
 }
 

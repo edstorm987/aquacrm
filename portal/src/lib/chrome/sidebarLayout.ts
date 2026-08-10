@@ -79,10 +79,9 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       items.push({ id: "company",     label: "Company",            href: "/portal/agency/company",         panelId: "main", order: -9.5 });
       items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -9 });
       items.push({ id: "inbox",       label: "Master inbox",       href: "/portal/agency/inbox",           panelId: "main", order: -8 });
-      items.push({ id: "clients",     label: "Clients & contacts", href: "/portal/clients",                panelId: "main", order: -6 });
       items.push({ id: "portals",     label: "Portals",            href: "/portal/agency/portals",         panelId: "main", order: -5.8 });
       items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -5.5 });
-      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/agency/pipelines/leads", panelId: "main", order: -5 });
+      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "main", order: -5 });
       items.push({ id: "development", label: "Development",        href: "/portal/agency/development", panelId: "ops", order: -3 });
       items.push({ id: "marketing",   label: "Marketing",          href: "/portal/agency/marketing",       panelId: "main", order: -2 });
       items.push({ id: "finance",     label: "Finance",            href: "/portal/agency/agency-finance",  panelId: "ops",  order: -3 });
@@ -207,7 +206,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
-      "home", "company", "actions", "inbox", "clients", "portals", "you-deserve-it",
+      "home", "company", "actions", "inbox", "portals", "you-deserve-it",
       "pipelines", "development", "marketing", "finance", "sop-library",
     ]);
     const canonicalOrder = [...canonicalMainIds];

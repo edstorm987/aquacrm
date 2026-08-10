@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import type { Invoice, InvoiceStatus, InvoiceTemplate } from "../lib/domain";
 import type { Client } from "../lib/tenancy";
+import { SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { InvoiceTemplateEditor } from "./InvoiceTemplateEditor";
 import { FinanceNav } from "./FinanceNav";
 
@@ -15,6 +16,7 @@ export interface InvoicesListProps {
   apiBase: string;
   canMutate: boolean;
   template: InvoiceTemplate;
+  defaultCurrency: string;
 }
 
 const STATUS_LABEL: Record<InvoiceStatus, string> = {
@@ -22,7 +24,7 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
   void: "Void", refunded: "Refunded",
 };
 
-export function InvoicesList({ invoices, clients, apiBase, canMutate, template }: InvoicesListProps) {
+export function InvoicesList({ invoices, clients, apiBase, canMutate, template, defaultCurrency }: InvoicesListProps) {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
@@ -97,7 +99,7 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template }
         <div className="fixed inset-0 z-50 grid items-end bg-black/35 p-0 sm:items-center sm:p-6" role="presentation">
           <button type="button" aria-label="Close invoice form" className="absolute inset-0 cursor-default" onClick={() => setAdding(false)} />
           <div role="dialog" aria-modal="true" aria-labelledby="new-invoice-heading" className="relative mx-auto max-h-[100dvh] w-full max-w-4xl overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-lg">
-            <NewInvoiceForm apiBase={apiBase} clients={clients} busy={busy} onBusy={setBusy} onError={setError} onClose={() => setAdding(false)} />
+            <NewInvoiceForm apiBase={apiBase} clients={clients} busy={busy} defaultCurrency={defaultCurrency} onBusy={setBusy} onError={setError} onClose={() => setAdding(false)} />
           </div>
         </div>
       ) : null}
@@ -165,10 +167,11 @@ function IssueButton({ apiBase, invoiceId }: { apiBase: string; invoiceId: strin
   }} className="rounded-md border border-black/15 px-2 py-1 text-xs font-medium">{busy ? "Issuing…" : "Issue"}</button>;
 }
 
-function NewInvoiceForm({ apiBase, clients, busy, onBusy, onError, onClose }: {
+function NewInvoiceForm({ apiBase, clients, busy, defaultCurrency, onBusy, onError, onClose }: {
   apiBase: string;
   clients: Client[];
   busy: boolean;
+  defaultCurrency: string;
   onBusy: (value: boolean) => void;
   onError: (value: string | null) => void;
   onClose: () => void;
@@ -197,7 +200,7 @@ function NewInvoiceForm({ apiBase, clients, busy, onBusy, onError, onClose }: {
             dueAt: Date.parse(String(data.get("dueAt"))) || Date.now() + 14 * 86_400_000,
             lineItems: [{ description: String(data.get("description")).trim(), quantity: 1, unitCents: netCents }],
             taxCents,
-            currency: "gbp",
+            currency: String(data.get("currency") ?? defaultCurrency),
             notes: String(data.get("notes") ?? "").trim() || undefined,
           }),
         });
@@ -223,7 +226,8 @@ function NewInvoiceForm({ apiBase, clients, busy, onBusy, onError, onClose }: {
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <label className="grid gap-1 text-xs font-medium text-black/60">Client<select name="clientId" required defaultValue="" className={control}><option value="" disabled>Choose client</option>{clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
         <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2">Service or product<input name="description" required className={control} placeholder="Website design and development" /></label>
-        <label className="grid gap-1 text-xs font-medium text-black/60">Net amount (£)<input name="netAmount" type="number" min="0.01" step="0.01" required className={control} /></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Currency<select name="currency" defaultValue={defaultCurrency} className={control}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
+        <label className="grid gap-1 text-xs font-medium text-black/60">Net amount<input name="netAmount" type="number" min="0.01" step="0.01" required className={control} /></label>
         <label className="grid gap-1 text-xs font-medium text-black/60">Tax rate<select name="taxRate" defaultValue="20" className={control}><option value="0">No tax</option><option value="5">5%</option><option value="20">20% VAT</option></select></label>
         <label className="grid gap-1 text-xs font-medium text-black/60">Payment due<input name="dueAt" type="date" defaultValue={new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10)} className={control} /></label>
         <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2">Internal note<input name="notes" className={control} /></label>

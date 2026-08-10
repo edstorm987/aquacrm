@@ -64,8 +64,8 @@ export class CampaignService {
   async create(input: CreateCampaignInput, actor: UserId): Promise<Campaign> {
     if (!input.name.trim()) throw new Error("Campaign name required.");
     const channel = input.channel ?? "email";
-    if (channel === "email" && !input.subject?.trim()) throw new Error("Campaign subject required.");
-    if (channel === "email" && !input.bodyHtml?.trim() && !input.bodyText) {
+    if (isEmailLikeChannel(channel) && !input.subject?.trim()) throw new Error("Campaign subject required.");
+    if (isEmailLikeChannel(channel) && !input.bodyHtml?.trim() && !input.bodyText) {
       throw new Error("Campaign needs bodyHtml or bodyText.");
     }
     const id = makeId("camp");
@@ -77,6 +77,7 @@ export class CampaignService {
       name: input.name.trim(),
       companyIds: cleanIds(input.companyIds),
       channel,
+      kind: input.kind,
       sourceKey: input.sourceKey?.trim() || undefined,
       subject: input.subject?.trim() ?? "",
       bodyHtml: input.bodyHtml ?? "",
@@ -88,6 +89,8 @@ export class CampaignService {
       endsAt: input.endsAt,
       externalUrl: input.externalUrl?.trim() || undefined,
       notes: input.notes?.trim() || undefined,
+      steps: cleanSteps(input.steps),
+      creative: input.creative,
       status,
       scheduleAt: input.scheduleAt,
       audienceFilter: {
@@ -127,6 +130,7 @@ export class CampaignService {
       ...existing,
       ...patch,
       companyIds: patch.companyIds === undefined ? existing.companyIds : cleanIds(patch.companyIds),
+      steps: patch.steps === undefined ? existing.steps : cleanSteps(patch.steps),
       audienceFilter: patch.audienceFilter === undefined ? existing.audienceFilter : {
         ...patch.audienceFilter,
         companyIds: cleanIds(patch.audienceFilter.companyIds),
@@ -154,8 +158,8 @@ export class CampaignService {
     if (campaign.status === "sending" || campaign.status === "sent") {
       throw new Error(`Campaign ${id} already ${campaign.status}.`);
     }
-    if ((campaign.channel ?? "email") !== "email") {
-      throw new Error("Only email campaigns can be sent from Milesymedia. Track other channels here and publish them manually.");
+    if (!isEmailLikeChannel(campaign.channel ?? "email")) {
+      throw new Error("Only email and newsletter campaigns can be sent from Milesymedia. Track other channels here and publish them manually.");
     }
     if (!this.emailEnqueue) {
       throw new Error("email-sender not wired (EmailEnqueuePort missing). Foundation-pending.");
@@ -234,4 +238,24 @@ export class CampaignService {
 function cleanIds(values: string[] | undefined): string[] {
   if (!Array.isArray(values)) return [];
   return Array.from(new Set(values.map(value => value.trim()).filter(Boolean))).slice(0, 30);
+}
+
+function cleanSteps(values: CreateCampaignInput["steps"] | undefined): CreateCampaignInput["steps"] {
+  if (!Array.isArray(values)) return [];
+  return values
+    .filter(step => step.name?.trim())
+    .slice(0, 30)
+    .map(step => ({
+      id: step.id?.trim() || makeId("step"),
+      name: step.name.trim(),
+      channel: step.channel,
+      owner: step.owner?.trim() || undefined,
+      dueAt: step.dueAt,
+      status: step.status ?? "todo",
+      notes: step.notes?.trim() || undefined,
+    }));
+}
+
+function isEmailLikeChannel(channel: Campaign["channel"]): boolean {
+  return channel === "email" || channel === "newsletter";
 }

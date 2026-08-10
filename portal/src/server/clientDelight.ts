@@ -92,5 +92,5 @@ function clean(value: unknown, limit: number) { return typeof value === "string"
 function cleanDate(value: unknown) { return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined; }
 function cleanMoney(value: unknown) { return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(Math.min(value, 100_000_000)) : undefined; }
 function cleanUrl(value: unknown) { const raw = clean(value, 2_000); if (!raw) return undefined; try { const url = new URL(raw); return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined; } catch { return undefined; } }
-function validOccasion(value?: ClientDelightOccasion): ClientDelightOccasion { return ["welcome", "birthday", "christmas", "milestone", "random", "shock-and-awe", "other"].includes(value ?? "") ? value! : "random"; }
+function validOccasion(value?: ClientDelightOccasion): ClientDelightOccasion { return ["welcome", "birthday", "christmas", "milestone", "event", "trip", "random", "shock-and-awe", "other"].includes(value ?? "") ? value! : "random"; }
 function validStatus(value?: ClientDelightStatus): ClientDelightStatus { return ["planned", "ordered", "sent", "delivered", "cancelled"].includes(value ?? "") ? value! : "idea"; }

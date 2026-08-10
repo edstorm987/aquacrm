@@ -804,6 +804,62 @@ describe("leads-pipeline / AudienceFilter", () => {
 // ─── 5. Campaign management ──────────────────────────────────────────────
 
 describe("leads-pipeline / CampaignService", () => {
+  test("creative variants persist and remain editable on a draft campaign", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    const camp = await c.campaigns.create({
+      name: "Autumn menu launch",
+      channel: "Meta Ads",
+      audienceFilter: { tags: ["hospitality"] },
+      creative: {
+        asset: {
+          id: "asset_menu",
+          name: "autumn-menu.jpg",
+          mimeType: "image/jpeg",
+          size: 248_000,
+          storageProvider: "supabase",
+          storageKey: "campaigns/agency_test/creative_menu.jpg",
+        },
+        brandName: "The Harbour Table",
+        handle: "@harbourtable",
+        primaryText: "Our autumn menu has landed.",
+        headline: "Book your table",
+        description: "Seasonal dishes, served by the water.",
+        callToAction: "Book now",
+        destinationUrl: "https://example.com/book",
+        placements: ["instagram-feed", "instagram-story"],
+        mediaFit: "cover",
+        focalX: 42,
+        focalY: 61,
+        showSafeArea: true,
+      },
+    }, ACTOR);
+
+    assert.equal(camp.creative?.asset?.name, "autumn-menu.jpg");
+    assert.deepEqual(camp.creative?.placements, ["instagram-feed", "instagram-story"]);
+    assert.equal(camp.creative?.focalX, 42);
+
+    const updated = await c.campaigns.update(camp.id, {
+      creative: {
+        ...camp.creative!,
+        placements: ["instagram-story", "facebook-story"],
+        headline: "See the new menu",
+        focalX: 67,
+        focalY: 38,
+      },
+    }, ACTOR);
+
+    assert.deepEqual(updated?.creative?.placements, ["instagram-story", "facebook-story"]);
+    assert.equal(updated?.creative?.headline, "See the new menu");
+    assert.equal(updated?.creative?.focalX, 67);
+    assert.equal(updated?.creative?.focalY, 38);
+    assert.equal(updated?.creative?.asset?.storageProvider, "supabase");
+  });
+
   test("update edits a draft campaign before send", async () => {
     const w = buildWorld({ withEmail: true });
     const c = buildLeadsPipelineContainer({
@@ -857,6 +913,32 @@ describe("leads-pipeline / CampaignService", () => {
     const aLead = await c.leads.getByEmail("a@x.com");
     assert.equal(aLead?.sentCount, 1);
     assert.ok((aLead?.lastContactedAt ?? 0) > 0);
+  });
+
+  test("newsletter campaigns enqueue through the email sender", async () => {
+    const w = buildWorld({ withEmail: true });
+    const c = buildLeadsPipelineContainer({
+      agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
+      events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
+      emailEnqueue: w.emailEnqueue,
+    });
+    await c.leads.upsert({ email: "reader@x.com", source: "manual", tags: ["newsletter"] }, ACTOR);
+    const camp = await c.campaigns.create({
+      name: "August newsletter",
+      channel: "newsletter",
+      kind: "newsletter",
+      subject: "Aqua updates",
+      bodyHtml: "<p>Useful updates.</p>",
+      bodyText: "Useful updates.",
+      audienceFilter: { tags: ["newsletter"] },
+    }, ACTOR);
+
+    const sent = await c.campaigns.send(camp.id, ACTOR);
+
+    assert.equal(sent.status, "sent");
+    assert.equal(sent.channel, "newsletter");
+    assert.equal(sent.sentCount, 1);
+    assert.equal(w.enqueued[0]?.subject, "Aqua updates");
   });
 
   test("send fails when EmailEnqueuePort missing", async () => {

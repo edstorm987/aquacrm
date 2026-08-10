@@ -12,9 +12,17 @@ import { listSops } from "@/server/sops";
 import { listUsersForAgency } from "@/server/users";
 import { calculateServiceBrandHealth } from "@/lib/companyHealth";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import { INTEGRATION_CATALOG, type IntegrationProvider } from "@/lib/integrations/catalog";
 
-export default async function CompanyPage() {
+type CompanyPageSearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function CompanyPage({ searchParams }: { searchParams: CompanyPageSearchParams }) {
   await ensureHydrated();
+  const query = await searchParams;
+  const requestedView = singleValue(query.view);
+  const requestedIntegration = integrationProvider(singleValue(query.integration));
+  const initialView = requestedView === "connections" ? "connections" : requestedView === "products" ? "products" : requestedView === "capacity" ? "capacity" : undefined;
+  const showCompaniesGrid = requestedView === "companies";
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId);
   const companyHealth = await buildCompanyHealthSnapshot(session.agencyId);
@@ -46,29 +54,45 @@ export default async function CompanyPage() {
   const settings = getAgencyWorkspaceSettings(session.agencyId);
   const canEdit = session.role === "agency-owner" || session.role === "agency-manager";
   return <>
-    <TradingCompaniesPanel
-      companies={companies}
-      canEdit={canEdit}
-      workspace={{
-        clientCount: clients.length,
-        productCount: products.length,
-        staffCount: users.length,
-        healthScore: companyHealth.health.overall,
-        website: settings.website,
-      }}
-    />
-    <CompanyWorkspace
-      initial={profile}
-      companyName="AquaOasis-Web"
-      actuals={companyHealth.actuals}
-      canEdit={canEdit}
-      legalDocuments={listLegalDocuments(session.agencyId)}
-      initialProducts={products}
-      sops={listSops(session.agencyId)}
-      tradingCompanies={tradingCompanies}
-      productDefaults={{ taxRatePercent: settings.defaultTaxRatePercent, paymentTermsDays: settings.defaultPaymentTermsDays }}
-      clients={clients.map(client => ({ id: client.id, name: client.name }))}
-      workspaceWebsite={settings.website}
-    />
+    {showCompaniesGrid ? (
+      <TradingCompaniesPanel
+        companies={companies}
+        canEdit={canEdit}
+        workspace={{
+          clientCount: clients.length,
+          productCount: products.length,
+          staffCount: users.length,
+          healthScore: companyHealth.health.overall,
+          website: settings.website,
+        }}
+      />
+    ) : null}
+    {!showCompaniesGrid ? (
+      <CompanyWorkspace
+        initial={profile}
+        companyName="AquaOasis-Web"
+        actuals={companyHealth.actuals}
+        staffCount={users.length}
+        canEdit={canEdit}
+        legalDocuments={listLegalDocuments(session.agencyId)}
+        initialProducts={products}
+        sops={listSops(session.agencyId)}
+        tradingCompanies={tradingCompanies}
+        serviceBrands={companies}
+        productDefaults={{ taxRatePercent: settings.defaultTaxRatePercent, paymentTermsDays: settings.defaultPaymentTermsDays }}
+        clients={clients.map(client => ({ id: client.id, name: client.name }))}
+        workspaceWebsite={settings.website}
+        initialView={initialView}
+        initialIntegration={requestedIntegration}
+      />
+    ) : null}
   </>;
+}
+
+function singleValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function integrationProvider(value: string | undefined): IntegrationProvider | undefined {
+  return INTEGRATION_CATALOG.some(item => item.id === value) ? value as IntegrationProvider : undefined;
 }

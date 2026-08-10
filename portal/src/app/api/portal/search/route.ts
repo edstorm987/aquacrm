@@ -398,7 +398,7 @@ function addWorkspaceCandidates(
         category: "Form",
         title: field.label,
         subtitle: `${readable(entity)} · ${readable(field.section)} · ${readable(field.type)}`,
-        href: "/portal/agency/portals?view=editor",
+        href: "/portal/agency/portals/forms",
       }, [field.options.join(" ")]);
     }
   }

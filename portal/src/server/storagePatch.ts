@@ -38,6 +38,11 @@ export function diffStorageValue(
   }
 
   if (isObject(before) && isObject(after)) {
+    // PostgreSQL jsonb_set cannot create a missing intermediate object. Set a
+    // newly populated collection at its root so its first record persists.
+    if (path.length === 1 && Object.keys(before).length === 0 && Object.keys(after).length > 0) {
+      return [{ op: "set", path, value: clone(after) }];
+    }
     const operations: StoragePatchOperation[] = [];
     const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
     for (const key of keys) {

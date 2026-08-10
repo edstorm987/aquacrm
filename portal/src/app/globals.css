@@ -1604,6 +1604,11 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   background: color-mix(in srgb, var(--nav-tone) 10%, transparent);
 }
 
+.mm-sidebar-footer .mm-sidebar-link .mm-sidebar-link-icon {
+  background: transparent;
+  box-shadow: none;
+}
+
 .mm-sidebar-link.is-active {
   color: color-mix(in srgb, var(--nav-tone) 88%, black);
   border-color: color-mix(in srgb, var(--nav-tone) 16%, transparent);

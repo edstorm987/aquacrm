@@ -16,6 +16,7 @@ import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
 import { NotificationBell } from "@/components/chrome/NotificationBell";
+import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { getPreviewPhase, escapeStyleContent, escapeScriptContent } from "@/lib/server/previewPhase";
 import { getPhaseForClientStage } from "@/server/phases";
@@ -189,6 +190,9 @@ export default async function ClientLayout({
             notifications={session.role.startsWith("agency-")
               ? <NotificationBell agencyId={session.agencyId} actor={session.userId} />
               : undefined}
+            advisorControl={session.role === "agency-owner" || session.role === "agency-manager" ? (
+              <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={sessionUser?.name || session.email} />
+            ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label={`${client.name} workspace`}><PortalRouteCanvas>{children}</PortalRouteCanvas></ErrorBoundary>

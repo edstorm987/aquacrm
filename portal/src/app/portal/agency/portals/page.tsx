@@ -3,10 +3,10 @@ import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { listClients } from "@/server/tenants";
-import { listInstalledFor } from "@/server/pluginInstalls";
 import { phaseLabel } from "@/server/phases";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { PortalsWorkspace, type PortalWorkspaceRecord } from "./_PortalsWorkspace";
+import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspaceRecord } from "./_PortalsWorkspace";
 
 type PortalMode = PortalWorkspaceRecord["portalMode"];
 
@@ -23,10 +23,24 @@ export default async function PortalsPage({ searchParams }: { searchParams: Prom
   const companies = new Map(listTradingCompanies(agencyId).map(company => [company.id, company.name]));
   const clients = listClients(agencyId, { includeArchived: true });
   const requestedView = (await searchParams).view;
+  if (requestedView === "editor") redirect("/portal/agency/portals/editor");
+  ensureDefaultAgencyProducts(agencyId);
+  const products: PortalTemplateProductRecord[] = listAgencyProducts(agencyId, true).map(product => ({
+    id: product.id,
+    name: product.name,
+    active: product.active,
+    portalRequirement: product.portalRequirement,
+    portalTemplateKey: product.portalTemplateKey,
+    portalHeadline: product.portalHeadline,
+    portalWelcomeNote: product.portalWelcomeNote,
+    portalStageFocus: product.portalStageFocus,
+    portalSupportCta: product.portalSupportCta,
+    accentColor: product.accentColor,
+    deliverables: product.deliverables,
+  }));
 
   const portals: PortalWorkspaceRecord[] = clients.map(client => {
     const metadata = client.metadata ?? {};
-    const installed = listInstalledFor({ agencyId, clientId: client.id });
     return {
       id: client.id,
       name: client.name,
@@ -42,14 +56,14 @@ export default async function PortalsPage({ searchParams }: { searchParams: Prom
       portalLoginEmail: stringValue(metadata.portalLoginEmail),
       portalMode: cleanMode(metadata.portalMode),
       portalServicePlan: stringValue(metadata.portalServicePlan),
-      hasVisualEditor: installed.some(install => install.pluginId === "website-editor" && install.enabled),
     };
   });
 
   return (
     <PortalsWorkspace
       portals={portals}
-      initialView={requestedView === "editor" ? "editor" : "library"}
+      products={products}
+      initialView={requestedView === "templates" ? "templates" : "library"}
       canManage={session.role === "agency-owner" || session.role === "agency-manager"}
     />
   );

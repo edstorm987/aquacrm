@@ -9,16 +9,9 @@ import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { CustomerPortalChrome } from "./_CustomerPortalChrome";
-import { loadCustomerPortalData, portalMode } from "./_portalData";
+import { loadCustomerPortalData } from "./_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
 import { getAuthBrand } from "@/lib/authBrand";
-
-const MODE_LABEL = {
-  onboarding: "Onboarding",
-  designing: "In progress",
-  "developed-launch": "Review & delivery",
-  maintenance: "Live care",
-} as const;
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
@@ -59,16 +52,7 @@ export default async function CustomerLayout({ children }: { children: ReactNode
   const user = getUserById(session.userId);
   const cookieStore = await cookies();
   const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
-  const meta = (client.metadata ?? {}) as {
-    portalMode?: unknown;
-    portalLogoUrl?: string;
-    portalAccentColor?: string;
-  };
-  const modeLabel = MODE_LABEL[portalMode(meta.portalMode)];
   const portalData = await loadCustomerPortalData(client, user?.name ?? client.name, authBrand.name);
-  const accentColor = /^#[0-9a-f]{6}$/i.test(meta.portalAccentColor ?? "")
-    ? meta.portalAccentColor
-    : "#8b6c33";
 
   return (
     <>
@@ -78,9 +62,10 @@ export default async function CustomerLayout({ children }: { children: ReactNode
         email={session.email}
         name={user?.name}
         avatarUrl={user?.avatarUrl}
-        modeLabel={modeLabel}
-        logoUrl={meta.portalLogoUrl}
-        accentColor={accentColor}
+        modeLabel={portalData.presentation.stages[portalData.mode].label}
+        presentation={portalData.presentation}
+        logoUrl={portalData.logoUrl}
+        accentColor={portalData.accentColor}
         projectLabel={portalProjectLabel(portalData.products)}
         providerName={authBrand.name}
         providerMark={authBrand.mark}

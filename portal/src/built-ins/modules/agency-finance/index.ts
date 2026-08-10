@@ -56,6 +56,14 @@ const manifest: AquaPlugin = {
       visibleToRoles: [...AGENCY_VIEWERS],
     },
     {
+      id: "agency-finance.planning",
+      label: "Planning",
+      href: "/portal/agency/agency-finance/planning",
+      panelId: "agency-finance",
+      order: 32,
+      visibleToRoles: [...AGENCY_ADMINS],
+    },
+    {
       id: "agency-finance.payments",
       label: "Income",
       href: "/portal/agency/agency-finance/payments",
@@ -103,6 +111,7 @@ const manifest: AquaPlugin = {
     { path: "invoices/:id", component: () => import("./src/pages/InvoiceDetailPage") },
     { path: "expenses", component: () => import("./src/pages/ExpensesPage") },
     { path: "reports", component: () => import("./src/pages/ReportsPage") },
+    { path: "planning", component: () => import("./src/pages/PlanningPage") },
     { path: "payments", component: () => import("./src/pages/PaymentsPage") },
     { path: "plans", component: () => import("./src/pages/PlansPage") },
     { path: "lock-in", component: () => import("./src/pages/LockInPage") },

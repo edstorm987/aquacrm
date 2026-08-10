@@ -4,7 +4,7 @@
 //
 // Multi-currency note: this v1 implementation reports per-currency
 // when invoices/expenses span currencies. The default snapshot uses
-// the install's default currency (or "usd" fallback) and only counts
+// the install's default currency (or "gbp" fallback) and only counts
 // rows in that currency. Cross-currency consolidation is a future
 // round.
 
@@ -34,7 +34,7 @@ export class ReportService {
     to: number;
     currency?: Currency;
   }): Promise<RevenueSnapshot> {
-    const currency = args.currency ?? "usd";
+    const currency = args.currency ?? "gbp";
     const allInvoices = await this.invoices.list({});
     const allExpenses = await this.expenses.list({});
     const allCategories = await this.categories.list();

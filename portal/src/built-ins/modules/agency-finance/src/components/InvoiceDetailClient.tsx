@@ -139,14 +139,14 @@ export function InvoiceDetailClient({
               <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_100px_140px_36px] sm:items-end">
                 <label className="grid gap-1 text-xs font-medium text-black/55">Description<input className={control} value={item.description} onChange={event => setItems(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, description: event.target.value } : row))} /></label>
                 <label className="grid gap-1 text-xs font-medium text-black/55">Quantity<input className={control} type="number" min="0.01" step="0.01" value={item.quantity} onChange={event => setItems(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: event.target.value } : row))} /></label>
-                <label className="grid gap-1 text-xs font-medium text-black/55">Unit amount (£)<input className={control} type="number" min="0" step="0.01" value={item.unitAmount} onChange={event => setItems(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, unitAmount: event.target.value } : row))} /></label>
+                <label className="grid gap-1 text-xs font-medium text-black/55">Unit amount<input className={control} type="number" min="0" step="0.01" value={item.unitAmount} onChange={event => setItems(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, unitAmount: event.target.value } : row))} /></label>
                 <button type="button" aria-label={`Remove line ${index + 1}`} title="Remove line" disabled={items.length === 1} onClick={() => setItems(current => current.filter((_, rowIndex) => rowIndex !== index))} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-red-50 hover:text-red-700 disabled:opacity-25"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-xs font-medium text-black/55">Payment due<input className={control} type="date" value={dueAt} onChange={event => setDueAt(event.target.value)} /></label>
-            <label className="grid gap-1 text-xs font-medium text-black/55">Tax amount (£)<input className={control} type="number" min="0" step="0.01" value={taxAmount} onChange={event => setTaxAmount(event.target.value)} /></label>
+            <label className="grid gap-1 text-xs font-medium text-black/55">Tax amount<input className={control} type="number" min="0" step="0.01" value={taxAmount} onChange={event => setTaxAmount(event.target.value)} /></label>
             <label className="grid gap-1 text-xs font-medium text-black/55 sm:col-span-2">Invoice note<textarea rows={3} className="w-full resize-y rounded-md border border-black/15 bg-white px-3 py-2 text-sm" value={notes} onChange={event => setNotes(event.target.value)} /></label>
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">

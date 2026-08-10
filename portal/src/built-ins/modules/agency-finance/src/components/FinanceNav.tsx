@@ -4,9 +4,10 @@ const ITEMS = [
   ["Expenses", "/portal/agency/agency-finance/expenses"],
   ["Invoices", "/portal/agency/agency-finance/invoices"],
   ["Reports", "/portal/agency/agency-finance/reports"],
+  ["Planning", "/portal/agency/agency-finance/planning"],
 ] as const;
 
-export function FinanceNav({ active }: { active: "overview" | "income" | "expenses" | "invoices" | "reports" }) {
+export function FinanceNav({ active }: { active: "overview" | "income" | "expenses" | "invoices" | "reports" | "planning" }) {
   return <nav aria-label="Finance sections" className="flex gap-3 overflow-x-auto border-b border-black/10 sm:gap-5">
     {ITEMS.map(([label, href]) => {
       const id = label.toLowerCase() as typeof active;

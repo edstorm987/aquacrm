@@ -31,6 +31,7 @@ import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 interface Props {
   clients: Array<{ id: string; name: string }>;
   canManage: boolean;
+  initialProvider?: IntegrationProvider;
 }
 
 type ApiPayload = {
@@ -55,7 +56,7 @@ const providerIcon: Record<IntegrationProvider, typeof Mail> = {
   "google-search-console": SearchCheck,
 };
 
-export function IntegrationConnectionsPanel({ clients, canManage }: Props) {
+export function IntegrationConnectionsPanel({ clients, canManage, initialProvider }: Props) {
   const [connections, setConnections] = useState<PublicIntegrationConnection[]>([]);
   const [vaultAvailable, setVaultAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -67,18 +68,27 @@ export function IntegrationConnectionsPanel({ clients, canManage }: Props) {
     let active = true;
     void apiRequest("GET").then(result => {
       if (!active) return;
-      setConnections(result.connections ?? []);
+      const loadedConnections = result.connections ?? [];
+      setConnections(loadedConnections);
       setVaultAvailable(result.vaultAvailable !== false);
       setNotice(result.ok ? "" : result.error || "Connections could not be loaded.");
       setLoading(false);
+      if (result.ok && canManage && result.vaultAvailable !== false && initialProvider) {
+        const existing = loadedConnections.find(connection => connection.provider === initialProvider && !connection.clientId)
+          ?? loadedConnections.find(connection => connection.provider === initialProvider);
+        setModal({ provider: initialProvider, connection: existing });
+      }
     });
     return () => { active = false; };
-  }, []);
+  }, [canManage, initialProvider]);
 
   const byProvider = useMemo(() => Object.fromEntries(INTEGRATION_CATALOG.map(definition => [
     definition.id,
     connections.filter(connection => connection.provider === definition.id),
   ])) as Record<IntegrationProvider, PublicIntegrationConnection[]>, [connections]);
+  const visibleCatalog = useMemo(() => initialProvider
+    ? [...INTEGRATION_CATALOG].sort((left, right) => Number(right.id === initialProvider) - Number(left.id === initialProvider))
+    : INTEGRATION_CATALOG, [initialProvider]);
 
   async function testConnection(connection: PublicIntegrationConnection) {
     setBusyId(connection.id);
@@ -127,7 +137,7 @@ export function IntegrationConnectionsPanel({ clients, canManage }: Props) {
       {notice ? <p role="status" className="rounded-md border border-black/10 bg-black/[0.03] px-3 py-2 text-xs leading-5 text-black/60">{notice}</p> : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {INTEGRATION_CATALOG.map(definition => (
+        {visibleCatalog.map(definition => (
           <ProviderCard
             key={definition.id}
             definition={definition}

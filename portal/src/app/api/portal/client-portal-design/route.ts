@@ -1,0 +1,129 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import {
+  checkpointPortalDesign,
+  getPortalDesignRecord,
+  publishPortalDesign,
+  resetClientPortalFromTemplate,
+  restorePortalDesignVersion,
+  savePortalDesignDraft,
+  type ClientPortalDesignScope,
+} from "@/server/clientPortalDesigns";
+import { logActivity } from "@/server/activity";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { getClientForAgency, updateClient } from "@/server/tenants";
+import { AGENCY_ROLES } from "@/server/types";
+
+async function agencySession(request: NextRequest) {
+  await ensureHydrated();
+  const session = await getSessionFromRequest(request);
+  if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "unauthorized");
+  return session;
+}
+
+function cleanScope(value: unknown): ClientPortalDesignScope {
+  return value === "client" ? "client" : "template";
+}
+
+function cleanText(value: unknown, max = 160): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await agencySession(request);
+    const agencyId = session.activeAgencyId ?? session.agencyId;
+    const url = new URL(request.url);
+    const scope = cleanScope(url.searchParams.get("scope"));
+    const clientId = cleanText(url.searchParams.get("clientId"), 120);
+    const client = clientId ? getClientForAgency(agencyId, clientId) : null;
+    if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    const record = getPortalDesignRecord({
+      agencyId,
+      scope,
+      clientId: client?.id,
+      actorUserId: session.userId,
+      accentColor: typeof client?.metadata?.portalAccentColor === "string" ? client.metadata.portalAccentColor : undefined,
+    });
+    if (!record) return NextResponse.json({ ok: false, error: "portal design not found" }, { status: 404 });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, record });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await agencySession(request);
+    if (session.role !== "agency-owner" && session.role !== "agency-manager") {
+      return NextResponse.json({ ok: false, error: "manager access required" }, { status: 403 });
+    }
+    const agencyId = session.activeAgencyId ?? session.agencyId;
+    const body = await request.json().catch(() => null) as {
+      action?: "save-draft" | "publish" | "checkpoint" | "restore" | "reset-client";
+      scope?: ClientPortalDesignScope;
+      recordId?: string;
+      clientId?: string;
+      versionId?: string;
+      label?: string;
+      document?: unknown;
+    } | null;
+    if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
+    const scope = cleanScope(body.scope);
+    const clientId = cleanText(body.clientId, 120);
+    const client = clientId ? getClientForAgency(agencyId, clientId) : null;
+    if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    const initial = getPortalDesignRecord({
+      agencyId,
+      scope,
+      clientId: client?.id,
+      actorUserId: session.userId,
+      accentColor: typeof client?.metadata?.portalAccentColor === "string" ? client.metadata.portalAccentColor : undefined,
+    });
+    const recordId = cleanText(body.recordId, 180) || initial?.id || "";
+    let record = initial;
+
+    if (body.action === "save-draft") {
+      record = savePortalDesignDraft({ agencyId, scope, recordId, document: body.document, actorUserId: session.userId });
+    } else if (body.action === "publish") {
+      record = publishPortalDesign({ agencyId, scope, recordId, actorUserId: session.userId, label: cleanText(body.label, 100) || undefined });
+    } else if (body.action === "checkpoint") {
+      record = checkpointPortalDesign({ agencyId, scope, recordId, actorUserId: session.userId, label: cleanText(body.label, 100) });
+    } else if (body.action === "restore") {
+      record = restorePortalDesignVersion({ agencyId, scope, recordId, versionId: cleanText(body.versionId, 180), actorUserId: session.userId });
+    } else if (body.action === "reset-client") {
+      if (scope !== "client" || !client) return NextResponse.json({ ok: false, error: "client portal required" }, { status: 400 });
+      record = resetClientPortalFromTemplate({ agencyId, clientId: client.id, actorUserId: session.userId });
+    }
+
+    if (!record) return NextResponse.json({ ok: false, error: "portal design could not be updated" }, { status: 404 });
+    if (body.action === "publish" && scope === "client" && client && "clientId" in record) {
+      updateClient(agencyId, client.id, {
+        metadata: {
+          portalAccentColor: record.published.theme.accentColor,
+          portalTemplateId: record.templateId,
+          portalTemplateVersionId: record.templateVersionId,
+          portalDesignVersionId: record.publishedVersionId,
+          portalShellVersion: "stunning-standard-v1",
+          portalAccessUpdatedAt: Date.now(),
+        },
+      });
+    }
+    logActivity({
+      agencyId,
+      clientId: scope === "client" ? client?.id : undefined,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: "settings",
+      action: `client_portal_design.${body.action}`,
+      message: `${body.action.replaceAll("-", " ")} for ${scope === "client" ? client?.name || "client portal" : "Stunning Standard"}.`,
+      metadata: { scope, recordId: record.id },
+    });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, record });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}

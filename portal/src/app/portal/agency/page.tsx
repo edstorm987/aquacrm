@@ -17,21 +17,22 @@ import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { listPipelines, pipelineCardCounts, seedDefaultPipelines } from "@/server/pipelines";
 import { NewClientButton } from "./_NewClientButton";
-import { FounderDashboardKpis } from "./_FounderDashboardKpis";
 import { getUser } from "@/server/users";
 import { listAgencyTasks } from "@/server/tasks";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
-import { Check, Route } from "lucide-react";
+import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
+import { isAssistantConfigured } from "@/lib/server/openaiAssistant";
+import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardCommandCenter";
 
 export default async function AgencyHome() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const agency = getAgency(session.agencyId)!;
   const clients = listClients(agency.id);
-  const openTaskCount = listAgencyTasks(agency.id).filter(task => task.status !== "done").length;
+  const tasks = listAgencyTasks(agency.id);
   ensureDefaultAgencyProducts(agency.id);
   const products = listAgencyProducts(agency.id);
   const serviceBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
@@ -47,6 +48,19 @@ export default async function AgencyHome() {
   const leadsCardCount = leadsPipeline ? counts[leadsPipeline.id] ?? 0 : 0;
   const fulfilmentPipeline = pipelines.find(p => p.kind === "fulfilment" || p.slug === "fulfilment");
   const fulfilmentCardCount = fulfilmentPipeline ? counts[fulfilmentPipeline.id] ?? 0 : 0;
+  const activeClients = clients.filter(c => c.stage !== "churned");
+  const staleClients = clients.filter(c => {
+    const m = (c.metadata ?? {}) as { lastContactedAt?: number };
+    if (!m.lastContactedAt) return true;
+    return Date.now() - m.lastContactedAt > 7 * 24 * 60 * 60 * 1000;
+  });
+  const dashboardSignals = buildDashboardSignals({
+    clients,
+    staleClients,
+    leadsCardCount,
+    fulfilmentCardCount,
+    productCount: products.length,
+  });
 
   const account = getUser(session.email);
   const firstName = account?.name?.trim().split(/\s+/)[0] ?? (session.email.split("@")[0] || "there").replace(/[^a-z]/gi, "");
@@ -95,100 +109,86 @@ export default async function AgencyHome() {
         </div>
       </section>
 
-      <FounderDashboardKpis
-        activeClients={clients.filter(c => c.stage !== "churned").length}
-        lockInCollected={clients.filter(c => {
-          const m = (c.metadata ?? {}) as { lockInPaid?: boolean };
-          return m.lockInPaid === true;
-        }).length}
-        openWorkItems={fulfilmentCardCount}
-        staleClients={clients.filter(c => {
-          const m = (c.metadata ?? {}) as { lastContactedAt?: number };
-          if (!m.lastContactedAt) return true;
-          return Date.now() - m.lastContactedAt > 7 * 24 * 60 * 60 * 1000;
-        }).length}
-      />
-
-      <OperatingLoop
-        leadCount={leadsCardCount}
-        clientCount={clients.length}
-        deliveryCount={fulfilmentCardCount}
-        openTaskCount={openTaskCount}
+      <DashboardCommandCenter
+        planning={dashboardPlanningSnapshot(agency.id, session.userId)}
+        tasks={tasks}
+        signals={dashboardSignals}
+        advisorConfigured={isAssistantConfigured(agency.id)}
+        counts={{
+          activeClients: activeClients.length,
+          leads: leadsCardCount,
+          delivery: fulfilmentCardCount,
+          products: products.length,
+        }}
       />
 
     </div>
   );
 }
 
-function OperatingLoop({
-  leadCount,
-  clientCount,
-  deliveryCount,
-  openTaskCount,
+function buildDashboardSignals({
+  clients,
+  staleClients,
+  leadsCardCount,
+  fulfilmentCardCount,
+  productCount,
 }: {
-  leadCount: number;
-  clientCount: number;
-  deliveryCount: number;
-  openTaskCount: number;
-}) {
-  const steps = [
-    {
-      label: "Capture a lead",
-      detail: leadCount ? `${leadCount} lead${leadCount === 1 ? "" : "s"} in sales` : "Add the first person or business you want to work with.",
+  clients: ReturnType<typeof listClients>;
+  staleClients: ReturnType<typeof listClients>;
+  leadsCardCount: number;
+  fulfilmentCardCount: number;
+  productCount: number;
+}): DashboardSignal[] {
+  const signals: DashboardSignal[] = [];
+  if (leadsCardCount > 0) {
+    signals.push({
+      id: "sales:leads",
+      title: "Clear the lead pipeline",
+      detail: `${leadsCardCount} lead${leadsCardCount === 1 ? "" : "s"} need a next step, follow-up, quote, or meeting decision.`,
       href: "/portal/agency/pipelines/leads",
-      done: leadCount > 0,
-      action: "Open sales",
-    },
-    {
-      label: "Create the client",
-      detail: clientCount ? `${clientCount} client${clientCount === 1 ? "" : "s"} ready` : "Create the client once the opportunity is agreed.",
-      href: "/portal/clients",
-      done: clientCount > 0,
-      action: "Open clients",
-    },
-    {
-      label: "Start delivery",
-      detail: deliveryCount ? `${deliveryCount} active delivery item${deliveryCount === 1 ? "" : "s"}` : "Confirm what they bought and move the work into fulfilment.",
+      kind: "Sales",
+      priority: "high",
+    });
+  }
+  if (fulfilmentCardCount > 0) {
+    signals.push({
+      id: "delivery:fulfilment",
+      title: "Move fulfilment forward",
+      detail: `${fulfilmentCardCount} delivery item${fulfilmentCardCount === 1 ? "" : "s"} are active. Pick the blocker and move it today.`,
       href: "/portal/agency/pipelines/fulfilment",
-      done: deliveryCount > 0,
-      action: "Open fulfilment",
-    },
-    {
-      label: "Run the work",
-      detail: openTaskCount ? `${openTaskCount} open action${openTaskCount === 1 ? "" : "s"}` : "Track actions, money, support, and the next client decision.",
-      href: openTaskCount ? "/portal/agency/actions" : "/portal/agency/agency-finance",
-      done: deliveryCount > 0 && openTaskCount === 0,
-      action: openTaskCount ? "Open actions" : "Open finance",
-    },
-  ];
-  const nextIndex = Math.max(0, steps.findIndex(step => !step.done));
-
-  return (
-    <section aria-labelledby="operating-loop-heading" className="mm-surface-card overflow-hidden rounded-lg border">
-      <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-4 sm:px-5">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md" aria-hidden><Route size={18} /></span>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand">Do next</p>
-            <h2 id="operating-loop-heading" className="mt-1 text-lg font-semibold text-black/85">One customer journey</h2>
-            <p className="mt-1 text-sm text-black/50">Move from opportunity to paid, delivered work without losing the next step.</p>
-          </div>
-        </div>
-        <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-xs font-medium text-black/50">{steps.filter(step => step.done).length} of {steps.length} clear</span>
-      </div>
-      <ol className="divide-y divide-black/[0.07] border-t border-black/10">
-        {steps.map((step, index) => {
-          const isNext = index === nextIndex && !step.done;
-          return <li key={step.label} className={`mm-interactive-row grid gap-3 px-4 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-center sm:px-5 ${isNext ? "bg-amber-50/60" : ""}`}>
-            <span className={`grid size-7 place-items-center rounded-full text-xs font-semibold ${step.done ? "bg-emerald-50 text-emerald-700" : isNext ? "bg-black text-white" : "bg-black/[0.04] text-black/35"}`}>{step.done ? <Check size={14} strokeWidth={2.5} /> : index + 1}</span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-black/80">{step.label}{isNext ? <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Next</span> : null}</p>
-              <p className="mt-0.5 text-xs text-black/45">{step.detail}</p>
-            </div>
-            <Link href={step.href} className="mm-hover-lift w-fit rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:border-black/20">{step.action}</Link>
-          </li>;
-        })}
-      </ol>
-    </section>
-  );
+      kind: "Delivery",
+      priority: "high",
+    });
+  }
+  for (const client of staleClients.slice(0, 3)) {
+    signals.push({
+      id: `client:${client.id}:health`,
+      title: `Check in with ${client.name}`,
+      detail: "Client health needs a touchpoint. Log the note, next decision, or risk after contact.",
+      href: `/portal/clients/${client.id}`,
+      kind: "Client health",
+      priority: "urgent",
+    });
+  }
+  if (clients.length > 0 && productCount === 0) {
+    signals.push({
+      id: "offers:products",
+      title: "Define the sellable offers",
+      detail: "Products are still empty, so projections and delivery planning have weak inputs.",
+      href: "/portal/agency/products",
+      kind: "Company",
+      priority: "high",
+    });
+  }
+  if (signals.length === 0) {
+    signals.push({
+      id: "growth:marketing",
+      title: "Create one growth asset",
+      detail: "Build a campaign step, social post, Google Business update, or funnel page that can create demand.",
+      href: "/portal/agency/marketing",
+      kind: "Growth",
+      priority: "normal",
+    });
+  }
+  return signals;
 }

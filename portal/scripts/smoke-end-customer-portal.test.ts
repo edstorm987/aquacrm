@@ -57,10 +57,14 @@ describe("End-customer portal sub-routes (R019)", () => {
     const chrome = readFileSync(join(CUSTOMER, "_CustomerPortalChrome.tsx"), "utf8");
     const views = readFileSync(join(CUSTOMER, "_CustomerPortalViews.tsx"), "utf8");
     const catchAll = readFileSync(join(CUSTOMER, "[...rest]", "page.tsx"), "utf8");
+    const design = readFileSync(join(ROOT, "src", "lib", "clientPortalDesign.ts"), "utf8");
 
-    assert.ok(chrome.includes('{ label: "Resources"'));
-    assert.ok(chrome.includes('{ label: "Your details"'));
-    assert.ok(views.includes('if (section === "resources") return <ResourcesView previewHrefPrefix={previewHrefPrefix} />'));
+    assert.ok(chrome.includes('section: "resources"'));
+    assert.ok(chrome.includes('section: "details"'));
+    assert.ok(chrome.includes("presentation.pages[item.section]"));
+    assert.ok(design.includes('label: "Resources"'));
+    assert.ok(design.includes('label: "Your details"'));
+    assert.ok(views.includes('if (section === "resources") return <ResourcesView'));
     assert.ok(views.includes('if (section === "details") return <RecordView'));
     assert.ok(views.includes('aria-label="Resources"'));
     assert.ok(views.includes('label: "Open project"'));

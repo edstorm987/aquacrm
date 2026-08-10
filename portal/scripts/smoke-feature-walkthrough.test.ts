@@ -217,7 +217,8 @@ describe("Sales, pipelines, finance, inbox, and systems", () => {
     const sopLibrary = read(join(PORTAL, "agency", "sop-library", "page.tsx"));
 
     assert.ok(systems.includes('redirect("/portal/agency")'));
-    assert.ok(dashboard.includes("One customer journey"));
+    assert.ok(dashboard.includes("DashboardCommandCenter"));
+    assert.ok(dashboard.includes("dashboardPlanningSnapshot"));
     assert.ok(!dashboard.includes('title="Business areas"'));
     assert.ok(!dashboard.includes('title="Work boards"'));
     assert.ok(sopLibrary.includes("SopLibrary"));

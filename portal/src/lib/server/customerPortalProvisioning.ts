@@ -39,7 +39,7 @@ export function customerPortalProvisioningMetadata(input: {
     portalWelcomeNote: text(input.welcomeNote)
       || `Welcome to your Milesymedia home. This is where ${input.clientName}'s project, files, billing, and support will stay together.`,
     portalBuiltAt: now,
-    portalShellVersion: "milesymedia-customer-home-v2",
+    portalShellVersion: "stunning-standard-v1",
     portalAccessUpdatedAt: now,
     telemetrySiteKey: newTelemetrySiteKey(),
     telemetryEvents: [],

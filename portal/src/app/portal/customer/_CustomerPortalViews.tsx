@@ -61,6 +61,7 @@ import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { listClientMilestones } from "@/server/clientMilestones";
 import { getAuthBrand } from "@/lib/authBrand";
+import { formatPortalCopy } from "@/lib/clientPortalDesign";
 
 export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details";
 
@@ -69,53 +70,41 @@ function customerHref(section: CustomerPortalSection, previewHrefPrefix?: string
   return section === "home" ? "/portal/customer" : `/portal/customer/${section}`;
 }
 
-const MODE: Record<CustomerPortalMode, {
-  label: string;
-  eyebrow: string;
-  heading: string;
-  body: string;
-  progress: number;
-  focus: string;
-}> = {
-  onboarding: {
-    label: "Onboarding",
-    eyebrow: "A thoughtful beginning",
-    heading: "We are laying the foundations.",
-    body: "Your brief, priorities, ideas, costs, and agreements are being brought together before the creative work begins.",
-    progress: 18,
-    focus: "Share the details and inspiration that will help us understand your world.",
-  },
-  designing: {
-    label: "In progress",
-    eyebrow: "Work in progress",
-    heading: "The work is taking shape.",
-    body: "Milesymedia is turning the agreed direction into something real. Your feedback keeps every decision purposeful.",
-    progress: 48,
-    focus: "Review the direction, leave focused feedback, and approve what comes next.",
-  },
-  "developed-launch": {
-    label: "Review & delivery",
-    eyebrow: "Coming together",
-    heading: "Your delivery is nearly ready.",
-    body: "The final details are coming together. Review the latest work, share any last notes, and confirm delivery.",
-    progress: 82,
-    focus: "Review the latest work and confirm the final delivery details.",
-  },
-  maintenance: {
-    label: "Live care",
-    eyebrow: "Always looked after",
-    heading: "Your digital home is live.",
-    body: "Milesymedia is keeping an eye on the important things while you use support and ongoing improvements as needed.",
-    progress: 100,
-    focus: "Use support for changes, questions, or anything that does not feel quite right.",
-  },
-};
+function portalCopyTokens(data: CustomerPortalData, providerName: string): Record<string, string> {
+  const base = {
+    providerName,
+    firstName: firstName(data.contactName),
+    projectLabel: portalProjectLabel(data.products),
+    serviceHeadline: portalHomeHeading(data.products, data.experienceHeadline),
+  };
+  const stage = data.presentation.stages[data.mode];
+  return {
+    ...base,
+    stageHeading: formatPortalCopy(stage.heading, base),
+    stageBody: formatPortalCopy(stage.body, base),
+  };
+}
 
-function modeContent(mode: CustomerPortalMode, providerName: string) {
-  const content = MODE[mode];
+function modeContent(data: CustomerPortalData, providerName: string) {
+  const content = data.presentation.stages[data.mode];
+  const tokens = portalCopyTokens(data, providerName);
   return {
     ...content,
-    body: content.body.replaceAll("Milesymedia", providerName),
+    label: formatPortalCopy(content.label, tokens),
+    eyebrow: formatPortalCopy(content.eyebrow, tokens),
+    heading: formatPortalCopy(content.heading, tokens),
+    body: formatPortalCopy(content.body, tokens),
+    focus: formatPortalCopy(content.focus, tokens),
+  };
+}
+
+function pageContent(data: CustomerPortalData, section: CustomerPortalSection, providerName: string) {
+  const page = data.presentation.pages[section];
+  const tokens = portalCopyTokens(data, providerName);
+  return {
+    eyebrow: formatPortalCopy(page.eyebrow, tokens),
+    title: formatPortalCopy(page.title, tokens),
+    body: formatPortalCopy(page.body, tokens),
   };
 }
 
@@ -160,7 +149,7 @@ function PageIntro({
 }
 
 function Surface({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-md border border-black/10 bg-[#fbfaf8] ${className}`}>{children}</section>;
+  return <section className={`rounded-md border border-black/10 bg-[var(--portal-surface)] ${className}`}>{children}</section>;
 }
 
 function formatMoney(cents: number, currency: string): string {
@@ -253,16 +242,16 @@ export function CustomerPortalContent({
 }) {
   if (section === "project") return <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   const readOnly = Boolean(previewHrefPrefix);
-  if (section === "results") return <ResultsView client={client} />;
+  if (section === "results") return <ResultsView client={client} data={data} providerName={providerName} />;
   if (section === "files") return <FilesView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
   if (section === "billing") return <BillingView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
   if (section === "support") return <SupportView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
-  if (section === "resources") return <ResourcesView previewHrefPrefix={previewHrefPrefix} />;
-  if (section === "details") return <RecordView client={client} data={data} previewHrefPrefix={previewHrefPrefix} />;
+  if (section === "resources") return <ResourcesView data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  if (section === "details") return <RecordView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   return <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
 }
 
-function ResultsView({ client }: { client: Client }) {
+function ResultsView({ client, data, providerName }: { client: Client; data: CustomerPortalData; providerName: string }) {
   const firstPartyEvents = Array.isArray(client.metadata?.telemetryEvents)
     ? client.metadata.telemetryEvents as ClientTelemetryEvent[]
     : [];
@@ -276,7 +265,7 @@ function ResultsView({ client }: { client: Client }) {
   const maxViews = Math.max(1, ...analytics.series.map(item => item.views));
   return (
     <>
-      <PageIntro eyebrow="Your results" title="See what the work is producing." body="A clear view of visibility, visits, enquiries, search performance, and the outcomes your work is reaching." />
+      <PageIntro {...pageContent(data, "results", providerName)} />
       <Surface className="overflow-hidden">
         <div className="grid grid-cols-2 border-b border-black/8 lg:grid-cols-4">
           <ResultMetric icon={<UsersRound size={16} />} label="Visitors" value={String(analytics.current.visitors)} />
@@ -329,12 +318,16 @@ function HomeView({
   previewHrefPrefix?: string;
   providerName: string;
 }) {
-  const active = modeContent(data.mode, providerName);
+  const active = modeContent(data, providerName);
+  const homeCopy = pageContent(data, "home", providerName);
+  const homePresentation = data.presentation.home;
+  const copyTokens = portalCopyTokens(data, providerName);
   const projectLabel = portalProjectLabel(data.products);
   const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
   const latestFile = data.files[0];
   const pendingApproval = data.approvals.find(approval => approval.status === "pending");
   const briefNeedsAttention = data.mode === "onboarding" && !data.brief.submittedAt;
+  const configuredSupportCta = data.products.find(product => product.supportCta?.trim())?.supportCta?.trim();
   const nextAction = outstanding.length
     ? customerHref("billing", previewHrefPrefix)
     : data.mode === "maintenance"
@@ -347,17 +340,17 @@ function HomeView({
       : briefNeedsAttention
         ? "Complete your brief"
         : data.mode === "maintenance"
-          ? "Ask for support"
+          ? configuredSupportCta || "Ask for support"
           : "Continue your project";
 
   return (
     <>
       <PageIntro
-        eyebrow={`Welcome, ${firstName(data.contactName)}`}
-        title={portalHomeHeading(data.products, data.experienceHeadline)}
-        body={data.welcomeNote || "Your project, conversations, files, billing, and support live here throughout our work together."}
+        eyebrow={homeCopy.eyebrow}
+        title={homeCopy.title}
+        body={data.welcomeNote || formatPortalCopy(homePresentation.welcomeBody || homeCopy.body, copyTokens)}
         action={(
-          <Link href={nextAction} className="inline-flex min-h-11 items-center gap-2 self-start rounded-md bg-[#1b1a18] px-5 text-sm font-medium text-white transition hover:bg-black">
+          <Link href={nextAction} className="inline-flex min-h-11 items-center gap-2 self-start rounded-md bg-[var(--portal-hero)] px-5 text-sm font-medium text-white transition hover:bg-black">
             {nextActionLabel}
             <ArrowRight size={15} aria-hidden="true" />
           </Link>
@@ -366,7 +359,7 @@ function HomeView({
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
         <Surface className="overflow-hidden">
-          <div className="mm-customer-dark border-b border-black/8 bg-[#1b1a18] px-6 py-7 text-white sm:px-8 sm:py-9">
+          <div className="mm-customer-dark border-b border-black/8 bg-[var(--portal-hero)] px-6 py-7 text-white sm:px-8 sm:py-9">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">{active.eyebrow}</p>
               <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.12em] text-white/70">
@@ -396,7 +389,7 @@ function HomeView({
           <div className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-[var(--portal-accent)]">
             <Sparkles size={17} strokeWidth={1.5} aria-hidden="true" />
           </div>
-          <p className="mt-6 text-[10px] uppercase tracking-[0.18em] text-black/40">Your next move</p>
+          <p className="mt-6 text-[10px] uppercase tracking-[0.18em] text-black/40">{formatPortalCopy(homePresentation.nextMoveEyebrow, copyTokens)}</p>
           <h2 className="mt-2 font-serif text-2xl">{nextActionLabel}</h2>
           <p className="mt-3 text-sm leading-6 text-black/52">{active.focus}</p>
           <Link href={nextAction} className="mt-auto inline-flex items-center gap-2 pt-8 text-sm font-medium text-[var(--portal-accent)]">
@@ -420,8 +413,8 @@ function HomeView({
         <Surface className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Recent updates</p>
-              <h2 className="mt-2 font-serif text-2xl">Your project log</h2>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">{formatPortalCopy(homePresentation.recentUpdatesEyebrow, copyTokens)}</p>
+              <h2 className="mt-2 font-serif text-2xl">{formatPortalCopy(homePresentation.projectLogTitle, copyTokens)}</h2>
             </div>
             <Clock3 size={18} className="text-black/30" aria-hidden="true" />
           </div>
@@ -443,16 +436,16 @@ function HomeView({
         <Surface className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">{providerName} care</p>
-              <h2 className="mt-2 font-serif text-2xl">We are within reach.</h2>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">{formatPortalCopy(homePresentation.careEyebrow, copyTokens)}</p>
+              <h2 className="mt-2 font-serif text-2xl">{formatPortalCopy(homePresentation.careTitle, copyTokens)}</h2>
             </div>
             <ShieldCheck size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
           </div>
           <p className="mt-5 max-w-xl text-sm leading-6 text-black/52">
-            Questions, feedback, changes, or something urgent: send it through your support space and it stays attached to your project.
+            {formatPortalCopy(homePresentation.careBody, copyTokens)}
           </p>
           <Link href={customerHref("support", previewHrefPrefix)} className="mt-7 inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-4 text-sm font-medium">
-            Open support <ArrowRight size={14} aria-hidden="true" />
+            {formatPortalCopy(homePresentation.careButtonLabel, copyTokens)} <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </Surface>
       </div>
@@ -471,7 +464,7 @@ function HomeMetric({ label, value }: { label: string; value: string }) {
 
 function QuickLink({ icon, title, body, href }: { icon: React.ReactNode; title: string; body: string; href: string }) {
   return (
-    <Link href={href} className="group rounded-md border border-black/10 bg-[#fbfaf8] p-5 transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:shadow-[0_14px_35px_rgba(35,29,18,0.08)]">
+    <Link href={href} className="group rounded-md border border-black/10 bg-[var(--portal-surface)] p-5 transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:shadow-[0_14px_35px_rgba(35,29,18,0.08)]">
       <div className="flex items-start justify-between gap-4">
         <span className="text-[var(--portal-accent)]">{icon}</span>
         <ArrowUpRight size={15} className="text-black/25 transition group-hover:text-[var(--portal-accent)]" aria-hidden="true" />
@@ -493,8 +486,9 @@ function ProjectView({
   previewHrefPrefix?: string;
   providerName: string;
 }) {
-  const active = modeContent(data.mode, providerName);
+  const active = modeContent(data, providerName);
   const projectLabel = portalProjectLabel(data.products);
+  const configuredSupportCta = data.products.find(product => product.supportCta?.trim())?.supportCta?.trim();
   const stages: CustomerPortalMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
   const activeIndex = stages.indexOf(data.mode);
   const customerProperties = data.properties.filter(property =>
@@ -613,7 +607,7 @@ function ProjectView({
 
   return (
     <>
-      <PageIntro eyebrow={`Your ${projectLabel.toLowerCase()}`} title={active.heading} body={active.body} />
+      <PageIntro {...pageContent(data, "project", providerName)} />
       {data.products.length > 0 ? (
         <Surface className="mb-5 overflow-hidden">
           <div className="border-b border-black/8 px-6 py-5">
@@ -625,7 +619,7 @@ function ProjectView({
               const definition = portalProductDefinition(product);
               const deliverables = product.deliverables.length ? product.deliverables : definition?.deliverables ?? [];
               return (
-                <article key={product.id} className="bg-[#fbfaf8] p-6">
+                <article key={product.id} className="bg-[var(--portal-surface)] p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h3 className="text-base font-medium">{product.name}</h3>
@@ -663,22 +657,22 @@ function ProjectView({
                     <div className="flex flex-col items-center">
                       <span className={[
                         "flex h-8 w-8 items-center justify-center rounded-full border text-xs",
-                        done ? "border-[#1b1a18] bg-[#1b1a18] text-white" : current ? "border-[var(--portal-accent)] bg-[#f5eddd] text-[var(--portal-accent)]" : "border-black/12 bg-white text-black/30",
+                        done ? "border-[var(--portal-hero)] bg-[var(--portal-hero)] text-white" : current ? "border-[var(--portal-accent)] bg-[#f5eddd] text-[var(--portal-accent)]" : "border-black/12 bg-white text-black/30",
                       ].join(" ")}>
                         {done ? <Check size={14} aria-hidden="true" /> : index + 1}
                       </span>
                       {index < stages.length - 1 && <span className="min-h-12 w-px flex-1 bg-black/10" />}
                     </div>
                     <div className="pb-8">
-                      <p className={`text-sm font-medium ${current ? "text-[var(--portal-accent)]" : "text-black/70"}`}>{MODE[stage].label}</p>
-                      <p className="mt-1 text-xs leading-5 text-black/42">{MODE[stage].focus}</p>
+                      <p className={`text-sm font-medium ${current ? "text-[var(--portal-accent)]" : "text-black/70"}`}>{formatPortalCopy(data.presentation.stages[stage].label, portalCopyTokens(data, providerName))}</p>
+                      <p className="mt-1 text-xs leading-5 text-black/42">{formatPortalCopy(data.presentation.stages[stage].focus, portalCopyTokens(data, providerName))}</p>
                     </div>
                   </li>
                 );
               })}
             </ol>
           </div>
-          <aside className="rounded-md bg-[#1b1a18] p-6 text-white">
+          <aside className="rounded-md bg-[var(--portal-hero)] p-6 text-white">
             <p className="text-[10px] uppercase tracking-[0.17em] text-white/42">At a glance</p>
             <dl className="mt-6 divide-y divide-white/10">
               <ProjectDetail label="Client" value={client.name} />
@@ -730,7 +724,7 @@ function ProjectView({
           <p className="mt-5 text-sm leading-6 text-black/50">Ideas and feedback belong with the project, where nothing gets lost between messages.</p>
           <div className="mt-7 flex flex-wrap gap-2">
             <Link href={customerHref("files", previewHrefPrefix)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-4 text-sm font-medium">Share inspiration</Link>
-            <Link href={customerHref("support", previewHrefPrefix)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#1b1a18] px-4 text-sm font-medium text-white">Leave feedback</Link>
+            <Link href={customerHref("support", previewHrefPrefix)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[var(--portal-hero)] px-4 text-sm font-medium text-white">{configuredSupportCta || "Leave feedback"}</Link>
           </div>
         </Surface>
       </div>
@@ -765,7 +759,7 @@ function ProjectDetail({ label, value }: { label: string; value: string }) {
 function FilesView({ client, data, readOnly, providerName }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string }) {
   return (
     <>
-      <PageIntro eyebrow="Files & inspiration" title="One home for every detail." body="Briefs, recordings, working files, invoices, previews, and the links you share with us stay connected to the work." />
+      <PageIntro {...pageContent(data, "files", providerName)} />
       <Surface className="p-6 sm:p-8">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -817,11 +811,9 @@ function BillingView({ client, data, readOnly, providerName }: { client: Client;
   return (
     <>
       <PageIntro
-        eyebrow="Plan & billing"
-        title="Clear, calm, accounted for."
-        body="Your service plan, invoices, payment status, and billing links live here. No hunting through emails."
+        {...pageContent(data, "billing", providerName)}
         action={data.billingUrl ? (
-          <a href={data.billingUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 self-start rounded-md bg-[#1b1a18] px-5 text-sm font-medium text-white">
+          <a href={data.billingUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 self-start rounded-md bg-[var(--portal-hero)] px-5 text-sm font-medium text-white">
             Open secure billing <ExternalLink size={14} aria-hidden="true" />
           </a>
         ) : undefined}
@@ -860,7 +852,7 @@ function BillingView({ client, data, readOnly, providerName }: { client: Client;
             </div>
           </div>
         </Surface>
-        <Surface className="!bg-[#1b1a18] p-6 text-white">
+        <Surface className="!bg-[var(--portal-hero)] p-6 text-white">
           <CreditCard size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
           <p className="mt-8 text-[10px] uppercase tracking-[0.16em] text-white/40">Outstanding</p>
           <p className="mt-2 font-serif text-3xl">{formatMoney(outstanding, currency)}</p>
@@ -903,7 +895,7 @@ function BillingView({ client, data, readOnly, providerName }: { client: Client;
                       href={data.billingUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex min-h-9 items-center rounded-md bg-[#1b1a18] px-3 text-xs font-medium text-white"
+                      className="inline-flex min-h-9 items-center rounded-md bg-[var(--portal-hero)] px-3 text-xs font-medium text-white"
                     >
                       Pay
                     </a>
@@ -954,7 +946,7 @@ function SupportView({ client, data, readOnly, providerName }: { client: Client;
 
   return (
     <>
-      <PageIntro eyebrow="Client care" title="Tell us. We will take it from here." body="Use this space for support, feedback, new ideas, or anything you want kept with your work." />
+      <PageIntro {...pageContent(data, "support", providerName)} />
       <nav
         aria-label="Support contact options"
         className="mb-5 grid gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 [grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]"
@@ -965,7 +957,7 @@ function SupportView({ client, data, readOnly, providerName }: { client: Client;
             href={link.href}
             target={link.external ? "_blank" : undefined}
             rel={link.external ? "noreferrer" : undefined}
-            className="group flex min-h-24 items-center gap-4 bg-[#fbfaf8] px-5 py-4 transition hover:bg-white"
+            className="group flex min-h-24 items-center gap-4 bg-[var(--portal-surface)] px-5 py-4 transition hover:bg-white"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/10 text-[var(--portal-accent)]">
               {link.icon}
@@ -1002,7 +994,7 @@ function SupportPromise({ icon, title, body }: { icon: React.ReactNode; title: s
   );
 }
 
-function ResourcesView({ previewHrefPrefix }: { previewHrefPrefix?: string }) {
+function ResourcesView({ data, previewHrefPrefix, providerName }: { data: CustomerPortalData; previewHrefPrefix?: string; providerName: string }) {
   const resources = [
     {
       title: "Your project guide",
@@ -1029,13 +1021,11 @@ function ResourcesView({ previewHrefPrefix }: { previewHrefPrefix?: string }) {
   return (
     <>
       <PageIntro
-        eyebrow="Resources"
-        title="A place reserved for you."
-        body="Guides, handover notes, and useful material selected for your work will live here."
+        {...pageContent(data, "resources", providerName)}
       />
       <div className="grid gap-5 lg:grid-cols-3" aria-label="Resources">
         {resources.map(resource => (
-          <Link key={resource.title} href={resource.href} className="group flex min-h-64 flex-col rounded-md border border-black/10 bg-[#fbfaf8] p-6 transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:bg-white hover:shadow-[0_18px_45px_rgba(35,29,18,0.08)] sm:p-7">
+          <Link key={resource.title} href={resource.href} className="group flex min-h-64 flex-col rounded-md border border-black/10 bg-[var(--portal-surface)] p-6 transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:bg-white hover:shadow-[0_18px_45px_rgba(35,29,18,0.08)] sm:p-7">
             <span className="grid size-11 place-items-center rounded-md border border-black/10 bg-white text-[var(--portal-accent)] transition group-hover:border-[var(--portal-accent)]">
               {resource.icon}
             </span>
@@ -1060,7 +1050,7 @@ function ResourcesView({ previewHrefPrefix }: { previewHrefPrefix?: string }) {
 
 function ResourceStep({ number, title, body }: { number: string; title: string; body: string }) {
   return (
-    <div className="bg-[#fbfaf8] p-6 sm:p-7">
+    <div className="bg-[var(--portal-surface)] p-6 sm:p-7">
       <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--portal-accent)]">{number}</p>
       <h3 className="mt-5 text-sm font-medium text-[#1b1a18]">{title}</h3>
       <p className="mt-2 text-xs leading-5 text-black/45">{body}</p>
@@ -1081,10 +1071,12 @@ function RecordView({
   client,
   data,
   previewHrefPrefix,
+  providerName,
 }: {
   client: Client;
   data: CustomerPortalData;
   previewHrefPrefix?: string;
+  providerName: string;
 }) {
   const recordingFiles = data.files.filter(file => file.category === "recording");
   const recordingLinks = data.record.links.filter(link => link.kind === "recording");
@@ -1095,9 +1087,7 @@ function RecordView({
   return (
     <>
       <PageIntro
-        eyebrow="Your details"
-        title="Everything we know, shared with you."
-        body="Your information, conversations, decisions, documents, and account history remain transparent and available throughout our work together."
+        {...pageContent(data, "details", providerName)}
       />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,.72fr)_minmax(0,1.28fr)]">

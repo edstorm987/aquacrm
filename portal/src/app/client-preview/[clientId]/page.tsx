@@ -7,16 +7,9 @@ import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { CustomerPortalChrome } from "@/app/portal/customer/_CustomerPortalChrome";
 import { CustomerPortalContent, type CustomerPortalSection } from "@/app/portal/customer/_CustomerPortalViews";
-import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
+import { loadCustomerPortalData, portalMode, type CustomerPortalMode } from "@/app/portal/customer/_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
 import { getTradingCompany } from "@/server/tradingCompanies";
-
-const MODE_LABEL = {
-  onboarding: "Onboarding",
-  designing: "In progress",
-  "developed-launch": "Review & delivery",
-  maintenance: "Live care",
-} as const;
 
 export default async function ClientPreviewPage({
   params,
@@ -35,8 +28,13 @@ export default async function ClientPreviewPage({
 
   const { clientId } = await params;
   const query = await searchParams;
-  const embedded = query.embedded === "1";
-  const requestedSection = Array.isArray(query.section) ? query.section[0] : query.section;
+  const queryValue = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
+  const embedded = queryValue(query.embedded) === "1";
+  const requestedSection = queryValue(query.section);
+  const requestedMode = queryValue(query.portalMode);
+  const scope = queryValue(query.portalScope) === "template" ? "template" : "client";
+  const draft = queryValue(query.portalDraft) === "1";
+  const templateId = queryValue(query.templateId);
   const allowedSections = new Set<CustomerPortalSection>(["home", "project", "results", "files", "billing", "support", "resources", "details"]);
   const section: CustomerPortalSection = allowedSections.has(requestedSection as CustomerPortalSection)
     ? requestedSection as CustomerPortalSection
@@ -48,9 +46,24 @@ export default async function ClientPreviewPage({
   const user = getUserById(session.userId);
   const provider = client.companyId ? getTradingCompany(agencyId, client.companyId) : null;
   const providerName = provider?.name ?? "AquaOasis-Web";
-  const data = await loadCustomerPortalData(client, client.name, providerName);
+  const loadedData = await loadCustomerPortalData(client, client.name, providerName, {
+    scope,
+    templateId,
+    draft,
+  });
+  const validModes = new Set<CustomerPortalMode>(["onboarding", "designing", "developed-launch", "maintenance"]);
+  const data = requestedMode && validModes.has(requestedMode as CustomerPortalMode)
+    ? { ...loadedData, mode: portalMode(requestedMode) }
+    : loadedData;
   const backHref = `/portal/clients/${client.id}?tab=fulfilment`;
-  const previewHrefPrefix = `/client-preview/${client.id}?${embedded ? "embedded=1&" : ""}section=`;
+  const previewParams = new URLSearchParams();
+  if (embedded) previewParams.set("embedded", "1");
+  if (queryValue(query.portalScope)) previewParams.set("portalScope", scope);
+  if (draft) previewParams.set("portalDraft", "1");
+  if (requestedMode) previewParams.set("portalMode", data.mode);
+  if (templateId) previewParams.set("templateId", templateId);
+  const previewQuery = previewParams.toString();
+  const previewHrefPrefix = `/client-preview/${client.id}?${previewQuery ? `${previewQuery}&` : ""}section=`;
 
   return (
     <>
@@ -60,7 +73,8 @@ export default async function ClientPreviewPage({
         email=""
         name={user?.name}
         avatarUrl={user?.avatarUrl}
-        modeLabel={MODE_LABEL[data.mode]}
+        modeLabel={data.presentation.stages[data.mode].label}
+        presentation={data.presentation}
         previewBackHref={embedded ? undefined : backHref}
         previewHrefPrefix={previewHrefPrefix}
         activePreviewSection={section}

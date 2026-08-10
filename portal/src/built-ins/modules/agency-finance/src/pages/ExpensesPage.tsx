@@ -1,6 +1,7 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { ExpensesList } from "../components/ExpensesList";
+import { normaliseCurrency } from "../lib/currencies";
 
 export const API_BASE = "/api/portal/agency-finance";
 
@@ -11,5 +12,5 @@ export default async function ExpensesPage(props: PluginPageProps) {
     c.categories.list(),
     Promise.resolve(c.tenant.listClients?.(props.agencyId) ?? []),
   ]);
-  return <ExpensesList expenses={expenses} categories={categories} clients={clients} apiBase={API_BASE} canMutate />;
+  return <ExpensesList expenses={expenses} categories={categories} clients={clients} apiBase={API_BASE} canMutate defaultCurrency={normaliseCurrency(props.install.config.defaultCurrency, "gbp")} />;
 }

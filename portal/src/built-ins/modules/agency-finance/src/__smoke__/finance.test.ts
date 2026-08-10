@@ -231,7 +231,7 @@ describe("agency-finance smoke", () => {
       description: "Annual GitHub team plan",
       amountCents: 30000,
       staffId: STAFF_ID,
-    }, ACTOR);
+    }, ACTOR, "usd");
     expenseId = exp.id;
     assert.equal(exp.status, "pending");
 

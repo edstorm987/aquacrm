@@ -14,6 +14,8 @@ describe("company connections workspace", () => {
     const company = read("src", "app", "portal", "agency", "company", "_CompanyWorkspace.tsx");
     const connections = read("src", "app", "portal", "agency", "company", "_CompanyConnectionsWorkspace.tsx");
     const page = read("src", "app", "portal", "agency", "company", "page.tsx");
+    const assistant = read("src", "app", "portal", "agency", "assistant", "AssistantWorkspace.tsx");
+    const integrationPanel = read("src", "app", "portal", "agency", "settings", "IntegrationConnectionsPanel.tsx");
 
     assert.ok(company.includes('["connections", "Connections", PlugZap]'));
     assert.ok(company.includes('requestedView === "connections"'));
@@ -26,6 +28,13 @@ describe("company connections workspace", () => {
     assert.ok(connections.includes("Websites and development"));
     assert.ok(page.includes("workspaceWebsite={settings.website}"));
     assert.ok(page.includes("clients={clients.map"));
+    assert.ok(page.includes("requestedIntegration"));
+    assert.ok(page.includes('requestedView === "companies"'));
+    assert.ok(page.includes("!showCompaniesGrid"));
+    assert.ok(assistant.includes('href="/portal/agency/company?view=connections&integration=openai"'));
+    assert.ok(assistant.includes("Configure OpenAI"));
+    assert.ok(integrationPanel.includes("initialProvider"));
+    assert.ok(integrationPanel.includes("setModal({ provider: initialProvider, connection: existing })"));
   });
 
   it("removes the duplicate Settings integration tab and points work to Company", () => {

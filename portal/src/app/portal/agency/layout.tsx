@@ -17,6 +17,7 @@ import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
 import { NotificationBell } from "@/components/chrome/NotificationBell";
+import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { INTERNAL_WORKSPACE_NAME, INTERNAL_WORKSPACE_SUBTITLE } from "@/lib/internalWorkspace";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
@@ -74,6 +75,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   // demo can render flush inside the marketing site's iframe. Cookie
   // is set by /demo?embed=1.
   const embed = h.get("cookie")?.includes("lk_demo_embed=1") ?? false;
+  const advisorEnabled = session.role === "agency-owner" || session.role === "agency-manager";
 
   if (embed) {
     return (
@@ -111,6 +113,9 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             publicShowcase={session.publicShowcase}
             privacyTerms={privacyTerms}
             notifications={<NotificationBell agencyId={agency.id} actor={session.userId} />}
+            advisorControl={advisorEnabled ? (
+              <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} />
+            ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
             <ErrorBoundary label="agency workspace"><PortalRouteCanvas>{children}</PortalRouteCanvas></ErrorBoundary>

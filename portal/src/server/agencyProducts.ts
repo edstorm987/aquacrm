@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
-import type { AgencyProduct, AgencyProductKind, AgencyProductPortalRequirement, AgencyProductPricing } from "./types";
+import type { AgencyProduct, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing } from "./types";
 
 export interface AgencyProductInput {
   companyIds?: string[];
@@ -16,8 +16,11 @@ export interface AgencyProductInput {
   coverImageUrl?: string;
   accentColor?: string;
   portalRequirement?: AgencyProductPortalRequirement;
+  portalTemplateKey?: AgencyProductPortalTemplateKey;
   portalHeadline?: string;
   portalWelcomeNote?: string;
+  portalStageFocus?: Partial<Record<AgencyProductPortalMode, string>>;
+  portalSupportCta?: string;
   includedProductIds?: string[];
   welcomePackItems?: string[];
   welcomePackNotes?: string;
@@ -52,16 +55,18 @@ export function ensureDefaultAgencyProducts(agencyId: string): AgencyProduct[] {
   const existing = listAgencyProducts(agencyId, true);
   if (existing.length) {
     for (const product of existing) {
+      const inferredTemplate = PORTAL_PRODUCT_CATALOG.find(definition => definition.name.toLowerCase() === product.name.toLowerCase())?.catalogKey;
       const category = product.category === "Advisory" && (product.name === "Business OS" || product.name === "Digital health check")
         ? "Lead magnets"
         : product.category;
-      if (category !== product.category || !product.kind || !product.portalRequirement || !Array.isArray(product.includedProductIds) || !Array.isArray(product.welcomePackItems) || !Array.isArray(product.sopIds) || !Array.isArray(product.sopCategories)) {
+      if (category !== product.category || !product.kind || !product.portalRequirement || (!product.portalTemplateKey && inferredTemplate) || !Array.isArray(product.includedProductIds) || !Array.isArray(product.welcomePackItems) || !Array.isArray(product.sopIds) || !Array.isArray(product.sopCategories)) {
         mutate(state => {
           state.agencyProducts[product.id] = {
             ...product,
             category,
             kind: validKind(product.kind),
             portalRequirement: validPortalRequirement(product.portalRequirement),
+            portalTemplateKey: validPortalTemplateKey(product.portalTemplateKey) ?? inferredTemplate,
             includedProductIds: Array.isArray(product.includedProductIds) ? product.includedProductIds : [],
             welcomePackItems: Array.isArray(product.welcomePackItems) ? product.welcomePackItems : [],
             sopIds: Array.isArray(product.sopIds) ? product.sopIds : [],
@@ -80,6 +85,7 @@ export function ensureDefaultAgencyProducts(agencyId: string): AgencyProduct[] {
       description: definition.description,
       pricing: "custom",
       deliverables: definition.deliverables,
+      portalTemplateKey: definition.catalogKey,
     }, "system");
   }
   return listAgencyProducts(agencyId, true);
@@ -101,8 +107,11 @@ export function createAgencyProduct(agencyId: string, input: AgencyProductInput,
     coverImageUrl: cleanHttpUrl(input.coverImageUrl),
     accentColor: cleanColor(input.accentColor),
     portalRequirement: validPortalRequirement(input.portalRequirement),
+    portalTemplateKey: validPortalTemplateKey(input.portalTemplateKey),
     portalHeadline: clean(input.portalHeadline, 180) || undefined,
     portalWelcomeNote: clean(input.portalWelcomeNote, 1_000) || undefined,
+    portalStageFocus: cleanPortalStageFocus(input.portalStageFocus),
+    portalSupportCta: clean(input.portalSupportCta, 80) || undefined,
     includedProductIds: cleanList(input.includedProductIds, 50, 120),
     welcomePackItems: cleanList(input.welcomePackItems, 30, 160),
     welcomePackNotes: clean(input.welcomePackNotes, 2_000) || undefined,
@@ -143,8 +152,11 @@ export function updateAgencyProduct(agencyId: string, productId: string, input: 
     coverImageUrl: input.coverImageUrl === undefined ? existing.coverImageUrl : cleanHttpUrl(input.coverImageUrl),
     accentColor: input.accentColor === undefined ? existing.accentColor : cleanColor(input.accentColor),
     portalRequirement: input.portalRequirement === undefined ? validPortalRequirement(existing.portalRequirement) : validPortalRequirement(input.portalRequirement),
+    portalTemplateKey: input.portalTemplateKey === undefined ? validPortalTemplateKey(existing.portalTemplateKey) : validPortalTemplateKey(input.portalTemplateKey),
     portalHeadline: input.portalHeadline === undefined ? existing.portalHeadline : clean(input.portalHeadline, 180) || undefined,
     portalWelcomeNote: input.portalWelcomeNote === undefined ? existing.portalWelcomeNote : clean(input.portalWelcomeNote, 1_000) || undefined,
+    portalStageFocus: input.portalStageFocus === undefined ? cleanPortalStageFocus(existing.portalStageFocus) : cleanPortalStageFocus(input.portalStageFocus),
+    portalSupportCta: input.portalSupportCta === undefined ? existing.portalSupportCta : clean(input.portalSupportCta, 80) || undefined,
     includedProductIds: input.includedProductIds === undefined ? existing.includedProductIds ?? [] : cleanList(input.includedProductIds, 50, 120).filter(id => id !== productId),
     welcomePackItems: input.welcomePackItems === undefined ? existing.welcomePackItems ?? [] : cleanList(input.welcomePackItems, 30, 160),
     welcomePackNotes: input.welcomePackNotes === undefined ? existing.welcomePackNotes : clean(input.welcomePackNotes, 2_000) || undefined,
@@ -236,6 +248,21 @@ function validInterval(value?: AgencyProduct["billingInterval"]): AgencyProduct[
 
 function validPortalRequirement(value?: AgencyProductPortalRequirement): AgencyProductPortalRequirement {
   return value === "required" || value === "none" ? value : "optional";
+}
+
+function validPortalTemplateKey(value?: AgencyProductPortalTemplateKey): AgencyProductPortalTemplateKey | undefined {
+  return value && PORTAL_PRODUCT_CATALOG.some(definition => definition.catalogKey === value) ? value : undefined;
+}
+
+function cleanPortalStageFocus(value: unknown): AgencyProduct["portalStageFocus"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const modes: AgencyProductPortalMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
+  const cleaned = Object.fromEntries(modes.flatMap(mode => {
+    const focus = clean(source[mode], 280);
+    return focus ? [[mode, focus]] : [];
+  })) as Partial<Record<AgencyProductPortalMode, string>>;
+  return Object.keys(cleaned).length ? cleaned : undefined;
 }
 
 function validKind(value?: AgencyProductKind): AgencyProductKind {

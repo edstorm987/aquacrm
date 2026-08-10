@@ -9,7 +9,7 @@ import type { AgencyId, ClientId, UserId } from "./tenancy";
 // ─── Invoice ─────────────────────────────────────────────────────────────
 
 export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue" | "void" | "refunded";
-export type Currency = "usd" | "gbp" | "eur";
+export type Currency = "gbp" | "eur" | "usd" | "cad" | "aud" | "nzd" | "chf" | "sek" | "nok" | "dkk" | "jpy" | "sgd" | "hkd" | "aed";
 
 export interface InvoiceLineItem {
   description: string;
@@ -159,6 +159,7 @@ export interface UpdateExpensePatch {
   description?: string | null;
   reason?: string | null;
   amountCents?: number;
+  currency?: Currency;
   taxCents?: number;
   taxRateBps?: number | null;
   taxDeductible?: boolean;

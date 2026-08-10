@@ -6,12 +6,13 @@ import test from "node:test";
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 
-test("sidebar uses real icons and presents pipelines as Journey", () => {
+test("sidebar uses real icons and presents the merged people hub as Journey", () => {
   const link = read("src/components/chrome/SidebarNavLink.tsx");
   const layout = read("src/lib/chrome/sidebarLayout.ts");
   assert.match(link, /pipelines:\s*Ship/);
   assert.doesNotMatch(link, /const initial\s*=/);
   assert.match(layout, /label:\s*"Journey"/);
+  assert.match(layout, /href:\s*"\/portal\/clients\?view=journey"/);
 });
 
 test("portal dark mode is persistent and scoped", () => {

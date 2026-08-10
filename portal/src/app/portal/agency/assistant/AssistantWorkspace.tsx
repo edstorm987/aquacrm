@@ -36,6 +36,9 @@ interface Props {
   model: string;
   userName: string;
   coverage: Coverage;
+  variant?: "page" | "drawer";
+  onClose?: () => void;
+  onAssistantDone?: () => void;
 }
 
 type SpeechRecognitionInstance = {
@@ -71,6 +74,9 @@ export function AssistantWorkspace({
   model,
   userName,
   coverage,
+  variant = "page",
+  onClose,
+  onAssistantDone,
 }: Props) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [activeThreadId, setActiveThreadId] = useState(initialWorkspace.threads[0]?.id ?? "");
@@ -155,6 +161,7 @@ export function AssistantWorkspace({
       if (nextWorkspace && !activeThreadId) {
         setActiveThreadId(nextWorkspace.threads[0]?.id ?? "");
       }
+      onAssistantDone?.();
     } catch (cause) {
       setDraft(clean);
       setError(cause instanceof Error ? cause.message : "The assistant could not respond.");
@@ -227,8 +234,13 @@ export function AssistantWorkspace({
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-6.5rem)] w-full max-w-[1500px] overflow-hidden border-y border-black/10 bg-white/35 sm:min-h-[calc(100dvh-7rem)]">
-      <aside className="hidden w-64 shrink-0 border-r border-black/10 lg:flex lg:flex-col">
+    <div className={[
+      "flex w-full overflow-hidden bg-white/35",
+      variant === "drawer"
+        ? "h-full"
+        : "mx-auto min-h-[calc(100dvh-6.5rem)] max-w-[1500px] border-y border-black/10 sm:min-h-[calc(100dvh-7rem)]",
+    ].join(" ")}>
+      <aside className={variant === "drawer" ? "hidden" : "hidden w-64 shrink-0 border-r border-black/10 lg:flex lg:flex-col"}>
         <HistoryPanel
           threads={workspace.threads}
           activeThreadId={activeThreadId}
@@ -266,6 +278,11 @@ export function AssistantWorkspace({
             <IconButton label="New conversation" onClick={() => void newConversation()}>
               <Plus size={17} />
             </IconButton>
+            {onClose ? (
+              <IconButton label="Close Aqua Advisor" onClick={onClose}>
+                <X size={17} />
+              </IconButton>
+            ) : null}
           </div>
         </header>
 
@@ -465,8 +482,8 @@ function SetupPanel() {
       <p className="mt-3 text-sm leading-6 text-black/58">
         ChatGPT subscriptions cannot authenticate a separate app. Create an OpenAI Platform API key, then save and test it in AquaCRM's secure connection manager.
       </p>
-      <a href="/portal/agency/company?view=connections" className="mt-5 inline-flex min-h-11 w-fit items-center rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
-        Open integrations
+      <a href="/portal/agency/company?view=connections&integration=openai" className="mt-5 inline-flex min-h-11 w-fit items-center rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
+        Configure OpenAI
       </a>
     </div>
   );

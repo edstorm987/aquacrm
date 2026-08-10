@@ -5,6 +5,7 @@ import { Download, Eye, Plus, Search, X } from "lucide-react";
 
 import type { Currency, IncomeEntry, Invoice, Payment, PaymentMethod } from "../lib/domain";
 import type { Client } from "../lib/tenancy";
+import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { FinanceNav } from "./FinanceNav";
 
 type IncomeRow = {
@@ -96,13 +97,12 @@ export function IncomeSheet({ payments, otherIncome, invoices, clients, apiBase 
       return !needle || `${row.title ?? ""} ${row.clientName} ${row.invoiceNumber} ${row.category ?? ""} ${row.description ?? ""} ${row.externalRef ?? ""} ${row.notes ?? ""}`.toLowerCase().includes(needle);
     });
   }, [clientFilter, methodFilter, query, rows]);
-  const total = filtered.reduce((sum, row) => sum + row.amountCents, 0);
-  const currency = filtered[0]?.currency ?? rows[0]?.currency ?? "gbp";
+  const total = totalsByCurrency(filtered);
   const thisMonth = rows.filter(row => {
     const date = new Date(row.paidAt);
     const now = new Date();
     return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-  }).reduce((sum, row) => sum + row.amountCents, 0);
+  });
 
   function exportCsv() {
     const header = ["Date", "Source", "Client", "Invoice", "Category", "Method", "Amount", "Currency", "Reference", "Description", "Notes", "Payment ID"];
@@ -121,9 +121,9 @@ export function IncomeSheet({ payments, otherIncome, invoices, clients, apiBase 
       <div className="flex flex-wrap gap-2"><button type="button" onClick={exportCsv} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium"><Download size={16} />Export CSV</button><button type="button" onClick={() => setAdding("invoice")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium"><Plus size={16} />Invoice payment</button><button type="button" onClick={() => setAdding("other")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={16} />Other income</button></div>
     </header>
     <dl className="grid grid-cols-2 border-y border-black/10 sm:grid-cols-4">
-      <Summary label="All income" value={money(rows.reduce((sum, row) => sum + row.amountCents, 0), currency)} />
-      <Summary label="This month" value={money(thisMonth, currency)} />
-      <Summary label="Visible total" value={money(total, currency)} />
+      <Summary label="All income" value={formatTotals(totalsByCurrency(rows))} />
+      <Summary label="This month" value={formatTotals(totalsByCurrency(thisMonth))} />
+      <Summary label="Visible total" value={formatTotals(total)} />
       <Summary label="Transactions" value={String(filtered.length)} />
     </dl>
     <div className="flex flex-wrap gap-2 border-b border-black/10 pb-3">
@@ -173,6 +173,7 @@ function RecordOtherIncome({ clients, apiBase, onClose }: { clients: Client[]; a
         reference: String(data.get("reference") ?? "").trim() || undefined,
         description: String(data.get("description") ?? "").trim() || undefined,
         notes: String(data.get("notes") ?? "").trim() || undefined,
+        currency: String(data.get("currency") ?? "gbp"),
       }),
     });
     const result = await response.json().catch(() => null);
@@ -183,6 +184,7 @@ function RecordOtherIncome({ clients, apiBase, onClose }: { clients: Client[]; a
     <label className={labelClass}>What is this income?<input required name="title" autoFocus placeholder="For example, referral fee" className={inputClass} /></label>
     <div className="grid gap-3 sm:grid-cols-2">
       <label className={labelClass}>Amount received<input required name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" className={inputClass} /></label>
+      <label className={labelClass}>Currency<select name="currency" defaultValue="gbp" className={inputClass}>{SUPPORTED_CURRENCIES.map(currency => <option key={currency.code} value={currency.code}>{currency.label}</option>)}</select></label>
       <label className={labelClass}>Date received<input required name="receivedAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className={inputClass} /></label>
       <label className={labelClass}>Income category<input name="category" placeholder="For example, referral" className={inputClass} /></label>
       <label className={labelClass}>Payment method<select name="method" defaultValue="bank-transfer" className={inputClass}><option value="stripe">Stripe</option><option value="bank-transfer">Bank transfer</option><option value="cash">Cash</option><option value="manual">Manual</option><option value="other">Other</option></select></label>
@@ -204,7 +206,16 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 function Summary({ label: text, value }: { label: string; value: string }) { return <div className="px-3 py-4 first:pl-0"><dt className="text-xs text-black/45">{text}</dt><dd className="mt-1 text-xl font-semibold text-black/85">{value}</dd></div>; }
 function Detail({ label: text, value, strong }: { label: string; value: string; strong?: boolean }) { return <div className="grid grid-cols-[130px_minmax(0,1fr)] gap-3 py-3 text-sm"><dt className="text-black/45">{text}</dt><dd className={`${strong ? "font-semibold" : ""} break-words text-black/80`}>{value}</dd></div>; }
 function Empty({ text }: { text: string }) { return <div className="grid min-h-44 place-items-center border-y border-black/10 text-center text-sm text-black/45">{text}</div>; }
-function money(cents: number, currency: string) { return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100); }
+function money(cents: number, currency: string) { return formatMoney(cents, currency); }
+function totalsByCurrency(rows: IncomeRow[]) {
+  const totals = new Map<string, number>();
+  for (const row of rows) totals.set(row.currency, (totals.get(row.currency) ?? 0) + row.amountCents);
+  return [...totals.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+function formatTotals(totals: Array<[string, number]>) {
+  if (!totals.length) return money(0, "gbp");
+  return totals.map(([currency, cents]) => money(cents, currency)).join(" / ");
+}
 function date(value: number) { return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
 function label(value: string) { return value.replaceAll("-", " ").replace(/\b\w/g, char => char.toUpperCase()); }
 function csvCell(value: unknown) { return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`; }

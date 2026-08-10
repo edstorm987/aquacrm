@@ -15,6 +15,7 @@ import type {
   UpdateExpensePatch,
   UpdateInvoicePatch,
 } from "../lib/domain";
+import { normaliseCurrency } from "../lib/currencies";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -37,7 +38,7 @@ const buildContainer = (ctx: PluginCtx) =>
   containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, install: ctx.install });
 
 const defaultCurrency = (ctx: PluginCtx): Currency =>
-  (ctx.install.config.defaultCurrency as Currency | undefined) ?? "usd";
+  normaliseCurrency(ctx.install.config.defaultCurrency, "gbp");
 
 // ─── Invoices ────────────────────────────────────────────────────────────
 
@@ -310,7 +311,7 @@ export async function reportHandler(req: Request, ctx: PluginCtx): Promise<Respo
   const url = new URL(req.url);
   const from = Number(url.searchParams.get("from") ?? 0);
   const to = Number(url.searchParams.get("to") ?? Date.now());
-  const currency = (url.searchParams.get("currency") ?? defaultCurrency(ctx)) as Currency;
+  const currency = normaliseCurrency(url.searchParams.get("currency"), defaultCurrency(ctx));
   const snapshot = await buildContainer(ctx).reports.revenueSnapshot({ from, to, currency });
   return json({ ok: true, snapshot });
 }

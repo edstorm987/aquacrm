@@ -2,7 +2,8 @@ import "server-only";
 
 import { listActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";
-import type { ActivityEntry, Client } from "@/server/types";
+import type { ActivityEntry, Client, ClientPortalDesignDocument } from "@/server/types";
+import { resolveClientPortalDesign, type ClientPortalDesignScope } from "@/server/clientPortalDesigns";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
 import type { Invoice, InvoiceLineItem, InvoiceStatus } from "@/built-ins/modules/agency-finance/src/lib/domain";
@@ -71,6 +72,7 @@ export interface CustomerRecord {
 
 export interface CustomerPortalData {
   mode: CustomerPortalMode;
+  presentation: ClientPortalDesignDocument;
   contactName: string;
   servicePlan: string;
   planSummary?: string;
@@ -189,6 +191,11 @@ export async function loadCustomerPortalData(
   client: Client,
   fallbackName: string,
   providerName = "Milesymedia",
+  options: {
+    scope?: ClientPortalDesignScope;
+    templateId?: string;
+    draft?: boolean;
+  } = {},
 ): Promise<CustomerPortalData> {
   const meta = (client.metadata ?? {}) as {
     portalMode?: CustomerPortalMode;
@@ -442,9 +449,18 @@ export async function loadCustomerPortalData(
     seenLinks.add(url);
     return [{ label, url, kind }];
   });
+  const presentation = resolveClientPortalDesign({
+    agencyId: client.agencyId,
+    clientId: client.id,
+    scope: options.scope,
+    templateId: options.templateId,
+    draft: options.draft,
+    fallbackAccentColor: meta.portalAccentColor,
+  });
 
   return {
     mode: portalMode(meta.portalMode),
+    presentation,
     contactName: meta.portalContactName?.trim() || fallbackName,
     servicePlan: meta.portalServicePlan?.trim() || PLAN_LABELS[planKey] || planKey || `${providerName} custom plan`,
     planSummary: meta.portalPlanSummary?.trim() || undefined,
@@ -460,9 +476,7 @@ export async function loadCustomerPortalData(
     products: cleanPortalProducts(meta.portalProducts),
     experienceHeadline: meta.portalExperienceHeadline?.trim() || undefined,
     logoUrl: supportUrl(meta.portalLogoUrl),
-    accentColor: /^#[0-9a-f]{6}$/i.test(meta.portalAccentColor ?? "")
-      ? meta.portalAccentColor!
-      : "#8b6c33",
+    accentColor: presentation.theme.accentColor,
     builtAt: meta.portalBuiltAt,
     websiteUrl: supportUrl(client.websiteUrl),
     billingUrl: supportUrl(meta.stripeLink),

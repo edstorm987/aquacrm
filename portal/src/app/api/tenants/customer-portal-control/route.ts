@@ -6,6 +6,7 @@ import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import { deliverMagicLink, signMagicToken } from "@/lib/server/magicLink";
 import { cleanPortalProducts } from "@/lib/portalProducts";
+import { ensureClientPortalInstance } from "@/server/clientPortalDesigns";
 
 type PortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -143,6 +144,14 @@ export async function POST(req: NextRequest) {
     : typeof client.metadata?.portalBuiltAt === "number"
       ? client.metadata.portalBuiltAt
       : undefined;
+  const portalInstance = action === "build-portal"
+    ? ensureClientPortalInstance({
+        agencyId,
+        clientId: client.id,
+        actorUserId: session.userId,
+        accentColor: portalAccentColor,
+      })
+    : null;
 
   const saved = updateClient(agencyId, client.id, {
     endCustomers: { signupsEnabled: true, postLoginReturnUrl: "/portal/customer" },
@@ -168,8 +177,11 @@ export async function POST(req: NextRequest) {
         ? true
         : client.metadata?.portalRequired,
       portalShellVersion: action === "build-portal"
-        ? "milesymedia-customer-home-v2"
+        ? "stunning-standard-v1"
         : client.metadata?.portalShellVersion,
+      portalTemplateId: portalInstance?.templateId ?? client.metadata?.portalTemplateId,
+      portalTemplateVersionId: portalInstance?.templateVersionId ?? client.metadata?.portalTemplateVersionId,
+      portalDesignVersionId: portalInstance?.publishedVersionId ?? client.metadata?.portalDesignVersionId,
       portalProvisioningSource: action === "build-portal"
         ? "built-in"
         : client.metadata?.portalProvisioningSource,

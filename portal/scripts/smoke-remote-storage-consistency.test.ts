@@ -1,6 +1,19 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { applyStoragePatch, type StoragePatchOperation } from "../src/server/storagePatch";
+import { applyStoragePatch, diffStorageValue, type StoragePatchOperation } from "../src/server/storagePatch";
+
+test("the first record initializes a new remote collection", () => {
+  const operations = diffStorageValue(
+    { dashboardDayPlans: {} },
+    { dashboardDayPlans: { day_1: { id: "day_1", date: "2026-08-10" } } },
+  );
+
+  assert.deepEqual(operations, [{
+    op: "set",
+    path: ["dashboardDayPlans"],
+    value: { day_1: { id: "day_1", date: "2026-08-10" } },
+  }]);
+});
 
 test("remote portal storage flushes writes and refreshes warm-process state", async () => {
   const originalFetch = globalThis.fetch;

@@ -53,6 +53,7 @@ describe("agency products", () => {
       ["Business OS", "Digital health check"],
     );
     assert.equal(products.ensureDefaultAgencyProducts(agency.id).length, 10);
+    assert.equal(seeded.find(product => product.name === "Website")?.portalTemplateKey, "website");
 
     const custom = products.createAgencyProduct(agency.id, {
       name: "Launch photography",
@@ -61,8 +62,14 @@ describe("agency products", () => {
       coverImageUrl: "https://example.com/shoot.jpg",
       accentColor: "#B25E45",
       portalRequirement: "required",
+      portalTemplateKey: "photography",
       portalHeadline: "Your launch shoot, all together.",
       portalWelcomeNote: "Review the plan, references and delivered gallery here.",
+      portalStageFocus: {
+        onboarding: "Confirm every location and shot priority.",
+        designing: "Approve the shoot plan and visual references.",
+      },
+      portalSupportCta: "Ask about the shoot",
       pricing: "fixed",
       priceCents: 75_000,
       depositPercent: 30,
@@ -85,6 +92,10 @@ describe("agency products", () => {
     assert.deepEqual(custom.sopIds, ["sop_shoot"]);
     assert.deepEqual(custom.sopCategories, ["Photography"]);
     assert.equal(custom.portalRequirement, "required");
+    assert.equal(custom.portalTemplateKey, "photography");
+    assert.equal(custom.portalStageFocus?.onboarding, "Confirm every location and shot priority.");
+    assert.equal(custom.portalStageFocus?.designing, "Approve the shoot plan and visual references.");
+    assert.equal(custom.portalSupportCta, "Ask about the shoot");
     assert.equal(custom.accentColor, "#B25E45");
 
     const archived = products.updateAgencyProduct(agency.id, custom.id, { active: false }, "tester");

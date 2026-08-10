@@ -15,9 +15,17 @@ describe("company products workspace", () => {
     const page = read("src", "app", "portal", "agency", "company", "page.tsx");
     const sidebar = read("src", "lib", "chrome", "sidebarLayout.ts");
 
-    assert.ok(company.includes('type View = "overview" | "direction" | "plans" | "products" | "connections" | "legal"'));
+    assert.ok(company.includes('type View = "overview" | "direction" | "plans" | "capacity" | "products" | "connections" | "legal"'));
+    assert.ok(company.includes("CompanyDashboard"));
+    assert.ok(company.includes("All companies combined"));
+    assert.ok(company.includes("AggregateRow"));
+    assert.ok(company.includes("CompanyPieChart"));
+    assert.ok(company.includes("companyPieSegments"));
+    assert.ok(page.includes("serviceBrands={companies}"));
+    assert.ok(company.includes('href="/portal/agency/company?view=companies"'));
     assert.ok(company.includes('["products", "Products", Package]'));
     assert.ok(company.includes("<ProductsWorkspace"));
+    assert.ok(page.includes('requestedView === "companies"'));
     assert.ok(company.includes('requestedView === "products"'));
     assert.ok(company.includes('url.searchParams.set("view", "products")'));
     assert.ok(company.includes('url.searchParams.delete("view")'));

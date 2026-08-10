@@ -5,6 +5,7 @@ import { ArrowLeft, Check, CircleDollarSign, FileCheck2, Package, Pencil, Sparkl
 import { useState } from "react";
 
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
+import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
 import { ProductEditor, linkedSopCount, portalLabel, priceLabel, toDraft } from "../_ProductsWorkspace";
 
 export function ProductDetailWorkspace({ initialProduct, products, sops, companies }: { initialProduct: AgencyProduct; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[] }) {
@@ -12,6 +13,7 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
   const [editing, setEditing] = useState(false);
   const linkedSops = sops.filter(sop => product.sopIds.includes(sop.id) || Boolean(sop.category && product.sopCategories.includes(sop.category)));
   const includedProducts = products.filter(item => product.includedProductIds.includes(item.id));
+  const portalTemplate = PORTAL_PRODUCT_CATALOG.find(template => template.catalogKey === product.portalTemplateKey);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
@@ -61,9 +63,12 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
       <Section icon={<Sparkles size={17} />} title="Client experience" detail="How this product appears when a client buys it.">
         <div className="grid gap-5 md:grid-cols-2">
           <FieldValue label="Client portal" value={readable(portalLabel(product.portalRequirement))} />
+          <FieldValue label="Portal template" value={portalTemplate ? `${portalTemplate.name} portal` : "Not attached"} />
           <FieldValue label="Portal headline" value={product.portalHeadline || "Not set"} />
+          <FieldValue label="Support button" value={product.portalSupportCta || "Send request"} />
         </div>
         {product.portalWelcomeNote ? <div className="mt-5"><Label>Portal welcome message</Label><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-black/60">{product.portalWelcomeNote}</p></div> : null}
+        {product.portalStageFocus && Object.values(product.portalStageFocus).some(Boolean) ? <div className="mt-5"><Label>Lifecycle copy</Label><div className="mt-2 grid gap-3 sm:grid-cols-2">{Object.entries(product.portalStageFocus).map(([stage, copy]) => copy ? <div key={stage} className="border-l-2 border-black/10 pl-3"><p className="text-[10px] font-semibold uppercase text-black/35">{readable(stage)}</p><p className="mt-1 text-sm leading-5 text-black/58">{copy}</p></div> : null)}</div></div> : null}
         <div className="mt-5"><Label>Welcome pack</Label>{product.welcomePackItems.length ? <ul className="mt-2 flex flex-wrap gap-2">{product.welcomePackItems.map(item => <li key={item} className="rounded-md bg-black/[0.04] px-3 py-1.5 text-xs text-black/60">{item}</li>)}</ul> : <Empty>No welcome items added.</Empty>}{product.welcomePackNotes ? <p className="mt-3 text-sm leading-6 text-black/55">{product.welcomePackNotes}</p> : null}</div>
       </Section>
 

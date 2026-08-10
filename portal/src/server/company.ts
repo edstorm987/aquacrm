@@ -2,7 +2,7 @@ import "server-only";
 
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
-import type { CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview } from "./types";
+import type { CompanyCapacityPlan, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview } from "./types";
 
 const profileKey = (agencyId: string, companyId?: string | null) => companyId ? `${agencyId}:${companyId}` : agencyId;
 
@@ -16,6 +16,14 @@ const defaults = (agencyId: string, companyId?: string | null): CompanyProfile =
   averageDealValueCents: 1_000_00,
   salesCallCloseRatePercent: 25,
   annualRevenueTargetCents: 60_000_00,
+  capacity: {
+    weeklyAvailableHours: 32,
+    deliveryHoursPerActiveClient: 4,
+    salesHoursPerCall: 1,
+    adminBufferPercent: 20,
+    hiringTriggerPercent: 85,
+    notes: "",
+  },
   objectives: [],
   plans: [],
   reviews: [],
@@ -44,6 +52,7 @@ export function updateCompanyProfile(
     averageDealValueCents: cleanMoney(input.averageDealValueCents, current.averageDealValueCents),
     salesCallCloseRatePercent: cleanNumber(input.salesCallCloseRatePercent, current.salesCallCloseRatePercent, 1, 100),
     annualRevenueTargetCents: cleanMoney(input.annualRevenueTargetCents, current.annualRevenueTargetCents),
+    capacity: cleanCapacity(input.capacity ?? current.capacity, current.capacity),
     objectives: cleanObjectives(input.objectives ?? current.objectives),
     plans: cleanPlans(input.plans ?? current.plans),
     reviews: cleanReviews(input.reviews ?? current.reviews),
@@ -59,6 +68,18 @@ export function updateCompanyProfile(
     metadata: companyId ? { companyId } : undefined,
   });
   return updated;
+}
+
+function cleanCapacity(value: unknown, fallback: CompanyCapacityPlan): CompanyCapacityPlan {
+  const item = value && typeof value === "object" ? value as Partial<CompanyCapacityPlan> : {};
+  return {
+    weeklyAvailableHours: cleanNumber(item.weeklyAvailableHours, fallback.weeklyAvailableHours, 1, 500),
+    deliveryHoursPerActiveClient: cleanNumber(item.deliveryHoursPerActiveClient, fallback.deliveryHoursPerActiveClient, 0, 200),
+    salesHoursPerCall: cleanNumber(item.salesHoursPerCall, fallback.salesHoursPerCall, 0, 24),
+    adminBufferPercent: cleanNumber(item.adminBufferPercent, fallback.adminBufferPercent, 0, 80),
+    hiringTriggerPercent: cleanNumber(item.hiringTriggerPercent, fallback.hiringTriggerPercent, 1, 100),
+    notes: cleanText(item.notes, 2_000) || undefined,
+  };
 }
 
 function cleanText(value: unknown, max: number): string {
