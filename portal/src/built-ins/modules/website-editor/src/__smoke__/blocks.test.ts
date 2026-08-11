@@ -67,14 +67,14 @@ async function main(): Promise<void> {
   );
   expect("storefront.blocks present", Boolean(manifest.storefront?.blocks));
   expect(
-    "storefront.blocks has 61 entries",
-    (manifest.storefront?.blocks?.length ?? 0) === 61,
+    "storefront.blocks has 70 entries",
+    (manifest.storefront?.blocks?.length ?? 0) === 70,
     `actual: ${manifest.storefront?.blocks?.length}`,
   );
   expect("features has 8 entries", manifest.features.length === 8, `actual: ${manifest.features.length}`);
 
   console.log("\nblock registry");
-  expect("BLOCK_REGISTRY has 61 entries", Object.keys(BLOCK_REGISTRY).length === 61);
+  expect("BLOCK_REGISTRY has 70 entries", Object.keys(BLOCK_REGISTRY).length === 70);
   expect(
     "BLOCK_DESCRIPTORS matches BLOCK_REGISTRY size",
     BLOCK_DESCRIPTORS.length === Object.keys(BLOCK_REGISTRY).length,
@@ -84,11 +84,11 @@ async function main(): Promise<void> {
   for (const [type, def] of Object.entries(BLOCK_REGISTRY)) {
     if (typeof def.Component === "function" && def.type === type) evaluated++;
   }
-  expect("every block component is callable", evaluated === 61, `actual: ${evaluated}`);
+  expect("every block component is callable", evaluated === 70, `actual: ${evaluated}`);
 
   console.log("\nrenderer registrations (cross-plugin)");
   expect(
-    "RENDERER_REGISTRATIONS covers all 61 native blocks",
+    "RENDERER_REGISTRATIONS covers all 70 native blocks",
     Object.keys(BLOCK_REGISTRY).every(type => typeof RENDERER_REGISTRATIONS[type] === "function"),
   );
   // 8 ecommerce + 3 memberships should be in the map even though they

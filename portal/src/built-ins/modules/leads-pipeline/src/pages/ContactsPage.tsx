@@ -20,6 +20,7 @@ export default async function ContactsPage(props: PluginPageProps) {
 
   return (
     <ContactsWorkspace
+      referenceNow={Date.now()}
       contacts={contactList}
       leads={leadList}
       initialCustomFields={customFields ?? []}

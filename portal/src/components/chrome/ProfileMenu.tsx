@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Eye, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
+import { ColorModeToggle } from "./ColorModeToggle";
 
 const ROLE_LABEL: Record<Role, string> = {
   "agency-owner": "Agency owner",
@@ -71,7 +72,8 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
         aria-label={`Account for ${display}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex h-10 items-center gap-2 rounded-md border border-[#D4B888]/45 bg-[#171009] py-1 pl-1 pr-2 text-[#F7EFE2] shadow-sm transition hover:border-[#D4B888]/75 hover:bg-[#24180d]"
+        data-open={open ? "true" : "false"}
+        className="mm-profile-trigger inline-flex h-10 w-10 items-center gap-2 rounded-md border border-[#D4B888]/45 bg-[#FFFDF8] p-[3px] text-[#171009] shadow-sm transition hover:border-[#D4B888]/75 hover:bg-[#FAF3E5] sm:w-auto sm:p-1 sm:pr-2"
       >
         <span className="inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D4B888] text-[11px] font-bold text-[#171009]">
           {avatarUrl ? (
@@ -86,9 +88,9 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
       </button>
 
       {open && (
-        <div role="menu" className="fixed inset-x-3 top-16 z-[80] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-lg border border-[#D4B888]/35 bg-[#FFFDF8] shadow-2xl shadow-black/20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
-          <div className="bg-[#171009] px-4 pb-4 pt-3 text-[#F7EFE2]">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-[#D4B888]">{accountLabel}</p>
+        <div role="menu" className="mm-profile-menu fixed inset-x-3 top-16 z-[80] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-lg border border-[#D4B888]/35 bg-[#FFFDF8] shadow-2xl shadow-black/20 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
+          <div className="mm-profile-menu-header border-b border-[#E7DDC9] px-4 pb-4 pt-3 text-[#2A2520]">
+            <p className="mm-profile-menu-account-label mb-3 text-[10px] font-semibold uppercase tracking-wide text-[#8E7340]">{accountLabel}</p>
             <div className="flex items-center gap-3">
             <span aria-hidden className="inline-flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D4B888] text-base font-bold text-[#171009]">
               {avatarUrl ? (
@@ -97,14 +99,15 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
               ) : initials(display)}
             </span>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-[#FFF8EB]">{display}</div>
-              <div className="truncate text-xs text-[#D8C6A8]">{email}</div>
-              <div className="mt-1 text-[10px] font-medium uppercase tracking-wide text-[#D4B888]">{ROLE_LABEL[role] ?? role}</div>
+              <div className="mm-profile-menu-name truncate text-sm font-semibold text-[#2A2520]">{display}</div>
+              <div className="mm-profile-menu-email truncate text-xs text-[#665C4E]">{email}</div>
+              <div className="mm-profile-menu-role mt-1 text-[10px] font-medium uppercase tracking-wide text-[#8E7340]">{ROLE_LABEL[role] ?? role}</div>
             </div>
             </div>
           </div>
 
           <div className="px-2 py-2">
+            <ColorModeToggle variant="menu" />
             <Link
               href={role === "end-customer" ? "/portal/customer/account" : "/portal/account"}
               role="menuitem"
@@ -150,8 +153,8 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
             )}
           </div>
 
-          <form action="/api/auth/logout" method="post" className="border-t border-[#E7DDC9] px-2 py-2">
-            <button type="submit" className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#7A2E24] hover:bg-[#F8E9E5]">
+          <form action="/api/auth/logout" method="post" className="mm-profile-menu-footer border-t border-[#E7DDC9] px-2 py-2">
+            <button type="submit" role="menuitem" className="mm-profile-menu-signout flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#7A2E24] hover:bg-[#F8E9E5]">
               <LogOut size={16} aria-hidden="true" />
               <span className="flex-1">Sign out</span>
             </button>

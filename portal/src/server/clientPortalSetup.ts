@@ -1,7 +1,10 @@
 import "server-only";
 
+import { cleanPortalProducts } from "@/lib/portalProducts";
 import { getClientForAgency, updateClient } from "./tenants";
-import { ensureClientPortalInstance } from "./clientPortalDesigns";
+import { getAgencyProduct } from "./agencyProducts";
+import { ensureClientPortalInstance, ensureProductPortalTemplate } from "./clientPortalDesigns";
+import { reconcileClientProductWorkspaces } from "./productWorkspaces";
 
 export interface ClientPortalSetupMetadata {
   phase?: string;
@@ -43,11 +46,20 @@ export async function setupClientStarterPortal(input: {
 
   const metadata = input.metadata ?? {};
   const builtAt = Date.now();
+  const portalProducts = cleanPortalProducts(client.metadata?.portalProducts);
+  const productId = portalProducts.length > 1
+    ? ""
+    : typeof client.metadata?.agencyProductId === "string" ? client.metadata.agencyProductId : "";
+  const product = productId ? getAgencyProduct(input.agencyId, productId) : null;
+  const productTemplate = product && product.portalRequirement !== "none"
+    ? ensureProductPortalTemplate(input.agencyId, product, input.actor)
+    : null;
   const portalInstance = ensureClientPortalInstance({
     agencyId: input.agencyId,
     clientId: input.clientId,
     actorUserId: input.actor,
     accentColor: typeof client.metadata?.portalAccentColor === "string" ? client.metadata.portalAccentColor : undefined,
+    templateId: productTemplate?.id,
   });
   const saved = updateClient(input.agencyId, input.clientId, {
     endCustomers: {
@@ -72,6 +84,7 @@ export async function setupClientStarterPortal(input: {
           ? client.metadata.portalContactName
           : client.name),
       onboardingStartedAt: metadata.onboardingStartedAt,
+      portalProductWorkspaces: reconcileClientProductWorkspaces(client, portalProducts, "onboarding"),
     },
   });
 

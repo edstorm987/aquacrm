@@ -40,6 +40,7 @@ const STYLES: Record<ActivityCategory, CategoryStyle> = {
   "bos-auth-gate":  { color: "#475569", icon: "🛡", label: "BOS gate" },
   payroll:          { color: "#059669", icon: "💵", label: "Payroll" },
   integrations:     { color: "#8b5cf6", icon: "🔌", label: "Integrations" },
+  inbox:            { color: "#0f766e", icon: "@", label: "Inbox" },
   support:          { color: "#f97316", icon: "🛟", label: "Support" },
   onboarding:       { color: "#22c55e", icon: "✅", label: "Onboarding" },
   reports:          { color: "#1d4ed8", icon: "📊", label: "Reports" },

@@ -12,6 +12,10 @@ import { listLegalDocuments } from "@/server/legalDocuments";
 import { listVisibleDevelopmentResources } from "@/server/developmentToolkit";
 import type { Role } from "@/server/types";
 import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { listNotepadFolders, listNotepadNotes } from "@/server/notepad";
+import { listWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
+import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import type { InboxSnapshot } from "@/lib/inbox/types";
 
 export interface GlobalSearchResult {
   id: string;
@@ -21,6 +25,7 @@ export interface GlobalSearchResult {
     | "Client data"
     | "Contact"
     | "Lead"
+    | "Enquiry"
     | "Product"
     | "Task"
     | "SOP"
@@ -47,31 +52,76 @@ export interface GlobalSearchResult {
     | "Notification";
   title: string;
   subtitle?: string;
+  excerpt?: string;
+  matchedOn?: string;
+  timestamp?: number;
   href: string;
 }
 
-type Candidate = GlobalSearchResult & { searchText: string };
+type Candidate = GlobalSearchResult & {
+  searchText: string;
+  detailText: string;
+  matchLabel: string;
+};
+
+interface CandidateOptions {
+  detail?: string;
+  matchLabel?: string;
+  timestamp?: number;
+}
+
+const SEARCH_INDEX_TTL_MS = 15_000;
+const candidateCache = new Map<string, { expiresAt: number; promise: Promise<Candidate[]> }>();
 
 export async function GET(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
-    const query = new URL(request.url).searchParams.get("q")?.trim().slice(0, 120) ?? "";
-    if (!query) return NextResponse.json({ ok: true, results: [] });
+    const url = new URL(request.url);
+    const query = url.searchParams.get("q")?.trim().slice(0, 120) ?? "";
+    const warm = url.searchParams.get("warm") === "1";
+    if (!query && !warm) return NextResponse.json({ ok: true, results: [] });
 
     ensureDefaultAgencyProducts(session.agencyId);
-    const candidates = await buildCandidates(session.agencyId, session.userId, session.role);
+    const candidates = await cachedCandidates(session.agencyId, session.userId, session.role);
+    if (warm) return NextResponse.json({ ok: true, warmed: true });
     const results = candidates
       .map(candidate => ({ candidate, score: score(candidate, query) }))
       .filter(match => match.score > 0)
-      .sort((left, right) => right.score - left.score || left.candidate.title.localeCompare(right.candidate.title))
+      .sort((left, right) => right.score - left.score
+        || (right.candidate.timestamp ?? 0) - (left.candidate.timestamp ?? 0)
+        || left.candidate.title.localeCompare(right.candidate.title))
       .slice(0, 40)
-      .map(({ candidate: { searchText: _searchText, ...result } }) => result);
+      .map(({ candidate }) => {
+        const { searchText: _searchText, detailText, matchLabel, ...result } = candidate;
+        return {
+          ...result,
+          excerpt: contextualSnippet(detailText || result.subtitle || result.title, query),
+          matchedOn: matchLabel,
+        };
+      });
 
-    return NextResponse.json({ ok: true, results });
+    const categories = results.reduce<Record<string, number>>((counts, result) => {
+      counts[result.category] = (counts[result.category] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    return NextResponse.json({ ok: true, results, total: results.length, categories });
   } catch (error) {
     return authErrorResponse(error);
   }
+}
+
+async function cachedCandidates(agencyId: string, userId: string, role: Role): Promise<Candidate[]> {
+  const key = `${agencyId}:${userId}:${role}`;
+  const current = candidateCache.get(key);
+  if (current && current.expiresAt > Date.now()) return current.promise;
+  const promise = buildCandidates(agencyId, userId, role).catch(error => {
+    candidateCache.delete(key);
+    throw error;
+  });
+  candidateCache.set(key, { expiresAt: Date.now() + SEARCH_INDEX_TTL_MS, promise });
+  return promise;
 }
 
 async function buildCandidates(agencyId: string, userId: string, role: Role): Promise<Candidate[]> {
@@ -178,6 +228,19 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
     }, [task.notes, task.recurrence]);
   }
 
+  const notepadFolders = new Map(listNotepadFolders(agencyId, userId).map(folder => [folder.id, folder]));
+  for (const note of listNotepadNotes(agencyId, userId)) {
+    if (note.status === "trashed") continue;
+    const folder = note.folderId ? notepadFolders.get(note.folderId) : undefined;
+    push(candidates, {
+      id: note.id,
+      category: "Note",
+      title: note.title,
+      subtitle: [folder?.name, note.status === "archived" ? "Archived" : "Personal notepad", note.tags.map(tag => `#${tag}`).join(" ")].filter(Boolean).join(" · "),
+      href: `/portal/agency/notepad?note=${encodeURIComponent(note.id)}`,
+    }, [note.body, note.tags.join(" "), folder?.name], { detail: note.body, matchLabel: "Notepad", timestamp: note.updatedAt });
+  }
+
   for (const sop of listSops(agencyId)) {
     push(candidates, {
       id: sop.id,
@@ -258,7 +321,16 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
   addFinanceCandidates(candidates, state, agencyId, clientById);
   addWorkspaceCandidates(candidates, state, agencyId, userId, clientById);
   addPluginCandidates(candidates, state, agencyId, clientById);
-  for (const alert of await listOperationalAlerts(agencyId)) {
+
+  const [enquiriesResult, inboxResult, alertsResult] = await Promise.allSettled([
+    listWebsiteEnquiries(500),
+    listInboxSnapshot(agencyId),
+    listOperationalAlerts(agencyId),
+  ]);
+  if (enquiriesResult.status === "fulfilled") addWebsiteEnquiryCandidates(candidates, enquiriesResult.value);
+  if (inboxResult.status === "fulfilled") addInboxCandidates(candidates, inboxResult.value);
+  const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : [];
+  for (const alert of alerts) {
     push(candidates, {
       id: `notification:${alert.id}`,
       category: "Notification",
@@ -268,6 +340,70 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
     }, ["alert", "notification", "needs attention", alert.category, alert.severity]);
   }
   return candidates;
+}
+
+function addWebsiteEnquiryCandidates(candidates: Candidate[], enquiries: WebsiteEnquiry[]) {
+  for (const enquiry of enquiries) {
+    const view = enquiry.channel === "chatbot" ? "chatbot" : enquiry.channel === "support" ? "support" : "forms";
+    const detail = enquiry.message || [enquiry.services.join(", "), enquiry.campaign].filter(Boolean).join(" · ");
+    push(candidates, {
+      id: `enquiry:${enquiry.id}`,
+      category: "Enquiry",
+      title: enquiry.name || enquiry.email || "Website enquiry",
+      subtitle: [enquiry.brandName, enquiry.email, enquiry.phone, readable(enquiry.topic), readable(enquiry.status)].filter(Boolean).join(" · "),
+      href: `/portal/agency/inbox?view=${view}&form=${encodeURIComponent(enquiry.id)}`,
+    }, [
+      enquiry.email,
+      enquiry.phone,
+      enquiry.contactMethod,
+      enquiry.services.join(" "),
+      enquiry.message,
+      enquiry.sourceUrl,
+      enquiry.campaign,
+      enquiry.siteName,
+      enquiry.siteHost,
+      enquiry.pagePath,
+    ], {
+      detail,
+      matchLabel: "Website enquiry",
+      timestamp: enquiry.submittedAt,
+    });
+  }
+}
+
+function addInboxCandidates(candidates: Candidate[], snapshot: InboxSnapshot) {
+  for (const conversation of snapshot.conversations) {
+    const identity = conversation.identity;
+    const channel = readable(conversation.connection.channel);
+    const conversationHref = `/portal/agency/inbox?view=social&thread=${encodeURIComponent(conversation.id)}`;
+    push(candidates, {
+      id: `conversation:${conversation.id}`,
+      category: "Message",
+      title: identity.displayName || identity.username || "Social conversation",
+      subtitle: [channel, identity.username ? `@${identity.username.replace(/^@/, "")}` : "", readable(conversation.status), conversation.tags.join(", ")].filter(Boolean).join(" · "),
+      href: conversationHref,
+    }, [conversation.source, conversation.campaign, conversation.referralUrl, safeSerialise(conversation.metadata)], {
+      detail: conversation.messages.at(-1)?.text,
+      matchLabel: `${channel} conversation`,
+      timestamp: conversation.lastMessageAt,
+    });
+
+    for (const message of conversation.messages) {
+      const attachmentText = message.attachments.map(attachment => `${attachment.title ?? ""} ${attachment.mimeType ?? ""}`).join(" ");
+      const detail = message.text || attachmentText || readable(message.type);
+      push(candidates, {
+        id: `message:${message.id}`,
+        category: "Message",
+        title: identity.displayName || identity.username || "Social message",
+        subtitle: [channel, identity.username ? `@${identity.username.replace(/^@/, "")}` : "", readable(message.direction), readable(message.type)].filter(Boolean).join(" · "),
+        href: conversationHref,
+      }, [message.text, attachmentText, safeSerialise(message.metadata)], {
+        detail,
+        matchLabel: `${channel} message`,
+        timestamp: message.sentAt,
+      });
+    }
+  }
 }
 
 function addNestedClientCandidates(
@@ -475,25 +611,92 @@ function addFinanceCandidates(candidates: Candidate[], state: ReturnType<typeof 
   }
 }
 
-function push(candidates: Candidate[], result: GlobalSearchResult, extra: Array<unknown> = []) {
+function push(candidates: Candidate[], result: GlobalSearchResult, extra: Array<unknown> = [], options: CandidateOptions = {}) {
+  const detailText = options.detail?.trim() || result.subtitle || "";
   candidates.push({
     ...result,
-    searchText: [result.title, result.subtitle, ...extra.map(text)].filter(Boolean).join(" ").toLowerCase(),
+    timestamp: options.timestamp ?? result.timestamp,
+    searchText: [result.title, result.subtitle, detailText, ...extra.map(text)].filter(Boolean).join(" "),
+    detailText,
+    matchLabel: options.matchLabel || result.category,
   });
 }
 
 function score(candidate: Candidate, query: string): number {
   const normalised = normalise(query);
+  if (!normalised) return 0;
   const title = normalise(candidate.title);
-  if (title === normalised) return 140;
-  if (title.startsWith(normalised)) return 120;
-  if (title.includes(normalised)) return 100;
+  const subtitle = normalise(candidate.subtitle ?? "");
+  const detail = normalise(candidate.detailText);
+  const searchable = normalise(candidate.searchText);
+  let result = 0;
+  if (title === normalised) result = 190;
+  else if (title.startsWith(normalised)) result = 172;
+  else if (title.includes(normalised)) result = 154;
+  else if (subtitle.includes(normalised)) result = 132;
+  else if (detail.includes(normalised)) result = 118;
+  else if (searchable.includes(normalised)) result = 104;
+
   const terms = normalised.split(/\s+/).filter(Boolean);
-  const primaryWords = normalise(`${candidate.title} ${candidate.subtitle ?? ""}`).split(/[^a-z0-9]+/).filter(Boolean);
-  if (terms.every(term => term.length <= 2
-    ? primaryWords.some(word => word.startsWith(term))
-    : normalise(candidate.searchText).includes(term))) return 70 + terms.length;
-  return 0;
+  const words = searchable.split(/[^\p{L}\p{N}@._:/-]+/u).filter(Boolean);
+  const allTermsMatch = terms.every(term => term.length <= 2
+    ? words.some(word => word.startsWith(term))
+    : searchable.includes(term));
+  if (allTermsMatch) result = Math.max(result, 88 + Math.min(terms.length * 4, 16));
+
+  if (!result && terms.every(term => fuzzyTermMatch(term, words))) result = 62 + Math.min(terms.length * 3, 12);
+  if (!result) return 0;
+
+  const timestamp = candidate.timestamp ?? 0;
+  if (timestamp > 0) {
+    const ageDays = Math.max(0, (Date.now() - timestamp) / 86_400_000);
+    result += Math.max(0, 8 - Math.floor(ageDays / 45));
+  }
+  return result;
+}
+
+function fuzzyTermMatch(term: string, words: string[]): boolean {
+  if (term.length < 4) return words.some(word => word.startsWith(term));
+  return words.some(word => word.startsWith(term) || editDistanceWithinOne(term, word));
+}
+
+function editDistanceWithinOne(left: string, right: string): boolean {
+  if (Math.abs(left.length - right.length) > 1) return false;
+  if (left === right) return true;
+  let leftIndex = 0;
+  let rightIndex = 0;
+  let edits = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    if (left[leftIndex] === right[rightIndex]) {
+      leftIndex += 1;
+      rightIndex += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length > right.length) leftIndex += 1;
+    else if (right.length > left.length) rightIndex += 1;
+    else {
+      leftIndex += 1;
+      rightIndex += 1;
+    }
+  }
+  return edits + Number(leftIndex < left.length || rightIndex < right.length) <= 1;
+}
+
+function contextualSnippet(value: string, query: string, length = 190): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (!clean || clean.length <= length) return clean;
+  const normalisedValue = normalise(clean);
+  const normalisedQuery = normalise(query);
+  const terms = normalisedQuery.split(/\s+/).filter(term => term.length > 1);
+  let matchIndex = normalisedValue.indexOf(normalisedQuery);
+  if (matchIndex < 0) {
+    matchIndex = terms.reduce((found, term) => found >= 0 ? found : normalisedValue.indexOf(term), -1);
+  }
+  const start = Math.max(0, Math.min(clean.length - length, matchIndex < 0 ? 0 : matchIndex - Math.floor(length * 0.28)));
+  const excerpt = clean.slice(start, start + length).trim();
+  return `${start > 0 ? "…" : ""}${excerpt}${start + length < clean.length ? "…" : ""}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -581,7 +784,7 @@ function pluginHref(pluginId: string, clientId: string): string {
   if (pluginId === "agency-marketing") return "/portal/agency/marketing";
   if (pluginId === "leads-pipeline") return "/portal/agency/pipelines/leads";
   if (pluginId === "email-sender") return "/portal/agency/inbox";
-  if (pluginId === "fulfillment") return "/portal/agency/pipelines/fulfilment";
+  if (pluginId === "fulfillment") return "/portal/agency/fulfilment";
   return "/portal/agency";
 }
 

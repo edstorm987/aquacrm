@@ -17,6 +17,7 @@ const SIDEBAR = join(ROOT, "src", "components", "chrome", "Sidebar.tsx");
 const SIDEBAR_FOOTER = join(ROOT, "src", "components", "chrome", "SidebarFooter.tsx");
 const SIDEBAR_NAV_LINK = join(ROOT, "src", "components", "chrome", "SidebarNavLink.tsx");
 const SIDEBAR_STATE = join(ROOT, "src", "components", "chrome", "sidebarCollapseState.ts");
+const MOBILE_NAV = join(ROOT, "src", "components", "chrome", "MobileNav.tsx");
 const LAYOUT = join(ROOT, "src", "app", "layout.tsx");
 const CSS = join(ROOT, "src", "app", "globals.css");
 
@@ -81,6 +82,15 @@ describe("Sidebar wires the toggle (R035)", () => {
     assert.ok(src.includes("mm-sidebar-link-label"));
     assert.ok(src.includes("mm-sidebar-tenant"));
   });
+
+  it("keeps the persistent collapsible sidebar on tablet and reserves the drawer for phones", () => {
+    const sidebar = readFileSync(SIDEBAR, "utf8");
+    const mobileNav = readFileSync(MOBILE_NAV, "utf8");
+    assert.ok(sidebar.includes('"hidden md:flex border-r'));
+    assert.ok(mobileNav.includes("md:hidden"));
+    assert.ok(mobileNav.includes("right-5 top-6"));
+    assert.ok(!sidebar.includes('"hidden xl:flex border-r'));
+  });
 });
 
 describe("Root layout hydration (R035)", () => {
@@ -105,6 +115,12 @@ describe("Collapsed CSS contract (R035)", () => {
     assert.ok(src.includes("mm-sidebar-heading"));
     // Mobile slide-over is excluded so drawer keeps full width.
     assert.ok(src.includes('data-sidebar-mobile="true"'));
+  });
+
+  it("lets the route canvas consume both sides of the workspace padding", () => {
+    const src = readFileSync(CSS, "utf8");
+    assert.match(src, /\.mm-route-canvas\s*\{[\s\S]*?width:\s*auto;[\s\S]*?max-width:\s*none;/);
+    assert.doesNotMatch(src, /\.mm-portal-topbar,\s*\.mm-private-surface,\s*\.mm-route-canvas\s*\{/);
   });
 });
 

@@ -345,6 +345,18 @@ function BlockWrapper({
       onClick={e => { e.stopPropagation(); onSelect(block.id); }}
       onMouseEnter={e => { e.stopPropagation(); setHover(block.id); }}
       onMouseLeave={() => { setHover(null); setDropPos(null); }}
+      onDragOver={e => {
+        if (!def?.isContainer) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const ratio = (e.clientY - rect.top) / Math.max(rect.height, 1);
+        handleDragOver(e, ratio < 0.16 ? "before" : ratio > 0.84 ? "after" : "inside");
+      }}
+      onDrop={e => {
+        if (!def?.isContainer) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const ratio = (e.clientY - rect.top) / Math.max(rect.height, 1);
+        handleDrop(e, ratio < 0.16 ? "before" : ratio > 0.84 ? "after" : "inside");
+      }}
       draggable
       data-touch-drag-payload={JSON.stringify({ type: "x-block-id", value: block.id })}
       onDragStart={e => {
@@ -372,16 +384,6 @@ function BlockWrapper({
         onDrop={e => handleDrop(e, "after")}
         style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 8, zIndex: 5 }}
       />
-
-      {/* Inside drop — only for containers */}
-      {def?.isContainer && (
-        <div
-          onDragOver={e => handleDragOver(e, "inside")}
-          onDragLeave={handleDragLeave}
-          onDrop={e => handleDrop(e, "inside")}
-          style={{ position: "absolute", top: 8, left: 0, right: 0, bottom: 8, zIndex: 1, pointerEvents: "none" }}
-        />
-      )}
 
       {/* Visible drop indicator — coloured line where the block will land */}
       {dropPos === "before" && (

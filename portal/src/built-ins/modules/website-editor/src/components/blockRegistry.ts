@@ -96,7 +96,7 @@ import VideoEmbedBlock from "./blocks/VideoEmbedBlock";
 // ─── External-plugin block renderers (registered by this plugin) ──────────
 // T2's @aqua/plugin-ecommerce + @aqua/plugin-memberships declare block
 // descriptors with delegated rendering. Components live under blocks/*
-// alongside the native 58 — but they aren't members of BLOCK_REGISTRY
+// alongside the native library — but they aren't members of BLOCK_REGISTRY
 // (which carries the editor metadata for the native palette). They show
 // up only in RENDERER_REGISTRATIONS so the runtime renderer can resolve
 // them by id.
@@ -145,7 +145,7 @@ export interface BlockDefinition {
   requiresFeature?: string;
 }
 
-// ─── The 58 ────────────────────────────────────────────────────────────────
+// ─── Native block library ─────────────────────────────────────────────────
 
 export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   // ── Layout ─────────────────────────────────────────────────────────────
@@ -1029,7 +1029,7 @@ export function getBlockEntry(type: string): BlockRegistryEntry | undefined {
 // `RENDERER_REGISTRATIONS` is the single source of truth for which
 // React component renders which block id, regardless of which plugin
 // declared it. It seeds with:
-//   - The native 58 BlockDefinition.Component values
+//   - The native BlockDefinition.Component values
 //   - The 8 ecommerce block components (already lifted in R2 Phase A)
 //   - The 3 memberships block components (added in R3 Goal B)
 //

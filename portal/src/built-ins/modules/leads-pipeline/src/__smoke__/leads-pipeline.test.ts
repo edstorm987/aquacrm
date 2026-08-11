@@ -872,6 +872,7 @@ describe("leads-pipeline / CampaignService", () => {
       subject: "Old subject",
       bodyHtml: "<p>Old</p>",
       bodyText: "Old",
+      budgetPotId: "budget_growth",
       audienceFilter: { tags: ["cold"] },
     }, ACTOR);
     const updated = await c.campaigns.update(camp.id, {
@@ -887,6 +888,9 @@ describe("leads-pipeline / CampaignService", () => {
     assert.deepEqual(updated?.audienceFilter.tags, ["warm"]);
     assert.deepEqual(updated?.audienceFilter.sourcedFrom, ["sheet-upload"]);
     assert.equal(updated?.audienceFilter.pipelineColumn, "Qualified");
+    assert.equal(updated?.budgetPotId, "budget_growth", "unmentioned funding links are preserved");
+    const unfunded = await c.campaigns.update(camp.id, { budgetPotId: null }, ACTOR);
+    assert.equal(unfunded?.budgetPotId, undefined, "a campaign can be deliberately removed from a budget pot");
   });
 
   test("happy path enqueues one email per audience lead", async () => {

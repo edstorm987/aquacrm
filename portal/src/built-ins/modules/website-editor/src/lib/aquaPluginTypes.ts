@@ -195,7 +195,7 @@ export interface HealthStatus {
 // ─── Storefront block contributions ────────────────────────────────────────
 //
 // Each plugin can ship a catalogue of blocks usable in the visual editor.
-// The website-editor plugin contributes the canonical 58-block library;
+// The website-editor plugin contributes the canonical block library;
 // other plugins (ecommerce, blog, etc.) extend the registry with their own.
 //
 // At runtime, the editor merges all installed plugins' blocks into a single

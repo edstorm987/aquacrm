@@ -297,6 +297,7 @@ export type ActivityCategory =
   | "bos-auth-gate"  // T2 bos-auth-gate (R032 promotion)
   | "payroll"        // T2 R015 (R033 batch)
   | "integrations"   // T2 R016 (R033 batch)
+  | "inbox"
   | "support"        // T2 R017 (R033 batch)
   | "onboarding"     // T2 R018 (R033 batch)
   | "reports"        // T2 R019 (R033 batch)
@@ -461,6 +462,7 @@ export interface AssistantMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  skillId?: string;
   createdAt: number;
 }
 
@@ -485,6 +487,30 @@ export interface AssistantWorkspaceState {
   threads: AssistantThread[];
   memories: AssistantMemory[];
   updatedAt: number;
+}
+
+export type AdvisorSkillRecipeId =
+  | "executive-radar"
+  | "lead-response-triage"
+  | "client-health-review"
+  | "finance-guard"
+  | "delivery-blockers"
+  | "reply-drafter"
+  | "priority-task-proposal"
+  | "single-task-create";
+
+export interface AdvisorCustomSkill {
+  id: string;
+  name: string;
+  description?: string;
+  recipeId: AdvisorSkillRecipeId;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AdvisorSkillPolicy {
+  enabled: boolean;
 }
 
 export type ExternalAssistantApiPermission =
@@ -536,6 +562,179 @@ export interface AgencyTask {
   completedAt?: number;
 }
 
+// ─── Personal notepad ────────────────────────────────────────────────────
+
+export type NotepadNoteStatus = "active" | "archived" | "trashed";
+export type NotepadNoteVisibility = "private" | "workspace";
+
+export interface NotepadFolder {
+  id: string;
+  agencyId: string;
+  ownerUserId: string;
+  name: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface NotepadNote {
+  id: string;
+  agencyId: string;
+  ownerUserId: string;
+  folderId?: string;
+  title: string;
+  body: string;
+  tags: string[];
+  pinned: boolean;
+  status: NotepadNoteStatus;
+  visibility: NotepadNoteVisibility;
+  createdAt: number;
+  updatedAt: number;
+  archivedAt?: number;
+  trashedAt?: number;
+}
+
+// ─── Internal automations ───────────────────────────────────────────────
+
+export type AutomationWorkflowStatus = "draft" | "active" | "paused";
+export type AutomationTriggerType =
+  | "manual"
+  | "website-enquiry.received"
+  | "client-request.received"
+  | "social-message.received"
+  | "client.created"
+  | "client.updated"
+  | "client.archived"
+  | "client.stage_changed"
+  | "phase.advanced"
+  | "phase.checklist_item_completed"
+  | "deliverable.submitted"
+  | "deliverable.approved"
+  | "page.published"
+  | "invoice.paid"
+  | "email.delivered"
+  | "schedule.daily"
+  | "custom.event";
+export type AutomationNodeKind = "trigger" | "delay" | "condition" | "action";
+export type AutomationActionType = "send-email" | "create-task" | "log-activity" | "send-webhook";
+export type AutomationConditionType = "enquiry.awaiting-response" | "client-request.awaiting-response" | "event-field";
+export type AutomationConditionOperator = "equals" | "not-equals" | "contains" | "starts-with" | "ends-with" | "greater-than" | "less-than" | "exists" | "not-exists";
+
+export interface AutomationNodeConfig {
+  label: string;
+  description?: string;
+  triggerType?: AutomationTriggerType;
+  eventName?: string;
+  scheduleHour?: number;
+  delayMinutes?: number;
+  conditionType?: AutomationConditionType;
+  field?: string;
+  operator?: AutomationConditionOperator;
+  value?: string;
+  actionType?: AutomationActionType;
+  recipient?: string;
+  subject?: string;
+  message?: string;
+  taskTitle?: string;
+  taskPriority?: AgencyTaskPriority;
+  dueInMinutes?: number;
+  webhookUrl?: string;
+  webhookMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  webhookHeaders?: string;
+  webhookBody?: string;
+}
+
+export interface AutomationWorkflowNode {
+  id: string;
+  kind: AutomationNodeKind;
+  position: { x: number; y: number };
+  config: AutomationNodeConfig;
+}
+
+export interface AutomationWorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: "yes" | "no";
+}
+
+export interface AutomationFolder {
+  id: string;
+  agencyId: string;
+  name: string;
+  description?: string;
+  color: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AutomationWorkflow {
+  id: string;
+  agencyId: string;
+  name: string;
+  description?: string;
+  folderId?: string;
+  status: AutomationWorkflowStatus;
+  nodes: AutomationWorkflowNode[];
+  edges: AutomationWorkflowEdge[];
+  runCount: number;
+  successCount: number;
+  failureCount: number;
+  lastRunAt?: number;
+  lastOutcome?: "succeeded" | "failed" | "skipped";
+  lastScheduledFor?: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type AutomationRunStatus = "running" | "waiting" | "succeeded" | "failed" | "skipped";
+
+export interface AutomationRunLog {
+  at: number;
+  nodeId?: string;
+  level: "info" | "success" | "error";
+  message: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  agencyId: string;
+  workflowId: string;
+  triggerType: AutomationTriggerType;
+  mode: "live" | "test";
+  status: AutomationRunStatus;
+  currentNodeId?: string;
+  completedNodeIds: string[];
+  eventData: Record<string, string | number | boolean | null>;
+  waitUntil?: number;
+  logs: AutomationRunLog[];
+  initiatedBy?: string;
+  createdAt: number;
+  updatedAt: number;
+  finishedAt?: number;
+}
+
+export type CustomAIStatus = "testing" | "active" | "paused" | "retired";
+
+export interface CustomAIRecord {
+  id: string;
+  agencyId: string;
+  name: string;
+  purpose?: string;
+  provider?: string;
+  workspaceUrl: string;
+  docsUrl?: string;
+  status: CustomAIStatus;
+  ownerUserId?: string;
+  capabilities: string[];
+  notes?: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ─── Founder dashboard planning ──────────────────────────────────────────
 
 export interface DashboardDayPlan {
@@ -581,8 +780,10 @@ export interface SopDocument {
   agencyId: string;
   title: string;
   category?: string;
+  categories?: string[];
   tags: string[];
   kind: "written" | "file";
+  resourceType?: "procedure" | "document" | "presentation" | "video" | "audio" | "image" | "spreadsheet";
   content?: string;
   fileName?: string;
   contentType?: string;
@@ -688,21 +889,65 @@ export interface PerformanceExperiment {
 
 export type ClientDelightOccasion = "welcome" | "birthday" | "christmas" | "milestone" | "event" | "trip" | "random" | "shock-and-awe" | "other";
 export type ClientDelightStatus = "idea" | "planned" | "ordered" | "sent" | "delivered" | "cancelled";
+export type ExperienceAudience = "client" | "staff" | "partner" | "personal";
+export type ExperiencePackageAudience = "client" | "staff" | "either";
+export type ExperienceDeliveryMethod = "delivery" | "digital" | "in-person" | "travel" | "flexible";
+
+export interface ExperiencePackage {
+  id: string;
+  agencyId: string;
+  companyIds: string[];
+  name: string;
+  category: string;
+  summary?: string;
+  audience: ExperiencePackageAudience;
+  deliveryMethod: ExperienceDeliveryMethod;
+  priceCents?: number;
+  currency: string;
+  leadTimeDays?: number;
+  supplier?: string;
+  bookingUrl?: string;
+  includedItems: string[];
+  fulfilmentSteps: string[];
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ExperienceFulfilmentStep {
+  id: string;
+  label: string;
+  completed: boolean;
+  completedAt?: number;
+}
 
 export interface ClientDelightRecord {
   id: string;
   agencyId: string;
   clientId?: string;
+  recipientUserId?: string;
+  companyId?: string;
+  packageId?: string;
+  packageName?: string;
+  audience: ExperienceAudience;
   recipientName: string;
   occasion: ClientDelightOccasion;
   title: string;
   status: ClientDelightStatus;
+  deliveryMethod: ExperienceDeliveryMethod;
+  currency: string;
   dueAt?: number;
   budgetCents?: number;
   costCents?: number;
   supplier?: string;
   trackingUrl?: string;
+  bookingReference?: string;
+  location?: string;
+  guestCount?: number;
+  includedItems: string[];
+  fulfilmentSteps: ExperienceFulfilmentStep[];
   notes?: string;
+  outcomeNotes?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -726,6 +971,14 @@ export interface AgencyWorkspaceSettings {
   portalAccessDays: number;
   clientWelcomeMessage?: string;
   sopCategories?: string[];
+  advisor: {
+    speedToLeadTargetMinutes: number;
+    speedToLeadWarningMinutes: number;
+    speedToLeadCriticalMinutes: number;
+    staleDataHours: number;
+    skillPolicies: Record<string, AdvisorSkillPolicy>;
+    customSkills: AdvisorCustomSkill[];
+  };
   notifications: {
     overdueTasks: boolean;
     outages: boolean;
@@ -827,6 +1080,10 @@ export interface ClientPortalTemplateRecord {
   agencyId: string;
   name: string;
   slug: string;
+  productId?: string;
+  baseTemplateId?: string;
+  baseTemplateVersionId?: string;
+  productLifecycleSeedVersion?: number;
   draft: ClientPortalDesignDocument;
   published: ClientPortalDesignDocument;
   publishedVersionId: string;
@@ -1097,6 +1354,152 @@ export interface IntegrationConnection {
   updatedAt: number;
 }
 
+export interface RadarMemoryIssueState {
+  id: string;
+  domain: string;
+  severity: "critical" | "warning" | "watch";
+  title: string;
+  href: string;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  occurrences: number;
+  consecutiveSweeps: number;
+  status: "active" | "recovered";
+  recoveredAt?: number;
+}
+
+export interface RadarMemoryCheckState {
+  id: string;
+  status: "critical" | "warning" | "blind";
+  firstSeenAt: number;
+  lastSeenAt: number;
+  occurrences: number;
+  consecutiveSweeps: number;
+  recoveredAt?: number;
+}
+
+export interface RadarMemorySourceState {
+  id: string;
+  status: "connected" | "empty" | "disconnected" | "unavailable";
+  recordCount: number;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  lastChangedAt: number;
+  lastHealthyAt?: number;
+  lastUnhealthyAt?: number;
+  flapCount: number;
+  consecutiveUnhealthySweeps: number;
+}
+
+export interface RadarMemoryScan {
+  id: string;
+  scannedAt: number;
+  assurancePercent: number;
+  totalChecks: number;
+  firingChecks: number;
+  blindChecks: number;
+  criticalIssues: number;
+  warningIssues: number;
+  watchIssues: number;
+  issueStates: Array<{ id: string; severity: "critical" | "warning" | "watch" }>;
+  attentionCheckIds: string[];
+  blindCheckIds: string[];
+  sourceStates: Array<{ id: string; status: "connected" | "empty" | "disconnected" | "unavailable"; recordCount: number }>;
+}
+
+export interface RadarMemoryHourlyRollup {
+  hour: number;
+  sweeps: number;
+  minAssurancePercent: number;
+  lastAssurancePercent: number;
+  maxFiringChecks: number;
+  maxBlindChecks: number;
+  maxCriticalIssues: number;
+}
+
+export interface RadarMemoryState {
+  agencyId: string;
+  firstSweepAt: number;
+  lastSweepAt: number;
+  totalSweeps: number;
+  scans: RadarMemoryScan[];
+  hourly: RadarMemoryHourlyRollup[];
+  issues: Record<string, RadarMemoryIssueState>;
+  checks: Record<string, RadarMemoryCheckState>;
+  sources: Record<string, RadarMemorySourceState>;
+}
+
+export interface RadarSyntheticProbeResult {
+  id: string;
+  agencyId: string;
+  propertyId: string;
+  label: string;
+  url: string;
+  checkedAt: number;
+  durationMs: number;
+  ok: boolean;
+  statusCode?: number;
+  failureKind?: "invalid-url" | "unsafe-url" | "dns" | "timeout" | "network" | "redirect" | "http" | "tls";
+  error?: string;
+  finalUrl?: string;
+  redirectCount: number;
+  dnsAddresses: string[];
+  contentType?: string;
+  htmlBytes?: number;
+  titleDetected?: boolean;
+  formsDetected?: number;
+  tagDetected?: boolean;
+  tlsValid?: boolean;
+  tlsExpiresAt?: number;
+  tlsDaysRemaining?: number;
+  securityHeaders: {
+    strictTransportSecurity: boolean;
+    contentSecurityPolicy: boolean;
+    frameProtection: boolean;
+    contentTypeOptions: boolean;
+    referrerPolicy: boolean;
+    permissionsPolicy: boolean;
+  };
+}
+
+export interface RadarEvidencePoint {
+  at: number;
+  value: number;
+  status: "pass" | "critical" | "warning" | "watch" | "blind";
+}
+
+export interface RadarEvidenceHourlyRollup {
+  hour: number;
+  samples: number;
+  minimum: number;
+  maximum: number;
+  average: number;
+  last: number;
+}
+
+export interface RadarEvidenceSeries {
+  id: string;
+  agencyId: string;
+  domain: string;
+  familyId: string;
+  familyLabel: string;
+  sourceId: string;
+  expectedDirection: "higher" | "lower" | "neutral";
+  firstSeenAt: number;
+  lastSeenAt: number;
+  totalSamples: number;
+  points: RadarEvidencePoint[];
+  hourly: RadarEvidenceHourlyRollup[];
+}
+
+export interface RadarEvidenceState {
+  agencyId: string;
+  totalSamples: number;
+  firstRecordedAt: number;
+  lastRecordedAt: number;
+  series: Record<string, RadarEvidenceSeries>;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export interface PortalState {
@@ -1118,6 +1521,12 @@ export interface PortalState {
   externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
   integrationConnections: Record<string, IntegrationConnection>;
   tasks: Record<string, AgencyTask>;
+  notepadFolders: Record<string, NotepadFolder>;
+  notepadNotes: Record<string, NotepadNote>;
+  automationFolders: Record<string, AutomationFolder>;
+  automationWorkflows: Record<string, AutomationWorkflow>;
+  automationRuns: Record<string, AutomationRun>;
+  customAIs: Record<string, CustomAIRecord>;
   dashboardDayPlans: Record<string, DashboardDayPlan>;
   dashboardWeekPlans: Record<string, DashboardWeekPlan>;
   dashboardWorkSessions: Record<string, DashboardWorkSession>;
@@ -1125,6 +1534,7 @@ export interface PortalState {
   agencyProducts: Record<string, AgencyProduct>;
   clientMilestones: Record<string, ClientMilestone>;
   performanceExperiments: Record<string, PerformanceExperiment>;
+  experiencePackages: Record<string, ExperiencePackage>;
   clientDelight: Record<string, ClientDelightRecord>;
   agencySettings: Record<string, AgencyWorkspaceSettings>;
   portalEditor: Record<string, PortalFormEditorState>;
@@ -1136,4 +1546,7 @@ export interface PortalState {
   developmentResources: Record<string, DevelopmentResource>;
   developmentWorkflows: Record<string, DevelopmentWorkflow>;
   agencyWebsites: Record<string, AgencyWebsiteProject>;
+  radarMemory: Record<string, RadarMemoryState>;
+  radarSyntheticProbes: Record<string, Record<string, RadarSyntheticProbeResult>>;
+  radarEvidence: Record<string, RadarEvidenceState>;
 }

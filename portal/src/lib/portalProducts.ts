@@ -1,3 +1,5 @@
+import type { AgencyProduct } from "@/server/types";
+
 export type PortalProductKey =
   | "website"
   | "brand-identity"
@@ -269,6 +271,23 @@ function cleanHttpUrl(value: unknown): string | undefined {
 
 export function portalProductDefinition(product: PortalProductSelection): PortalProductDefinition | undefined {
   return product.catalogKey ? CATALOG_BY_KEY.get(product.catalogKey) : undefined;
+}
+
+export function portalProductSelectionFromAgencyProduct(product: AgencyProduct): PortalProductSelection {
+  return {
+    id: product.id,
+    catalogKey: product.portalTemplateKey,
+    name: product.name,
+    description: product.description ?? "",
+    deliverables: product.deliverables,
+    buyerHeadline: product.buyerHeadline,
+    coverImageUrl: product.coverImageUrl,
+    accentColor: product.accentColor,
+    portalHeadline: product.portalHeadline,
+    portalWelcomeNote: product.portalWelcomeNote,
+    stageFocusOverrides: product.portalStageFocus,
+    supportCta: product.portalSupportCta,
+  };
 }
 
 export function portalProjectLabel(products: PortalProductSelection[]): string {

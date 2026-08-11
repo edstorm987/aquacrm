@@ -1,8 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, ArrowRight, CircleAlert, Landmark, PoundSterling, ReceiptText } from "lucide-react";
+import { ArrowDownToLine, ArrowRight, CircleAlert, CircleGauge, Landmark, PoundSterling, ReceiptText } from "lucide-react";
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
+import { buildBudgetPotSnapshots } from "../lib/budgetHealth";
+import { listAgencyCampaignBudgetRecords } from "@/lib/server/financeBudgetCampaigns";
 
 function money(cents: number, currency = "gbp"): string {
   return new Intl.NumberFormat("en-GB", {
@@ -17,13 +19,16 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
     storage: props.storage,
     install: props.install,
   });
-  const [invoices, expenses, payments, otherIncome, plans, clients] = await Promise.all([
+  const [invoices, expenses, payments, otherIncome, plans, clients, budgetPots, campaignBudgets, workforcePayments] = await Promise.all([
     c.invoices.list(),
     c.expenses.list(),
     c.payments.list(),
     c.income.list(),
     c.plans.list(false),
     Promise.resolve(c.tenant.listClients?.(props.agencyId) ?? []),
+    c.budgets.list(),
+    listAgencyCampaignBudgetRecords(props.agencyId),
+    c.operations.listCompensationPayments(),
   ]);
 
   const currency = invoices[0]?.currency ?? expenses[0]?.currency ?? plans[0]?.currency ?? "gbp";
@@ -52,6 +57,25 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
     .filter(invoice => invoice.currency === currency && ["sent", "overdue"].includes(invoice.status))
     .reduce((sum, invoice) => sum + invoice.totalCents, 0);
   const missingReceipts = paidExpenses.filter(expense => !expense.receiptUrl && !expense.attachments?.length).length;
+  const budgetSnapshots = buildBudgetPotSnapshots(budgetPots, campaignBudgets, expenses, workforcePayments)
+    .filter(pot => pot.currency === currency && pot.status !== "closed");
+  const allocatedBudgetCents = budgetSnapshots.reduce((sum, pot) => sum + pot.allocatedCents, 0);
+  const fundedBudgetCents = budgetSnapshots.reduce((sum, pot) => sum + pot.fundedCents, 0);
+  const committedBudgetCents = budgetSnapshots.reduce((sum, pot) => sum + pot.committedCents, 0);
+  const overspentPots = budgetSnapshots.filter(pot => pot.overspendCents > 0).length;
+  const spendableBalanceCents = netCents - indicativeTaxReserveCents;
+  const unallocatedBalanceCents = spendableBalanceCents - fundedBudgetCents;
+  const fundingCoverage = allocatedBudgetCents > 0 ? fundedBudgetCents / allocatedBudgetCents : 1;
+  const hasFinancialBaseline = incomeCents + expenseCents > 0 || budgetSnapshots.length > 0;
+  const calculatedBalanceHealthScore = Math.max(0, Math.min(100,
+    100
+    - (netCents < 0 ? 40 : 0)
+    - (unallocatedBalanceCents < 0 ? 25 : 0)
+    - Math.min(25, overspentPots * 12)
+    - (fundingCoverage < 0.5 ? 15 : fundingCoverage < 0.8 ? 7 : 0),
+  ));
+  const balanceHealthScore = hasFinancialBaseline ? calculatedBalanceHealthScore : 50;
+  const balanceHealth = financeHealthLabel(balanceHealthScore, hasFinancialBaseline);
 
   const clientNameById = new Map(clients.map(client => [client.id, client.name]));
   const profitability = clients.map(client => {
@@ -110,13 +134,21 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
         </div>
       </header>
 
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <dl className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-5">
         <Metric label="Income received" value={money(incomeCents, currency)} icon={ArrowDownToLine} tone="income" />
         <Metric label="Paid expenses" value={money(expenseCents, currency)} icon={ReceiptText} tone="expense" />
         <Metric label="Operating profit" value={money(netCents, currency)} icon={PoundSterling} tone={netCents < 0 ? "bad" : "good"} />
         <Metric label="Outstanding invoices" value={money(outstandingCents, currency)} icon={Landmark} tone="outstanding" />
         <Metric label={`Tax reserve (${taxReserveRate}%)`} value={money(indicativeTaxReserveCents, currency)} icon={CircleAlert} tone="reserve" />
       </dl>
+
+      <section className={`grid gap-4 border-l-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center ${balanceHealth.tone === "good" ? "border-emerald-600 bg-emerald-50" : balanceHealth.tone === "watch" ? "border-amber-500 bg-amber-50" : "border-red-600 bg-red-50"}`}>
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-white/80"><CircleGauge size={18} /></span>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-black/45">Balance health</p><h2 className="mt-1 text-lg font-semibold text-black/85">{balanceHealth.label}</h2><p className="mt-1 text-sm text-black/55">{money(spendableBalanceCents, currency)} after the indicative tax reserve · {money(fundedBudgetCents, currency)} funded into pots · {money(committedBudgetCents, currency)} committed.</p></div>
+        </div>
+        <div className="flex items-center gap-4 lg:justify-end"><div><p className="text-3xl font-semibold tabular-nums text-black/85">{balanceHealthScore}</p><p className="text-[10px] font-semibold uppercase text-black/40">Health score</p></div><a href="/portal/agency/agency-finance/budgets" className="inline-flex min-h-10 items-center gap-1 rounded-md bg-black px-3 text-sm font-semibold text-white">Manage budgets <ArrowRight size={14} /></a></div>
+      </section>
 
       {(missingReceipts > 0 || expenses.some(expense => expense.status === "pending")) ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -204,4 +236,12 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 
 function Empty({ text }: { text: string }) {
   return <div className="mt-3 border-y border-dashed border-black/15 py-8 text-center text-sm text-black/45">{text}</div>;
+}
+
+function financeHealthLabel(score: number, hasData: boolean): { label: string; tone: "good" | "watch" | "bad" } {
+  if (!hasData) return { label: "Add income and spending to establish your baseline", tone: "watch" };
+  if (score >= 85) return { label: "Strong and controlled", tone: "good" };
+  if (score >= 70) return { label: "Healthy with a few pressure points", tone: "good" };
+  if (score >= 45) return { label: "Watch the balance and commitments", tone: "watch" };
+  return { label: "Action needed before new commitments", tone: "bad" };
 }

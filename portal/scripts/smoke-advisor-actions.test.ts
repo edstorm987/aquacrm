@@ -11,6 +11,7 @@ test("advisor action review is grounded in live operating data", () => {
   assert.match(context, /buildCompanyHealthSnapshot/);
   assert.match(context, /listOperationalAlerts/);
   assert.match(context, /openTasks/);
+  assert.match(context, /businessRadar/);
   assert.match(health, /clientsNeedingAttention/);
   assert.match(health, /revenueGapCents/);
   assert.match(route, /suggest-actions/);
@@ -24,6 +25,7 @@ test("advisor returns strict recommendations without mutating tasks", () => {
   assert.match(advisor, /additionalProperties: false/);
   assert.match(advisor, /Do not duplicate an existing open task/);
   assert.match(advisor, /sourceAlertIds/);
+  assert.match(advisor, /guaranteedRadarActions/);
   assert.doesNotMatch(advisor, /createAgencyTask/);
   assert.doesNotMatch(advisor, /updateAgencyTask/);
 });

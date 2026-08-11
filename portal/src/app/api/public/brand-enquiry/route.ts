@@ -14,6 +14,7 @@ import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { notifyBrandEnquiry } from "@/lib/server/enquiryNotifications";
 import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/publicSites";
+import { triggerAutomations } from "@/server/automations";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
@@ -302,6 +303,7 @@ export async function POST(req: NextRequest) {
         name,
         phone: hasPhone ? phone : undefined,
         source: `website:${brand}`,
+        capturedAt: Date.parse(capturedAt),
         companyId: company.id,
         companyIds: [company.id],
         brandSlugs: [brand],
@@ -401,8 +403,29 @@ export async function POST(req: NextRequest) {
         source: `website:${brand}`,
         leadId: leadId ?? null,
         leadCreated: Boolean(leadId),
+        leadLinkedAt: leadId ? new Date().toISOString() : null,
       } })
       .eq("id", captured.id);
+
+    try {
+      await triggerAutomations(agency.id, "website-enquiry.received", {
+        enquiryId: captured.id,
+        leadId: leadId ?? null,
+        name,
+        email: hasEmail ? email : null,
+        phone: hasPhone ? phone : null,
+        brand,
+        brandName: brandDefinition.name,
+        channel,
+        service: services.join(", "),
+        sourceUrl: sourceUrl || null,
+        message: message || null,
+        awaitingResponse: true,
+      });
+      await flushPendingWrites();
+    } catch (automationError) {
+      console.error("[brand-enquiry] automation trigger failed", automationError instanceof Error ? automationError.message : "Unknown error");
+    }
 
     return response({ ok: true, submissionId: captured.id }, 200, origin);
   } catch (cause) {

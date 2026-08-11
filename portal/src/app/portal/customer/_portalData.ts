@@ -3,7 +3,8 @@ import "server-only";
 import { listActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";
 import type { ActivityEntry, Client, ClientPortalDesignDocument } from "@/server/types";
-import { resolveClientPortalDesign, type ClientPortalDesignScope } from "@/server/clientPortalDesigns";
+import { getClientPortalInstance, getClientPortalTemplate, resolveClientPortalDesign, type ClientPortalDesignScope } from "@/server/clientPortalDesigns";
+import { getAgencyProduct } from "@/server/agencyProducts";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
 import type { Invoice, InvoiceLineItem, InvoiceStatus } from "@/built-ins/modules/agency-finance/src/lib/domain";
@@ -11,7 +12,9 @@ import type { ClientRequest } from "@/app/api/tenants/client-requests/route";
 import type { ClientContract } from "@/lib/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
-import { cleanPortalProducts, type PortalProductSelection } from "@/lib/portalProducts";
+import { cleanPortalProducts, portalProductSelectionFromAgencyProduct, type PortalProductSelection } from "@/lib/portalProducts";
+import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle } from "@/lib/portalProductModules";
+import { cleanPortalProductWorkspaces, type PortalProductWorkspace } from "@/lib/portalProductWorkspaces";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -22,6 +25,12 @@ export interface CustomerFile {
   category: string;
   uploadedBy?: string;
   uploadedAt?: number;
+  size?: number;
+  contentType?: string;
+  productId?: string;
+  workspacePageId?: string;
+  collectionId?: string;
+  customerVisible?: boolean;
 }
 
 export interface CustomerProperty {
@@ -73,6 +82,7 @@ export interface CustomerRecord {
 export interface CustomerPortalData {
   mode: CustomerPortalMode;
   presentation: ClientPortalDesignDocument;
+  presentationProductId?: string;
   contactName: string;
   servicePlan: string;
   planSummary?: string;
@@ -81,6 +91,7 @@ export interface CustomerPortalData {
   agreedProjectValue?: string;
   welcomeNote?: string;
   products: PortalProductSelection[];
+  workspaces: PortalProductWorkspace[];
   experienceHeadline?: string;
   logoUrl?: string;
   accentColor: string;
@@ -183,6 +194,7 @@ function customerActivityMessage(
   if (item.action === "client_request.replied") return "Your support conversation has a new reply.";
   if (item.action === "client_request.reviewed") return `${providerName} is reviewing your ${requestType} request.`;
   if (item.action === "client_request.closed") return `Your ${requestType} request was resolved.`;
+  if (item.action.startsWith("product_workspace.")) return item.message;
   if (item.category === "phase") return "Your project moved to its next stage.";
   return undefined;
 }
@@ -194,7 +206,9 @@ export async function loadCustomerPortalData(
   options: {
     scope?: ClientPortalDesignScope;
     templateId?: string;
+    productIds?: string[];
     draft?: boolean;
+    audience?: "customer" | "agency";
   } = {},
 ): Promise<CustomerPortalData> {
   const meta = (client.metadata ?? {}) as {
@@ -207,6 +221,7 @@ export async function loadCustomerPortalData(
     agreedProjectValue?: string;
     portalWelcomeNote?: string;
     portalProducts?: PortalProductSelection[];
+    portalProductWorkspaces?: Record<string, unknown>;
     portalExperienceHeadline?: string;
     portalBuiltAt?: number;
     planTier?: string;
@@ -294,13 +309,21 @@ export async function loadCustomerPortalData(
   );
   const actorLabel = (value?: string, customerFallback = "Customer") =>
     value && customerEmails.has(value.trim().toLowerCase()) ? "Customer" : value ? providerName : customerFallback;
-  const safeFiles: CustomerFile[] = (Array.isArray(meta.files) ? meta.files : []).map(file => ({
+  const safeFiles: CustomerFile[] = (Array.isArray(meta.files) ? meta.files : [])
+    .filter(file => options.audience === "agency" || file.customerVisible !== false)
+    .map(file => ({
     id: file.id,
     name: file.name,
     url: file.url,
     category: file.category,
     uploadedBy: actorLabel(file.uploadedBy),
     uploadedAt: file.uploadedAt,
+    size: file.size,
+    contentType: file.contentType,
+    productId: file.productId,
+    workspacePageId: file.workspacePageId,
+    collectionId: file.collectionId,
+    customerVisible: file.customerVisible,
   }));
   const safeProperties: CustomerProperty[] = (Array.isArray(meta.properties) ? meta.properties : []).map(property => ({
     id: property.id,
@@ -457,10 +480,40 @@ export async function loadCustomerPortalData(
     draft: options.draft,
     fallbackAccentColor: meta.portalAccentColor,
   });
+  const configuredProducts = cleanPortalProducts(meta.portalProducts);
+  const previewTemplate = options.scope === "template" && options.templateId
+    ? getClientPortalTemplate(client.agencyId, options.templateId)
+    : null;
+  const previewProduct = previewTemplate?.productId
+    ? getAgencyProduct(client.agencyId, previewTemplate.productId)
+    : null;
+  const compositionProducts = (options.productIds ?? [])
+    .slice(0, 8)
+    .flatMap(productId => {
+      const product = getAgencyProduct(client.agencyId, productId);
+      return product ? [portalProductSelectionFromAgencyProduct(product)] : [];
+    });
+  const products = compositionProducts.length
+    ? compositionProducts
+    : previewProduct
+      ? [portalProductSelectionFromAgencyProduct(previewProduct)]
+      : configuredProducts;
+  const presentationInstance = options.scope === "template" ? null : getClientPortalInstance(client.agencyId, client.id);
+  const presentationTemplate = previewTemplate
+    ?? (presentationInstance ? getClientPortalTemplate(client.agencyId, presentationInstance.templateId) : null);
+
+  const mode = portalMode(meta.portalMode);
+  const workspaces = cleanPortalProductWorkspaces(meta.portalProductWorkspaces, products, mode).map(workspace => options.audience === "agency"
+    ? workspace
+    : {
+        ...workspace,
+        collections: workspace.collections.filter(collection => collection.status !== "draft" && collection.status !== "archived"),
+      });
 
   return {
-    mode: portalMode(meta.portalMode),
+    mode,
     presentation,
+    presentationProductId: presentationTemplate?.productId,
     contactName: meta.portalContactName?.trim() || fallbackName,
     servicePlan: meta.portalServicePlan?.trim() || PLAN_LABELS[planKey] || planKey || `${providerName} custom plan`,
     planSummary: meta.portalPlanSummary?.trim() || undefined,
@@ -473,7 +526,8 @@ export async function loadCustomerPortalData(
     billingCadence: meta.portalBillingCadence?.trim() || "As agreed",
     agreedProjectValue: meta.agreedProjectValue?.trim() || undefined,
     welcomeNote: meta.portalWelcomeNote?.trim() || undefined,
-    products: cleanPortalProducts(meta.portalProducts),
+    products,
+    workspaces,
     experienceHeadline: meta.portalExperienceHeadline?.trim() || undefined,
     logoUrl: supportUrl(meta.portalLogoUrl),
     accentColor: presentation.theme.accentColor,
@@ -517,4 +571,13 @@ export async function loadCustomerPortalData(
     },
     activity,
   };
+}
+
+export function customerPortalModeLabel(data: CustomerPortalData): string {
+  const stage = data.products.length === 1 ? data.workspaces[0]?.stage ?? data.mode : data.mode;
+  const shellLabel = data.presentation.stages[stage].label;
+  if (data.products.length > 1) return PORTAL_PROGRAMME_LIFECYCLE[data.mode].label;
+  const product = data.products[0];
+  if (!product || data.presentationProductId === product.id) return shellLabel;
+  return portalProductLifecycle(product)[stage].label;
 }

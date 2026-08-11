@@ -144,6 +144,91 @@ export interface CreateMarketingAssetInput {
 
 export type UpdateMarketingAssetPatch = Partial<Omit<CreateMarketingAssetInput, "kind">>;
 
+// ─── Customer profiles and audience intelligence ────────────────────────
+
+export const MARKETING_CUSTOMER_PROFILES_KEY = "customer-profiles/v1";
+
+export type MarketingCustomerProfileStatus = "draft" | "active" | "archived";
+export type MarketingAudienceType = "consumer" | "business" | "mixed";
+export type MarketingCustomerProfilePriority = "primary" | "secondary" | "experimental";
+export type MarketingEvidenceConfidence = "assumption" | "informed" | "validated";
+
+export interface MarketingCustomerProfile {
+  id: string;
+  agencyId: AgencyId;
+  companyIds: string[];
+  name: string;
+  segment?: string;
+  summary?: string;
+  audienceType: MarketingAudienceType;
+  status: MarketingCustomerProfileStatus;
+  priority: MarketingCustomerProfilePriority;
+  evidenceConfidence: MarketingEvidenceConfidence;
+  owner?: string;
+  ageRange?: string;
+  locations: string[];
+  languages: string[];
+  genderNotes?: string;
+  incomeRange?: string;
+  lifeStage?: string;
+  industries: string[];
+  companySize?: string;
+  businessStage?: string;
+  jobTitles: string[];
+  decisionRoles: string[];
+  goals: string[];
+  painPoints: string[];
+  motivations: string[];
+  objections: string[];
+  buyingTriggers: string[];
+  preferredChannels: string[];
+  contentPreferences: string[];
+  offerFit?: string;
+  typicalBudget?: string;
+  buyingCycle?: string;
+  estimatedAudienceSize?: number;
+  researchNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateMarketingCustomerProfileInput {
+  companyIds?: string[];
+  name: string;
+  segment?: string;
+  summary?: string;
+  audienceType?: MarketingAudienceType;
+  status?: MarketingCustomerProfileStatus;
+  priority?: MarketingCustomerProfilePriority;
+  evidenceConfidence?: MarketingEvidenceConfidence;
+  owner?: string;
+  ageRange?: string;
+  locations?: string[];
+  languages?: string[];
+  genderNotes?: string;
+  incomeRange?: string;
+  lifeStage?: string;
+  industries?: string[];
+  companySize?: string;
+  businessStage?: string;
+  jobTitles?: string[];
+  decisionRoles?: string[];
+  goals?: string[];
+  painPoints?: string[];
+  motivations?: string[];
+  objections?: string[];
+  buyingTriggers?: string[];
+  preferredChannels?: string[];
+  contentPreferences?: string[];
+  offerFit?: string;
+  typicalBudget?: string;
+  buyingCycle?: string;
+  estimatedAudienceSize?: number;
+  researchNotes?: string;
+}
+
+export type UpdateMarketingCustomerProfilePatch = Partial<CreateMarketingCustomerProfileInput>;
+
 // ─── Lead ────────────────────────────────────────────────────────────────
 
 export type LeadSource = "form" | "manual" | "import" | "campaign";

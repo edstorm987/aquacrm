@@ -376,10 +376,10 @@ function WorkspacePane({ ctx }: { ctx: SettingsContext }) {
       </Section>
       <Section eyebrow="Manage the system">
         <div className="divide-y divide-black/10">
-          <SettingsDestination title="Clients and journey" detail="Contacts, lifecycle stages, pipelines, client portals, and delivery progress." links={[["Clients & contacts", "/portal/clients"], ["Portals", "/portal/agency/portals"], ["Journey", "/portal/agency/pipelines/leads"], ["Stages", "/portal/agency/phases"]]} />
-          <SettingsDestination title="Products and fulfilment" detail="Products, packages, contracts, billing defaults, welcome packs, and delivery knowledge." links={[["Company products", "/portal/agency/company?view=products"], ["Development & performance", "/portal/agency/development/performance"]]} />
+          <SettingsDestination title="Clients and journey" detail="Contacts, lifecycle stages, pipelines, enquiries, and relationship progress." links={[["Clients & contacts", "/portal/clients"], ["Journey", "/portal/agency/pipelines/leads"], ["Stages", "/portal/agency/phases"]]} />
+          <SettingsDestination title="Products and fulfilment" detail="Products, packages, portals, delivery stages, contracts, welcome packs, and delivery knowledge." links={[["Fulfilment command centre", "/portal/agency/fulfilment"], ["Company products", "/portal/agency/company?view=products"], ["Development & performance", "/portal/agency/development/performance"]]} />
           <SettingsDestination title="Work and knowledge" detail="Team actions, recurring work, reminders, and SOPs." links={[["Actions", "/portal/agency/actions"], ["SOP library", "/portal/agency/sop-library"]]} />
-          <SettingsDestination title="Money and growth" detail="Invoices, income, expenses, campaigns, attribution, and client-care activity." links={[["Finance", "/portal/agency/agency-finance"], ["Marketing", "/portal/agency/marketing"], ["Client care", "/portal/agency/you-deserve-it"]]} />
+          <SettingsDestination title="Money and growth" detail="Invoices, income, expenses, campaigns, attribution, internal automations, and client-care activity." links={[["Finance", "/portal/agency/agency-finance"], ["Marketing", "/portal/agency/marketing"], ["Marketing automations", "/portal/agency/marketing?view=automations"], ["Client care", "/portal/agency/you-deserve-it"]]} />
         </div>
       </Section>
     </>
@@ -438,6 +438,7 @@ function DefaultsPane({ ctx }: { ctx: SettingsContext }) {
 
 function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
   const [notifications, setNotifications] = useState(ctx.settings.notifications);
+  const [advisor, setAdvisor] = useState(ctx.settings.advisor);
   const [status, setStatus] = useState("");
   const options: Array<{ key: Exclude<keyof typeof notifications, "digest">; label: string; detail: string }> = [
     { key: "overdueTasks", label: "Overdue work", detail: "Tasks, reminders, and recurring actions needing attention." },
@@ -455,8 +456,8 @@ function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setStatus("Saving...");
-    const result = await saveSettings({ notifications });
-    setStatus(result.ok ? "Notification preferences saved." : result.error);
+    const result = await saveSettings({ notifications, advisor });
+    setStatus(result.ok ? "Advisor guardrails and notification preferences saved." : result.error);
   }
 
   return (
@@ -465,6 +466,15 @@ function NotificationsPane({ ctx }: { ctx: SettingsContext }) {
         <div className="divide-y divide-black/10">
           {options.map(option => <label key={option.key} className="flex cursor-pointer items-start justify-between gap-5 py-4 first:pt-0 last:pb-0"><span><strong className="text-sm font-medium text-black/75">{option.label}</strong><span className="mt-1 block text-xs leading-5 text-black/45">{option.detail}</span></span><input type="checkbox" className="mt-1" checked={notifications[option.key]} onChange={event => setNotifications(value => ({ ...value, [option.key]: event.target.checked }))} disabled={!ctx.canManageSettings} /></label>)}
         </div>
+      </Section>
+      <Section eyebrow="Advisor guardrails">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Lead response target"><input type="number" min="1" max="240" value={advisor.speedToLeadTargetMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadTargetMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
+          <Field label="Lead warning after"><input type="number" min="1" max="720" value={advisor.speedToLeadWarningMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadWarningMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
+          <Field label="Lead critical after"><input type="number" min="1" max="1440" value={advisor.speedToLeadCriticalMinutes} onChange={event => setAdvisor(value => ({ ...value, speedToLeadCriticalMinutes: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
+          <Field label="Data stale after"><input type="number" min="1" max="720" value={advisor.staleDataHours} onChange={event => setAdvisor(value => ({ ...value, staleDataHours: Number(event.target.value) }))} className={control} disabled={!ctx.canManageSettings} /></Field>
+        </div>
+        <p className="mt-3 text-xs text-black/42">Times are in minutes, except data freshness which is measured in hours.</p>
       </Section>
       <Section eyebrow="Digest">
         <Field label="Summary frequency"><select value={notifications.digest} onChange={event => setNotifications(value => ({ ...value, digest: event.target.value as typeof notifications.digest }))} className={`${control} max-w-xs`} disabled={!ctx.canManageSettings}><option value="off">No digest</option><option value="daily">Daily summary</option><option value="weekly">Weekly summary</option></select></Field>

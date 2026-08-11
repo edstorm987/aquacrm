@@ -36,6 +36,12 @@ const empty = (): PortalState => ({
   externalAssistantApiKeys: {},
   integrationConnections: {},
   tasks: {},
+  notepadFolders: {},
+  notepadNotes: {},
+  automationFolders: {},
+  automationWorkflows: {},
+  automationRuns: {},
+  customAIs: {},
   dashboardDayPlans: {},
   dashboardWeekPlans: {},
   dashboardWorkSessions: {},
@@ -43,6 +49,7 @@ const empty = (): PortalState => ({
   agencyProducts: {},
   clientMilestones: {},
   performanceExperiments: {},
+  experiencePackages: {},
   clientDelight: {},
   agencySettings: {},
   portalEditor: {},
@@ -54,6 +61,9 @@ const empty = (): PortalState => ({
   developmentResources: {},
   developmentWorkflows: {},
   agencyWebsites: {},
+  radarMemory: {},
+  radarSyntheticProbes: {},
+  radarEvidence: {},
 });
 
 // ─── Backend interface ────────────────────────────────────────────────────
@@ -326,6 +336,12 @@ function parseBlob(raw: string): PortalState {
       externalAssistantApiKeys: parsed.externalAssistantApiKeys ?? {},
       integrationConnections: parsed.integrationConnections ?? {},
       tasks: parsed.tasks ?? {},
+      notepadFolders: parsed.notepadFolders ?? {},
+      notepadNotes: parsed.notepadNotes ?? {},
+      automationFolders: parsed.automationFolders ?? {},
+      automationWorkflows: parsed.automationWorkflows ?? {},
+      automationRuns: parsed.automationRuns ?? {},
+      customAIs: parsed.customAIs ?? {},
       dashboardDayPlans: parsed.dashboardDayPlans ?? {},
       dashboardWeekPlans: parsed.dashboardWeekPlans ?? {},
       dashboardWorkSessions: parsed.dashboardWorkSessions ?? {},
@@ -333,6 +349,7 @@ function parseBlob(raw: string): PortalState {
       agencyProducts: parsed.agencyProducts ?? {},
       clientMilestones: parsed.clientMilestones ?? {},
       performanceExperiments: parsed.performanceExperiments ?? {},
+      experiencePackages: parsed.experiencePackages ?? {},
       clientDelight: parsed.clientDelight ?? {},
       agencySettings: parsed.agencySettings ?? {},
       portalEditor: parsed.portalEditor ?? {},
@@ -344,6 +361,9 @@ function parseBlob(raw: string): PortalState {
       developmentResources: parsed.developmentResources ?? {},
       developmentWorkflows: parsed.developmentWorkflows ?? {},
       agencyWebsites: parsed.agencyWebsites ?? {},
+      radarMemory: parsed.radarMemory ?? {},
+      radarSyntheticProbes: parsed.radarSyntheticProbes ?? {},
+      radarEvidence: parsed.radarEvidence ?? {},
     };
   } catch {
     return empty();

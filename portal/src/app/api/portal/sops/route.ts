@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       title?: string;
       content?: string;
       category?: string;
+      categories?: string[];
       tags?: string[];
     } | null;
     if (!body?.title?.trim()) {
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
       title: body.title,
       content: body.content ?? "",
       category: body.category,
+      categories: body.categories,
       tags: body.tags,
       actorUserId: session.userId,
     });
@@ -61,6 +63,7 @@ export async function PATCH(request: NextRequest) {
       title?: string;
       content?: string;
       category?: string;
+      categories?: string[];
       tags?: string[];
     } | null;
     if (!body?.id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });

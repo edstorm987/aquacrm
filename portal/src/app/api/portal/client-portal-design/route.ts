@@ -5,6 +5,7 @@ import {
   checkpointPortalDesign,
   getPortalDesignRecord,
   publishPortalDesign,
+  refreshProductPortalTemplateFromMaster,
   resetClientPortalFromTemplate,
   restorePortalDesignVersion,
   savePortalDesignDraft,
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const scope = cleanScope(url.searchParams.get("scope"));
     const clientId = cleanText(url.searchParams.get("clientId"), 120);
+    const templateId = cleanText(url.searchParams.get("templateId"), 220);
     const client = clientId ? getClientForAgency(agencyId, clientId) : null;
     if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     const record = getPortalDesignRecord({
@@ -45,6 +47,9 @@ export async function GET(request: NextRequest) {
       clientId: client?.id,
       actorUserId: session.userId,
       accentColor: typeof client?.metadata?.portalAccentColor === "string" ? client.metadata.portalAccentColor : undefined,
+      templateId: scope === "template"
+        ? templateId
+        : typeof client?.metadata?.portalTemplateId === "string" ? client.metadata.portalTemplateId : undefined,
     });
     if (!record) return NextResponse.json({ ok: false, error: "portal design not found" }, { status: 404 });
     await flushPendingWrites();
@@ -62,10 +67,11 @@ export async function POST(request: NextRequest) {
     }
     const agencyId = session.activeAgencyId ?? session.agencyId;
     const body = await request.json().catch(() => null) as {
-      action?: "save-draft" | "publish" | "checkpoint" | "restore" | "reset-client";
+      action?: "save-draft" | "publish" | "checkpoint" | "restore" | "refresh-product" | "reset-client";
       scope?: ClientPortalDesignScope;
       recordId?: string;
       clientId?: string;
+      templateId?: string;
       versionId?: string;
       label?: string;
       document?: unknown;
@@ -73,6 +79,7 @@ export async function POST(request: NextRequest) {
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
     const scope = cleanScope(body.scope);
     const clientId = cleanText(body.clientId, 120);
+    const templateId = cleanText(body.templateId, 220);
     const client = clientId ? getClientForAgency(agencyId, clientId) : null;
     if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     const initial = getPortalDesignRecord({
@@ -81,6 +88,9 @@ export async function POST(request: NextRequest) {
       clientId: client?.id,
       actorUserId: session.userId,
       accentColor: typeof client?.metadata?.portalAccentColor === "string" ? client.metadata.portalAccentColor : undefined,
+      templateId: scope === "template"
+        ? templateId
+        : typeof client?.metadata?.portalTemplateId === "string" ? client.metadata.portalTemplateId : undefined,
     });
     const recordId = cleanText(body.recordId, 180) || initial?.id || "";
     let record = initial;
@@ -93,6 +103,9 @@ export async function POST(request: NextRequest) {
       record = checkpointPortalDesign({ agencyId, scope, recordId, actorUserId: session.userId, label: cleanText(body.label, 100) });
     } else if (body.action === "restore") {
       record = restorePortalDesignVersion({ agencyId, scope, recordId, versionId: cleanText(body.versionId, 180), actorUserId: session.userId });
+    } else if (body.action === "refresh-product") {
+      if (scope !== "template") return NextResponse.json({ ok: false, error: "product template required" }, { status: 400 });
+      record = refreshProductPortalTemplateFromMaster({ agencyId, templateId: recordId, actorUserId: session.userId });
     } else if (body.action === "reset-client") {
       if (scope !== "client" || !client) return NextResponse.json({ ok: false, error: "client portal required" }, { status: 400 });
       record = resetClientPortalFromTemplate({ agencyId, clientId: client.id, actorUserId: session.userId });
@@ -118,8 +131,8 @@ export async function POST(request: NextRequest) {
       actorEmail: session.email,
       category: "settings",
       action: `client_portal_design.${body.action}`,
-      message: `${body.action.replaceAll("-", " ")} for ${scope === "client" ? client?.name || "client portal" : "Stunning Standard"}.`,
-      metadata: { scope, recordId: record.id },
+      message: `${body.action.replaceAll("-", " ")} for ${scope === "client" ? client?.name || "client portal" : "name" in record ? record.name : "Stunning Standard"}.`,
+      metadata: { scope, recordId: record.id, templateId: scope === "template" ? record.id : undefined },
     });
     await flushPendingWrites();
     return NextResponse.json({ ok: true, record });

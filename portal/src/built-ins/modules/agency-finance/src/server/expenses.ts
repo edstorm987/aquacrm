@@ -19,6 +19,7 @@ import type {
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
 import type { CategoryService } from "./categories";
+import type { BudgetService } from "./budgets";
 
 const EXP_INDEX_KEY = "expenses/index";
 const expKey = (id: string): string => `expenses/by-id/${id}`;
@@ -32,6 +33,7 @@ export class ExpenseService {
     private activity: ActivityLogPort,
     private events: EventBusPort,
     private categories: CategoryService,
+    private budgets: BudgetService,
   ) {}
 
   async list(filter?: ExpenseFilter): Promise<Expense[]> {
@@ -81,6 +83,8 @@ export class ExpenseService {
     const cat = await this.categories.get(input.categoryId);
     if (!cat) throw new Error(`Category ${input.categoryId} not found.`);
     if (cat.status !== "active") throw new Error(`Category ${cat.name} is archived.`);
+    const currency = input.currency ?? defaultCurrency;
+    if (input.budgetPotId) await this.assertBudgetPot(input.budgetPotId, currency);
 
     const id = makeId("exp");
     const ts = now();
@@ -90,6 +94,7 @@ export class ExpenseService {
       clientId: input.clientId,
       staffId: input.staffId,
       categoryId: input.categoryId,
+      budgetPotId: input.budgetPotId,
       vendor: input.vendor?.trim().slice(0, 180) || undefined,
       description: input.description?.trim().slice(0, 2_000) || undefined,
       reason: input.reason?.trim().slice(0, 4_000) || undefined,
@@ -100,7 +105,7 @@ export class ExpenseService {
       taxDeductible: input.taxDeductible ?? true,
       businessUsePercent: input.businessUsePercent ?? 100,
       billableToClient: input.billableToClient ?? false,
-      currency: input.currency ?? defaultCurrency,
+      currency,
       incurredAt: input.incurredAt ?? ts,
       status: input.recordAsPaid ? "reimbursed" : "pending",
       receiptUrl: input.receiptUrl,
@@ -151,6 +156,7 @@ export class ExpenseService {
       metadata: {
         expenseId: id,
         categoryId: input.categoryId,
+        budgetPotId: input.budgetPotId,
         amountCents: row.amountCents,
         taxCents: row.taxCents,
         clientId: input.clientId,
@@ -190,11 +196,15 @@ export class ExpenseService {
       : undefined;
     const nextStaffId = optionalText(patch.staffId, existing.staffId, 180);
     const nextClientId = optionalText(patch.clientId, existing.clientId, 180) as Expense["clientId"];
+    const nextBudgetPotId = optionalText(patch.budgetPotId, existing.budgetPotId, 180);
+    const nextCurrency = patch.currency ?? existing.currency;
+    if (nextBudgetPotId) await this.assertBudgetPot(nextBudgetPotId, nextCurrency);
     const next: Expense = {
       ...existing,
       ...patch,
       clientId: nextClientId,
       staffId: nextStaffId,
+      budgetPotId: nextBudgetPotId,
       categoryId,
       vendor: optionalText(patch.vendor, existing.vendor, 180),
       description: optionalText(patch.description, existing.description, 2_000),
@@ -240,6 +250,13 @@ export class ExpenseService {
     });
     this.events.emit({ agencyId: this.agencyId, clientId: next.clientId }, "expense.updated", { expenseId: id, changedFields });
     return next;
+  }
+
+  private async assertBudgetPot(id: string, currency: Currency): Promise<void> {
+    const pot = await this.budgets.get(id);
+    if (!pot) throw new Error(`Budget pot ${id} not found.`);
+    if (pot.status !== "active") throw new Error(`Budget pot ${pot.name} is not active.`);
+    if (pot.currency !== currency) throw new Error(`Budget pot ${pot.name} uses ${pot.currency.toUpperCase()}, not ${currency.toUpperCase()}.`);
   }
 
   private async addToIndex(key: string, id: string): Promise<void> {

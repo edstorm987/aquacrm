@@ -25,12 +25,25 @@ export interface ClientFileRef {
   contentType?: string;
   storageProvider?: "supabase" | "vercel-blob" | "local";
   storageKey?: string;
+  productId?: string;
+  workspacePageId?: string;
+  collectionId?: string;
+  customerVisible?: boolean;
 }
 
 interface AddBody {
   clientId: string;
   action: "add";
-  file: { name: string; url: string; category: FileCategory; uploadedBy?: string };
+  file: {
+    name: string;
+    url: string;
+    category: FileCategory;
+    uploadedBy?: string;
+    productId?: string;
+    workspacePageId?: string;
+    collectionId?: string;
+    customerVisible?: boolean;
+  };
 }
 interface DeleteBody {
   clientId: string;
@@ -93,6 +106,10 @@ export async function POST(req: Request) {
       category: body.file.category,
       uploadedBy: body.file.uploadedBy?.trim() || session.email,
       uploadedAt: Date.now(),
+      productId: body.file.productId?.trim().slice(0, 120) || undefined,
+      workspacePageId: body.file.workspacePageId?.trim().slice(0, 120) || undefined,
+      collectionId: body.file.collectionId?.trim().slice(0, 120) || undefined,
+      customerVisible: body.file.customerVisible,
     };
     files.unshift(ref);
     const updated = updateClient(session.agencyId, body.clientId, { metadata: { files } });
@@ -105,7 +122,7 @@ export async function POST(req: Request) {
       category: "files",
       action: "client_file.link_added",
       message: `${session.email} shared “${ref.name}”.`,
-      metadata: { fileId: ref.id, category: ref.category },
+      metadata: { fileId: ref.id, category: ref.category, productId: ref.productId, collectionId: ref.collectionId },
     });
     await flushPendingWrites();
     return NextResponse.json({ ok: true, file: ref, files });

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowUpDown, CalendarDays, ChartPie, Download, Eye, FileUp, Paperclip, Pencil, Plus, ReceiptText, Search, Settings2, Trash2, X } from "lucide-react";
 
 import type { Client } from "../lib/tenancy";
-import type { Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
+import type { BudgetPot, Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { FinanceNav } from "./FinanceNav";
 
@@ -13,6 +13,7 @@ export interface ExpensesListProps {
   expenses: Expense[];
   categories: ExpenseCategory[];
   clients: Client[];
+  budgetPots: BudgetPot[];
   apiBase: string;
   canMutate: boolean;
   defaultCurrency: string;
@@ -48,13 +49,14 @@ function csvCell(value: unknown): string {
   return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`;
 }
 
-export function ExpensesList({ expenses, categories, clients, apiBase, canMutate, defaultCurrency }: ExpensesListProps) {
+export function ExpensesList({ expenses, categories, clients, budgetPots, apiBase, canMutate, defaultCurrency }: ExpensesListProps) {
   const router = useRouter();
   const [records, setRecords] = useState(expenses);
   const [categoryRecords, setCategoryRecords] = useState(categories);
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | "all">("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [budgetFilter, setBudgetFilter] = useState("all");
   const [evidenceFilter, setEvidenceFilter] = useState<EvidenceFilter>("all");
   const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -68,6 +70,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
   const catNameById = useMemo(() => new Map(categoryRecords.map(category => [category.id, category.name])), [categoryRecords]);
   const clientNameById = useMemo(() => new Map(clients.map(client => [client.id, client.name])), [clients]);
+  const budgetNameById = useMemo(() => new Map(budgetPots.map(pot => [pot.id, pot.name])), [budgetPots]);
 
   useEffect(() => {
     setRecords(expenses);
@@ -113,6 +116,8 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
       if (statusFilter !== "all" && expense.status !== statusFilter) return false;
       if (clientFilter === "unallocated" && expense.clientId) return false;
       if (clientFilter !== "all" && clientFilter !== "unallocated" && expense.clientId !== clientFilter) return false;
+      if (budgetFilter === "unallocated" && expense.budgetPotId) return false;
+      if (budgetFilter !== "all" && budgetFilter !== "unallocated" && expense.budgetPotId !== budgetFilter) return false;
       const hasEvidence = Boolean(expense.receiptUrl || expense.attachments?.length);
       if (evidenceFilter === "attached" && !hasEvidence) return false;
       if (evidenceFilter === "missing" && hasEvidence) return false;
@@ -131,6 +136,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
         expense.recurrence,
         category,
         client,
+        expense.budgetPotId ? budgetNameById.get(expense.budgetPotId) ?? expense.budgetPotId : "No budget pot",
         STATUS_LABEL[expense.status],
         expense.currency,
         (expense.amountCents / 100).toFixed(2),
@@ -157,10 +163,10 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
       }
     });
     return { filtered: visible, chartExpenses: matching };
-  }, [catNameById, categoryFilter, clientFilter, clientNameById, dateFrom, dateTo, evidenceFilter, query, records, recurrenceFilter, sortBy, statusFilter]);
+  }, [budgetFilter, budgetNameById, catNameById, categoryFilter, clientFilter, clientNameById, dateFrom, dateTo, evidenceFilter, query, records, recurrenceFilter, sortBy, statusFilter]);
 
   const hasActiveFilters = Boolean(
-    query || statusFilter !== "all" || clientFilter !== "all" || categoryFilter !== "all"
+    query || statusFilter !== "all" || clientFilter !== "all" || categoryFilter !== "all" || budgetFilter !== "all"
     || evidenceFilter !== "all" || recurrenceFilter !== "all" || dateFrom || dateTo,
   );
 
@@ -169,6 +175,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
     setStatusFilter("all");
     setClientFilter("all");
     setCategoryFilter("all");
+    setBudgetFilter("all");
     setEvidenceFilter("all");
     setRecurrenceFilter("all");
     setDateFrom("");
@@ -206,13 +213,14 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   }
 
   function downloadCsv() {
-    const headers = ["Date", "Supplier", "Description", "Reason", "Category", "Client", "Gross", "Tax", "Net", "Business use %", "Payment method", "Reference", "Evidence", "Status", "Currency", ...customFields.map(field => field.label)];
+    const headers = ["Date", "Supplier", "Description", "Reason", "Category", "Budget pot", "Client", "Gross", "Tax", "Net", "Business use %", "Payment method", "Reference", "Evidence", "Status", "Currency", ...customFields.map(field => field.label)];
     const rows = filtered.map(expense => [
       new Date(expense.incurredAt).toISOString().slice(0, 10),
       expense.vendor,
       expense.description,
       expense.reason,
       catNameById.get(expense.categoryId) ?? "Uncategorised",
+      expense.budgetPotId ? budgetNameById.get(expense.budgetPotId) ?? expense.budgetPotId : "",
       expense.clientId ? clientNameById.get(expense.clientId) ?? expense.clientId : "",
       (expense.amountCents / 100).toFixed(2),
       ((expense.taxCents ?? 0) / 100).toFixed(2),
@@ -277,6 +285,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
               apiBase={apiBase}
               categories={categoryRecords.filter(category => category.status === "active")}
               clients={clients}
+              budgetPots={budgetPots}
               customFields={customFields}
               defaultCurrency={defaultCurrency}
               onClose={() => setAdding(false)}
@@ -299,6 +308,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
               apiBase={apiBase}
               categories={categoryRecords}
               clients={clients}
+              budgetPots={budgetPots}
               customFields={customFields}
               defaultCurrency={defaultCurrency}
               onClose={() => setEditingExpense(null)}
@@ -317,6 +327,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
         expense={selectedExpense}
         category={catNameById.get(selectedExpense.categoryId) ?? "Uncategorised"}
         client={selectedExpense.clientId ? clientNameById.get(selectedExpense.clientId) ?? "Unknown client" : "Business overhead"}
+        budgetPot={selectedExpense.budgetPotId ? budgetNameById.get(selectedExpense.budgetPotId) ?? "Unknown budget pot" : "Not allocated"}
         customFields={customFields}
         onClose={() => setSelectedExpense(null)}
         onEdit={canMutate ? () => {
@@ -353,7 +364,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
           </label>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <select value={clientFilter} onChange={event => setClientFilter(event.target.value)} aria-label="Filter by client" className={inputClass}>
             <option value="all">All clients</option>
             <option value="unallocated">Business overheads</option>
@@ -362,6 +373,11 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
           <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} aria-label="Filter by category" className={inputClass}>
             <option value="all">All categories</option>
             {categoryRecords.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <select value={budgetFilter} onChange={event => setBudgetFilter(event.target.value)} aria-label="Filter by budget pot" className={inputClass}>
+            <option value="all">All budget pots</option>
+            <option value="unallocated">No budget pot</option>
+            {budgetPots.map(pot => <option key={pot.id} value={pot.id}>{pot.name}</option>)}
           </select>
           <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as ExpenseStatus | "all")} aria-label="Filter by status" className={inputClass}>
             <option value="all">All statuses</option>
@@ -420,7 +436,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-black/85">{expense.vendor || expense.description || "Expense"}</p>
-                  <p className="mt-1 text-xs text-black/45">{new Date(expense.incurredAt).toLocaleDateString("en-GB")} · {catNameById.get(expense.categoryId) ?? "Uncategorised"}</p>
+                  <p className="mt-1 text-xs text-black/45">{new Date(expense.incurredAt).toLocaleDateString("en-GB")} · {catNameById.get(expense.categoryId) ?? "Uncategorised"}{expense.budgetPotId ? ` · ${budgetNameById.get(expense.budgetPotId) ?? "Budget pot"}` : ""}</p>
                 </div>
                 <p className="shrink-0 font-mono text-sm font-semibold text-black/85">{money(expense.amountCents, expense.currency)}</p>
               </div>
@@ -513,7 +529,7 @@ export function ExpensesList({ expenses, categories, clients, apiBase, canMutate
   );
 }
 
-function ExpenseDetail({ expense, category, client, customFields, onClose, onEdit }: { expense: Expense; category: string; client: string; customFields: CustomFieldDefinition[]; onClose: () => void; onEdit?: () => void }) {
+function ExpenseDetail({ expense, category, client, budgetPot, customFields, onClose, onEdit }: { expense: Expense; category: string; client: string; budgetPot: string; customFields: CustomFieldDefinition[]; onClose: () => void; onEdit?: () => void }) {
   const net = expense.netCents ?? expense.amountCents - (expense.taxCents ?? 0);
   return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6">
     <button type="button" className="absolute inset-0" aria-label="Close expense details" onClick={onClose} />
@@ -528,6 +544,7 @@ function ExpenseDetail({ expense, category, client, customFields, onClose, onEdi
         <Detail label="Description" value={expense.description || "Not recorded"} />
         <Detail label="Reason" value={expense.reason || "Not recorded"} />
         <Detail label="Category" value={category} />
+        <Detail label="Budget pot" value={budgetPot} />
         <Detail label="Allocated to" value={client} />
         <Detail label="Payment method" value={expense.paymentMethod?.replaceAll("-", " ") ?? "Not recorded"} />
         <Detail label="Reference" value={expense.reference || "Not recorded"} />
@@ -676,11 +693,12 @@ function ExpenseCategoryBreakdown({ expenses, categoryNames, selectedCategoryId,
   );
 }
 
-function ExpenseForm({ expense, apiBase, categories, clients, customFields, defaultCurrency, onClose, onCategoryCreated, onSaved }: {
+function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, customFields, defaultCurrency, onClose, onCategoryCreated, onSaved }: {
   expense?: Expense;
   apiBase: string;
   categories: ExpenseCategory[];
   clients: Client[];
+  budgetPots: BudgetPot[];
   customFields: CustomFieldDefinition[];
   defaultCurrency: string;
   onClose: () => void;
@@ -767,6 +785,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, defa
           }
           const fields = {
             categoryId,
+            budgetPotId: optionalValue(data.get("budgetPotId")),
             clientId: optionalValue(data.get("clientId")),
             vendor: optionalValue(data.get("vendor")),
             description: optionalValue(data.get("description")),
@@ -858,6 +877,13 @@ function ExpenseForm({ expense, apiBase, categories, clients, customFields, defa
             <option value="">Business overhead</option>
             {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
           </select>
+        </label>
+        <label className={labelClass}>Fund from budget pot
+          <select name="budgetPotId" className={inputClass} defaultValue={expense?.budgetPotId ?? ""}>
+            <option value="">No budget pot</option>
+            {budgetPots.filter(pot => pot.status === "active").map(pot => <option key={pot.id} value={pot.id}>{pot.name} · {formatMoney(pot.fundedCents, pot.currency)} funded</option>)}
+          </select>
+          <span className="font-normal text-black/40">This cost will count against the selected pot.</span>
         </label>
         <label className={labelClass}>Business use (%)<input name="businessUsePercent" type="number" min="0" max="100" defaultValue={expense?.businessUsePercent ?? 100} className={inputClass} /></label>
         <label className={labelClass}>Repeats

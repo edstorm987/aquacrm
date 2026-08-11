@@ -32,6 +32,8 @@ import {
   pnlSummaryHandler,
   updatePlanHandler,
 } from "./handlers-r007";
+import { createBudgetPotHandler, listBudgetPotsHandler, updateBudgetPotHandler } from "./handlers-budgets";
+import { compensationPaymentsHandler, compensationProfilesHandler, obligationsHandler } from "./handlers-operations";
 
 const AGENCY_ADMINS = ["agency-owner", "agency-manager"] as const;
 const AGENCY_VIEWERS = ["agency-owner", "agency-manager", "agency-staff"] as const;
@@ -74,4 +76,13 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "plans/update", methods: ["PATCH"], handler: updatePlanHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "plans/assign", methods: ["POST"], handler: assignPlanHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "pnl", methods: ["GET"], handler: pnlSummaryHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "budgets", methods: ["GET"], handler: listBudgetPotsHandler, visibleToRoles: [...AGENCY_VIEWERS] },
+  { path: "budgets", methods: ["POST"], handler: createBudgetPotHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "budgets", methods: ["PATCH"], handler: updateBudgetPotHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "operations/obligations", methods: ["GET"], handler: obligationsHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "operations/obligations", methods: ["POST", "PATCH"], handler: obligationsHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "operations/profiles", methods: ["GET"], handler: compensationProfilesHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "operations/profiles", methods: ["POST", "PATCH"], handler: compensationProfilesHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "operations/payments", methods: ["GET"], handler: compensationPaymentsHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "operations/payments", methods: ["POST", "PATCH"], handler: compensationPaymentsHandler, visibleToRoles: [...AGENCY_ADMINS] },
 ];

@@ -1,7 +1,9 @@
 "use client";
 
 // MobileNav — slide-over drawer that hosts the same <Sidebar> at
-// `<md` viewports. Triggered by a hamburger button mounted in the
+// phone viewports. Tablet and desktop widths keep the persistent,
+// manually collapsible sidebar; the drawer is used below `md` only.
+// Triggered by a hamburger button mounted in the
 // Topbar. Focus-trapped while open + Escape closes + click-on-scrim
 // closes. Receives the same `panels`/`tenantLabel`/`currentPath`
 // already computed server-side; no client-side fetching.
@@ -61,7 +63,7 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
       </button>
 
       {open && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[60] md:hidden" onClick={() => setOpen(false)}>
+        <div className="mm-modal-backdrop fixed inset-0 z-[60] md:hidden" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40" aria-hidden />
           <div
             ref={drawerRef}
@@ -69,14 +71,14 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
-            className="absolute left-0 top-0 h-full w-[min(22rem,88vw)] overflow-hidden bg-white shadow-xl"
+            className="mm-drawer-panel-left absolute left-0 top-0 h-full w-[min(22rem,88vw)] overflow-hidden bg-white shadow-xl"
             onClick={e => e.stopPropagation()}
           >
             <button
               type="button"
               aria-label="Close navigation menu"
               onClick={() => setOpen(false)}
-              className="absolute right-5 top-5 z-20 inline-flex size-10 items-center justify-center rounded-md border border-black/10 bg-white text-black/75 shadow-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
+              className="absolute right-5 top-6 z-20 inline-flex size-10 items-center justify-center rounded-md border border-black/10 bg-white text-black/75 shadow-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
             >
               <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
                 <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />

@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
   BookOpen,
+  CalendarDays,
   ChartNoAxesCombined,
+  ClipboardCheck,
   CircleHelp,
   CreditCard,
   Files,
@@ -13,6 +15,10 @@ import {
   Home,
   IdCard,
   Menu,
+  PackageCheck,
+  Route,
+  ScanSearch,
+  Settings2,
   Sparkles,
   X,
 } from "lucide-react";
@@ -22,6 +28,8 @@ import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { contrastRatio } from "@/lib/a11y/contrastValidator";
 import { formatPortalCopy } from "@/lib/clientPortalDesign";
+import { portalProductModule, type PortalModuleIcon } from "@/lib/portalProductModules";
+import type { PortalProductSelection } from "@/lib/portalProducts";
 import type { ClientPortalDesignDocument } from "@/server/types";
 
 const NAV = [
@@ -35,6 +43,19 @@ const NAV = [
   { href: "/portal/customer/details", section: "details", icon: IdCard },
 ] as const;
 
+const PRODUCT_ICONS: Record<PortalModuleIcon, typeof Home> = {
+  activity: ChartNoAxesCombined,
+  assets: Files,
+  calendar: CalendarDays,
+  checklist: ClipboardCheck,
+  delivery: PackageCheck,
+  insights: ChartNoAxesCombined,
+  plan: Route,
+  review: ScanSearch,
+  settings: Settings2,
+  support: CircleHelp,
+};
+
 function NavItems({
   pathname,
   close,
@@ -42,6 +63,9 @@ function NavItems({
   activePreviewSection,
   projectLabel,
   presentation,
+  products,
+  activePreviewProductId,
+  activePreviewModuleId,
 }: {
   pathname: string;
   close?: () => void;
@@ -49,39 +73,75 @@ function NavItems({
   activePreviewSection?: string;
   projectLabel: string;
   presentation: ClientPortalDesignDocument;
+  products: PortalProductSelection[];
+  activePreviewProductId?: string;
+  activePreviewModuleId?: string;
 }) {
+  const coreNav = products.length
+    ? NAV.filter(item => item.section === "home" || (products.length > 1 && item.section === "project"))
+    : NAV;
+  const sharedNav = products.length
+    ? NAV.filter(item => item.section === "files" || item.section === "billing" || item.section === "support" || item.section === "details")
+    : [];
+
+  function shellLinks(items: ReadonlyArray<typeof NAV[number]>) {
+    return items.map(item => {
+      const page = presentation.pages[item.section];
+      if (!page.visible) return null;
+      const active = previewHrefPrefix
+        ? activePreviewSection === item.section
+        : item.href === "/portal/customer"
+          ? pathname === item.href
+          : pathname.startsWith(item.href);
+      const Icon = item.icon;
+      const href = previewHrefPrefix ? `${previewHrefPrefix}${item.section}` : item.href;
+      return (
+        <Link
+          key={href}
+          href={href}
+          onClick={close}
+          aria-current={active ? "page" : undefined}
+          className={[
+            "group flex min-h-10 items-center gap-3 rounded-sm px-3 text-sm transition",
+            active ? "bg-[#f4efe6] text-[#151310]" : "text-white/58 hover:bg-white/[0.07] hover:text-white",
+          ].join(" ")}
+        >
+          <Icon size={16} strokeWidth={1.65} aria-hidden="true" />
+          <span>{item.section === "project" && page.label === "Project"
+            ? products.length > 1 ? "Programme" : projectLabel
+            : formatPortalCopy(page.label, { projectLabel })}</span>
+        </Link>
+      );
+    });
+  }
+
   return (
     <nav aria-label="Client portal" className="grid gap-1">
-      {NAV.map(item => {
-        const page = presentation.pages[item.section];
-        if (!page.visible) return null;
-        const active = previewHrefPrefix
-          ? activePreviewSection === item.section
-          : item.href === "/portal/customer"
-            ? pathname === item.href
-            : pathname.startsWith(item.href);
-        const Icon = item.icon;
-        const href = previewHrefPrefix ? `${previewHrefPrefix}${item.section}` : item.href;
+      {shellLinks(coreNav)}
+      {products.map(product => {
+        const module = portalProductModule(product);
         return (
-          <Link
-            key={href}
-            href={href}
-            onClick={close}
-            aria-current={active ? "page" : undefined}
-            className={[
-              "group flex min-h-11 items-center gap-3 rounded-sm px-3 text-sm transition",
-              active
-                ? "bg-[#f4efe6] text-[#151310]"
-                : "text-white/58 hover:bg-white/[0.07] hover:text-white",
-            ].join(" ")}
-          >
-            <Icon size={17} strokeWidth={1.65} aria-hidden="true" />
-            <span>{item.section === "project" && page.label === "Project"
-              ? projectLabel
-              : formatPortalCopy(page.label, { projectLabel })}</span>
-          </Link>
+          <div key={product.id} className="mt-4 border-t border-white/8 pt-4 first:mt-2">
+            <div className="mb-2 flex items-center gap-2 px-3">
+              <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: product.accentColor || "var(--portal-accent)" }} />
+              <p className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-white/34">{module.label}</p>
+            </div>
+            <div className="grid gap-0.5">
+              {module.pages.map(page => {
+                const Icon = PRODUCT_ICONS[page.icon];
+                const href = previewHrefPrefix
+                  ? `${previewHrefPrefix}service&productId=${encodeURIComponent(product.id)}&module=${encodeURIComponent(page.id)}`
+                  : `/portal/customer/service/${encodeURIComponent(product.id)}/${encodeURIComponent(page.id)}`;
+                const active = previewHrefPrefix
+                  ? activePreviewSection === "service" && activePreviewProductId === product.id && activePreviewModuleId === page.id
+                  : pathname === href;
+                return <Link key={page.id} href={href} onClick={close} aria-current={active ? "page" : undefined} className={`group flex min-h-9 items-center gap-3 rounded-sm px-3 text-[13px] transition ${active ? "bg-[#f4efe6] text-[#151310]" : "text-white/55 hover:bg-white/[0.07] hover:text-white"}`}><Icon size={15} strokeWidth={1.6} aria-hidden="true" /><span className="truncate">{page.navLabel}</span></Link>;
+              })}
+            </div>
+          </div>
         );
       })}
+      {sharedNav.length ? <div className="mt-4 border-t border-white/8 pt-4"><p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">Shared workspace</p><div className="grid gap-0.5">{shellLinks(sharedNav)}</div></div> : null}
     </nav>
   );
 }
@@ -101,6 +161,9 @@ export function CustomerPortalChrome({
   logoUrl,
   accentColor = "#8b6c33",
   projectLabel = "Project",
+  products = [],
+  activePreviewProductId,
+  activePreviewModuleId,
   providerName = "Milesymedia",
   providerMark = "M",
 }: {
@@ -118,6 +181,9 @@ export function CustomerPortalChrome({
   logoUrl?: string;
   accentColor?: string;
   projectLabel?: string;
+  products?: PortalProductSelection[];
+  activePreviewProductId?: string;
+  activePreviewModuleId?: string;
   providerName?: string;
   providerMark?: string;
 }) {
@@ -133,6 +199,11 @@ export function CustomerPortalChrome({
   const darkAccent = (contrastRatio(resolvedAccent, presentation.theme.darkColor) ?? 0) >= 4.5
     ? resolvedAccent
     : "#c9a76a";
+  const serviceLabel = products.length > 1
+    ? `${products.length} connected service systems`
+    : products.length === 1
+      ? portalProductModule(products[0]).label
+      : presentation.chrome.serviceLabel;
 
   return (
     <div
@@ -161,7 +232,7 @@ export function CustomerPortalChrome({
           </span>
           <div className="min-w-0">
             <p className="truncate font-serif text-xl leading-none text-[#f7f2e9]">{providerName}</p>
-            <p className="mt-1.5 truncate text-[10px] uppercase tracking-[0.18em] text-white/38">{presentation.chrome.serviceLabel}</p>
+            <p className="mt-1.5 truncate text-[10px] uppercase tracking-[0.18em] text-white/38">{serviceLabel}</p>
           </div>
         </div>
 
@@ -170,7 +241,7 @@ export function CustomerPortalChrome({
           <p className="mt-2 truncate font-serif text-lg text-[#f7f2e9]">{clientName}</p>
         </div>
 
-        <NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} presentation={presentation} />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} projectLabel={projectLabel} presentation={presentation} products={products} /></div>
 
         <div className="mt-auto border-t border-white/10 px-2 pt-5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>
@@ -220,7 +291,7 @@ export function CustomerPortalChrome({
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} projectLabel={projectLabel} presentation={presentation} />
+              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} projectLabel={projectLabel} presentation={presentation} products={products} />
             </div>
             <div className="shrink-0 border-t border-white/10 px-3 pt-4">
               <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>

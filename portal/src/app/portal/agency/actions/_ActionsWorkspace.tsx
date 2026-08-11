@@ -19,12 +19,32 @@ export type GeneratedAction = {
 
 export type TeamMember = { id: string; name: string; email: string };
 
-type View = "list" | "calendar";
+export type ActionsView = "list" | "calendar";
 
-export function ActionsWorkspace({ initialTasks, generatedActions, advisorConfigured, team, sops }: { initialTasks: AgencyTask[]; generatedActions: GeneratedAction[]; advisorConfigured: boolean; team: TeamMember[]; sops: SopDocument[] }) {
+export function ActionsWorkspace({
+  initialTasks,
+  generatedActions,
+  advisorConfigured,
+  team,
+  sops,
+  calendarEvents = [],
+  initialView = "list",
+  heading = "Actions",
+  description = "Everything that needs to happen, who owns it, and when it is due.",
+}: {
+  initialTasks: AgencyTask[];
+  generatedActions: GeneratedAction[];
+  advisorConfigured: boolean;
+  team: TeamMember[];
+  sops: SopDocument[];
+  calendarEvents?: GeneratedAction[];
+  initialView?: ActionsView;
+  heading?: string;
+  description?: string;
+}) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
-  const [view, setView] = useState<View>("list");
+  const [view, setView] = useState<ActionsView>(initialView);
   const [showDone, setShowDone] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -100,7 +120,7 @@ export function ActionsWorkspace({ initialTasks, generatedActions, advisorConfig
 
   return <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
     <header className="flex flex-wrap items-end justify-between gap-4">
-      <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Work</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Actions</h1><p className="mt-2 text-sm text-black/50">Everything that needs to happen, who owns it, and when it is due.</p></div>
+      <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{initialView === "calendar" ? "Schedule" : "Work"}</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">{heading}</h1><p className="mt-2 text-sm text-black/50">{description}</p></div>
       <button type="button" onClick={() => setAdding(true)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white sm:w-auto"><Plus size={16} />Add task</button>
     </header>
 
@@ -131,7 +151,7 @@ export function ActionsWorkspace({ initialTasks, generatedActions, advisorConfig
       {[...generatedActions].map(action => <GeneratedCard key={action.id} action={action} />)}
       {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} sops={sops} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
       {!generatedActions.length && !visibleTasks.length ? <div className="py-20 text-center"><Check className="mx-auto text-emerald-600" size={28} /><h2 className="mt-3 text-base font-semibold text-black/75">Everything is clear</h2><p className="mt-1 text-sm text-black/45">Add a task when something new needs doing.</p></div> : null}
-    </section> : <CalendarView month={month} tasks={visibleTasks} actions={generatedActions} team={team} onPrevious={() => setMonth(addMonths(month, -1))} onNext={() => setMonth(addMonths(month, 1))} onToday={() => setMonth(startOfMonth(new Date()))} />}
+    </section> : <CalendarView month={month} tasks={visibleTasks} actions={[...generatedActions, ...calendarEvents]} team={team} onPrevious={() => setMonth(addMonths(month, -1))} onNext={() => setMonth(addMonths(month, 1))} onToday={() => setMonth(startOfMonth(new Date()))} />}
 
     {adding ? <TaskModal team={team} sops={sops} onClose={() => setAdding(false)} onCreated={task => { setTasks(current => [task, ...current]); setAdding(false); }} /> : null}
   </div>;

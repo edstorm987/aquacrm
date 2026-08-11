@@ -30,6 +30,7 @@ import {
   recordTouchpointHandler,
   updateContentHandler,
 } from "./handlers-r008";
+import { customerProfilesHandler } from "./handlers-customer-profiles";
 
 const AGENCY_ADMINS = ["agency-owner", "agency-manager"] as const;
 const AGENCY_VIEWERS = ["agency-owner", "agency-manager", "agency-staff"] as const;
@@ -40,6 +41,10 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "assets", methods: ["POST"], handler: createMarketingAssetHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "assets", methods: ["PATCH"], handler: updateMarketingAssetHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "assets", methods: ["DELETE"], handler: deleteMarketingAssetHandler, visibleToRoles: [...AGENCY_ADMINS] },
+
+  // Brand-scoped customer profiles, demographics and buying intelligence.
+  { path: "customer-profiles", methods: ["GET"], handler: customerProfilesHandler, visibleToRoles: [...AGENCY_VIEWERS] },
+  { path: "customer-profiles", methods: ["POST", "PATCH", "DELETE"], handler: customerProfilesHandler, visibleToRoles: [...AGENCY_ADMINS] },
 
   // Campaigns (4 routes)
   { path: "campaigns", methods: ["GET"], handler: listCampaignsHandler, visibleToRoles: [...AGENCY_VIEWERS] },

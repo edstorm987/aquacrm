@@ -3,12 +3,17 @@ import "server-only";
 import { listAgencyTasks } from "@/server/tasks";
 import { buildCompanyHealthSnapshot } from "./companyHealthSnapshot";
 import { listOperationalAlerts } from "./operationalAlerts";
+import { buildBusinessIssueRadar } from "./businessIssueRadar";
 
 export async function buildAdvisorContext(agencyId: string, now = Date.now()) {
   const [company, alerts] = await Promise.all([
     buildCompanyHealthSnapshot(agencyId, now),
     listOperationalAlerts(agencyId, now),
   ]);
+  const businessRadar = await buildBusinessIssueRadar(agencyId, now, {
+    company,
+    operationalAlerts: alerts,
+  });
   const tasks = listAgencyTasks(agencyId)
     .filter(task => task.status !== "done")
     .slice(0, 100)
@@ -39,6 +44,7 @@ export async function buildAdvisorContext(agencyId: string, now = Date.now()) {
       activePlans: company.profile.plans.filter(plan => !["complete", "paused"].includes(plan.status)),
     },
     operationalAlerts: alerts.slice(0, 80),
+    businessRadar,
     openTasks: tasks,
   };
 }

@@ -33,6 +33,11 @@ export interface WebsiteEnquiry {
   campaign?: string;
   submittedAt: number;
   leadId?: string;
+  leadLinkedAt?: number;
+  reviewedAt?: number;
+  resolvedAt?: number;
+  firstRespondedAt?: number;
+  lastRespondedAt?: number;
   notification: "sent" | "failed" | "not-configured" | "pending" | "unknown";
 }
 
@@ -71,6 +76,40 @@ function sourceParts(sourceUrl: string | null): { host?: string; pagePath: strin
   } catch {
     return { pagePath: "/" };
   }
+}
+
+function metadataStamp(metadata: Record<string, unknown>, key: string): number | undefined {
+  const value = metadata[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return undefined;
+  const stamp = Date.parse(value);
+  return Number.isFinite(stamp) ? stamp : undefined;
+}
+
+export async function recordWebsiteEnquiryResponse(enquiryId: string, respondedAt: number, actorUserId: string): Promise<boolean> {
+  if (!enquiryId.trim() || !Number.isFinite(respondedAt)) return false;
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("brand_enquiries")
+    .select("id, metadata")
+    .eq("id", enquiryId)
+    .maybeSingle();
+  if (error || !data) return false;
+  const current = data.metadata && typeof data.metadata === "object"
+    ? data.metadata as Record<string, unknown>
+    : {};
+  const responseAt = new Date(respondedAt).toISOString();
+  const metadata = {
+    ...current,
+    firstRespondedAt: typeof current.firstRespondedAt === "string" ? current.firstRespondedAt : responseAt,
+    lastRespondedAt: responseAt,
+    lastRespondedBy: actorUserId,
+  };
+  const { error: updateError } = await supabase
+    .from("brand_enquiries")
+    .update({ metadata })
+    .eq("id", enquiryId);
+  return !updateError;
 }
 
 export function triageWebsiteEnquiry(channel: WebsiteEnquiryChannel, message?: string): Pick<WebsiteEnquiry, "priority" | "topic" | "suggestedAction"> {
@@ -153,6 +192,11 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       campaign: row.campaign || undefined,
       submittedAt: Date.parse(row.created_at),
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
+      leadLinkedAt: metadataStamp(metadata, "leadLinkedAt"),
+      reviewedAt: metadataStamp(metadata, "firstReviewedAt") ?? metadataStamp(metadata, "reviewedAt"),
+      resolvedAt: metadataStamp(metadata, "lastResolvedAt") ?? metadataStamp(metadata, "resolvedAt"),
+      firstRespondedAt: metadataStamp(metadata, "firstRespondedAt"),
+      lastRespondedAt: metadataStamp(metadata, "lastRespondedAt"),
       notification,
     };
   });

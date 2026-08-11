@@ -41,9 +41,9 @@ export default function DevicePreview({ state, onChange }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-2.5 py-1.5 bg-white/[0.02] border-b border-white/5 text-[11px] text-brand-cream/85">
+    <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain border-b border-white/5 bg-white/[0.02] px-2 py-1.5 text-[11px] text-brand-cream/85 [scrollbar-width:thin] sm:px-2.5">
       {/* Device dropdown — categorised */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <select
           value={state.deviceId}
           onChange={e => update({ deviceId: e.target.value })}
@@ -65,7 +65,7 @@ export default function DevicePreview({ state, onChange }: Props) {
 
       {/* W × H readout / custom inputs in Responsive mode */}
       {spec.id === "responsive" ? (
-        <div className="flex items-center gap-1 text-brand-cream/60">
+        <div className="flex shrink-0 items-center gap-1 text-brand-cream/60">
           <input
             type="number"
             value={viewport.width}
@@ -87,7 +87,7 @@ export default function DevicePreview({ state, onChange }: Props) {
           />
         </div>
       ) : (
-        <span className="text-brand-cream/55 font-mono">{viewport.width} × {viewport.height}</span>
+        <span className="shrink-0 font-mono text-brand-cream/55">{viewport.width} × {viewport.height}</span>
       )}
 
       {/* Rotate */}
@@ -105,7 +105,7 @@ export default function DevicePreview({ state, onChange }: Props) {
       <span className="w-px h-4 bg-white/10" />
 
       {/* Zoom */}
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
           onClick={() => {

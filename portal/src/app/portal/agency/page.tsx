@@ -26,6 +26,7 @@ import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 import { isAssistantConfigured } from "@/lib/server/openaiAssistant";
 import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardCommandCenter";
+import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
 
 export default async function AgencyHome() {
   await ensureHydrated();
@@ -37,6 +38,7 @@ export default async function AgencyHome() {
   const products = listAgencyProducts(agency.id);
   const serviceBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
   const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
+  const businessRadar = await getCachedBusinessIssueRadar(agency.id);
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
   // even if it pre-dates the R034 seed in `bootstrapAgency`.
@@ -113,6 +115,7 @@ export default async function AgencyHome() {
         planning={dashboardPlanningSnapshot(agency.id, session.userId)}
         tasks={tasks}
         signals={dashboardSignals}
+        businessRadar={businessRadar}
         advisorConfigured={isAssistantConfigured(agency.id)}
         counts={{
           activeClients: activeClients.length,
@@ -155,7 +158,7 @@ function buildDashboardSignals({
       id: "delivery:fulfilment",
       title: "Move fulfilment forward",
       detail: `${fulfilmentCardCount} delivery item${fulfilmentCardCount === 1 ? "" : "s"} are active. Pick the blocker and move it today.`,
-      href: "/portal/agency/pipelines/fulfilment",
+      href: "/portal/agency/fulfilment",
       kind: "Delivery",
       priority: "high",
     });
@@ -175,7 +178,7 @@ function buildDashboardSignals({
       id: "offers:products",
       title: "Define the sellable offers",
       detail: "Products are still empty, so projections and delivery planning have weak inputs.",
-      href: "/portal/agency/products",
+      href: "/portal/agency/company?view=products",
       kind: "Company",
       priority: "high",
     });

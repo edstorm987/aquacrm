@@ -167,7 +167,7 @@ async function main() {
       "/portal/agency/marketing",
       "/portal/agency/development/performance",
       "/portal/agency/pipelines/leads",
-      "/portal/agency/pipelines/fulfilment",
+      "/portal/agency/fulfilment",
       "/portal/agency/company?view=products",
       "/portal/agency/sop-library",
       "/portal/agency/settings",

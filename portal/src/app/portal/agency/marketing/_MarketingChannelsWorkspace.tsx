@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ExternalLink, MessageSquareText, Pencil, PlugZap, Plus, Trash2, X } from "lucide-react";
+import type { InboxChannelConnection } from "@/lib/inbox/types";
 
 export type MarketingAssetKind = "social" | "website" | "funnel" | "google-ads" | "reputation";
 type MarketingAssetStatus = "draft" | "active" | "paused" | "complete" | "archived";
@@ -114,7 +115,7 @@ const EMPTY_DRAFT: AssetDraft = {
   budget: "", spend: "", leads: "", conversions: "", rating: "", reviewCount: "", unansweredReviews: "", notes: "", companyIds: [],
 };
 
-export function MarketingChannelsWorkspace({ kind, assets, companies = [], defaultCompanyIds = [], defaultPlatform = "" }: { kind: MarketingAssetKind; assets: MarketingAsset[]; companies?: MarketingCompanyOption[]; defaultCompanyIds?: string[]; defaultPlatform?: string }) {
+export function MarketingChannelsWorkspace({ kind, assets, companies = [], defaultCompanyIds = [], defaultPlatform = "", inboxConnections = [], metaConfigured = false, inboxReturnUrl = "/portal/agency/marketing?view=social" }: { kind: MarketingAssetKind; assets: MarketingAsset[]; companies?: MarketingCompanyOption[]; defaultCompanyIds?: string[]; defaultPlatform?: string; inboxConnections?: InboxChannelConnection[]; metaConfigured?: boolean; inboxReturnUrl?: string }) {
   const router = useRouter();
   const config = CONFIG[kind];
   const [draft, setDraft] = useState<AssetDraft | null>(null);
@@ -243,8 +244,17 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
 
       {error ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
+      {kind === "social" && !metaConfigured ? <div className="mt-4 flex items-start gap-3 border-y border-amber-200 bg-amber-50 px-3 py-3"><PlugZap size={17} className="mt-0.5 shrink-0 text-amber-700" /><div><p className="text-xs font-semibold text-amber-900">Profiles are ready for live messaging</p><p className="mt-1 text-xs leading-5 text-amber-800/75">Inject the Meta application values, then each Instagram or Facebook profile can be authorised here without changing the application again.</p></div></div> : null}
+
       <div className="mt-2 divide-y divide-black/[0.08]">
         {assets.map(asset => (
+          (() => {
+          const inboxConnection = inboxConnections.find(connection => connection.marketingAssetId === asset.id && connection.status !== "disconnected");
+          const connectable = asset.platform === "Instagram" || asset.platform === "Facebook";
+          const mode = asset.platform === "Facebook" ? "facebook" : "instagram";
+          const companyId = asset.companyIds?.length === 1 ? asset.companyIds[0] : undefined;
+          const connectHref = `/api/portal/inbox/meta/start?mode=${mode}&marketingAssetId=${encodeURIComponent(asset.id)}${companyId ? `&companyId=${encodeURIComponent(companyId)}` : ""}&return=${encodeURIComponent(inboxReturnUrl)}`;
+          return (
           <article key={asset.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(160px,.7fr)_minmax(210px,.8fr)_auto] lg:items-center">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -272,10 +282,15 @@ export function MarketingChannelsWorkspace({ kind, assets, companies = [], defau
               <option value="archived">Archived</option>
             </select>
             <div className="flex items-center justify-end gap-1">
+              {kind === "social" && inboxConnection ? <LinkButton href="/portal/agency/inbox?view=social" label={`Open ${asset.name} inbox`} title="Open inbox"><MessageSquareText size={15} /></LinkButton> : null}
+              {kind === "social" && !inboxConnection && connectable && metaConfigured ? <LinkButton href={connectHref} label={`Connect ${asset.name} inbox`} title="Connect inbox"><PlugZap size={15} /></LinkButton> : null}
+              {kind === "social" && !inboxConnection && connectable && !metaConfigured ? <button type="button" disabled aria-label={`${asset.name} inbox awaiting Meta values`} title="Awaiting Meta values" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/25"><PlugZap size={15} /></button> : null}
               <button type="button" onClick={() => edit(asset)} aria-label={`Edit ${asset.name}`} title="Edit" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]"><Pencil size={15} /></button>
               <button type="button" onClick={() => void remove(asset)} disabled={busy === `delete:${asset.id}`} aria-label={`Delete ${asset.name}`} title="Delete" className="grid size-9 place-items-center rounded-md border border-red-100 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>
             </div>
           </article>
+          );
+          })()
         ))}
         {assets.length === 0 ? <p className="py-14 text-center text-sm text-black/40">{config.empty}</p> : null}
       </div>
@@ -349,6 +364,10 @@ function BrandAssignment({ companyIds, companies, onChange }: { companyIds: stri
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="border-r border-black/10 px-3 py-4 last:border-r-0"><p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{label}</p><p className="mt-1 text-lg font-semibold tabular-nums text-black/75">{value}</p></div>;
+}
+
+function LinkButton({ href, label, title, children }: { href: string; label: string; title: string; children: React.ReactNode }) {
+  return <a href={href} aria-label={label} title={title} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]">{children}</a>;
 }
 
 function Field({ label, value, onChange, placeholder, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string; required?: boolean }) {

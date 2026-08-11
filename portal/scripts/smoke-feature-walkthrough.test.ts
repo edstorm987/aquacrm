@@ -119,8 +119,8 @@ describe("Agency OS navigation", () => {
     const catchAll = read(join(PORTAL, "agency", "[...rest]", "page.tsx"));
     const legacyList = read(join(BUILT_INS, "modules", "fulfillment", "src", "components", "ClientList.tsx"));
 
-    assert.ok(catchAll.includes('redirect("/portal/clients")'));
-    assert.ok(catchAll.includes('redirect("/portal/agency/pipelines/fulfilment")'));
+    assert.ok(catchAll.includes('redirect("/portal/agency/fulfilment?view=clients")'));
+    assert.ok(catchAll.includes('redirect("/portal/agency/fulfilment")'));
     assert.ok(!legacyList.includes("NewClientModal"));
     assert.ok(legacyList.includes('href="/portal/clients"'));
   });
@@ -229,7 +229,7 @@ describe("Sales, pipelines, finance, inbox, and systems", () => {
     const workspace = read(join(PORTAL, "agency", "marketing", "_MarketingChannelsWorkspace.tsx"));
     const routes = read(join(BUILT_INS, "modules", "agency-marketing", "src", "api", "routes.ts"));
 
-    for (const label of ["Campaigns", "Social media", "Websites", "Funnels", "Google Ads", "Lead sources"]) {
+    for (const label of ["Campaigns", "Social media", "Websites", "Funnels", "Google Ads", "Lead sources", "Automations"]) {
       assert.ok(page.includes(`>${label}<`), `${label} marketing view missing`);
     }
     assert.ok(page.includes("Internal workspace"));

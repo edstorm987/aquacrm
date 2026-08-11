@@ -10,6 +10,8 @@ import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole, authErrorResponse } from "@/lib/server/auth";
 import { sweepExpired } from "@/lib/server/rateLimit";
+import { processAutomationSweep } from "@/server/automations";
+import { processInboxWebhookQueue } from "@/lib/server/inboxService";
 
 export async function GET() {
   await ensureHydrated();
@@ -18,6 +20,10 @@ export async function GET() {
   } catch (err) {
     return authErrorResponse(err);
   }
-  const stats = await sweepExpired();
-  return NextResponse.json({ ok: true, stats });
+  const [stats, automations, inbox] = await Promise.all([
+    sweepExpired(),
+    processAutomationSweep(),
+    processInboxWebhookQueue(100),
+  ]);
+  return NextResponse.json({ ok: true, stats: { ...stats, automations, inbox } });
 }

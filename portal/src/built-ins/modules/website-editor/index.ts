@@ -1,7 +1,7 @@
 // `@aqua/plugin-website-editor` — entry point.
 //
 // Default-exports the `AquaPlugin` manifest. The foundation reads this
-// at boot, registers nav items / pages / API routes, merges the 58
+// at boot, registers nav items / pages / API routes, merges the 70
 // blocks into the editor's storefront block registry, and wires plugin
 // storage.
 
@@ -15,9 +15,9 @@ const websiteEditorPlugin: AquaPlugin = {
   version: "0.1.0",
   status: "stable",
   category: "content",
-  tagline: "Visual page builder · 58 blocks · portal variants",
+  tagline: "Visual page builder · 70 blocks · portal variants",
   description:
-    "Full WYSIWYG editor with Live, Block, and Code modes. Edit any client portal as block trees. Includes a 58-block library covering layout, content, media, commerce, auth, and advanced surfaces, plus the Login/Affiliates/Orders/Account portal-variant admin.",
+    "Full WYSIWYG editor with Preview, Design, and Code modes. Edit any client site or portal as block trees. Includes a 70-block library covering layout, content, media, commerce, auth, and advanced surfaces, plus the Login/Affiliates/Orders/Account portal-variant admin.",
 
   requires: [],
 
@@ -39,14 +39,14 @@ const websiteEditorPlugin: AquaPlugin = {
     {
       path: "/portal/clients/[clientId]/editor",
       title: "Editor",
-      component: () => import("./src/pages/EditorPage"),
+      component: () => import("./src/pages/EditorRoutePage"),
     },
     {
       // Deep-link surface used by T1's agency-shell "Edit website" CTA.
       // Same EditorPage mounts here; reads ?page= and ?variant=.
       path: "/portal/clients/[clientId]/edit-website",
       title: "Editor",
-      component: () => import("./src/pages/EditorPage"),
+      component: () => import("./src/pages/EditorRoutePage"),
     },
     {
       path: "/portal/clients/[clientId]/pages",

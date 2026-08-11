@@ -7,13 +7,18 @@
 //   • Brand chip + back-to-admin link
 //   • Site picker
 //   • Page picker
-//   • Mode switcher (Live / Block / Code)
+//   • Mode switcher (Preview / Design / Code)
 //   • Edit / View toggle
 //   • Reload iframe
 //   • Connection indicator + unsaved counter
 //   • Action menu (undo / redo / save / publish)
 
 import Link from "next/link";
+import type { ReactNode } from "react";
+import {
+  ArrowLeft, Braces, Eye, FileText, Globe2, LayoutTemplate, Pencil,
+  Redo2, RefreshCw, Save, Settings, Sparkles, Undo2,
+} from "lucide-react";
 
 interface PageEntry { id: string; slug: string; title: string }
 interface SiteEntry { id: string; name: string }
@@ -21,6 +26,7 @@ interface SiteEntry { id: string; name: string }
 export type EditorMode = "live" | "block" | "code";
 
 interface Props {
+  backHref?: string;
   sites: SiteEntry[];
   siteId: string;
   onSiteChange: (id: string) => void;
@@ -31,6 +37,7 @@ interface Props {
   onModeChange: (mode: EditorMode) => void;
   edit: "edit" | "view";
   onEditChange: (mode: "edit" | "view") => void;
+  supportsInlineEdit?: boolean;
   onReload: () => void;
   iframeReady: boolean;
   unsaved: number;
@@ -64,10 +71,12 @@ interface Props {
 }
 
 export default function EditorTopBar({
+  backHref = "/portal/agency/development",
   sites, siteId, onSiteChange,
   pages, pageId, onPageChange,
   mode, onModeChange,
   edit, onEditChange,
+  supportsInlineEdit = true,
   onReload, iframeReady, unsaved,
   onUndo, onRedo, canUndo = false, canRedo = false,
   onSave, onPublish, onGenerate,
@@ -79,18 +88,18 @@ export default function EditorTopBar({
   const isPro = complexity === "pro";
   const isPage = targetKind === "page";
   return (
-    <header className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-white/5 bg-brand-black-soft">
+    <header className="flex shrink-0 items-center gap-2 overflow-x-auto overscroll-x-contain border-b border-white/5 bg-brand-black-soft px-2 py-2 [scrollbar-width:thin] [&>*]:shrink-0 sm:gap-3 sm:px-4">
       {/* Back chip */}
-      <Link href="/admin" className="flex items-center gap-1.5 text-[11px] text-cyan-400/70 hover:text-cyan-300" title="Back to admin">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-        <span>Admin</span>
+      <Link href={backHref} className="flex shrink-0 items-center gap-1.5 text-[11px] text-cyan-400/70 hover:text-cyan-300" title="Back to website workspace">
+        <ArrowLeft size={13} aria-hidden="true" />
+        <span>Website</span>
       </Link>
 
       <span className="w-px h-5 bg-white/10" />
 
       {/* Site picker — always visible */}
       <SelectChip
-        icon="◉"
+        icon={<Globe2 size={13} aria-hidden="true" />}
         label="Site"
         value={siteId}
         onChange={onSiteChange}
@@ -102,7 +111,7 @@ export default function EditorTopBar({
         <>
           {/* Page picker */}
           <SelectChip
-            icon="📄"
+            icon={<FileText size={13} aria-hidden="true" />}
             label="Page"
             value={pageId ?? ""}
             onChange={onPageChange}
@@ -129,22 +138,22 @@ export default function EditorTopBar({
           {/* Mode switcher — Simple gets Live only, Full/Pro see all three */}
           {!isSimple && (
             <div className="flex items-center gap-0.5 border border-white/10 rounded-lg p-0.5 bg-white/[0.02]">
-              <ModeBtn current={mode} value="live"  onClick={onModeChange} icon="◧" label="Live" title="Live editor (iframe + click-to-edit)" />
-              <ModeBtn current={mode} value="block" onClick={onModeChange} icon="▦" label="Block" title="Block-based drag-drop builder" />
-              <ModeBtn current={mode} value="code"  onClick={onModeChange} icon="</>" label="Code" title="JSON tree / code view" />
+              <ModeBtn current={mode} value="live"  onClick={onModeChange} icon={<Eye size={13} />} label="Preview" title="Preview and click-to-edit the live page" />
+              <ModeBtn current={mode} value="block" onClick={onModeChange} icon={<LayoutTemplate size={13} />} label="Design" title="Drag, drop, arrange, and style the page" />
+              <ModeBtn current={mode} value="code"  onClick={onModeChange} icon={<Braces size={13} />} label="Code" title="Edit structure, CSS, head, and footer code" />
             </div>
           )}
 
           {/* Edit / View */}
-          {mode === "live" && (
+          {mode === "live" && supportsInlineEdit && (
             <div className="flex items-center gap-0.5 border border-white/10 rounded-lg p-0.5 bg-white/[0.02]">
-              <ToggleBtn active={edit === "edit"} onClick={() => onEditChange("edit")} icon="✎" title="Edit mode" />
-              <ToggleBtn active={edit === "view"} onClick={() => onEditChange("view")} icon="👁" title="Preview mode" />
+              <ToggleBtn active={edit === "edit"} onClick={() => onEditChange("edit")} icon={<Pencil size={13} />} title="Edit mode" />
+              <ToggleBtn active={edit === "view"} onClick={() => onEditChange("view")} icon={<Eye size={13} />} title="Preview mode" />
             </div>
           )}
 
           {/* Reload */}
-          <IconBtn onClick={onReload} title="Reload preview" aria-label="Reload preview">↻</IconBtn>
+          <IconBtn onClick={onReload} title="Reload preview" aria-label="Reload preview"><RefreshCw size={14} /></IconBtn>
         </>
       ) : (
         <span
@@ -185,8 +194,8 @@ export default function EditorTopBar({
       {/* Undo / redo — hidden in Simple mode to keep the toolbar quiet */}
       {onUndo && !isSimple && (
         <>
-          <IconBtn onClick={onUndo} title="Undo (⌘Z)" aria-label="Undo" disabled={!canUndo}>↶</IconBtn>
-          <IconBtn onClick={() => onRedo?.()} title="Redo (⌘⇧Z)" aria-label="Redo" disabled={!canRedo}>↷</IconBtn>
+          <IconBtn onClick={onUndo} title="Undo (⌘Z)" aria-label="Undo" disabled={!canUndo}><Undo2 size={14} /></IconBtn>
+          <IconBtn onClick={() => onRedo?.()} title="Redo (⌘⇧Z)" aria-label="Redo" disabled={!canRedo}><Redo2 size={14} /></IconBtn>
           <span className="w-px h-5 bg-white/10" />
         </>
       )}
@@ -210,7 +219,7 @@ export default function EditorTopBar({
           head/foot, theme override, layout overrides). Reachable from
           the Outliner in Full mode; promoted to a topbar gear in Pro. */}
       {isPro && onOpenPageSettings && (
-        <IconBtn onClick={onOpenPageSettings} title="Page settings — head/foot, theme, layout overrides" aria-label="Page settings">⚙</IconBtn>
+        <IconBtn onClick={onOpenPageSettings} title="Page settings — head/foot, theme, layout overrides" aria-label="Page settings"><Settings size={14} /></IconBtn>
       )}
 
       {/* Round-7: AI page-builder. Hidden when ai-builder plugin is
@@ -219,17 +228,17 @@ export default function EditorTopBar({
       {onGenerate && (
         <button
           onClick={onGenerate}
-          className="px-3 py-1.5 rounded-md text-[11px] font-medium bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/20"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-200 border border-fuchsia-400/20"
           title="Generate a page section with AI"
           aria-label="Generate with AI"
         >
-          ✨ Generate
+          <Sparkles size={13} aria-hidden="true" /> Generate
         </button>
       )}
 
       {/* Save */}
       {onSave && (
-        <IconBtn onClick={onSave} title="Save (⌘S)" aria-label="Save" highlighted>💾</IconBtn>
+        <IconBtn onClick={onSave} title="Save (⌘S)" aria-label="Save" highlighted><Save size={14} /></IconBtn>
       )}
 
       {/* Publish */}
@@ -257,7 +266,7 @@ export default function EditorTopBar({
 function SelectChip({
   icon, label, value, onChange, options, title, wide, allowEmpty,
 }: {
-  icon: string;
+  icon: ReactNode;
   label: string;
   value: string;
   onChange: (v: string) => void;
@@ -267,12 +276,12 @@ function SelectChip({
   allowEmpty?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-1.5" title={title}>
-      <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">{icon} {label}</span>
+    <label className="flex shrink-0 items-center gap-1.5" title={title}>
+      <span className="flex items-center gap-1 text-[10px] tracking-wider uppercase text-brand-cream/45">{icon} {label}</span>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className={`bg-white/5 border border-white/10 rounded-md px-2 py-1 text-[12px] text-brand-cream focus:outline-none focus:border-cyan-400/40 ${wide ? "min-w-[200px]" : ""}`}
+        className={`max-w-[min(15rem,62vw)] rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[12px] text-brand-cream focus:border-cyan-400/40 focus:outline-none ${wide ? "min-w-[min(12rem,50vw)] sm:min-w-[200px]" : ""}`}
       >
         {(options.length === 0 || allowEmpty) && <option value="">(none)</option>}
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -287,7 +296,7 @@ function ModeBtn<T extends string>({
   current: T;
   value: T;
   onClick: (v: T) => void;
-  icon: string;
+  icon: ReactNode;
   label: string;
   title?: string;
 }) {
@@ -313,7 +322,7 @@ function ToggleBtn({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: string;
+  icon: ReactNode;
   title: string;
 }) {
   return (

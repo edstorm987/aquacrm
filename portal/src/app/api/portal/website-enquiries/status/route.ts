@@ -37,17 +37,26 @@ export async function PATCH(request: Request) {
 
     const enquiry = data as EnquiryRow;
     const now = new Date().toISOString();
-    const {
-      resolvedAt: _resolvedAt,
-      resolvedBy: _resolvedBy,
-      ...currentMetadata
-    } = enquiry.metadata ?? {};
+    const currentMetadata = enquiry.metadata ?? {};
+    const history = Array.isArray(currentMetadata.inboxStatusHistory)
+      ? currentMetadata.inboxStatusHistory.slice(-99)
+      : [];
     const metadata = {
       ...currentMetadata,
       inboxStatus: status,
       inboxStatusAt: now,
       inboxStatusBy: session.userId,
-      ...(status === "resolved" ? { resolvedAt: now, resolvedBy: session.userId } : {}),
+      inboxStatusHistory: [...history, { status, at: now, by: session.userId }],
+      ...((status === "reviewed" || status === "resolved") ? {
+        firstReviewedAt: typeof currentMetadata.firstReviewedAt === "string" ? currentMetadata.firstReviewedAt : now,
+        lastReviewedAt: now,
+        lastReviewedBy: session.userId,
+      } : {}),
+      ...(status === "resolved" ? {
+        firstResolvedAt: typeof currentMetadata.firstResolvedAt === "string" ? currentMetadata.firstResolvedAt : now,
+        lastResolvedAt: now,
+        lastResolvedBy: session.userId,
+      } : {}),
     };
     const { error: updateError } = await supabase
       .from("brand_enquiries")

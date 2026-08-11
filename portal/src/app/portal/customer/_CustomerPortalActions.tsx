@@ -701,12 +701,12 @@ export function CustomerFileLinkForm({ clientId, readOnly = false }: { clientId:
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end">
         {mode === "upload" ? (
           <label className="grid gap-2 text-xs font-medium text-black/55">
-            Choose a file <span className="font-normal text-black/35">PDF, document, image, video or text · up to 4 MB</span>
+            Choose a file <span className="font-normal text-black/35">PDF, document, image, video or text · up to 50 MB</span>
             <input
               type="file"
               disabled={readOnly}
               onChange={event => setFile(event.target.files?.[0] ?? null)}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.csv,.txt,.mp4"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.heic,.heif,.csv,.txt,.mp4,.zip"
               className={`${CONTROL} cursor-pointer py-2 file:mr-3 file:rounded file:border-0 file:bg-black/[0.05] file:px-3 file:py-1 file:text-xs`}
             />
           </label>

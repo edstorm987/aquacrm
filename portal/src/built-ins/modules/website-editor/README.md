@@ -1,6 +1,6 @@
 # @aqua/plugin-website-editor
 
-Visual page builder + 58-block library + portal-variant admin for the
+Visual page builder + 70-block library + portal-variant admin for the
 Aqua portal. Owned by Terminal 3 of the Round-1 mesh.
 
 ## Manifest summary
@@ -14,13 +14,13 @@ Aqua portal. Owned by Terminal 3 of the Round-1 mesh.
 | `navItems` | 8 (Editor / Pages / Portals / Customise / Themes / Assets / Sections / Popups) |
 | `pages` | 11 admin routes (full list in `01 development/context/prior research/04-plugin-website-editor.md`) |
 | `api` | ~30 handlers under `/api/portal/website-editor/*` |
-| `storefront.blocks` | 58 blocks across 6 categories |
+| `storefront.blocks` | 70 blocks across 6 categories |
 | `features` | 8 toggles (simpleEditor, advancedEditor, codeView, templates, versionHistory, customCSS, headInjection, customDomain) |
 
 ## What this plugin owns
 
 - **Editor surface** — the Live/Block/Code visual editor with Simple/Full/Pro complexity tiers.
-- **58 blocks** — layout (7), content (14), media (7), commerce (11), auth (5), advanced (8), plus 6 internal canvas helpers. See `aqua-blocks.md` for the full table.
+- **70 blocks** — layout (7), content (33), media (8), commerce (11), auth (5), and advanced (6). See `aqua-blocks.md` for the full table.
 - **Portal-variant admin** — Login / Affiliates / Orders / Account tabs that manage `EditorPage` rows scoped by `portalRole` with singleton-enforced `isActivePortal` per `(siteId, role)`.
 - **Storefront overlay** — `PortalEditOverlay`, `PortalPageRenderer`, `PreviewBar`, `SiteHead` (meta only), `EditorThemeInjector`.
 
@@ -31,7 +31,7 @@ Aqua portal. Owned by Terminal 3 of the Round-1 mesh.
 - `default` — the `AquaPlugin` manifest (registered by foundation).
 - `./server` — `applyStarterVariant`, `listVariantsForPortal`, `getActivePortalVariant`, `setActivePortalVariant`. T2's fulfillment plugin calls these from phase transitions.
 - `./types` — `AquaPlugin`, `PortalRole`, `Block`, `EditorPage`, `Site`, `ThemeRecord`, etc.
-- `./components` — `BlockRenderer`, `PortalPageRenderer`, the 58 block components (post step 5).
+- `./components` — `BlockRenderer`, `PortalPageRenderer`, the 70 block components (post step 5).
 
 ## `applyStarterVariant` contract
 
@@ -80,7 +80,7 @@ plugins/website-editor/
     ├── server/                 # ports + portalVariants + (step 6) pages/themes/content/preview/etc.
     ├── api/                    # (step 8) PluginApiRoute[] + handlers
     ├── pages/                  # (step 9) admin page components mounted via PluginPage[]
-    ├── components/             # (steps 3–5) editor + 58 blocks + storefront overlay
+    ├── components/             # (steps 3–5) editor + 70 blocks + storefront overlay
     ├── starters/               # (step 12) JSON starter trees, one per variantId
     └── __smoke__/              # (step 13) imports every block to force module evaluation
 ```

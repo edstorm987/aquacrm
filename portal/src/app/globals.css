@@ -1,4 +1,25 @@
+@import "@xyflow/react/dist/style.css";
 @import "tailwindcss";
+
+.aqua-automation-flow .react-flow__pane { cursor: grab; }
+.aqua-automation-flow .react-flow__pane:active { cursor: grabbing; }
+.aqua-automation-flow .react-flow__controls,
+.aqua-automation-flow .react-flow__minimap { border: 1px solid rgb(15 23 42 / 0.12); border-radius: 6px; box-shadow: none; overflow: hidden; }
+.aqua-automation-flow .react-flow__controls-button { border-color: rgb(15 23 42 / 0.08); }
+.aqua-automation-flow .react-flow__handle { width: 11px; height: 11px; border: 2px solid white; background: #087f8c; }
+.aqua-automation-node { position: relative; width: 220px; min-height: 105px; border: 1px solid rgb(15 23 42 / 0.16); border-left: 4px solid #187554; border-radius: 6px; background: white; padding: 14px; box-shadow: 0 5px 18px rgb(15 23 42 / 0.07); }
+.aqua-automation-node[data-node-kind="trigger"] { border-left-color: #087f8c; }
+.aqua-automation-node[data-node-kind="delay"] { border-left-color: #c77600; }
+.aqua-automation-node[data-node-kind="condition"] { border-left-color: #2563a8; }
+.aqua-automation-node.is-selected { border-color: #087f8c; box-shadow: 0 0 0 2px rgb(8 127 140 / 0.16), 0 8px 22px rgb(15 23 42 / 0.1); }
+[data-automation-workspace] .tool-button { display: inline-flex; height: 2rem; align-items: center; justify-content: center; gap: 0.375rem; border: 1px solid rgb(15 23 42 / 0.14); border-radius: 0.375rem; background: white; padding: 0 0.625rem; font-size: 0.75rem; font-weight: 600; color: #334155; }
+[data-automation-workspace] .tool-button:hover { background: #f8fafc; }
+[data-automation-workspace] .icon-button { display: inline-flex; width: 2rem; height: 2rem; align-items: center; justify-content: center; border: 1px solid rgb(15 23 42 / 0.14); border-radius: 0.375rem; background: white; }
+[data-automation-workspace] .node-add { display: inline-flex; height: 1.75rem; align-items: center; gap: 0.3rem; border-radius: 0.3rem; background: #f1f5f9; padding: 0 0.5rem; font-size: 0.7rem; font-weight: 600; color: #475569; }
+[data-automation-workspace] .field-label { display: grid; gap: 0.35rem; margin-bottom: 0.9rem; font-size: 0.7rem; font-weight: 700; color: #475569; }
+[data-automation-workspace] .field-label > :is(input, select, textarea) { width: 100%; border: 1px solid rgb(15 23 42 / 0.15); border-radius: 0.375rem; background: white; padding: 0.55rem 0.65rem; font-size: 0.78rem; font-weight: 400; color: #0f172a; outline: none; }
+[data-automation-workspace] .field-label > :is(input, select, textarea):focus { border-color: #087f8c; box-shadow: 0 0 0 2px rgb(8 127 140 / 0.12); }
+[data-automation-workspace] .field-label > span { font-size: 0.65rem; font-weight: 400; color: #64748b; }
 
 /* Default brand variables. Each tenant's <ThemeInjector> overrides these
    at the page root. The marketing landing page uses the defaults. */
@@ -20,6 +41,19 @@
 
 @theme inline {
   --color-brand: var(--brand-primary);
+  /* Website editor chrome. These tokens are deliberately fixed because the
+     builder is a dark production tool even when the surrounding CRM is light. */
+  --color-brand-black: #0a0a0a;
+  --color-brand-black-soft: #101010;
+  --color-brand-black-card: #171717;
+  --color-brand-cream: #f5f1e8;
+  --color-brand-orange: #f97316;
+  --color-brand-orange-dark: #c2410c;
+  --color-brand-orange-light: #fdba74;
+  --color-brand-cyan: #22d3ee;
+  --color-brand-amber: #fbbf24;
+  --color-brand-purple: #a855f7;
+  --color-brand-purple-light: #d8b4fe;
 }
 
 /* Was `html, body { height: 100% }` — that capped the body to one
@@ -163,12 +197,20 @@ html[data-color-mode="dark"] .mm-portal-root {
 }
 
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/95"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/90"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/85"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/80"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/75"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/70"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/65"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/60"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/55"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/50"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/45"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/40"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/35"],
+html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/30"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/25"],
 html[data-color-mode="dark"] .mm-portal-root [class~="bg-white/20"],
 html[data-color-mode="dark"] .mm-portal-root [class*="bg-[#f"]:not([class*="hover:bg-[#f"]),
@@ -235,6 +277,84 @@ html[data-color-mode="dark"] .mm-portal-root .plugin-page-shell:not([data-plugin
 html[data-color-mode="dark"] .mm-portal-root .mm-color-mode-toggle {
   background: #242520 !important;
   color: #F2F1EC !important;
+}
+
+.mm-profile-trigger[data-open="true"] {
+  border-color: #B08A49;
+  background: #F8EEDB;
+  box-shadow: 0 0 0 3px rgb(176 138 73 / 0.14), 0 4px 12px rgb(64 44 19 / 0.08);
+}
+
+.mm-profile-menu-header {
+  background: #F8EEDB;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-trigger {
+  border-color: rgb(212 184 136 / 0.45) !important;
+  background: #171009 !important;
+  color: #F7EFE2 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-trigger[data-open="true"] {
+  border-color: rgb(212 184 136 / 0.78) !important;
+  background: #24180D !important;
+  box-shadow: 0 0 0 3px rgb(212 184 136 / 0.14), 0 5px 14px rgb(0 0 0 / 0.24);
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-theme-toggle {
+  color: #F5F4EF !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-theme-toggle:hover,
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-theme-icon {
+  background: rgb(212 184 136 / 0.13) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-theme-icon {
+  color: #E2C795 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu {
+  border-color: rgb(212 184 136 / 0.38) !important;
+  background: #1A1B18 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu-header {
+  border-color: rgb(212 184 136 / 0.22) !important;
+  background: #171009 !important;
+  color: #F7EFE2 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu-name {
+  color: #FFF8EB !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu-email {
+  color: #D8C6A8 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is(.mm-profile-menu-account-label, .mm-profile-menu-role) {
+  color: #D4B888 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu [role="menuitem"] {
+  color: #F5F4EF !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu [role="menuitem"] > svg {
+  color: #E2C795 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu [role="menuitem"]:hover {
+  background: rgb(212 184 136 / 0.11) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu-footer {
+  border-color: rgb(255 255 255 / 0.12) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu .mm-profile-menu-signout {
+  color: #FCA5A5 !important;
 }
 
 /* A calm, consistent frame for built-in workspace pages. Specialist editors
@@ -354,6 +474,23 @@ html[data-color-mode="dark"] .mm-portal-root .mm-color-mode-toggle {
   outline: 2px solid var(--brand-accent, currentColor);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* Universal search carries its accessible focus state on the whole field. */
+.mm-universal-search-input:focus,
+.mm-universal-search-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-universal-search-input {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-universal-search-field:focus-within {
+  background: rgb(255 255 255 / 0.055) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 24%, transparent) !important;
 }
 
 /* Hide visually but keep accessible to screen readers. */
@@ -1480,6 +1617,9 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
    unrelated mini-apps. */
 .mm-route-canvas {
   --area-accent: #0b6f6d;
+  width: auto;
+  min-width: 0;
+  max-width: none;
   min-height: calc(100% + 2.5rem);
   margin: -1.25rem -1rem;
   padding: 1.25rem 1rem 2rem;
@@ -1487,10 +1627,323 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   background: color-mix(in srgb, var(--area-accent) 3.5%, var(--brand-bg, #fafafa));
 }
 
+/* Responsive workspace foundation. Flex and grid descendants default to
+   min-width:auto, which lets dense controls silently push past a tablet or
+   phone viewport. Keep content shrinkable and give intentional scrollers the
+   momentum and containment expected from a touch-first business app. */
+.mm-portal-root,
+.mm-portal-root > *,
+.mm-portal-root main#main-content,
+.mm-route-canvas > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-portal-root {
+  width: 100%;
+  max-width: 100vw;
+}
+
+.mm-portal-topbar,
+.mm-private-surface {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-route-canvas :where(.flex, .grid) > * {
+  min-width: 0;
+}
+
+.mm-route-canvas :where(h1, h2, h3, h4, p, li, dt, dd, label) {
+  overflow-wrap: anywhere;
+}
+
+.mm-route-canvas :where(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+.mm-route-canvas :where(img, video, canvas, iframe) {
+  max-width: 100%;
+}
+
+.mm-route-canvas :where(input, select, textarea, button, a, fieldset, details, summary) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mm-route-canvas :where(pre, code) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.mm-route-canvas pre {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  white-space: pre;
+}
+
+/* Horizontal navigation must scroll as a row on narrow screens. Flex items
+   otherwise shrink until their labels overlap, which is especially damaging
+   in finance, inbox and experience workspaces. */
+.mm-route-canvas [role="tablist"] > :is([role="tab"], button, a),
+.mm-route-canvas nav.overflow-x-auto > :is(button, a) {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.mm-route-canvas :is([role="tablist"], nav.overflow-x-auto) {
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+}
+
+.mm-route-canvas .overflow-x-auto,
+.plugin-page-shell:not([data-plugin-id="website-editor"]) table {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--area-accent, #0b6f6d) 34%, transparent) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mm-route-canvas .overflow-x-auto::-webkit-scrollbar,
+.plugin-page-shell:not([data-plugin-id="website-editor"]) table::-webkit-scrollbar {
+  height: 4px;
+}
+
+.mm-route-canvas .overflow-x-auto::-webkit-scrollbar-thumb,
+.plugin-page-shell:not([data-plugin-id="website-editor"]) table::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--area-accent, #0b6f6d) 34%, transparent);
+}
+
+.mm-route-canvas [role="dialog"] {
+  overscroll-behavior: contain;
+}
+
+/* Aqua motion system.
+   Motion stays short and functional: it establishes hierarchy, confirms an
+   interaction, and makes overlays easier to track without slowing repeated
+   operational work. Individual transform properties preserve component-level
+   transforms used by drawers, editors and drag-and-drop surfaces. */
+:root {
+  --mm-motion-fast: 120ms;
+  --mm-motion-base: 180ms;
+  --mm-motion-slow: 280ms;
+  --mm-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --mm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --mm-ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+}
+
+@keyframes mm-route-enter {
+  from {
+    opacity: 0.72;
+    translate: 0 5px;
+  }
+  to {
+    opacity: 1;
+    translate: none;
+  }
+}
+
+@keyframes mm-dialog-enter {
+  from {
+    opacity: 0;
+    scale: 0.985;
+    translate: 0 8px;
+  }
+  to {
+    opacity: 1;
+    scale: none;
+    translate: none;
+  }
+}
+
+@keyframes mm-backdrop-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mm-drawer-left-enter {
+  from { translate: -100% 0; }
+  to { translate: none; }
+}
+
+@keyframes mm-popover-enter {
+  from {
+    opacity: 0;
+    scale: 0.975;
+    translate: 0 -5px;
+  }
+  to {
+    opacity: 1;
+    scale: none;
+    translate: none;
+  }
+}
+
+@keyframes mm-toast-enter {
+  from {
+    opacity: 0;
+    translate: 12px 0;
+  }
+  to {
+    opacity: 1;
+    translate: none;
+  }
+}
+
+@keyframes mm-nav-icon-settle {
+  0% { scale: 0.86; }
+  70% { scale: 1.06; }
+  100% { scale: none; }
+}
+
+@keyframes mm-badge-enter {
+  0% {
+    opacity: 0;
+    scale: 0.45;
+  }
+  70% {
+    opacity: 1;
+    scale: 1.12;
+  }
+  100% {
+    opacity: 1;
+    scale: none;
+  }
+}
+
+@keyframes mm-disclosure-enter {
+  from {
+    opacity: 0;
+    translate: 0 -3px;
+  }
+  to {
+    opacity: 1;
+    translate: none;
+  }
+}
+
+.mm-route-canvas[data-mm-route-motion] {
+  animation: mm-route-enter var(--mm-motion-slow) var(--mm-ease-out);
+  transform-origin: top center;
+}
+
+.mm-modal-backdrop {
+  animation: mm-backdrop-enter var(--mm-motion-base) ease-out;
+}
+
+.mm-drawer-panel-left {
+  animation: mm-drawer-left-enter var(--mm-motion-slow) var(--mm-ease-out);
+}
+
+.mm-drawer-panel-right {
+  transition-timing-function: var(--mm-ease-out) !important;
+}
+
+.mm-popover {
+  animation: mm-popover-enter var(--mm-motion-base) var(--mm-ease-out);
+  transform-origin: top right;
+}
+
+.mm-toast {
+  animation: mm-toast-enter var(--mm-motion-slow) var(--mm-ease-out);
+}
+
+.mm-has-attention-badge {
+  z-index: 20;
+  isolation: isolate;
+}
+
+.mm-attention-badge {
+  z-index: 30;
+  pointer-events: none;
+  animation: mm-badge-enter 320ms var(--mm-ease-spring);
+}
+
+.mm-dialog-panel,
+.mm-portal-root [role="dialog"][aria-modal="true"]:not(.fixed) {
+  animation: mm-dialog-enter var(--mm-motion-slow) var(--mm-ease-out);
+  transform-origin: center;
+}
+
+.mm-portal-root details[open] > :not(summary) {
+  animation: mm-disclosure-enter var(--mm-motion-base) var(--mm-ease-out);
+}
+
+.mm-portal-root :is(button, a[href], [role="button"], [role="tab"]),
+.mm-portal-root :is(input, select, textarea),
+.mm-portal-root :is(.mm-surface-card, .mm-kpi-card, .mm-finance-metric, .mm-interactive-row) {
+  transition-timing-function: var(--mm-ease-standard);
+}
+
+.mm-portal-root :is(button, a[href], [role="button"], [role="tab"]):not(:disabled):active {
+  scale: 0.975;
+  transition-duration: var(--mm-motion-fast);
+}
+
+.mm-portal-root :is(input, select, textarea):not(:disabled) {
+  transition-property: border-color, background-color, box-shadow, color, opacity;
+  transition-duration: var(--mm-motion-base);
+}
+
+.mm-portal-root :is(input, select, textarea):not(:disabled):focus {
+  border-color: color-mix(in srgb, var(--area-accent, #0b6f6d) 48%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--area-accent, #0b6f6d) 10%, transparent);
+}
+
+.mm-sidebar-link.is-active .mm-sidebar-link-icon {
+  animation: mm-nav-icon-settle 240ms var(--mm-ease-spring) both;
+}
+
+.mm-portal-topbar button > svg,
+.mm-portal-topbar a > svg,
+.mm-sidebar-link-icon > svg {
+  transition: translate var(--mm-motion-base) var(--mm-ease-out), scale var(--mm-motion-base) var(--mm-ease-out), rotate var(--mm-motion-base) var(--mm-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mm-portal-topbar :is(button, a):hover > svg,
+  .mm-sidebar-link:hover .mm-sidebar-link-icon > svg {
+    scale: 1.06;
+    translate: 0 -1px;
+  }
+
+  .mm-kpi-card:hover,
+  .mm-finance-metric:hover {
+    translate: 0 -2px;
+    border-color: color-mix(in srgb, var(--area-accent, #0b6f6d) 26%, var(--mm-border));
+    box-shadow: 0 12px 28px rgb(0 0 0 / 0.07);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-portal-root,
+  .mm-portal-root *,
+  .mm-modal-backdrop,
+  .mm-drawer-panel-left,
+  .mm-drawer-panel-right,
+  .mm-popover,
+  .mm-toast,
+  .mm-dialog-panel {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
 .mm-route-canvas[data-portal-area="company"] { --area-accent: #4f46e5; }
 .mm-route-canvas[data-portal-area="actions"] { --area-accent: #c77600; }
+.mm-route-canvas[data-portal-area="calendar"] { --area-accent: #168076; }
+.mm-route-canvas[data-portal-area="notepad"] { --area-accent: #9a6a16; }
+.mm-route-canvas[data-portal-area="automations"] { --area-accent: #087f8c; }
 .mm-route-canvas[data-portal-area="inbox"] { --area-accent: #0b78a6; }
 .mm-route-canvas[data-portal-area="clients"] { --area-accent: #7651a8; }
+.mm-route-canvas[data-portal-area="fulfilment"] { --area-accent: #19786f; }
 .mm-route-canvas[data-portal-area="portals"] { --area-accent: #087f8c; }
 .mm-route-canvas[data-portal-area="delight"] { --area-accent: #be4365; }
 .mm-route-canvas[data-portal-area="journey"] { --area-accent: #b95d12; }
@@ -1672,6 +2125,11 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 
 html[data-color-mode="dark"] .mm-customer-portal {
   --portal-accent: var(--portal-accent-dark, #c9a76a) !important;
+  --portal-bg: #111210 !important;
+  --portal-surface: #1a1b18 !important;
+  --portal-hero: #20211e !important;
+  background-color: #111210 !important;
+  color: #f5f4ef !important;
 }
 
 html[data-color-mode="dark"] .mm-portal-root {
@@ -1715,6 +2173,10 @@ html[data-color-mode="dark"] .mm-portal-root .text-brand:not(.bg-brand) {
   color: #72d0ca !important;
 }
 
+html[data-color-mode="dark"] .mm-portal-root [class*="text-[#087f8c]"] {
+  color: #67e8f9 !important;
+}
+
 html[data-color-mode="dark"] .mm-portal-root [class*="bg-[#D4B888]"][class*="text-[#171009]"] {
   color: #171009 !important;
 }
@@ -1725,6 +2187,75 @@ html[data-color-mode="dark"] .mm-portal-root .bg-brand\/10 {
 
 html[data-color-mode="dark"] .mm-portal-root :is(input, textarea)::placeholder {
   color: rgb(245 244 239 / 0.56) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is(
+  [class*="text-slate-3"],
+  [class*="text-slate-4"],
+  [class*="text-slate-5"],
+  [class*="text-slate-6"],
+  [class*="text-slate-7"],
+  [class*="text-gray-3"],
+  [class*="text-gray-4"],
+  [class*="text-gray-5"],
+  [class*="text-gray-6"],
+  [class*="text-gray-7"],
+  [class*="text-zinc-3"],
+  [class*="text-zinc-4"],
+  [class*="text-zinc-5"],
+  [class*="text-zinc-6"],
+  [class*="text-zinc-7"],
+  [class*="text-neutral-3"],
+  [class*="text-neutral-4"],
+  [class*="text-neutral-5"],
+  [class*="text-neutral-6"],
+  [class*="text-neutral-7"]
+) {
+  color: rgb(245 244 239 / 0.76) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is(
+  [class*="text-slate-8"],
+  [class*="text-slate-9"],
+  [class*="text-gray-8"],
+  [class*="text-gray-9"],
+  [class*="text-zinc-8"],
+  [class*="text-zinc-9"],
+  [class*="text-neutral-8"],
+  [class*="text-neutral-9"]
+) {
+  color: #f5f4ef !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is(
+  [class*="bg-slate-50"],
+  [class*="bg-slate-100"],
+  [class*="bg-gray-50"],
+  [class*="bg-gray-100"],
+  [class*="bg-zinc-50"],
+  [class*="bg-zinc-100"],
+  [class*="bg-neutral-50"],
+  [class*="bg-neutral-100"]
+) {
+  background-color: rgb(255 255 255 / 0.055) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is(
+  [class*="bg-slate-200"],
+  [class*="bg-gray-200"],
+  [class*="bg-zinc-200"],
+  [class*="bg-neutral-200"]
+) {
+  background-color: rgb(255 255 255 / 0.1) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root :is(
+  [class*="border-slate-"],
+  [class*="border-gray-"],
+  [class*="border-zinc-"],
+  [class*="border-neutral-"]
+) {
+  border-color: rgb(255 255 255 / 0.12) !important;
 }
 
 html[data-color-mode="dark"] .mm-portal-root [class*="text-red-"] {
@@ -1783,6 +2314,53 @@ html[data-color-mode="dark"] .mm-portal-root :is([class*="bg-pink-50"], [class*=
   background-color: rgb(244 114 182 / 0.1) !important;
 }
 
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] .aqua-automation-flow {
+  --xy-background-color-default: #141512;
+  --xy-node-color-default: #f5f4ef;
+  --xy-node-border-default: 1px solid rgb(255 255 255 / 0.14);
+  --xy-edge-stroke-default: rgb(245 244 239 / 0.44);
+  --xy-controls-button-background-color-default: #20211e;
+  --xy-controls-button-background-color-hover-default: #292a26;
+  --xy-controls-button-color-default: #f5f4ef;
+  --xy-controls-button-border-color-default: rgb(255 255 255 / 0.12);
+  --xy-minimap-background-color-default: #1a1b18;
+  background: #141512;
+}
+
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] :is(.tool-button, .icon-button, .node-add) {
+  border-color: rgb(255 255 255 / 0.14);
+  background: #20211e;
+  color: #f5f4ef;
+}
+
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] :is(.tool-button, .icon-button, .node-add):hover {
+  background: #292a26;
+}
+
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] :is(.field-label, .field-label > span) {
+  color: rgb(245 244 239 / 0.76);
+}
+
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] .aqua-automation-node {
+  border-color: rgb(255 255 255 / 0.16);
+  background: #1a1b18;
+  color: #f5f4ef;
+  box-shadow: 0 5px 18px rgb(0 0 0 / 0.28);
+}
+
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] .aqua-automation-node.is-selected {
+  border-color: #67e8f9;
+  box-shadow: 0 0 0 2px rgb(103 232 249 / 0.18), 0 8px 22px rgb(0 0 0 / 0.32);
+}
+
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] .react-flow__attribution {
+  background: rgb(26 27 24 / 0.92);
+}
+
+html[data-color-mode="dark"] .mm-portal-root [data-automation-workspace] .react-flow__attribution a {
+  color: rgb(245 244 239 / 0.7);
+}
+
 html[data-color-mode="dark"] .mm-portal-root .plugin-page-shell:not([data-plugin-id="website-editor"]) :is(
   [class$="-list-header"] h1,
   [class*="-card"]:not(svg) h3,
@@ -1816,8 +2394,21 @@ html[data-color-mode="dark"] .mm-portal-root .plugin-page-shell:not([data-plugin
     scroll-padding: 1rem;
   }
 
+  .mm-route-canvas :where(h1, .text-3xl) {
+    font-size: 1.5rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .mm-route-canvas .overflow-x-auto {
+    scroll-padding-inline: 1rem;
+  }
+
   .mm-portal-root [role="dialog"] {
     max-height: 100dvh;
     overscroll-behavior: contain;
+  }
+
+  .mm-route-canvas [role="dialog"] :where(header, footer) {
+    flex-wrap: wrap;
   }
 }

@@ -1,9 +1,10 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
-import { normaliseCurrency } from "../lib/currencies";
 import { containerFor } from "../server/foundationAdapter";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
 
 export default async function SettingsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
+  const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
   const [categories, invoices, expenses] = await Promise.all([
     c.categories.list(),
     c.invoices.list(),
@@ -29,7 +30,7 @@ export default async function SettingsPage(props: PluginPageProps) {
       </ul>
       <h2>Install</h2>
       <dl className="finance-settings-grid">
-        <div><dt>Default currency</dt><dd>{normaliseCurrency(props.install.config.defaultCurrency, "gbp").toUpperCase()}</dd></div>
+        <div><dt>Default currency</dt><dd>{defaultCurrency.toUpperCase()}</dd></div>
         <div><dt>Plugin id</dt><dd>{props.install.pluginId}</dd></div>
         <div><dt>Enabled</dt><dd>{props.install.enabled ? "Yes" : "No"}</dd></div>
       </dl>

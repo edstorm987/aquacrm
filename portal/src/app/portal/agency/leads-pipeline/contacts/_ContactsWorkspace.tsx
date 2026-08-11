@@ -9,6 +9,7 @@ import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMe
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { FileSpreadsheet, Plus, SlidersHorizontal, Tags, Trash2, Upload } from "lucide-react";
 import { CommercialPackModal } from "./_CommercialPackModal";
+import { formatElapsed } from "@/lib/leadTiming";
 
 type CustomFieldType = "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox";
 type CustomFieldValue = string | string[] | boolean;
@@ -31,7 +32,10 @@ interface LeadRow {
   source: string;
   tags: string[];
   notes?: string;
+  firstContactedAt?: number;
   lastContactedAt?: number;
+  convertedAt?: number;
+  journeyEvents?: Array<{ id: string; type: string; at: number }>;
   nextMeetingAt?: number;
   meetingLink?: string;
   meetingNotes?: string;
@@ -54,11 +58,16 @@ interface ContactRow {
   meetingLink?: string;
   meetingNotes?: string;
   promotedFromLeadId?: string;
+  leadCapturedAt?: number;
+  firstContactedAt?: number;
+  convertedAt?: number;
+  leadJourneyEvents?: Array<{ id: string; type: string; at: number }>;
   createdAt: number;
   customFields?: Record<string, CustomFieldValue>;
 }
 
 interface ContactsWorkspaceProps {
+  referenceNow: number;
   contacts: ContactRow[];
   leads: LeadRow[];
   initialCustomFields: CustomFieldDefinition[];
@@ -100,7 +109,7 @@ const IMPORT_TEMPLATE = [
   "jane@example.com,Jane Smith,07123456789,Example Ltd,\"warm;google-profile\",google-maps,\"Needs website and Google profile help\"",
 ].join("\n");
 
-export function ContactsWorkspace({ contacts, leads, initialCustomFields, initialCustomTags, initialImportOpen = false }: ContactsWorkspaceProps) {
+export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustomFields, initialCustomTags, initialImportOpen = false }: ContactsWorkspaceProps) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [contact, setContact] = useState(EMPTY_CONTACT);
@@ -939,6 +948,7 @@ export function ContactsWorkspace({ contacts, leads, initialCustomFields, initia
               onSaveMeeting={(date, notes) => saveMeeting("lead", lead.id, date, notes)}
               onOpenCommercial={() => setCommercialParty({ kind: "lead", id: lead.id, name: lead.name, company: lead.company, email: lead.email })}
               customFieldDefinitions={customFields}
+              referenceNow={referenceNow}
             />
           ))}
         </ListPanel>
@@ -962,6 +972,7 @@ export function ContactsWorkspace({ contacts, leads, initialCustomFields, initia
               onSaveMeeting={(date, notes) => saveMeeting("contact", row.id, date, notes)}
               onOpenCommercial={() => setCommercialParty({ kind: "contact", id: row.id, name: row.name, company: row.company, email: row.email })}
               customFieldDefinitions={customFields}
+              referenceNow={referenceNow}
             />
           ))}
         </ListPanel>
@@ -986,6 +997,7 @@ function PersonCard({
   meetingBusy,
   onOpenCommercial,
   customFieldDefinitions,
+  referenceNow,
 }: {
   row: LeadRow | ContactRow;
   badge: string;
@@ -1002,7 +1014,12 @@ function PersonCard({
   meetingBusy?: boolean;
   onOpenCommercial: () => void;
   customFieldDefinitions: CustomFieldDefinition[];
+  referenceNow: number;
 }) {
+  const journeyStartedAt = "capturedAt" in row ? row.capturedAt : row.leadCapturedAt;
+  const firstContactedAt = row.firstContactedAt;
+  const convertedAt = row.convertedAt;
+  const journeyEventCount = "capturedAt" in row ? row.journeyEvents?.length : row.leadJourneyEvents?.length;
   return (
     <article className="rounded-lg border border-black/10 bg-white p-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -1033,6 +1050,13 @@ function PersonCard({
           Last contacted {new Date(row.lastContactedAt).toLocaleString()}
         </p>
       )}
+      {journeyStartedAt ? (
+        <dl className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 text-[10px]">
+          <div className="bg-white p-2"><dt className="text-black/38">Journey</dt><dd className="mt-1 font-semibold text-black/65">{formatElapsed((convertedAt ?? referenceNow) - journeyStartedAt)}</dd></div>
+          <div className="bg-white p-2"><dt className="text-black/38">First reply</dt><dd className="mt-1 font-semibold text-black/65">{firstContactedAt ? formatElapsed(firstContactedAt - journeyStartedAt) : "Waiting"}</dd></div>
+          <div className="bg-white p-2"><dt className="text-black/38">Trace</dt><dd className="mt-1 font-semibold text-black/65">{journeyEventCount ?? 0} events</dd></div>
+        </dl>
+      ) : null}
       {onSaveDetails && (
         <DetailsEditor
           name={row.name}

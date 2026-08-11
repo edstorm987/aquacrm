@@ -47,6 +47,7 @@ import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/githubProjec
 import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/vercelProjectDeployer";
 import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
 import { ClientContactsPanel } from "./_ClientContactsPanel";
+import { WebsiteBuilderLauncher } from "./_WebsiteBuilderLauncher";
 import {
   AQUA_PHASE_ORDER,
   AQUA_MILESTONES,
@@ -517,15 +518,13 @@ export default async function ClientHome({
         <section className="rounded-xl border border-black/10 bg-white p-6">
           <h2 className="text-lg font-medium text-black/90">Website</h2>
           <p className="mt-1 text-sm text-black/60">
-            Build pages, sections, assets, and launch previews for {client.name}.
+            Visually build pages and responsive sections, add custom code, preview every device, and publish when {client.name} is ready.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link
-              href={`/portal/clients/${client.id}/pages`}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90"
-            >
-              Edit website
-            </Link>
+            <WebsiteBuilderLauncher
+              clientId={client.id}
+              ready={installs.some(install => install.pluginId === "website-editor" && install.enabled)}
+            />
             {client.websiteUrl && (
               <a href={client.websiteUrl} target="_blank" rel="noreferrer" className="rounded-md border border-black/15 px-4 py-2 text-sm hover:bg-black/5">
                 Open live site ↗

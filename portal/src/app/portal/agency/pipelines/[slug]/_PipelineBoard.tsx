@@ -35,6 +35,9 @@ export function PipelineBoard({
   cards,
   productKey,
   productViews,
+  productBasePath,
+  showProductOverview = true,
+  embedded = false,
 }: {
   title: string;
   eyebrow: string;
@@ -45,6 +48,9 @@ export function PipelineBoard({
   cards: Card[];
   productKey?: string;
   productViews?: Array<{ key: string; label: string }>;
+  productBasePath?: string;
+  showProductOverview?: boolean;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -91,18 +97,20 @@ export function PipelineBoard({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">{eyebrow}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-black/90">{title}</h1>
+          {embedded
+            ? <h2 className="mt-1 text-2xl font-semibold text-black/90">{title}</h2>
+            : <h1 className="mt-1 text-2xl font-semibold text-black/90">{title}</h1>}
           <p className="mt-1 max-w-2xl text-sm text-black/55">{description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <BoardSwitcher boards={boards} activeSlug={activeSlug} />
-          {productViews ? <FulfilmentProductSwitcher activeProduct={productKey} products={productViews} /> : null}
+          {boards.length ? <BoardSwitcher boards={boards} activeSlug={activeSlug} /> : null}
+          {productViews ? <FulfilmentProductSwitcher activeProduct={productKey} products={productViews} basePath={productBasePath} showOverview={showProductOverview} /> : null}
         </div>
       </header>
       <p className="text-xs text-black/40">Drag a card into another column, or use its stage menu.</p>
       {error ? <p role="alert" className="border-l-2 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       <div className="w-full min-w-0 overflow-x-auto pb-2">
-        <div className="grid grid-cols-1 gap-3 lg:w-max lg:grid-flow-col lg:auto-cols-[280px]" data-testid="pipeline-columns">
+        <div className="grid grid-cols-1 gap-3 md:w-max md:grid-flow-col md:auto-cols-[280px]" data-testid="pipeline-columns">
           {columns.map(column => {
             const columnCards = grouped.get(column.id) ?? [];
             return (
@@ -176,7 +184,7 @@ export function BoardSwitcher({ boards, activeSlug }: { boards: BoardLink[]; act
   return (
     <nav aria-label="Pipeline board" className="inline-flex rounded-md border border-black/10 bg-white p-1">
       {boards.map(board => (
-        <Link key={board.slug} href={`/portal/agency/pipelines/${board.slug}`} aria-current={board.slug === activeSlug ? "page" : undefined} className={`inline-flex min-h-9 items-center rounded px-3 text-xs font-semibold ${board.slug === activeSlug ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04]"}`}>
+        <Link key={board.slug} href={board.slug === "fulfilment" ? "/portal/agency/fulfilment?view=stages" : `/portal/agency/pipelines/${board.slug}`} aria-current={board.slug === activeSlug ? "page" : undefined} className={`inline-flex min-h-9 items-center rounded px-3 text-xs font-semibold ${board.slug === activeSlug ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04]"}`}>
           {board.label}
         </Link>
       ))}

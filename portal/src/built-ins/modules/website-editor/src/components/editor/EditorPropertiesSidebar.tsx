@@ -89,7 +89,7 @@ export default function EditorPropertiesSidebar({
   const inputClass = "w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-[12px] text-brand-cream placeholder:text-brand-cream/30 focus:outline-none focus:border-cyan-400/40";
 
   return (
-    <aside className="w-80 shrink-0 border-l border-white/5 bg-brand-black-soft flex flex-col">
+    <aside className="fixed inset-x-0 bottom-0 z-50 flex max-h-[min(70dvh,32rem)] w-full flex-col border-t border-white/10 bg-brand-black-soft shadow-2xl lg:static lg:z-auto lg:max-h-none lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0 lg:shadow-none">
       <header className="px-4 py-3 border-b border-white/5 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] tracking-[0.32em] uppercase text-cyan-400 mb-1">{typeLabel(selected.type)}</p>

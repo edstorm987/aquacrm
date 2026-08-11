@@ -6,8 +6,12 @@ import type { ReactNode } from "react";
 const AREA_SEGMENTS: Array<[string, string]> = [
   ["/company", "company"],
   ["/actions", "actions"],
+  ["/calendar", "calendar"],
+  ["/notepad", "notepad"],
+  ["/automations", "automations"],
   ["/inbox", "inbox"],
   ["/clients", "clients"],
+  ["/fulfilment", "fulfilment"],
   ["/portals", "portals"],
   ["/you-deserve-it", "delight"],
   ["/pipelines", "journey"],
@@ -39,7 +43,7 @@ export function PortalRouteCanvas({ children }: { children: ReactNode }) {
   const area = areaFor(pathname, searchParams.get("tab"));
 
   return (
-    <div className="mm-route-canvas" data-portal-area={area}>
+    <div key={pathname} className="mm-route-canvas" data-portal-area={area} data-mm-route-motion>
       {children}
     </div>
   );

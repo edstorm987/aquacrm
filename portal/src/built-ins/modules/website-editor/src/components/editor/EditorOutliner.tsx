@@ -76,7 +76,7 @@ export default function EditorOutliner({
   const filteredFunnels = funnels.filter(f => filterMatch(f.name) || filterMatch(f.description ?? ""));
 
   return (
-    <aside className="w-64 shrink-0 border-r border-white/5 bg-brand-black-soft hidden md:flex flex-col overflow-hidden">
+    <aside className="hidden w-64 shrink-0 flex-col overflow-hidden border-r border-white/5 bg-brand-black-soft lg:flex">
       <header className="px-4 py-3 border-b border-white/5 flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-[10px] tracking-[0.32em] uppercase text-cyan-400 mb-0.5">Structure</p>

@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Binoculars, ChevronDown, ExternalLink, Globe2, GripVertical, MoreHorizontal, Plus, Presentation, Search, Trash2, X } from "lucide-react";
+import { BarChart3, Binoculars, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, MoreHorizontal, Plus, Presentation, Search, TimerReset, Trash2, X } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
 import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
 import { formatUkDateTime } from "@/lib/formatDateTime";
+import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/leadTiming";
 import { BoardSwitcher } from "./_PipelineBoard";
 
 interface PipelineColumnView {
@@ -27,7 +28,15 @@ interface LeadView {
   tags: string[];
   notes?: string;
   capturedAt: number;
+  lastEnquiryAt?: number;
+  lastEnquiryRespondedAt?: number;
+  enquiryCount?: number;
+  firstContactedAt?: number;
   lastContactedAt?: number;
+  currentStageId?: string;
+  stageEnteredAt?: number;
+  convertedAt?: number;
+  journeyEvents?: LeadJourneyEventView[];
   nextMeetingAt?: number;
   meetingLink?: string;
   meetingNotes?: string;
@@ -57,6 +66,21 @@ interface LeadView {
   columnId: string;
 }
 
+interface LeadJourneyEventView {
+  id: string;
+  type: "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted";
+  at: number;
+  source?: string;
+  enquiryId?: string;
+  fromStage?: string;
+  toStage?: string;
+  channel?: string;
+  outcome?: string;
+  note?: string;
+  scheduledFor?: number;
+  clientId?: string;
+}
+
 interface ProspectView {
   id: string;
   name?: string;
@@ -75,6 +99,7 @@ interface ProspectView {
 }
 
 interface LeadsPipelineWorkspaceProps {
+  referenceNow: number;
   columns: PipelineColumnView[];
   prospects: ProspectView[];
   leads: LeadView[];
@@ -123,7 +148,7 @@ const EMPTY_PROSPECT = {
   nextStep: "",
 };
 
-type WorkFilter = "all" | "scouting" | "new" | "contacted" | "meeting" | "proposal" | "awaiting-payment" | "won";
+type WorkFilter = "all" | "waiting" | "scouting" | "new" | "contacted" | "meeting" | "proposal" | "awaiting-payment" | "won";
 type MeetingMode = "google-meet" | "phone" | "in-person" | "other";
 type MeetingStatus = "scheduled" | "confirmed" | "completed" | "no-show" | "cancelled" | "rescheduled";
 type AttemptChannel = "call" | "email" | "sms" | "whatsapp" | "in-person";
@@ -183,8 +208,9 @@ interface ClientConversionPackage {
   billingCadence: string;
 }
 
-export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, campaignsHref, boards, products }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, products }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
+  const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -203,6 +229,11 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
   const [columnOverrides, setColumnOverrides] = useState<Record<string, string>>({});
   const [draggedLeadId, setDraggedLeadId] = useState("");
   const [dropColumnId, setDropColumnId] = useState("");
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
@@ -226,8 +257,8 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
       .filter(lead => !tagFilter || lead.tags.includes(tagFilter))
       .filter(lead => !sourceFilter || lead.source === sourceFilter)
       .filter(lead => !nicheFilter || lead.niche === nicheFilter)
-      .filter(lead => matchesWorkFilter(lead, workFilter));
-  }, [leads, nicheFilter, query, sourceFilter, tagFilter, workFilter]);
+      .filter(lead => matchesWorkFilter(lead, workFilter, clock));
+  }, [clock, leads, nicheFilter, query, sourceFilter, tagFilter, workFilter]);
 
   const filteredProspects = useMemo(() => {
     if (workFilter !== "all" && workFilter !== "scouting") return [];
@@ -254,12 +285,25 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
       const bucket = out.get(columnOverrides[lead.id] ?? lead.columnId) ?? out.get(columns[0]?.id ?? "");
       bucket?.push(lead);
     }
+    for (const bucket of out.values()) {
+      bucket.sort((a, b) => leadTimingSnapshot(b, clock).currentWaitMs - leadTimingSnapshot(a, clock).currentWaitMs);
+    }
     return out;
-  }, [columnOverrides, columns, filteredLeads]);
+  }, [clock, columnOverrides, columns, filteredLeads]);
 
   const contacted = filteredLeads.filter(l => l.lastContactedAt || (l.sentCount ?? 0) > 0).length;
   const meetings = filteredLeads.filter(l => l.nextMeetingAt || l.tags.some(t => /meeting|booked|call/i.test(t))).length;
   const won = filteredLeads.filter(l => l.tags.includes("converted") || l.columnId === "won").length;
+  const timingRows = leads.map(lead => ({ lead, timing: leadTimingSnapshot(lead, clock) }));
+  const awaitingResponse = timingRows.filter(row => row.timing.awaitingResponse && !["won", "lost"].includes(row.lead.currentStageId ?? row.lead.columnId));
+  const followUpDue = timingRows.filter(row => row.timing.needsFollowUp);
+  const stalled = timingRows.filter(row => row.timing.stageStalled);
+  const waitingLeadCount = new Set([...awaitingResponse, ...followUpDue, ...stalled].map(row => row.lead.id)).size;
+  const averageFirstResponseMs = averageElapsed(timingRows.map(row => row.timing.firstResponseMs));
+  const oldestWaitingMs = awaitingResponse.reduce((oldest, row) => Math.max(oldest, row.timing.currentWaitMs), 0);
+  const oldestStageMs = timingRows
+    .filter(row => !["won", "lost"].includes(row.lead.currentStageId ?? row.lead.columnId))
+    .reduce((oldest, row) => Math.max(oldest, row.timing.stageAgeMs), 0);
   const stageRows = columns.map(column => {
     const leadCount = leads.filter(lead => (columnOverrides[lead.id] ?? lead.columnId) === column.id).length;
     const prospectCount = column.id === "scouting" ? prospects.length : 0;
@@ -628,8 +672,25 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
         stageRows={stageRows}
         sourceRows={sourceRows}
         upcomingMeetings={upcomingMeetings.length}
+        awaitingResponse={awaitingResponse.length}
+        followUpDue={followUpDue.length}
+        stalled={stalled.length}
+        averageFirstResponseMs={averageFirstResponseMs}
+        oldestWaitingMs={oldestWaitingMs}
+        oldestStageMs={oldestStageMs}
+        waitingLeads={timingRows
+          .filter(row => row.timing.awaitingResponse || row.timing.needsFollowUp || row.timing.stageStalled)
+          .sort((a, b) => waitPriority(b.timing) - waitPriority(a.timing))
+          .slice(0, 5)
+          .map(row => ({
+            id: row.lead.id,
+            label: row.lead.company || row.lead.name || row.lead.email || row.lead.phone || "Lead",
+            detail: timingAttentionLabel(row.lead, row.timing),
+            tone: row.timing.tone,
+          }))}
         onScout={() => openProspectForm()}
         onLead={() => setShowLeadForm(true)}
+        onShowWaiting={() => setWorkFilter("waiting")}
       />
 
       <details className="mm-surface-card group rounded-lg border border-black/10 px-4">
@@ -659,6 +720,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
       <section id="journey-board" className="mm-surface-card rounded-lg border border-black/10 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <QuickFilter active={workFilter === "all"} onClick={() => setWorkFilter("all")}>All</QuickFilter>
+          <QuickFilter active={workFilter === "waiting"} onClick={() => setWorkFilter("waiting")}>Waiting {waitingLeadCount || ""}</QuickFilter>
           <QuickFilter active={workFilter === "scouting"} onClick={() => setWorkFilter("scouting")}>Scouting</QuickFilter>
           <QuickFilter active={workFilter === "new"} onClick={() => setWorkFilter("new")}>New</QuickFilter>
           <QuickFilter active={workFilter === "contacted"} onClick={() => setWorkFilter("contacted")}>Contacted</QuickFilter>
@@ -776,6 +838,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                     onEdit={() => openProspectForm(prospect)}
                     onQualify={() => void qualifyProspect(prospect)}
                     onDismiss={() => void dismissProspect(prospect)}
+                    clock={clock}
                   />
                 ))}
                 {cards.map(lead => (
@@ -823,6 +886,7 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                         Last contacted {formatUkDateTime(lead.lastContactedAt)}
                       </p>
                     )}
+                    <LeadWaitStrip lead={lead} clock={clock} />
                     <DetailsEditor
                       email={lead.email}
                       name={lead.name}
@@ -839,6 +903,17 @@ export function LeadsPipelineWorkspace({ columns, prospects, leads, importHref, 
                       budgetRange={lead.budgetRange}
                       designFeedback={lead.designFeedback}
                       supportNotes={lead.supportNotes}
+                      capturedAt={lead.capturedAt}
+                      lastEnquiryAt={lead.lastEnquiryAt}
+                      lastEnquiryRespondedAt={lead.lastEnquiryRespondedAt}
+                      enquiryCount={lead.enquiryCount}
+                      firstContactedAt={lead.firstContactedAt}
+                      lastContactedAt={lead.lastContactedAt}
+                      currentStageId={lead.currentStageId ?? lead.columnId}
+                      stageEnteredAt={lead.stageEnteredAt}
+                      convertedAt={lead.convertedAt}
+                      journeyEvents={lead.journeyEvents}
+                      clock={clock}
                       meetingAt={lead.nextMeetingAt}
                       meetingLink={lead.meetingLink}
                       meetingNotes={lead.meetingNotes}
@@ -1063,12 +1138,14 @@ function ProspectCard({
   onEdit,
   onQualify,
   onDismiss,
+  clock,
 }: {
   prospect: ProspectView;
   busy: string | null;
   onEdit: () => void;
   onQualify: () => void;
   onDismiss: () => void;
+  clock: number;
 }) {
   const label = prospect.company || prospect.name || prospect.website || "Unnamed prospect";
   return (
@@ -1085,6 +1162,7 @@ function ProspectCard({
         </div>
       </div>
       {prospect.opportunity ? <p className="mt-3 line-clamp-3 text-xs leading-5 text-black/60">{prospect.opportunity}</p> : null}
+      <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-black/45"><Clock3 size={12} />Scouting for {formatElapsed(clock - prospect.capturedAt)}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {prospect.website ? <a href={prospect.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white px-2 py-1 text-[11px] text-black/65"><Globe2 size={11} /> Website</a> : null}
         {prospect.phone ? <a href={`tel:${prospect.phone}`} className="rounded-md border border-black/10 bg-white px-2 py-1 text-[11px] text-black/65">Call</a> : null}
@@ -1104,6 +1182,29 @@ function ProspectCard({
   );
 }
 
+function LeadWaitStrip({ lead, clock }: { lead: LeadView; clock: number }) {
+  const timing = leadTimingSnapshot(lead, clock);
+  const tone = timing.tone === "critical"
+    ? "border-red-200 bg-red-50 text-red-800"
+    : timing.tone === "warning"
+      ? "border-amber-200 bg-amber-50 text-amber-800"
+      : timing.tone === "notice"
+        ? "border-blue-200 bg-blue-50 text-blue-800"
+        : timing.tone === "complete"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-black/10 bg-black/[0.025] text-black/55";
+  return (
+    <div className="mt-3 grid gap-1.5 border-y border-black/[0.07] py-2.5 text-[10px]">
+      <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-black/42"><History size={11} />Total journey</span><strong className="font-semibold tabular-nums text-black/65">{formatElapsed(timing.journeyAgeMs)}</strong></div>
+      <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-black/42"><TimerReset size={11} />Current stage</span><strong className="font-semibold tabular-nums text-black/65">{formatElapsed(timing.stageAgeMs)}</strong></div>
+      <div className={`flex items-center justify-between gap-3 rounded border px-2 py-1.5 ${tone}`}>
+        <span className="inline-flex items-center gap-1.5"><Clock3 size={11} />{timing.awaitingResponse ? ((lead.enquiryCount ?? 0) > 1 ? "Latest enquiry unanswered" : "First response waiting") : timing.needsFollowUp ? "Follow-up waiting" : "Response recorded"}</span>
+        <strong className="font-semibold tabular-nums">{timing.awaitingResponse ? formatElapsed(timing.currentWaitMs) : timing.needsFollowUp ? formatElapsed(timing.followUpWaitMs ?? 0) : timing.latestResponseMs === undefined ? "Done" : `in ${formatElapsed(timing.latestResponseMs)}`}</strong>
+      </div>
+    </div>
+  );
+}
+
 function JourneyOverviewDashboard({
   prospects,
   leads,
@@ -1113,8 +1214,16 @@ function JourneyOverviewDashboard({
   stageRows,
   sourceRows,
   upcomingMeetings,
+  awaitingResponse,
+  followUpDue,
+  stalled,
+  averageFirstResponseMs,
+  oldestWaitingMs,
+  oldestStageMs,
+  waitingLeads,
   onScout,
   onLead,
+  onShowWaiting,
 }: {
   prospects: number;
   leads: number;
@@ -1124,21 +1233,28 @@ function JourneyOverviewDashboard({
   stageRows: Array<{ id: string; label: string; color?: string; count: number }>;
   sourceRows: Array<{ source: string; count: number }>;
   upcomingMeetings: number;
+  awaitingResponse: number;
+  followUpDue: number;
+  stalled: number;
+  averageFirstResponseMs?: number;
+  oldestWaitingMs: number;
+  oldestStageMs: number;
+  waitingLeads: Array<{ id: string; label: string; detail: string; tone: LeadTimingSnapshot["tone"] }>;
   onScout: () => void;
   onLead: () => void;
+  onShowWaiting: () => void;
 }) {
   const total = prospects + leads;
-  const contactedRate = leads ? Math.round(contacted / leads * 100) : 0;
   const winRate = leads ? Math.round(won / leads * 100) : 0;
 
   return (
     <section className="space-y-5" aria-labelledby="journey-overview-heading">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <JourneyMetric label="Total journey" value={String(total)} detail={`${prospects} scouting · ${leads} qualified`} />
-        <JourneyMetric label="Contacted" value={`${contactedRate}%`} detail={`${contacted} lead${contacted === 1 ? "" : "s"} touched`} />
-        <JourneyMetric label="Meetings" value={String(meetings)} detail={`${upcomingMeetings} scheduled with dates`} />
-        <JourneyMetric label="Won" value={String(won)} detail={`${winRate}% visible win rate`} />
-        <JourneyMetric label="Stages" value={String(stageRows.length)} detail="Scouting through client conversion" />
+        <JourneyMetric label="Awaiting first reply" value={String(awaitingResponse)} detail={oldestWaitingMs ? `Oldest has waited ${formatElapsed(oldestWaitingMs)}` : "Every enquiry has a response"} tone={awaitingResponse ? "warning" : "complete"} />
+        <JourneyMetric label="Average first reply" value={averageFirstResponseMs === undefined ? "—" : formatElapsed(averageFirstResponseMs)} detail={`${contacted} contacted · measured from capture`} />
+        <JourneyMetric label="Follow-up due" value={String(followUpDue)} detail={`${stalled} in the same stage for 7d+`} tone={followUpDue || stalled ? "warning" : "complete"} />
+        <JourneyMetric label="Oldest active stage" value={oldestStageMs ? formatElapsed(oldestStageMs) : "—"} detail={`${upcomingMeetings}/${meetings} meetings dated · ${won} won · ${winRate}% win rate`} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
@@ -1183,14 +1299,28 @@ function JourneyOverviewDashboard({
             ))}
             {!sourceRows.length ? <p className="py-3 text-xs text-black/40">Sources appear when prospects or leads are added.</p> : null}
           </div>
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-black/10 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-black/40">Wait-time watch</h3>
+            {waitingLeads.length ? <button type="button" onClick={onShowWaiting} className="text-[11px] font-semibold text-brand">Show on board</button> : null}
+          </div>
+          <div className="mt-2 divide-y divide-black/10">
+            {waitingLeads.map(item => (
+              <button key={item.id} type="button" onClick={onShowWaiting} className="flex w-full items-start justify-between gap-3 py-2 text-left">
+                <span className="min-w-0 truncate text-xs font-medium text-black/65">{item.label}</span>
+                <span className={`shrink-0 text-[10px] font-semibold ${item.tone === "critical" ? "text-red-700" : item.tone === "warning" ? "text-amber-700" : "text-blue-700"}`}>{item.detail}</span>
+              </button>
+            ))}
+            {!waitingLeads.length ? <p className="py-3 text-xs text-emerald-700">No unanswered, overdue follow-up or stalled leads.</p> : null}
+          </div>
         </aside>
       </div>
     </section>
   );
 }
 
-function JourneyMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className="mt-2 text-2xl font-semibold text-black/85">{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
+function JourneyMetric({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "neutral" | "warning" | "complete" }) {
+  const valueStyle = tone === "warning" ? "text-amber-800" : tone === "complete" ? "text-emerald-700" : "text-black/85";
+  return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-2 text-2xl font-semibold ${valueStyle}`}>{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
 }
 
 function sourceLabel(source: string): string {
@@ -1355,6 +1485,68 @@ function ConvertLeadModal({
   );
 }
 
+function LeadTimingTrace({
+  lead,
+  events,
+  clock,
+}: {
+  lead: Pick<LeadView, "capturedAt" | "lastEnquiryAt" | "lastEnquiryRespondedAt" | "enquiryCount" | "firstContactedAt" | "lastContactedAt" | "currentStageId" | "stageEnteredAt" | "convertedAt">;
+  events: LeadJourneyEventView[];
+  clock: number;
+}) {
+  const timing = leadTimingSnapshot(lead, clock);
+  return (
+    <section className="mb-3 border-y border-black/10 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Time and journey trace</p><p className="mt-1 text-xs text-black/45">Every recorded wait, response and stage change stays attached to this lead.</p></div>
+        <span className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[10px] font-medium text-black/55">{lead.enquiryCount ?? 0} enquir{(lead.enquiryCount ?? 0) === 1 ? "y" : "ies"}</span>
+      </div>
+      <dl className="mt-4 grid gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 sm:grid-cols-4">
+        <TimingDatum label="Total journey" value={formatElapsed(timing.journeyAgeMs)} />
+        <TimingDatum label="First response" value={timing.firstResponseMs === undefined ? "Waiting" : formatElapsed(timing.firstResponseMs)} />
+        <TimingDatum label="Current stage" value={formatElapsed(timing.stageAgeMs)} />
+        <TimingDatum label="Since last contact" value={lead.lastContactedAt === undefined ? "No contact" : formatElapsed(timing.followUpWaitMs ?? 0)} />
+      </dl>
+      <div className="mt-4 max-h-48 overflow-y-auto border-l border-black/15 pl-4">
+        {[...events].sort((a, b) => b.at - a.at).map(event => (
+          <div key={event.id} className="relative pb-4 last:pb-0">
+            <span className="absolute -left-[19px] top-1 size-2 rounded-full border border-white bg-brand" />
+            <div className="flex flex-wrap items-baseline justify-between gap-2"><strong className="text-xs font-semibold text-black/68">{journeyEventLabel(event)}</strong><time className="text-[10px] text-black/35">{formatUkDateTime(event.at)} · {formatElapsed(clock - event.at)} ago</time></div>
+            <p className="mt-1 text-[11px] leading-4 text-black/45">{journeyEventDetail(event)}</p>
+          </div>
+        ))}
+        {!events.length ? <p className="text-xs text-black/40">Timing begins with this lead&apos;s capture record.</p> : null}
+      </div>
+    </section>
+  );
+}
+
+function TimingDatum({ label, value }: { label: string; value: string }) {
+  return <div className="bg-white px-3 py-3"><dt className="text-[10px] text-black/38">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-black/72">{value}</dd></div>;
+}
+
+function journeyEventLabel(event: LeadJourneyEventView): string {
+  if (event.type === "enquiry-received") return "Enquiry received";
+  if (event.type === "lead-captured") return "Lead captured";
+  if (event.type === "contact-recorded") return "Contact recorded";
+  if (event.type === "stage-changed") return `Entered ${stageLabel(event.toStage)}`;
+  if (event.type === "meeting-scheduled") return "Meeting scheduled";
+  return "Converted to client";
+}
+
+function journeyEventDetail(event: LeadJourneyEventView): string {
+  if (event.type === "stage-changed") return event.fromStage ? `${stageLabel(event.fromStage)} to ${stageLabel(event.toStage)}` : `Started in ${stageLabel(event.toStage)}`;
+  if (event.type === "contact-recorded") return [event.channel && stageLabel(event.channel), event.outcome && stageLabel(event.outcome), event.note].filter(Boolean).join(" · ") || "Contact recorded.";
+  if (event.type === "enquiry-received" || event.type === "lead-captured") return [event.source && sourceLabel(event.source), event.enquiryId && `Submission ${event.enquiryId}`].filter(Boolean).join(" · ") || "Journey started.";
+  if (event.type === "meeting-scheduled" && event.scheduledFor) return `Meeting booked for ${formatUkDateTime(event.scheduledFor)}.`;
+  return event.note || (event.clientId ? `Client ${event.clientId}` : "Recorded in the journey history.");
+}
+
+function stageLabel(value?: string): string {
+  if (!value) return "stage";
+  return value.replaceAll("-", " ").replace(/\b\w/g, character => character.toUpperCase());
+}
+
 function DetailsEditor({
   email,
   name,
@@ -1371,6 +1563,17 @@ function DetailsEditor({
   budgetRange,
   designFeedback,
   supportNotes,
+  capturedAt,
+  lastEnquiryAt,
+  lastEnquiryRespondedAt,
+  enquiryCount,
+  firstContactedAt,
+  lastContactedAt,
+  currentStageId,
+  stageEnteredAt,
+  convertedAt,
+  journeyEvents,
+  clock,
   meetingAt,
   meetingLink,
   meetingNotes,
@@ -1400,6 +1603,17 @@ function DetailsEditor({
   budgetRange?: string;
   designFeedback?: string;
   supportNotes?: string;
+  capturedAt: number;
+  lastEnquiryAt?: number;
+  lastEnquiryRespondedAt?: number;
+  enquiryCount?: number;
+  firstContactedAt?: number;
+  lastContactedAt?: number;
+  currentStageId?: string;
+  stageEnteredAt?: number;
+  convertedAt?: number;
+  journeyEvents?: LeadJourneyEventView[];
+  clock: number;
   meetingAt?: number;
   meetingLink?: string;
   meetingNotes?: string;
@@ -1481,6 +1695,11 @@ function DetailsEditor({
             </header>
             <div className="overflow-y-auto p-5 sm:p-7">
               <div className="grid gap-3">
+        <LeadTimingTrace
+          lead={{ capturedAt, lastEnquiryAt, lastEnquiryRespondedAt, enquiryCount, firstContactedAt, lastContactedAt, currentStageId, stageEnteredAt, convertedAt }}
+          events={journeyEvents ?? []}
+          clock={clock}
+        />
         <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">Contact</p>
         <div className="grid gap-2 sm:grid-cols-2">
           <SmallInput label="Name" value={draft.name} onChange={value => setDraft(d => ({ ...d, name: value }))} />
@@ -1945,10 +2164,26 @@ function clientWorkspaceNotice(data: {
   return `${name}: ${workspace}${login}${portal}`;
 }
 
-function matchesWorkFilter(lead: LeadView, filter: WorkFilter): boolean {
+function matchesWorkFilter(lead: LeadView, filter: WorkFilter, clock: number): boolean {
   if (filter === "all") return true;
+  if (filter === "waiting") {
+    const timing = leadTimingSnapshot(lead, clock);
+    return timing.awaitingResponse || timing.needsFollowUp || timing.stageStalled;
+  }
   if (filter === "won") return lead.tags.includes("converted") || lead.columnId === "won";
   return lead.columnId === filter;
+}
+
+function waitPriority(timing: LeadTimingSnapshot): number {
+  const tone = timing.tone === "critical" ? 4 : timing.tone === "warning" ? 3 : timing.tone === "notice" ? 2 : 1;
+  return tone * 1_000_000_000_000 + Math.max(timing.currentWaitMs, timing.stageAgeMs);
+}
+
+function timingAttentionLabel(lead: LeadView, timing: LeadTimingSnapshot): string {
+  if (timing.awaitingResponse) return `${(lead.enquiryCount ?? 0) > 1 ? "Latest reply" : "First reply"} ${formatElapsed(timing.currentWaitMs)}`;
+  if (timing.needsFollowUp) return `Follow-up ${formatElapsed(timing.followUpWaitMs ?? 0)}`;
+  if (timing.stageStalled) return `Stage ${formatElapsed(timing.stageAgeMs)}`;
+  return `Current wait ${formatElapsed(timing.currentWaitMs)}`;
 }
 
 function matchesQuery(lead: LeadView, query: string): boolean {

@@ -54,6 +54,9 @@ export interface CreatePageInput {
   description?: string;
   blocks?: Block[];
   portalRole?: PortalRole;
+  isHomepage?: boolean;
+  variantId?: string;
+  themeId?: string;
 }
 
 export async function createPage(siteId: string, input: CreatePageInput): Promise<EditorPage | null> {

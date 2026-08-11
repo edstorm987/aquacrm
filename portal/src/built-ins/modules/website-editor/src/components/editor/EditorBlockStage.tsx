@@ -13,11 +13,12 @@
 // and topbar (above) so the operator gets one continuous experience.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ClipboardPaste, Copy, Plus } from "lucide-react";
 import type { Block, BlockType } from "../../types/block";
 import type { EditorPage } from "../../types/editorPage";
 import { getPage, updatePage } from "../../lib/editorPages";
 import {
-  appendChild, createBlock, duplicateBlock, findBlock, insertSibling,
+  appendChild, cloneBlock, createBlock, duplicateBlock, findBlock, insertSibling,
   moveBlock, removeBlock, updateBlock,
 } from "../canvas/blockTreeOps";
 import Canvas from "../canvas/Canvas";
@@ -47,6 +48,8 @@ export default function EditorBlockStage({ siteId, pageId, device, onSavingChang
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clipboard = useRef<Block | null>(null);
+  const [clipboardReady, setClipboardReady] = useState(false);
 
   // History stacks. Stored in refs (not state) — mutation needn't trigger
   // a render of every block in the canvas just to bump the undo length.
@@ -157,7 +160,26 @@ export default function EditorBlockStage({ siteId, pageId, device, onSavingChang
     return () => window.removeEventListener("lk-block-text-commit", onCommit);
   }, [blocks, mutate]);
 
-  // Keyboard shortcuts — Cmd+Z, Cmd+Shift+Z, Cmd+D, Delete/Backspace.
+  function copySelected() {
+    if (!selectedId) return;
+    const selected = findBlock(blocks, selectedId)?.block;
+    if (!selected) return;
+    clipboard.current = cloneBlock(selected);
+    setClipboardReady(true);
+  }
+
+  function pasteAfterSelection() {
+    if (!clipboard.current) return;
+    const pasted = cloneBlock(clipboard.current);
+    if (selectedId && findBlock(blocks, selectedId)) {
+      mutate(insertSibling(blocks, selectedId, pasted, "after"));
+    } else {
+      mutate([...blocks, pasted]);
+    }
+    setSelectedId(pasted.id);
+  }
+
+  // Keyboard shortcuts — history, duplicate, copy/cut/paste, and delete.
   // Cmd+S is owned by the super-editor (publish) so we don't grab it.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -174,6 +196,23 @@ export default function EditorBlockStage({ siteId, pageId, device, onSavingChang
         mutate(duplicateBlock(blocks, selectedId));
         return;
       }
+      if (cmd && e.key.toLowerCase() === "c" && selectedId) {
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      if (cmd && e.key.toLowerCase() === "x" && selectedId) {
+        e.preventDefault();
+        copySelected();
+        mutate(removeBlock(blocks, selectedId));
+        setSelectedId(null);
+        return;
+      }
+      if (cmd && e.key.toLowerCase() === "v" && clipboard.current) {
+        e.preventDefault();
+        pasteAfterSelection();
+        return;
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
         e.preventDefault();
         mutate(removeBlock(blocks, selectedId));
@@ -187,7 +226,9 @@ export default function EditorBlockStage({ siteId, pageId, device, onSavingChang
   // ── Canvas + Properties handlers ────────────────────────────────────────
 
   function handleDropOnCanvas(type: BlockType) {
-    mutate([...blocks, createBlock(type)]);
+    const block = createBlock(type);
+    mutate([...blocks, block]);
+    setSelectedId(block.id);
   }
   function handleDropBeside(targetId: string, type: BlockType, position: "before" | "after" | "inside") {
     const newBlock = createBlock(type);
@@ -273,28 +314,44 @@ export default function EditorBlockStage({ siteId, pageId, device, onSavingChang
           onSelect={setSelectedId}
           onAddTopLevel={handleDropOnCanvas}
         />
-        <div className="flex-1 min-w-0 overflow-auto bg-[#050505]">
-          <Canvas
-            blocks={blocks}
-            selectedId={selectedId}
-            device={device}
-            themeId={page.themeId}
-            onSelect={setSelectedId}
-            onDropOnCanvas={handleDropOnCanvas}
-            onDropBeside={handleDropBeside}
-            onMoveBeside={handleMoveBeside}
-            onMoveUp={handleMoveBlockUp}
-            onMoveDown={handleMoveBlockDown}
-            onDuplicate={handleDuplicateBlock}
-            onRemove={handleRemoveBlock}
-            onPatchProps={handlePatchProps}
-          />
+        <div className="flex min-w-0 flex-1 flex-col bg-[#050505]">
+          <div className="flex min-h-10 shrink-0 items-center gap-1 border-b border-white/8 bg-[#101010] px-3">
+            <button type="button" onClick={() => handleDropOnCanvas("section")} className="inline-flex min-h-8 items-center gap-2 rounded-md bg-white/5 px-2.5 text-[11px] text-brand-cream/75 hover:bg-white/10 hover:text-brand-cream">
+              <Plus size={13} aria-hidden="true" /> Add section
+            </button>
+            <div className="mx-1 h-4 w-px bg-white/10" />
+            <button type="button" onClick={copySelected} disabled={!selectedId} className="grid size-8 place-items-center rounded-md text-brand-cream/55 hover:bg-white/5 hover:text-brand-cream disabled:opacity-25" aria-label="Copy selected block" title="Copy selected block">
+              <Copy size={13} aria-hidden="true" />
+            </button>
+            <button type="button" onClick={pasteAfterSelection} disabled={!clipboardReady} className="grid size-8 place-items-center rounded-md text-brand-cream/55 hover:bg-white/5 hover:text-brand-cream disabled:opacity-25" aria-label="Paste block" title="Paste block after selection">
+              <ClipboardPaste size={13} aria-hidden="true" />
+            </button>
+            <span className="ml-auto hidden text-[10px] text-brand-cream/35 sm:inline">Drag blocks anywhere, or double-click text to edit it.</span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
+            <Canvas
+              blocks={blocks}
+              selectedId={selectedId}
+              device={device}
+              themeId={page.themeId}
+              onSelect={setSelectedId}
+              onDropOnCanvas={handleDropOnCanvas}
+              onDropBeside={handleDropBeside}
+              onMoveBeside={handleMoveBeside}
+              onMoveUp={handleMoveBlockUp}
+              onMoveDown={handleMoveBlockDown}
+              onDuplicate={handleDuplicateBlock}
+              onRemove={handleRemoveBlock}
+              onPatchProps={handlePatchProps}
+            />
+          </div>
         </div>
         <PropertiesPanel
           block={selectedBlock}
           onPatch={handlePatchSelected}
           onDuplicate={handleDuplicateSelected}
           onRemove={handleRemoveSelected}
+          onClose={() => setSelectedId(null)}
         />
       </div>
     </>

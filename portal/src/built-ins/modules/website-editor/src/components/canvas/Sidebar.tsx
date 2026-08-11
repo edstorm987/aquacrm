@@ -5,6 +5,7 @@
 // structure with click-to-select).
 
 import { useState } from "react";
+import { Search } from "lucide-react";
 import type { Block } from "../../types/block";
 import { listBlockDefinitions, type BlockDefinition } from "../blockRegistry";
 
@@ -34,13 +35,13 @@ export default function Sidebar({ blocks, selectedId, onSelect, onAddTopLevel }:
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="md:hidden fixed bottom-4 left-4 z-40 w-11 h-11 rounded-full bg-brand-orange text-white text-lg font-bold shadow-lg shadow-black/40"
+        className="fixed left-4 top-[13rem] z-40 h-11 w-11 rounded-full bg-brand-orange text-lg font-bold text-white shadow-lg shadow-black/40 lg:hidden"
         aria-label={open ? "Close blocks panel" : "Open blocks panel"}
       >{open ? "×" : "▦"}</button>
 
       <aside className={`shrink-0 flex flex-col border-r border-white/8 bg-brand-black-soft
         ${open ? "fixed inset-y-0 left-0 z-30 w-72" : "hidden"}
-        md:relative md:flex md:w-72`}>
+        lg:relative lg:flex lg:w-72`}>
       <div className="flex border-b border-white/8">
         <button
           onClick={() => setTab("library")}
@@ -68,10 +69,25 @@ export default function Sidebar({ blocks, selectedId, onSelect, onAddTopLevel }:
 
 function BlockLibrary({ onAdd }: { onAdd: (type: BlockDefinition["type"]) => void }) {
   const all = listBlockDefinitions();
+  const [query, setQuery] = useState("");
+  const normalized = query.trim().toLowerCase();
+  const visible = normalized
+    ? all.filter(definition => `${definition.label} ${definition.type} ${definition.category}`.toLowerCase().includes(normalized))
+    : all;
   return (
     <div className="p-3 space-y-4">
+      <label className="relative block">
+        <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-cream/35" aria-hidden="true" />
+        <input
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          placeholder="Find a block"
+          aria-label="Find a block"
+          className="min-h-9 w-full rounded-md border border-white/10 bg-white/[0.03] pl-8 pr-3 text-[11px] text-brand-cream outline-none placeholder:text-brand-cream/30 focus:border-brand-orange/45"
+        />
+      </label>
       {CATEGORIES.map(cat => {
-        const items = all.filter(d => d.category === cat.id);
+        const items = visible.filter(d => d.category === cat.id);
         if (items.length === 0) return null;
         return (
           <div key={cat.id}>
@@ -97,6 +113,7 @@ function BlockLibrary({ onAdd }: { onAdd: (type: BlockDefinition["type"]) => voi
           </div>
         );
       })}
+      {visible.length === 0 ? <p className="py-8 text-center text-[11px] text-brand-cream/40">No blocks match that search.</p> : null}
     </div>
   );
 }

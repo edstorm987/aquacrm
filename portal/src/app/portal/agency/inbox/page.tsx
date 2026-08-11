@@ -6,6 +6,8 @@ import { listActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import { metaInboxReadiness } from "@/lib/server/metaMessaging";
 
 import { MasterInbox } from "./_MasterInbox";
 
@@ -39,7 +41,7 @@ export default async function AgencyInboxPage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId);
-  const [alerts, activity, websiteFormsResult] = await Promise.all([
+  const [alerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
     listOperationalAlerts(session.agencyId),
     Promise.resolve(listActivity({ agencyId: session.agencyId, limit: 150 })),
     listWebsiteEnquiries().then(
@@ -47,6 +49,13 @@ export default async function AgencyInboxPage() {
       cause => ({
         submissions: [],
         error: cause instanceof Error ? cause.message : "Website enquiries could not be loaded.",
+      }),
+    ),
+    listInboxSnapshot(session.agencyId).then(
+      snapshot => ({ snapshot, error: null as string | null }),
+      cause => ({
+        snapshot: { connections: [], conversations: [], generatedAt: Date.now() },
+        error: cause instanceof Error ? cause.message : "Social inbox storage could not be loaded.",
       }),
     ),
   ]);
@@ -84,10 +93,15 @@ export default async function AgencyInboxPage() {
   });
 
   return <MasterInbox
+    referenceNow={Date.now()}
     alerts={alerts}
     websiteForms={websiteFormsResult.submissions}
     websiteFormsError={websiteFormsResult.error}
     conversations={conversations}
+    socialInbox={socialInboxResult.snapshot}
+    socialInboxError={socialInboxResult.error}
+    metaReadiness={metaInboxReadiness()}
+    currentUserId={session.userId}
     updates={activity.map(entry => ({
       id: entry.id,
       message: entry.message,

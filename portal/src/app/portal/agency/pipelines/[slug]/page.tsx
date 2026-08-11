@@ -78,15 +78,20 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
       const clients = listClients(agency.id);
       const cards = listCards(pipeline.id);
       const columnByLeadId = new Map<string, string>();
+      const cardUpdatedAtByLeadId = new Map<string, number>();
       for (const card of cards) {
         if (card.kind !== "lead") continue;
         const snapshot = card.lead as unknown as { leadId?: string; email?: string };
         const key = snapshot.leadId ?? leadList.find(lead => lead.email === snapshot.email)?.id;
-        if (key) columnByLeadId.set(key, card.columnId);
+        if (key) {
+          columnByLeadId.set(key, card.columnId);
+          cardUpdatedAtByLeadId.set(key, card.updatedAt);
+        }
       }
 
       return (
         <LeadsPipelineWorkspace
+          referenceNow={Date.now()}
           columns={pipeline.columns.map(col => ({ id: col.id, label: col.label, color: col.color }))}
           prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
             id: prospect.id,
@@ -122,7 +127,17 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               tags: lead.tags,
               notes: lead.notes,
               capturedAt: lead.capturedAt,
+              lastEnquiryAt: lead.lastEnquiryAt,
+              lastEnquiryRespondedAt: lead.lastEnquiryRespondedAt,
+              enquiryCount: lead.enquiryCount,
+              firstContactedAt: lead.firstContactedAt,
               lastContactedAt: lead.lastContactedAt,
+              currentStageId: columnByLeadId.get(lead.id) ?? lead.currentStageId ?? pipeline.columns[0]?.id ?? "new",
+              stageEnteredAt: lead.currentStageId === (columnByLeadId.get(lead.id) ?? lead.currentStageId)
+                ? lead.stageEnteredAt
+                : cardUpdatedAtByLeadId.get(lead.id) ?? lead.stageEnteredAt,
+              convertedAt: lead.convertedAt,
+              journeyEvents: lead.journeyEvents,
               nextMeetingAt: lead.nextMeetingAt,
               meetingLink: lead.meetingLink,
               meetingNotes: lead.meetingNotes,

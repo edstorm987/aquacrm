@@ -16,6 +16,7 @@ import type {
   UpdateInvoicePatch,
 } from "../lib/domain";
 import { normaliseCurrency } from "../lib/currencies";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -38,7 +39,7 @@ const buildContainer = (ctx: PluginCtx) =>
   containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, install: ctx.install });
 
 const defaultCurrency = (ctx: PluginCtx): Currency =>
-  normaliseCurrency(ctx.install.config.defaultCurrency, "gbp");
+  resolveFinanceDefaultCurrency(ctx.agencyId, ctx.install.config.defaultCurrency);
 
 // ─── Invoices ────────────────────────────────────────────────────────────
 

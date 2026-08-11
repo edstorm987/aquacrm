@@ -377,7 +377,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
                     {(Object.entries({ onboarding: "Onboarding", designing: "Designing", "developed-launch": "Review & launch", maintenance: "Live care" }) as Array<[AgencyProductPortalMode, string]>).map(([stage, label]) => <Field key={stage} label={label}><textarea rows={3} value={form.portalStageFocus[stage]} onChange={event => setForm(value => ({ ...value, portalStageFocus: { ...value.portalStageFocus, [stage]: event.target.value } }))} className={`${control} py-2`} /></Field>)}
                   </div>
                 </details>
-                <Link href="/portal/agency/portals?view=templates" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.05]">Preview and edit portal templates <ArrowRight size={13} /></Link>
+                <Link href={form.id ? `/portal/agency/portals/editor?scope=template&productId=${encodeURIComponent(form.id)}` : "/portal/agency/portals?view=templates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.05]">{form.id ? "Edit this product's portal template" : "Open portal template library"} <ArrowRight size={13} /></Link>
               </> : null}
             </div>
           </details>

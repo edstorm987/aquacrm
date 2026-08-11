@@ -1,5 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { ChevronDown, ChevronUp, Copy, GripVertical, Settings, Trash2 } from "lucide-react";
+
 // BlockToolbar — floating quick-actions bar that appears on the
 // selected block in the visual editor. Wix / Squarespace style:
 // hover the block, see a 5-button strip on the top-right with
@@ -41,15 +44,15 @@ export default function BlockToolbar({
         title="Drag to move"
         aria-label="Drag handle"
       >
-        ⋮⋮
+        <GripVertical size={14} aria-hidden="true" />
       </div>
       <span className="text-[10px] tracking-wider uppercase text-brand-cream/55 px-1">{label}</span>
       <span className="w-px h-4 bg-white/10 mx-0.5" />
-      <ToolButton onClick={onMoveUp} disabled={!canMoveUp} title="Move up">↑</ToolButton>
-      <ToolButton onClick={onMoveDown} disabled={!canMoveDown} title="Move down">↓</ToolButton>
-      <ToolButton onClick={onDuplicate} title="Duplicate (⌘D)">⧉</ToolButton>
-      {onSettings && <ToolButton onClick={onSettings} title="Settings">⚙</ToolButton>}
-      <ToolButton onClick={onRemove} danger title="Delete (Del)">🗑</ToolButton>
+      <ToolButton onClick={onMoveUp} disabled={!canMoveUp} title="Move up"><ChevronUp size={13} /></ToolButton>
+      <ToolButton onClick={onMoveDown} disabled={!canMoveDown} title="Move down"><ChevronDown size={13} /></ToolButton>
+      <ToolButton onClick={onDuplicate} title="Duplicate (⌘D)"><Copy size={13} /></ToolButton>
+      {onSettings && <ToolButton onClick={onSettings} title="Settings"><Settings size={13} /></ToolButton>}
+      <ToolButton onClick={onRemove} danger title="Delete (Del)"><Trash2 size={13} /></ToolButton>
     </div>
   );
 }
@@ -61,7 +64,7 @@ function ToolButton({
   disabled?: boolean;
   danger?: boolean;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button

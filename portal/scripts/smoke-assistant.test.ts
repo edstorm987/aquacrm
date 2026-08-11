@@ -24,13 +24,18 @@ test("assistant keeps durable history and personal memory", () => {
   assert.match(storage, /assistant: parsed\.assistant \?\? \{\}/);
 });
 
-test("assistant reads fresh business context without exposing secrets", () => {
+test("assistant reads fresh skill-scoped context without exposing secrets", () => {
   const context = read("src/lib/server/assistantBusinessContext.ts");
+  const skillContext = read("src/lib/server/advisorSkillContext.ts");
+  const route = read("src/app/api/assistant/route.ts");
   const openai = read("src/lib/server/openaiAssistant.ts");
   assert.match(context, /SECRET_KEY/);
   assert.match(context, /recentActivity/);
   assert.match(context, /businessModules/);
-  assert.match(openai, /read-only access/);
+  assert.match(skillContext, /skill\.maxRecords/);
+  assert.match(route, /buildAdvisorSkillContext/);
+  assert.doesNotMatch(route, /workspaceContext\.serialized/);
+  assert.match(openai, /advisorSkillInstruction/);
   assert.match(openai, /store: false/);
   assert.match(openai, /OPENAI_API_KEY/);
 });

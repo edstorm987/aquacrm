@@ -5,6 +5,8 @@ import { APP_VERSION, LATEST_RELEASE, PRODUCT_RELEASES } from "../src/lib/releas
 
 const settingsSource = readFileSync(new URL("../src/app/portal/agency/settings/SettingsTabs.tsx", import.meta.url), "utf8");
 const bellSource = readFileSync(new URL("../src/components/chrome/NotificationCentreButton.tsx", import.meta.url), "utf8");
+const advisorSource = readFileSync(new URL("../src/components/chrome/GlobalAdvisorDrawer.tsx", import.meta.url), "utf8");
+const globalStyles = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 
 test("release centre has one canonical current version", () => {
@@ -25,4 +27,11 @@ test("notification centre combines operational alerts and product updates", () =
   assert.match(bellSource, /operationalCount \+ \(updateUnread \? 1 : 0\)/);
   assert.match(bellSource, /Explore what&apos;s new/);
   assert.match(bellSource, /RELEASE_SEEN_EVENT/);
+});
+
+test("topbar attention badges stay above neighbouring controls", () => {
+  assert.match(bellSource, /mm-has-attention-badge/);
+  assert.match(advisorSource, /mm-has-attention-badge/);
+  assert.match(globalStyles, /\.mm-has-attention-badge\s*\{[^}]*z-index:\s*20/s);
+  assert.match(globalStyles, /\.mm-attention-badge\s*\{[^}]*z-index:\s*30[^}]*pointer-events:\s*none/s);
 });

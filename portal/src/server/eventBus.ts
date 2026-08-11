@@ -23,6 +23,7 @@ export type AquaEventName =
   | "client.updated"
   | "client.archived"
   | "client.stage_changed"
+  | "website-enquiry.received"
   // Auth
   | "user.signed_up"
   | "user.signed_in"
@@ -130,6 +131,22 @@ export function emit<T = unknown>(
       .then(() => handler(event))
       .catch(err => console.error(`[eventBus] handler for ${name} threw:`, err));
   }
+  // Aqua-owned automations subscribe to the same lifecycle stream without
+  // requiring module-level registration. The lazy import avoids a storage
+  // cycle and keeps ordinary domain writes non-blocking.
+  Promise.resolve()
+    .then(async () => {
+      const { triggerAutomations } = await import("./automations");
+      const eventPayload = payload && typeof payload === "object" && !Array.isArray(payload)
+        ? payload as Record<string, unknown>
+        : { value: payload as unknown };
+      await triggerAutomations(event.agencyId, name, {
+        ...eventPayload,
+        ...(event.clientId ? { clientId: event.clientId } : {}),
+        emittedAt: event.emittedAt,
+      });
+    })
+    .catch(err => console.error(`[eventBus] automation trigger for ${name} failed:`, err));
   // Plugin subscribers — tenant-filtered fan-out.
   const plugin = PLUGIN_SUBSCRIBERS.get(name);
   if (!plugin || plugin.length === 0) return;

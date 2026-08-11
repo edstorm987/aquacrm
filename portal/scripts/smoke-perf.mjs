@@ -103,7 +103,7 @@ const PAGES = [
   { path: "/portal/agency", label: "Agency home", needsAuth: true, budgetKb: 260 },
   { path: "/portal/clients", label: "Clients list", needsAuth: true, budgetKb: 180 },
   { path: "/portal/agency/leads-pipeline/contacts", label: "Sales contacts", needsAuth: true, budgetKb: 220 },
-  { path: "/portal/agency/pipelines/fulfilment", label: "Project pipeline", needsAuth: true, budgetKb: 220 },
+  { path: "/portal/agency/fulfilment", label: "Fulfilment command centre", needsAuth: true, budgetKb: 260 },
   { path: "/portal/agency/activity-inbox", label: "Inbox", needsAuth: true, budgetKb: 200 },
   { path: "/portal/agency/agency-finance", label: "Finance page", needsAuth: true, budgetKb: 200 },
   { path: "/portal/agency/sops", label: "Systems / SOPs", needsAuth: true, budgetKb: 200 },

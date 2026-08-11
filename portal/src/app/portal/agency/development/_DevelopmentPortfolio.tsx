@@ -12,6 +12,7 @@ import {
   GitBranch,
   Globe2,
   LayoutDashboard,
+  LayoutTemplate,
   LoaderCircle,
   RadioTower,
   Search,
@@ -43,6 +44,7 @@ export interface DevelopmentProjectRow {
   status: DevelopmentProjectStatus;
   owner: "Ecosystem" | "Client";
   clientId?: string;
+  builderReady?: boolean;
   clientName: string;
   managementHref: string;
   previewUrl?: string;
@@ -304,6 +306,16 @@ export function DevelopmentPortfolio({
                 )}
 
                 <div className="flex items-center justify-end gap-1">
+                  {project.clientId && ["website", "lead-magnet"].includes(project.kind) ? (
+                    <Link
+                      href={project.builderReady
+                        ? `/portal/clients/${encodeURIComponent(project.clientId)}/edit-website`
+                        : `/portal/clients/${encodeURIComponent(project.clientId)}?tab=website`}
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-2 text-[11px] font-semibold text-black/55 hover:bg-black/[0.04] hover:text-black/80"
+                    >
+                      <LayoutTemplate size={13} aria-hidden="true" /> Design
+                    </Link>
+                  ) : null}
                   {project.liveUrl ? <ProjectLink href={project.liveUrl} label="Public gate" icon={<Globe2 size={14} />} text /> : null}
                   {project.previewUrl ? <ProjectLink href={project.previewUrl} label="Real preview" icon={<ExternalLink size={14} />} text /> : null}
                   {project.repoUrl ? <ProjectLink href={project.repoUrl} label={`Open ${project.name} repository`} icon={<GitBranch size={15} />} /> : null}

@@ -1,11 +1,20 @@
 import Link from "next/link";
-import { Activity, ArrowUpRight, BarChart3, Building2, Gauge, Globe2, LockKeyhole, MapPin, Megaphone, RadioTower, Star, Target, Users } from "lucide-react";
+import { Activity, ArrowLeft, ArrowUpRight, BarChart3, Building2, Gauge, Globe2, LayoutDashboard, LockKeyhole, MapPin, Megaphone, RadioTower, Star, Target, UserRoundSearch, Users, Workflow } from "lucide-react";
 
 import { CampaignsWorkspace } from "@/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace";
+import { AutomationsWorkspace } from "@/app/portal/agency/automations/_AutomationsWorkspace";
+import { automationWorkspaceData } from "@/app/portal/agency/automations/_automationWorkspaceData";
 import { MarketingChannelsWorkspace, type MarketingAssetKind } from "./_MarketingChannelsWorkspace";
+import { CustomerProfilesWorkspace } from "./_CustomerProfilesWorkspace";
 import { FunnelsWorkspace } from "./_FunnelsWorkspace";
-import type { MarketingAsset } from "@/built-ins/modules/agency-marketing/src/lib/domain";
+import {
+  MARKETING_CUSTOMER_PROFILES_KEY,
+  type MarketingAsset,
+  type MarketingCustomerProfile,
+} from "@/built-ins/modules/agency-marketing/src/lib/domain";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
+import { buildBudgetPotSnapshots } from "@/built-ins/modules/agency-finance/src/lib/budgetHealth";
+import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { requireRole } from "@/lib/server/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -16,15 +25,20 @@ import { AGENCY_ROLES } from "@/server/types";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import type { TradingCompany } from "@/server/types";
-import { containerFor } from "@aqua/plugin-leads-pipeline/server";
+import { containerFor as financeContainerFor } from "@aqua/plugin-agency-finance/server";
+import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/firstPartyDevelopmentProjects";
+import { listInboxConnections } from "@/lib/server/inboxStore";
+import { metaInboxReadiness } from "@/lib/server/metaMessaging";
+import { listAutomationWorkflows } from "@/server/automations";
 
 const LEADS_PLUGIN = "leads-pipeline";
+const FINANCE_PLUGIN = "agency-finance";
 const EMAIL_PLUGIN = "email-sender";
 const MARKETING_PLUGIN = "agency-marketing";
 const MARKETING_ASSETS_KEY = "milesymedia/channel-assets/v1";
-type MarketingView = "overview" | "campaigns" | "social" | "website" | "funnels" | "google-ads" | "google-business" | "reputation" | "sources";
+type MarketingView = "overview" | "campaigns" | "customer-profiles" | "social" | "website" | "funnels" | "google-ads" | "google-business" | "reputation" | "sources" | "automations";
 
 export default async function MarketingPage({
   searchParams,
@@ -33,6 +47,32 @@ export default async function MarketingPage({
 }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
+  const params = await searchParams;
+  const requestedView = params.view;
+  const view: MarketingView = isMarketingView(requestedView) ? requestedView : "overview";
+
+  if (view === "automations") {
+    const automationData = await automationWorkspaceData(session.agencyId, session.role);
+    return (
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6">
+        <header className="flex flex-col gap-4 border-b border-black/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><LockKeyhole size={13} aria-hidden /> Internal only</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing workspace</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Automate internal demand, follow-up, publishing, handovers, reminders and reporting across the CRM. These controls are never exposed to clients.</p>
+            <Link href="/portal/agency/marketing" className="mt-3 inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowLeft size={14} /> Back to marketing dashboard</Link>
+          </div>
+          <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Workflow size={17} aria-hidden /></span>
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Scope</p><p className="text-sm font-semibold text-black/75">Internal · All brands</p></div>
+          </div>
+        </header>
+        <MarketingWorkspaceNavigation view={view} brandScope="all" />
+        <AutomationsWorkspace {...automationData} embedded />
+      </div>
+    );
+  }
+
   ensureLeadsPipelineFoundationRegistered();
 
   let install = getInstall({ agencyId: session.agencyId }, LEADS_PLUGIN);
@@ -72,11 +112,23 @@ export default async function MarketingPage({
     marketingInstall = getInstall({ agencyId: session.agencyId }, MARKETING_PLUGIN);
   }
 
-  const { campaigns, leads } = containerFor({
+  const { campaigns, leads } = leadsContainerFor({
     agencyId: session.agencyId,
     storage: makePluginStorage(install.id) as never,
   });
   const [campaignRows, leadRows] = await Promise.all([campaigns.list(), leads.list()]);
+  const financeInstall = getInstall({ agencyId: session.agencyId }, FINANCE_PLUGIN);
+  let budgetPotSnapshots = [] as ReturnType<typeof buildBudgetPotSnapshots>;
+  if (financeInstall?.enabled) {
+    ensureAgencyFinanceFoundationRegistered();
+    const finance = financeContainerFor({
+      agencyId: session.agencyId,
+      storage: makePluginStorage(financeInstall.id) as never,
+      install: financeInstall,
+    });
+    const [budgetPots, expenses, workforcePayments] = await Promise.all([finance.budgets.list(), finance.expenses.list(), finance.operations.listCompensationPayments()]);
+    budgetPotSnapshots = buildBudgetPotSnapshots(budgetPots, campaignRows, expenses, workforcePayments);
+  }
   const clients = listClients(session.agencyId);
   const attributedCampaigns = campaignRows.map(campaign => ({
     ...campaign,
@@ -92,18 +144,27 @@ export default async function MarketingPage({
   }));
   const pipeline = getPipelineBySlug(session.agencyId, "leads");
   const columns = pipeline?.columns.map(column => column.label) ?? ["New", "Contacted", "Qualified", "Won", "Lost"];
-  const params = await searchParams;
-  const requestedView = params.view;
-  const view: MarketingView = isMarketingView(requestedView) ? requestedView : "overview";
   const companies = listTradingCompanies(session.agencyId, true).filter(company => company.status !== "archived");
   const selectedCompany = companies.find(company => company.slug === params.brand) ?? null;
   const brandScope = params.brand === "shared" ? "shared" : selectedCompany?.slug ?? "all";
   const selectedCompanyId = selectedCompany?.id ?? null;
-  const marketingAssets = marketingInstall
-    ? (await makePluginStorage(marketingInstall.id).get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? []
-    : [];
+  const marketingStorage = marketingInstall ? makePluginStorage(marketingInstall.id) : null;
+  const [marketingAssets, customerProfiles] = marketingStorage
+    ? await Promise.all([
+        marketingStorage.get<MarketingAsset[]>(MARKETING_ASSETS_KEY).then(rows => rows ?? []),
+        marketingStorage.get<MarketingCustomerProfile[]>(MARKETING_CUSTOMER_PROFILES_KEY).then(rows => rows ?? []),
+      ])
+    : [[], []] as [MarketingAsset[], MarketingCustomerProfile[]];
   const scopedMarketingAssets = marketingAssets.filter(asset => recordMatchesBrand(asset.companyIds, brandScope, selectedCompanyId));
+  const metaConnections = await listInboxConnections(session.agencyId).catch(() => []);
+  const metaReadiness = metaInboxReadiness();
+  const scopedCustomerProfiles = customerProfiles.filter(profile => recordMatchesBrand(profile.companyIds, brandScope, selectedCompanyId));
   const scopedCampaigns = attributedCampaigns.filter(campaign => recordMatchesBrand(campaign.companyIds, brandScope, selectedCompanyId));
+  const scopedBudgetPots = budgetPotSnapshots.filter(pot =>
+    pot.status === "active"
+    && pot.currency === "gbp"
+    && recordMatchesBrand(pot.companyIds, brandScope, selectedCompanyId),
+  );
   const scopedLeads = leadRows.filter(lead => recordMatchesBrand(lead.companyIds ?? (lead.companyId ? [lead.companyId] : []), brandScope, selectedCompanyId));
   const scopedTags = [...new Set(scopedLeads.flatMap(lead => lead.tags))].sort();
   const scopedSources = [...new Set(scopedLeads.map(lead => lead.source || "Unknown"))].sort();
@@ -130,14 +191,51 @@ export default async function MarketingPage({
     sourceRows,
     ownWebsiteSummary,
   });
+  const automationWorkflows = listAutomationWorkflows(session.agencyId);
+
+  if (view === "overview") {
+    return (
+      <div className="mx-auto flex min-h-[calc(100dvh-8rem)] w-full max-w-7xl flex-col gap-6 pb-10">
+        <header className="grid gap-5 border-b border-black/10 pb-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><LayoutDashboard size={13} aria-hidden /> Marketing dashboard</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing across the business</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">See demand, audiences, channels, campaigns and conversion movement before opening the tools used to change them.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <div className="flex min-w-[210px] items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Building2 size={17} aria-hidden /></span>
+              <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Viewing</p><p className="truncate text-sm font-semibold text-black/75">{selectedScopeLabel}</p></div>
+            </div>
+            <Link href={marketingHref("campaigns", brandScope)} className="inline-flex min-h-12 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
+              Open marketing workspace <ArrowUpRight size={16} />
+            </Link>
+          </div>
+        </header>
+
+        <BrandScopeNavigation companies={companies} view="overview" activeScope={brandScope} />
+        <MarketingOverviewDashboard
+          overview={overview}
+          brandScope={brandScope}
+          sourceRows={sourceRows}
+          campaigns={scopedCampaigns.slice(0, 5)}
+          assets={scopedMarketingAssets}
+          customerProfiles={scopedCustomerProfiles}
+          emailSenderReady={Boolean(emailInstall?.enabled)}
+          automationStats={{ total: automationWorkflows.length, active: automationWorkflows.filter(workflow => workflow.status === "active").length }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="grid gap-5 border-b border-black/10 pb-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
         <div>
           <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><LockKeyhole size={13} aria-hidden /> Internal workspace</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing across the business</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Plan and measure AquaOasis-Web, AquaCRM, Milesymedia, Zimante Group and shared campaigns from one internal view. This is your operating workspace, not a client marketing page.</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing workspace</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Configure campaigns, audiences, channels, websites, funnels, advertising and reputation for the selected business.</p>
+          <Link href={marketingHref("overview", brandScope)} className="mt-3 inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowLeft size={14} /> Back to dashboard</Link>
         </div>
         <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Building2 size={17} aria-hidden /></span>
@@ -147,28 +245,9 @@ export default async function MarketingPage({
 
       <BrandScopeNavigation companies={companies} view={view} activeScope={brandScope} />
 
-      <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
-        <MarketingTab href={marketingHref("overview", brandScope)} active={view === "overview"}>Overview</MarketingTab>
-        <MarketingTab href={marketingHref("campaigns", brandScope)} active={view === "campaigns"}>Campaigns</MarketingTab>
-        <MarketingTab href={marketingHref("social", brandScope)} active={view === "social"}>Social media</MarketingTab>
-        <MarketingTab href={marketingHref("website", brandScope)} active={view === "website"}>Websites</MarketingTab>
-        <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"}>Funnels</MarketingTab>
-        <MarketingTab href={marketingHref("google-ads", brandScope)} active={view === "google-ads"}>Google Ads</MarketingTab>
-        <MarketingTab href={marketingHref("google-business", brandScope)} active={view === "google-business"}>Google Business Profile</MarketingTab>
-        <MarketingTab href={marketingHref("reputation", brandScope)} active={view === "reputation"}>Reputation</MarketingTab>
-        <MarketingTab href={marketingHref("sources", brandScope)} active={view === "sources"}>Lead sources</MarketingTab>
-      </nav>
+      <MarketingWorkspaceNavigation view={view} brandScope={brandScope} />
 
-      {view === "overview" ? (
-        <MarketingOverviewDashboard
-          overview={overview}
-          brandScope={brandScope}
-          sourceRows={sourceRows}
-          campaigns={scopedCampaigns.slice(0, 5)}
-          assets={scopedMarketingAssets}
-          emailSenderReady={Boolean(emailInstall?.enabled)}
-        />
-      ) : view === "campaigns" ? (
+      {view === "campaigns" ? (
         <div className="space-y-5">
           <CampaignQuickStarts brandScope={brandScope} />
           <CampaignsWorkspace
@@ -180,9 +259,13 @@ export default async function MarketingPage({
             companies={companyOptions}
             defaultCompanyIds={defaultCompanyIds}
             defaultChannel={composeChannel}
+            budgetPots={scopedBudgetPots}
+            customerProfiles={scopedCustomerProfiles}
             embedded
           />
         </div>
+      ) : view === "customer-profiles" ? (
+        <CustomerProfilesWorkspace profiles={scopedCustomerProfiles} companies={companyOptions} defaultCompanyIds={defaultCompanyIds} />
       ) : view === "sources" ? (
         <section aria-labelledby="lead-sources-heading">
           <div className="flex items-end justify-between border-b border-black/10 pb-3">
@@ -254,6 +337,9 @@ export default async function MarketingPage({
             assets={scopedMarketingAssets.filter(asset => asset.kind === "social")}
             companies={companyOptions}
             defaultCompanyIds={defaultCompanyIds}
+            inboxConnections={metaConnections}
+            metaConfigured={metaReadiness.configured}
+            inboxReturnUrl={marketingHref("social", brandScope)}
           />
         </div>
       ) : view === "google-business" ? (
@@ -340,14 +426,18 @@ function MarketingOverviewDashboard({
   sourceRows,
   campaigns,
   assets,
+  customerProfiles,
   emailSenderReady,
+  automationStats,
 }: {
   overview: MarketingOverview;
   brandScope: string;
   sourceRows: Array<{ source: string; leads: number; contacted: number; meetings: number; converted: number }>;
   campaigns: Array<{ id: string; name: string; status: string; channel?: string; kind?: string; attributedLeads?: number; attributedClients?: number; spendCents?: number }>;
   assets: MarketingAsset[];
+  customerProfiles: MarketingCustomerProfile[];
   emailSenderReady: boolean;
+  automationStats: { total: number; active: number };
 }) {
   const channelRows = ([
     ["social", "Social media", (asset: MarketingAsset) => asset.kind === "social"],
@@ -367,11 +457,16 @@ function MarketingOverviewDashboard({
       conversions: rows.reduce((sum, asset) => sum + asset.conversions, 0),
     };
   });
+  const activeProfiles = customerProfiles.filter(profile => profile.status === "active").length;
+  const validatedProfiles = customerProfiles.filter(profile => profile.evidenceConfidence === "validated").length;
+  const leadToMeetingRate = overview.leads > 0 ? Math.round(overview.meetings / overview.leads * 100) : 0;
+  const leadToWinRate = overview.leads > 0 ? Math.round(overview.converted / overview.leads * 100) : 0;
 
   return (
     <div className="space-y-7">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <OverviewMetric label="Campaigns" value={String(overview.campaigns)} detail={`${overview.activeCampaigns} active · ${overview.draftCampaigns} drafts`} icon={<Megaphone size={16} />} />
+        <OverviewMetric label="Customer profiles" value={String(customerProfiles.length)} detail={`${activeProfiles} active · ${validatedProfiles} validated`} icon={<UserRoundSearch size={16} />} />
         <OverviewMetric label="Lead activity" value={String(overview.leads)} detail={`${overview.contacted} contacted · ${overview.meetings} meetings`} icon={<Users size={16} />} />
         <OverviewMetric label="Conversions" value={String(overview.converted + overview.conversions)} detail={`${overview.converted} lead wins · ${overview.conversions} asset conversions`} icon={<Target size={16} />} />
         <OverviewMetric label="Tracked channels" value={String(overview.trackedAssets)} detail={`${overview.activeAssets} active assets`} icon={<Gauge size={16} />} />
@@ -385,6 +480,16 @@ function MarketingOverviewDashboard({
             <Link href={marketingHref("campaigns", brandScope)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white">Open campaigns <ArrowUpRight size={13} /></Link>
           </div>
           <div className="divide-y divide-black/[0.07]">
+            <article className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-center">
+              <div className="min-w-0"><h3 className="text-sm font-semibold text-black/78">Customer profiles</h3><p className="mt-1 text-xs text-black/45">{customerProfiles.length ? `${activeProfiles} active audiences across this scope` : "No customer profiles defined yet"}</p></div>
+              <div className="flex gap-4 text-xs text-black/52 md:justify-end"><span><strong className="font-semibold text-black/75">{validatedProfiles}</strong> validated</span><span><strong className="font-semibold text-black/75">{customerProfiles.filter(profile => profile.priority === "primary").length}</strong> primary</span></div>
+              <Link href={marketingHref("customer-profiles", brandScope)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 py-2 text-center text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Open</Link>
+            </article>
+            <article className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-center">
+              <div className="min-w-0"><h3 className="text-sm font-semibold text-black/78">Internal automations</h3><p className="mt-1 text-xs text-black/45">CRM workflows for follow-up, publishing, reminders and handovers</p></div>
+              <div className="flex gap-4 text-xs text-black/52 md:justify-end"><span><strong className="font-semibold text-black/75">{automationStats.total}</strong> flows</span><span><strong className="font-semibold text-black/75">{automationStats.active}</strong> active</span></div>
+              <Link href={marketingHref("automations", "all")} className="min-h-9 rounded-md border border-black/10 bg-white px-3 py-2 text-center text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Open</Link>
+            </article>
             {channelRows.map(row => (
               <article key={row.view} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-center">
                 <div className="min-w-0">
@@ -406,8 +511,12 @@ function MarketingOverviewDashboard({
           <dl className="mt-3 divide-y divide-black/10 text-sm">
             <OverviewRow label="Email sender" value={emailSenderReady ? "Ready" : "Needs setup"} />
             <OverviewRow label="Campaign drafts" value={String(overview.draftCampaigns)} />
+            <OverviewRow label="Active audiences" value={String(activeProfiles)} />
             <OverviewRow label="Active channels" value={String(channelRows.filter(row => row.active > 0).length)} />
+            <OverviewRow label="Active automations" value={String(automationStats.active)} />
             <OverviewRow label="Lead sources" value={String(sourceRows.length)} />
+            <OverviewRow label="Lead to meeting" value={`${leadToMeetingRate}%`} />
+            <OverviewRow label="Lead to win" value={`${leadToWinRate}%`} />
           </dl>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link href={campaignComposerHref(brandScope, "social")} className="min-h-9 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/62">Social</Link>
@@ -417,7 +526,7 @@ function MarketingOverviewDashboard({
         </aside>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <div>
           <div className="mb-3 flex items-end justify-between gap-3">
             <div><h2 className="text-base font-semibold text-black/82">Recent campaigns</h2><p className="mt-1 text-xs text-black/45">Latest activity in the selected brand scope.</p></div>
@@ -447,6 +556,22 @@ function MarketingOverviewDashboard({
               </div>
             ))}
             {!sourceRows.length ? <p className="py-8 text-center text-sm text-black/40">Lead sources will appear when leads are added.</p> : null}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div><h2 className="text-base font-semibold text-black/82">Audience snapshot</h2><p className="mt-1 text-xs text-black/45">Who current activity is meant to move.</p></div>
+            <Link href={marketingHref("customer-profiles", brandScope)} className="text-xs font-semibold text-brand hover:underline">Open profiles</Link>
+          </div>
+          <div className="divide-y divide-black/10 border-y border-black/10">
+            {customerProfiles.slice(0, 5).map(profile => (
+              <div key={profile.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0"><p className="truncate text-sm font-semibold text-black/75">{profile.name}</p><p className="mt-1 truncate text-xs text-black/45">{profile.segment || profile.audienceType} · {profile.evidenceConfidence}</p></div>
+                <div className="text-right text-xs font-semibold capitalize text-black/60">{profile.priority}</div>
+              </div>
+            ))}
+            {!customerProfiles.length ? <div className="py-8 text-center"><p className="text-sm text-black/40">No audiences defined for this scope.</p><Link href={marketingHref("customer-profiles", brandScope)} className="mt-2 inline-flex text-xs font-semibold text-brand hover:underline">Create the first profile</Link></div> : null}
           </div>
         </div>
       </section>
@@ -622,11 +747,30 @@ function MarketingTab({ href, active, children }: { href: string; active: boolea
   );
 }
 
-function isMarketingView(value: string | undefined): value is MarketingView {
-  return ["overview", "campaigns", "social", "website", "funnels", "google-ads", "google-business", "reputation", "sources"].includes(value ?? "");
+function MarketingWorkspaceNavigation({ view, brandScope }: { view: MarketingView; brandScope: string }) {
+  const automationTab = <MarketingTab href={marketingHref("automations", "all")} active={view === "automations"}>Automations</MarketingTab>;
+  return (
+    <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
+      {view === "automations" ? automationTab : null}
+      <MarketingTab href={marketingHref("campaigns", brandScope)} active={view === "campaigns"}>Campaigns</MarketingTab>
+      <MarketingTab href={marketingHref("customer-profiles", brandScope)} active={view === "customer-profiles"}>Customer profiles</MarketingTab>
+      <MarketingTab href={marketingHref("social", brandScope)} active={view === "social"}>Social media</MarketingTab>
+      <MarketingTab href={marketingHref("website", brandScope)} active={view === "website"}>Websites</MarketingTab>
+      <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"}>Funnels</MarketingTab>
+      <MarketingTab href={marketingHref("google-ads", brandScope)} active={view === "google-ads"}>Google Ads</MarketingTab>
+      <MarketingTab href={marketingHref("google-business", brandScope)} active={view === "google-business"}>Google Business Profile</MarketingTab>
+      <MarketingTab href={marketingHref("reputation", brandScope)} active={view === "reputation"}>Reputation</MarketingTab>
+      <MarketingTab href={marketingHref("sources", brandScope)} active={view === "sources"}>Lead sources</MarketingTab>
+      {view !== "automations" ? automationTab : null}
+    </nav>
+  );
 }
 
-function viewToAssetKind(view: Exclude<MarketingView, "overview" | "campaigns" | "sources" | "google-business">): MarketingAssetKind {
+function isMarketingView(value: string | undefined): value is MarketingView {
+  return ["overview", "campaigns", "customer-profiles", "social", "website", "funnels", "google-ads", "google-business", "reputation", "sources", "automations"].includes(value ?? "");
+}
+
+function viewToAssetKind(view: Exclude<MarketingView, "overview" | "campaigns" | "customer-profiles" | "sources" | "google-business" | "automations">): MarketingAssetKind {
   return view === "funnels" ? "funnel" : view;
 }
 

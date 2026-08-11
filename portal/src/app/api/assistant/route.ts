@@ -24,6 +24,8 @@ import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { listAgencyTasks } from "@/server/tasks";
+import { buildAdvisorSkillContext } from "@/lib/server/advisorSkillContext";
+import { resolveAdvisorSkill } from "@/lib/server/advisorSkills";
 
 const ASSISTANT_ROLES = new Set(["agency-owner", "agency-manager"]);
 
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
     title?: string;
     memoryId?: string;
     content?: string;
+    skillId?: string;
   };
 
   try {
@@ -121,16 +124,17 @@ export async function POST(req: NextRequest) {
           { status: 429, headers: { "retry-after": String(limit.retryAfterSec) } },
         );
       }
-      const [workspaceContext, advisorContext] = await Promise.all([
-        Promise.resolve(buildAssistantBusinessContext(session.agencyId)),
-        buildAdvisorContext(session.agencyId),
-      ]);
+      const advisorContext = await buildAdvisorContext(session.agencyId);
+      const skill = resolveAdvisorSkill(session.agencyId, "prioritise grounded tasks");
+      const skillContext = await buildAdvisorSkillContext(session.agencyId, skill, Date.now(), advisorContext);
       const openTasks = listAgencyTasks(session.agencyId).filter(task => task.status !== "done");
       const suggestions = await suggestAdvisorActions({
         agencyId: session.agencyId,
-        businessContext: `${workspaceContext.serialized}\n\nLIVE ADVISOR SNAPSHOT\n${JSON.stringify(advisorContext)}`,
+        businessContext: skillContext.serialized,
         alerts: advisorContext.operationalAlerts,
+        radarIssues: advisorContext.businessRadar.issues,
         existingTaskTitles: openTasks.map(task => task.title),
+        skill,
       });
       logActivity({
         agencyId: session.agencyId,
@@ -182,6 +186,7 @@ export async function POST(req: NextRequest) {
       : null;
     if (!thread) thread = createAssistantThread(session.agencyId, session.userId);
 
+    const skill = resolveAdvisorSkill(session.agencyId, message, body.skillId);
     const history = thread.messages.slice();
     const userMessage = appendAssistantMessage(
       session.agencyId,
@@ -189,6 +194,7 @@ export async function POST(req: NextRequest) {
       thread.id,
       "user",
       message,
+      skill.skillId,
     );
 
     const memoryMatch = message.match(/^(?:please\s+)?remember(?:\s+that)?[\s:,-]+(.+)/is);
@@ -201,10 +207,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [context, advisorContext] = await Promise.all([
-      Promise.resolve(buildAssistantBusinessContext(session.agencyId)),
-      buildAdvisorContext(session.agencyId),
-    ]);
+    const skillContext = await buildAdvisorSkillContext(session.agencyId, skill);
     const user = getUserById(session.userId);
     const workspace = getAssistantWorkspace(session.agencyId, session.userId);
     const answer = await askMilesymediaAssistant({
@@ -212,9 +215,10 @@ export async function POST(req: NextRequest) {
       userName: user?.name || session.email,
       memories: workspace.memories,
       history,
-      businessContext: `${context.serialized}\n\nLIVE ADVISOR SNAPSHOT\n${JSON.stringify(advisorContext)}`,
-      contextTruncated: context.truncated,
+      businessContext: skillContext.serialized,
+      contextTruncated: skillContext.truncated,
       question: message,
+      skill,
     });
     const assistantMessage = appendAssistantMessage(
       session.agencyId,
@@ -222,6 +226,7 @@ export async function POST(req: NextRequest) {
       thread.id,
       "assistant",
       answer,
+      skill.skillId,
     );
     logActivity({
       agencyId: session.agencyId,
@@ -236,6 +241,8 @@ export async function POST(req: NextRequest) {
         questionLength: message.length,
         answerLength: answer.length,
         memoryCreated: Boolean(memoryMatch?.[1]?.trim()),
+        skillId: skill.skillId,
+        skillRecipeId: skill.recipeId,
       },
     });
 
@@ -244,6 +251,7 @@ export async function POST(req: NextRequest) {
       threadId: thread.id,
       userMessage,
       assistantMessage,
+      activeSkill: { id: skill.skillId, name: skill.name, access: skill.access },
       ...responseState(session.agencyId, session.userId),
     });
   } catch (error) {

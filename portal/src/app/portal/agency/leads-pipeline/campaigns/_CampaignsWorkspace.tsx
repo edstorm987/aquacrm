@@ -17,6 +17,7 @@ interface CampaignRow {
   id: string;
   name: string;
   companyIds?: string[];
+  customerProfileIds?: string[];
   subject: string;
   bodyHtml: string;
   bodyText?: string;
@@ -25,6 +26,7 @@ interface CampaignRow {
   sourceKey?: string;
   status: "draft" | "scheduled" | "active" | "paused" | "sending" | "sent" | "completed";
   budgetCents?: number;
+  budgetPotId?: string;
   spendCents?: number;
   attributedRevenueCents?: number;
   startsAt?: number;
@@ -58,6 +60,20 @@ interface CampaignsWorkspaceProps {
   defaultCompanyIds?: string[];
   defaultChannel?: CampaignChannel;
   embedded?: boolean;
+  budgetPots?: CampaignBudgetPotOption[];
+  customerProfiles?: CampaignCustomerProfileOption[];
+}
+
+export interface CampaignBudgetPotOption {
+  id: string;
+  name: string;
+  currency: string;
+  allocatedCents: number;
+  fundedCents: number;
+  committedCents: number;
+  spentCents: number;
+  remainingFundedCents: number;
+  signal: "healthy" | "watch" | "unfunded" | "overspent" | "closed";
 }
 
 interface CampaignCompanyOption {
@@ -67,15 +83,25 @@ interface CampaignCompanyOption {
   colour: string;
 }
 
+interface CampaignCustomerProfileOption {
+  id: string;
+  name: string;
+  companyIds: string[];
+  status: "draft" | "active" | "archived";
+  priority: "primary" | "secondary" | "experimental";
+}
+
 const EMPTY_FORM = {
   name: "",
   companyIds: [] as string[],
+  customerProfileIds: [] as string[],
   kind: "newsletter" as CampaignKind,
   channel: "email" as CampaignChannel,
   sourceKey: "",
   subject: "",
   bodyText: "",
   budget: "",
+  budgetPotId: "",
   spend: "",
   revenue: "",
   startsAt: "",
@@ -194,7 +220,7 @@ const CAMPAIGN_PLAYBOOKS: Record<CampaignKind, { focus: string; steps: string[];
   },
 };
 
-export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady, companies = [], defaultCompanyIds = [], defaultChannel = "email", embedded = false }: CampaignsWorkspaceProps) {
+export function CampaignsWorkspace({ campaigns, availableTags, availableSources, pipelineColumns, emailSenderReady, companies = [], defaultCompanyIds = [], defaultChannel = "email", embedded = false, budgetPots = [], customerProfiles = [] }: CampaignsWorkspaceProps) {
   const router = useRouter();
   const [form, setForm] = useState(() => {
     const kind = kindForChannel(defaultChannel);
@@ -251,6 +277,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         body: JSON.stringify({
           name: form.name,
           companyIds: form.companyIds,
+          customerProfileIds: form.customerProfileIds,
           kind: form.kind,
           channel: form.channel,
           sourceKey: form.sourceKey,
@@ -258,6 +285,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
           bodyHtml: textToHtml(form.bodyText),
           bodyText: form.bodyText,
           budgetCents: poundsToCents(form.budget),
+          budgetPotId: form.budgetPotId || undefined,
           spendCents: poundsToCents(form.spend),
           attributedRevenueCents: poundsToCents(form.revenue),
           startsAt: dateToMs(form.startsAt),
@@ -320,6 +348,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
         body: JSON.stringify({
           name: draft.name,
           companyIds: draft.companyIds,
+          customerProfileIds: draft.customerProfileIds,
           kind: draft.kind,
           channel: draft.channel,
           sourceKey: draft.sourceKey,
@@ -327,6 +356,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
           bodyHtml: textToHtml(draft.bodyText),
           bodyText: draft.bodyText,
           budgetCents: poundsToCents(draft.budget),
+          budgetPotId: draft.budgetPotId || null,
           spendCents: poundsToCents(draft.spend),
           attributedRevenueCents: poundsToCents(draft.revenue),
           startsAt: dateToMs(draft.startsAt),
@@ -468,6 +498,13 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
               <Field label="Spend to date (£)" value={form.spend} onChange={v => setForm(f => ({ ...f, spend: v }))} placeholder="0" />
               <Field label="Revenue attributed (£)" value={form.revenue} onChange={v => setForm(f => ({ ...f, revenue: v }))} placeholder="0" />
             </div>
+            <CampaignBudgetControl
+              budgetPotId={form.budgetPotId}
+              budget={form.budget}
+              spend={form.spend}
+              budgetPots={budgetPots}
+              onChange={budgetPotId => setForm(current => ({ ...current, budgetPotId }))}
+            />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Start date" type="date" value={form.startsAt} onChange={v => setForm(f => ({ ...f, startsAt: v }))} />
               <Field label="End date" type="date" value={form.endsAt} onChange={v => setForm(f => ({ ...f, endsAt: v }))} />
@@ -477,6 +514,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
 
           <aside className="rounded-md border border-black/10 bg-black/[0.02] p-3">
             <h2 className="text-sm font-semibold text-black/85">Audience</h2>
+            <CampaignCustomerProfileSelector profileIds={form.customerProfileIds} profiles={customerProfiles} onChange={customerProfileIds => setForm(current => ({ ...current, customerProfileIds }))} />
             <Field label="Tags" value={form.tags} onChange={v => setForm(f => ({ ...f, tags: v }))} placeholder={availableTags.slice(0, 3).join(", ") || "warm, local-business"} />
             <Field label="Sources" value={form.sourcedFrom} onChange={v => setForm(f => ({ ...f, sourcedFrom: v }))} placeholder={availableSources.slice(0, 2).join(", ") || "sheet-upload"} />
             <label className="mt-3 block text-xs font-medium text-black/60">
@@ -529,8 +567,14 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                 <span>{campaign.sentCount} sent</span>
                 <span>{formatMoney(campaign.spendCents ?? 0)} spent</span>
                 {campaign.budgetCents ? <span>of {formatMoney(campaign.budgetCents)} budget</span> : null}
+                {campaign.budgetPotId
+                  ? <span>{budgetPots.find(pot => pot.id === campaign.budgetPotId)?.name ?? "Finance pot"}</span>
+                  : campaign.budgetCents
+                    ? <span className="font-medium text-amber-700">No Finance pot</span>
+                    : null}
                 <span>{campaign.attributedLeads ?? 0} leads</span>
                 <span>{campaign.attributedClients ?? 0} clients</span>
+                {campaign.customerProfileIds?.length ? <span>{campaign.customerProfileIds.length} customer profile{campaign.customerProfileIds.length === 1 ? "" : "s"}</span> : null}
                 {campaign.attributedRevenueCents ? <span>{formatMoney(campaign.attributedRevenueCents)} revenue</span> : null}
                 {campaign.sentAt && <span>Sent {new Date(campaign.sentAt).toLocaleDateString()}</span>}
                 {campaign.steps?.length ? <span>{campaign.steps.filter(step => step.status === "done").length}/{campaign.steps.length} steps done</span> : null}
@@ -548,6 +592,8 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                   campaign={campaign}
                   pipelineColumns={pipelineColumns}
                   companies={companies}
+                  budgetPots={budgetPots}
+                  customerProfiles={customerProfiles}
                   busy={busy === `update:${campaign.id}`}
                   onSave={draft => updateCampaign(campaign.id, draft)}
                 />
@@ -575,12 +621,14 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
 interface CampaignDraft {
   name: string;
   companyIds: string[];
+  customerProfileIds: string[];
   kind: CampaignKind;
   channel: CampaignChannel;
   sourceKey: string;
   subject: string;
   bodyText: string;
   budget: string;
+  budgetPotId: string;
   spend: string;
   revenue: string;
   startsAt: string;
@@ -599,18 +647,23 @@ function CampaignEditor({
   campaign,
   pipelineColumns,
   companies,
+  budgetPots,
+  customerProfiles,
   busy,
   onSave,
 }: {
   campaign: CampaignRow;
   pipelineColumns: string[];
   companies: CampaignCompanyOption[];
+  budgetPots: CampaignBudgetPotOption[];
+  customerProfiles: CampaignCustomerProfileOption[];
   busy: boolean;
   onSave: (draft: CampaignDraft) => void;
 }) {
   const [draft, setDraft] = useState<CampaignDraft>({
     name: campaign.name,
     companyIds: campaign.companyIds ?? [],
+    customerProfileIds: campaign.customerProfileIds ?? [],
     kind: campaign.kind ?? kindForChannel(campaign.channel ?? "email"),
     channel: campaign.channel ?? "email",
     sourceKey: campaign.sourceKey ?? "",
@@ -620,6 +673,7 @@ function CampaignEditor({
     sourcedFrom: (campaign.audienceFilter.sourcedFrom ?? []).join(", "),
     pipelineColumn: campaign.audienceFilter.pipelineColumn ?? "",
     budget: centsToInput(campaign.budgetCents),
+    budgetPotId: campaign.budgetPotId ?? "",
     spend: centsToInput(campaign.spendCents),
     revenue: centsToInput(campaign.attributedRevenueCents),
     startsAt: msToDate(campaign.startsAt),
@@ -636,6 +690,7 @@ function CampaignEditor({
       <summary className="cursor-pointer text-xs font-medium text-black/65">Edit draft</summary>
       <div className="mt-3 grid gap-3">
         <CampaignBrandSelector companyIds={draft.companyIds} companies={companies} onChange={companyIds => setDraft(current => ({ ...current, companyIds }))} />
+        <CampaignCustomerProfileSelector profileIds={draft.customerProfileIds} profiles={customerProfiles} onChange={customerProfileIds => setDraft(current => ({ ...current, customerProfileIds }))} />
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Campaign name" value={draft.name} onChange={value => setDraft(d => ({ ...d, name: value }))} required />
           <SelectField label="Campaign type" value={draft.kind} onChange={value => {
@@ -658,6 +713,14 @@ function CampaignEditor({
           <Field label="End date" type="date" value={draft.endsAt} onChange={value => setDraft(d => ({ ...d, endsAt: value }))} />
           <Field label="Campaign link" value={draft.externalUrl} onChange={value => setDraft(d => ({ ...d, externalUrl: value }))} />
         </div>
+        <CampaignBudgetControl
+          budgetPotId={draft.budgetPotId}
+          budget={draft.budget}
+          spend={draft.spend}
+          budgetPots={budgetPots}
+          campaign={campaign}
+          onChange={budgetPotId => setDraft(current => ({ ...current, budgetPotId }))}
+        />
         <Field label="Notes" value={draft.notes} onChange={value => setDraft(d => ({ ...d, notes: value }))} />
         <CampaignStepsEditor steps={draft.steps} onChange={steps => setDraft(d => ({ ...d, steps }))} compact />
         {isEmailLikeChannel(draft.channel) ? <label className="text-xs font-medium text-black/60">
@@ -809,6 +872,43 @@ function CampaignBrandSelector({
   );
 }
 
+function CampaignCustomerProfileSelector({
+  profileIds,
+  profiles,
+  onChange,
+}: {
+  profileIds: string[];
+  profiles: CampaignCustomerProfileOption[];
+  onChange: (profileIds: string[]) => void;
+}) {
+  const available = profiles.filter(profile => profile.status !== "archived");
+  return (
+    <fieldset className="mt-3 border-y border-black/10 py-3">
+      <legend className="px-1 text-xs font-semibold text-black/65">Customer profiles</legend>
+      {available.length ? (
+        <div className="grid gap-2">
+          {available.map(profile => {
+            const checked = profileIds.includes(profile.id);
+            return (
+              <label key={profile.id} className="flex cursor-pointer items-start gap-2 text-xs text-black/58">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onChange(checked ? profileIds.filter(id => id !== profile.id) : [...profileIds, profile.id])}
+                  className="mt-0.5 size-4 rounded border-black/20 text-brand"
+                />
+                <span className="min-w-0"><strong className="block truncate font-semibold text-black/72">{profile.name}</strong><span className="capitalize text-black/40">{profile.priority} · {profile.status}</span></span>
+              </label>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs leading-5 text-black/42">No customer profiles in this brand scope. <Link href="/portal/agency/marketing?view=customer-profiles" className="font-semibold text-brand hover:underline">Create one</Link></p>
+      )}
+    </fieldset>
+  );
+}
+
 function CampaignLanePlaybook({
   kind,
   channel,
@@ -843,6 +943,86 @@ function CampaignLanePlaybook({
       <button type="button" onClick={onReset} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">
         Reset steps
       </button>
+    </section>
+  );
+}
+
+function CampaignBudgetControl({
+  budgetPotId,
+  budget,
+  spend,
+  budgetPots,
+  campaign,
+  onChange,
+}: {
+  budgetPotId: string;
+  budget: string;
+  spend: string;
+  budgetPots: CampaignBudgetPotOption[];
+  campaign?: CampaignRow;
+  onChange: (budgetPotId: string) => void;
+}) {
+  const selected = budgetPots.find(pot => pot.id === budgetPotId);
+  const requestedCents = Math.max(poundsToCents(budget) ?? 0, poundsToCents(spend) ?? 0);
+  const currentCommitment = campaign && selected && campaign.budgetPotId === selected.id
+    ? Math.max(campaign.budgetCents ?? 0, campaign.spendCents ?? 0)
+    : 0;
+  const fundedHeadroom = selected ? selected.remainingFundedCents + currentCommitment : 0;
+  const overPotCents = selected ? Math.max(0, requestedCents - fundedHeadroom) : 0;
+  const overCampaignCents = Math.max(0, (poundsToCents(spend) ?? 0) - (poundsToCents(budget) ?? 0));
+
+  return (
+    <section className="rounded-md border border-black/10 bg-black/[0.018] p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <label className="min-w-0 flex-1 text-xs font-medium text-black/60">
+          Fund from budget pot
+          <select
+            value={budgetPotId}
+            onChange={event => onChange(event.target.value)}
+            className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/80"
+          >
+            <option value="">No Finance pot</option>
+            {budgetPots.map(pot => (
+              <option key={pot.id} value={pot.id}>
+                {pot.name} · {formatMoney(Math.max(0, pot.remainingFundedCents))} funded headroom
+              </option>
+            ))}
+          </select>
+        </label>
+        <Link href="/portal/agency/agency-finance/budgets" className="mt-5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/60 hover:bg-black/[0.03]">
+          Manage pots
+        </Link>
+      </div>
+
+      {selected ? (
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-black/50">
+          <span>Allocated {formatMoney(selected.allocatedCents)}</span>
+          <span>Funded {formatMoney(selected.fundedCents)}</span>
+          <span>Committed {formatMoney(selected.committedCents)}</span>
+          <span>Available to this campaign {formatMoney(Math.max(0, fundedHeadroom))}</span>
+        </div>
+      ) : null}
+
+      {!selected && requestedCents > 0 ? (
+        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          This campaign has a {formatMoney(requestedCents)} commitment but no funded Finance pot. Assign one before launch so it appears in cash planning.
+        </p>
+      ) : null}
+      {selected && overPotCents > 0 ? (
+        <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">
+          This campaign is {formatMoney(overPotCents)} above the pot&apos;s funded headroom. Reduce the campaign budget or add funds in Finance.
+        </p>
+      ) : null}
+      {selected && ["overspent", "unfunded"].includes(selected.signal) && overPotCents === 0 ? (
+        <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">
+          {selected.name} is already {selected.signal === "overspent" ? "over its limit" : "carrying commitments without funds"}. Review it in Finance before launch.
+        </p>
+      ) : null}
+      {overCampaignCents > 0 ? (
+        <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">
+          Recorded spend is {formatMoney(overCampaignCents)} above this campaign&apos;s own budget.
+        </p>
+      ) : null}
     </section>
   );
 }

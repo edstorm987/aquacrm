@@ -7,7 +7,7 @@
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { addCard, getPipelineBySlug, listCardsByAgency, moveCard } from "@/server/pipelines";
-import { createClient, listClients, updateClient } from "@/server/tenants";
+import { createClient, getClientForAgency, listClients, updateClient } from "@/server/tenants";
 import { setupClientStarterPortal } from "@/server/clientPortalSetup";
 import {
   clientDeliveryPackageMetadata,
@@ -22,6 +22,7 @@ import { parseCsv } from "../server/csv";
 import type { PortalState } from "@/server/types";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { resolveIntegrationValues } from "@/lib/server/integrationConnections";
+import { recordWebsiteEnquiryResponse } from "@/lib/server/websiteEnquiries";
 import type {
   AudienceFilter,
   Contact,
@@ -579,6 +580,10 @@ function clientJourneyMetadata(
   conversion: ClientConversionPackage = {},
   existingMetadata: Record<string, unknown> = {},
 ) {
+  const leadCapturedAt = "capturedAt" in source ? source.capturedAt : source.leadCapturedAt;
+  const journeyEvents = "capturedAt" in source ? source.journeyEvents : source.leadJourneyEvents;
+  const firstContactedAt = source.firstContactedAt;
+  const convertedAt = source.convertedAt;
   const clientName = source.company || source.name || source.email;
   const existingLinkedContacts = Array.isArray(existingMetadata.linkedContacts)
     ? existingMetadata.linkedContacts
@@ -592,7 +597,7 @@ function clientJourneyMetadata(
         phone: source.phone,
         role: source.company ? "Primary contact" : "Client",
         primary: true,
-        createdAt: "capturedAt" in source ? source.capturedAt : source.createdAt,
+        createdAt: leadCapturedAt ?? ("createdAt" in source ? source.createdAt : source.capturedAt),
         updatedAt: Date.now(),
       }];
   const existingProducts = cleanPortalProducts(existingMetadata.portalProducts);
@@ -622,7 +627,10 @@ function clientJourneyMetadata(
     contactId: "createdAt" in source ? source.id : undefined,
     promotedFromLeadId: "promotedFromLeadId" in source ? source.promotedFromLeadId : undefined,
     leadSource: source.source,
-    leadCapturedAt: "capturedAt" in source ? source.capturedAt : undefined,
+    leadCapturedAt,
+    leadFirstContactedAt: firstContactedAt,
+    leadConvertedAt: convertedAt,
+    leadJourneyEvents: journeyEvents,
     phone: source.phone,
     notes: source.notes,
     nextMeetingAt: source.nextMeetingAt,
@@ -656,7 +664,10 @@ function clientJourneyMetadata(
     }),
     buyingJourney: {
       source: source.source,
-      capturedAt: "capturedAt" in source ? source.capturedAt : undefined,
+      capturedAt: leadCapturedAt,
+      firstContactedAt,
+      convertedAt,
+      journeyEvents,
       meetingAt: source.nextMeetingAt,
       meetingLink: source.meetingLink,
       salesPresentations: source.salesPresentations,
@@ -809,18 +820,28 @@ export async function updateLeadStatusHandler(req: Request, ctx: PluginCtx): Pro
       } as never,
     });
     if (!card) return unprocessable("could_not_create_pipeline_card");
-    const updated = await c.leads.update(lead.id, { pipelineCardId: card.id }, ctx.actor);
-    if (column.label.toLowerCase() === "won") await c.contacts.promoteLead(updated ?? lead, ctx.actor);
-    return json({ ok: true, lead: updated ?? lead, card, columnId: column.id });
+    const linked = await c.leads.update(lead.id, { pipelineCardId: card.id }, ctx.actor) ?? lead;
+    const updated = await c.leads.recordStageChange(linked.id, {
+      fromStage: lead.currentStageId,
+      toStage: column.id,
+      at: card.updatedAt,
+    }, ctx.actor) ?? linked;
+    if (column.label.toLowerCase() === "won") await c.contacts.promoteLead(updated, ctx.actor);
+    return json({ ok: true, lead: updated, card, columnId: column.id });
   }
 
   const moved = moveCard(ctx.agencyId, cardId, column.id);
   if (!moved) return unprocessable("could_not_move_card");
-  const updated = lead.pipelineCardId === cardId
+  const linked = lead.pipelineCardId === cardId
     ? lead
-    : await c.leads.update(lead.id, { pipelineCardId: cardId }, ctx.actor);
-  if (column.label.toLowerCase() === "won") await c.contacts.promoteLead(updated ?? lead, ctx.actor);
-  return json({ ok: true, lead: updated ?? lead, card: moved.card, columnId: column.id });
+    : await c.leads.update(lead.id, { pipelineCardId: cardId }, ctx.actor) ?? lead;
+  const updated = await c.leads.recordStageChange(linked.id, {
+    fromStage: moved.fromColumn,
+    toStage: moved.toColumn,
+    at: moved.card.updatedAt,
+  }, ctx.actor) ?? linked;
+  if (column.label.toLowerCase() === "won") await c.contacts.promoteLead(updated, ctx.actor);
+  return json({ ok: true, lead: updated, card: moved.card, columnId: column.id });
 }
 
 async function ensureLeadBoardCard(ctx: PluginCtx, lead: Lead): Promise<{ lead: Lead; card?: unknown; columnId?: string }> {
@@ -933,8 +954,32 @@ export async function updateLeadMeetingHandler(req: Request, ctx: PluginCtx): Pr
   if (salesPresentations !== undefined) patch.salesPresentations = salesPresentations;
   if (body.nextMeetingAt === null) patch.nextMeetingAt = undefined;
   if (body.meetingReminderAt === null) patch.meetingReminderAt = undefined;
-  const updated = await service.update(body.id, patch, ctx.actor);
+  let updated = await service.update(body.id, patch, ctx.actor);
   if (!updated) return notFound("lead_not_found");
+  if (typeof body.nextMeetingAt === "number" && body.nextMeetingAt !== existing.nextMeetingAt) {
+    updated = await service.recordMeeting(body.id, body.nextMeetingAt, ctx.actor) ?? updated;
+  }
+  if (body.attempt?.outcome) {
+    const contactAt = typeof body.attempt.at === "number" ? body.attempt.at : Date.now();
+    updated = await service.recordContact(body.id, {
+      at: contactAt,
+      channel: body.attempt.channel,
+      outcome: body.attempt.outcome,
+      note: body.attempt.notes,
+    }, ctx.actor) ?? updated;
+    const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
+    if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactAt, ctx.actor).catch(() => false);
+  } else if (typeof body.nextMeetingAt === "number" && !existing.firstContactedAt) {
+    const contactAt = Date.now();
+    updated = await service.recordContact(body.id, {
+      at: contactAt,
+      channel: body.meetingMode ?? "other",
+      outcome: "meeting-scheduled",
+      note: "First contact inferred from the scheduled meeting.",
+    }, ctx.actor) ?? updated;
+    const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
+    if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactAt, ctx.actor).catch(() => false);
+  }
   return json({ ok: true, lead: updated });
 }
 
@@ -943,8 +988,16 @@ export async function markLeadContactedHandler(req: Request, ctx: PluginCtx): Pr
   const body = await safeJson<{ id: string; contactedAt?: number }>(req);
   if (!body?.id) return badRequest("id required.");
   const contactedAt = typeof body.contactedAt === "number" ? body.contactedAt : Date.now();
-  const updated = await buildContainer(ctx).leads.update(body.id, { lastContactedAt: contactedAt }, ctx.actor);
+  const c = buildContainer(ctx);
+  const updated = await c.leads.recordContact(body.id, {
+    at: contactedAt,
+    channel: "other",
+    outcome: "reached",
+    note: "Manually marked as contacted.",
+  }, ctx.actor);
   if (!updated) return notFound("lead_not_found");
+  const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
+  if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactedAt, ctx.actor).catch(() => false);
   return json({ ok: true, lead: updated });
 }
 
@@ -995,7 +1048,6 @@ export async function convertLeadToClientHandler(req: Request, ctx: PluginCtx): 
     });
   }
 
-  await c.contacts.promoteLead(lead, ctx.actor);
   await c.leads.update(
     lead.id,
     { tags: Array.from(new Set([...lead.tags, "converted"])), notes: lead.notes },
@@ -1046,6 +1098,36 @@ export async function convertLeadToClientHandler(req: Request, ctx: PluginCtx): 
     restorePortalState(beforeConvert);
     return json({ ok: false, error: `client portal setup failed: ${portalSetup.error}`, portalSetup }, 500);
   }
+
+  let trackedLead = await c.leads.get(lead.id) ?? lead;
+  if (!trackedLead.firstContactedAt) {
+    trackedLead = await c.leads.recordContact(lead.id, {
+      at: Date.now(),
+      channel: "other",
+      outcome: "converted",
+      note: "Contact confirmed during client conversion.",
+    }, ctx.actor) ?? trackedLead;
+  }
+  trackedLead = await c.leads.recordConversion(lead.id, client.id, ctx.actor) ?? trackedLead;
+  await c.contacts.promoteLead(trackedLead, ctx.actor);
+  const latestClient = getClientForAgency(ctx.agencyId, client.id) ?? client;
+  updateClient(ctx.agencyId, client.id, {
+    metadata: {
+      leadCapturedAt: trackedLead.capturedAt,
+      leadFirstContactedAt: trackedLead.firstContactedAt,
+      leadConvertedAt: trackedLead.convertedAt,
+      leadJourneyEvents: trackedLead.journeyEvents,
+      buyingJourney: {
+        ...((latestClient.metadata?.buyingJourney && typeof latestClient.metadata.buyingJourney === "object")
+          ? latestClient.metadata.buyingJourney as Record<string, unknown>
+          : {}),
+        capturedAt: trackedLead.capturedAt,
+        firstContactedAt: trackedLead.firstContactedAt,
+        convertedAt: trackedLead.convertedAt,
+        journeyEvents: trackedLead.journeyEvents,
+      },
+    },
+  });
 
   return json({
     ok: true,

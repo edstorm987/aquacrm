@@ -88,11 +88,13 @@ export function appendAssistantMessage(
   threadId: string,
   role: AssistantMessage["role"],
   content: string,
+  skillId?: string,
 ): AssistantMessage {
   const message: AssistantMessage = {
     id: id("msg"),
     role,
     content: content.trim(),
+    skillId,
     createdAt: Date.now(),
   };
   updateWorkspace(agencyId, userId, workspace => {
@@ -157,4 +159,3 @@ export function deleteAssistantMemory(agencyId: string, userId: string, memoryId
     workspace.memories = workspace.memories.filter(memory => memory.id !== memoryId);
   });
 }
-

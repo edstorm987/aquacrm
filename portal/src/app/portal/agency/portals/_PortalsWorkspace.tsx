@@ -45,6 +45,9 @@ export type PortalTemplateProductRecord = {
   portalSupportCta?: string;
   accentColor?: string;
   deliverables: string[];
+  portalDesignTemplateId?: string;
+  portalDesignVersionId?: string;
+  portalDesignUpdatedAt?: number;
 };
 
 type View = "library" | "templates";
@@ -62,11 +65,13 @@ export function PortalsWorkspace({
   products,
   initialView,
   canManage,
+  embedded = false,
 }: {
   portals: PortalWorkspaceRecord[];
   products: PortalTemplateProductRecord[];
   initialView: View;
   canManage: boolean;
+  embedded?: boolean;
 }) {
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
@@ -99,6 +104,7 @@ export function PortalsWorkspace({
 
   function chooseView(next: View) {
     setView(next);
+    if (embedded) return;
     const url = new URL(window.location.href);
     if (next === "templates") url.searchParams.set("view", "templates");
     else url.searchParams.delete("view");
@@ -113,16 +119,18 @@ export function PortalsWorkspace({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1500px]">
-      <header className="flex flex-col gap-5 border-b border-black/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
+    <div className={embedded ? "w-full" : "mx-auto w-full max-w-[1500px]"} data-embedded-portal-workspace={embedded || undefined}>
+      <header className="flex flex-col gap-5 border-b border-black/10 pb-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Client experience</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90 sm:text-4xl">Portals</h1>
+          {embedded
+            ? <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black/90">Portal workspace</h2>
+            : <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90 sm:text-4xl">Portals</h1>}
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
             See every client portal, preview demo templates, check access, and open the right editor from one place.
           </p>
         </div>
-        <div className="inline-flex w-full rounded-md border border-black/10 bg-white p-1 sm:w-auto" role="tablist" aria-label="Portal workspace views">
+        <div className="inline-flex w-full overflow-x-auto rounded-md border border-black/10 bg-white p-1 sm:w-auto" role="tablist" aria-label="Portal workspace views">
           <ViewButton active={view === "library"} onClick={() => chooseView("library")} icon={<LayoutPanelTop size={16} />} label="All portals" />
           <ViewButton active={view === "templates"} onClick={() => chooseView("templates")} icon={<Eye size={16} />} label="Demo templates" />
           <ViewButton active={false} onClick={openEditor} icon={<MonitorCog size={16} />} label="Portal editor" />
@@ -232,13 +240,32 @@ function CanonicalPortalTemplatePreview({
           </div>
           <p className="text-xs text-black/42">{connectedProducts.length} active product{connectedProducts.length === 1 ? "" : "s"}</p>
         </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {connectedProducts.map(product => (
-            <Link key={product.id} href={`/portal/agency/products/${product.id}`} className="mm-interactive-row mm-surface-card flex min-h-16 items-center justify-between gap-3 rounded-md p-3">
-              <div className="min-w-0"><p className="truncate text-sm font-semibold text-black/75">{product.name}</p><p className="mt-1 text-xs text-black/40">{product.portalRequirement === "required" ? "Portal required" : "Portal optional"}</p></div>
-              <ArrowUpRight size={15} className="shrink-0 text-black/30" />
-            </Link>
-          ))}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {connectedProducts.map(product => {
+            const productPreviewHref = previewClient && product.portalDesignTemplateId
+              ? `/client-preview/${previewClient.id}?portalScope=template&portalMode=onboarding&templateId=${encodeURIComponent(product.portalDesignTemplateId)}`
+              : "";
+            const productEditorHref = `/portal/agency/portals/editor?scope=template&productId=${encodeURIComponent(product.id)}${previewClient ? `&clientId=${encodeURIComponent(previewClient.id)}` : ""}`;
+            return (
+              <article key={product.id} className="mm-surface-card overflow-hidden rounded-md">
+                <div className="h-1" style={{ backgroundColor: product.accentColor || "#8b6c33" }} />
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-black/78">{product.name}</p>
+                      <p className="mt-1 text-xs text-black/42">Stunning Standard · {product.portalRequirement === "required" ? "Required" : "Optional"}</p>
+                    </div>
+                    <StatusChip tone="ready">Template ready</StatusChip>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2 border-t border-black/8 pt-3">
+                    {productPreviewHref ? <Link href={productPreviewHref} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-2.5 text-xs font-semibold text-black/62 hover:bg-black/[0.03]"><Eye size={14} /> View template</Link> : null}
+                    <Link href={productEditorHref} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-2.5 text-xs font-semibold text-white hover:bg-black/85"><MonitorCog size={14} /> Edit template</Link>
+                    <Link href={`/portal/agency/products/${product.id}`} aria-label={`Open ${product.name} product`} title="Open product" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/42 hover:bg-black/[0.03] hover:text-black/70"><ArrowUpRight size={14} /></Link>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
           {!connectedProducts.length ? <p className="text-sm text-black/45">No active products currently require a portal.</p> : null}
         </div>
         {!canManage ? <p className="mt-3 text-xs text-black/40">Manager access is required to publish template changes.</p> : null}

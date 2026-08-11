@@ -55,7 +55,7 @@ export function NotificationCentreButton({ operationalCount, inboxHref }: Props)
   const display = unread > 99 ? "99+" : String(unread);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="mm-has-attention-badge relative overflow-visible">
       <button
         type="button"
         aria-label={`Notifications — ${unread} unread`}
@@ -67,7 +67,7 @@ export function NotificationCentreButton({ operationalCount, inboxHref }: Props)
       >
         <Bell size={16} aria-hidden="true" />
         {unread > 0 ? (
-          <span className="absolute -right-1.5 -top-1.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white">
+          <span className="mm-attention-badge absolute -right-1.5 -top-1.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white">
             {display}
           </span>
         ) : null}
@@ -77,7 +77,7 @@ export function NotificationCentreButton({ operationalCount, inboxHref }: Props)
         <section
           role="dialog"
           aria-label="Notification centre"
-          className="fixed right-3 top-14 z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:absolute sm:right-0 sm:top-11"
+          className="mm-popover fixed right-3 top-14 z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:absolute sm:right-0 sm:top-11"
         >
           <header className="flex items-center justify-between border-b border-black/10 px-4 py-3">
             <div>

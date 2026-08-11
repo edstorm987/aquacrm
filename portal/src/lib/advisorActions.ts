@@ -29,7 +29,7 @@ export const ADVISOR_CATEGORY_HREF: Record<AdvisorActionCategory, string> = {
   client: "/portal/clients",
   sales: "/portal/agency/pipelines/leads",
   finance: "/portal/agency/agency-finance",
-  delivery: "/portal/agency/pipelines/fulfilment",
+  delivery: "/portal/agency/fulfilment",
   support: "/portal/agency/inbox",
   development: "/portal/agency/development",
   marketing: "/portal/agency/marketing",

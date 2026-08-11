@@ -6,8 +6,8 @@
 // existing PortalEditOverlay activates inside) and wraps it in:
 //   • Icon top bar          — site / page picker, mode switcher, edit/view, save, publish
 //   • Right properties side — opens when an element is clicked in the iframe
-//   • Mode switch           — Live (iframe + click-to-edit), Block (drag/drop builder),
-//                             Code (raw JSON of the page's block tree)
+//   • Mode switch           — Preview (iframe + click-to-edit), Design (drag/drop builder),
+//                             Code (structure, CSS, head, and footer code)
 //
 // Live mode message contract with the embedded PortalEditOverlay:
 //   iframe → host:  { source: "portal-edit-overlay", type: "ready" | "select" | "unsaved" | "saved", … }
@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { Braces, Code2, FileCode2, LayoutTemplate, Paintbrush, Save } from "lucide-react";
 import PluginRequired from "../lib/pluginRequired";
 import DevicePreview from "../components/devicePreview";
 import { confirm } from "../lib/confirm";
@@ -41,7 +42,10 @@ import {
   updatePage as updateEditorPage, publishPage as publishEditorPage,
   createPage as createEditorPage, deletePage as deleteEditorPage,
 } from "../lib/editorPages";
-import { listSites, getActiveSite, getSite, updateSite, type Site } from "../lib/sites";
+import {
+  createSite, refreshSites, getActiveSite, getSite, setActiveSiteId,
+  updateSite, type Site,
+} from "../lib/sites";
 import { promoteSiteToGitHub, type PromoteResult } from "../lib/promote";
 import {
   type Funnel, listFunnels, refreshFunnels, createFunnel, onFunnelsChange,
@@ -51,6 +55,9 @@ import {
   type EditorComplexity,
 } from "../lib/editorMode";
 import type { EditorPage } from "../types/editorPage";
+import type { Block } from "../types/block";
+import { PAGE_TEMPLATES } from "../components/pageTemplates";
+import { makeBlockId } from "../components/canvas/blockTreeOps";
 
 interface PageEntry {
   id: string;
@@ -68,7 +75,7 @@ interface PageEntry {
 // editor pulls sites/pages from session-scoped endpoints, so we don't
 // need to thread the clientId through manually here. PluginRequired is
 // a pass-through (foundation handles plugin gating upstream).
-export default function VisualEditorPage(_props: unknown) {
+export default function VisualEditorPage() {
   return <PluginRequired plugin="website"><VisualEditorPageInner /></PluginRequired>;
 }
 
@@ -97,7 +104,7 @@ function VisualEditorPageInner() {
   const [pages, setPages] = useState<PageEntry[]>([]);
   const [funnels, setFunnels] = useState<Funnel[]>([]);
   const [target, setTarget] = useState<EditorTarget>({ kind: "page", id: "_home" });
-  const [mode, setMode] = useState<EditorMode>("live");
+  const [mode, setMode] = useState<EditorMode>(() => getEditorComplexity() === "simple" ? "live" : "block");
   const [edit, setEdit] = useState<"edit" | "view">("edit");
   const [deviceState, setDeviceState] = useState<DeviceState>(() => loadDeviceState());
   const [unsaved, setUnsaved] = useState(0);
@@ -119,6 +126,8 @@ function VisualEditorPageInner() {
   const [siteSettingsOpen, setSiteSettingsOpen] = useState(false);
   const [history, setHistory] = useState<{ canUndo: boolean; canRedo: boolean }>({ canUndo: false, canRedo: false });
   const [complexity, setComplexity] = useState<EditorComplexity>(() => getEditorComplexity());
+  const [booting, setBooting] = useState(true);
+  const [bootError, setBootError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Sync complexity across tabs / settings tab in /admin/customise.
@@ -166,12 +175,32 @@ function VisualEditorPageInner() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const allSites = listSites();
+      setBooting(true);
+      setBootError(null);
+      let allSites = await refreshSites();
+      if (cancelled) return;
+
+      if (allSites.length === 0) {
+        const created = await createSite({ name: "Client website", slug: "website" });
+        const homepage = PAGE_TEMPLATES.find(template => template.id === "homepage");
+        await createEditorPage(created.id, {
+          title: homepage?.defaultTitle ?? "Home",
+          slug: "/",
+          blocks: homepage?.build() ?? [],
+          isHomepage: true,
+        });
+        setActiveSiteId(created.id);
+        allSites = await refreshSites();
+      }
+
       const active = getActiveSite() ?? allSites[0] ?? null;
       if (cancelled) return;
       setSites(allSites);
       setSite(active);
-      if (!active) return;
+      if (!active) {
+        setBooting(false);
+        return;
+      }
 
       const [pageEntries, _funnels] = await Promise.all([
         loadPages(active.id),
@@ -187,15 +216,28 @@ function VisualEditorPageInner() {
         : pageEntries[0]?.id ?? "_home";
       setTarget({ kind: "page", id: startId });
       deepLinkPageId.current = null;
+      setBooting(false);
     }
-    void load();
+    void load().catch(cause => {
+      if (cancelled) return;
+      setBootError(cause instanceof Error ? cause.message : String(cause));
+      setBooting(false);
+    });
     return () => { cancelled = true; };
   }, [loadPages]);
 
-  // Re-load pages when the active site changes.
+  // Re-load pages when the operator changes site. The first site is
+  // hydrated by the boot effect above, so skip this effect once to avoid
+  // racing and overwriting a page supplied in the deep link.
+  const didBootSite = useRef(false);
   useEffect(() => {
     if (!site) return;
+    if (!didBootSite.current) {
+      didBootSite.current = true;
+      return;
+    }
     let cancelled = false;
+    setActiveSiteId(site.id);
     void loadPages(site.id).then(pageEntries => {
       if (cancelled) return;
       setPages(pageEntries);
@@ -216,12 +258,15 @@ function VisualEditorPageInner() {
   // Block mode now renders inline via EditorBlockStage (no iframe).
   const iframeSrc = useMemo(() => {
     if (!currentPage) return "about:blank";
+    if (clientIdFromPath && site && currentPage.source === "editor") {
+      return `/client-website-preview/${encodeURIComponent(clientIdFromPath)}/${encodeURIComponent(site.id)}/${encodeURIComponent(currentPage.id)}?preview=1`;
+    }
     const params = new URLSearchParams();
     if (edit === "edit") params.set("portal_edit", "1");
     params.set("editor_host", "1");
     const qs = params.toString();
     return `${currentPage.slug}${qs ? `?${qs}` : ""}`;
-  }, [currentPage, edit]);
+  }, [clientIdFromPath, currentPage, edit, site]);
 
   // Listen to messages from the embedded overlay.
   useEffect(() => {
@@ -386,10 +431,31 @@ function VisualEditorPageInner() {
     pushDeepLink(nextStart, nextVariant);
   }
 
-  async function handleCreateNewPage(title: string) {
+  function cloneBlocks(blocks: Block[]): Block[] {
+    return blocks.map(block => ({
+      ...block,
+      id: makeBlockId(),
+      props: { ...block.props },
+      styles: block.styles ? { ...block.styles } : undefined,
+      children: block.children ? cloneBlocks(block.children) : undefined,
+    }));
+  }
+
+  async function handleDuplicatePage(id: string) {
     if (!site) return;
+    const source = pages.find(page => page.id === id);
+    if (!source || source.source !== "editor") return;
+    const document = await getEditorPage(site.id, id);
+    if (!document) return;
+    const title = `${source.title} copy`;
     const slug = uniqueSlug(pagesAsLike, slugify(title));
-    const created = await createEditorPage(site.id, { title, slug });
+    const created = await createEditorPage(site.id, {
+      title,
+      slug,
+      description: document.description,
+      blocks: cloneBlocks(document.blocks),
+      themeId: document.themeId,
+    });
     if (!created) return;
     const refreshed = await loadPages(site.id);
     setPages(refreshed);
@@ -397,9 +463,31 @@ function VisualEditorPageInner() {
     pushDeepLink(created.id, currentVariant);
   }
 
+  if (booting || bootError) {
+    return (
+      <main className="fixed inset-0 z-[80] grid place-items-center bg-[#0a0a0a] px-6">
+        <div className="max-w-md text-center">
+          <LayoutTemplate className="mx-auto mb-4 text-cyan-300/75" size={30} aria-hidden="true" />
+          {bootError ? (
+            <>
+              <h1 className="text-sm font-semibold text-white">The visual builder could not start</h1>
+              <p role="alert" className="mt-2 text-[12px] leading-5 text-red-300">{bootError}</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-sm font-semibold text-white">Preparing the visual builder</h1>
+              <p className="mt-2 text-[12px] text-brand-cream/45">Loading your website, pages, and design tools...</p>
+            </>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="h-[calc(100vh-0px)] flex flex-col bg-[#0a0a0a]">
+    <main className="fixed inset-0 z-[80] flex flex-col bg-[#0a0a0a]">
       <EditorTopBar
+        backHref={clientIdFromPath ? `/portal/clients/${encodeURIComponent(clientIdFromPath)}?tab=website` : "/portal/agency/development"}
         sites={sites.map(s => ({ id: s.id, name: s.name }))}
         siteId={site?.id ?? ""}
         onSiteChange={id => setSite(sites.find(s => s.id === id) ?? null)}
@@ -410,8 +498,9 @@ function VisualEditorPageInner() {
         onModeChange={setMode}
         edit={edit}
         onEditChange={setEditorMode}
+        supportsInlineEdit={!clientIdFromPath}
         onReload={reloadIframe}
-        iframeReady={iframeReady}
+        iframeReady={mode !== "live" || iframeReady}
         unsaved={unsaved}
         onPublish={() => setPublishOpen(true)}
         onGenerate={
@@ -446,12 +535,15 @@ function VisualEditorPageInner() {
           variants={variantList}
           currentVariant={currentVariant}
           onSelectPage={id => void handlePickPage(id)}
-          onCreatePage={title => void handleCreateNewPage(title)}
+          onCreatePage={() => setNewPageOpen(true)}
+          onDuplicatePage={id => void handleDuplicatePage(id)}
+          onDeletePage={id => void handleDeletePage(id)}
+          onOpenSettings={id => setPageSettingsId(id)}
           onSelectVariant={v => void handlePickVariant(v)}
         />
       )}
 
-      {isPageTarget && mode === "live" && !isSimple && (
+      {isPageTarget && mode !== "code" && !isSimple && (
         <DevicePreview state={deviceState} onChange={s => { setDeviceState(s); saveDeviceState(s); }} />
       )}
 
@@ -460,27 +552,28 @@ function VisualEditorPageInner() {
             canvas gets the full width; the Page picker in the topbar
             stays available for switching pages. */}
         {!isSimple && (
-          <EditorOutliner
-            siteName={site?.name ?? "Site"}
-            pages={pages}
-            funnels={funnels}
-            target={target}
-            onSelectPage={handleSelectPage}
-            onSelectFunnel={handleSelectFunnel}
-            onCreatePage={() => setNewPageOpen(true)}
-            onCreateFunnel={() => setNewFunnelOpen(true)}
-            onDeletePage={id => void handleDeletePage(id)}
-            onDeleteFunnel={id => void handleDeleteFunnel(id)}
-            onPageSettings={id => setPageSettingsId(id)}
-            onSiteSettings={() => setSiteSettingsOpen(true)}
-          />
+          <div className={mode === "block" && target.kind === "page" ? "hidden 2xl:flex shrink-0" : "flex shrink-0"}>
+            <EditorOutliner
+              siteName={site?.name ?? "Site"}
+              pages={pages}
+              funnels={funnels}
+              target={target}
+              onSelectPage={handleSelectPage}
+              onSelectFunnel={handleSelectFunnel}
+              onCreatePage={() => setNewPageOpen(true)}
+              onCreateFunnel={() => setNewFunnelOpen(true)}
+              onDeletePage={id => void handleDeletePage(id)}
+              onDeleteFunnel={id => void handleDeleteFunnel(id)}
+              onPageSettings={id => setPageSettingsId(id)}
+              onSiteSettings={() => setSiteSettingsOpen(true)}
+            />
+          </div>
         )}
 
-        {/* Stage selection: funnel → centred funnel editor; block (editor
-            page) → inline three-pane block stage with own library + props;
-            live / code → centred iframe / textarea + right properties. */}
+        {/* Stage selection: funnels use their focused editor, Design uses
+            the three-pane block workspace, and Preview/Code use the main stage. */}
         {target.kind === "funnel" ? (
-          <div className="flex-1 min-w-0 overflow-auto bg-[#050505] flex items-start justify-center p-6">
+          <div className="flex min-w-0 flex-1 items-start justify-center overflow-auto bg-[#050505] p-2 sm:p-4 lg:p-6">
             {currentFunnel ? (
               <EditorFunnelStage
                 funnel={currentFunnel}
@@ -507,7 +600,7 @@ function VisualEditorPageInner() {
           />
         ) : (
           <>
-            <div className="flex-1 min-w-0 overflow-auto bg-[#050505] flex items-start justify-center p-6">
+            <div className="flex min-w-0 flex-1 items-start justify-center overflow-auto bg-[#050505] p-2 sm:p-4 lg:p-6">
               {mode === "code" ? (
                 <CodeStage
                   site={site}
@@ -565,7 +658,7 @@ function VisualEditorPageInner() {
             {/* Right properties sidebar — Live mode only (Block has its own,
                 Code has none). Simple mode hides it; the operator clicks
                 blocks to edit them inline in the iframe instead. */}
-            {isPageTarget && mode === "live" && !isSimple && (
+            {isPageTarget && mode === "live" && !isSimple && !clientIdFromPath && (
               <EditorPropertiesSidebar
                 selected={selected}
                 onClose={() => setSelected(null)}
@@ -578,9 +671,11 @@ function VisualEditorPageInner() {
         )}
       </div>
 
-      <footer className="shrink-0 px-4 py-2 border-t border-white/5 bg-brand-black-soft text-[10px] text-brand-cream/45 flex items-center gap-4">
+      <footer className="flex shrink-0 items-center gap-4 overflow-x-auto whitespace-nowrap border-t border-white/5 bg-brand-black-soft px-2 py-2 text-[10px] text-brand-cream/45 [scrollbar-width:thin] sm:px-4">
         {target.kind === "funnel" ? (
           <span>Funnel editor — auto-saves changes. Step paths support globs (e.g. <code className="font-mono text-brand-cream/65">/products/*</code>).</span>
+        ) : mode === "live" && clientIdFromPath ? (
+          <span>Client website preview · Draft</span>
         ) : mode === "live" ? (
           <>
             <span>Cmd/Ctrl+E to toggle edit mode inside the iframe</span>
@@ -608,7 +703,7 @@ function VisualEditorPageInner() {
       {livePreviewOpen && currentPage && mode !== "live" && (
         <div className="fixed top-[60px] bottom-[40px] right-0 z-40 shadow-2xl">
           <LivePreview
-            pageSlug={currentPage.slug}
+            pageSlug={iframeSrc}
             reloadKey={reloadKey}
             lastSaveAt={lastSaveAt}
             onSelectBlock={blockId => {
@@ -649,6 +744,7 @@ function VisualEditorPageInner() {
             const next = await loadPages(site.id);
             setPages(next);
             setTarget({ kind: "page", id: created.id });
+            pushDeepLink(created.id, currentVariant);
             return true;
           }}
         />
@@ -696,8 +792,24 @@ function VisualEditorPageInner() {
 
 // ── Code stage ─────────────────────────────────────────────────────────────
 //
-// Loads the EditorPage record for the active page and renders its
-// `blocks` array as a raw JSON textarea. Save = parse + PATCH.
+// One code workspace for the structural block tree and the page-level
+// CSS/head/footer escape hatches. Custom HTML itself remains a normal block
+// so it can still be positioned visually in Design mode.
+
+type CodePanel = "blocks" | "css" | "head" | "foot";
+
+const CODE_PANELS: Array<{
+  id: CodePanel;
+  label: string;
+  filename: string;
+  icon: typeof Braces;
+  placeholder: string;
+}> = [
+  { id: "blocks", label: "Structure", filename: "blocks.json", icon: Braces, placeholder: "[]" },
+  { id: "css", label: "Page CSS", filename: "page.css", icon: Paintbrush, placeholder: ".hero {\n  min-height: 80vh;\n}" },
+  { id: "head", label: "Head", filename: "head.html", icon: FileCode2, placeholder: "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">" },
+  { id: "foot", label: "Footer code", filename: "footer.html", icon: Code2, placeholder: "<script>\n  // Runs after the page content.\n</script>" },
+];
 
 function CodeStage({
   site, page, onSavedChange,
@@ -706,8 +818,9 @@ function CodeStage({
   page: PageEntry | null | undefined;
   onSavedChange: (n: number) => void;
 }) {
-  const [text, setText]       = useState("");
-  const [original, setOrig]   = useState("");
+  const [activePanel, setActivePanel] = useState<CodePanel>("blocks");
+  const [buffers, setBuffers] = useState<Record<CodePanel, string>>({ blocks: "", css: "", head: "", foot: "" });
+  const [original, setOriginal] = useState<Record<CodePanel, string>>({ blocks: "", css: "", head: "", foot: "" });
   const [pageDoc, setPageDoc] = useState<EditorPage | null>(null);
   const [error, setError]     = useState<string | null>(null);
   const [saving, setSaving]   = useState(false);
@@ -719,49 +832,66 @@ function CodeStage({
     setError(null);
     async function pull() {
       if (!site || !page || page.source !== "editor") {
-        setText("");
-        setOrig("");
+        const empty = { blocks: "", css: "", head: "", foot: "" };
+        setBuffers(empty);
+        setOriginal(empty);
         setPageDoc(null);
         setLoaded(true);
         return;
       }
       const doc = await getEditorPage(site.id, page.id);
       if (cancelled) return;
-      const formatted = JSON.stringify(doc?.blocks ?? [], null, 2);
+      const next = {
+        blocks: JSON.stringify(doc?.blocks ?? [], null, 2),
+        css: doc?.customCss ?? doc?.customCSS ?? "",
+        head: doc?.customHead ?? "",
+        foot: doc?.customFoot ?? "",
+      };
       setPageDoc(doc);
-      setText(formatted);
-      setOrig(formatted);
+      setBuffers(next);
+      setOriginal(next);
       setLoaded(true);
     }
     void pull();
     return () => { cancelled = true; };
   }, [site, page]);
 
-  const dirty = text !== original;
-  useEffect(() => { onSavedChange(dirty ? 1 : 0); }, [dirty, onSavedChange]);
+  const dirtyPanels = CODE_PANELS.filter(panel => buffers[panel.id] !== original[panel.id]);
+  const dirty = dirtyPanels.length > 0;
+  useEffect(() => { onSavedChange(dirtyPanels.length); }, [dirtyPanels.length, onSavedChange]);
 
   async function commit() {
     if (!site || !pageDoc || !dirty) return;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Invalid JSON");
-      return;
+    const patch: Parameters<typeof updateEditorPage>[2] = {};
+    if (buffers.blocks !== original.blocks) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(buffers.blocks);
+      } catch (e) {
+        setActivePanel("blocks");
+        setError(e instanceof Error ? e.message : "Invalid block JSON");
+        return;
+      }
+      if (!Array.isArray(parsed)) {
+        setActivePanel("blocks");
+        setError("The block structure must be a top-level array.");
+        return;
+      }
+      patch.blocks = parsed as EditorPage["blocks"];
     }
-    if (!Array.isArray(parsed)) {
-      setError("Top-level value must be an array of blocks.");
-      return;
-    }
+    if (buffers.css !== original.css) patch.customCss = buffers.css;
+    if (buffers.head !== original.head) patch.customHead = buffers.head;
+    if (buffers.foot !== original.foot) patch.customFoot = buffers.foot;
     setSaving(true);
     setError(null);
-    const ok = await updateEditorPage(site.id, pageDoc.id, { blocks: parsed as EditorPage["blocks"] });
+    const ok = await updateEditorPage(site.id, pageDoc.id, patch);
     setSaving(false);
     if (!ok) {
       setError("Save failed.");
       return;
     }
-    setOrig(text);
+    setPageDoc(ok);
+    setOriginal(buffers);
   }
 
   if (!loaded) {
@@ -779,25 +909,52 @@ function CodeStage({
   }
 
   return (
-    <div className="w-full max-w-5xl flex flex-col h-[calc(100vh-160px)]">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">blocks.json</span>
-        <span className="text-[10px] text-brand-cream/35 font-mono truncate">{pageDoc?.slug}</span>
+    <div className="flex h-[calc(100vh-160px)] w-full max-w-6xl flex-col overflow-hidden rounded-md border border-white/10 bg-[#0a0e1a]">
+      <div className="flex min-h-12 items-center gap-1 border-b border-white/10 px-2">
+        {CODE_PANELS.map(panel => {
+          const Icon = panel.icon;
+          const changed = buffers[panel.id] !== original[panel.id];
+          return (
+            <button
+              key={panel.id}
+              type="button"
+              onClick={() => { setActivePanel(panel.id); setError(null); }}
+              aria-pressed={activePanel === panel.id}
+              className={`relative inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-[11px] transition ${
+                activePanel === panel.id ? "bg-white/10 text-brand-cream" : "text-brand-cream/50 hover:bg-white/5 hover:text-brand-cream/80"
+              }`}
+            >
+              <Icon size={14} aria-hidden="true" />
+              {panel.label}
+              {changed ? <span className="size-1.5 rounded-full bg-amber-300" aria-label="Unsaved" /> : null}
+            </button>
+          );
+        })}
         <div className="flex-1" />
-        {error && <span className="text-[11px] text-red-300">{error}</span>}
+        <span className="hidden text-[10px] font-mono text-brand-cream/35 sm:block">{pageDoc?.slug}</span>
         <button
-          onClick={commit}
+          onClick={() => void commit()}
           disabled={!dirty || saving}
-          className="px-3 py-1.5 rounded-md text-[11px] font-medium bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 border border-cyan-400/20 disabled:opacity-40"
+          className="ml-2 inline-flex min-h-8 items-center gap-2 rounded-md border border-cyan-400/20 bg-cyan-500/15 px-3 text-[11px] font-medium text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-40"
         >
-          {saving ? "Saving…" : dirty ? "Save" : "Saved"}
+          <Save size={13} aria-hidden="true" />
+          {saving ? "Saving" : dirty ? `Save ${dirtyPanels.length}` : "Saved"}
         </button>
       </div>
+      <div className="flex items-center gap-3 border-b border-white/5 px-4 py-2">
+        <span className="text-[10px] font-mono text-brand-cream/55">{CODE_PANELS.find(panel => panel.id === activePanel)?.filename}</span>
+        {activePanel === "blocks" ? (
+          <span className="text-[10px] text-brand-cream/35">Add and position custom HTML from Design, then edit that block here or in Properties.</span>
+        ) : null}
+        {error ? <span role="alert" className="ml-auto text-[11px] text-red-300">{error}</span> : null}
+      </div>
       <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
+        value={buffers[activePanel]}
+        onChange={event => setBuffers(current => ({ ...current, [activePanel]: event.target.value }))}
+        placeholder={CODE_PANELS.find(panel => panel.id === activePanel)?.placeholder}
         spellCheck={false}
-        className="flex-1 w-full font-mono text-[12px] leading-relaxed bg-[#0a0e1a] border border-white/10 rounded-lg p-4 text-brand-cream focus:outline-none focus:border-cyan-400/40"
+        aria-label={`${CODE_PANELS.find(panel => panel.id === activePanel)?.label} editor`}
+        className="min-h-0 flex-1 resize-none bg-[#080b14] p-5 font-mono text-[12px] leading-6 text-brand-cream outline-none placeholder:text-brand-cream/20 focus:bg-[#090d18]"
       />
     </div>
   );
@@ -1088,8 +1245,9 @@ function NewPageModal({
   onClose, onCreate,
 }: {
   onClose: () => void;
-  onCreate: (input: { slug: string; title: string }) => Promise<boolean>;
+  onCreate: (input: { slug: string; title: string; blocks?: Block[]; isHomepage?: boolean }) => Promise<boolean>;
 }) {
+  const [templateId, setTemplateId] = useState("blank");
   const [title, setTitle] = useState("");
   const [slug, setSlug]   = useState("");
   const [busy, setBusy]   = useState(false);
@@ -1105,6 +1263,15 @@ function NewPageModal({
     }
   }
 
+  function chooseTemplate(id: string) {
+    const template = PAGE_TEMPLATES.find(item => item.id === id);
+    if (!template) return;
+    setTemplateId(id);
+    setTitle(template.defaultTitle);
+    setSlug(template.defaultSlug);
+    slugTouched.current = false;
+  }
+
   async function submit() {
     setError(null);
     const t = title.trim();
@@ -1113,14 +1280,42 @@ function NewPageModal({
     if (!s) { setError("Slug is required."); return; }
     if (!s.startsWith("/")) s = "/" + s;
     setBusy(true);
-    const ok = await onCreate({ slug: s, title: t });
+    const template = PAGE_TEMPLATES.find(item => item.id === templateId);
+    const ok = await onCreate({
+      slug: s,
+      title: t,
+      blocks: template?.build() ?? [],
+      isHomepage: s === "/",
+    });
     setBusy(false);
     if (!ok) { setError("Failed to create page. Slug may already exist."); return; }
     onClose();
   }
 
   return (
-    <ModalShell title="New page" onClose={busy ? () => {} : onClose}>
+    <ModalShell title="New page" onClose={busy ? () => {} : onClose} wide>
+      <div>
+        <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">Start with</span>
+        <div className="mt-2 grid max-h-48 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+          {PAGE_TEMPLATES.map(template => (
+            <button
+              key={template.id}
+              type="button"
+              onClick={() => chooseTemplate(template.id)}
+              aria-pressed={templateId === template.id}
+              className={`min-h-20 rounded-md border p-2 text-left transition ${
+                templateId === template.id
+                  ? "border-cyan-400/50 bg-cyan-500/10 text-cyan-100"
+                  : "border-white/10 bg-white/[0.02] text-brand-cream/70 hover:border-white/25"
+              }`}
+            >
+              <span className="block text-sm" aria-hidden="true">{template.icon}</span>
+              <strong className="mt-1 block text-[11px]">{template.label}</strong>
+              <span className="mt-0.5 block text-[10px] leading-4 opacity-55">{template.description}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="block">
         <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">Title</span>
         <input
@@ -1271,7 +1466,7 @@ function PageSettingsModal({
 
   return (
     <ModalShell title="Page settings" onClose={busy ? () => {} : onClose} wide>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">Title</span>
           <input
@@ -1332,7 +1527,7 @@ function PageSettingsModal({
             Theme · layout · custom CSS
           </summary>
           <div className="mt-3 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">Theme override</span>
                 <select
@@ -1501,7 +1696,7 @@ function SiteSettingsModal({
 
   return (
     <ModalShell title="Site settings" onClose={onClose} wide>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-[10px] tracking-wider uppercase text-brand-cream/45">Name</span>
           <input

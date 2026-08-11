@@ -258,7 +258,10 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       const isWebsiteEnquiry = lead.tags.includes("website-enquiry")
         || lead.source.startsWith("website:")
         || ["public-contact", "website-contact", "milesymedia-website"].includes(lead.source);
-      if (notificationSettings.clientAlerts && isWebsiteEnquiry && !lead.lastContactedAt) {
+      const awaitingLatestEnquiry = lead.lastEnquiryAt
+        ? !lead.lastEnquiryRespondedAt
+        : !lead.firstContactedAt && !lead.lastContactedAt;
+      if (notificationSettings.clientAlerts && isWebsiteEnquiry && awaitingLatestEnquiry) {
         const enquiryId = typeof lead.customFields?.enquiryId === "string" ? lead.customFields.enquiryId : undefined;
         const enquiry = enquiryId ? websiteEnquiryById.get(enquiryId) : undefined;
         if (enquiry?.status === "resolved") continue;
@@ -285,7 +288,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           lead.id === enquiry.leadId
           || (Boolean(enquiry.email) && lead.email.toLowerCase() === enquiry.email?.toLowerCase()),
         );
-        if (matchingLead?.lastContactedAt) continue;
+        if (matchingLead && (matchingLead.lastEnquiryAt ? matchingLead.lastEnquiryRespondedAt : matchingLead.firstContactedAt ?? matchingLead.lastContactedAt)) continue;
 
         alerts.push({
           id: `website-message:${enquiry.id}`,
@@ -362,13 +365,124 @@ function addFinanceAlerts(alerts: OperationalAlert[], agencyId: string, now: num
     .map(install => install.id);
   const expenses: Record<string, unknown>[] = [];
   const invoices: Record<string, unknown>[] = [];
+  const budgetPots: Record<string, unknown>[] = [];
+  const obligations: Record<string, unknown>[] = [];
+  const compensationPayments: Record<string, unknown>[] = [];
 
   for (const installId of installIds) {
     for (const [key, value] of Object.entries(state.pluginData[installId] ?? {})) {
       if (!isRecord(value)) continue;
       if (key.startsWith("expenses/by-id/")) expenses.push(value);
       if (key.startsWith("invoices/by-id/")) invoices.push(value);
+      if (key.startsWith("budget-pots/by-id/")) budgetPots.push(value);
+      if (key.startsWith("operations/obligations/by-id/")) obligations.push(value);
+      if (key.startsWith("operations/payments/by-id/")) compensationPayments.push(value);
     }
+  }
+
+  const campaignInstallIds = Object.values(state.pluginInstalls)
+    .filter(install => install.agencyId === agencyId && install.pluginId === "leads-pipeline" && install.enabled)
+    .map(install => install.id);
+  const campaigns: Record<string, unknown>[] = [];
+  for (const installId of campaignInstallIds) {
+    for (const [key, value] of Object.entries(state.pluginData[installId] ?? {})) {
+      if (key.startsWith("campaign:") && isRecord(value)) campaigns.push(value);
+    }
+  }
+
+  for (const pot of budgetPots) {
+    if (cleanText(pot.status) !== "active") continue;
+    const potId = cleanText(pot.id);
+    if (!potId) continue;
+    const linkedCampaigns = campaigns.filter(campaign => cleanText(campaign.budgetPotId) === potId && cleanText(campaign.status) !== "cancelled");
+    const linkedExpenses = expenses.filter(expense => cleanText(expense.budgetPotId) === potId && cleanText(expense.status) !== "rejected");
+    const linkedWorkforce = compensationPayments.filter(payment => cleanText(payment.budgetPotId) === potId && cleanText(payment.status) !== "cancelled");
+    const campaignCommitted = linkedCampaigns.reduce((sum, campaign) => sum + Math.max(numeric(campaign.budgetCents), numeric(campaign.spendCents)), 0);
+    const expenseCommitted = linkedExpenses.reduce((sum, expense) => sum + numeric(expense.amountCents), 0);
+    const campaignSpent = linkedCampaigns.reduce((sum, campaign) => sum + numeric(campaign.spendCents), 0);
+    const expenseSpent = linkedExpenses
+      .filter(expense => cleanText(expense.status) === "reimbursed")
+      .reduce((sum, expense) => sum + numeric(expense.amountCents), 0);
+    const workforceCommitted = linkedWorkforce.reduce((sum, payment) => sum + numeric(payment.grossCents) + numeric(payment.employerCostCents), 0);
+    const workforceSpent = linkedWorkforce.filter(payment => cleanText(payment.status) === "paid").reduce((sum, payment) => sum + numeric(payment.grossCents) + numeric(payment.employerCostCents), 0);
+    const committed = campaignCommitted + expenseCommitted + workforceCommitted;
+    const spent = campaignSpent + expenseSpent + workforceSpent;
+    const allocated = numeric(pot.allocatedCents);
+    const funded = numeric(pot.fundedCents);
+    const potName = cleanText(pot.name) || "Budget pot";
+    const potMoney = (cents: number) => moneyInCurrency(cents, cleanText(pot.currency) || "GBP");
+
+    if (committed > allocated || spent > funded) {
+      const over = Math.max(committed - allocated, spent - funded);
+      alerts.push({
+        id: `finance:budget-over:${potId}`,
+        severity: "critical",
+        category: "money",
+        title: `${potName} is over its limit`,
+        detail: `${potMoney(committed)} committed and ${potMoney(spent)} spent. The pot is over by ${potMoney(over)} and needs funding or a reduced commitment.`,
+        href: "/portal/agency/agency-finance/budgets",
+        occurredAt: Math.max(numeric(pot.updatedAt), newestTimestamp([...linkedCampaigns, ...linkedExpenses, ...linkedWorkforce], now)),
+      });
+    } else if (committed > funded) {
+      alerts.push({
+        id: `finance:budget-unfunded:${potId}`,
+        severity: "warning",
+        category: "money",
+        title: `${potName} has unfunded commitments`,
+        detail: `${potMoney(committed)} is committed against ${potMoney(funded)} currently funded. Add ${potMoney(committed - funded)} or reduce planned work.`,
+        href: "/portal/agency/agency-finance/budgets",
+        occurredAt: Math.max(numeric(pot.updatedAt), newestTimestamp([...linkedCampaigns, ...linkedExpenses, ...linkedWorkforce], now)),
+      });
+    } else if (committed > 0 && allocated > 0 && committed >= allocated * 0.85) {
+      alerts.push({
+        id: `finance:budget-near-limit:${potId}`,
+        severity: "notice",
+        category: "money",
+        title: `${potName} is nearly allocated`,
+        detail: `${potMoney(committed)} of ${potMoney(allocated)} is committed. ${potMoney(Math.max(0, allocated - committed))} remains available.`,
+        href: "/portal/agency/agency-finance/budgets",
+        occurredAt: Math.max(numeric(pot.updatedAt), newestTimestamp([...linkedCampaigns, ...linkedExpenses, ...linkedWorkforce], now)),
+      });
+    }
+  }
+
+  const liveObligations = obligations.filter(obligation => !["completed", "waived", "archived"].includes(cleanText(obligation.status)) && numeric(obligation.nextDueAt) > 0);
+  const overdueObligations = liveObligations.filter(obligation => numeric(obligation.nextDueAt) < now);
+  const upcomingObligations = liveObligations.filter(obligation => numeric(obligation.nextDueAt) >= now && numeric(obligation.nextDueAt) <= now + 60 * DAY);
+  if (overdueObligations.length) {
+    alerts.push({
+      id: "finance:obligations-overdue",
+      severity: "critical",
+      category: "compliance",
+      title: `${overdueObligations.length} finance obligation${overdueObligations.length === 1 ? " is" : "s are"} overdue`,
+      detail: "Review accounts, tax, payroll, audit, insurance and renewal records, then record the next deadline.",
+      href: "/portal/agency/agency-finance/operations",
+      occurredAt: oldestPositiveTimestamp(overdueObligations.map(obligation => numeric(obligation.nextDueAt)), newestTimestamp(overdueObligations, now)),
+    });
+  } else if (upcomingObligations.length) {
+    alerts.push({
+      id: "finance:obligations-upcoming",
+      severity: "notice",
+      category: "compliance",
+      title: `${upcomingObligations.length} finance obligation${upcomingObligations.length === 1 ? " is" : "s are"} due within 60 days`,
+      detail: "Prepare the filing, renewal, evidence, professional review and expected cost before the deadline.",
+      href: "/portal/agency/agency-finance/operations",
+      occurredAt: oldestPositiveTimestamp(upcomingObligations.map(obligation => numeric(obligation.nextDueAt)), newestTimestamp(upcomingObligations, now)),
+    });
+  }
+
+  const duePeoplePayments = compensationPayments.filter(payment => ["planned", "approved"].includes(cleanText(payment.status)) && numeric(payment.dueAt) > 0 && numeric(payment.dueAt) <= now + 7 * DAY);
+  if (duePeoplePayments.length) {
+    const late = duePeoplePayments.filter(payment => numeric(payment.dueAt) < now).length;
+    alerts.push({
+      id: "finance:people-payments-due",
+      severity: late ? "critical" : "warning",
+      category: "money",
+      title: `${duePeoplePayments.length} people payment${duePeoplePayments.length === 1 ? "" : "s"} ${late ? "need action" : "are due soon"}`,
+      detail: late ? `${late} payment${late === 1 ? " is" : "s are"} overdue. Review approval, funding and payment evidence.` : "Salary, bonus or external talent payments are due within seven days.",
+      href: "/portal/agency/agency-finance/operations",
+      occurredAt: oldestPositiveTimestamp(duePeoplePayments.map(payment => numeric(payment.dueAt)), newestTimestamp(duePeoplePayments, now)),
+    });
   }
 
   const missingEvidence = expenses.filter(expense => {
@@ -500,6 +614,14 @@ function requestLabel(type: string): string {
 
 function money(cents: number): string {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(cents / 100);
+}
+
+function moneyInCurrency(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase(), maximumFractionDigits: 0 }).format(cents / 100);
+  } catch {
+    return `${currency.toUpperCase()} ${(cents / 100).toFixed(0)}`;
+  }
 }
 
 function formatRelativeDate(value: number, now: number): string {

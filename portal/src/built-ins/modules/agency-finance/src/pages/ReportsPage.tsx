@@ -3,6 +3,7 @@ import { containerFor } from "../server/foundationAdapter";
 import type { Currency } from "../lib/domain";
 import { normaliseCurrency, SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { FinanceNav } from "../components/FinanceNav";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
 import Link from "next/link";
 
 function money(cents: number, currency: Currency): string {
@@ -14,17 +15,18 @@ function money(cents: number, currency: Currency): string {
 
 export default async function ReportsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
+  const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
   const to = Date.now();
   const from = Date.UTC(new Date().getUTCFullYear(), 0, 1);
   const [invoices, expenses, income] = await Promise.all([c.invoices.list(), c.expenses.list(), c.income.list()]);
   const availableCurrencies = Array.from(new Set([
-    normaliseCurrency(props.install.config.defaultCurrency, "gbp"),
+    defaultCurrency,
     ...invoices.map(row => row.currency),
     ...expenses.map(row => row.currency),
     ...income.map(row => row.currency),
   ])).sort((a, b) => a.localeCompare(b));
   const requestedCurrency = typeof props.searchParams.currency === "string" ? props.searchParams.currency : undefined;
-  const currency = normaliseCurrency(requestedCurrency, normaliseCurrency(props.install.config.defaultCurrency, "gbp"));
+  const currency = normaliseCurrency(requestedCurrency, defaultCurrency);
   const snapshot = await c.reports.revenueSnapshot({ from, to, currency });
   const paidExpenses = expenses.filter(expense => expense.status === "reimbursed" && expense.currency === currency);
   const outputTax = invoices

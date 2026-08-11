@@ -17,6 +17,7 @@ import type {
   CsvImportResult,
   Lead,
   LeadFilter,
+  LeadJourneyEvent,
   UpdateLeadPatch,
 } from "../lib/domain";
 import { projectLeadCard } from "../lib/domain";
@@ -46,6 +47,69 @@ function leadLabel(lead: Pick<Lead, "email" | "phone" | "name" | "id">): string 
   return lead.email || lead.phone || lead.name || lead.id;
 }
 
+function enquiryIdFrom(value: Pick<Lead, "customFields"> | CreateLeadInput): string | undefined {
+  const enquiryId = value.customFields?.enquiryId;
+  return typeof enquiryId === "string" && enquiryId.trim() ? enquiryId.trim().slice(0, 160) : undefined;
+}
+
+function isEnquiryCapture(value: Pick<Lead, "source" | "tags" | "customFields"> | CreateLeadInput): boolean {
+  return Boolean(enquiryIdFrom(value))
+    || value.tags?.includes("website-enquiry") === true
+    || value.source.startsWith("website:")
+    || ["public-contact", "website-contact", "milesymedia-website"].includes(value.source);
+}
+
+function journeyEvent(type: LeadJourneyEvent["type"], at: number, fields: Omit<LeadJourneyEvent, "id" | "type" | "at"> = {}): LeadJourneyEvent {
+  return { id: makeId("journey"), type, at, ...fields };
+}
+
+export function normalizeLeadJourney(lead: Lead): Lead {
+  const events = Array.isArray(lead.journeyEvents) ? [...lead.journeyEvents] : [];
+  if (!events.some(event => event.type === "lead-captured" || event.type === "enquiry-received")) {
+    events.push({
+      id: `journey_captured_${lead.id}`,
+      type: isEnquiryCapture(lead) ? "enquiry-received" : "lead-captured",
+      at: lead.capturedAt,
+      source: lead.source,
+      enquiryId: enquiryIdFrom(lead),
+    });
+  }
+  const firstContactedAt = lead.firstContactedAt
+    ?? events.filter(event => event.type === "contact-recorded").map(event => event.at).sort((a, b) => a - b)[0]
+    ?? lead.lastContactedAt;
+  if (lead.lastContactedAt && !events.some(event => event.type === "contact-recorded")) {
+    events.push({
+      id: `journey_contact_${lead.id}_${lead.lastContactedAt}`,
+      type: "contact-recorded",
+      at: lead.lastContactedAt,
+      outcome: "recorded",
+      note: "Contact recorded before detailed timing history was enabled.",
+    });
+  }
+  const enquiryIds = Array.from(new Set([
+    ...(lead.enquiryIds ?? []),
+    ...(enquiryIdFrom(lead) ? [enquiryIdFrom(lead)!] : []),
+  ]));
+  const lastEnquiryAt = lead.lastEnquiryAt
+    ?? events.filter(event => event.type === "enquiry-received").map(event => event.at).sort((a, b) => b - a)[0];
+  const lastEnquiryRespondedAt = lead.lastEnquiryRespondedAt
+    ?? (lastEnquiryAt
+      ? events.filter(event => event.type === "contact-recorded" && event.at >= lastEnquiryAt).map(event => event.at).sort((a, b) => a - b)[0]
+      : undefined);
+  const lastStage = events.filter(event => event.type === "stage-changed").sort((a, b) => b.at - a.at)[0];
+  return {
+    ...lead,
+    firstContactedAt,
+    lastEnquiryAt,
+    lastEnquiryRespondedAt,
+    enquiryIds,
+    enquiryCount: lead.enquiryCount ?? Math.max(enquiryIds.length, lastEnquiryAt ? 1 : 0),
+    currentStageId: lead.currentStageId ?? lastStage?.toStage ?? "new",
+    stageEnteredAt: lead.stageEnteredAt ?? lastStage?.at ?? lead.capturedAt,
+    journeyEvents: events.sort((a, b) => a.at - b.at),
+  };
+}
+
 export class LeadService {
   constructor(
     private agencyId: AgencyId,
@@ -60,7 +124,7 @@ export class LeadService {
     const rows: Lead[] = [];
     for (const id of index) {
       const row = await this.storage.get<Lead>(leadKey(id));
-      if (row && row.agencyId === this.agencyId) rows.push(row);
+      if (row && row.agencyId === this.agencyId) rows.push(normalizeLeadJourney(row));
     }
     if (!filter) return rows.sort((a, b) => b.capturedAt - a.capturedAt);
     const q = filter.query?.toLowerCase().trim();
@@ -76,7 +140,7 @@ export class LeadService {
 
   async get(id: string): Promise<Lead | null> {
     const row = await this.storage.get<Lead>(leadKey(id));
-    return row && row.agencyId === this.agencyId ? row : null;
+    return row && row.agencyId === this.agencyId ? normalizeLeadJourney(row) : null;
   }
 
   async getByEmail(email: string): Promise<Lead | null> {
@@ -107,6 +171,8 @@ export class LeadService {
     if (existingId) {
       const existing = await this.get(existingId);
       if (existing) {
+        const incomingEnquiryId = enquiryIdFrom(input);
+        const isNewEnquiry = Boolean(incomingEnquiryId && !(existing.enquiryIds ?? []).includes(incomingEnquiryId));
         const patched = await this.update(existing.id, {
           // Only fill blanks — never clobber existing notes/tags from a re-import.
           email: existing.email || email,
@@ -124,7 +190,9 @@ export class LeadService {
             ? Array.from(new Set([...existing.tags, ...input.tags]))
             : existing.tags,
           notes: existing.notes ?? input.notes,
-          customFields: { ...(input.customFields ?? {}), ...(existing.customFields ?? {}) },
+          customFields: isNewEnquiry
+            ? { ...(existing.customFields ?? {}), ...(input.customFields ?? {}) }
+            : { ...(input.customFields ?? {}), ...(existing.customFields ?? {}) },
           meetingLink: existing.meetingLink,
           salesPresentations: existing.salesPresentations,
           callRecordingUrl: existing.callRecordingUrl,
@@ -137,11 +205,22 @@ export class LeadService {
           designFeedback: existing.designFeedback,
           supportNotes: existing.supportNotes,
         }, actor);
-        return { lead: patched ?? existing, created: false };
+        const merged = patched ?? existing;
+        const tracked = isNewEnquiry
+          ? await this.recordEnquiryCapture(merged.id, {
+              at: input.capturedAt ?? now(),
+              source: input.source,
+              enquiryId: incomingEnquiryId,
+            }, actor)
+          : merged;
+        return { lead: tracked ?? merged, created: false };
       }
     }
     const id = makeId("lead");
     const ts = now();
+    const capturedAt = input.capturedAt ?? ts;
+    const enquiryId = enquiryIdFrom(input);
+    const enquiryCapture = isEnquiryCapture(input);
     const lead: Lead = {
       id,
       agencyId: this.agencyId,
@@ -155,7 +234,20 @@ export class LeadService {
       company: input.company?.trim() || undefined,
       tags: input.tags ?? [],
       source: input.source,
-      capturedAt: input.capturedAt ?? ts,
+      capturedAt,
+      lastEnquiryAt: enquiryCapture ? capturedAt : undefined,
+      enquiryIds: enquiryId ? [enquiryId] : [],
+      enquiryCount: enquiryCapture ? 1 : 0,
+      currentStageId: "new",
+      stageEnteredAt: capturedAt,
+      journeyEvents: [
+        journeyEvent(enquiryCapture ? "enquiry-received" : "lead-captured", capturedAt, {
+          actorUserId: actor,
+          source: input.source,
+          enquiryId,
+        }),
+        journeyEvent("stage-changed", capturedAt, { actorUserId: actor, toStage: "new" }),
+      ],
       notes: input.notes,
       customFields: input.customFields,
       sentCount: 0,
@@ -229,6 +321,155 @@ export class LeadService {
       metadata: { leadId: id, fields: Object.keys(patch) },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.lead.updated", { leadId: id });
+    return updated;
+  }
+
+  async recordEnquiryCapture(
+    id: string,
+    input: { at: number; source: string; enquiryId?: string },
+    actor: UserId,
+  ): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    if (input.enquiryId && existing.journeyEvents?.some(event => event.type === "enquiry-received" && event.enquiryId === input.enquiryId)) return existing;
+    const at = Number.isFinite(input.at) ? Math.max(existing.capturedAt, input.at) : now();
+    const updated: Lead = {
+      ...existing,
+      lastEnquiryAt: at,
+      lastEnquiryRespondedAt: undefined,
+      enquiryIds: Array.from(new Set([...(existing.enquiryIds ?? []), ...(input.enquiryId ? [input.enquiryId] : [])])),
+      enquiryCount: (existing.enquiryCount ?? 0) + 1,
+      journeyEvents: [
+        ...(existing.journeyEvents ?? []),
+        journeyEvent("enquiry-received", at, {
+          actorUserId: actor,
+          source: input.source,
+          enquiryId: input.enquiryId,
+        }),
+      ],
+    };
+    await this.storage.set(leadKey(id), updated);
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      actorUserId: actor,
+      category: "leads",
+      action: "leads.enquiry.received",
+      message: `Recorded another enquiry from ${leadLabel(updated)}.`,
+      metadata: { leadId: id, enquiryId: input.enquiryId, source: input.source, capturedAt: at },
+    });
+    return updated;
+  }
+
+  async recordContact(
+    id: string,
+    input: { at?: number; channel?: string; outcome?: string; note?: string; incrementSentCount?: boolean },
+    actor: UserId,
+  ): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    const requestedAt = typeof input.at === "number" && Number.isFinite(input.at) ? input.at : now();
+    const at = Math.max(existing.capturedAt, Math.min(requestedAt, now() + 5 * 60_000));
+    const firstContactedAt = Math.min(existing.firstContactedAt ?? at, at);
+    const lastContactedAt = Math.max(existing.lastContactedAt ?? at, at);
+    const respondsToLatestEnquiry = Boolean(existing.lastEnquiryAt && at >= existing.lastEnquiryAt);
+    const updated: Lead = {
+      ...existing,
+      firstContactedAt,
+      lastContactedAt,
+      lastEnquiryRespondedAt: respondsToLatestEnquiry
+        ? Math.min(existing.lastEnquiryRespondedAt ?? at, at)
+        : existing.lastEnquiryRespondedAt,
+      sentCount: input.incrementSentCount ? (existing.sentCount ?? 0) + 1 : existing.sentCount,
+      journeyEvents: [
+        ...(existing.journeyEvents ?? []),
+        journeyEvent("contact-recorded", at, {
+          actorUserId: actor,
+          channel: input.channel?.trim().slice(0, 40) || "other",
+          outcome: input.outcome?.trim().slice(0, 80) || "recorded",
+          note: input.note?.trim().slice(0, 500) || undefined,
+        }),
+      ],
+    };
+    await this.storage.set(leadKey(id), updated);
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      actorUserId: actor,
+      category: "leads",
+      action: "leads.contact.recorded",
+      message: `Recorded ${input.channel || "contact"} with ${leadLabel(updated)}.`,
+      metadata: { leadId: id, contactedAt: at, channel: input.channel, outcome: input.outcome },
+    });
+    return updated;
+  }
+
+  async recordStageChange(
+    id: string,
+    input: { fromStage?: string; toStage: string; at?: number },
+    actor: UserId,
+  ): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    const toStage = input.toStage.trim().slice(0, 80);
+    if (!toStage) return existing;
+    if (existing.currentStageId === toStage) return existing;
+    const at = typeof input.at === "number" && Number.isFinite(input.at) ? input.at : now();
+    const updated: Lead = {
+      ...existing,
+      currentStageId: toStage,
+      stageEnteredAt: at,
+      journeyEvents: [
+        ...(existing.journeyEvents ?? []),
+        journeyEvent("stage-changed", at, {
+          actorUserId: actor,
+          fromStage: input.fromStage ?? existing.currentStageId,
+          toStage,
+        }),
+      ],
+    };
+    await this.storage.set(leadKey(id), updated);
+    return updated;
+  }
+
+  async recordMeeting(id: string, meetingAt: number, actor: UserId): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing || !Number.isFinite(meetingAt)) return existing;
+    if (existing.journeyEvents?.some(event => event.type === "meeting-scheduled" && event.scheduledFor === meetingAt)) return existing;
+    const updated: Lead = {
+      ...existing,
+      journeyEvents: [
+        ...(existing.journeyEvents ?? []),
+        journeyEvent("meeting-scheduled", now(), {
+          actorUserId: actor,
+          scheduledFor: meetingAt,
+          note: `Meeting scheduled for ${new Date(meetingAt).toISOString()}.`,
+        }),
+      ],
+    };
+    await this.storage.set(leadKey(id), updated);
+    return updated;
+  }
+
+  async recordConversion(id: string, clientId: string, actor: UserId, at = now()): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    if (existing.convertedAt && existing.convertedClientId === clientId) return existing;
+    const updated: Lead = {
+      ...existing,
+      convertedAt: at,
+      convertedClientId: clientId,
+      currentStageId: "won",
+      stageEnteredAt: at,
+      journeyEvents: [
+        ...(existing.journeyEvents ?? []),
+        ...(existing.currentStageId === "won" ? [] : [journeyEvent("stage-changed", at, {
+          actorUserId: actor,
+          fromStage: existing.currentStageId,
+          toStage: "won",
+        })]),
+        journeyEvent("converted", at, { actorUserId: actor, clientId }),
+      ],
+    };
+    await this.storage.set(leadKey(id), updated);
     return updated;
   }
 
@@ -390,10 +631,13 @@ export class LeadService {
   // emits `pipelines.card.moved`; if the destination column maps to
   // "Won", the subscriber calls `markPromoted` to stamp metadata.
   async stampLastEmailedAt(leadId: string, ts: number, actor: UserId): Promise<Lead | null> {
-    const existing = await this.get(leadId);
-    if (!existing) return null;
-    const sentCount = (existing.sentCount ?? 0) + 1;
-    return this.update(leadId, { lastContactedAt: ts, sentCount }, actor);
+    return this.recordContact(leadId, {
+      at: ts,
+      channel: "email",
+      outcome: "sent",
+      note: "Campaign email sent.",
+      incrementSentCount: true,
+    }, actor);
   }
 
   // ─── LeadCard projection (re-export for convenience) ─────────────────

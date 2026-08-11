@@ -36,7 +36,7 @@ test("private contract documents remain authenticated and customer-visible", () 
 
   assert.match(fileRoute, /"contract"/);
   assert.match(uploadRoute, /storePrivateUpload/);
-  assert.match(uploadRoute, /MAX_FILE_BYTES = 12 \* 1024 \* 1024/);
+  assert.match(uploadRoute, /MAX_FILE_BYTES = 50 \* 1024 \* 1024/);
   assert.match(portalData, /customerDocumentUrl/);
   assert.match(portalData, /body: contract\.body/);
   assert.match(customerActions, /Review the full terms/);

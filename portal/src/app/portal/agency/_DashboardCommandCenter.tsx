@@ -2,20 +2,34 @@
 
 import Link from "next/link";
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlarmClock,
+  Activity,
+  AlertTriangle,
   ArrowUpRight,
   Bot,
   CalendarDays,
   Check,
   CheckCircle2,
   Clock3,
+  Crosshair,
+  Database,
+  EyeOff,
+  Gauge,
+  History,
+  ListTodo,
   LoaderCircle,
   NotebookPen,
   Play,
   Plus,
+  Radar,
+  RadioTower,
+  RefreshCw,
   Save,
+  ScanSearch,
+  Search,
+  ShieldCheck,
   Square,
   Target,
   TimerReset,
@@ -24,6 +38,7 @@ import {
 } from "lucide-react";
 
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
+import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus } from "@/lib/businessRadar";
 import type { AgencyTask, AgencyTaskPriority, DashboardDayPlan, DashboardWeekPlan, DashboardWorkSession } from "@/server/types";
 
 export type DashboardSignal = {
@@ -63,12 +78,14 @@ export function DashboardCommandCenter({
   planning,
   tasks,
   signals,
+  businessRadar,
   advisorConfigured,
   counts,
 }: {
   planning: DashboardPlanningPayload;
   tasks: AgencyTask[];
   signals: DashboardSignal[];
+  businessRadar: BusinessIssueRadar;
   advisorConfigured: boolean;
   counts: { activeClients: number; leads: number; delivery: number; products: number };
 }) {
@@ -103,6 +120,8 @@ export function DashboardCommandCenter({
   const [statusMessage, setStatusMessage] = useState("");
   const [operationError, setOperationError] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [dashboardMode, setDashboardMode] = useState<"radar" | "day">(businessRadar.summary.critical ? "radar" : "day");
+  const [radarSnapshot, setRadarSnapshot] = useState(businessRadar);
 
   useEffect(() => {
     if (!activeSession) return;
@@ -124,14 +143,24 @@ export function DashboardCommandCenter({
       taskId: task.id,
       status: task.status,
     }));
-    const businessSignals: StrictItem[] = signals.filter(signal => !taskTitles.has(signal.title.trim().toLowerCase()));
+    const radarSignals: StrictItem[] = radarSnapshot.issues
+      .filter(issue => issue.severity !== "watch")
+      .map(issue => ({
+        id: `radar:${issue.id}`,
+        title: issue.title,
+        detail: issue.detail,
+        href: issue.href,
+        kind: domainLabel(issue.domain),
+        priority: issue.severity === "critical" ? "urgent" : "high",
+      }));
+    const businessSignals: StrictItem[] = [...radarSignals, ...signals].filter(signal => !taskTitles.has(signal.title.trim().toLowerCase()));
     return [...taskSignals, ...businessSignals]
       .sort((a, b) => {
         const activeRank = (a.status === "in-progress" ? -1 : 0) - (b.status === "in-progress" ? -1 : 0);
         return activeRank || priorityRank(a.priority) - priorityRank(b.priority) || overdueRank(a, now) - overdueRank(b, now) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
       })
       .slice(0, 8);
-  }, [now, openTasks, signals]);
+  }, [now, openTasks, radarSnapshot.issues, signals]);
 
   const selectedSessions = sessions.filter(session => session.date === selectedDate);
   const loggedHours = selectedSessions.reduce((total, session) => total + sessionHours(session, now), 0);
@@ -140,6 +169,30 @@ export function DashboardCommandCenter({
   const effectivePlans = dates.map(date => date === selectedDate
     ? { date, ...plan }
     : { date, ...draftFromPlan(weekPlans.find(item => item.date === date) ?? null) });
+  const upcomingCalendar = [
+    ...openTasks.flatMap(task => {
+      const at = task.dueAt ?? task.startAt;
+      return at ? [{
+        id: `task:${task.id}`,
+        title: task.title,
+        kind: task.status === "in-progress" ? "In progress" : "Task",
+        at,
+        href: "/portal/agency/actions",
+        priority: task.priority === "urgent" ? "urgent" as const : task.priority === "high" ? "high" as const : "normal" as const,
+      }] : [];
+    }),
+    ...effectivePlans.filter(item => item.focus.trim()).map(item => ({
+      id: `plan:${item.date}`,
+      title: item.focus,
+      kind: "Day outcome",
+      at: new Date(`${item.date}T12:00:00`).getTime(),
+      href: "/portal/agency",
+      priority: "normal" as const,
+    })),
+  ]
+    .filter(item => item.at >= new Date(`${actualToday}T00:00:00`).getTime())
+    .sort((a, b) => a.at - b.at || priorityRank(a.priority) - priorityRank(b.priority))
+    .slice(0, 6);
   const plannedWeekHours = effectivePlans.reduce((total, item) => total + item.plannedHours, 0);
   const targetWeekRevenue = effectivePlans.reduce((total, item) => total + item.targetRevenuePounds, 0);
   const projectedCompletion = plan.plannedHours ? Math.min(100, Math.round((loggedHours / plan.plannedHours) * 100)) : 0;
@@ -304,6 +357,14 @@ export function DashboardCommandCenter({
     }, item.id);
   }
 
+  async function addRadarTask(issue: BusinessRadarIssue) {
+    await createTask({
+      title: issue.title,
+      notes: `${issue.detail}\n\nRadar evidence:\n${issue.evidence.map(item => `- ${item}`).join("\n")}`,
+      priority: issue.severity === "critical" ? "urgent" : "high",
+    }, `radar:${issue.id}`);
+  }
+
   async function addQuickTask() {
     const title = quickTask.trim();
     if (!title) return;
@@ -395,6 +456,29 @@ export function DashboardCommandCenter({
 
   return (
     <section className="space-y-4" aria-label="Daily command centre">
+      <div className="flex flex-wrap items-center justify-between gap-3" aria-label="Dashboard mode">
+        <div className="inline-grid w-full grid-cols-2 rounded-md border border-black/10 bg-white p-1 shadow-sm sm:w-auto" role="tablist" aria-label="Dashboard mode">
+          <button type="button" role="tab" aria-selected={dashboardMode === "radar"} onClick={() => setDashboardMode("radar")} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition ${dashboardMode === "radar" ? "bg-black text-white shadow-sm" : "text-black/55 hover:bg-black/[0.035]"}`}>
+            <Radar size={16} /> Active radar
+            {radarSnapshot.summary.critical + radarSnapshot.summary.warning ? <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] leading-none text-white">{radarSnapshot.summary.critical + radarSnapshot.summary.warning}</span> : null}
+          </button>
+          <button type="button" role="tab" aria-selected={dashboardMode === "day"} onClick={() => setDashboardMode("day")} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition ${dashboardMode === "day" ? "bg-black text-white shadow-sm" : "text-black/55 hover:bg-black/[0.035]"}`}>
+            <ListTodo size={16} /> Day command
+          </button>
+        </div>
+        <p className="text-xs text-black/42">Radar findings automatically join your strict priority queue.</p>
+      </div>
+
+      {dashboardMode === "radar" ? (
+        <BusinessRadarDashboard
+          radar={radarSnapshot}
+          onRadarChange={setRadarSnapshot}
+          onCreateTask={addRadarTask}
+          taskBusyId={taskBusyId}
+          advisorConfigured={advisorConfigured}
+        />
+      ) : (
+      <>
       <div className="mm-surface-card overflow-hidden rounded-lg border border-black/10">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 px-4 py-4 sm:px-5">
           <div>
@@ -514,6 +598,29 @@ export function DashboardCommandCenter({
         </div>
 
         <div className="grid gap-4">
+          <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="dashboard-calendar-heading">
+            <div className="flex items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
+              <div className="flex items-center gap-3">
+                <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><CalendarDays size={18} /></span>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Schedule</p><h3 id="dashboard-calendar-heading" className="mt-1 text-lg font-semibold text-black/85">Coming up</h3></div>
+              </div>
+              <Link href="/portal/agency/calendar" className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/10 bg-white px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03]">Calendar <ArrowUpRight size={13} /></Link>
+            </div>
+            <div className="divide-y divide-black/[0.07]">
+              {upcomingCalendar.map(item => (
+                <Link key={item.id} href={item.href} className="mm-interactive-row group grid grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5">
+                  <time dateTime={new Date(item.at).toISOString()} className="rounded-md bg-black/[0.035] px-2 py-1.5 text-center">
+                    <span className="block text-[9px] font-semibold uppercase text-black/38">{calendarMonth(item.at)}</span>
+                    <strong className="mt-0.5 block text-sm tabular-nums text-black/75">{calendarDay(item.at)}</strong>
+                  </time>
+                  <span className="min-w-0"><strong className="block truncate text-sm font-semibold text-black/76">{item.title}</strong><span className="mt-0.5 block text-[11px] text-black/42">{calendarWeekday(item.at)} · {item.kind}</span></span>
+                  <ArrowUpRight size={14} className="text-black/25 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-black/55" />
+                </Link>
+              ))}
+              {!upcomingCalendar.length ? <div className="px-5 py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/58">Nothing dated yet</p><p className="mt-1 text-xs leading-5 text-black/40">Add dates to tasks or plan a daily outcome.</p></div> : null}
+            </div>
+          </section>
+
           <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="timesheet-heading">
             <div className="flex items-center gap-3 border-b border-black/10 px-4 py-4 sm:px-5"><span className="mm-area-icon grid size-10 place-items-center rounded-md"><Clock3 size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Employee record</p><h3 id="timesheet-heading" className="mt-1 text-lg font-semibold text-black/85">Timesheet · {formatHours(loggedHours)}h</h3></div></div>
             {activeSession && isToday ? <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:px-5"><p className="font-semibold">Working · {formatElapsed(now - activeSession.startedAt)}</p><p className="mt-1 text-xs text-emerald-800/70">{activeSession.focus || plan.focus || "General work"}</p></div> : null}
@@ -585,8 +692,389 @@ export function DashboardCommandCenter({
           })}
         </div>
       </section>
+      </>
+      )}
     </section>
   );
+}
+
+const RADAR_DOMAINS: AdvisorDomain[] = [
+  "company",
+  "sales",
+  "inbox",
+  "clients",
+  "finance",
+  "delivery",
+  "marketing",
+  "operations",
+  "compliance",
+  "development",
+  "team",
+  "systems",
+];
+
+const RADAR_NODE_POSITIONS = [
+  { top: "7%", left: "50%" },
+  { top: "13%", left: "70%" },
+  { top: "30%", left: "87%" },
+  { top: "50%", left: "93%" },
+  { top: "70%", left: "87%" },
+  { top: "87%", left: "70%" },
+  { top: "93%", left: "50%" },
+  { top: "87%", left: "30%" },
+  { top: "70%", left: "13%" },
+  { top: "50%", left: "7%" },
+  { top: "30%", left: "13%" },
+  { top: "13%", left: "30%" },
+];
+
+function BusinessRadarDashboard({
+  radar,
+  onRadarChange,
+  onCreateTask,
+  taskBusyId,
+  advisorConfigured,
+}: {
+  radar: BusinessIssueRadar;
+  onRadarChange: (radar: BusinessIssueRadar) => void;
+  onCreateTask: (issue: BusinessRadarIssue) => Promise<void>;
+  taskBusyId: string | null;
+  advisorConfigured: boolean;
+}) {
+  const [activeDomain, setActiveDomain] = useState<AdvisorDomain | "all">("all");
+  const [feedMode, setFeedMode] = useState<"signals" | "checks">("signals");
+  const [checkFilter, setCheckFilter] = useState<"all" | "attention" | "blind" | "pass">("attention");
+  const [checkScope, setCheckScope] = useState<"all" | RadarCheckScope>("all");
+  const [checkQuery, setCheckQuery] = useState("");
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanError, setScanError] = useState("");
+  const attentionCount = radar.summary.critical + radar.summary.warning;
+  const coveragePercent = radar.summary.totalChecks
+    ? Math.round((radar.summary.totalChecks - radar.summary.blindChecks) / radar.summary.totalChecks * 100)
+    : 0;
+  const visibleIssues = radar.issues.filter(issue => activeDomain === "all" || issue.domain === activeDomain);
+  const normalizedCheckQuery = checkQuery.trim().toLowerCase();
+  const matchingChecks = radar.checks.filter(check => {
+    if (activeDomain !== "all" && check.domain !== activeDomain) return false;
+    if (checkFilter === "attention" && !["critical", "warning", "watch"].includes(check.status)) return false;
+    if (checkFilter === "blind" && check.status !== "blind") return false;
+    if (checkFilter === "pass" && check.status !== "pass") return false;
+    if (checkScope !== "all" && check.scope !== checkScope) return false;
+    if (!normalizedCheckQuery) return true;
+    return `${check.title} ${check.detail} ${check.domain} ${check.lensLabel} ${check.scope} ${check.sourceId}`.toLowerCase().includes(normalizedCheckQuery);
+  });
+  const displayedChecks = matchingChecks.slice(0, 240);
+  const trafficSignal = radar.signals.find(signal => signal.id === "metric:traffic-7d");
+  const formSignal = radar.signals.find(signal => signal.id === "metric:form-submissions");
+  const domainSummaries = RADAR_DOMAINS.map((domain, index) => {
+    const issues = radar.issues.filter(issue => issue.domain === domain);
+    const sources = radar.coverage.filter(source => source.domain === domain);
+    const rollup = radar.domains.find(item => item.domain === domain);
+    const unavailable = sources.some(source => source.status === "disconnected" || source.status === "unavailable");
+    const status: "critical" | "warning" | "watch" | "blind" | "healthy" = issues.some(issue => issue.severity === "critical")
+      ? "critical"
+      : issues.some(issue => issue.severity === "warning")
+        ? "warning"
+        : unavailable
+          ? "blind"
+          : issues.length
+            ? "watch"
+            : "healthy";
+    return { domain, issues: issues.length, sources: sources.length, checks: rollup?.totalChecks ?? 0, firing: rollup?.firingChecks ?? 0, blind: rollup?.blindChecks ?? 0, coverage: rollup?.coveragePercent ?? 0, status, position: RADAR_NODE_POSITIONS[index]! };
+  });
+
+  const refreshRadar = useCallback(async (showBusy = true) => {
+    if (showBusy) setScanBusy(true);
+    setScanError("");
+    try {
+      const response = await fetch("/api/portal/advisor/radar", { cache: "no-store" });
+      const result = await response.json().catch(() => null) as { ok?: boolean; radar?: BusinessIssueRadar; error?: string } | null;
+      if (!response.ok || !result?.ok || !result.radar) throw new Error(result?.error || "The radar sweep could not complete.");
+      onRadarChange(result.radar);
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : "The radar sweep could not complete.");
+    } finally {
+      if (showBusy) setScanBusy(false);
+    }
+  }, [onRadarChange]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refreshRadar(false), 60_000);
+    return () => window.clearInterval(timer);
+  }, [refreshRadar]);
+
+  return (
+    <div className="grid gap-4" data-testid="active-business-radar">
+      <section className="overflow-hidden rounded-lg border border-[#29352f] bg-[#111513] text-white shadow-[0_18px_44px_rgba(0,0,0,0.14)]" aria-labelledby="business-radar-heading">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="relative mt-0.5 grid size-10 shrink-0 place-items-center rounded-md border border-emerald-300/20 bg-emerald-300/10 text-emerald-300">
+              <RadioTower size={19} />
+              <span className="absolute -right-1 -top-1 size-2.5 animate-pulse rounded-full border-2 border-[#111513] bg-emerald-400" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">Active business radar</p>
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">Monitoring</span>
+              </div>
+              <h2 id="business-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">{attentionCount ? `${attentionCount} signals need command attention` : "No urgent business signals detected"}</h2>
+              <p className="mt-1 text-xs text-white/50">{radar.summary.totalChecks.toLocaleString()} checks · {radar.summary.catalogChecks.toLocaleString()} KPI checks · {radar.summary.historicalChecks.toLocaleString()} historical detectors · {radar.summary.sentinelChecks.toLocaleString()} live sentinels · {radar.summary.syntheticSentinels.toLocaleString()} active canaries · {radar.summary.checksPerDomain} minimum per domain · {radar.summary.detectorLenses} detector lenses per KPI · {radar.summary.correlatedRisks} compound risks · last sweep {formatRadarAge(radar.generatedAt)} · automatic rescan every minute</p>
+            </div>
+          </div>
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
+              <RefreshCw size={15} className={scanBusy ? "animate-spin" : ""} /> {scanBusy ? "Scanning" : "Scan now"}
+            </button>
+            <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-[#111513] hover:bg-white/90">
+              <Bot size={15} /> {advisorConfigured ? "Ask Advisor" : "Open Advisor"}
+            </button>
+          </div>
+        </header>
+
+        {scanError ? <div role="alert" className="border-b border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-100 sm:px-6">{scanError}</div> : null}
+
+        <div className="grid grid-cols-2 border-b border-white/10 sm:grid-cols-4 xl:grid-cols-8">
+          <RadarMetric icon={<AlertTriangle size={14} />} label="Critical" value={radar.summary.critical} tone="critical" />
+          <RadarMetric icon={<Activity size={14} />} label="Warnings" value={radar.summary.warning} tone="warning" />
+          <RadarMetric icon={<ScanSearch size={14} />} label="Checks live" value={(radar.summary.totalChecks - radar.summary.blindChecks).toLocaleString()} tone="healthy" />
+          <RadarMetric icon={<ShieldCheck size={14} />} label="Passing" value={radar.summary.passedChecks.toLocaleString()} tone="healthy" />
+          <RadarMetric icon={<Crosshair size={14} />} label="Check alarms" value={radar.summary.firingChecks.toLocaleString()} tone={radar.summary.firingChecks ? "warning" : "healthy"} />
+          <RadarMetric icon={<EyeOff size={14} />} label="Blind checks" value={radar.summary.blindChecks.toLocaleString()} tone={radar.summary.blindChecks ? "warning" : "healthy"} />
+          <RadarMetric icon={<TrendingUp size={14} />} label="Traffic 7d" value={trafficSignal?.value?.toLocaleString() ?? "—"} tone={trafficSignal?.status === "critical" ? "critical" : trafficSignal?.status === "warning" ? "warning" : "healthy"} />
+          <RadarMetric icon={<NotebookPen size={14} />} label="Forms 24h" value={formSignal?.value?.toLocaleString() ?? "—"} tone="healthy" />
+        </div>
+
+        <RadarMemoryTimeline memory={radar.memory} />
+        <RadarEvidenceVault evidence={radar.evidence} />
+
+        <div className="grid lg:grid-cols-[minmax(340px,.92fr)_minmax(0,1.08fr)]">
+          <div className="border-b border-white/10 p-4 sm:p-6 lg:border-b-0 lg:border-r">
+            <div className="flex items-center justify-between gap-3">
+              <div><p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">Live scope</p><h3 className="mt-1 text-base font-semibold text-white">{radar.summary.totalChecks.toLocaleString()}-point scanner</h3></div>
+              <select value={activeDomain} onChange={event => setActiveDomain(event.target.value as AdvisorDomain | "all")} aria-label="Radar domain" className="min-h-9 rounded-md border border-white/15 bg-[#1a201d] px-2.5 text-xs font-semibold text-white outline-none">
+                <option value="all">All domains</option>
+                {RADAR_DOMAINS.map(domain => <option key={domain} value={domain}>{domainLabel(domain)}</option>)}
+              </select>
+            </div>
+
+            <div className="relative mx-auto mt-6 aspect-square w-full max-w-[470px]" aria-label="Business domain radar">
+              <div className="absolute inset-[8%] rounded-full border border-emerald-200/16" />
+              <div className="absolute inset-[22%] rounded-full border border-emerald-200/13" />
+              <div className="absolute inset-[36%] rounded-full border border-emerald-200/10" />
+              <div className="absolute bottom-1/2 left-1/2 h-[43%] w-px origin-bottom animate-spin bg-emerald-300/45 [animation-duration:7s]">
+                <span className="absolute -left-1 -top-1 size-2 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,.8)]" />
+              </div>
+              <div className="absolute left-1/2 top-1/2 grid size-24 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-[#151b18] text-center shadow-[0_0_32px_rgba(52,211,153,.08)]">
+                <div><strong className="block text-2xl tabular-nums text-white">{activeDomain === "all" ? radar.summary.totalChecks.toLocaleString() : radar.domains.find(item => item.domain === activeDomain)?.totalChecks ?? 0}</strong><span className="text-[9px] font-semibold uppercase tracking-wide text-white/42">{activeDomain === "all" ? "checks armed" : "domain checks"}</span></div>
+              </div>
+              {domainSummaries.map(item => (
+                <button key={item.domain} type="button" onClick={() => setActiveDomain(current => current === item.domain ? "all" : item.domain)} title={`${domainLabel(item.domain)}: ${item.checks} checks, ${item.firing} firing, ${item.blind} blind, ${item.issues} signals`} className={`absolute z-10 flex min-h-7 max-w-[88px] -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-semibold transition hover:scale-105 ${activeDomain === item.domain ? "border-white bg-white text-[#111513]" : radarNodeClass(item.status)}`} style={item.position}>
+                  <span className="size-1.5 shrink-0 rounded-full bg-current" /><span className="truncate">{domainLabel(item.domain)}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-white/10 bg-white/10 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+              <RadarDetail label="Oldest lead wait" value={radar.speedToLead.oldestWaitingMs === null ? "Clear" : formatRadarDuration(radar.speedToLead.oldestWaitingMs)} />
+              <RadarDetail label="Outside target" value={String(radar.speedToLead.breachedCount)} />
+              <RadarDetail label="Awaiting reply" value={String(radar.speedToLead.awaitingResponseCount)} />
+              <RadarDetail label="Within target" value={radar.speedToLead.withinTargetPercent === null ? "No sample" : `${radar.speedToLead.withinTargetPercent}%`} />
+              <RadarDetail label="Check coverage" value={`${coveragePercent}%`} />
+              <RadarDetail label="Watch state" value={radar.summary.watchChecks.toLocaleString()} />
+              <RadarDetail label="Evidence assured" value={`${radar.summary.assurancePercent}%`} />
+              <RadarDetail label="Compound risks" value={radar.summary.correlatedRisks.toLocaleString()} />
+              <RadarDetail label="Sentinel mesh" value={radar.summary.sentinelChecks.toLocaleString()} />
+              <RadarDetail label="Properties watched" value={radar.summary.monitoredProperties.toLocaleString()} />
+              <RadarDetail label="Active canaries" value={`${radar.summary.syntheticProperties.toLocaleString()} properties`} />
+              <RadarDetail label="Failed probes" value={radar.summary.failedSyntheticProbes.toLocaleString()} />
+              <RadarDetail label="Historical checks" value={radar.summary.historicalChecks.toLocaleString()} />
+              <RadarDetail label="Baseline coverage" value={`${radar.summary.baselineCoveragePercent}%`} />
+              <RadarDetail label="Evidence samples" value={radar.summary.evidenceSamples.toLocaleString()} />
+              <RadarDetail label="Pattern breaks" value={radar.summary.historicalAnomalies.toLocaleString()} />
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+              <div><p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">Scanner ledger</p><h3 className="mt-1 text-base font-semibold text-white">{activeDomain === "all" ? "Whole business" : domainLabel(activeDomain)}</h3></div>
+              <div className="inline-flex rounded-md border border-white/15 bg-white/[0.04] p-1" role="tablist" aria-label="Radar feed">
+                <button type="button" role="tab" aria-selected={feedMode === "signals"} onClick={() => setFeedMode("signals")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "signals" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Signals {visibleIssues.length}</button>
+                <button type="button" role="tab" aria-selected={feedMode === "checks"} onClick={() => setFeedMode("checks")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "checks" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Checks {activeDomain === "all" ? radar.summary.totalChecks : radar.domains.find(item => item.domain === activeDomain)?.totalChecks ?? 0}</button>
+              </div>
+            </div>
+            {feedMode === "checks" ? (
+              <div className="grid gap-2 border-b border-white/10 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:px-6">
+                <label className="relative block min-w-0">
+                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+                  <input value={checkQuery} onChange={event => setCheckQuery(event.target.value)} placeholder="Search checks, sources, evidence..." aria-label="Search radar checks" className="min-h-9 w-full rounded-md border border-white/15 bg-white/[0.06] pl-9 pr-3 text-xs text-white outline-none placeholder:text-white/30 focus:border-emerald-300/40" />
+                </label>
+                <select value={checkFilter} onChange={event => setCheckFilter(event.target.value as typeof checkFilter)} aria-label="Check status" className="min-h-9 rounded-md border border-white/15 bg-[#1a201d] px-2.5 text-xs font-semibold text-white outline-none">
+                  <option value="attention">Needs attention</option>
+                  <option value="blind">Blind only</option>
+                  <option value="pass">Passing only</option>
+                  <option value="all">Every check</option>
+                </select>
+                <select value={checkScope} onChange={event => setCheckScope(event.target.value as typeof checkScope)} aria-label="Check layer" className="min-h-9 rounded-md border border-white/15 bg-[#1a201d] px-2.5 text-xs font-semibold text-white outline-none">
+                  <option value="all">All layers</option>
+                  <option value="kpi">KPI checks</option>
+                  <option value="source">Source sentinels</option>
+                  <option value="property">Property sentinels</option>
+                  <option value="synthetic">Synthetic canaries</option>
+                  <option value="history">Historical evidence</option>
+                  <option value="watchdog">Radar watchdogs</option>
+                </select>
+              </div>
+            ) : null}
+            <div className="max-h-[720px] divide-y divide-white/10 overflow-y-auto">
+              {feedMode === "signals" ? visibleIssues.map(issue => (
+                  <article key={issue.id} className="group grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${radarSeverityClass(issue.severity)}`}>{issue.severity}</span>
+                        <span className="text-[10px] font-semibold uppercase text-white/35">{domainLabel(issue.domain)}</span>
+                      </div>
+                      <h4 className="mt-2 text-sm font-semibold leading-5 text-white">{issue.title}</h4>
+                      <p className="mt-1 text-xs leading-5 text-white/48">{issue.detail}</p>
+                      {issue.evidence[0] ? <p className="mt-2 text-[11px] leading-4 text-white/35">Evidence · {issue.evidence[0]}</p> : null}
+                    </div>
+                    <div className="flex items-start gap-1 sm:justify-end">
+                      <button type="button" onClick={() => void onCreateTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} title="Add to strict queue" aria-label={`Add ${issue.title} to strict queue`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50">
+                        {taskBusyId === `radar:${issue.id}` ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={15} />}
+                      </button>
+                      <Link href={issue.href} title="Open evidence" aria-label={`Open evidence for ${issue.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link>
+                    </div>
+                  </article>
+                )) : displayedChecks.map(check => <RadarCheckRow key={check.id} check={check} />)}
+              {feedMode === "signals" && !visibleIssues.length ? <div className="px-6 py-16 text-center"><ShieldCheck className="mx-auto text-emerald-300" size={26} /><p className="mt-3 text-sm font-semibold text-white">Domain clear</p><p className="mt-1 text-xs text-white/40">No current signals in this scope.</p></div> : null}
+              {feedMode === "checks" && !displayedChecks.length ? <div className="px-6 py-16 text-center"><ScanSearch className="mx-auto text-emerald-300" size={26} /><p className="mt-3 text-sm font-semibold text-white">No matching checks</p><p className="mt-1 text-xs text-white/40">Change the domain, status, or search phrase.</p></div> : null}
+              {feedMode === "checks" && matchingChecks.length > displayedChecks.length ? <div className="px-6 py-3 text-center text-[11px] text-white/35">Showing the first {displayedChecks.length} of {matchingChecks.length} matching checks. Select a domain to narrow the scanner.</div> : null}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="radar-coverage-heading">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
+          <div className="flex items-center gap-3"><span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><ShieldCheck size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Never-blind matrix</p><h3 id="radar-coverage-heading" className="mt-1 text-lg font-semibold text-black/85">Check coverage by business area</h3></div></div>
+          <div className="text-right"><p className="text-lg font-semibold tabular-nums text-black/80">{coveragePercent}%</p><p className="text-[10px] font-semibold uppercase text-black/35">observable · {radar.summary.assurancePercent}% assured</p></div>
+        </div>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3">
+          {radar.domains.map((domain, index) => (
+            <button key={domain.domain} type="button" onClick={() => { setActiveDomain(domain.domain); setFeedMode("checks"); setCheckFilter(domain.blindChecks ? "blind" : domain.firingChecks ? "attention" : "all"); }} className={`group grid min-h-32 grid-rows-[auto_auto_1fr] gap-3 border-black/10 px-4 py-4 text-left hover:bg-black/[0.025] sm:px-5 ${index ? "border-t sm:border-l xl:border-t-0" : ""}`}>
+              <div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold uppercase text-black/55">{domainLabel(domain.domain)}</span><span className="text-[10px] font-semibold tabular-nums text-black/35">{domain.totalChecks} checks · {domain.assurancePercent}% assured</span></div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.07]"><div className={`h-full rounded-full ${domain.blindChecks ? "bg-amber-500" : domain.firingChecks ? "bg-red-500" : "bg-emerald-600"}`} style={{ width: `${Math.max(2, domain.coveragePercent)}%` }} /></div>
+              <div className="grid grid-cols-4 gap-2 self-end text-[10px] tabular-nums"><span><strong className="block text-sm text-emerald-700">{domain.passedChecks}</strong><span className="text-black/35">pass</span></span><span><strong className="block text-sm text-red-700">{domain.firingChecks}</strong><span className="text-black/35">fire</span></span><span><strong className="block text-sm text-sky-700">{domain.watchChecks}</strong><span className="text-black/35">watch</span></span><span><strong className="block text-sm text-amber-700">{domain.blindChecks}</strong><span className="text-black/35">blind</span></span></div>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-y border-black/10 bg-black/[0.015] px-4 py-3 sm:px-5">
+          <div><p className="text-[10px] font-semibold uppercase text-black/35">Source connections</p><p className="mt-0.5 text-sm font-semibold text-black/70">{radar.summary.connectedSources}/{radar.summary.totalSources} sources watched</p></div>
+          <Link href="/portal/agency/company?view=connections" className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/55 hover:bg-black/[0.03]" title="Manage connections" aria-label="Manage radar connections"><ArrowUpRight size={14} /></Link>
+        </div>
+        <div className="grid md:grid-cols-2 xl:grid-cols-3">
+          {radar.coverage.map((source, index) => <CoverageRow key={source.id} source={source} divided={index > 0} />)}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function RadarMetric({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: React.ReactNode; tone: "critical" | "warning" | "watch" | "healthy" }) {
+  const toneClass = tone === "critical" ? "text-red-300" : tone === "warning" ? "text-amber-300" : tone === "watch" ? "text-sky-300" : "text-emerald-300";
+  return <div className="border-r border-t border-white/10 px-4 py-3 first:border-t-0 sm:px-5 lg:border-t-0"><div className={`flex items-center gap-2 text-[10px] font-semibold uppercase ${toneClass}`}>{icon}<span>{label}</span></div><strong className="mt-1 block text-xl tabular-nums text-white">{value}</strong></div>;
+}
+
+function RadarDetail({ label, value }: { label: string; value: string }) {
+  return <div className="bg-[#181e1b] px-3 py-3"><p className="text-[9px] font-semibold uppercase text-white/35">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-white">{value}</p></div>;
+}
+
+function RadarMemoryTimeline({ memory }: { memory: BusinessIssueRadar["memory"] }) {
+  const statusLabel = memory.status === "first-sweep" ? "Learning baseline" : memory.status === "delayed" ? "Sweep continuity delayed" : "Temporal continuity live";
+  const statusClass = memory.status === "delayed" ? "text-amber-300" : "text-emerald-300";
+  const points = memory.history.slice(-48);
+  return <div className="grid gap-4 border-b border-white/10 bg-white/[0.025] px-4 py-4 sm:px-6 xl:grid-cols-[minmax(0,.72fr)_minmax(320px,1.28fr)]">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2"><History size={14} className={statusClass} /><p className={`text-[10px] font-semibold uppercase ${statusClass}`}>{statusLabel}</p></div>
+        <p className="text-[10px] tabular-nums text-white/35">{memory.totalSweeps.toLocaleString()} recorded sweeps</p>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded-md border border-white/10 bg-white/10">
+        <RadarMemoryStat label="New" value={memory.newIssues} tone={memory.newIssues ? "warning" : "neutral"} />
+        <RadarMemoryStat label="Worsening" value={memory.worseningIssues} tone={memory.worseningIssues ? "critical" : "neutral"} />
+        <RadarMemoryStat label="Recovered" value={memory.recoveredIssues} tone={memory.recoveredIssues ? "positive" : "neutral"} />
+        <RadarMemoryStat label="Recurring" value={memory.recurringIssues} tone={memory.recurringIssues ? "warning" : "neutral"} />
+        <RadarMemoryStat label="Flapping" value={memory.flappingSources} tone={memory.flappingSources ? "critical" : "neutral"} />
+        <RadarMemoryStat label="Oldest open" value={memory.oldestOpenIssueMs === undefined ? "New" : formatRadarDuration(memory.oldestOpenIssueMs)} tone={memory.longRunningIssues ? "warning" : "neutral"} />
+      </div>
+    </div>
+    <div className="min-w-0">
+      <div className="flex items-center justify-between gap-3 pr-12 sm:pr-0"><p className="text-[10px] font-semibold uppercase text-white/35">Assurance memory</p><p className="text-right text-[10px] leading-4 tabular-nums text-white/35">{signedInteger(memory.assuranceDelta)} assurance · {signedInteger(memory.firingDelta)} alarms · {signedInteger(memory.blindDelta)} blind</p></div>
+      <div className="mt-3 flex h-12 items-end gap-1" aria-label="Radar assurance history">
+        {points.map((point, index) => <span key={`${point.at}:${index}`} className={`min-w-1 flex-1 rounded-sm ${point.blindChecks ? "bg-red-400" : point.criticalIssues ? "bg-amber-300" : "bg-emerald-300"}`} style={{ height: `${Math.max(8, point.assurancePercent)}%` }} title={`${new Date(point.at).toLocaleString("en-GB")}: ${point.assurancePercent}% assured, ${point.firingChecks} alarms, ${point.blindChecks} blind`} />)}
+        {!points.length ? <span className="text-xs text-white/35">The first recorded sweep will establish this timeline.</span> : null}
+      </div>
+    </div>
+  </div>;
+}
+
+function RadarMemoryStat({ label, value, tone }: { label: string; value: React.ReactNode; tone: "critical" | "warning" | "positive" | "neutral" }) {
+  const valueClass = tone === "critical" ? "text-red-300" : tone === "warning" ? "text-amber-300" : tone === "positive" ? "text-emerald-300" : "text-white";
+  return <div className="bg-[#151a17] px-3 py-2.5"><p className="text-[9px] font-semibold uppercase text-white/35">{label}</p><p className={`mt-1 text-sm font-semibold tabular-nums ${valueClass}`}>{value}</p></div>;
+}
+
+function RadarEvidenceVault({ evidence }: { evidence: BusinessIssueRadar["evidence"] }) {
+  return <div className="grid gap-4 border-b border-white/10 bg-[#121714] px-4 py-4 sm:px-6 xl:grid-cols-[minmax(0,.78fr)_minmax(320px,1.22fr)]">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2"><Database size={14} className="text-sky-300" /><p className="text-[10px] font-semibold uppercase text-sky-300">Durable evidence vault</p></div>
+        <p className="text-[10px] tabular-nums text-white/35">{evidence.totalSamples.toLocaleString()} retained samples</p>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-white/10 bg-white/10 sm:grid-cols-4 xl:grid-cols-2">
+        <RadarMemoryStat label="KPI streams" value={`${evidence.measurableSeries}/${evidence.totalSeries}`} tone="neutral" />
+        <RadarMemoryStat label="Baselines ready" value={evidence.baselineReadySeries} tone={evidence.baselineCoveragePercent >= 90 ? "positive" : "warning"} />
+        <RadarMemoryStat label="Pattern breaks" value={evidence.anomalousSeries} tone={evidence.anomalousSeries ? "critical" : "neutral"} />
+        <RadarMemoryStat label="Recording gaps" value={evidence.recordingGaps} tone={evidence.recordingGaps ? "warning" : "positive"} />
+      </div>
+    </div>
+    <div className="min-w-0">
+      <div className="flex items-center justify-between gap-3"><p className="text-[10px] font-semibold uppercase text-white/35">Baseline coverage</p><p className="text-[10px] font-semibold tabular-nums text-white/60">{evidence.baselineCoveragePercent}%</p></div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-sky-300 transition-[width] duration-500" style={{ width: `${Math.max(1, evidence.baselineCoveragePercent)}%` }} /></div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {evidence.topMovements.slice(0, 4).map(movement => <div key={movement.id} className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.035] px-3 py-2">
+          <div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/68">{movement.familyLabel}</p><p className="mt-0.5 text-[9px] uppercase text-white/30">{domainLabel(movement.domain)} · {movement.deviationScore.toFixed(1)} deviations</p></div>
+          <span className={`shrink-0 text-xs font-semibold tabular-nums ${movement.adverse ? "text-amber-300" : "text-sky-300"}`}>{signedDecimal(movement.changePercent)}%</span>
+        </div>)}
+        {!evidence.topMovements.length ? <p className="sm:col-span-2 text-xs leading-5 text-white/35">Retained sweeps are building comparison baselines. Movement evidence appears here as each stream matures.</p> : null}
+      </div>
+    </div>
+  </div>;
+}
+
+function RadarCheckRow({ check }: { check: BusinessRadarCheck }) {
+  return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-6">
+    <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border ${radarCheckIconClass(check.status)}`} title={radarCheckStatusLabel(check.status)}>
+      {check.status === "pass" ? <Check size={14} /> : check.status === "blind" ? <EyeOff size={14} /> : check.status === "watch" ? <Crosshair size={14} /> : <AlertTriangle size={14} />}
+    </span>
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${radarCheckStatusClass(check.status)}`}>{radarCheckStatusLabel(check.status)}</span>
+        <span className="text-[10px] font-semibold uppercase text-white/35">{domainLabel(check.domain)} · {check.lensLabel} · {check.scope}</span>
+      </div>
+      <h4 className="mt-2 text-sm font-semibold leading-5 text-white">{check.familyLabel}</h4>
+      <p className="mt-1 text-xs leading-5 text-white/48">{check.detail}</p>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/32"><span>Source {check.sourceId}</span>{check.evidence.slice(0, 2).map(item => <span key={item}>{item}</span>)}</div>
+    </div>
+    <Link href={check.href} title="Open check evidence" aria-label={`Open evidence for ${check.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link>
+  </article>;
+}
+
+function CoverageRow({ source, divided }: { source: AdvisorCoverageSource; divided: boolean }) {
+  const healthy = source.status === "connected" || source.status === "empty";
+  return <div className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-black/10 px-4 py-3.5 sm:px-5 ${divided ? "border-t md:border-t-0 md:border-l" : ""}`}>
+    <span className={`mt-1.5 size-2 rounded-full ${healthy ? source.status === "empty" ? "bg-sky-500" : "bg-emerald-600" : "bg-red-600"}`} />
+    <div className="min-w-0"><p className="truncate text-sm font-semibold text-black/75">{source.label}</p><p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-black/42">{source.detail}</p></div>
+    <div className="text-right"><p className={`text-[9px] font-bold uppercase ${healthy ? "text-emerald-700" : "text-red-700"}`}>{coverageStatusLabel(source.status)}</p><p className="mt-1 text-[10px] tabular-nums text-black/35">{source.recordCount} records</p></div>
+  </div>;
 }
 
 async function dashboardRequest(body: Record<string, unknown>): Promise<DashboardPlanningPayload> {
@@ -626,6 +1114,92 @@ function priorityRank(priority: DashboardSignal["priority"]) {
   return priority === "urgent" ? 0 : priority === "high" ? 1 : 2;
 }
 
+function domainLabel(domain: AdvisorDomain): string {
+  const labels: Record<AdvisorDomain, string> = {
+    company: "Company",
+    sales: "Sales",
+    inbox: "Inbox",
+    clients: "Clients",
+    finance: "Finance",
+    delivery: "Delivery",
+    marketing: "Marketing",
+    operations: "Operations",
+    compliance: "Compliance",
+    development: "Development",
+    team: "Team",
+    systems: "Systems",
+  };
+  return labels[domain];
+}
+
+function formatRadarAge(timestamp: number): string {
+  const elapsed = Math.max(0, Date.now() - timestamp);
+  if (elapsed < 60_000) return "just now";
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
+  return `${Math.floor(elapsed / 86_400_000)}d ago`;
+}
+
+function formatRadarDuration(duration: number): string {
+  if (duration < 60_000) return `${Math.max(1, Math.round(duration / 1_000))}s`;
+  if (duration < 3_600_000) return `${Math.round(duration / 60_000)}m`;
+  if (duration < 86_400_000) return `${Math.round(duration / 3_600_000)}h`;
+  const days = Math.floor(duration / 86_400_000);
+  const hours = Math.round((duration % 86_400_000) / 3_600_000);
+  return hours ? `${days}d ${hours}h` : `${days}d`;
+}
+
+function signedInteger(value: number): string {
+  return `${value > 0 ? "+" : ""}${value}`;
+}
+
+function signedDecimal(value: number): string {
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}`;
+}
+
+function radarNodeClass(status: "critical" | "warning" | "watch" | "blind" | "healthy"): string {
+  if (status === "critical") return "border-red-300/35 bg-red-400/15 text-red-200";
+  if (status === "warning") return "border-amber-300/35 bg-amber-400/15 text-amber-200";
+  if (status === "watch") return "border-sky-300/35 bg-sky-400/15 text-sky-200";
+  if (status === "blind") return "border-white/20 bg-white/10 text-white/45";
+  return "border-emerald-300/25 bg-emerald-400/10 text-emerald-200";
+}
+
+function radarSeverityClass(severity: BusinessRadarIssue["severity"]): string {
+  if (severity === "critical") return "bg-red-400/15 text-red-200";
+  if (severity === "warning") return "bg-amber-400/15 text-amber-200";
+  return "bg-sky-400/15 text-sky-200";
+}
+
+function radarCheckStatusClass(status: RadarCheckStatus): string {
+  if (status === "critical") return "bg-red-400/15 text-red-200";
+  if (status === "warning") return "bg-amber-400/15 text-amber-200";
+  if (status === "watch") return "bg-sky-400/15 text-sky-200";
+  if (status === "blind") return "bg-white/10 text-white/55";
+  return "bg-emerald-400/15 text-emerald-200";
+}
+
+function radarCheckIconClass(status: RadarCheckStatus): string {
+  if (status === "critical") return "border-red-300/25 bg-red-400/10 text-red-200";
+  if (status === "warning") return "border-amber-300/25 bg-amber-400/10 text-amber-200";
+  if (status === "watch") return "border-sky-300/25 bg-sky-400/10 text-sky-200";
+  if (status === "blind") return "border-white/15 bg-white/[0.06] text-white/45";
+  return "border-emerald-300/25 bg-emerald-400/10 text-emerald-200";
+}
+
+function radarCheckStatusLabel(status: RadarCheckStatus): string {
+  if (status === "pass") return "Pass";
+  if (status === "blind") return "Blind";
+  return status;
+}
+
+function coverageStatusLabel(status: AdvisorCoverageSource["status"]): string {
+  if (status === "connected") return "Live";
+  if (status === "empty") return "Watching";
+  if (status === "unavailable") return "Unavailable";
+  return "Disconnected";
+}
+
 function overdueRank(item: StrictItem, now: number) {
   return item.dueAt && item.dueAt < now ? -1 : 0;
 }
@@ -651,6 +1225,18 @@ function formatLongDate(value: string): string {
 
 function formatDateTime(value: number): string {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function calendarDay(value: number): string {
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit" }).format(new Date(value));
+}
+
+function calendarMonth(value: number): string {
+  return new Intl.DateTimeFormat("en-GB", { month: "short" }).format(new Date(value));
+}
+
+function calendarWeekday(value: number): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(new Date(value));
 }
 
 function formatTimeRange(session: DashboardWorkSession): string {

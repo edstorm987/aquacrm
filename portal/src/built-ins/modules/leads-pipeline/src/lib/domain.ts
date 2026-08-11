@@ -186,6 +186,30 @@ export interface UpdateProspectPatch {
 
 // ─── Lead ─────────────────────────────────────────────────────────────────
 
+export type LeadJourneyEventType =
+  | "lead-captured"
+  | "enquiry-received"
+  | "contact-recorded"
+  | "stage-changed"
+  | "meeting-scheduled"
+  | "converted";
+
+export interface LeadJourneyEvent {
+  id: string;
+  type: LeadJourneyEventType;
+  at: number;
+  actorUserId?: string;
+  source?: string;
+  enquiryId?: string;
+  fromStage?: string;
+  toStage?: string;
+  channel?: string;
+  outcome?: string;
+  note?: string;
+  scheduledFor?: number;
+  clientId?: string;
+}
+
 export interface Lead {
   id: string;
   agencyId: AgencyId;
@@ -201,7 +225,17 @@ export interface Lead {
   tags: string[];
   source: string;                  // free-form: "csv:<filename>" / "public-funnel" / "manual" / etc.
   capturedAt: number;              // epoch ms
+  lastEnquiryAt?: number;          // newest distinct enquiry from this person
+  lastEnquiryRespondedAt?: number; // first recorded response after newest enquiry
+  enquiryIds?: string[];
+  enquiryCount?: number;
+  firstContactedAt?: number;
   lastContactedAt?: number;        // last campaign-send epoch ms
+  currentStageId?: string;
+  stageEnteredAt?: number;
+  convertedAt?: number;
+  convertedClientId?: string;
+  journeyEvents?: LeadJourneyEvent[];
   nextMeetingAt?: number;          // booked call / meetup epoch ms
   meetingLink?: string;
   meetingNotes?: string;
@@ -331,6 +365,10 @@ export interface Contact {
   // Mirrors `Lead.id` when promoted from a lead. Vendors / direct-add
   // contacts have this undefined.
   promotedFromLeadId?: string;
+  leadCapturedAt?: number;
+  firstContactedAt?: number;
+  convertedAt?: number;
+  leadJourneyEvents?: LeadJourneyEvent[];
   lastContactedAt?: number;
   nextMeetingAt?: number;
   meetingLink?: string;
@@ -362,6 +400,10 @@ export interface CreateContactInput {
   notes?: string;
   customFields?: Record<string, CustomFieldValue>;
   promotedFromLeadId?: string;
+  leadCapturedAt?: number;
+  firstContactedAt?: number;
+  convertedAt?: number;
+  leadJourneyEvents?: LeadJourneyEvent[];
   nextMeetingAt?: number;
   meetingLink?: string;
   meetingNotes?: string;
@@ -470,6 +512,7 @@ export interface Campaign {
   agencyId: AgencyId;
   name: string;
   companyIds?: string[];            // empty/undefined = group-wide shared activity
+  customerProfileIds?: string[];     // agency-marketing audience briefs used for planning
   channel?: CampaignChannel;
   kind?: CampaignKind;
   sourceKey?: string;
@@ -477,6 +520,7 @@ export interface Campaign {
   bodyHtml: string;
   bodyText?: string;
   budgetCents?: number;
+  budgetPotId?: string;
   spendCents?: number;
   attributedRevenueCents?: number;
   startsAt?: number;
@@ -502,6 +546,7 @@ export interface Campaign {
 export interface CreateCampaignInput {
   name: string;
   companyIds?: string[];
+  customerProfileIds?: string[];
   channel?: CampaignChannel;
   kind?: CampaignKind;
   sourceKey?: string;
@@ -509,6 +554,7 @@ export interface CreateCampaignInput {
   bodyHtml?: string;
   bodyText?: string;
   budgetCents?: number;
+  budgetPotId?: string;
   spendCents?: number;
   attributedRevenueCents?: number;
   startsAt?: number;
@@ -524,6 +570,7 @@ export interface CreateCampaignInput {
 export interface UpdateCampaignPatch {
   name?: string;
   companyIds?: string[];
+  customerProfileIds?: string[];
   channel?: CampaignChannel;
   kind?: CampaignKind;
   sourceKey?: string;
@@ -531,6 +578,7 @@ export interface UpdateCampaignPatch {
   bodyHtml?: string;
   bodyText?: string;
   budgetCents?: number;
+  budgetPotId?: string | null;
   spendCents?: number;
   attributedRevenueCents?: number;
   startsAt?: number;

@@ -9,7 +9,7 @@ import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { CustomerPortalChrome } from "./_CustomerPortalChrome";
-import { loadCustomerPortalData } from "./_portalData";
+import { customerPortalModeLabel, loadCustomerPortalData } from "./_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
 import { getAuthBrand } from "@/lib/authBrand";
 
@@ -62,11 +62,12 @@ export default async function CustomerLayout({ children }: { children: ReactNode
         email={session.email}
         name={user?.name}
         avatarUrl={user?.avatarUrl}
-        modeLabel={portalData.presentation.stages[portalData.mode].label}
+        modeLabel={customerPortalModeLabel(portalData)}
         presentation={portalData.presentation}
         logoUrl={portalData.logoUrl}
         accentColor={portalData.accentColor}
         projectLabel={portalProjectLabel(portalData.products)}
+        products={portalData.products}
         providerName={authBrand.name}
         providerMark={authBrand.mark}
       >

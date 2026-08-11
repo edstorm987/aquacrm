@@ -5,10 +5,12 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { formatMoney, normaliseCurrency } from "../lib/currencies";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
 import { getCompanyProfile } from "@/server/company";
 
 export default async function PlanningPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
+  const defaultCurrency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
   const profile = getCompanyProfile(props.agencyId, null);
   const now = Date.now();
   const [snapshot, plans, invoices, expenses] = await Promise.all([
@@ -17,7 +19,7 @@ export default async function PlanningPage(props: PluginPageProps) {
     c.invoices.list(),
     c.expenses.list(),
   ]);
-  const currency = normaliseCurrency(snapshot.currency, normaliseCurrency(props.install.config.defaultCurrency, "gbp"));
+  const currency = normaliseCurrency(snapshot.currency, defaultCurrency);
   const months = snapshot.trailingMonths;
   const latest = months.at(-1);
   const previous = months.at(-2);

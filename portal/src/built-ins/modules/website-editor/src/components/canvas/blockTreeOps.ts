@@ -63,7 +63,7 @@ export function removeBlock(blocks: Block[], id: string): Block[] {
 export function duplicateBlock(blocks: Block[], id: string): Block[] {
   const loc = findBlock(blocks, id);
   if (!loc) return blocks;
-  const clone = deepClone(loc.block);
+  const clone = cloneBlock(loc.block);
   return insertSibling(blocks, id, clone, "after");
 }
 
@@ -109,12 +109,12 @@ export function isDescendant(block: Block, candidateId: string): boolean {
   return false;
 }
 
-function deepClone(block: Block): Block {
+export function cloneBlock(block: Block): Block {
   return {
     ...block,
     id: makeBlockId(),
     props: { ...block.props },
     styles: block.styles ? { ...block.styles } : undefined,
-    children: block.children?.map(deepClone),
+    children: block.children?.map(cloneBlock),
   };
 }

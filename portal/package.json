@@ -47,6 +47,7 @@
     "smoke:observability": "tsx --test scripts/smoke-observability.test.ts",
     "smoke:production-readiness": "tsx --test scripts/smoke-production-readiness.test.ts",
     "smoke:integrations": "tsx --test scripts/smoke-integration-connections.test.ts",
+    "smoke:meta-inbox": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-meta-master-inbox.test.ts",
     "smoke:private-upload-storage": "tsx --test scripts/smoke-private-upload-storage.test.ts",
     "smoke:bos-middleware-integration": "tsx --test scripts/smoke-bos-middleware-integration.test.ts",
     "smoke:public-funnel-port-adapters": "tsx --test scripts/smoke-public-funnel-port-adapters.test.ts",
@@ -78,11 +79,13 @@
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.2",
     "@vercel/blob": "^2.6.1",
+    "@xyflow/react": "^12.11.2",
     "lucide-react": "^0.468.0",
     "next": "16.3.0",
     "pg": "^8.13.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

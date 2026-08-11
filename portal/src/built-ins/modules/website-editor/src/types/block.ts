@@ -8,7 +8,7 @@
 //
 // `type` remains an open string so other plugins (ecommerce, blog, etc.)
 // can extend the registry. The website-editor plugin contributes the
-// canonical 58 types; their values are aliased in `BlockType` for
+// canonical block types; their values are aliased in `BlockType` for
 // in-tree references.
 
 export type BlockType =

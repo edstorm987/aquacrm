@@ -76,6 +76,7 @@ export class CampaignService {
       agencyId: this.agencyId,
       name: input.name.trim(),
       companyIds: cleanIds(input.companyIds),
+      customerProfileIds: cleanIds(input.customerProfileIds),
       channel,
       kind: input.kind,
       sourceKey: input.sourceKey?.trim() || undefined,
@@ -83,6 +84,7 @@ export class CampaignService {
       bodyHtml: input.bodyHtml ?? "",
       bodyText: input.bodyText,
       budgetCents: input.budgetCents,
+      budgetPotId: input.budgetPotId?.trim().slice(0, 120) || undefined,
       spendCents: input.spendCents,
       attributedRevenueCents: input.attributedRevenueCents,
       startsAt: input.startsAt,
@@ -130,6 +132,10 @@ export class CampaignService {
       ...existing,
       ...patch,
       companyIds: patch.companyIds === undefined ? existing.companyIds : cleanIds(patch.companyIds),
+      customerProfileIds: patch.customerProfileIds === undefined ? existing.customerProfileIds : cleanIds(patch.customerProfileIds),
+      budgetPotId: patch.budgetPotId === undefined
+        ? existing.budgetPotId
+        : patch.budgetPotId?.trim().slice(0, 120) || undefined,
       steps: patch.steps === undefined ? existing.steps : cleanSteps(patch.steps),
       audienceFilter: patch.audienceFilter === undefined ? existing.audienceFilter : {
         ...patch.audienceFilter,

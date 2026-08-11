@@ -39,9 +39,9 @@ export default async function AgencyPluginCatchAll({ params, searchParams }: Rou
   const sp = await searchParams;
 
   if (rest[0] === "fulfillment") {
-    if (rest.length === 1) redirect("/portal/agency/pipelines/fulfilment");
-    if (rest[1] === "clients") redirect("/portal/clients");
-    if (rest[1] === "marketplace") redirect("/portal/agency/settings");
+    if (rest.length === 1) redirect("/portal/agency/fulfilment");
+    if (rest[1] === "clients") redirect("/portal/agency/fulfilment?view=clients");
+    if (rest[1] === "marketplace") redirect("/portal/agency/fulfilment?view=services");
     if (rest[1] === "phases") redirect("/portal/agency/phases");
   }
   if (rest[0] === "leads-pipeline" && rest[1] === "campaigns") {

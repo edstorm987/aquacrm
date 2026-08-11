@@ -6,6 +6,7 @@ import {
   BookOpenText,
   CalendarDays,
   Check,
+  ClipboardCheck,
   CircleHelp,
   Clock3,
   CreditCard,
@@ -53,8 +54,11 @@ import {
   portalHomeHeading,
   portalProductDefinition,
   portalProjectLabel,
-  portalStageFocus,
+  type PortalProductSelection,
 } from "@/lib/portalProducts";
+import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle, portalProductModule, portalProductModulePage, type PortalProductLifecycleStage } from "@/lib/portalProductModules";
+import { portalWorkspaceProgress, type PortalProductWorkspace } from "@/lib/portalProductWorkspaces";
+import { ProductWorkspaceApplication, type ProductWorkspaceRole } from "./_ProductWorkspaceApplication";
 import { buildPerformanceAnalytics } from "@/lib/performanceAnalytics";
 import type { PerformanceEvent } from "@/lib/performanceAnalytics";
 import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@/lib/performanceReports";
@@ -63,11 +67,18 @@ import { listClientMilestones } from "@/server/clientMilestones";
 import { getAuthBrand } from "@/lib/authBrand";
 import { formatPortalCopy } from "@/lib/clientPortalDesign";
 
-export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details";
+export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service";
+type CustomerPortalShellSection = Exclude<CustomerPortalSection, "service">;
+const PORTAL_LIFECYCLE_MODES: CustomerPortalMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
 
-function customerHref(section: CustomerPortalSection, previewHrefPrefix?: string): string {
+function customerHref(section: CustomerPortalShellSection, previewHrefPrefix?: string): string {
   if (previewHrefPrefix) return `${previewHrefPrefix}${section}`;
   return section === "home" ? "/portal/customer" : `/portal/customer/${section}`;
+}
+
+function productModuleHref(productId: string, moduleId: string, previewHrefPrefix?: string): string {
+  if (previewHrefPrefix) return `${previewHrefPrefix}service&productId=${encodeURIComponent(productId)}&module=${encodeURIComponent(moduleId)}`;
+  return `/portal/customer/service/${encodeURIComponent(productId)}/${encodeURIComponent(moduleId)}`;
 }
 
 function portalCopyTokens(data: CustomerPortalData, providerName: string): Record<string, string> {
@@ -85,8 +96,8 @@ function portalCopyTokens(data: CustomerPortalData, providerName: string): Recor
   };
 }
 
-function modeContent(data: CustomerPortalData, providerName: string) {
-  const content = data.presentation.stages[data.mode];
+function stageContent(data: CustomerPortalData, mode: CustomerPortalMode, providerName: string) {
+  const content = data.presentation.stages[mode];
   const tokens = portalCopyTokens(data, providerName);
   return {
     ...content,
@@ -98,7 +109,41 @@ function modeContent(data: CustomerPortalData, providerName: string) {
   };
 }
 
-function pageContent(data: CustomerPortalData, section: CustomerPortalSection, providerName: string) {
+function modeContent(data: CustomerPortalData, providerName: string) {
+  return stageContent(data, data.mode, providerName);
+}
+
+function productLifecycleContent(
+  product: PortalProductSelection,
+  data: CustomerPortalData,
+  providerName: string,
+): Record<CustomerPortalMode, PortalProductLifecycleStage> {
+  const lifecycle = portalProductLifecycle(product);
+  if (data.presentationProductId !== product.id) return lifecycle;
+  return Object.fromEntries(PORTAL_LIFECYCLE_MODES.map(mode => [
+    mode,
+    { ...lifecycle[mode], ...stageContent(data, mode, providerName) },
+  ])) as Record<CustomerPortalMode, PortalProductLifecycleStage>;
+}
+
+function productWorkspace(data: CustomerPortalData, product: PortalProductSelection): PortalProductWorkspace | undefined {
+  return data.workspaces.find(workspace => workspace.productId === product.id);
+}
+
+function productWorkspaceMode(data: CustomerPortalData, product: PortalProductSelection): CustomerPortalMode {
+  return productWorkspace(data, product)?.stage ?? data.mode;
+}
+
+function programmeMode(data: CustomerPortalData): CustomerPortalMode {
+  if (!data.workspaces.length) return data.mode;
+  return data.workspaces.reduce((earliest, workspace) => {
+    return PORTAL_LIFECYCLE_MODES.indexOf(workspace.stage) < PORTAL_LIFECYCLE_MODES.indexOf(earliest)
+      ? workspace.stage
+      : earliest;
+  }, "maintenance" as CustomerPortalMode);
+}
+
+function pageContent(data: CustomerPortalData, section: CustomerPortalShellSection, providerName: string) {
   const page = data.presentation.pages[section];
   const tokens = portalCopyTokens(data, providerName);
   return {
@@ -218,13 +263,14 @@ function InvoiceStatus({ status }: { status: string }) {
   return <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.08em] ${style}`}>{status}</span>;
 }
 
-export async function CustomerPortalView({ section }: { section: CustomerPortalSection }) {
+export async function CustomerPortalView({ section, productId, moduleId }: { section: CustomerPortalSection; productId?: string; moduleId?: string }) {
   const { client, data, providerName } = await context();
+  if (section === "service" && !data.products.some(product => product.id === productId)) notFound();
   if (section === "home") {
     const handoff = data.properties.find(property => property.status === "redirected" && safeExternalUrl(property.redirectTarget));
     if (handoff?.redirectTarget) redirect(handoff.redirectTarget);
   }
-  return <CustomerPortalContent section={section} client={client} data={data} providerName={providerName} />;
+  return <CustomerPortalContent section={section} client={client} data={data} productId={productId} moduleId={moduleId} providerName={providerName} workspaceRole="customer" />;
 }
 
 export function CustomerPortalContent({
@@ -232,14 +278,24 @@ export function CustomerPortalContent({
   client,
   data,
   previewHrefPrefix,
+  productId,
+  moduleId,
   providerName = "Milesymedia",
+  workspaceRole = "preview",
 }: {
   section: CustomerPortalSection;
   client: Client;
   data: CustomerPortalData;
   previewHrefPrefix?: string;
+  productId?: string;
+  moduleId?: string;
   providerName?: string;
+  workspaceRole?: ProductWorkspaceRole;
 }) {
+  if (section === "service") {
+    const product = data.products.find(item => item.id === productId) ?? data.products[0];
+    return product ? <ProductModuleView clientId={client.id} product={product} moduleId={moduleId} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} workspaceRole={workspaceRole} /> : <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  }
   if (section === "project") return <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   const readOnly = Boolean(previewHrefPrefix);
   if (section === "results") return <ResultsView client={client} data={data} providerName={providerName} />;
@@ -307,6 +363,119 @@ function ResultMetric({ icon, label, value }: { icon: React.ReactNode; label: st
   return <div className="border-b border-r border-black/8 p-5 lg:border-b-0"><div className="flex items-center gap-2 text-[var(--portal-accent)]">{icon}<span className="text-[10px] uppercase tracking-[0.13em] text-black/38">{label}</span></div><p className="mt-3 font-serif text-3xl">{value}</p></div>;
 }
 
+function ProductModuleView({
+  clientId,
+  product,
+  moduleId,
+  data,
+  previewHrefPrefix,
+  providerName,
+  workspaceRole,
+}: {
+  clientId: string;
+  product: PortalProductSelection;
+  moduleId?: string;
+  data: CustomerPortalData;
+  previewHrefPrefix?: string;
+  providerName: string;
+  workspaceRole: ProductWorkspaceRole;
+}) {
+  const module = portalProductModule(product);
+  const page = portalProductModulePage(product, moduleId);
+  const lifecycle = productLifecycleContent(product, data, providerName);
+  const workspace = productWorkspace(data, product);
+  const activeMode = workspace?.stage ?? data.mode;
+  const stage = lifecycle[activeMode];
+  const outputs = page.outputs.length ? page.outputs : product.deliverables;
+  const pendingApprovals = (workspace?.decisions.filter(decision => decision.status === "pending").length ?? 0)
+    + data.approvals.filter(approval => approval.status === "pending").length;
+  const openRequests = data.requests.filter(request => request.status !== "closed").length;
+  const coverImage = safeExternalUrl(product.coverImageUrl);
+  const accent = product.accentColor || "var(--portal-accent)";
+
+  return (
+    <>
+      <PageIntro
+        eyebrow={`${product.name} · ${page.eyebrow}`}
+        title={page.title}
+        body={page.body}
+        action={<Link href={customerHref(page.actionTarget, previewHrefPrefix)} className="inline-flex min-h-11 items-center gap-2 self-start rounded-md bg-[var(--portal-hero)] px-5 text-sm font-medium text-white transition hover:bg-black">{page.actionLabel}<ArrowRight size={15} aria-hidden="true" /></Link>}
+      />
+
+      <section className="overflow-hidden rounded-md border border-black/10 bg-[var(--portal-surface)]">
+        <div className="relative grid min-h-72 overflow-hidden bg-[var(--portal-hero)] text-white lg:grid-cols-[minmax(0,1.3fr)_minmax(260px,.7fr)]">
+          {coverImage ? <div className="absolute inset-0 opacity-15"><img src={coverImage} alt="" className="h-full w-full object-cover" /></div> : null}
+          <div className="relative p-6 sm:p-8 lg:p-10">
+            <div className="flex flex-wrap items-center gap-3"><span className="rounded-full border border-white/15 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/70">{module.label}</span><span className="text-[10px] uppercase tracking-[0.14em] text-white/38">{stage.label}</span></div>
+            <h2 className="mt-8 max-w-2xl font-serif text-3xl leading-tight sm:text-4xl">{module.promise}</h2>
+            <p className="mt-5 max-w-2xl text-sm leading-6 text-white/58">{stage.focus}</p>
+            <div className="mt-9"><div className="flex justify-between text-[10px] uppercase tracking-[0.14em] text-white/40"><span>Service progress</span><span>{stage.progress}%</span></div><div className="mt-3 h-px bg-white/15"><div className="h-px" style={{ width: `${stage.progress}%`, backgroundColor: accent }} /></div></div>
+          </div>
+          <div className="relative grid grid-cols-2 border-t border-white/10 bg-white/[0.03] lg:grid-cols-1 lg:border-l lg:border-t-0">
+            <ModuleMetric label="Shared files" value={String(data.files.length)} />
+            <ModuleMetric label="Pending decisions" value={String(pendingApprovals)} />
+            <ModuleMetric label="Open requests" value={String(openRequests)} />
+            <ModuleMetric label="Delivery outputs" value={String(outputs.length)} />
+          </div>
+        </div>
+      </section>
+
+      <ProductLifecycleRail product={product} lifecycle={lifecycle} mode={activeMode} previewHrefPrefix={previewHrefPrefix} />
+
+      {workspace ? <ProductWorkspaceApplication clientId={clientId} product={product} page={page} initialWorkspace={workspace} initialFiles={data.files} role={workspaceRole} providerName={providerName} /> : null}
+
+      <section className="mt-5 border-y border-black/10 py-6">
+        <div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[0.16em] text-black/38">{product.name} system</p><h2 className="mt-2 font-serif text-2xl">Move through the complete workspace</h2></div><p className="text-xs text-black/38">Shared data, one client account</p></div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          {module.pages.map((modulePage, index) => <Link key={modulePage.id} href={productModuleHref(product.id, modulePage.id, previewHrefPrefix)} aria-current={modulePage.id === page.id ? "page" : undefined} className={`group min-h-40 rounded-md border p-5 transition ${modulePage.id === page.id ? "border-[var(--portal-accent)] bg-[var(--portal-surface)]" : "border-black/10 bg-white/45 hover:border-[var(--portal-accent)]"}`}><div className="flex items-center justify-between"><span className="text-[10px] font-semibold text-[var(--portal-accent)]">0{index + 1}</span>{modulePage.id === page.id ? <span className="text-[9px] uppercase tracking-[0.1em] text-black/35">Current</span> : <ArrowUpRight size={14} className="text-black/25" />}</div><h3 className="mt-8 font-serif text-xl">{modulePage.navLabel}</h3><p className="mt-2 line-clamp-2 text-xs leading-5 text-black/45">{modulePage.body}</p></Link>)}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function ModuleMetric({ label, value }: { label: string; value: string }) {
+  return <div className="border-b border-r border-white/10 p-5 last:border-b-0 lg:border-r-0"><p className="text-[9px] uppercase tracking-[0.13em] text-white/36">{label}</p><p className="mt-2 font-serif text-2xl text-white/85">{value}</p></div>;
+}
+
+function ProductLifecycleRail({
+  product,
+  lifecycle,
+  mode,
+  previewHrefPrefix,
+}: {
+  product: PortalProductSelection;
+  lifecycle: Record<CustomerPortalMode, PortalProductLifecycleStage>;
+  mode: CustomerPortalMode;
+  previewHrefPrefix?: string;
+}) {
+  const activeIndex = PORTAL_LIFECYCLE_MODES.indexOf(mode);
+  return (
+    <section className="mt-5 border-y border-black/10 py-5">
+      <div className="mb-4 flex items-end justify-between gap-4">
+        <div><p className="text-[10px] uppercase tracking-[0.16em] text-black/38">Product lifecycle</p><h2 className="mt-2 font-serif text-2xl">Every stage of {product.name}</h2></div>
+        <p className="hidden text-xs text-black/38 sm:block">A complete journey, not a generic status</p>
+      </div>
+      <ol className="grid gap-2 md:grid-cols-4">
+        {PORTAL_LIFECYCLE_MODES.map((stageMode, index) => {
+          const stage = lifecycle[stageMode];
+          const current = stageMode === mode;
+          const complete = index < activeIndex || mode === "maintenance";
+          return (
+            <li key={stageMode}>
+              <Link href={productModuleHref(product.id, stage.pageId, previewHrefPrefix)} className={`block min-h-32 rounded-md border p-4 transition ${current ? "border-[var(--portal-accent)] bg-[var(--portal-surface)]" : "border-black/10 bg-white/40 hover:border-[var(--portal-accent)]"}`}>
+                <div className="flex items-center justify-between"><span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--portal-accent)]">0{index + 1}</span><span className="text-[9px] uppercase tracking-[0.09em] text-black/32">{current ? "Current" : complete ? "Complete" : "Ahead"}</span></div>
+                <h3 className="mt-5 text-sm font-medium text-black/72">{stage.label}</h3>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-black/42">{stage.focus}</p>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 function HomeView({
   client,
   data,
@@ -318,7 +487,17 @@ function HomeView({
   previewHrefPrefix?: string;
   providerName: string;
 }) {
-  const active = modeContent(data, providerName);
+  const primaryProduct = data.products[0];
+  const activeMode = data.products.length > 1
+    ? programmeMode(data)
+    : primaryProduct
+      ? productWorkspaceMode(data, primaryProduct)
+      : data.mode;
+  const active = data.products.length > 1
+    ? PORTAL_PROGRAMME_LIFECYCLE[activeMode]
+    : primaryProduct
+      ? productLifecycleContent(primaryProduct, data, providerName)[activeMode]
+      : modeContent(data, providerName);
   const homeCopy = pageContent(data, "home", providerName);
   const homePresentation = data.presentation.home;
   const copyTokens = portalCopyTokens(data, providerName);
@@ -326,28 +505,53 @@ function HomeView({
   const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
   const latestFile = data.files[0];
   const pendingApproval = data.approvals.find(approval => approval.status === "pending");
+  const pendingWorkspaceDecision = data.workspaces.flatMap(workspace => workspace.decisions.map(decision => ({ workspace, decision }))).find(item => item.decision.status === "pending");
+  const pendingWorkspaceProduct = pendingWorkspaceDecision ? data.products.find(product => product.id === pendingWorkspaceDecision.workspace.productId) : undefined;
+  const nextWorkspaceProduct = data.products.find(product => {
+    const workspace = productWorkspace(data, product);
+    const stage = productLifecycleContent(product, data, providerName)[workspace?.stage ?? data.mode];
+    return workspace?.pages[stage.pageId]?.checklist.some(item => !item.complete);
+  });
+  const nextWorkspace = nextWorkspaceProduct ? productWorkspace(data, nextWorkspaceProduct) : undefined;
+  const nextWorkspaceStage = nextWorkspaceProduct ? productLifecycleContent(nextWorkspaceProduct, data, providerName)[nextWorkspace?.stage ?? data.mode] : undefined;
+  const workspaceActionCount = data.workspaces.reduce((total, workspace) => total
+    + workspace.decisions.filter(decision => decision.status === "pending").length
+    + Object.values(workspace.pages).flatMap(page => page.checklist).filter(item => !item.complete).length
+    + workspace.collections.filter(collection => collection.status === "review" || collection.status === "changes-requested").length, 0);
+  const workspaceProgress = data.workspaces.length
+    ? Math.round(data.workspaces.reduce((total, workspace) => total + portalWorkspaceProgress(workspace), 0) / data.workspaces.length)
+    : active.progress;
   const briefNeedsAttention = data.mode === "onboarding" && !data.brief.submittedAt;
   const configuredSupportCta = data.products.find(product => product.supportCta?.trim())?.supportCta?.trim();
+  const primaryModule = primaryProduct ? portalProductModule(primaryProduct) : null;
   const nextAction = outstanding.length
     ? customerHref("billing", previewHrefPrefix)
-    : data.mode === "maintenance"
+    : pendingWorkspaceDecision && pendingWorkspaceProduct
+      ? productModuleHref(pendingWorkspaceProduct.id, pendingWorkspaceDecision.decision.pageId, previewHrefPrefix)
+    : nextWorkspaceProduct && nextWorkspaceStage
+      ? productModuleHref(nextWorkspaceProduct.id, nextWorkspaceStage.pageId, previewHrefPrefix)
+    : activeMode === "maintenance"
       ? customerHref("support", previewHrefPrefix)
       : `${customerHref("project", previewHrefPrefix)}${pendingApproval ? "#approvals" : briefNeedsAttention ? "#project-brief" : "#stage-actions"}`;
   const nextActionLabel = outstanding.length
     ? "Review billing"
+    : pendingWorkspaceDecision && pendingWorkspaceProduct
+      ? `Review ${pendingWorkspaceProduct.name} decision`
     : pendingApproval
       ? "Review approval"
       : briefNeedsAttention
         ? "Complete your brief"
-        : data.mode === "maintenance"
+        : activeMode === "maintenance"
           ? configuredSupportCta || "Ask for support"
-          : "Continue your project";
+          : nextWorkspaceProduct
+            ? `Continue ${nextWorkspaceProduct.name}`
+            : "Continue your project";
 
   return (
     <>
       <PageIntro
         eyebrow={homeCopy.eyebrow}
-        title={homeCopy.title}
+        title={data.products.length > 1 ? portalHomeHeading(data.products, data.experienceHeadline) : homeCopy.title}
         body={data.welcomeNote || formatPortalCopy(homePresentation.welcomeBody || homeCopy.body, copyTokens)}
         action={(
           <Link href={nextAction} className="inline-flex min-h-11 items-center gap-2 self-start rounded-md bg-[var(--portal-hero)] px-5 text-sm font-medium text-white transition hover:bg-black">
@@ -371,15 +575,16 @@ function HomeView({
             <div className="mt-9">
               <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/45">
                 <span>Project progress</span>
-                <span>{active.progress}%</span>
+                <span>{workspaceProgress}%</span>
               </div>
               <div className="mt-3 h-px bg-white/15">
-                <div className="h-px bg-[var(--portal-accent)]" style={{ width: `${active.progress}%` }} />
+                <div className="h-px bg-[var(--portal-accent)]" style={{ width: `${workspaceProgress}%` }} />
               </div>
             </div>
           </div>
-          <div className="grid divide-y divide-black/8 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="grid divide-y divide-black/8 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
             <HomeMetric label={data.products.length > 1 ? "Your services" : "Your service"} value={data.products.length ? data.products.map(product => product.name).join(", ") : data.servicePlan} />
+            <HomeMetric label="Actions" value={`${workspaceActionCount} remaining`} />
             <HomeMetric label="Files ready" value={`${data.files.length} available`} />
             <HomeMetric label="Support" value={`${data.requests.filter(item => item.status === "open").length} open requests`} />
           </div>
@@ -398,8 +603,10 @@ function HomeView({
         </Surface>
       </div>
 
+      {data.products.length ? <ProductSystems data={data} providerName={providerName} previewHrefPrefix={previewHrefPrefix} /> : null}
+
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <QuickLink icon={<FolderKanban size={18} />} title={projectLabel} body="See progress and what happens next." href={customerHref("project", previewHrefPrefix)} />
+        <QuickLink icon={<FolderKanban size={18} />} title={data.products.length === 1 && primaryModule ? primaryModule.label : projectLabel} body={data.products.length === 1 && primaryModule ? primaryModule.promise : "See progress across every connected service."} href={data.products.length === 1 && primaryProduct && primaryModule ? productModuleHref(primaryProduct.id, primaryModule.pages[0].id, previewHrefPrefix) : customerHref("project", previewHrefPrefix)} />
         <QuickLink icon={<Files size={18} />} title="Files" body={latestFile ? `Latest: ${latestFile.name}` : "Your shared documents and inspiration."} href={customerHref("files", previewHrefPrefix)} />
         <QuickLink
           icon={<CreditCard size={18} />}
@@ -453,6 +660,24 @@ function HomeView({
   );
 }
 
+function ProductSystems({ data, providerName, previewHrefPrefix }: { data: CustomerPortalData; providerName: string; previewHrefPrefix?: string }) {
+  const products = data.products;
+  return (
+    <section className="mt-5 border-y border-black/10 py-6">
+      <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><p className="text-[10px] uppercase tracking-[0.16em] text-black/38">Your connected services</p><h2 className="mt-2 font-serif text-2xl">{products.length === 1 ? "Your complete service workspace" : `${products.length} systems, working as one`}</h2></div><p className="text-xs text-black/38">Each service keeps its own workflow and shares the same files, billing, and support.</p></div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {products.map(product => {
+          const module = portalProductModule(product);
+          const workspace = productWorkspace(data, product);
+          const stage = productLifecycleContent(product, data, providerName)[workspace?.stage ?? data.mode];
+          const progress = workspace ? portalWorkspaceProgress(workspace) : stage.progress;
+          return <Link key={product.id} href={productModuleHref(product.id, stage.pageId, previewHrefPrefix)} className="group relative min-h-64 overflow-hidden rounded-md border border-black/10 bg-[var(--portal-surface)] p-6 transition hover:-translate-y-0.5 hover:border-[var(--portal-accent)] hover:shadow-[0_16px_38px_rgba(35,29,18,0.07)]"><span className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: product.accentColor || "var(--portal-accent)" }} /><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] uppercase tracking-[0.15em] text-black/36">{module.label}</p><h3 className="mt-3 font-serif text-2xl">{product.name}</h3></div><ArrowUpRight size={16} className="text-black/24 transition group-hover:text-[var(--portal-accent)]" /></div><p className="mt-4 line-clamp-3 text-sm leading-6 text-black/48">{module.promise}</p><div className="mt-7 flex items-center justify-between border-t border-black/8 pt-4"><div><p className="text-[9px] uppercase tracking-[0.11em] text-black/32">Current stage</p><p className="mt-1 text-xs font-semibold text-[var(--portal-accent)]">{stage.label}</p></div><span className="text-xs tabular-nums text-black/38">{progress}%</span></div><p className="mt-3 line-clamp-2 text-xs leading-5 text-black/45">{stage.focus}</p></Link>;
+        })}
+      </div>
+    </section>
+  );
+}
+
 function HomeMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 px-6 py-5">
@@ -486,11 +711,20 @@ function ProjectView({
   previewHrefPrefix?: string;
   providerName: string;
 }) {
-  const active = modeContent(data, providerName);
+  const projectMode = data.products.length > 1
+    ? programmeMode(data)
+    : data.products[0]
+      ? productWorkspaceMode(data, data.products[0])
+      : data.mode;
+  const primaryLifecycle = data.products.length === 1
+    ? productLifecycleContent(data.products[0], data, providerName)
+    : null;
+  const active = primaryLifecycle?.[projectMode]
+    ?? (data.products.length > 1 ? PORTAL_PROGRAMME_LIFECYCLE[projectMode] : modeContent(data, providerName));
   const projectLabel = portalProjectLabel(data.products);
   const configuredSupportCta = data.products.find(product => product.supportCta?.trim())?.supportCta?.trim();
-  const stages: CustomerPortalMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
-  const activeIndex = stages.indexOf(data.mode);
+  const stages = PORTAL_LIFECYCLE_MODES;
+  const activeIndex = stages.indexOf(projectMode);
   const customerProperties = data.properties.filter(property =>
     property.kind === "website" || property.kind === "client-portal" || property.kind === "dev-portal",
   );
@@ -498,7 +732,7 @@ function ProjectView({
   const pendingLaunchApproval = data.approvals.some(approval => approval.type === "launch" && approval.status === "pending");
   const hasCustomerFiles = data.files.some(file => file.category === "inspiration" || file.category === "design-feedback" || file.category === "brief");
   const hasOpenStageRequest = data.requests.some(request => request.status !== "closed" && (
-    data.mode === "designing" ? request.type === "design-feedback" : request.type === "suggestion" || request.type === "support-ticket"
+    projectMode === "designing" ? request.type === "design-feedback" : request.type === "suggestion" || request.type === "support-ticket"
   ));
   const hasPreview = customerProperties.some(property => Boolean(propertyDestination(property).href));
   const hasLiveProperty = customerProperties.some(property => property.status === "live" || property.status === "redirected");
@@ -588,26 +822,34 @@ function ProjectView({
   };
   const adaptiveTasks: CustomerStageTask[] = data.products.length
     ? [
-        ...data.products.map(product => ({
-          label: product.name,
-          detail: portalStageFocus(product, data.mode),
-          complete: data.mode === "maintenance",
-          href: data.mode === "onboarding" ? "#project-brief" : "#stage-actions",
-        })),
+        ...data.products.flatMap(product => {
+          const workspaceMode = productWorkspaceMode(data, product);
+          const stage = productLifecycleContent(product, data, providerName)[workspaceMode];
+          const workspace = productWorkspace(data, product);
+          const checklist = workspace?.pages[stage.pageId]?.checklist ?? [];
+          return stage.tasks.slice(0, 2).map((task, index) => ({
+            label: `${product.name}: ${task}`,
+            detail: index === 0 ? stage.focus : `Part of the current ${stage.label.toLowerCase()} stage.`,
+            complete: checklist[index]?.complete ?? false,
+            href: productModuleHref(product.id, stage.pageId, previewHrefPrefix),
+          }));
+        }).slice(0, 8),
         {
-          label: data.mode === "onboarding" ? "Keep your details together" : "Review shared files and decisions",
-          detail: data.mode === "onboarding"
+          label: projectMode === "onboarding" ? "Keep your details together" : "Review shared files and decisions",
+          detail: projectMode === "onboarding"
             ? "Your brief, agreements, references, and costs stay together here."
             : "Files, feedback and approvals remain attached to this work.",
           complete: data.files.length > 0 || data.contracts.length > 0,
           href: customerHref("files", previewHrefPrefix),
         },
       ]
-    : stageTasks[data.mode];
+    : stageTasks[projectMode];
 
   return (
     <>
-      <PageIntro {...pageContent(data, "project", providerName)} />
+      <PageIntro {...(data.products.length > 1
+        ? { eyebrow: "Your programme", title: active.heading, body: active.body }
+        : pageContent(data, "project", providerName))} />
       {data.products.length > 0 ? (
         <Surface className="mb-5 overflow-hidden">
           <div className="border-b border-black/8 px-6 py-5">
@@ -617,6 +859,11 @@ function ProjectView({
           <div className={`grid gap-px bg-black/8 ${data.products.length > 1 ? "md:grid-cols-2" : ""}`}>
             {data.products.map(product => {
               const definition = portalProductDefinition(product);
+              const module = portalProductModule(product);
+              const lifecycle = productLifecycleContent(product, data, providerName);
+              const workspace = productWorkspace(data, product);
+              const workspaceMode = workspace?.stage ?? data.mode;
+              const currentStage = lifecycle[workspaceMode];
               const deliverables = product.deliverables.length ? product.deliverables : definition?.deliverables ?? [];
               return (
                 <article key={product.id} className="bg-[var(--portal-surface)] p-6">
@@ -637,7 +884,11 @@ function ProjectView({
                       ))}
                     </ul>
                   ) : null}
-                  <p className="mt-5 text-xs leading-5 text-[var(--portal-accent)]">{portalStageFocus(product, data.mode)}</p>
+                  <div className="mt-5 border-t border-black/8 pt-4"><div className="flex items-center justify-between gap-3"><p className="text-[9px] uppercase tracking-[0.12em] text-black/34">Current stage</p><span className="text-[10px] tabular-nums text-black/35">{workspace ? portalWorkspaceProgress(workspace) : currentStage.progress}%</span></div><p className="mt-1 text-sm font-medium text-[var(--portal-accent)]">{currentStage.label}</p><p className="mt-2 text-xs leading-5 text-black/48">{currentStage.focus}</p></div>
+                  <ol className="mt-4 grid grid-cols-2 gap-1.5">
+                    {PORTAL_LIFECYCLE_MODES.map((stageMode, index) => <li key={stageMode} className={`min-w-0 rounded-sm border px-2 py-2 text-[10px] leading-4 ${stageMode === workspaceMode ? "border-[var(--portal-accent)] bg-white text-black/68" : "border-black/8 text-black/38"}`}><span className="mr-1 text-[var(--portal-accent)]">0{index + 1}</span>{lifecycle[stageMode].label}</li>)}
+                  </ol>
+                  <Link href={productModuleHref(product.id, currentStage.pageId, previewHrefPrefix)} className="mt-5 inline-flex min-h-9 items-center gap-2 border-t border-black/8 pt-4 text-xs font-semibold text-[var(--portal-accent)]">Open {module.label} <ArrowRight size={13} /></Link>
                 </article>
               );
             })}
@@ -650,8 +901,10 @@ function ProjectView({
             <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Journey</p>
             <ol className="mt-6 grid gap-0">
               {stages.map((stage, index) => {
-                const done = index < activeIndex || data.mode === "maintenance";
+                const done = index < activeIndex || projectMode === "maintenance";
                 const current = index === activeIndex;
+                const journeyStage = primaryLifecycle?.[stage]
+                  ?? (data.products.length > 1 ? PORTAL_PROGRAMME_LIFECYCLE[stage] : stageContent(data, stage, providerName));
                 return (
                   <li key={stage} className="grid grid-cols-[32px_1fr] gap-4">
                     <div className="flex flex-col items-center">
@@ -664,8 +917,8 @@ function ProjectView({
                       {index < stages.length - 1 && <span className="min-h-12 w-px flex-1 bg-black/10" />}
                     </div>
                     <div className="pb-8">
-                      <p className={`text-sm font-medium ${current ? "text-[var(--portal-accent)]" : "text-black/70"}`}>{formatPortalCopy(data.presentation.stages[stage].label, portalCopyTokens(data, providerName))}</p>
-                      <p className="mt-1 text-xs leading-5 text-black/42">{formatPortalCopy(data.presentation.stages[stage].focus, portalCopyTokens(data, providerName))}</p>
+                      <p className={`text-sm font-medium ${current ? "text-[var(--portal-accent)]" : "text-black/70"}`}>{journeyStage.label}</p>
+                      <p className="mt-1 text-xs leading-5 text-black/42">{journeyStage.focus}</p>
                     </div>
                   </li>
                 );

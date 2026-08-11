@@ -6,7 +6,9 @@ import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import { deliverMagicLink, signMagicToken } from "@/lib/server/magicLink";
 import { cleanPortalProducts } from "@/lib/portalProducts";
-import { ensureClientPortalInstance } from "@/server/clientPortalDesigns";
+import { ensureClientPortalInstance, ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
+import { getAgencyProduct } from "@/server/agencyProducts";
+import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 
 type PortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -134,8 +136,16 @@ export async function POST(req: NextRequest) {
   const portalLogoUrl = cleanSupportUrl(body.logoUrl);
   const portalAccentColor = cleanHexColor(body.accentColor) || "#8b6c33";
   const portalProducts = cleanPortalProducts(body.products);
+  const portalProduct = portalProducts
+    .map(product => getAgencyProduct(agencyId, product.id))
+    .find(product => product?.portalRequirement !== "none")
+    ?? (typeof client.metadata?.agencyProductId === "string" ? getAgencyProduct(agencyId, client.metadata.agencyProductId) : null);
+  const productTemplate = portalProducts.length === 1 && portalProduct && portalProduct.portalRequirement !== "none"
+    ? ensureProductPortalTemplate(agencyId, portalProduct, session.userId)
+    : null;
   const portalExperienceHeadline = cleanText(body.experienceHeadline, 160);
   const stripeLink = cleanSupportUrl(body.billingUrl);
+  const portalProductWorkspaces = reconcileClientProductWorkspaces(client, portalProducts, portalMode);
   if (typeof body.billingUrl === "string" && body.billingUrl.trim() && !stripeLink) {
     return NextResponse.json({ ok: false, error: "payment link must use http or https" }, { status: 400 });
   }
@@ -150,6 +160,7 @@ export async function POST(req: NextRequest) {
         clientId: client.id,
         actorUserId: session.userId,
         accentColor: portalAccentColor,
+        templateId: productTemplate?.id,
       })
     : null;
 
@@ -170,6 +181,7 @@ export async function POST(req: NextRequest) {
       portalLogoUrl,
       portalAccentColor,
       portalProducts,
+      portalProductWorkspaces,
       portalExperienceHeadline,
       stripeLink,
       portalBuiltAt,

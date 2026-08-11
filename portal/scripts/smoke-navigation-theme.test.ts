@@ -18,6 +18,7 @@ test("sidebar uses real icons and presents the merged people hub as Journey", ()
 test("portal dark mode is persistent and scoped", () => {
   const mode = read("src/lib/chrome/colorMode.ts");
   const toggle = read("src/components/chrome/ColorModeToggle.tsx");
+  const profile = read("src/components/chrome/ProfileMenu.tsx");
   const css = read("src/app/globals.css");
   const agencyLayout = read("src/app/portal/agency/layout.tsx");
   const clientLayout = read("src/app/portal/clients/[clientId]/layout.tsx");
@@ -25,7 +26,19 @@ test("portal dark mode is persistent and scoped", () => {
 
   assert.match(mode, /milesymedia-color-mode/);
   assert.match(toggle, /localStorage\.setItem/);
+  assert.match(toggle, /variant === "menu"/);
+  assert.match(toggle, /role="menuitemcheckbox"/);
+  assert.match(toggle, /MutationObserver/);
+  assert.match(profile, /ColorModeToggle variant="menu"/);
+  assert.match(profile, /mm-profile-trigger/);
+  assert.match(profile, /mm-profile-menu-header/);
+  assert.match(profile, /bg-\[#FFFDF8\]/);
   assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root/);
+  assert.match(css, /\.mm-profile-trigger\[data-open="true"\]/);
+  assert.match(css, /\.mm-profile-menu-header\s*\{\s*background:\s*#F8EEDB/);
+  assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root \.mm-profile-trigger/);
+  assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root \.mm-profile-menu-header/);
+  assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root \.mm-profile-menu \[role="menuitem"\]/);
   assert.match(agencyLayout, /mm-portal-root/);
   assert.match(clientLayout, /mm-portal-root/);
   assert.match(customerChrome, /mm-portal-root/);

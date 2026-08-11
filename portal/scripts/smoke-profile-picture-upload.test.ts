@@ -146,6 +146,13 @@ describe("§ Profile picture upload — ProfileMenu fallback to initials", () =>
     assert.ok(src.includes("h-full w-full object-cover"));
     assert.ok(src.includes("overflow-hidden rounded-full"));
   });
+
+  it("centres the mobile avatar in a square trigger before restoring the desktop label", () => {
+    const src = readFileSync(PROFILE_MENU, "utf8");
+    assert.ok(src.includes("h-10 w-10"));
+    assert.ok(src.includes("p-[3px]"));
+    assert.ok(src.includes("sm:w-auto sm:p-1 sm:pr-2"));
+  });
 });
 
 describe("§ Profile picture upload — topbar + layout wire-up", () => {

@@ -10,6 +10,7 @@ import {
   Layers3,
   LoaderCircle,
   Monitor,
+  PanelsTopLeft,
   Palette,
   RefreshCw,
   RotateCcw,
@@ -35,6 +36,15 @@ export type PortalStudioClient = {
   mode: ClientPortalMode;
 };
 
+export type PortalStudioTemplate = {
+  id: string;
+  name: string;
+  productId?: string;
+  baseTemplateVersionId?: string;
+  latestMasterVersionId: string;
+  active: boolean;
+};
+
 type Scope = "template" | "client";
 type InspectorTab = "content" | "pages" | "brand" | "versions";
 type Device = "desktop" | "mobile";
@@ -43,6 +53,8 @@ type PortalDesignRecord = {
   id: string;
   name?: string;
   clientId?: string;
+  productId?: string;
+  baseTemplateVersionId?: string;
   draft: ClientPortalDesignDocument;
   published: ClientPortalDesignDocument;
   publishedVersionId: string;
@@ -78,14 +90,18 @@ const tabs: Array<{ id: InspectorTab; label: string; icon: typeof FileText }> = 
 
 export function ClientPortalStudio({
   clients,
+  templates,
   initialClientId,
+  initialTemplateId,
   initialScope,
   initialMode,
   initialSection,
   canManage,
 }: {
   clients: PortalStudioClient[];
+  templates: PortalStudioTemplate[];
   initialClientId: string;
+  initialTemplateId: string;
   initialScope: Scope;
   initialMode: ClientPortalMode;
   initialSection: ClientPortalSectionId;
@@ -93,6 +109,8 @@ export function ClientPortalStudio({
 }) {
   const [scope, setScope] = useState<Scope>(initialScope);
   const [clientId, setClientId] = useState(initialClientId);
+  const [templateId, setTemplateId] = useState(initialTemplateId);
+  const [previewProductIds, setPreviewProductIds] = useState<string[]>([]);
   const [mode, setMode] = useState<ClientPortalMode>(initialMode);
   const [section, setSection] = useState<ClientPortalSectionId>(initialSection);
   const [device, setDevice] = useState<Device>("desktop");
@@ -108,6 +126,7 @@ export function ClientPortalStudio({
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
 
   const selectedClient = clients.find(client => client.id === clientId) ?? clients[0];
+  const selectedTemplate = templates.find(template => template.id === templateId) ?? templates[0];
   const frameUrl = useMemo(() => {
     if (!clientId) return "";
     const params = new URLSearchParams({
@@ -117,8 +136,12 @@ export function ClientPortalStudio({
       portalMode: mode,
       section,
     });
+    if (scope === "template" && templateId) params.set("templateId", templateId);
+    if (scope === "template" && selectedTemplate?.productId && previewProductIds.length) {
+      params.set("productIds", [selectedTemplate.productId, ...previewProductIds].join(","));
+    }
     return `/client-preview/${clientId}?${params.toString()}`;
-  }, [clientId, mode, scope, section]);
+  }, [clientId, mode, previewProductIds, scope, section, selectedTemplate?.productId, templateId]);
 
   useEffect(() => {
     if (!clientId) {
@@ -132,7 +155,9 @@ export function ClientPortalStudio({
     setPortalDocument(null);
     setDirty(false);
     setNotice("Loading portal design...");
-    fetch(`/api/portal/client-portal-design?scope=${scope}&clientId=${encodeURIComponent(clientId)}`, { cache: "no-store" })
+    const designParams = new URLSearchParams({ scope, clientId });
+    if (scope === "template" && templateId) designParams.set("templateId", templateId);
+    fetch(`/api/portal/client-portal-design?${designParams.toString()}`, { cache: "no-store" })
       .then(async response => {
         const payload = await response.json() as { ok?: boolean; record?: PortalDesignRecord; error?: string };
         if (!response.ok || !payload.record) throw new Error(payload.error || "Could not load portal design");
@@ -140,7 +165,7 @@ export function ClientPortalStudio({
         setRecord(payload.record);
         setPortalDocument(structuredClone(payload.record.draft));
         setDirty(false);
-        setNotice(scope === "template" ? "Editing the master template draft" : `Editing ${selectedClient?.name || "client"}'s portal draft`);
+        setNotice(scope === "template" ? `Editing ${selectedTemplate?.name || "Stunning Standard"} draft` : `Editing ${selectedClient?.name || "client"}'s portal draft`);
         setFrameKey(value => value + 1);
       })
       .catch(error => {
@@ -148,7 +173,7 @@ export function ClientPortalStudio({
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [clientId, scope, selectedClient?.name]);
+  }, [clientId, scope, selectedClient?.name, selectedTemplate?.name, templateId]);
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -172,10 +197,18 @@ export function ClientPortalStudio({
     const url = new URL(window.location.href);
     url.searchParams.set("scope", scope);
     if (clientId) url.searchParams.set("clientId", clientId);
+    if (scope === "template" && templateId) {
+      url.searchParams.set("templateId", templateId);
+      if (selectedTemplate?.productId) url.searchParams.set("productId", selectedTemplate.productId);
+      else url.searchParams.delete("productId");
+    } else {
+      url.searchParams.delete("templateId");
+      url.searchParams.delete("productId");
+    }
     url.searchParams.set("mode", mode);
     url.searchParams.set("section", section);
     window.history.replaceState(null, "", `${url.pathname}${url.search}`);
-  }, [clientId, mode, scope, section]);
+  }, [clientId, mode, scope, section, selectedTemplate?.productId, templateId]);
 
   function edit(update: (current: ClientPortalDesignDocument) => void) {
     if (!portalDocument || !canManage || busy) return;
@@ -186,12 +219,12 @@ export function ClientPortalStudio({
     setNotice("Unsaved draft changes");
   }
 
-  async function mutate(action: "save-draft" | "publish" | "checkpoint" | "restore" | "reset-client", extra: Record<string, unknown> = {}) {
+  async function mutate(action: "save-draft" | "publish" | "checkpoint" | "restore" | "refresh-product" | "reset-client", extra: Record<string, unknown> = {}) {
     if (!record) throw new Error("Portal design is not ready");
     const response = await fetch("/api/portal/client-portal-design", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action, scope, clientId, recordId: record.id, ...extra }),
+      body: JSON.stringify({ action, scope, clientId, templateId, recordId: record.id, ...extra }),
     });
     const payload = await response.json() as { ok?: boolean; record?: PortalDesignRecord; error?: string };
     if (!response.ok || !payload.record) throw new Error(payload.error || "Portal design could not be updated");
@@ -225,7 +258,7 @@ export function ClientPortalStudio({
       await mutate("publish");
       setDirty(false);
       setFrameKey(value => value + 1);
-      setNotice(scope === "template" ? "Master template published" : "Client portal published");
+      setNotice(scope === "template" ? `${selectedTemplate?.name || "Template"} published` : "Client portal published");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not publish the portal");
     } finally {
@@ -282,6 +315,24 @@ export function ClientPortalStudio({
     }
   }
 
+  async function refreshProductTemplate() {
+    if (scope !== "template" || !record?.productId || !canManage || !portalDocument) return;
+    if (!window.confirm("Rebuild this product draft from the latest published Stunning Standard? The current draft will be saved in version history and the live product portal will not change until you publish.")) return;
+    setBusy(true);
+    setNotice("Refreshing product draft from Stunning Standard...");
+    try {
+      if (dirty) await mutate("save-draft", { document: portalDocument });
+      await mutate("refresh-product");
+      setDirty(false);
+      setFrameKey(value => value + 1);
+      setNotice(`${selectedTemplate?.name || "Product"} draft refreshed from Stunning Standard`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not refresh the product template");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function confirmDraftDiscard() {
     return !dirty || window.confirm("Discard the unsaved changes in this draft?");
   }
@@ -296,6 +347,18 @@ export function ClientPortalStudio({
     const nextClient = clients.find(client => client.id === nextClientId);
     setClientId(nextClientId);
     setMode(nextClient?.mode ?? "onboarding");
+  }
+
+  function changeTemplate(nextTemplateId: string) {
+    if (templateId === nextTemplateId || !confirmDraftDiscard()) return;
+    setTemplateId(nextTemplateId);
+    setPreviewProductIds([]);
+  }
+
+  function togglePreviewProduct(productId: string) {
+    setPreviewProductIds(current => current.includes(productId)
+      ? current.filter(id => id !== productId)
+      : [...current, productId].slice(0, 7));
   }
 
   useEffect(() => {
@@ -327,7 +390,7 @@ export function ClientPortalStudio({
         </Link>
         <div className="hidden min-w-40 xl:block">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300/75">Portal studio</p>
-          <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{scope === "template" ? "Stunning Standard" : selectedClient?.name}</p>
+          <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name}</p>
         </div>
 
         <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Editing scope">
@@ -336,11 +399,16 @@ export function ClientPortalStudio({
         </div>
 
         <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
+          {scope === "template" ? (
+            <select aria-label="Portal template" value={templateId} disabled={busy} onChange={event => changeTemplate(event.target.value)} className="col-span-2 h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none disabled:opacity-45 sm:col-span-1 sm:min-w-52 sm:max-w-72 sm:shrink-0">
+              {templates.map(template => <option key={template.id} value={template.id} className="bg-[#1a1c1a]">{template.name}{template.active ? "" : " (archived)"}</option>)}
+            </select>
+          ) : null}
           <select aria-label="Preview client" value={clientId} disabled={busy} onChange={event => changeClient(event.target.value)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none disabled:opacity-45 sm:min-w-44 sm:max-w-56 sm:shrink-0">
             {clients.map(client => <option key={client.id} value={client.id} className="bg-[#1a1c1a]">{client.name}{client.built ? "" : " (not built)"}</option>)}
           </select>
           <select aria-label="Lifecycle stage" value={mode} onChange={event => setMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
-            {CLIENT_PORTAL_MODES.map(item => <option key={item} value={item} className="bg-[#1a1c1a]">{MODE_LABELS[item]}</option>)}
+            {CLIENT_PORTAL_MODES.map(item => <option key={item} value={item} className="bg-[#1a1c1a]">{portalDocument?.stages[item].label || MODE_LABELS[item]}</option>)}
           </select>
           <select aria-label="Portal page" value={section} onChange={event => setSection(event.target.value as ClientPortalSectionId)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-36 sm:shrink-0">
             {CLIENT_PORTAL_SECTIONS.map(item => <option key={item} value={item} className="bg-[#1a1c1a]">{portalDocument?.pages[item].label || SECTION_LABELS[item]}</option>)}
@@ -352,6 +420,7 @@ export function ClientPortalStudio({
             </div>
             <button type="button" onClick={() => setFrameKey(value => value + 1)} title="Refresh preview" aria-label="Refresh preview" className="hidden size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white sm:grid"><RefreshCw size={16} /></button>
             <Link href={frameUrl.replace("embedded=1&", "")} target="_blank" rel="noreferrer" title="Open portal in new tab" aria-label="Open portal in new tab" className="grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white"><ExternalLink size={16} /></Link>
+            {scope === "client" ? <Link href={`/client-preview/${clientId}?manage=1`} target="_blank" rel="noreferrer" title="Manage live product workspaces" aria-label="Manage live product workspaces" className="grid size-10 shrink-0 place-items-center rounded-md border border-cyan-300/25 text-cyan-300/75 hover:bg-cyan-300/10 hover:text-cyan-200"><PanelsTopLeft size={16} /></Link> : null}
           </div>
         </div>
 
@@ -365,7 +434,7 @@ export function ClientPortalStudio({
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#242724]">
           <div className="flex min-h-10 shrink-0 items-center justify-between border-b border-white/8 bg-[#1b1e1b] px-4 text-[11px] text-white/45">
             <p className="truncate" role="status" aria-live="polite">{notice}{dirty ? " · save the draft to refresh preview" : ""}</p>
-            <p className="hidden shrink-0 sm:block">{scope === "template" ? "Master template" : "Client override"} · {device === "mobile" ? "390 × 844" : "Responsive desktop"}</p>
+            <p className="hidden shrink-0 sm:block">{scope === "template" ? selectedTemplate?.productId ? "Product template" : "Master template" : "Client override"} · {device === "mobile" ? "390 × 844" : "Responsive desktop"}</p>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-7">
             <div className={`mx-auto overflow-hidden rounded-md border border-white/12 bg-white shadow-[0_24px_80px_rgba(0,0,0,.35)] transition-[width] ${device === "mobile" ? "w-[390px] max-w-full" : "w-full max-w-[1440px]"}`}>
@@ -401,7 +470,12 @@ export function ClientPortalStudio({
                 edit={edit}
                 checkpoint={checkpoint}
                 restore={restore}
+                refreshProductTemplate={refreshProductTemplate}
                 resetClient={resetClient}
+                latestMasterVersionId={selectedTemplate?.latestMasterVersionId}
+                compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)}
+                previewProductIds={previewProductIds}
+                togglePreviewProduct={togglePreviewProduct}
               />
             ) : <p className="text-sm text-white/45">{notice}</p>}
           </div>
@@ -419,7 +493,7 @@ export function ClientPortalStudio({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {portalDocument && record ? (
-                <Inspector tab={tab} scope={scope} mode={mode} section={section} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} resetClient={resetClient} />
+                <Inspector tab={tab} scope={scope} mode={mode} section={section} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} />
               ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
             <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-[#111311] p-3">
@@ -447,7 +521,12 @@ function Inspector({
   edit,
   checkpoint,
   restore,
+  refreshProductTemplate,
   resetClient,
+  latestMasterVersionId,
+  compositionTemplates,
+  previewProductIds,
+  togglePreviewProduct,
 }: {
   tab: InspectorTab;
   scope: Scope;
@@ -462,7 +541,12 @@ function Inspector({
   edit: (update: (current: ClientPortalDesignDocument) => void) => void;
   checkpoint: () => void;
   restore: (versionId: string) => void;
+  refreshProductTemplate: () => void;
   resetClient: () => void;
+  latestMasterVersionId?: string;
+  compositionTemplates: PortalStudioTemplate[];
+  previewProductIds: string[];
+  togglePreviewProduct: (productId: string) => void;
 }) {
   const editingDisabled = !canManage || busy;
 
@@ -488,7 +572,7 @@ function Inspector({
           </div>
         ) : null}
         <div className="grid gap-4 border-t border-white/10 pt-6">
-          <InspectorHeading eyebrow={MODE_LABELS[mode]} title="Lifecycle stage" body="This stage content is reused on Home and Project while the live client stage controls what customers see." />
+          <InspectorHeading eyebrow={stage.label || MODE_LABELS[mode]} title="Lifecycle stage" body="This product owns its onboarding, working, delivery, and ongoing-care stages. Changes remain inside this versioned portal template." />
           <Field label="Stage label" value={stage.label} onChange={value => edit(current => { current.stages[mode].label = value; })} disabled={editingDisabled} />
           <Field label="Eyebrow" value={stage.eyebrow} onChange={value => edit(current => { current.stages[mode].eyebrow = value; })} disabled={editingDisabled} />
           <Field label="Heading" value={stage.heading} onChange={value => edit(current => { current.stages[mode].heading = value; })} disabled={editingDisabled} />
@@ -502,16 +586,37 @@ function Inspector({
 
   if (tab === "pages") {
     return (
-      <div>
-        <InspectorHeading eyebrow="Navigation" title="Portal pages" body="Rename or hide portal destinations. Operational data remains untouched when a page is hidden." />
-        <div className="mt-5 grid gap-2">
-          {CLIENT_PORTAL_SECTIONS.map(item => (
-            <div key={item} className="grid grid-cols-[34px_1fr] items-center gap-2 rounded-md border border-white/10 bg-white/[0.025] p-2">
-              <input aria-label={`Show ${SECTION_LABELS[item]}`} type="checkbox" checked={document.pages[item].visible} disabled={editingDisabled || item === "home"} onChange={event => edit(current => { current.pages[item].visible = event.target.checked; })} className="size-4 accent-cyan-300" />
-              <input aria-label={`${SECTION_LABELS[item]} navigation label`} value={document.pages[item].label} disabled={editingDisabled} onChange={event => edit(current => { current.pages[item].label = event.target.value; })} className="h-9 min-w-0 rounded-sm border border-white/10 bg-black/20 px-2 text-xs text-white/75 outline-none focus:border-cyan-300/45" />
-            </div>
-          ))}
+      <div className="grid gap-6">
+        <div>
+          <InspectorHeading eyebrow="Navigation" title="Portal pages" body="Rename or hide portal destinations. Operational data remains untouched when a page is hidden." />
+          <div className="mt-5 grid gap-2">
+            {CLIENT_PORTAL_SECTIONS.map(item => (
+              <div key={item} className="grid grid-cols-[34px_1fr] items-center gap-2 rounded-md border border-white/10 bg-white/[0.025] p-2">
+                <input aria-label={`Show ${SECTION_LABELS[item]}`} type="checkbox" checked={document.pages[item].visible} disabled={editingDisabled || item === "home"} onChange={event => edit(current => { current.pages[item].visible = event.target.checked; })} className="size-4 accent-cyan-300" />
+                <input aria-label={`${SECTION_LABELS[item]} navigation label`} value={document.pages[item].label} disabled={editingDisabled} onChange={event => edit(current => { current.pages[item].label = event.target.value; })} className="h-9 min-w-0 rounded-sm border border-white/10 bg-black/20 px-2 text-xs text-white/75 outline-none focus:border-cyan-300/45" />
+              </div>
+            ))}
+          </div>
         </div>
+        {scope === "template" && record.productId ? (
+          <div className="border-t border-white/10 pt-6">
+            <InspectorHeading eyebrow="Bundle preview" title="Preview product composition" body="Temporarily add other product systems to this preview. This does not change the template or any client." />
+            <div className="mt-4 grid max-h-72 gap-1.5 overflow-y-auto pr-1">
+              {compositionTemplates.map(template => (
+                <label key={template.id} className="grid min-h-11 cursor-pointer grid-cols-[22px_minmax(0,1fr)] items-center gap-2 rounded-md border border-white/10 bg-white/[0.025] px-3 text-xs font-medium text-white/70 hover:bg-white/[0.05]">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(template.productId && previewProductIds.includes(template.productId))}
+                    onChange={() => template.productId && togglePreviewProduct(template.productId)}
+                    className="size-4 accent-cyan-300"
+                  />
+                  <span className="truncate">{template.name}</span>
+                </label>
+              ))}
+            </div>
+            {previewProductIds.length ? <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-cyan-300/55">Previewing {previewProductIds.length + 1} products together</p> : null}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -550,6 +655,7 @@ function Inspector({
         <input value={checkpointLabel} onChange={event => setCheckpointLabel(event.target.value)} placeholder="Version name" disabled={!canManage || busy} className="h-10 min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.05] px-3 text-xs text-white outline-none placeholder:text-white/25 focus:border-cyan-300/45" />
         <button type="submit" disabled={!checkpointLabel.trim() || !canManage || busy} title="Create named version" aria-label="Create named version" className="grid size-10 shrink-0 place-items-center rounded-md bg-white text-black disabled:opacity-35"><Check size={16} /></button>
       </form>
+      {scope === "template" && record.productId ? <div className="mt-3 border-y border-white/10 py-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-white/72">Stunning Standard inheritance</p><p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-white/34">{record.baseTemplateVersionId === latestMasterVersionId ? "Draft uses latest master" : "Master update available"}</p></div><span className={`size-2 shrink-0 rounded-full ${record.baseTemplateVersionId === latestMasterVersionId ? "bg-emerald-300" : "bg-amber-300"}`} /></div><p className="mt-3 text-xs leading-5 text-white/38">Rebuild the draft from the latest master while preserving the current draft in version history. The live portal stays unchanged.</p><button type="button" onClick={refreshProductTemplate} disabled={!canManage || busy} className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-white/10 text-xs font-semibold text-white/65 hover:bg-white/5 disabled:opacity-35"><RefreshCw size={14} /> Refresh draft from master</button></div> : null}
       {scope === "client" ? <button type="button" onClick={resetClient} disabled={!canManage || busy} className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-white/10 text-xs font-semibold text-white/60 hover:bg-white/5 disabled:opacity-35"><RotateCcw size={14} /> Reset draft from template</button> : null}
       <div className="mt-6 grid gap-2">
         {record.versions.map(version => (

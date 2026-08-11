@@ -2,14 +2,18 @@ import "server-only";
 
 import crypto from "node:crypto";
 import {
+  CLIENT_PORTAL_MODES,
   CLIENT_PORTAL_TEMPLATE_ID,
   CLIENT_PORTAL_TEMPLATE_NAME,
   clonePortalDesign,
   normalisePortalDesign,
   STUNNING_STANDARD_PORTAL,
 } from "@/lib/clientPortalDesign";
+import { PORTAL_PRODUCT_CATALOG, portalProductSelectionFromAgencyProduct } from "@/lib/portalProducts";
+import { portalProductLifecycle } from "@/lib/portalProductModules";
 import { getState, mutate } from "./storage";
 import type {
+  AgencyProduct,
   ClientPortalDesignDocument,
   ClientPortalDesignVersion,
   ClientPortalInstanceRecord,
@@ -17,12 +21,17 @@ import type {
 } from "./types";
 
 const AUTO_VERSION_CAP = 30;
+const PRODUCT_LIFECYCLE_SEED_VERSION = 3;
 
 export type ClientPortalDesignScope = "template" | "client";
 export type ClientPortalDesignRecord = ClientPortalTemplateRecord | ClientPortalInstanceRecord;
 
 export function portalTemplateRecordId(agencyId: string, slug = CLIENT_PORTAL_TEMPLATE_ID): string {
   return `${agencyId}:${slug}`;
+}
+
+export function productPortalTemplateRecordId(agencyId: string, productId: string): string {
+  return portalTemplateRecordId(agencyId, `${CLIENT_PORTAL_TEMPLATE_ID}-product-${productId}`);
 }
 
 export function portalInstanceRecordId(agencyId: string, clientId: string): string {
@@ -55,11 +64,63 @@ export function ensureStunningPortalTemplate(agencyId: string, actorUserId = "sy
   return created;
 }
 
+export function ensureProductPortalTemplate(
+  agencyId: string,
+  product: AgencyProduct,
+  actorUserId = "system",
+): ClientPortalTemplateRecord {
+  if (product.agencyId !== agencyId) throw new Error("Product does not belong to this agency.");
+  const id = productPortalTemplateRecordId(agencyId, product.id);
+  const existing = getState().clientPortalTemplates[id];
+  const name = `${product.name} · ${CLIENT_PORTAL_TEMPLATE_NAME}`;
+  if (existing) {
+    return upgradeProductPortalTemplate(existing, product, name, actorUserId);
+  }
+
+  const master = ensureStunningPortalTemplate(agencyId, actorUserId);
+  const now = Date.now();
+  const document = productPortalDocument(master.published, product);
+  const initialVersion = makeVersion(document, actorUserId, "publish", `Created from ${CLIENT_PORTAL_TEMPLATE_NAME}`, now);
+  const created: ClientPortalTemplateRecord = {
+    id,
+    agencyId,
+    name,
+    slug: `${CLIENT_PORTAL_TEMPLATE_ID}-product-${product.id}`,
+    productId: product.id,
+    baseTemplateId: master.id,
+    baseTemplateVersionId: master.publishedVersionId,
+    productLifecycleSeedVersion: PRODUCT_LIFECYCLE_SEED_VERSION,
+    draft: clonePortalDesign(document),
+    published: clonePortalDesign(document),
+    publishedVersionId: initialVersion.id,
+    versions: [initialVersion],
+    createdBy: actorUserId,
+    updatedBy: actorUserId,
+    createdAt: now,
+    updatedAt: now,
+    publishedAt: now,
+  };
+  mutate(state => { state.clientPortalTemplates[id] = created; });
+  return created;
+}
+
+export function ensureProductPortalTemplates(
+  agencyId: string,
+  products: AgencyProduct[],
+  actorUserId = "system",
+): ClientPortalTemplateRecord[] {
+  return products
+    .filter(product => product.portalRequirement !== "none")
+    .map(product => ensureProductPortalTemplate(agencyId, product, actorUserId));
+}
+
 export function listClientPortalTemplates(agencyId: string): ClientPortalTemplateRecord[] {
   const records = Object.values(getState().clientPortalTemplates)
     .filter(item => item.agencyId === agencyId)
     .sort((a, b) => a.name.localeCompare(b.name));
-  return records.length ? records : [virtualStunningTemplate(agencyId)];
+  return records.some(record => record.id === portalTemplateRecordId(agencyId))
+    ? records
+    : [virtualStunningTemplate(agencyId), ...records];
 }
 
 export function getClientPortalTemplate(agencyId: string, templateId?: string): ClientPortalTemplateRecord | null {
@@ -80,7 +141,10 @@ export function ensureClientPortalInstance(input: {
   const existing = getState().clientPortalInstances[id];
   if (existing) return existing;
   const actor = input.actorUserId || "system";
-  const template = ensureStunningPortalTemplate(input.agencyId, actor);
+  const master = ensureStunningPortalTemplate(input.agencyId, actor);
+  const template = input.templateId
+    ? getClientPortalTemplate(input.agencyId, input.templateId) ?? master
+    : master;
   const base = clonePortalDesign(template.published);
   if (input.accentColor && /^#[0-9a-f]{6}$/i.test(input.accentColor)) base.theme.accentColor = input.accentColor.toLowerCase();
   const now = Date.now();
@@ -89,7 +153,7 @@ export function ensureClientPortalInstance(input: {
     id,
     agencyId: input.agencyId,
     clientId: input.clientId,
-    templateId: input.templateId || template.id,
+    templateId: template.id,
     templateVersionId: template.publishedVersionId,
     draft: clonePortalDesign(base),
     published: clonePortalDesign(base),
@@ -139,14 +203,19 @@ export function getPortalDesignRecord(input: {
   clientId?: string;
   actorUserId?: string;
   accentColor?: string;
+  templateId?: string;
 }): ClientPortalDesignRecord | null {
-  if (input.scope === "template") return ensureStunningPortalTemplate(input.agencyId, input.actorUserId);
+  if (input.scope === "template") {
+    const master = ensureStunningPortalTemplate(input.agencyId, input.actorUserId);
+    return input.templateId ? getClientPortalTemplate(input.agencyId, input.templateId) ?? master : master;
+  }
   if (!input.clientId) return null;
   return ensureClientPortalInstance({
     agencyId: input.agencyId,
     clientId: input.clientId,
     actorUserId: input.actorUserId,
     accentColor: input.accentColor,
+    templateId: input.templateId,
   });
 }
 
@@ -244,6 +313,37 @@ export function restorePortalDesignVersion(input: {
   return updated;
 }
 
+export function refreshProductPortalTemplateFromMaster(input: {
+  agencyId: string;
+  templateId: string;
+  actorUserId: string;
+}): ClientPortalTemplateRecord | null {
+  const template = getClientPortalTemplate(input.agencyId, input.templateId);
+  const product = template?.productId ? getState().agencyProducts[template.productId] : null;
+  if (!template?.productId || !product || product.agencyId !== input.agencyId) return null;
+
+  const master = ensureStunningPortalTemplate(input.agencyId, input.actorUserId);
+  const now = Date.now();
+  const previousDraft = makeVersion(
+    template.draft,
+    input.actorUserId,
+    "checkpoint",
+    "Before master refresh",
+    now,
+  );
+  const updated: ClientPortalTemplateRecord = {
+    ...template,
+    baseTemplateId: master.id,
+    baseTemplateVersionId: master.publishedVersionId,
+    draft: productPortalDocument(master.published, product),
+    versions: pruneVersions([previousDraft, ...template.versions]),
+    updatedBy: input.actorUserId,
+    updatedAt: now,
+  };
+  mutate(state => { state.clientPortalTemplates[updated.id] = updated; });
+  return updated;
+}
+
 export function resetClientPortalFromTemplate(input: {
   agencyId: string;
   clientId: string;
@@ -305,6 +405,85 @@ function pruneVersions(versions: ClientPortalDesignVersion[]): ClientPortalDesig
     unnamed += 1;
     return unnamed <= AUTO_VERSION_CAP;
   });
+}
+
+function productPortalDocument(master: ClientPortalDesignDocument, product: AgencyProduct): ClientPortalDesignDocument {
+  const document = clonePortalDesign(master);
+  const definition = PORTAL_PRODUCT_CATALOG.find(item => item.catalogKey === product.portalTemplateKey);
+  const projectLabel = definition?.projectLabel || product.name;
+  document.chrome.serviceLabel = `${product.name} client service`;
+  document.pages.home.title = product.portalHeadline
+    || product.buyerHeadline
+    || definition?.homeHeading
+    || `Your ${product.name}, all in one place.`;
+  document.pages.project.eyebrow = `Your ${projectLabel}`;
+
+  if (product.portalWelcomeNote) {
+    document.pages.home.body = product.portalWelcomeNote;
+    document.home.welcomeBody = product.portalWelcomeNote;
+  }
+  if (product.portalSupportCta) document.home.careButtonLabel = product.portalSupportCta;
+  if (product.accentColor && /^#[0-9a-f]{6}$/i.test(product.accentColor)) {
+    document.theme.accentColor = product.accentColor.toLowerCase();
+  }
+  return applyProductLifecycle(document, product);
+}
+
+function applyProductLifecycle(base: ClientPortalDesignDocument, product: AgencyProduct): ClientPortalDesignDocument {
+  const document = clonePortalDesign(base);
+  const lifecycle = portalProductLifecycle(portalProductSelectionFromAgencyProduct(product));
+  for (const mode of CLIENT_PORTAL_MODES) {
+    const stage = lifecycle[mode];
+    document.stages[mode] = {
+      label: stage.label,
+      eyebrow: stage.eyebrow,
+      heading: stage.heading,
+      body: stage.body,
+      progress: stage.progress,
+      focus: stage.focus,
+    };
+  }
+  return document;
+}
+
+function upgradeProductPortalTemplate(
+  existing: ClientPortalTemplateRecord,
+  product: AgencyProduct,
+  name: string,
+  actorUserId: string,
+): ClientPortalTemplateRecord {
+  if (existing.productLifecycleSeedVersion === PRODUCT_LIFECYCLE_SEED_VERSION) {
+    if (existing.name === name && existing.productId === product.id) return existing;
+    const renamed = { ...existing, name, productId: product.id };
+    mutate(state => { state.clientPortalTemplates[existing.id] = renamed; });
+    return renamed;
+  }
+
+  const now = Date.now();
+  const pristine = existing.versions.every(version =>
+    version.source === "publish"
+    && (version.label === `Created from ${CLIENT_PORTAL_TEMPLATE_NAME}` || version.label === "Product lifecycle foundation")
+  );
+  const previousDraft = makeVersion(existing.draft, actorUserId, "checkpoint", "Before product lifecycle upgrade", now);
+  const draft = applyProductLifecycle(existing.draft, product);
+  const lifecycleVersion = makeVersion(draft, actorUserId, pristine ? "publish" : "checkpoint", "Product lifecycle foundation", now);
+  const updated: ClientPortalTemplateRecord = {
+    ...existing,
+    name,
+    productId: product.id,
+    productLifecycleSeedVersion: PRODUCT_LIFECYCLE_SEED_VERSION,
+    draft,
+    published: pristine ? clonePortalDesign(draft) : existing.published,
+    publishedVersionId: pristine ? lifecycleVersion.id : existing.publishedVersionId,
+    versions: pruneVersions(pristine
+      ? [lifecycleVersion, ...existing.versions]
+      : [lifecycleVersion, previousDraft, ...existing.versions]),
+    updatedBy: actorUserId,
+    updatedAt: now,
+    publishedAt: pristine ? now : existing.publishedAt,
+  };
+  mutate(state => { state.clientPortalTemplates[existing.id] = updated; });
+  return updated;
 }
 
 function virtualStunningTemplate(agencyId: string): ClientPortalTemplateRecord {

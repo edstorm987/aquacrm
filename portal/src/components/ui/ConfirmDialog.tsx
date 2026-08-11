@@ -51,7 +51,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+      className="mm-modal-backdrop fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
       onClick={onCancel}
     >
       <div
@@ -60,7 +60,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         aria-modal="true"
         aria-labelledby="aqua-confirm-title"
         aria-describedby={body ? "aqua-confirm-body" : undefined}
-        className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl"
+        className="mm-dialog-panel w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <h3 id="aqua-confirm-title" className="text-base font-semibold text-black/90">

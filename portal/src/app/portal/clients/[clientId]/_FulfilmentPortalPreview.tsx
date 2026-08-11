@@ -112,8 +112,8 @@ export function FulfilmentPortalPreview({
   const [desktopScale, setDesktopScale] = useState(0.6);
   const desktopHostRef = useRef<HTMLDivElement | null>(null);
 
-  const previewHref = `/client-preview/${clientId}`;
-  const embeddedPreviewHref = `${previewHref}?embedded=1`;
+  const previewHref = `/client-preview/${clientId}?manage=1`;
+  const embeddedPreviewHref = `/client-preview/${clientId}?embedded=1&manage=1`;
   const activeMode = useMemo(() => MODES.find(item => item.id === mode) ?? MODES[0], [mode]);
   const readiness = [
     { label: "Portal", ready: Boolean(portalBuiltAt), value: portalBuiltAt ? "Ready" : "Create it" },
@@ -291,7 +291,7 @@ export function FulfilmentPortalPreview({
               className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-4 text-sm font-medium text-black/70"
             >
               <Eye size={15} aria-hidden="true" />
-              Open full preview
+              Manage client portal
               <ArrowUpRight size={13} aria-hidden="true" />
             </a>
           ) : null}

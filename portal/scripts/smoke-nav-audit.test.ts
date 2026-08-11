@@ -23,6 +23,7 @@ const PIPELINE_PAGE = join(ROOT, "src", "app", "portal", "agency", "pipelines", 
 const CLIENTS_PAGE = join(ROOT, "src", "app", "portal", "clients", "page.tsx");
 const PEOPLE_HUB = join(ROOT, "src", "app", "portal", "clients", "_PeopleHub.tsx");
 const CLIENT_HOME = join(ROOT, "src", "app", "portal", "clients", "[clientId]", "page.tsx");
+const WEBSITE_BUILDER_LAUNCHER = join(ROOT, "src", "app", "portal", "clients", "[clientId]", "_WebsiteBuilderLauncher.tsx");
 const NEW_CLIENT_BUTTON = join(ROOT, "src", "app", "portal", "agency", "_NewClientButton.tsx");
 const LEGACY_FULFILLMENT_CLIENT_LIST = join(ROOT, "src", "built-ins", "modules", "fulfillment", "src", "components", "ClientList.tsx");
 const CREATE_CLIENT_ROUTE = join(ROOT, "src", "app", "api", "portal", "fulfillment", "clients", "route.ts");
@@ -64,10 +65,12 @@ describe("standalone portal nav audit", () => {
     const src = read(SIDEBAR_LAYOUT);
     const block = agencyMainItemBlock(src);
     const expected = [
-      ["portals", "/portal/agency/portals"],
+      ["fulfilment", "/portal/agency/fulfilment"],
       ["pipelines", "/portal/clients?view=journey"],
       ["marketing", "/portal/agency/marketing"],
       ["actions", "/portal/agency/actions"],
+      ["calendar", "/portal/agency/calendar"],
+      ["notepad", "/portal/agency/notepad"],
       ["development", "/portal/agency/development"],
       ["inbox", "/portal/agency/inbox"],
       ["finance", "/portal/agency/agency-finance"],
@@ -87,7 +90,7 @@ describe("standalone portal nav audit", () => {
     assert.ok(read(PEOPLE_HUB).includes('label="Contacts"'), "contacts should remain available inside Journey");
     assert.ok(read(CLIENTS_PAGE).includes(': "journey";'), "Journey should be the default people-hub view");
 
-    const priorityOrder = ["home", "actions", "inbox", "portals", "pipelines", "development", "marketing", "finance", "sop-library"];
+    const priorityOrder = ["home", "actions", "calendar", "notepad", "inbox", "fulfilment", "pipelines", "development", "marketing", "finance", "sop-library"];
     const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
     assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
@@ -97,7 +100,7 @@ describe("standalone portal nav audit", () => {
   it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "company", "portals", "pipelines", "marketing", "actions", "development", "inbox", "finance", "sop-library"]) {
+    for (const id of ["home", "company", "fulfilment", "pipelines", "marketing", "actions", "calendar", "notepad", "development", "inbox", "finance", "sop-library"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
     assert.ok(!canonical.includes('"clients"'), "clients should be merged into the Journey sidebar item");
@@ -107,6 +110,7 @@ describe("standalone portal nav audit", () => {
     assert.ok(!canonical.includes('"contacts"'), "contacts should not be a standalone main nav id");
     assert.ok(!canonical.includes('"sales"'), "sales should not be a standalone main nav id");
     assert.ok(!canonical.includes('"fulfillment"'), "legacy fulfillment id should not be allowed into main nav");
+    assert.ok(!canonical.includes('"automations"'), "internal automations should live inside Marketing");
   });
 
   it("keeps performance inside the Development workspace", () => {
@@ -130,9 +134,9 @@ describe("standalone portal nav audit", () => {
 
   it("redirects old fulfilment URLs to the current product routes", () => {
     const src = read(CATCHALL);
-    assert.ok(src.includes('if (rest.length === 1) redirect("/portal/agency/pipelines/fulfilment")'));
-    assert.ok(src.includes('if (rest[1] === "clients") redirect("/portal/clients")'));
-    assert.ok(src.includes('if (rest[1] === "marketplace") redirect("/portal/agency/settings")'));
+    assert.ok(src.includes('if (rest.length === 1) redirect("/portal/agency/fulfilment")'));
+    assert.ok(src.includes('if (rest[1] === "clients") redirect("/portal/agency/fulfilment?view=clients")'));
+    assert.ok(src.includes('if (rest[1] === "marketplace") redirect("/portal/agency/fulfilment?view=services")'));
     assert.ok(src.includes('if (rest[1] === "phases") redirect("/portal/agency/phases")'));
   });
 
@@ -155,13 +159,16 @@ describe("standalone portal nav audit", () => {
     const agencyHome = read(AGENCY_HOME);
     const pipelinePage = read(PIPELINE_PAGE);
     const clientHome = read(CLIENT_HOME);
+    const websiteLauncher = read(WEBSITE_BUILDER_LAUNCHER);
 
     assert.ok(!agencyHome.includes('href="/portal/agency/pipelines/new"'), "new pipeline CTA should not point at a missing route");
     assert.ok(!pipelinePage.includes('href="/portal/agency/pipelines/new"'), "pipeline header should not point at a missing route");
     assert.ok(pipelinePage.includes('aria-label="Work boards"'), "pipeline header should offer direct links to each work board");
     assert.ok(!clientHome.includes("/website-editor/pages"), "website CTA should use the mounted pages route");
     assert.ok(!clientHome.includes("/website-editor/assets"), "assets CTA should use the mounted assets route");
-    assert.ok(clientHome.includes("`/portal/clients/${client.id}/pages`"), "website CTA route missing");
+    assert.ok(clientHome.includes("<WebsiteBuilderLauncher"), "website CTA should mount the visual builder launcher");
+    assert.ok(websiteLauncher.includes("/edit-website`"), "website CTA route missing");
+    assert.ok(websiteLauncher.includes("marketplace/install"), "website CTA should activate the builder when needed");
     assert.ok(clientHome.includes("`/portal/clients/${client.id}/assets`"), "assets CTA route missing");
     assert.ok(clientHome.includes("<FulfilmentPortalPreview"), "customer portal preview should remain mounted in fulfilment");
   });

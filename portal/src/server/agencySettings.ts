@@ -2,7 +2,7 @@ import "server-only";
 
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
-import type { AgencyWorkspaceSettings, ClientStage } from "./types";
+import type { AdvisorCustomSkill, AdvisorSkillRecipeId, AgencyWorkspaceSettings, ClientStage } from "./types";
 
 const DEFAULTS: Omit<AgencyWorkspaceSettings, "agencyId" | "updatedAt"> = {
   timezone: "Europe/London",
@@ -13,6 +13,14 @@ const DEFAULTS: Omit<AgencyWorkspaceSettings, "agencyId" | "updatedAt"> = {
   defaultClientStage: "aqua-epic-intro",
   createPortalByDefault: false,
   portalAccessDays: 7,
+  advisor: {
+    speedToLeadTargetMinutes: 5,
+    speedToLeadWarningMinutes: 15,
+    speedToLeadCriticalMinutes: 60,
+    staleDataHours: 72,
+    skillPolicies: {},
+    customSkills: [],
+  },
   notifications: {
     overdueTasks: true,
     outages: true,
@@ -34,6 +42,7 @@ export function getAgencyWorkspaceSettings(agencyId: string): AgencyWorkspaceSet
     ...DEFAULTS,
     ...stored,
     agencyId,
+    advisor: { ...DEFAULTS.advisor, ...(stored?.advisor ?? {}) },
     notifications: { ...DEFAULTS.notifications, ...(stored?.notifications ?? {}) },
     updatedAt: stored?.updatedAt ?? 0,
   };
@@ -63,6 +72,7 @@ export function updateAgencyWorkspaceSettings(
     createPortalByDefault: patch.createPortalByDefault ?? current.createPortalByDefault,
     portalAccessDays: cleanNumber(patch.portalAccessDays ?? current.portalAccessDays, 1, 90),
     clientWelcomeMessage: cleanOptional(patch.clientWelcomeMessage ?? current.clientWelcomeMessage, 2_000),
+    advisor: cleanAdvisorSettings(patch.advisor, current.advisor),
     notifications: {
       ...current.notifications,
       ...(patch.notifications ?? {}),
@@ -120,4 +130,51 @@ function cleanStage(value: unknown): ClientStage {
 
 function cleanDigest(value: unknown): AgencyWorkspaceSettings["notifications"]["digest"] {
   return value === "off" || value === "weekly" ? value : "daily";
+}
+
+function cleanAdvisorSettings(
+  patch: Partial<AgencyWorkspaceSettings["advisor"]> | undefined,
+  current: AgencyWorkspaceSettings["advisor"],
+): AgencyWorkspaceSettings["advisor"] {
+  const target = cleanNumber(patch?.speedToLeadTargetMinutes ?? current.speedToLeadTargetMinutes, 1, 240);
+  const warning = Math.max(target, cleanNumber(patch?.speedToLeadWarningMinutes ?? current.speedToLeadWarningMinutes, 1, 720));
+  const critical = Math.max(warning, cleanNumber(patch?.speedToLeadCriticalMinutes ?? current.speedToLeadCriticalMinutes, 1, 1_440));
+  return {
+    speedToLeadTargetMinutes: target,
+    speedToLeadWarningMinutes: warning,
+    speedToLeadCriticalMinutes: critical,
+    staleDataHours: cleanNumber(patch?.staleDataHours ?? current.staleDataHours, 1, 720),
+    skillPolicies: cleanAdvisorSkillPolicies(patch?.skillPolicies ?? current.skillPolicies),
+    customSkills: cleanCustomAdvisorSkills(patch?.customSkills ?? current.customSkills),
+  };
+}
+
+function cleanAdvisorSkillPolicies(value: unknown): AgencyWorkspaceSettings["advisor"]["skillPolicies"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([id]) => /^[a-z0-9][a-z0-9:_-]{2,100}$/.test(id))
+    .slice(0, 64)
+    .map(([id, policy]) => [id, { enabled: Boolean((policy as { enabled?: unknown } | null)?.enabled) }]));
+}
+
+function cleanCustomAdvisorSkills(value: unknown): AdvisorCustomSkill[] {
+  if (!Array.isArray(value)) return [];
+  const recipes: AdvisorSkillRecipeId[] = ["executive-radar", "lead-response-triage", "client-health-review", "finance-guard", "delivery-blockers", "reply-drafter", "priority-task-proposal", "single-task-create"];
+  return value.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const source = item as Partial<AdvisorCustomSkill>;
+    if (!source.id || !/^skill_[a-f0-9]{8,32}$/.test(source.id) || !recipes.includes(source.recipeId as AdvisorSkillRecipeId)) return [];
+    const name = cleanOptional(source.name, 80);
+    if (!name) return [];
+    const createdAt = cleanNumber(source.createdAt, 0, Number.MAX_SAFE_INTEGER) || Date.now();
+    return [{
+      id: source.id,
+      name,
+      description: cleanOptional(source.description, 400),
+      recipeId: source.recipeId as AdvisorSkillRecipeId,
+      enabled: source.enabled !== false,
+      createdAt,
+      updatedAt: cleanNumber(source.updatedAt, createdAt, Number.MAX_SAFE_INTEGER) || createdAt,
+    }];
+  }).slice(0, 24);
 }

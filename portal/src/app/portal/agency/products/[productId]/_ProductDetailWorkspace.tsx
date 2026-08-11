@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Check, CircleDollarSign, FileCheck2, Package, Pencil, Sparkles, Workflow } from "lucide-react";
+import { ArrowLeft, Check, CircleDollarSign, FileCheck2, MonitorCog, Package, Pencil, Sparkles, Workflow } from "lucide-react";
 import { useState } from "react";
 
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
@@ -31,7 +31,10 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
               <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">{product.buyerHeadline || product.description || "Add a customer-facing description for this product."}</p>
             </div>
           </div>
-          <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Pencil size={15} />Edit product</button>
+          <div className="flex flex-wrap gap-2">
+            {product.portalRequirement !== "none" ? <Link href={`/portal/agency/portals/editor?scope=template&productId=${encodeURIComponent(product.id)}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-black/70 hover:bg-black/[0.03]"><MonitorCog size={15} />Edit portal template</Link> : null}
+            <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Pencil size={15} />Edit product</button>
+          </div>
         </div>
         <div className="mt-6 grid gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 sm:grid-cols-4">
           <Metric label="Price" value={priceLabel(product)} />
@@ -61,6 +64,7 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
       </Section>
 
       <Section icon={<Sparkles size={17} />} title="Client experience" detail="How this product appears when a client buys it.">
+        {product.portalRequirement !== "none" ? <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-black/10 pb-5"><div><p className="text-sm font-semibold text-black/75">{product.name} · Stunning Standard</p><p className="mt-1 text-xs text-black/45">Independent draft, publishing and version history for this product.</p></div><Link href={`/portal/agency/portals/editor?scope=template&productId=${encodeURIComponent(product.id)}`} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><MonitorCog size={14} />Open template editor</Link></div> : null}
         <div className="grid gap-5 md:grid-cols-2">
           <FieldValue label="Client portal" value={readable(portalLabel(product.portalRequirement))} />
           <FieldValue label="Portal template" value={portalTemplate ? `${portalTemplate.name} portal` : "Not attached"} />

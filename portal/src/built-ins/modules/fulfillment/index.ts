@@ -32,7 +32,7 @@ const fulfillmentPlugin: AquaPlugin = {
     {
       id: "fulfillment",
       label: "Fulfillment",
-      href: "/portal/agency/pipelines/fulfilment",
+      href: "/portal/agency/fulfilment",
       panelId: "main",
       order: 10,
       visibleToRoles: ["agency-owner", "agency-manager", "agency-staff"],

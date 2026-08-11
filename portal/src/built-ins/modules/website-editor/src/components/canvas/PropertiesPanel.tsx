@@ -17,11 +17,12 @@ interface PropertiesPanelProps {
   onPatch: (patch: Partial<Block>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  onClose?: () => void;
 }
 
 const INPUT = "w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[12px] text-brand-cream placeholder:text-brand-cream/30 focus:outline-none focus:border-brand-orange/50";
 
-export default function PropertiesPanel({ block, onPatch, onDuplicate, onRemove }: PropertiesPanelProps) {
+export default function PropertiesPanel({ block, onPatch, onDuplicate, onRemove, onClose }: PropertiesPanelProps) {
   const [tab, setTab] = useState<"props" | "styles" | "a11y" | "split" | "code">("props");
 
   if (!block) {
@@ -52,9 +53,12 @@ export default function PropertiesPanel({ block, onPatch, onDuplicate, onRemove 
 
   return (
     <aside className="lg:w-72 lg:shrink-0 lg:border-l lg:border-white/8 lg:relative lg:flex lg:flex-col fixed lg:static bottom-0 left-0 right-0 max-h-[55vh] lg:max-h-none border-t lg:border-t-0 border-white/8 bg-brand-black-soft flex flex-col z-30 overflow-y-auto">
-      <div className="px-3 pt-3 pb-2 border-b border-white/8">
-        <p className="text-[10px] tracking-[0.2em] uppercase text-brand-cream/45">{def?.icon} {def?.label ?? block.type}</p>
-        <p className="text-[10px] font-mono text-brand-cream/35 mt-0.5">{block.id}</p>
+      <div className="flex items-start gap-3 border-b border-white/8 px-3 pb-2 pt-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] tracking-[0.2em] uppercase text-brand-cream/45">{def?.icon} {def?.label ?? block.type}</p>
+          <p className="mt-0.5 truncate font-mono text-[10px] text-brand-cream/35">{block.id}</p>
+        </div>
+        {onClose ? <button type="button" onClick={onClose} className="grid size-8 shrink-0 place-items-center rounded-md border border-white/10 text-brand-cream/60 hover:bg-white/5 hover:text-brand-cream lg:hidden" aria-label="Close block properties">×</button> : null}
       </div>
       <div className="flex border-b border-white/8">
         <button onClick={() => setTab("props")}  className={tabClass(tab === "props")}>Props</button>

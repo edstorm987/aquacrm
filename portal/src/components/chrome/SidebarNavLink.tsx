@@ -8,6 +8,7 @@ import {
   BookOpen,
   Boxes,
   Building2,
+  CalendarDays,
   Circle,
   ClipboardCheck,
   Code2,
@@ -23,6 +24,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MonitorCog,
+  NotebookPen,
   Package,
   PanelTop,
   PanelsTopLeft,
@@ -35,6 +37,7 @@ import {
   Users,
   WalletCards,
   Wrench,
+  Workflow,
 } from "lucide-react";
 
 const NAV_ICONS: Record<string, typeof Circle> = {
@@ -42,10 +45,14 @@ const NAV_ICONS: Record<string, typeof Circle> = {
   dashboard: LayoutDashboard,
   company: Building2,
   actions: ClipboardCheck,
+  calendar: CalendarDays,
+  notepad: NotebookPen,
+  automations: Workflow,
   inbox: Inbox,
   performance: Gauge,
   clients: ContactRound,
   portals: PanelsTopLeft,
+  fulfilment: FolderKanban,
   "you-deserve-it": Gift,
   pipelines: Ship,
   products: Package,
@@ -75,7 +82,6 @@ const NAV_ICONS: Record<string, typeof Circle> = {
   membership: Sparkles,
   affiliate: HandCoins,
   account: Building2,
-  fulfilment: FolderKanban,
   leads: Target,
 };
 
@@ -84,9 +90,13 @@ const NAV_TONES: Record<string, string> = {
   dashboard: "teal",
   company: "indigo",
   actions: "amber",
+  calendar: "teal",
+  notepad: "amber",
+  automations: "cyan",
   inbox: "sky",
   clients: "violet",
   portals: "cyan",
+  fulfilment: "teal",
   "you-deserve-it": "rose",
   pipelines: "orange",
   products: "lime",
@@ -116,7 +126,12 @@ export function SidebarNavLink({
   const pathname = usePathname();
   const active = id === "home"
     ? pathname === href
-    : pathname === href || pathname.startsWith(`${href}/`);
+    : id === "fulfilment"
+      ? pathname === href
+        || pathname.startsWith(`${href}/`)
+        || pathname.startsWith("/portal/agency/portals")
+        || pathname.startsWith("/portal/agency/pipelines/fulfilment")
+      : pathname === href || pathname.startsWith(`${href}/`);
   const Icon = NAV_ICONS[id] ?? Circle;
 
   return (

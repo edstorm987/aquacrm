@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/server/auth";
 import { ensureAgencyWebsite } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
+import { listInstalledFor } from "@/server/pluginInstalls";
 import { AGENCY_ROLES } from "@/server/types";
 import {
   DevelopmentPortfolio,
@@ -85,6 +86,8 @@ export default async function DevelopmentPage() {
     const allTelemetry = metadata.telemetryEvents ?? [];
     const openRequests = (metadata.clientRequests ?? []).filter(item => item.status === "open").length;
     const products = metadata.properties ?? [];
+    const builderReady = listInstalledFor({ agencyId: session.agencyId, clientId: client.id })
+      .some(install => install.pluginId === "website-editor" && install.enabled);
 
     for (const [index, product] of products.entries()) {
       const projectId = product.id ?? `${client.id}-${index}`;
@@ -107,6 +110,7 @@ export default async function DevelopmentPage() {
         status,
         owner: "Client",
         clientId: client.id,
+        builderReady,
         clientName: client.name,
         managementHref: `/portal/clients/${client.id}?tab=properties`,
         previewUrl: product.previewUrl,

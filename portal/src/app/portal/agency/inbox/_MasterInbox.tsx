@@ -7,6 +7,9 @@ import { AlertTriangle, Bell, CircleCheck, ExternalLink, FileText, Inbox, LifeBu
 
 import type { OperationalAlert } from "@/lib/server/operationalAlerts";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
+import { formatElapsed, LEAD_WAIT_THRESHOLDS } from "@/lib/leadTiming";
+import type { InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
+import { SocialInboxWorkspace } from "./_SocialInboxWorkspace";
 
 type Conversation = {
   id: string;
@@ -37,13 +40,13 @@ type Update = {
   ts: number;
 };
 
-type View = "attention" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
+type View = "attention" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
 
-export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversations, updates }: { alerts: OperationalAlert[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; updates: Update[] }) {
+export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, updates }: { referenceNow: number; alerts: OperationalAlert[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; updates: Update[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedView = searchParams.get("view");
-  const initialView: View = requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations"
+  const initialView: View = requestedView === "social" || requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations" || requestedView === "updates" || requestedView === "channels"
     ? requestedView
     : "attention";
   const [view, setView] = useState<View>(initialView);
@@ -164,6 +167,7 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
 
     <nav className="flex gap-6 overflow-x-auto border-b border-black/10" aria-label="Inbox view">
       <Tab active={view === "attention"} onClick={() => setView("attention")} label="Needs attention" count={alerts.length} />
+      <Tab active={view === "social"} onClick={() => setView("social")} label="Social inbox" count={socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)} />
       <Tab active={view === "forms"} onClick={() => setView("forms")} label="Enquiries" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} />
       <Tab active={view === "chatbot"} onClick={() => setView("chatbot")} label="Chatbot" count={websiteForms.filter(item => item.channel === "chatbot" && item.status !== "resolved").length} />
       <Tab active={view === "support"} onClick={() => setView("support")} label="Support" count={websiteForms.filter(item => item.channel === "support" && item.status !== "resolved").length + conversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} />
@@ -172,7 +176,7 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
       <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" />
     </nav>
 
-    {view !== "channels" ? <input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /> : null}
+    {view !== "channels" && view !== "social" ? <input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /> : null}
 
     {view === "attention" ? <section>
       <SectionHeader title="What needs you now" detail="Critical items first. Resolve each item at its source." />
@@ -181,6 +185,8 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
       </div>
       {!visibleAlerts.length ? <Empty icon={<CircleCheck size={25} />} title="Nothing needs attention" detail="Support, monitoring, overdue money, meetings, client health, and campaign pacing are clear." /> : null}
     </section> : null}
+
+    {view === "social" ? <SocialInboxWorkspace snapshot={socialInbox} readiness={metaReadiness} currentUserId={currentUserId} loadError={socialInboxError} /> : null}
 
     {view === "forms" ? <WebsiteEnquirySection
       title="Website enquiries"
@@ -193,6 +199,7 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
       onToggle={id => setOpenForm(current => current === id ? null : id)}
       onLinkLead={linkFormToLead}
       onStatus={updateWebsiteStatus}
+      referenceNow={referenceNow}
       leadBusyId={leadBusyId}
       statusBusyId={statusBusyId}
       leadError={leadError}
@@ -210,6 +217,7 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
       onToggle={id => setOpenForm(current => current === id ? null : id)}
       onLinkLead={linkFormToLead}
       onStatus={updateWebsiteStatus}
+      referenceNow={referenceNow}
       leadBusyId={leadBusyId}
       statusBusyId={statusBusyId}
       leadError={leadError}
@@ -228,6 +236,7 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
         onToggle={id => setOpenForm(current => current === id ? null : id)}
         onLinkLead={linkFormToLead}
         onStatus={updateWebsiteStatus}
+        referenceNow={referenceNow}
         leadBusyId={leadBusyId}
         statusBusyId={statusBusyId}
         leadError={leadError}
@@ -272,7 +281,7 @@ export function MasterInbox({ alerts, websiteForms, websiteFormsError, conversat
         <Channel icon={<Users size={19} />} name="AquaOasis-Web team" detail="Internal notes shared with staff inside this inbox." connected />
         <Channel icon={<MessageCircle size={19} />} name="WhatsApp" detail="Connect the WhatsApp Business API to receive and reply here." />
         <Channel icon={<Mail size={19} />} name="Shared email" detail="Connect an AquaOasis-Web mailbox to receive and reply to email threads here." />
-        <Channel icon={<MessageCircle size={19} />} name="Social messages" detail="Connect Meta, Instagram, LinkedIn, or another provider through their APIs." />
+        <Channel icon={<MessageCircle size={19} />} name="Meta social messages" detail={socialInbox.connections.length ? `${socialInbox.connections.filter(item => item.status === "connected").length} of ${socialInbox.connections.length} Instagram and Facebook channels live.` : "Credential-ready for Instagram and Facebook messaging."} connected={socialInbox.connections.some(item => item.status === "connected")} />
         <Channel icon={<Radio size={19} />} name="Website forms" detail="Forms are attributed to AquaCRM, AquaOasis-Web, Milesymedia, Zimante Group, or Edward Hallam." connected />
         <Channel icon={<MessageCircle size={19} />} name="Website chatbot" detail="AquaOasis-Web chatbot messages are captured with the exact source page." connected />
         <Channel icon={<Bell size={19} />} name="Production monitoring" detail="Client telemetry errors, deployments, and health signals feed operational alerts." connected />
@@ -292,6 +301,7 @@ function WebsiteEnquirySection({
   onToggle,
   onLinkLead,
   onStatus,
+  referenceNow,
   leadBusyId,
   statusBusyId,
   leadError,
@@ -307,6 +317,7 @@ function WebsiteEnquirySection({
   onToggle: (id: string) => void;
   onLinkLead: (item: WebsiteEnquiry) => Promise<void>;
   onStatus: (item: WebsiteEnquiry, status: WebsiteEnquiry["status"]) => Promise<void>;
+  referenceNow: number;
   leadBusyId: string | null;
   statusBusyId: string | null;
   leadError: Record<string, string>;
@@ -318,6 +329,8 @@ function WebsiteEnquirySection({
     <div className="mt-3 grid gap-2">
       {items.map(item => {
         const icon = item.channel === "chatbot" ? <MessageCircle size={18} /> : item.channel === "support" ? <LifeBuoy size={18} /> : <FileText size={18} />;
+        const elapsedSinceEnquiry = Math.max(0, referenceNow - item.submittedAt);
+        const firstResponseMs = item.firstRespondedAt ? Math.max(0, item.firstRespondedAt - item.submittedAt) : undefined;
         return <article key={item.id} className="mm-surface-card mm-hover-lift rounded-md p-4">
           <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start">
             <span className="grid size-10 place-items-center rounded-md bg-brand/10 text-brand">{icon}</span>
@@ -328,11 +341,12 @@ function WebsiteEnquirySection({
                 <Pill>{item.topic}</Pill>
                 <Pill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : "neutral"}>{item.priority}</Pill>
                 <Pill tone={item.status === "resolved" ? "green" : item.status === "reviewed" ? "blue" : "amber"}>{item.status}</Pill>
+                {!item.firstRespondedAt && item.status !== "resolved" ? <Pill tone={enquiryWaitTone(elapsedSinceEnquiry)}>Waiting {formatElapsed(elapsedSinceEnquiry)}</Pill> : null}
               </span>
               <span data-enquiry-message={item.id} className="mt-2 block whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-3 text-sm leading-6 text-black/70">
                 {item.message || "No written message was included."}
               </span>
-              <span className="mt-2 block text-xs text-black/45">{sourceLocation(item)} · {formatDate(item.submittedAt)}</span>
+              <span className="mt-2 block text-xs text-black/45">{sourceLocation(item)} · received {formatElapsed(elapsedSinceEnquiry)} ago · {formatDate(item.submittedAt)}</span>
             </span>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => onToggle(item.id)} className="rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openId === item.id ? "Close" : "Inspect"}</button>
@@ -358,6 +372,11 @@ function WebsiteEnquirySection({
               <Detail label="Services" value={item.services.join(", ") || "Not specified"} />
               <Detail label="Email notification" value={item.notification.replaceAll("-", " ")} />
               <Detail label="Sales record" value={item.leadId ? `Linked · ${item.leadId}` : "Not linked yet"} />
+              <Detail label="Elapsed since enquiry" value={formatElapsed(elapsedSinceEnquiry)} />
+              <Detail label="First review" value={item.reviewedAt ? `${formatElapsed(item.reviewedAt - item.submittedAt)} after receipt` : "Waiting"} />
+              <Detail label="Lead linked" value={item.leadLinkedAt ? `${formatElapsed(item.leadLinkedAt - item.submittedAt)} after receipt` : item.leadId ? "Linked, legacy time unavailable" : "Waiting"} />
+              <Detail label="First response" value={firstResponseMs === undefined ? "Waiting" : `${formatElapsed(firstResponseMs)} after receipt`} />
+              <Detail label="Resolved" value={item.resolvedAt ? `${formatElapsed(item.resolvedAt - item.submittedAt)} after receipt` : "Open"} />
               <Detail label="Submission ID" value={item.id} />
               {item.sourceUrl ? <div><dt className="font-medium text-black/40">Source page</dt><dd className="mt-1"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand">Open page <ExternalLink size={12} /></a></dd></div> : null}
             </dl>
@@ -447,6 +466,7 @@ function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?
 function Empty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <div className="py-16 text-center text-black/30">{<span className="inline-grid">{icon}</span>}<h3 className="mt-3 text-sm font-semibold text-black/70">{title}</h3><p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-black/45">{detail}</p></div>; }
 function requestLabel(type: string) { return ({ "support-ticket": "Support", "design-feedback": "Design feedback", suggestion: "Suggestion", cancel: "Cancellation", "move-provider": "Handover" } as Record<string, string>)[type] ?? "Message"; }
 function triageStyle(priority: "urgent" | "high" | "normal") { return priority === "urgent" ? "border-red-200 bg-red-50 text-red-800" : priority === "high" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"; }
+function enquiryWaitTone(elapsedMs: number): "blue" | "amber" | "red" { return elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseCriticalMs ? "red" : elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseWarningMs ? "amber" : "blue"; }
 function formatDate(value: number) { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
 function sourceLocation(item: WebsiteEnquiry) { return `${item.siteHost ?? item.siteName}${item.pagePath === "/" ? "" : item.pagePath}`; }
 function filterRows<T>(rows: T[], query: string, text: (row: T) => string): T[] { const q = query.trim().toLowerCase(); return q ? rows.filter(row => text(row).toLowerCase().includes(q)) : rows; }

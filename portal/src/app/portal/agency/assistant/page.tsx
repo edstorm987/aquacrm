@@ -10,6 +10,8 @@ import {
 import { requireRole } from "@/lib/server/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
+import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
+import { radarDigest } from "@/lib/businessRadar";
 
 export default async function AssistantPage() {
   await ensureHydrated();
@@ -17,6 +19,7 @@ export default async function AssistantPage() {
   if (!session) redirect("/portal/agency");
 
   const context = buildAssistantBusinessContext(session.agencyId);
+  const radar = await getCachedBusinessIssueRadar(session.agencyId);
   const user = getUserById(session.userId);
 
   return (
@@ -31,6 +34,7 @@ export default async function AssistantPage() {
         pipelines: context.summary.pipelines.length,
         recentActivity: context.summary.recentActivity.length,
         modules: Object.keys(context.summary.businessModules),
+        radar: radarDigest(radar),
       }}
     />
   );

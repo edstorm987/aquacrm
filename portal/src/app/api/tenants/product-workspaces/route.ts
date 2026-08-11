@@ -1,0 +1,344 @@
+import { NextResponse } from "next/server";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
+import { getClientForAgency, updateClient } from "@/server/tenants";
+import { logActivity } from "@/server/activity";
+import { clientProductWorkspaces, saveClientProductWorkspaces } from "@/server/productWorkspaces";
+import type {
+  PortalProductWorkspace,
+  PortalWorkspaceAsset,
+  PortalWorkspaceCollection,
+  PortalWorkspaceCollectionStatus,
+  PortalWorkspaceDecision,
+  PortalWorkspaceOutputStatus,
+} from "@/lib/portalProductWorkspaces";
+import type { PortalProductMode } from "@/lib/portalProducts";
+import type { ClientFileRef } from "../client-files/route";
+
+export const runtime = "nodejs";
+
+interface Body {
+  clientId?: unknown;
+  productId?: unknown;
+  action?: unknown;
+  pageId?: unknown;
+  itemId?: unknown;
+  complete?: unknown;
+  fields?: unknown;
+  message?: unknown;
+  title?: unknown;
+  detail?: unknown;
+  status?: unknown;
+  stage?: unknown;
+  collectionId?: unknown;
+  decisionId?: unknown;
+  assetId?: unknown;
+  fileId?: unknown;
+  caption?: unknown;
+  selected?: unknown;
+  responseNote?: unknown;
+  selectionLimit?: unknown;
+  downloadsEnabled?: unknown;
+  watermarkEnabled?: unknown;
+  watermarkLabel?: unknown;
+}
+
+const STAGES: readonly PortalProductMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
+const OUTPUT_STATUSES: readonly PortalWorkspaceOutputStatus[] = ["planned", "in-progress", "ready", "approved"];
+const MANAGEMENT_COLLECTION_STATUSES: readonly PortalWorkspaceCollectionStatus[] = ["draft", "review", "changes-requested", "approved", "delivered", "archived"];
+const CUSTOMER_COLLECTION_STATUSES: readonly PortalWorkspaceCollectionStatus[] = ["approved", "changes-requested"];
+const ASSET_STATUSES: readonly PortalWorkspaceAsset["status"][] = ["working", "review", "approved", "delivered"];
+
+function cleanText(value: unknown, max = 2_000): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function makeId(prefix: string): string {
+  const c = (globalThis as unknown as { crypto?: Crypto }).crypto;
+  return c?.randomUUID
+    ? `${prefix}_${c.randomUUID()}`
+    : `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function safeFields(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .slice(0, 30)
+    .flatMap(([key, fieldValue]) => {
+      const safeKey = key.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 120);
+      const safeValue = cleanText(fieldValue, 4_000);
+      return safeKey ? [[safeKey, safeValue]] : [];
+    }));
+}
+
+function customerMessage(action: string, productName: string): string {
+  if (action === "toggle-check") return `${productName} checklist updated.`;
+  if (action === "save-fields") return `${productName} project record updated.`;
+  if (action === "add-update") return `A new ${productName} update was shared.`;
+  if (action === "asset-response") return `${productName} gallery feedback updated.`;
+  if (action === "respond-decision") return `${productName} decision answered.`;
+  if (action === "set-collection-status") return `${productName} collection status updated.`;
+  if (action === "attach-file") return `A file was added to the ${productName} workspace.`;
+  return `${productName} workspace updated.`;
+}
+
+function updateWorkspace(
+  workspaces: PortalProductWorkspace[],
+  changed: PortalProductWorkspace,
+): PortalProductWorkspace[] {
+  return workspaces.map(item => item.productId === changed.productId ? changed : item);
+}
+
+export async function GET(req: Request) {
+  await ensureHydrated();
+  const clientId = new URL(req.url).searchParams.get("clientId")?.trim().slice(0, 120) ?? "";
+  if (!clientId) return NextResponse.json({ ok: false, error: "clientId required" }, { status: 400 });
+  try {
+    const session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], clientId);
+    const client = getClientForAgency(session.agencyId, clientId);
+    if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    return NextResponse.json({ ok: true, workspaces: clientProductWorkspaces(client) });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    await ensureHydrated();
+    const body = await req.json().catch(() => null) as Body | null;
+    const clientId = cleanText(body?.clientId, 120);
+    const productId = cleanText(body?.productId, 120);
+    const action = cleanText(body?.action, 50);
+    if (!clientId || !productId || !action) {
+      return NextResponse.json({ ok: false, error: "clientId, productId and action are required" }, { status: 400 });
+    }
+
+    const session = await requireRoleForClient([...AGENCY_ROLES, ...CLIENT_ROLES, "end-customer"], clientId);
+    const management = session.role !== "end-customer";
+    const client = getClientForAgency(session.agencyId, clientId);
+    if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    const workspaces = clientProductWorkspaces(client);
+    const existing = workspaces.find(item => item.productId === productId);
+    if (!existing) return NextResponse.json({ ok: false, error: "product is not part of this portal" }, { status: 404 });
+    const now = Date.now();
+    let workspace: PortalProductWorkspace = structuredClone(existing);
+    let fileVisibility: { fileIds: string[]; visible: boolean } | null = null;
+    const pageId = cleanText(body?.pageId, 120);
+
+    if (action === "set-stage") {
+      if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can move product stages" }, { status: 403 });
+      if (!STAGES.includes(body?.stage as PortalProductMode)) return NextResponse.json({ ok: false, error: "valid stage required" }, { status: 400 });
+      workspace.stage = body?.stage as PortalProductMode;
+    } else if (action === "toggle-check") {
+      const itemId = cleanText(body?.itemId, 120);
+      const page = workspace.pages[pageId];
+      if (!page || !itemId) return NextResponse.json({ ok: false, error: "valid page and checklist item required" }, { status: 400 });
+      const item = page.checklist.find(check => check.id === itemId);
+      if (!item) return NextResponse.json({ ok: false, error: "checklist item not found" }, { status: 404 });
+      item.complete = body?.complete === true;
+      item.completedAt = item.complete ? now : undefined;
+      item.completedBy = item.complete ? session.email : undefined;
+      item.completedByActor = item.complete ? (management ? "agency" : "customer") : undefined;
+      page.updatedAt = now;
+    } else if (action === "save-fields") {
+      const page = workspace.pages[pageId];
+      if (!page) return NextResponse.json({ ok: false, error: "valid page required" }, { status: 400 });
+      page.fields = safeFields(body?.fields);
+      page.updatedAt = now;
+    } else if (action === "set-output-status") {
+      if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can update outputs" }, { status: 403 });
+      const itemId = cleanText(body?.itemId, 120);
+      const page = workspace.pages[pageId];
+      const output = page?.outputs.find(item => item.id === itemId);
+      if (!page || !output || !OUTPUT_STATUSES.includes(body?.status as PortalWorkspaceOutputStatus)) {
+        return NextResponse.json({ ok: false, error: "valid page, output and status required" }, { status: 400 });
+      }
+      output.status = body?.status as PortalWorkspaceOutputStatus;
+      output.updatedAt = now;
+      output.updatedBy = session.email;
+      page.updatedAt = now;
+    } else if (action === "add-update") {
+      const message = cleanText(body?.message, 2_000);
+      if (!workspace.pages[pageId] || !message) return NextResponse.json({ ok: false, error: "page and message required" }, { status: 400 });
+      workspace.updates.unshift({
+        id: makeId("update"),
+        pageId,
+        message,
+        actor: management ? "agency" : "customer",
+        author: management ? "Aqua team" : "Customer",
+        createdAt: now,
+      });
+      workspace.updates = workspace.updates.slice(0, 200);
+    } else if (action === "create-collection") {
+      if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can create collections" }, { status: 403 });
+      const title = cleanText(body?.title, 200);
+      if (!workspace.pages[pageId] || !title) return NextResponse.json({ ok: false, error: "page and collection title required" }, { status: 400 });
+      const selectionLimit = typeof body?.selectionLimit === "number"
+        ? Math.max(0, Math.min(500, Math.round(body.selectionLimit))) || undefined
+        : undefined;
+      const collection: PortalWorkspaceCollection = {
+        id: makeId("collection"),
+        pageId,
+        title,
+        description: cleanText(body?.detail, 1_000) || undefined,
+        status: "draft",
+        downloadsEnabled: body?.downloadsEnabled === true,
+        watermarkEnabled: body?.watermarkEnabled === true,
+        watermarkLabel: cleanText(body?.watermarkLabel, 80) || undefined,
+        selectionLimit,
+        assets: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      workspace.collections.unshift(collection);
+    } else if (action === "update-collection") {
+      if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can update collections" }, { status: 403 });
+      const collectionId = cleanText(body?.collectionId, 120);
+      const collection = workspace.collections.find(item => item.id === collectionId);
+      if (!collection) return NextResponse.json({ ok: false, error: "collection not found" }, { status: 404 });
+      const title = cleanText(body?.title, 200);
+      if (title) collection.title = title;
+      if (typeof body?.detail === "string") collection.description = cleanText(body.detail, 1_000) || undefined;
+      if (typeof body?.selectionLimit === "number") {
+        collection.selectionLimit = Math.max(0, Math.min(500, Math.round(body.selectionLimit))) || undefined;
+      }
+      if (typeof body?.downloadsEnabled === "boolean") collection.downloadsEnabled = body.downloadsEnabled;
+      if (typeof body?.watermarkEnabled === "boolean") collection.watermarkEnabled = body.watermarkEnabled;
+      if (typeof body?.watermarkLabel === "string") collection.watermarkLabel = cleanText(body.watermarkLabel, 80) || undefined;
+      collection.updatedAt = now;
+    } else if (action === "attach-file") {
+      if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can attach delivery files" }, { status: 403 });
+      const collectionId = cleanText(body?.collectionId, 120);
+      const fileId = cleanText(body?.fileId, 120);
+      const collection = workspace.collections.find(item => item.id === collectionId);
+      const files = Array.isArray(client.metadata?.files) ? client.metadata.files as ClientFileRef[] : [];
+      const file = files.find(item => item.id === fileId);
+      if (!collection || !file) return NextResponse.json({ ok: false, error: "collection or file not found" }, { status: 404 });
+      if (!collection.assets.some(asset => asset.fileId === file.id)) {
+        const asset: PortalWorkspaceAsset = {
+          id: makeId("asset"),
+          fileId: file.id,
+          title: cleanText(body?.title, 240) || file.name,
+          caption: cleanText(body?.caption, 1_000) || undefined,
+          status: collection.status === "delivered" ? "delivered" : collection.status === "review" ? "review" : "working",
+          selected: false,
+          addedAt: now,
+          addedBy: session.email,
+        };
+        collection.assets.push(asset);
+        collection.updatedAt = now;
+      }
+      fileVisibility = { fileIds: [file.id], visible: collection.status !== "draft" && collection.status !== "archived" };
+    } else if (action === "remove-asset") {
+      if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can remove assets" }, { status: 403 });
+      const collectionId = cleanText(body?.collectionId, 120);
+      const assetId = cleanText(body?.assetId, 120);
+      const collection = workspace.collections.find(item => item.id === collectionId);
+      const asset = collection?.assets.find(item => item.id === assetId);
+      if (!collection || !asset) return NextResponse.json({ ok: false, error: "asset not found" }, { status: 404 });
+      collection.assets = collection.assets.filter(item => item.id !== assetId);
+      collection.updatedAt = now;
+      fileVisibility = { fileIds: [asset.fileId], visible: false };
+    } else if (action === "asset-response") {
+      const collectionId = cleanText(body?.collectionId, 120);
+      const assetId = cleanText(body?.assetId, 120);
+      const collection = workspace.collections.find(item => item.id === collectionId);
+      const asset = collection?.assets.find(item => item.id === assetId);
+      if (!collection || !asset) return NextResponse.json({ ok: false, error: "asset not found" }, { status: 404 });
+      if (!management && collection.status !== "review" && collection.status !== "changes-requested") {
+        return NextResponse.json({ ok: false, error: "this collection is not open for customer feedback" }, { status: 409 });
+      }
+      if (typeof body?.selected === "boolean") {
+        const selectedWithoutAsset = collection.assets.filter(item => item.selected && item.id !== asset.id).length;
+        if (body.selected && collection.selectionLimit && selectedWithoutAsset >= collection.selectionLimit) {
+          return NextResponse.json({ ok: false, error: `This collection allows ${collection.selectionLimit} selections.` }, { status: 409 });
+        }
+        asset.selected = body.selected;
+        asset.selectedAt = body.selected ? now : undefined;
+        asset.selectedBy = body.selected ? session.email : undefined;
+      }
+      if (typeof body?.message === "string") asset.customerComment = cleanText(body.message, 1_500) || undefined;
+      if (management && ASSET_STATUSES.includes(body?.status as PortalWorkspaceAsset["status"])) {
+        asset.status = body?.status as PortalWorkspaceAsset["status"];
+      }
+      if (management && typeof body?.caption === "string") asset.caption = cleanText(body.caption, 1_000) || undefined;
+      collection.updatedAt = now;
+    } else if (action === "set-collection-status") {
+      const collectionId = cleanText(body?.collectionId, 120);
+      const collection = workspace.collections.find(item => item.id === collectionId);
+      const allowed = management ? MANAGEMENT_COLLECTION_STATUSES : CUSTOMER_COLLECTION_STATUSES;
+      if (!collection || !allowed.includes(body?.status as PortalWorkspaceCollectionStatus)) {
+        return NextResponse.json({ ok: false, error: "collection and permitted status required" }, { status: 400 });
+      }
+      if (!management && collection.status !== "review" && collection.status !== "changes-requested") {
+        return NextResponse.json({ ok: false, error: "this collection is not waiting for a customer decision" }, { status: 409 });
+      }
+      collection.status = body?.status as PortalWorkspaceCollectionStatus;
+      collection.updatedAt = now;
+      if (collection.status === "delivered") {
+        collection.downloadsEnabled = true;
+        collection.assets.forEach(asset => { asset.status = "delivered"; });
+      }
+      fileVisibility = {
+        fileIds: collection.assets.map(asset => asset.fileId),
+        visible: collection.status !== "draft" && collection.status !== "archived",
+      };
+    } else if (action === "request-decision") {
+      if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can request decisions" }, { status: 403 });
+      const title = cleanText(body?.title, 240);
+      if (!workspace.pages[pageId] || !title) return NextResponse.json({ ok: false, error: "page and decision title required" }, { status: 400 });
+      const decision: PortalWorkspaceDecision = {
+        id: makeId("decision"),
+        pageId,
+        title,
+        detail: cleanText(body?.detail, 2_000) || undefined,
+        status: "pending",
+        requestedAt: now,
+        requestedBy: session.email,
+      };
+      workspace.decisions.unshift(decision);
+    } else if (action === "respond-decision") {
+      if (management) return NextResponse.json({ ok: false, error: "open the customer portal to answer a client decision" }, { status: 403 });
+      const decisionId = cleanText(body?.decisionId, 120);
+      const decision = workspace.decisions.find(item => item.id === decisionId);
+      const status = body?.status === "approved" || body?.status === "changes-requested" ? body.status : null;
+      if (!decision || decision.status !== "pending" || !status) return NextResponse.json({ ok: false, error: "pending decision and response required" }, { status: 400 });
+      decision.status = status;
+      decision.respondedAt = now;
+      decision.respondedBy = session.email;
+      decision.responseNote = cleanText(body?.responseNote, 2_000) || undefined;
+    } else {
+      return NextResponse.json({ ok: false, error: "unsupported workspace action" }, { status: 400 });
+    }
+
+    workspace.updatedAt = now;
+    let saved = saveClientProductWorkspaces(client, updateWorkspace(workspaces, workspace));
+    if (!saved) return NextResponse.json({ ok: false, error: "workspace could not be saved" }, { status: 500 });
+    if (fileVisibility?.fileIds.length) {
+      const ids = new Set(fileVisibility.fileIds);
+      const files = Array.isArray(saved.metadata?.files) ? saved.metadata.files as ClientFileRef[] : [];
+      saved = updateClient(session.agencyId, clientId, {
+        metadata: {
+          files: files.map(file => ids.has(file.id) ? { ...file, customerVisible: fileVisibility!.visible } : file),
+        },
+      });
+      if (!saved) return NextResponse.json({ ok: false, error: "file visibility could not be saved" }, { status: 500 });
+    }
+    logActivity({
+      agencyId: session.agencyId,
+      clientId,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: action === "asset-response" || action === "respond-decision" ? "feedback" : "fulfillment",
+      action: `product_workspace.${action}`,
+      message: customerMessage(action, workspace.productName),
+      metadata: { productId, pageId, collectionId: cleanText(body?.collectionId, 120) || undefined },
+    });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, workspace });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}

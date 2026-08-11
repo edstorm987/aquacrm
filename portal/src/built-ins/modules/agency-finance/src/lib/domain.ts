@@ -96,6 +96,7 @@ export interface Expense {
   clientId?: ClientId;                 // optional direct cost allocation
   staffId?: string;                    // optional foundation User id (or agency-HR Staff id)
   categoryId: string;
+  budgetPotId?: string;
   vendor?: string;
   description?: string;
   reason?: string;
@@ -129,6 +130,7 @@ export interface CreateExpenseInput {
   clientId?: ClientId;
   staffId?: string;
   categoryId: string;
+  budgetPotId?: string;
   vendor?: string;
   description?: string;
   reason?: string;
@@ -155,6 +157,7 @@ export interface UpdateExpensePatch {
   clientId?: ClientId | null;
   staffId?: string | null;
   categoryId?: string;
+  budgetPotId?: string | null;
   vendor?: string | null;
   description?: string | null;
   reason?: string | null;
@@ -200,6 +203,233 @@ export interface UpdateCategoryPatch {
   name?: string;
   description?: string;
   status?: ExpenseCategoryStatus;
+}
+
+// ─── Budget pots ─────────────────────────────────────────────────────────
+
+export type BudgetPotPurpose = "growth" | "marketing" | "gear" | "equipment" | "expansion" | "operations" | "team" | "tax" | "emergency" | "client-delivery" | "other";
+export type BudgetPotPeriod = "one-off" | "monthly" | "quarterly" | "annual" | "custom";
+export type BudgetPotStatus = "active" | "paused" | "closed";
+
+export interface BudgetPot {
+  id: string;
+  agencyId: AgencyId;
+  name: string;
+  purpose: BudgetPotPurpose;
+  companyIds?: string[];
+  currency: Currency;
+  period: BudgetPotPeriod;
+  allocatedCents: number;
+  fundedCents: number;
+  startAt?: number;
+  endAt?: number;
+  notes?: string;
+  status: BudgetPotStatus;
+  createdBy: UserId;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateBudgetPotInput {
+  name: string;
+  purpose: BudgetPotPurpose;
+  companyIds?: string[];
+  currency?: Currency;
+  period?: BudgetPotPeriod;
+  allocatedCents: number;
+  fundedCents?: number;
+  startAt?: number;
+  endAt?: number;
+  notes?: string;
+}
+
+export interface UpdateBudgetPotPatch {
+  name?: string;
+  purpose?: BudgetPotPurpose;
+  companyIds?: string[];
+  period?: BudgetPotPeriod;
+  allocatedCents?: number;
+  fundedCents?: number;
+  startAt?: number | null;
+  endAt?: number | null;
+  notes?: string | null;
+  status?: BudgetPotStatus;
+}
+
+// ─── Finance operations: compliance and workforce costs ────────────────
+
+export type FinanceObligationType = "annual-accounts" | "corporation-tax" | "vat-return" | "paye" | "pension" | "audit" | "insurance" | "licence" | "contract-renewal" | "data-protection" | "other";
+export type FinanceObligationFrequency = "one-off" | "monthly" | "quarterly" | "annual" | "custom";
+export type FinanceObligationStatus = "upcoming" | "action-required" | "in-progress" | "completed" | "waived" | "archived";
+
+export interface FinanceObligation {
+  id: string;
+  agencyId: AgencyId;
+  name: string;
+  type: FinanceObligationType;
+  companyIds?: string[];
+  status: FinanceObligationStatus;
+  frequency: FinanceObligationFrequency;
+  owner?: string;
+  provider?: string;
+  reference?: string;
+  linkedLegalDocumentId?: string;
+  budgetPotId?: string;
+  currency: Currency;
+  expectedCostCents: number;
+  coverageAmountCents?: number;
+  effectiveAt?: number;
+  nextDueAt?: number;
+  reminderAt?: number;
+  coverageEndsAt?: number;
+  lastCompletedAt?: number;
+  notes?: string;
+  createdBy: UserId;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateFinanceObligationInput {
+  name: string;
+  type: FinanceObligationType;
+  companyIds?: string[];
+  status?: FinanceObligationStatus;
+  frequency?: FinanceObligationFrequency;
+  owner?: string;
+  provider?: string;
+  reference?: string;
+  linkedLegalDocumentId?: string;
+  budgetPotId?: string;
+  currency?: Currency;
+  expectedCostCents?: number;
+  coverageAmountCents?: number;
+  effectiveAt?: number;
+  nextDueAt?: number;
+  reminderAt?: number;
+  coverageEndsAt?: number;
+  notes?: string;
+}
+
+export interface UpdateFinanceObligationPatch extends Partial<Omit<CreateFinanceObligationInput, "type" | "linkedLegalDocumentId" | "budgetPotId" | "effectiveAt" | "nextDueAt" | "reminderAt" | "coverageEndsAt">> {
+  type?: FinanceObligationType;
+  linkedLegalDocumentId?: string | null;
+  budgetPotId?: string | null;
+  effectiveAt?: number | null;
+  nextDueAt?: number | null;
+  reminderAt?: number | null;
+  coverageEndsAt?: number | null;
+  lastCompletedAt?: number | null;
+}
+
+export type PayeeType = "employee" | "director" | "freelancer" | "contractor" | "agency";
+export type CompensationRateBasis = "annual" | "monthly" | "hourly" | "daily" | "fixed";
+export type CompensationFrequency = "weekly" | "fortnightly" | "monthly" | "quarterly" | "milestone";
+export type CompensationProfileStatus = "active" | "paused" | "ended" | "archived";
+
+export interface CompensationProfile {
+  id: string;
+  agencyId: AgencyId;
+  staffId?: string;
+  name: string;
+  email?: string;
+  payeeType: PayeeType;
+  departmentId?: string;
+  departmentName?: string;
+  title?: string;
+  companyIds?: string[];
+  budgetPotId?: string;
+  currency: Currency;
+  rateBasis: CompensationRateBasis;
+  baseRateCents: number;
+  unitsPerWeek?: number;
+  payFrequency: CompensationFrequency;
+  employerCostPercent: number;
+  annualBonusTargetCents: number;
+  nextPayAt?: number;
+  contractStartsAt?: number;
+  contractEndsAt?: number;
+  status: CompensationProfileStatus;
+  notes?: string;
+  createdBy: UserId;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateCompensationProfileInput {
+  staffId?: string;
+  name: string;
+  email?: string;
+  payeeType: PayeeType;
+  departmentId?: string;
+  departmentName?: string;
+  title?: string;
+  companyIds?: string[];
+  budgetPotId?: string;
+  currency?: Currency;
+  rateBasis: CompensationRateBasis;
+  baseRateCents: number;
+  unitsPerWeek?: number;
+  payFrequency?: CompensationFrequency;
+  employerCostPercent?: number;
+  annualBonusTargetCents?: number;
+  nextPayAt?: number;
+  contractStartsAt?: number;
+  contractEndsAt?: number;
+  notes?: string;
+}
+
+export interface UpdateCompensationProfilePatch extends Partial<Omit<CreateCompensationProfileInput, "staffId" | "departmentId" | "departmentName" | "budgetPotId" | "nextPayAt" | "contractStartsAt" | "contractEndsAt">> {
+  staffId?: string | null;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  budgetPotId?: string | null;
+  nextPayAt?: number | null;
+  contractStartsAt?: number | null;
+  contractEndsAt?: number | null;
+  status?: CompensationProfileStatus;
+}
+
+export type CompensationPaymentKind = "salary" | "wages" | "bonus" | "commission" | "freelancer-invoice" | "contractor-invoice" | "employer-tax" | "pension" | "other";
+export type CompensationPaymentStatus = "planned" | "approved" | "paid" | "cancelled";
+
+export interface CompensationPayment {
+  id: string;
+  agencyId: AgencyId;
+  profileId: string;
+  budgetPotId?: string;
+  kind: CompensationPaymentKind;
+  periodLabel?: string;
+  currency: Currency;
+  grossCents: number;
+  employerCostCents: number;
+  status: CompensationPaymentStatus;
+  dueAt: number;
+  paidAt?: number;
+  reference?: string;
+  notes?: string;
+  createdBy: UserId;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateCompensationPaymentInput {
+  profileId: string;
+  budgetPotId?: string;
+  kind: CompensationPaymentKind;
+  periodLabel?: string;
+  currency?: Currency;
+  grossCents: number;
+  employerCostCents?: number;
+  status?: CompensationPaymentStatus;
+  dueAt?: number;
+  paidAt?: number;
+  reference?: string;
+  notes?: string;
+}
+
+export interface UpdateCompensationPaymentPatch extends Partial<Omit<CreateCompensationPaymentInput, "profileId" | "budgetPotId" | "paidAt">> {
+  budgetPotId?: string | null;
+  paidAt?: number | null;
 }
 
 // ─── Listing filters ─────────────────────────────────────────────────────

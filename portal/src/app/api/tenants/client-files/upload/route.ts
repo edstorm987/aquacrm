@@ -11,7 +11,7 @@ import type { ClientFileRef, FileCategory } from "../route";
 
 export const runtime = "nodejs";
 
-const MAX_FILE_BYTES = 12 * 1024 * 1024;
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "misc"];
 const ALLOWED_TYPES = new Set([
   "application/pdf",
@@ -22,9 +22,13 @@ const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "text/csv",
   "text/plain",
   "video/mp4",
+  "application/zip",
+  "application/x-zip-compressed",
 ]);
 
 function safeName(value: string): string {
@@ -45,12 +49,16 @@ export async function POST(req: Request) {
   const form = await req.formData().catch(() => null);
   const clientId = typeof form?.get("clientId") === "string" ? String(form.get("clientId")).trim().slice(0, 120) : "";
   const category = typeof form?.get("category") === "string" ? String(form.get("category")) as FileCategory : "misc";
+  const productId = typeof form?.get("productId") === "string" ? String(form.get("productId")).trim().slice(0, 120) : "";
+  const workspacePageId = typeof form?.get("workspacePageId") === "string" ? String(form.get("workspacePageId")).trim().slice(0, 120) : "";
+  const collectionId = typeof form?.get("collectionId") === "string" ? String(form.get("collectionId")).trim().slice(0, 120) : "";
+  const customerVisible = form?.get("customerVisible") === "true";
   const file = form?.get("file");
   if (!clientId || !(file instanceof File) || !CATEGORIES.includes(category)) {
     return NextResponse.json({ ok: false, error: "client, file and category are required" }, { status: 400 });
   }
   if (file.size <= 0 || file.size > MAX_FILE_BYTES) {
-    return NextResponse.json({ ok: false, error: "files must be smaller than 12 MB" }, { status: 413 });
+    return NextResponse.json({ ok: false, error: "files must be smaller than 50 MB" }, { status: 413 });
   }
   if (!ALLOWED_TYPES.has(file.type)) {
     return NextResponse.json({ ok: false, error: "this file type is not supported" }, { status: 415 });
@@ -102,6 +110,10 @@ export async function POST(req: Request) {
     contentType: file.type,
     storageProvider: stored.storageProvider,
     storageKey: stored.storageKey,
+    productId: productId || undefined,
+    workspacePageId: workspacePageId || undefined,
+    collectionId: collectionId || undefined,
+    customerVisible: collectionId ? customerVisible : undefined,
   };
   files.unshift(ref);
   const updated = updateClient(session.agencyId, clientId, { metadata: { files } });
@@ -115,7 +127,7 @@ export async function POST(req: Request) {
     category: "files",
     action: "client_file.uploaded",
     message: `${session.email} uploaded “${ref.name}”.`,
-    metadata: { fileId: ref.id, category, size: ref.size },
+    metadata: { fileId: ref.id, category, size: ref.size, productId: ref.productId, collectionId: ref.collectionId },
   });
 
   await flushPendingWrites();

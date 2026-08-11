@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import type { ClientProperty } from "@/app/api/tenants/client-properties/route";
 import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/websiteEnquiries";
+import { triggerAutomations } from "@/server/automations";
 
 export type ClientRequestType = "suggestion" | "design-feedback" | "support-ticket" | "cancel" | "move-provider";
 
@@ -122,6 +123,19 @@ export async function POST(req: Request) {
         topic: item.topic,
       },
     });
+
+    await triggerAutomations(session.agencyId, "client-request.received", {
+      requestId: item.id,
+      clientId: client.id,
+      clientName: client.name,
+      requestType: item.type,
+      message: item.message,
+      submittedBy: item.submittedBy,
+      priority: item.priority ?? "normal",
+      topic: item.topic ?? "Client message",
+      awaitingResponse: true,
+    });
+    await flushPendingWrites();
 
     return NextResponse.json({ ok: true, request: item, requests });
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Building2, ClipboardPenLine, Mail, Phone, Plus, Route, Search, UserRound, X } from "lucide-react";
+import { Building2, ClipboardPenLine, Columns3, FolderKanban, List, Mail, Phone, Plus, Route, Search, UserRound, X } from "lucide-react";
 
 import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
 
@@ -46,6 +46,7 @@ export interface HubContact {
 }
 
 type View = "all" | "clients" | "health" | "journey" | "contacts" | "staff";
+type JourneyMode = "list" | "kanban";
 
 const roleLabels: Record<ContactRole, string> = {
   lead: "Lead",
@@ -104,6 +105,11 @@ export function PeopleHub({
 
   const staffCount = useMemo(() => contactRows.filter(contact => contact.type === "employee").length, [contactRows]);
   const journeyRows = useMemo(() => buildJourneyRows(clients, contactRows), [clients, contactRows]);
+  const filteredJourneyRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return journeyRows;
+    return journeyRows.filter(row => `${row.title} ${row.subtitle} ${row.source} ${row.stage} ${row.notes ?? ""} ${journeyStatusLabel(row.status)}`.toLowerCase().includes(q));
+  }, [journeyRows, query]);
 
   return (
     <div className="mx-auto w-full max-w-7xl">
@@ -114,6 +120,11 @@ export function PeopleHub({
           <p className="mt-1 max-w-2xl text-sm text-black/55">Trace campaign and enquiry sources into contacts, manual relationships and clients without forcing every person to become a customer.</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          {view === "journey" ? (
+            <Link href="/portal/agency/pipelines/leads" className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85 sm:col-auto">
+              <FolderKanban size={16} aria-hidden="true" /> Open journey workspace
+            </Link>
+          ) : null}
           <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
             <Plus size={16} /> Add contact
           </button>
@@ -179,7 +190,7 @@ export function PeopleHub({
         </section>
       ) : null}
 
-      {view === "journey" ? <JourneySection rows={journeyRows} onReview={setReviewing} /> : null}
+      {view === "journey" ? <JourneySection rows={filteredJourneyRows} onReview={setReviewing} /> : null}
 
       {view === "all" || view === "contacts" || view === "staff" ? (
         <PeopleSection title={view === "staff" ? "Staff" : "Contacts"} count={filteredContacts.length} hidden={view === "all" && filteredContacts.length === 0}>
@@ -346,7 +357,15 @@ type JourneyRow = {
   href: string;
 };
 
+const journeyColumns: Array<{ id: JourneyRow["status"]; label: string; description: string }> = [
+  { id: "enquiry", label: "Enquiries", description: "New demand and leads awaiting qualification." },
+  { id: "contact", label: "Contacts", description: "Qualified people and active relationships." },
+  { id: "client", label: "Clients", description: "Converted accounts in delivery or care." },
+  { id: "manual", label: "Other relationships", description: "Partners, suppliers, staff and wider contacts." },
+];
+
 function JourneySection({ rows, onReview }: { rows: JourneyRow[]; onReview: (contact: HubContact) => void }) {
+  const [mode, setMode] = useState<JourneyMode>("list");
   const totals = {
     enquiries: rows.filter(row => row.status === "enquiry").length,
     contacts: rows.filter(row => row.status === "contact" || row.status === "manual").length,
@@ -361,31 +380,101 @@ function JourneySection({ rows, onReview }: { rows: JourneyRow[]; onReview: (con
         <JourneyMetric label="Clients" value={totals.clients} />
         <JourneyMetric label="Review notes" value={totals.review} />
       </div>
-      <div className="mm-surface-card mt-4 overflow-hidden rounded-lg border">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
-          <div><h2 className="text-base font-semibold text-black/80">Relationship journey</h2><p className="mt-1 text-sm text-black/45">Follow people from campaign or form source into contact records and client accounts.</p></div>
+      <div className="mt-5 flex flex-wrap items-end justify-between gap-3 border-b border-black/10 pb-4">
+        <div><h2 className="text-base font-semibold text-black/80">Relationship journey</h2><p className="mt-1 text-sm text-black/45">Follow people from campaign or form source into contact records and client accounts.</p></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-md border border-black/15 bg-white p-1" role="group" aria-label="Journey layout">
+            <button type="button" aria-pressed={mode === "list"} onClick={() => setMode("list")} className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 text-xs font-semibold ${mode === "list" ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04]"}`}>
+              <List size={14} /> List
+            </button>
+            <button type="button" aria-pressed={mode === "kanban"} onClick={() => setMode("kanban")} className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 text-xs font-semibold ${mode === "kanban" ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04]"}`}>
+              <Columns3 size={14} /> Kanban
+            </button>
+          </div>
           <Link href="/portal/agency/marketing" className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Open marketing</Link>
         </div>
-        <div className="divide-y divide-black/[0.07]">
-          {rows.map(row => (
-            <article key={row.id} className="grid gap-3 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_210px_150px_auto] lg:items-center">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><Route size={15} className="text-brand" /><h3 className="truncate text-sm font-semibold text-black/82">{row.title}</h3><Badge>{journeyStatusLabel(row.status)}</Badge></div>
-                <p className="mt-1 truncate text-xs text-black/45">{row.subtitle}</p>
-                {row.notes ? <p className="mt-1 truncate text-xs text-black/40">{row.notes}</p> : null}
-              </div>
-              <div><p className="text-[10px] font-semibold uppercase text-black/35">Trace source</p><p className="mt-1 truncate text-xs font-medium text-black/62">{sourceLabel(row.source)}</p></div>
-              <div><p className="text-[10px] font-semibold uppercase text-black/35">Stage</p><p className="mt-1 text-xs font-medium text-black/62">{row.stage}</p></div>
-              <div className="flex flex-wrap gap-1 lg:justify-end">
-                {row.contact ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Review</button> : null}
-                <Link href={row.href} className="min-h-9 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link>
-              </div>
-            </article>
-          ))}
-          {!rows.length ? <Empty text="No journey records yet." /> : null}
-        </div>
       </div>
+
+      {mode === "list" ? (
+        <div className="mm-surface-card mt-4 overflow-hidden rounded-lg border">
+          <JourneyList rows={rows} onReview={onReview} />
+        </div>
+      ) : <JourneyKanban rows={rows} onReview={onReview} />}
     </section>
+  );
+}
+
+function JourneyList({ rows, onReview }: { rows: JourneyRow[]; onReview: (contact: HubContact) => void }) {
+  return (
+    <div className="divide-y divide-black/[0.07]">
+      {rows.map(row => (
+        <article key={row.id} className="grid gap-3 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_210px_150px_auto] lg:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2"><Route size={15} className="text-brand" /><h3 className="truncate text-sm font-semibold text-black/82">{row.title}</h3><Badge>{journeyStatusLabel(row.status)}</Badge></div>
+            <p className="mt-1 truncate text-xs text-black/45">{row.subtitle}</p>
+            {row.notes ? <p className="mt-1 truncate text-xs text-black/40">{row.notes}</p> : null}
+          </div>
+          <div><p className="text-[10px] font-semibold uppercase text-black/35">Trace source</p><p className="mt-1 truncate text-xs font-medium text-black/62">{sourceLabel(row.source)}</p></div>
+          <div><p className="text-[10px] font-semibold uppercase text-black/35">Stage</p><p className="mt-1 text-xs font-medium text-black/62">{row.stage}</p></div>
+          <div className="flex flex-wrap gap-1 lg:justify-end">
+            {row.contact ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Review</button> : null}
+            <Link href={row.href} className="min-h-9 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link>
+          </div>
+        </article>
+      ))}
+      {!rows.length ? <Empty text="No journey records match this search." /> : null}
+    </div>
+  );
+}
+
+function JourneyKanban({ rows, onReview }: { rows: JourneyRow[]; onReview: (contact: HubContact) => void }) {
+  return (
+    <div className="mt-4 overflow-x-auto pb-2" aria-label="Journey kanban board">
+      <div className="grid min-w-max grid-flow-col auto-cols-[280px] gap-3 lg:min-w-0 lg:grid-flow-row lg:grid-cols-4">
+        {journeyColumns.map(column => {
+          const columnRows = rows.filter(row => row.status === column.id);
+          return (
+            <section key={column.id} aria-labelledby={`journey-column-${column.id}`} className="min-h-[420px] border-t-2 border-black/70 bg-black/[0.025] px-3 pb-3">
+              <header className="min-h-[104px] border-b border-black/10 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 id={`journey-column-${column.id}`} className="text-sm font-semibold text-black/80">{column.label}</h3>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-black/45 ring-1 ring-inset ring-black/10">{columnRows.length}</span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-black/45">{column.description}</p>
+              </header>
+              <div className="mt-3 grid gap-2.5">
+                {columnRows.map(row => <JourneyKanbanCard key={row.id} row={row} onReview={onReview} />)}
+                {!columnRows.length ? <p className="py-8 text-center text-xs text-black/35">No records here.</p> : null}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function JourneyKanbanCard({ row, onReview }: { row: JourneyRow; onReview: (contact: HubContact) => void }) {
+  const needsReview = Boolean(row.notes || row.client?.health === "attention");
+  return (
+    <article className="rounded-lg border border-black/10 bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h4 className="truncate text-sm font-semibold text-black/82">{row.title}</h4>
+          <p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-black/45">{row.subtitle || journeyStatusLabel(row.status)}</p>
+        </div>
+        <Route size={15} className="mt-0.5 shrink-0 text-brand" />
+      </div>
+      <dl className="mt-3 grid gap-2 border-t border-black/[0.07] pt-3 text-xs">
+        <div className="flex items-center justify-between gap-3"><dt className="text-black/35">Stage</dt><dd className="truncate font-medium text-black/62">{row.stage}</dd></div>
+        <div className="flex items-center justify-between gap-3"><dt className="text-black/35">Source</dt><dd className="truncate font-medium text-black/62">{sourceLabel(row.source)}</dd></div>
+      </dl>
+      {needsReview ? <p className="mt-3 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] font-medium text-amber-800">Notes ready for review</p> : null}
+      <div className="mt-3 flex items-center justify-end gap-1.5">
+        {row.contact ? <button type="button" onClick={() => onReview(row.contact!)} className="min-h-8 rounded-md border border-black/10 px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03]">Review</button> : null}
+        <Link href={row.href} className="min-h-8 rounded-md bg-black px-2.5 py-2 text-xs font-semibold text-white hover:bg-black/85">Open</Link>
+      </div>
+    </article>
   );
 }
 

@@ -76,7 +76,7 @@ function BlockNode({
   }
   // Resolve renderer: cross-plugin RENDERER_REGISTRATIONS map first
   // (covers external plugin blocks like ecommerce + memberships), then
-  // fall back to BLOCK_REGISTRY (the native 58). Missing renderer →
+  // fall back to BLOCK_REGISTRY (the native library). Missing renderer →
   // visible warning in editor mode, silent fragment on live.
   const externalRenderer = getBlockRenderer(block.type);
   const def = getBlockDefinition(block.type);

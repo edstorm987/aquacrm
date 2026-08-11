@@ -168,10 +168,9 @@ export function resolveClientPluginPage({ agencyId, clientId, rest }: MatchInput
     }
   }
 
-  // Branch 2: search every plugin's pages for a path that owns this URL.
-  // Two cases per plugin:
-  //   • full-URL path  → match against ["portal","clients",<clientId>,...rest]
-  //   • relative path  → match against rest (top-level client surface)
+  // Branch 2: give fully-qualified client URLs first refusal. This keeps
+  // broad relative routes such as fulfillment's `:clientId` from claiming
+  // `/portal/clients/<id>/pages` before the website editor sees it.
   const fullUrlSegs = clientId
     ? ["portal", "clients", clientId, ...rest]
     : ["portal", "clients", ...rest];
@@ -179,13 +178,22 @@ export function resolveClientPluginPage({ agencyId, clientId, rest }: MatchInput
     const install = pickInstall(plugin.id, agencyId, clientId);
     if (!install) continue;
     for (const page of plugin.pages) {
-      if (isFullUrlPath(page.path)) {
-        const m = tryMatchFullUrl(page.path, fullUrlSegs);
-        if (m) return { plugin, page, install, segments: m.segments };
-      } else {
-        const m = tryMatchRelative(page.path, rest);
-        if (m) return { plugin, page, install, segments: m.segments };
-      }
+      if (!isFullUrlPath(page.path)) continue;
+      const m = tryMatchFullUrl(page.path, fullUrlSegs);
+      if (m) return { plugin, page, install, segments: m.segments };
+    }
+  }
+
+  // Static relative paths may contribute a top-level client surface (for
+  // example `checklist`). Parameter-only relative routes belong beneath an
+  // explicit plugin prefix and are deliberately excluded here.
+  for (const plugin of listPlugins()) {
+    const install = pickInstall(plugin.id, agencyId, clientId);
+    if (!install) continue;
+    for (const page of plugin.pages) {
+      if (isFullUrlPath(page.path) || splitPath(page.path).some(isParamSegment)) continue;
+      const m = tryMatchRelative(page.path, rest);
+      if (m) return { plugin, page, install, segments: m.segments };
     }
   }
 

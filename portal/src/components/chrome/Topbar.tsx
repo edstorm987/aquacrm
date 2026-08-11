@@ -1,7 +1,8 @@
 // Topbar — tenant title, role badge, sign-out. Server-rendered.
 //
-// Mobile: a hamburger button sits before the title and toggles the
-// MobileNav drawer; on `md+` the hamburger hides via Tailwind. The
+// Phone layouts: a menu button sits before the title and toggles the
+// MobileNav drawer; on `md+` the persistent sidebar takes over and the
+// drawer trigger hides. The
 // role/email cluster collapses to two rows on `<sm` so nothing
 // overflows.
 
@@ -64,7 +65,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         </div>
       </div>
       <div className="ml-auto flex min-w-0 flex-nowrap items-center gap-1 text-xs sm:gap-2 lg:gap-3">
-        {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden md:block">{companySwitcher}</div> : null}
+        {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden lg:block">{companySwitcher}</div> : null}
         {searchItems.length ? <PortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
         {advisorEnabled ? advisorControl ?? <Link href="/portal/agency/assistant" aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
         <PrivacyModeControl

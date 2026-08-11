@@ -11,7 +11,7 @@ import type {
   PaymentFilter,
   UpdatePlanPatch,
 } from "../lib/domain";
-import { normaliseCurrency } from "../lib/currencies";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -66,7 +66,7 @@ export async function createIncomeHandler(req: Request, ctx: PluginCtx): Promise
   const body = await safeJson<CreateIncomeEntryInput>(req);
   if (!body?.title?.trim() || !body.amountCents || !body.method) return badRequest("title, amount and method are required");
   try {
-    const defaultCurrency = normaliseCurrency(ctx.install.config.defaultCurrency, "gbp") as Currency;
+    const defaultCurrency = resolveFinanceDefaultCurrency(ctx.agencyId, ctx.install.config.defaultCurrency) as Currency;
     const income = await build(ctx).income.create(ctx.actor, body, defaultCurrency);
     return json({ ok: true, income }, 201);
   } catch (error) {

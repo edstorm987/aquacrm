@@ -17,6 +17,7 @@ import { resolvePluginApiRoute } from "@/built-ins/runtime/_routeResolver";
 import { FOUNDATION_SERVICES } from "@/built-ins/runtime/foundation-adapters";
 import type { PluginCtx } from "@/built-ins/runtime/_types";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { clientIdFromPortalReferer } from "@/lib/server/pluginRequestScope";
 
 interface RouteParams {
   params: Promise<{ module: string; rest: string[] }>;
@@ -28,7 +29,9 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
   const { module: moduleId, rest } = await params;
   const url = new URL(req.url);
   const queryAgencyId = url.searchParams.get("agencyId") ?? req.headers.get("x-aqua-agency-id") ?? undefined;
-  const queryClientId = url.searchParams.get("clientId") ?? req.headers.get("x-aqua-client-id") ?? undefined;
+  const queryClientId = url.searchParams.get("clientId")
+    ?? req.headers.get("x-aqua-client-id")
+    ?? clientIdFromPortalReferer(req.url, req.headers.get("referer"));
 
   // R032: peek the route to see if it's flagged `public: true`. We need
   // to resolve at least once before knowing whether session is required;
