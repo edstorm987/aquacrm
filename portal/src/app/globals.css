@@ -357,6 +357,30 @@ html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu .mm-profile-menu-s
   color: #FCA5A5 !important;
 }
 
+html[data-color-mode="dark"] .mm-portal-root .mm-quick-note {
+  border-color: rgb(212 184 136 / 0.38) !important;
+  background: #1A1B18 !important;
+  color: #F5F4EF !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-quick-note-handle {
+  border-color: rgb(212 184 136 / 0.22) !important;
+  background: #242019 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-quick-note :is(h2, label) {
+  color: #F5F4EF !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-quick-note :is(p, .mm-quick-note-handle > svg) {
+  color: rgb(245 244 239 / 0.58) !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-quick-note footer {
+  border-color: rgb(255 255 255 / 0.12) !important;
+  background: #171815 !important;
+}
+
 /* A calm, consistent frame for built-in workspace pages. Specialist editors
    keep their own canvas styling. */
 .plugin-page-shell:not([data-plugin-id="website-editor"]) {

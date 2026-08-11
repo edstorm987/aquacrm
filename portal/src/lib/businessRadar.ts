@@ -1,3 +1,5 @@
+import type { RadarPolicyConfiguration, RadarPolicyRule } from "@/server/types";
+
 export type AdvisorDomain =
   | "company"
   | "sales"
@@ -15,7 +17,7 @@ export type AdvisorDomain =
 export type BusinessIssueSeverity = "critical" | "warning" | "watch";
 export type BusinessSignalStatus = BusinessIssueSeverity | "healthy" | "unknown";
 export type AdvisorCoverageStatus = "connected" | "empty" | "disconnected" | "unavailable";
-export type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind";
+export type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind" | "learning" | "inactive";
 export type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog";
 export type RadarRuleLens =
   | "connection"
@@ -86,7 +88,13 @@ export interface BusinessRadarCheck {
   value?: number;
   previousValue?: number;
   lastSeenAt?: number;
+  sampleSize?: number;
+  historySamples?: number;
+  historySpanMs?: number;
   expectedDirection?: "higher" | "lower" | "neutral";
+  policy?: RadarPolicyRule;
+  alwaysOn?: boolean;
+  exceptionId?: string;
 }
 
 export interface RadarDomainSummary {
@@ -96,11 +104,45 @@ export interface RadarDomainSummary {
   firingChecks: number;
   watchChecks: number;
   blindChecks: number;
+  learningChecks: number;
+  inactiveChecks: number;
+  applicableChecks: number;
   assuredChecks: number;
   coveragePercent: number;
   assurancePercent: number;
+  confidencePercent: number;
+  readinessPercent: number;
   sourceCount: number;
   lastSignalAt?: number;
+}
+
+export interface BusinessRadarIncident extends BusinessRadarIssue {
+  issueIds: string[];
+  checkIds: string[];
+  findingCount: number;
+}
+
+export interface BusinessRadarConclusion {
+  id: string;
+  domain: AdvisorDomain;
+  severity: BusinessIssueSeverity | "info";
+  title: string;
+  detail: string;
+  href: string;
+}
+
+export interface BusinessRadarAdaptiveState {
+  operatingStage: RadarPolicyConfiguration["operatingStage"];
+  healthScore: number;
+  confidencePercent: number;
+  readinessPercent: number;
+  liveChecks: number;
+  learningChecks: number;
+  inactiveChecks: number;
+  alwaysOnChecks: number;
+  calibratingDomains: AdvisorDomain[];
+  conclusions: BusinessRadarConclusion[];
+  policy: RadarPolicyConfiguration;
 }
 
 export interface SpeedToLeadRadar {
@@ -184,6 +226,9 @@ export interface BusinessIssueRadar {
     firingChecks: number;
     watchChecks: number;
     blindChecks: number;
+    learningChecks: number;
+    inactiveChecks: number;
+    applicableChecks: number;
     assuredChecks: number;
     checksPerDomain: number;
     detectorLenses: number;
@@ -207,23 +252,27 @@ export interface BusinessIssueRadar {
   };
   speedToLead: SpeedToLeadRadar;
   issues: BusinessRadarIssue[];
+  incidents: BusinessRadarIncident[];
   signals: BusinessMetricSignal[];
   coverage: AdvisorCoverageSource[];
   checks: BusinessRadarCheck[];
   domains: RadarDomainSummary[];
   memory: RadarMemoryDigest;
   evidence: RadarEvidenceDigest;
+  adaptive: BusinessRadarAdaptiveState;
 }
 
 export type AdvisorRadarDigest = BusinessIssueRadar["summary"] & {
   generatedAt: number;
   speedToLead: SpeedToLeadRadar;
   topIssues: BusinessRadarIssue[];
+  topIncidents: BusinessRadarIncident[];
   coverage: AdvisorCoverageSource[];
   domains: RadarDomainSummary[];
   topChecks: BusinessRadarCheck[];
   memory: RadarMemoryDigest;
   evidence: RadarEvidenceDigest;
+  adaptive: BusinessRadarAdaptiveState;
 };
 
 export function radarDigest(radar: BusinessIssueRadar): AdvisorRadarDigest {
@@ -231,11 +280,13 @@ export function radarDigest(radar: BusinessIssueRadar): AdvisorRadarDigest {
     ...radar.summary,
     generatedAt: radar.generatedAt,
     speedToLead: radar.speedToLead,
-    topIssues: radar.issues.slice(0, 6),
+    topIssues: radar.incidents.slice(0, 6),
+    topIncidents: radar.incidents.slice(0, 6),
     coverage: radar.coverage,
     domains: radar.domains,
     topChecks: radar.checks.filter(check => check.status !== "pass").slice(0, 24),
     memory: radar.memory,
     evidence: radar.evidence,
+    adaptive: radar.adaptive,
   };
 }

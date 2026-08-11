@@ -45,10 +45,12 @@ describe("personal notepad persistence", () => {
       body: "Test the referral offer with existing clients.",
       folderId: folder.id,
       tags: ["Growth", "growth", "Clients"],
+      pinned: true,
     });
 
     assert.equal(note.folderId, folder.id);
     assert.deepEqual(note.tags, ["Growth", "Clients"]);
+    assert.equal(note.pinned, true);
     assert.equal(notepad.listNotepadNotes(agency.id, userId).length, 1);
     assert.equal(notepad.listNotepadNotes(agency.id, "another_user").length, 0);
     assert.equal(notepad.updateNotepadNote(agency.id, "another_user", note.id, { pinned: true }), null);
@@ -82,12 +84,15 @@ describe("personal notepad persistence", () => {
 
 describe("personal notepad surface", () => {
   it("ships a searchable autosaving workspace with recoverable deletion", async () => {
-    const [workspace, page, route, sidebar, search] = await Promise.all([
+    const [workspace, page, route, sidebar, search, profile, quickNote, dashboard] = await Promise.all([
       readFile(new URL("../src/app/portal/agency/notepad/_NotepadWorkspace.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/notepad/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/portal/notepad/route.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/lib/chrome/sidebarLayout.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/portal/search/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../src/components/chrome/ProfileMenu.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/components/chrome/QuickNoteWindow.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/agency/page.tsx", import.meta.url), "utf8"),
     ]);
 
     for (const expected of ["Quick capture", "Search notes", "Pinned", "Archive", "Trash", "Add tags", "Saving", "Delete forever"]) {
@@ -98,7 +103,13 @@ describe("personal notepad surface", () => {
     assert.match(workspace, /action: "delete-folder"/);
     assert.match(page, /listNotepadNotes/);
     assert.match(route, /flushPendingWrites/);
-    assert.match(sidebar, /href: "\/portal\/agency\/notepad"/);
+    assert.doesNotMatch(sidebar, /id: "notepad"/);
+    assert.match(profile, /Quick note/);
+    assert.match(quickNote, /data-testid="quick-note-window"/);
+    assert.match(quickNote, /pinned: sticky/);
+    assert.match(quickNote, /Page:/);
+    assert.match(dashboard, /href="\/portal\/agency\/notepad"/);
+    assert.match(dashboard, /href="\/portal\/agency\/calendar"/);
     assert.match(search, /category: "Note"/);
     assert.match(search, /\/portal\/agency\/notepad\?note=/);
   });

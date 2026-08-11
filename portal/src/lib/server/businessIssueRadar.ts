@@ -12,6 +12,7 @@ import type {
 } from "@/lib/businessRadar";
 import { buildRadarCheckMatrix, summarizeRadarChecks } from "@/lib/radarCheckEngine";
 import { buildRadarCorrelationIssues } from "@/lib/radarCorrelations";
+import { applyAdaptiveRadarPolicy } from "@/lib/radarPolicyEngine";
 import { RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES } from "@/lib/radarRuleCatalog";
 import { buildPropertySentinelChecks, buildRadarWatchdogChecks, buildSourceSentinelChecks } from "@/lib/radarSentinels";
 import { buildSyntheticCanaryChecks, buildSyntheticCanaryIssues } from "@/lib/radarSyntheticChecks";
@@ -327,7 +328,7 @@ export async function buildBusinessIssueRadar(
     telemetry,
     coverage,
   }));
-  const evidenceLayer = buildRadarEvidenceLayer(agencyId, observations, now);
+  const evidenceLayer = buildRadarEvidenceLayer(agencyId, observations, now, settings.advisor.radarPolicy);
   issues.push(...evidenceLayer.issues);
   const catalogMatrix = buildRadarCheckMatrix(observations, coverage, now);
   const correlationIssues = buildRadarCorrelationIssues(observations, catalogMatrix.checks, now);
@@ -345,9 +346,9 @@ export async function buildBusinessIssueRadar(
     evidence: evidenceLayer.digest,
     now,
   });
-  const checks = [...checksBeforeWatchdog, ...watchdogChecks];
-  const domains = summarizeRadarChecks(checks, coverage);
-  for (const domain of domains.filter(item => item.blindChecks > 0)) {
+  const rawChecks = [...checksBeforeWatchdog, ...watchdogChecks];
+  const rawDomains = summarizeRadarChecks(rawChecks, coverage);
+  for (const domain of rawDomains.filter(item => item.blindChecks > 0)) {
     issues.push({
       id: `coverage:${domain.domain}-check-blindness`,
       severity: "critical",
@@ -362,18 +363,42 @@ export async function buildBusinessIssueRadar(
   }
 
   const dedupedIssues = dedupeIssues(issues).sort(issueSort).slice(0, 320);
+  const businessContext = {
+    currency: company?.actuals.currency ?? settings.defaultCurrency,
+    monthRevenueCents: company?.actuals.monthRevenueCents ?? 0,
+    monthlyRevenueTargetCents: company?.profile.monthlyRevenueTargetCents ?? 0,
+    revenueGapCents: company?.revenueGapCents ?? 0,
+    leadCount: company?.actuals.leadCount ?? 0,
+    activeClientCount: company?.actuals.activeClients ?? activeClients.length,
+    meetingsThisMonth: company?.actuals.meetingsThisMonth ?? 0,
+    estimatedCallsNeeded: company?.estimatedCallsNeeded ?? 0,
+  };
+  const adaptive = applyAdaptiveRadarPolicy({
+    checks: rawChecks,
+    issues: dedupedIssues,
+    signals,
+    coverage,
+    policy: settings.advisor.radarPolicy,
+    business: businessContext,
+    enquiryCount: recentEnquiries.length,
+    now,
+  });
+  const checks = adaptive.checks;
   const passingChecks = checks.filter(check => check.status === "pass").length;
   const firingChecks = checks.filter(check => check.status === "critical" || check.status === "warning").length;
   const watchChecks = checks.filter(check => check.status === "watch").length;
   const blindChecks = checks.filter(check => check.status === "blind").length;
-  const assuredChecks = checks.length - watchChecks - blindChecks;
+  const learningChecks = checks.filter(check => check.status === "learning").length;
+  const inactiveChecks = checks.filter(check => check.status === "inactive").length;
+  const applicableChecks = checks.length - inactiveChecks;
+  const assuredChecks = passingChecks + firingChecks;
   const radar = {
     generatedAt: now,
     summary: {
-      critical: dedupedIssues.filter(issue => issue.severity === "critical").length,
-      warning: dedupedIssues.filter(issue => issue.severity === "warning").length,
-      watch: dedupedIssues.filter(issue => issue.severity === "watch").length,
-      connectedSources: coverage.filter(source => source.status === "connected" || source.status === "empty").length,
+      critical: adaptive.incidents.filter(issue => issue.severity === "critical").length,
+      warning: adaptive.incidents.filter(issue => issue.severity === "warning").length,
+      watch: adaptive.incidents.filter(issue => issue.severity === "watch").length,
+      connectedSources: coverage.filter(source => source.status === "connected").length,
       totalSources: coverage.length,
       blindSpots: blindSpots.length,
       totalChecks: checks.length,
@@ -381,11 +406,14 @@ export async function buildBusinessIssueRadar(
       firingChecks,
       watchChecks,
       blindChecks,
+      learningChecks,
+      inactiveChecks,
+      applicableChecks,
       assuredChecks,
       checksPerDomain: RADAR_CHECKS_PER_DOMAIN,
       detectorLenses: RADAR_RULE_LENSES.length,
-      assurancePercent: checks.length ? Math.round(assuredChecks / checks.length * 100) : 0,
-      correlatedRisks: dedupedIssues.filter(issue => issue.id.startsWith("correlation:")).length,
+      assurancePercent: applicableChecks ? Math.round(assuredChecks / applicableChecks * 100) : 0,
+      correlatedRisks: adaptive.issues.filter(issue => issue.id.startsWith("correlation:")).length,
       catalogChecks: catalogMatrix.checks.length,
       sentinelChecks: sourceSentinels.length + propertySentinels.length + syntheticSentinels.length + watchdogChecks.length,
       sourceSentinels: sourceSentinels.length,
@@ -403,24 +431,39 @@ export async function buildBusinessIssueRadar(
       historicalAnomalies: evidenceLayer.digest.anomalousSeries,
     },
     speedToLead,
-    issues: dedupedIssues,
+    issues: adaptive.issues,
+    incidents: adaptive.incidents,
     signals,
     coverage,
     checks,
-    domains,
+    domains: adaptive.domains,
     evidence: evidenceLayer.digest,
+    adaptive: adaptive.adaptive,
   } satisfies Omit<BusinessIssueRadar, "memory">;
   const memory = buildRadarMemoryDigest(agencyId, radar, now);
-  const issuesWithMemory = dedupeIssues([...radar.issues, ...buildRadarMemoryIssues(memory, now)]).sort(issueSort).slice(0, 320);
+  const withMemory = applyAdaptiveRadarPolicy({
+    checks: rawChecks,
+    issues: dedupeIssues([...dedupedIssues, ...buildRadarMemoryIssues(memory, now)]).sort(issueSort).slice(0, 320),
+    signals,
+    coverage,
+    policy: settings.advisor.radarPolicy,
+    business: businessContext,
+    enquiryCount: recentEnquiries.length,
+    now,
+  });
   return {
     ...radar,
     summary: {
       ...radar.summary,
-      critical: issuesWithMemory.filter(issue => issue.severity === "critical").length,
-      warning: issuesWithMemory.filter(issue => issue.severity === "warning").length,
-      watch: issuesWithMemory.filter(issue => issue.severity === "watch").length,
+      critical: withMemory.incidents.filter(issue => issue.severity === "critical").length,
+      warning: withMemory.incidents.filter(issue => issue.severity === "warning").length,
+      watch: withMemory.incidents.filter(issue => issue.severity === "watch").length,
     },
-    issues: issuesWithMemory,
+    issues: withMemory.issues,
+    incidents: withMemory.incidents,
+    checks: withMemory.checks,
+    domains: withMemory.domains,
+    adaptive: withMemory.adaptive,
     memory,
   };
 }

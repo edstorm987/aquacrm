@@ -2,7 +2,53 @@ import "server-only";
 
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
-import type { AdvisorCustomSkill, AdvisorSkillRecipeId, AgencyWorkspaceSettings, ClientStage } from "./types";
+import type {
+  AdvisorCustomSkill,
+  AdvisorSkillRecipeId,
+  AgencyWorkspaceSettings,
+  ClientStage,
+  RadarActivationCondition,
+  RadarBaselineStrategy,
+  RadarEvaluationWindow,
+  RadarNotificationCadence,
+  RadarOperatingStage,
+  RadarPolicyConfiguration,
+  RadarPolicyException,
+  RadarPolicyExceptionEffect,
+  RadarPolicyRule,
+  RadarPolicyState,
+} from "./types";
+
+const RADAR_DOMAINS = ["company", "sales", "inbox", "clients", "finance", "delivery", "marketing", "operations", "compliance", "development", "team", "systems"] as const;
+const RADAR_STATES: RadarPolicyState[] = ["inherit", "learning", "live", "seasonal", "paused", "not-applicable", "retired"];
+const RADAR_ACTIVATIONS: RadarActivationCondition[] = ["immediate", "on-first-sample", "on-first-activity", "manual"];
+const RADAR_BASELINES: RadarBaselineStrategy[] = ["target-and-baseline", "target-only", "rolling", "prior-period"];
+const RADAR_WINDOWS: RadarEvaluationWindow[] = ["realtime", "daily", "weekly", "monthly", "quarterly"];
+const RADAR_NOTIFICATIONS: RadarNotificationCadence[] = ["immediate", "hourly", "daily", "weekly", "off"];
+const RADAR_EXCEPTION_EFFECTS: RadarPolicyExceptionEffect[] = ["mute-notifications", "downgrade-to-watch", "pause-check"];
+
+const DEFAULT_RADAR_POLICY: RadarPolicyConfiguration = {
+  operatingStage: "setup",
+  defaultPolicy: {
+    state: "learning",
+    activationCondition: "on-first-activity",
+    baselineStrategy: "target-and-baseline",
+    warningTolerancePercent: 15,
+    criticalTolerancePercent: 30,
+    minimumSampleSize: 12,
+    learningPeriodDays: 30,
+    evaluationWindow: "daily",
+    businessHoursOnly: false,
+    notificationCadence: "daily",
+  },
+  domainPolicies: {
+    systems: { state: "live", activationCondition: "immediate", minimumSampleSize: 1, learningPeriodDays: 0, evaluationWindow: "realtime", notificationCadence: "immediate" },
+    compliance: { state: "live", activationCondition: "immediate", minimumSampleSize: 1, learningPeriodDays: 0, notificationCadence: "immediate" },
+  },
+  metricPolicies: {},
+  exceptions: [],
+  updatedAt: 0,
+};
 
 const DEFAULTS: Omit<AgencyWorkspaceSettings, "agencyId" | "updatedAt"> = {
   timezone: "Europe/London",
@@ -20,6 +66,7 @@ const DEFAULTS: Omit<AgencyWorkspaceSettings, "agencyId" | "updatedAt"> = {
     staleDataHours: 72,
     skillPolicies: {},
     customSkills: [],
+    radarPolicy: DEFAULT_RADAR_POLICY,
   },
   notifications: {
     overdueTasks: true,
@@ -42,7 +89,7 @@ export function getAgencyWorkspaceSettings(agencyId: string): AgencyWorkspaceSet
     ...DEFAULTS,
     ...stored,
     agencyId,
-    advisor: { ...DEFAULTS.advisor, ...(stored?.advisor ?? {}) },
+    advisor: cleanAdvisorSettings(stored?.advisor, DEFAULTS.advisor),
     notifications: { ...DEFAULTS.notifications, ...(stored?.notifications ?? {}) },
     updatedAt: stored?.updatedAt ?? 0,
   };
@@ -146,7 +193,92 @@ function cleanAdvisorSettings(
     staleDataHours: cleanNumber(patch?.staleDataHours ?? current.staleDataHours, 1, 720),
     skillPolicies: cleanAdvisorSkillPolicies(patch?.skillPolicies ?? current.skillPolicies),
     customSkills: cleanCustomAdvisorSkills(patch?.customSkills ?? current.customSkills),
+    radarPolicy: cleanRadarPolicy(patch?.radarPolicy, current.radarPolicy),
   };
+}
+
+function cleanRadarPolicy(
+  patch: RadarPolicyConfiguration | undefined,
+  current: RadarPolicyConfiguration,
+): RadarPolicyConfiguration {
+  const stage = patch?.operatingStage ?? current.operatingStage;
+  const domainPolicies = cleanRadarPolicyMap({ ...current.domainPolicies, ...(patch?.domainPolicies ?? {}) }, true);
+  const metricPolicies = cleanRadarPolicyMap({ ...current.metricPolicies, ...(patch?.metricPolicies ?? {}) }, false);
+  return {
+    operatingStage: isOneOf(stage, ["setup", "launch", "operating", "scaling", "seasonal", "paused"] as RadarOperatingStage[]) ? stage : "setup",
+    defaultPolicy: cleanRadarPolicyRule({ ...current.defaultPolicy, ...(patch?.defaultPolicy ?? {}) }, DEFAULT_RADAR_POLICY.defaultPolicy),
+    domainPolicies,
+    metricPolicies,
+    exceptions: cleanRadarExceptions(patch?.exceptions ?? current.exceptions),
+    updatedAt: patch?.updatedAt ?? current.updatedAt,
+  };
+}
+
+function cleanRadarPolicyMap(value: unknown, domainsOnly: boolean): Record<string, RadarPolicyRule> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([id, rule]) => (domainsOnly ? RADAR_DOMAINS.includes(id as typeof RADAR_DOMAINS[number]) : /^[a-z0-9][a-z0-9:_-]{2,140}$/.test(id)) && rule && typeof rule === "object" && !Array.isArray(rule))
+    .slice(0, domainsOnly ? RADAR_DOMAINS.length : 512)
+    .map(([id, rule]) => [id, cleanRadarPolicyRule(rule as RadarPolicyRule)]));
+}
+
+function cleanRadarPolicyRule(value: RadarPolicyRule, fallback: RadarPolicyRule = {}): RadarPolicyRule {
+  const rule: RadarPolicyRule = {};
+  const source = { ...fallback, ...value };
+  if (isOneOf(source.state, RADAR_STATES)) rule.state = source.state;
+  if (isOneOf(source.activationCondition, RADAR_ACTIVATIONS)) rule.activationCondition = source.activationCondition;
+  if (isOneOf(source.baselineStrategy, RADAR_BASELINES)) rule.baselineStrategy = source.baselineStrategy;
+  if (typeof source.targetValue === "number" && Number.isFinite(source.targetValue)) rule.targetValue = Math.min(1e12, Math.max(-1e12, source.targetValue));
+  const targetLabel = cleanOptional(source.targetLabel, 120);
+  if (targetLabel) rule.targetLabel = targetLabel;
+  if (source.expectedDirection === "higher" || source.expectedDirection === "lower" || source.expectedDirection === "neutral") rule.expectedDirection = source.expectedDirection;
+  assignPolicyNumber(rule, "warningTolerancePercent", source.warningTolerancePercent, 0, 1_000);
+  assignPolicyNumber(rule, "criticalTolerancePercent", source.criticalTolerancePercent, rule.warningTolerancePercent ?? 0, 2_000);
+  assignPolicyNumber(rule, "minimumSampleSize", source.minimumSampleSize, 0, 1_000_000);
+  assignPolicyNumber(rule, "learningPeriodDays", source.learningPeriodDays, 0, 3_650);
+  if (isOneOf(source.evaluationWindow, RADAR_WINDOWS)) rule.evaluationWindow = source.evaluationWindow;
+  if (typeof source.businessHoursOnly === "boolean") rule.businessHoursOnly = source.businessHoursOnly;
+  if (isOneOf(source.notificationCadence, RADAR_NOTIFICATIONS)) rule.notificationCadence = source.notificationCadence;
+  const owner = cleanOptional(source.owner, 120);
+  const escalationRoute = cleanOptional(source.escalationRoute, 240);
+  const activationNote = cleanOptional(source.activationNote, 500);
+  if (owner) rule.owner = owner;
+  if (escalationRoute) rule.escalationRoute = escalationRoute;
+  if (activationNote) rule.activationNote = activationNote;
+  if (Array.isArray(source.activeMonths)) rule.activeMonths = [...new Set(source.activeMonths.map(Number).filter(month => Number.isInteger(month) && month >= 1 && month <= 12))].sort((a, b) => a - b);
+  return rule;
+}
+
+function assignPolicyNumber<K extends "warningTolerancePercent" | "criticalTolerancePercent" | "minimumSampleSize" | "learningPeriodDays">(
+  target: RadarPolicyRule,
+  key: K,
+  value: unknown,
+  min: number,
+  max: number,
+): void {
+  if (typeof value !== "number" || !Number.isFinite(value)) return;
+  target[key] = Math.round(Math.min(max, Math.max(min, value)) * 100) / 100;
+}
+
+function cleanRadarExceptions(value: unknown): RadarPolicyException[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const source = item as Partial<RadarPolicyException>;
+    const id = cleanOptional(source.id, 100);
+    const domain = cleanOptional(source.domain, 40);
+    const metricId = cleanOptional(source.metricId, 140);
+    const reason = cleanOptional(source.reason, 500);
+    const createdBy = cleanOptional(source.createdBy, 100);
+    const expiresAt = typeof source.expiresAt === "number" && Number.isFinite(source.expiresAt) ? source.expiresAt : 0;
+    const createdAt = typeof source.createdAt === "number" && Number.isFinite(source.createdAt) ? source.createdAt : Date.now();
+    if (!id || !domain || !RADAR_DOMAINS.includes(domain as typeof RADAR_DOMAINS[number]) || !reason || !createdBy || !isOneOf(source.effect, RADAR_EXCEPTION_EFFECTS) || expiresAt <= createdAt) return [];
+    return [{ id, domain, metricId, effect: source.effect, reason, expiresAt, createdAt, createdBy }];
+  }).sort((left, right) => left.expiresAt - right.expiresAt).slice(0, 100);
+}
+
+function isOneOf<T extends string>(value: unknown, values: readonly T[]): value is T {
+  return typeof value === "string" && values.includes(value as T);
 }
 
 function cleanAdvisorSkillPolicies(value: unknown): AgencyWorkspaceSettings["advisor"]["skillPolicies"] {

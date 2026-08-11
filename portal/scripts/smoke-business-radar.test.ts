@@ -5,10 +5,12 @@ import type { AdvisorDomain } from "../src/lib/businessRadar";
 import { buildRadarCheckMatrix } from "../src/lib/radarCheckEngine";
 import type { RadarObservation } from "../src/lib/radarCheckEngine";
 import { buildRadarCorrelationIssues } from "../src/lib/radarCorrelations";
+import { applyAdaptiveRadarPolicy } from "../src/lib/radarPolicyEngine";
 import { buildPropertySentinelChecks, buildRadarWatchdogChecks, buildSourceSentinelChecks } from "../src/lib/radarSentinels";
 import { buildSyntheticCanaryChecks } from "../src/lib/radarSyntheticChecks";
 import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "../src/lib/radarSyntheticSafety";
 import type { RadarTelemetrySnapshot } from "../src/lib/server/radarTelemetry";
+import type { RadarPolicyConfiguration } from "../src/server/types";
 import { BUSINESS_RADAR_RULE_CATALOG, RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES, RADAR_SIGNAL_FAMILIES } from "../src/lib/radarRuleCatalog";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -56,6 +58,7 @@ test("critical radar findings survive model omission and reach visible Advisor U
 test("the main dashboard exposes an active, actionable radar mode", () => {
   const page = read("src/app/portal/agency/page.tsx");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const policyPanel = read("src/app/portal/agency/_RadarPolicyPanel.tsx");
   assert.match(page, /getCachedBusinessIssueRadar/);
   assert.match(page, /businessRadar=\{businessRadar\}/);
   assert.match(dashboard, /Active business radar/);
@@ -64,7 +67,10 @@ test("the main dashboard exposes an active, actionable radar mode", () => {
   assert.match(dashboard, /Check coverage by business area/);
   assert.match(dashboard, /addRadarTask/);
   assert.match(dashboard, /Radar findings automatically join your strict priority queue/);
-  assert.match(dashboard, /detector lenses per KPI/);
+  assert.match(dashboard, /applicable checks/);
+  assert.match(dashboard, /RadarPolicyPanel/);
+  assert.match(policyPanel, /Radar operating policy/);
+  assert.match(dashboard, /Health/);
   assert.match(dashboard, /Compound risks/);
 });
 
@@ -332,6 +338,76 @@ test("radar wires property traffic, form, tag, server, and Advisor check context
   assert.match(dashboard, /Radar watchdogs/);
 });
 
+test("adaptive Radar separates health, confidence, readiness, and honest zero-state conclusions", () => {
+  const now = Date.UTC(2026, 7, 11);
+  const observation = { ...observed("marketing", "traffic-7d", 0, "0 pageviews", now), sampleSize: 0, historySamples: 0, historySpanMs: 0 };
+  const raw = buildRadarCheckMatrix([observation], [{ id: "test:marketing", domain: "marketing", label: "Marketing telemetry", status: "empty", recordCount: 0, detail: "Connected with no useful evidence." }], now);
+  const result = applyAdaptiveRadarPolicy({
+    checks: raw.checks.filter(check => check.domain === "marketing" && check.familyId === "traffic-7d"),
+    issues: [],
+    signals: [
+      { id: "metric:company-health", domain: "company", label: "Company health", value: 15, display: "15/100", target: "80", status: "critical", detail: "Zero commercial activity.", href: "/portal/agency/company", measuredAt: now },
+      { id: "metric:traffic-7d", domain: "marketing", label: "Traffic", value: 0, display: "0", target: "Growing", status: "unknown", detail: "No traffic.", href: "/portal/agency/marketing", measuredAt: now },
+      { id: "metric:form-submissions", domain: "marketing", label: "Forms", value: 0, display: "0", target: "Attributed", status: "unknown", detail: "No forms.", href: "/portal/agency/inbox", measuredAt: now },
+    ],
+    coverage: [{ id: "test:marketing", domain: "marketing", label: "Marketing telemetry", status: "empty", recordCount: 0, detail: "Connected with no useful evidence." }],
+    policy: testPolicy({ metricPolicies: { "marketing:traffic-7d": { targetValue: 100, expectedDirection: "higher" } } }),
+    business: { currency: "GBP", monthRevenueCents: 0, monthlyRevenueTargetCents: 500_000, revenueGapCents: 500_000, leadCount: 0, activeClientCount: 0, meetingsThisMonth: 0, estimatedCallsNeeded: 20 },
+    enquiryCount: 0,
+    now,
+  });
+  assert.equal(result.adaptive.healthScore < 40, true, "zero activity should not present healthy business health");
+  assert.equal(result.adaptive.confidencePercent < 50, true, "an empty connection should lower confidence");
+  assert.equal(result.adaptive.readinessPercent < 70, true, "empty telemetry should not imply completed setup");
+  assert.equal(result.adaptive.conclusions.some(item => item.id === "commercial-engine-not-established"), true);
+  assert.equal(result.adaptive.conclusions.some(item => item.id === "lead-clock-not-started" && item.severity === "info"), true);
+  assert.equal(result.checks.find(check => check.lens === "threshold")?.status, "critical", "an approved fixed target must remain authoritative while history learns");
+  assert.equal(result.checks.some(check => check.status === "learning"), true);
+});
+
+test("adaptive Radar keeps protected checks active and groups duplicate findings into incidents", () => {
+  const now = Date.UTC(2026, 7, 11);
+  const marketingCheck = buildRadarCheckMatrix([observed("marketing", "traffic-7d", 20, "20", now)], [], now).checks.find(check => check.domain === "marketing" && check.familyId === "traffic-7d" && check.lens === "threshold")!;
+  const systemCheck = { ...marketingCheck, id: "synthetic:systems:server-runtime", ruleId: "synthetic:runtime", domain: "systems" as const, familyId: "server-runtime", familyLabel: "Server runtime", scope: "synthetic" as const, status: "critical" as const, title: "Server runtime failed" };
+  const result = applyAdaptiveRadarPolicy({
+    checks: [marketingCheck, systemCheck],
+    issues: [
+      { id: "coverage:marketing-one", severity: "warning", domain: "marketing", title: "Marketing source missing", detail: "First related gap.", evidence: ["Source one"], href: "/portal/agency", detectedAt: now, sourceIds: ["one"] },
+      { id: "coverage:marketing-two", severity: "warning", domain: "marketing", title: "Attribution source missing", detail: "Second related gap.", evidence: ["Source two"], href: "/portal/agency", detectedAt: now, sourceIds: ["two"] },
+    ],
+    signals: [],
+    coverage: [],
+    policy: testPolicy({ operatingStage: "paused" }),
+    business: { currency: "GBP", monthRevenueCents: 0, monthlyRevenueTargetCents: 0, revenueGapCents: 0, leadCount: 0, activeClientCount: 0, meetingsThisMonth: 0, estimatedCallsNeeded: 0 },
+    enquiryCount: 0,
+    now,
+  });
+  assert.equal(result.checks.find(check => check.id === marketingCheck.id)?.status, "inactive");
+  assert.equal(result.checks.find(check => check.id === systemCheck.id)?.status, "critical", "safety checks must survive a paused business stage");
+  assert.equal(result.incidents.filter(incident => incident.domain === "marketing").length <= 1, true, "related domain gaps should collapse into one incident");
+});
+
+test("adaptive Radar policy is persisted, editable, and uses business-grade learning windows", () => {
+  const types = read("src/server/types.ts");
+  const settings = read("src/server/agencySettings.ts");
+  const engine = read("src/lib/radarPolicyEngine.ts");
+  const vault = read("src/lib/server/radarEvidenceVault.ts");
+  const route = read("src/app/api/portal/advisor/radar/route.ts");
+  const panel = read("src/app/portal/agency/_RadarPolicyPanel.tsx");
+  assert.match(types, /RadarPolicyConfiguration/);
+  assert.match(types, /RadarPolicyException/);
+  assert.match(settings, /learningPeriodDays: 30/);
+  assert.match(settings, /minimumSampleSize: 12/);
+  assert.match(engine, /isAuthoritativeFailure/);
+  assert.match(engine, /isAlwaysOnCheck/);
+  assert.match(engine, /groupIncidents/);
+  assert.match(vault, /DEFAULT_BASELINE_SPAN_MS = 30 \* DAY/);
+  assert.match(route, /export async function PATCH/);
+  assert.match(panel, /Business stage/);
+  assert.match(panel, /Metric overrides|Find a KPI/);
+  assert.match(panel, /Temporary exceptions|No temporary exceptions/);
+});
+
 function observed(domain: AdvisorDomain, familyId: string, current: number, display: string, now: number): RadarObservation {
   return {
     domain,
@@ -349,5 +425,28 @@ function observed(domain: AdvisorDomain, familyId: string, current: number, disp
     lastSeenAt: now,
     sampleSize: Math.max(1, current),
     integrity: true,
+  };
+}
+
+function testPolicy(overrides: Partial<RadarPolicyConfiguration> = {}): RadarPolicyConfiguration {
+  return {
+    operatingStage: overrides.operatingStage ?? "setup",
+    defaultPolicy: {
+      state: "learning",
+      activationCondition: "on-first-activity",
+      baselineStrategy: "target-and-baseline",
+      warningTolerancePercent: 15,
+      criticalTolerancePercent: 30,
+      minimumSampleSize: 12,
+      learningPeriodDays: 30,
+      evaluationWindow: "daily",
+      businessHoursOnly: false,
+      notificationCadence: "daily",
+      ...(overrides.defaultPolicy ?? {}),
+    },
+    domainPolicies: overrides.domainPolicies ?? {},
+    metricPolicies: overrides.metricPolicies ?? {},
+    exceptions: overrides.exceptions ?? [],
+    updatedAt: overrides.updatedAt ?? 0,
   };
 }

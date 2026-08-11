@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import {
   BookOpen,
+  ChevronLeft,
   Download,
   FileImage,
   FileSpreadsheet,
@@ -15,6 +16,7 @@ import {
   PenLine,
   Presentation,
   Plus,
+  Save,
   Search,
   Tags,
   Trash2,
@@ -198,8 +200,8 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
             className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/40"
             placeholder="New SOP category name"
           />
-          <button type="button" onClick={() => void createCategory()} disabled={!newCategory.trim()} className="min-h-10 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:opacity-40">Create folder</button>
-          <button type="button" onClick={() => setCreatingCategory(false)} className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/60">Cancel</button>
+          <button type="button" onClick={() => void createCategory()} disabled={!newCategory.trim()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:opacity-40"><FolderPlus size={15} /> Create folder</button>
+          <button type="button" onClick={() => setCreatingCategory(false)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/60"><X size={14} /> Cancel</button>
         </section>
       ) : null}
 
@@ -216,8 +218,8 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
             <h2 className="mt-4 text-lg font-semibold text-black/80">No SOPs yet</h2>
             <p className="mt-1 text-sm leading-6 text-black/45">Write your first procedure or upload an existing document when you are ready.</p>
             <div className="mt-5 flex justify-center gap-2">
-              <button type="button" onClick={() => setUploadOpen(true)} className="min-h-10 rounded-md border border-black/12 px-3 text-sm font-medium">Upload file</button>
-              <button type="button" onClick={() => openWriter()} className="min-h-10 rounded-md bg-black px-3 text-sm font-semibold text-white">Write SOP</button>
+              <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 px-3 text-sm font-medium"><FileUp size={15} /> Upload file</button>
+              <button type="button" onClick={() => openWriter()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><PenLine size={15} /> Write SOP</button>
             </div>
           </div>
         </section>
@@ -282,7 +284,7 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
               </div>
               <div className="flex items-center gap-2">
                 {categoryFilter !== "all" && categoryFilter !== "uncategorised" ? <button type="button" title="Delete category" onClick={() => setDeletingCategory({ category: categoryFilter, replacementCategory: "" })} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/40 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button> : null}
-                {categoryFilter !== "all" ? <button type="button" onClick={() => setCategoryFilter("all")} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62">Back to folders</button> : null}
+                {categoryFilter !== "all" ? <button type="button" onClick={() => setCategoryFilter("all")} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62"><ChevronLeft size={13} /> Back to folders</button> : null}
               </div>
             </div>
             {visible.length ? visible.map(sop => (
@@ -314,7 +316,7 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
               </article>
             )) : <div className="mm-surface-card rounded-lg border border-dashed border-black/15 px-4 py-12 text-center text-sm text-black/45">
               <p>No SOPs match this view.</p>
-              <button type="button" onClick={() => openWriter(selectedCategory)} className="mt-3 min-h-10 rounded-md bg-black px-3 text-sm font-semibold text-white">Write SOP here</button>
+              <button type="button" onClick={() => openWriter(selectedCategory)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><PenLine size={15} /> Write SOP here</button>
             </div>}
           </section> : null}
         </>
@@ -363,7 +365,7 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
           </Field>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setDeletingCategory(null)} className={secondaryButton}>Cancel</button>
-            <button type="button" onClick={() => void deleteCategory()} className="min-h-10 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800">Delete category</button>
+            <button type="button" onClick={() => void deleteCategory()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800"><Trash2 size={14} /> Delete category</button>
           </div>
         </div>
       </Modal> : null}
@@ -404,7 +406,7 @@ function WrittenSopModal({ draft, categories, onClose, onSaved, onError }: {
       />
       <Field label="Tags"><input value={value.tags} onChange={event => setValue(current => ({ ...current, tags: event.target.value }))} className={inputClass} placeholder="Training, onboarding, finance" /></Field>
       <Field label="Procedure"><textarea required value={value.content} onChange={event => setValue(current => ({ ...current, content: event.target.value }))} rows={16} className={`${inputClass} resize-y py-3 leading-6`} /></Field>
-      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}>{busy ? "Saving..." : "Save SOP"}</button></div>
+      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}><Save size={15} />{busy ? "Saving..." : "Save SOP"}</button></div>
     </form>
   </Modal>;
 }
@@ -442,7 +444,7 @@ function UploadSopModal({ categories, initialCategory, onClose, onUploaded, onEr
         categoriesName="categories"
       />
       <Field label="Tags"><input name="tags" className={inputClass} placeholder="Training, onboarding, finance" /></Field>
-      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}>{busy ? "Uploading..." : "Upload file"}</button></div>
+      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}><FileUp size={15} />{busy ? "Uploading..." : "Upload file"}</button></div>
     </form>
   </Modal>;
 }
@@ -473,7 +475,7 @@ function FileDetailsModal({ sop, categories, onClose, onSaved, onError }: {
       <Field label="Title"><input required value={title} onChange={event => setTitle(event.target.value)} className={inputClass} /></Field>
       <CategoryAssignmentFields primary={category} assigned={assignedCategories} categories={categories} onChange={(nextCategory, assigned) => { setCategory(nextCategory); setAssignedCategories(assigned); }} />
       <Field label="Tags"><input value={tags} onChange={event => setTags(event.target.value)} className={inputClass} placeholder="Training, onboarding, finance" /></Field>
-      <div className="flex justify-between gap-2"><a href={`/api/portal/sops/content?id=${encodeURIComponent(sop.id)}`} target="_blank" rel="noreferrer" className={`${secondaryButton} inline-flex items-center gap-2`}><Download size={15} />Open file</a><button disabled={busy} className={primaryButton}>{busy ? "Saving..." : "Save details"}</button></div>
+      <div className="flex justify-between gap-2"><a href={`/api/portal/sops/content?id=${encodeURIComponent(sop.id)}`} target="_blank" rel="noreferrer" className={`${secondaryButton} inline-flex items-center gap-2`}><Download size={15} />Open file</a><button disabled={busy} className={primaryButton}><Save size={15} />{busy ? "Saving..." : "Save details"}</button></div>
     </form>
   </Modal>;
 }
@@ -510,7 +512,7 @@ function OrganiseSopModal({ sop, categories, onClose, onSaved, onError }: {
       </div>
       <CategoryAssignmentFields primary={category} assigned={assignedCategories} categories={categories} onChange={(nextCategory, assigned) => { setCategory(nextCategory); setAssignedCategories(assigned); }} />
       <Field label="Tags"><input value={tags} onChange={event => setTags(event.target.value)} className={inputClass} placeholder="Training, onboarding, finance" /></Field>
-      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}>{busy ? "Saving..." : "Save organisation"}</button></div>
+      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}><Save size={15} />{busy ? "Saving..." : "Save organisation"}</button></div>
     </form>
   </Modal>;
 }
@@ -690,5 +692,5 @@ function formatBytes(value?: number) {
 }
 
 const inputClass = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/40";
-const primaryButton = "min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50";
+const primaryButton = "inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50";
 const secondaryButton = "min-h-10 rounded-md border border-black/12 bg-white px-4 text-sm font-medium text-black/65";

@@ -32,6 +32,8 @@ export interface RadarObservation {
   sampleSize?: number;
   integrity?: boolean;
   minimumSampleSize?: number;
+  historySamples?: number;
+  historySpanMs?: number;
   zeroIsEvidence?: boolean;
   expectedDirection?: "higher" | "lower" | "neutral";
   anomalyFloor?: number;
@@ -66,8 +68,18 @@ export function summarizeRadarChecks(
     const passedChecks = domainChecks.filter(check => check.status === "pass").length;
     const firingChecks = domainChecks.filter(check => check.status === "critical" || check.status === "warning").length;
     const watchChecks = domainChecks.filter(check => check.status === "watch").length;
-    const connectedChecks = domainChecks.length - blindChecks;
-    const assuredChecks = domainChecks.length - blindChecks - watchChecks;
+    const learningChecks = domainChecks.filter(check => check.status === "learning").length;
+    const inactiveChecks = domainChecks.filter(check => check.status === "inactive").length;
+    const applicableChecks = domainChecks.length - inactiveChecks;
+    const connectedChecks = applicableChecks - blindChecks;
+    const assuredChecks = passedChecks + firingChecks;
+    const sources = coverageByDomain.get(domain) ?? [];
+    const sourceReadiness = sources.length
+      ? sources.reduce((total, source) => total + (source.status === "connected" ? 1 : source.status === "empty" ? 0.35 : 0), 0) / sources.length
+      : 0;
+    const checkConfidence = applicableChecks
+      ? (assuredChecks + watchChecks * 0.6 + learningChecks * 0.25) / applicableChecks
+      : 0;
     return {
       domain,
       totalChecks: domainChecks.length,
@@ -75,10 +87,15 @@ export function summarizeRadarChecks(
       firingChecks,
       watchChecks,
       blindChecks,
+      learningChecks,
+      inactiveChecks,
+      applicableChecks,
       assuredChecks,
-      coveragePercent: domainChecks.length ? Math.round(connectedChecks / domainChecks.length * 100) : 0,
-      assurancePercent: domainChecks.length ? Math.round(assuredChecks / domainChecks.length * 100) : 0,
-      sourceCount: coverageByDomain.get(domain)?.length ?? 0,
+      coveragePercent: applicableChecks ? Math.round(connectedChecks / applicableChecks * 100) : 0,
+      assurancePercent: applicableChecks ? Math.round(assuredChecks / applicableChecks * 100) : 0,
+      confidencePercent: Math.round(checkConfidence * 100),
+      readinessPercent: Math.round((sourceReadiness * 0.65 + checkConfidence * 0.35) * 100),
+      sourceCount: sources.length,
       lastSignalAt: newest(domainChecks.map(check => check.lastSeenAt ?? check.measuredAt)),
     };
   });
@@ -308,6 +325,9 @@ function check(
     value: observation.current ?? undefined,
     previousValue: observation.previous ?? undefined,
     lastSeenAt: observation.lastSeenAt,
+    sampleSize: observation.sampleSize,
+    historySamples: observation.historySamples,
+    historySpanMs: observation.historySpanMs,
     expectedDirection: observation.expectedDirection,
   };
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AlertTriangle, Bell, CircleCheck, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, Send, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, Bell, Bot, Check, CircleCheck, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
 import type { OperationalAlert } from "@/lib/server/operationalAlerts";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
@@ -166,17 +166,17 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     </header>
 
     <nav className="flex gap-6 overflow-x-auto border-b border-black/10" aria-label="Inbox view">
-      <Tab active={view === "attention"} onClick={() => setView("attention")} label="Needs attention" count={alerts.length} />
-      <Tab active={view === "social"} onClick={() => setView("social")} label="Social inbox" count={socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)} />
-      <Tab active={view === "forms"} onClick={() => setView("forms")} label="Enquiries" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} />
-      <Tab active={view === "chatbot"} onClick={() => setView("chatbot")} label="Chatbot" count={websiteForms.filter(item => item.channel === "chatbot" && item.status !== "resolved").length} />
-      <Tab active={view === "support"} onClick={() => setView("support")} label="Support" count={websiteForms.filter(item => item.channel === "support" && item.status !== "resolved").length + conversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} />
-      <Tab active={view === "conversations"} onClick={() => setView("conversations")} label="Client messages" count={conversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} />
-      <Tab active={view === "updates"} onClick={() => setView("updates")} label="Updates" count={updates.length} />
-      <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" />
+      <Tab active={view === "attention"} onClick={() => setView("attention")} label="Needs attention" count={alerts.length} icon={AlertTriangle} />
+      <Tab active={view === "social"} onClick={() => setView("social")} label="Social inbox" count={socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)} icon={Radio} />
+      <Tab active={view === "forms"} onClick={() => setView("forms")} label="Enquiries" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} icon={FileText} />
+      <Tab active={view === "chatbot"} onClick={() => setView("chatbot")} label="Chatbot" count={websiteForms.filter(item => item.channel === "chatbot" && item.status !== "resolved").length} icon={Bot} />
+      <Tab active={view === "support"} onClick={() => setView("support")} label="Support" count={websiteForms.filter(item => item.channel === "support" && item.status !== "resolved").length + conversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} icon={LifeBuoy} />
+      <Tab active={view === "conversations"} onClick={() => setView("conversations")} label="Client messages" count={conversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type) && item.status === "open").length} icon={MessageCircle} />
+      <Tab active={view === "updates"} onClick={() => setView("updates")} label="Updates" count={updates.length} icon={Bell} />
+      <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" icon={Inbox} />
     </nav>
 
-    {view !== "channels" && view !== "social" ? <input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /> : null}
+    {view !== "channels" && view !== "social" ? <label className="relative block"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label> : null}
 
     {view === "attention" ? <section>
       <SectionHeader title="What needs you now" detail="Critical items first. Resolve each item at its source." />
@@ -270,7 +270,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     /> : null}
 
     {view === "updates" ? <section className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="mt-3 grid gap-2">{visibleUpdates.map(item => <div key={item.id} className="mm-surface-card mm-interactive-row rounded-md p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex text-xs font-medium text-brand">Open client</Link> : null}</div>)}</div></div>
+      <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="mt-3 grid gap-2">{visibleUpdates.map(item => <div key={item.id} className="mm-surface-card mm-interactive-row rounded-md p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{item.message}</p><p className="mt-1 text-xs text-black/40">{item.category.replaceAll("-", " ")} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-brand">Open client <ExternalLink size={12} /></Link> : null}</div>)}</div></div>
       <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" /><button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
@@ -422,7 +422,7 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
             <span className="mt-1 block truncate text-xs text-black/50">{item.message} · {item.replyCount} replies · {formatDate(item.submittedAt)}</span>
           </span>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => onToggle(item.id)} className="rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openId === item.id ? "Close" : "Reply"}</button>
+            <button type="button" onClick={() => onToggle(item.id)} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openId === item.id ? <X size={13} /> : <MessageCircle size={13} />}{openId === item.id ? "Close" : "Reply"}</button>
             {item.siteUrl ? <a href={item.siteUrl} target="_blank" rel="noreferrer" aria-label={`Open ${item.siteName}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><ExternalLink size={15} /></a> : null}
             <Link href={`/portal/clients/${item.clientId}?tab=overview`} aria-label={`Open ${item.clientName}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><Users size={15} /></Link>
           </div>
@@ -437,8 +437,8 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
           <textarea value={replyDrafts[item.id] ?? ""} onChange={event => onReplyChange(item.id, event.target.value)} rows={3} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm" placeholder={`Reply to ${item.clientName}`} />
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void onReply(item)} disabled={busy || !replyDrafts[item.id]?.trim()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />Send reply</button>
-            {item.status === "open" ? <button type="button" onClick={() => void onStatus(item, "reviewed")} disabled={busy} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40">Mark reviewed</button> : null}
-            {item.status !== "closed" ? <button type="button" onClick={() => void onStatus(item, "closed")} disabled={busy} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40">Close ticket</button> : <button type="button" onClick={() => void onStatus(item, "open")} disabled={busy} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40">Reopen</button>}
+            {item.status === "open" ? <button type="button" onClick={() => void onStatus(item, "reviewed")} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><Check size={13} /> Mark reviewed</button> : null}
+            {item.status !== "closed" ? <button type="button" onClick={() => void onStatus(item, "closed")} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><X size={13} /> Close ticket</button> : <button type="button" onClick={() => void onStatus(item, "open")} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><RotateCcw size={13} /> Reopen</button>}
           </div>
         </div> : null}
       </article>)}
@@ -447,8 +447,8 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
   </section>;
 }
 
-function Tab({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count?: number }) {
-  return <button type="button" onClick={onClick} className={`relative min-h-11 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>{label}{count !== undefined ? <span className="ml-1 text-xs text-black/35">{count}</span> : null}{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}</button>;
+function Tab({ active, onClick, label, count, icon: Icon }: { active: boolean; onClick: () => void; label: string; count?: number; icon: LucideIcon }) {
+  return <button type="button" onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}><Icon size={15} aria-hidden="true" /><span>{label}{count !== undefined ? <span className="ml-1 text-xs text-black/35">{count}</span> : null}</span>{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}</button>;
 }
 
 function AlertRow({ alert }: { alert: OperationalAlert }) {

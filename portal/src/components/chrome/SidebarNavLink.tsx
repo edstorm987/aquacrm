@@ -28,6 +28,7 @@ import {
   Package,
   PanelTop,
   PanelsTopLeft,
+  Radar,
   ReceiptText,
   Settings,
   Ship,
@@ -41,7 +42,7 @@ import {
 } from "lucide-react";
 
 const NAV_ICONS: Record<string, typeof Circle> = {
-  home: LayoutDashboard,
+  home: Radar,
   dashboard: LayoutDashboard,
   company: Building2,
   actions: ClipboardCheck,

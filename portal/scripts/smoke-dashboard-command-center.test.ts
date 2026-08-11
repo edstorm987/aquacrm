@@ -112,11 +112,18 @@ describe("dashboard command centre surface", () => {
       readFile(new URL("../src/components/chrome/GlobalAdvisorDrawer.tsx", import.meta.url), "utf8"),
     ]);
     assert.match(page, /DashboardCommandCenter/);
+    assert.match(page, /Command center\s*<\/h1>/);
+    assert.match(page, /Command deck/);
     assert.doesNotMatch(page, /FounderDashboardKpis/);
     assert.doesNotMatch(page, /OperatingLoop/);
     for (const label of ["Strict work queue", "Timesheet", "Log what moved", "Week command", "Executive briefing", "Weekly outcome"]) {
       assert.match(workspace, new RegExp(label));
     }
+    for (const station of ["Command center stations", "Active radar", "Day command", "Actions", "Company", "Radar online"]) {
+      assert.match(workspace, new RegExp(station));
+    }
+    assert.match(workspace, /href="\/portal\/agency\/actions"/);
+    assert.match(workspace, /href="\/portal\/agency\/company"/);
     assert.match(workspace, /action: "log-hours"/);
     assert.match(workspace, /action: "delete-session"/);
     assert.match(workspace, /status: "done"/);

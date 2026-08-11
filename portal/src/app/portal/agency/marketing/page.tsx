@@ -738,29 +738,29 @@ function OverviewRow({ label, value }: { label: string; value: string }) {
   return <div className="flex items-center justify-between gap-3 py-2.5"><dt className="text-black/50">{label}</dt><dd className="font-semibold text-black/75">{value}</dd></div>;
 }
 
-function MarketingTab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+function MarketingTab({ href, active, icon: Icon, children }: { href: string; active: boolean; icon: typeof Activity; children: React.ReactNode }) {
   return (
-    <Link href={href} aria-current={active ? "page" : undefined} className={`relative min-h-11 shrink-0 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
-      {children}
+    <Link href={href} aria-current={active ? "page" : undefined} className={`relative inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
+      <Icon size={15} aria-hidden="true" />{children}
       {active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
     </Link>
   );
 }
 
 function MarketingWorkspaceNavigation({ view, brandScope }: { view: MarketingView; brandScope: string }) {
-  const automationTab = <MarketingTab href={marketingHref("automations", "all")} active={view === "automations"}>Automations</MarketingTab>;
+  const automationTab = <MarketingTab href={marketingHref("automations", "all")} active={view === "automations"} icon={LockKeyhole}>Automations</MarketingTab>;
   return (
     <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
       {view === "automations" ? automationTab : null}
-      <MarketingTab href={marketingHref("campaigns", brandScope)} active={view === "campaigns"}>Campaigns</MarketingTab>
-      <MarketingTab href={marketingHref("customer-profiles", brandScope)} active={view === "customer-profiles"}>Customer profiles</MarketingTab>
-      <MarketingTab href={marketingHref("social", brandScope)} active={view === "social"}>Social media</MarketingTab>
-      <MarketingTab href={marketingHref("website", brandScope)} active={view === "website"}>Websites</MarketingTab>
-      <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"}>Funnels</MarketingTab>
-      <MarketingTab href={marketingHref("google-ads", brandScope)} active={view === "google-ads"}>Google Ads</MarketingTab>
-      <MarketingTab href={marketingHref("google-business", brandScope)} active={view === "google-business"}>Google Business Profile</MarketingTab>
-      <MarketingTab href={marketingHref("reputation", brandScope)} active={view === "reputation"}>Reputation</MarketingTab>
-      <MarketingTab href={marketingHref("sources", brandScope)} active={view === "sources"}>Lead sources</MarketingTab>
+      <MarketingTab href={marketingHref("campaigns", brandScope)} active={view === "campaigns"} icon={Megaphone}>Campaigns</MarketingTab>
+      <MarketingTab href={marketingHref("customer-profiles", brandScope)} active={view === "customer-profiles"} icon={UserRoundSearch}>Customer profiles</MarketingTab>
+      <MarketingTab href={marketingHref("social", brandScope)} active={view === "social"} icon={RadioTower}>Social media</MarketingTab>
+      <MarketingTab href={marketingHref("website", brandScope)} active={view === "website"} icon={Globe2}>Websites</MarketingTab>
+      <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"} icon={Workflow}>Funnels</MarketingTab>
+      <MarketingTab href={marketingHref("google-ads", brandScope)} active={view === "google-ads"} icon={Target}>Google Ads</MarketingTab>
+      <MarketingTab href={marketingHref("google-business", brandScope)} active={view === "google-business"} icon={MapPin}>Google Business Profile</MarketingTab>
+      <MarketingTab href={marketingHref("reputation", brandScope)} active={view === "reputation"} icon={Star}>Reputation</MarketingTab>
+      <MarketingTab href={marketingHref("sources", brandScope)} active={view === "sources"} icon={Activity}>Lead sources</MarketingTab>
       {view !== "automations" ? automationTab : null}
     </nav>
   );

@@ -50,6 +50,7 @@ export async function POST(request: Request) {
         body: body.body,
         folderId: body.folderId ?? undefined,
         tags: body.tags,
+        pinned: body.pinned,
       });
       await flushPendingWrites();
       return NextResponse.json({ ok: true, note }, { status: 201 });

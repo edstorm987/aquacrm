@@ -9,9 +9,11 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Bot,
+  Building2,
   CalendarDays,
   Check,
   CheckCircle2,
+  ClipboardCheck,
   Clock3,
   Crosshair,
   Database,
@@ -29,6 +31,7 @@ import {
   Save,
   ScanSearch,
   Search,
+  Settings2,
   ShieldCheck,
   Square,
   Target,
@@ -40,6 +43,7 @@ import {
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
 import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus } from "@/lib/businessRadar";
 import type { AgencyTask, AgencyTaskPriority, DashboardDayPlan, DashboardWeekPlan, DashboardWorkSession } from "@/server/types";
+import { RadarPolicyPanel } from "./_RadarPolicyPanel";
 
 export type DashboardSignal = {
   id: string;
@@ -143,8 +147,8 @@ export function DashboardCommandCenter({
       taskId: task.id,
       status: task.status,
     }));
-    const radarSignals: StrictItem[] = radarSnapshot.issues
-      .filter(issue => issue.severity !== "watch")
+    const radarSignals: StrictItem[] = radarSnapshot.incidents
+      .filter(incident => incident.severity !== "watch")
       .map(issue => ({
         id: `radar:${issue.id}`,
         title: issue.title,
@@ -160,7 +164,7 @@ export function DashboardCommandCenter({
         return activeRank || priorityRank(a.priority) - priorityRank(b.priority) || overdueRank(a, now) - overdueRank(b, now) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
       })
       .slice(0, 8);
-  }, [now, openTasks, radarSnapshot.issues, signals]);
+  }, [now, openTasks, radarSnapshot.incidents, signals]);
 
   const selectedSessions = sessions.filter(session => session.date === selectedDate);
   const loggedHours = selectedSessions.reduce((total, session) => total + sessionHours(session, now), 0);
@@ -455,18 +459,57 @@ export function DashboardCommandCenter({
   }
 
   return (
-    <section className="space-y-4" aria-label="Daily command centre">
-      <div className="flex flex-wrap items-center justify-between gap-3" aria-label="Dashboard mode">
-        <div className="inline-grid w-full grid-cols-2 rounded-md border border-black/10 bg-white p-1 shadow-sm sm:w-auto" role="tablist" aria-label="Dashboard mode">
-          <button type="button" role="tab" aria-selected={dashboardMode === "radar"} onClick={() => setDashboardMode("radar")} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition ${dashboardMode === "radar" ? "bg-black text-white shadow-sm" : "text-black/55 hover:bg-black/[0.035]"}`}>
-            <Radar size={16} /> Active radar
-            {radarSnapshot.summary.critical + radarSnapshot.summary.warning ? <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] leading-none text-white">{radarSnapshot.summary.critical + radarSnapshot.summary.warning}</span> : null}
-          </button>
-          <button type="button" role="tab" aria-selected={dashboardMode === "day"} onClick={() => setDashboardMode("day")} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition ${dashboardMode === "day" ? "bg-black text-white shadow-sm" : "text-black/55 hover:bg-black/[0.035]"}`}>
-            <ListTodo size={16} /> Day command
-          </button>
+    <section className="space-y-4" aria-label="Command center">
+      <div className="overflow-hidden rounded-lg border border-[#2d4c44] bg-[#10241f] text-white shadow-sm" aria-label="Command deck">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-emerald-200/35 bg-white/[0.06]" aria-hidden="true">
+              <span className="absolute inset-x-1/2 top-0 h-full w-px bg-emerald-100/15" />
+              <span className="absolute inset-y-1/2 left-0 h-px w-full bg-emerald-100/15" />
+              <span className="absolute inset-2 rounded-full border border-emerald-100/15" />
+              <Radar className="relative text-emerald-200" size={22} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200/70">Command deck</p>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-lg">All stations on one bridge</h2>
+              <p className="mt-1 text-xs leading-5 text-white/55">Radar findings automatically join your strict priority queue.</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-emerald-100/[0.07] px-3 py-1.5 text-xs font-semibold text-emerald-100">
+            <RadioTower size={14} /> Radar online
+          </span>
         </div>
-        <p className="text-xs text-black/42">Radar findings automatically join your strict priority queue.</p>
+
+        <nav className="grid grid-cols-2 border-t border-white/10 sm:grid-cols-4" aria-label="Command center stations">
+          <button type="button" aria-pressed={dashboardMode === "radar"} onClick={() => setDashboardMode("radar")} className={`group flex min-h-[72px] items-center gap-3 border-b border-r border-white/10 px-4 text-left transition sm:border-b-0 ${dashboardMode === "radar" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
+            <Radar size={18} className={dashboardMode === "radar" ? "text-emerald-700" : "text-emerald-200"} />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Active radar</span>
+              <span className={`mt-0.5 block text-[11px] ${dashboardMode === "radar" ? "text-black/48" : "text-white/42"}`}>{radarSnapshot.summary.critical + radarSnapshot.summary.warning} alerts on watch</span>
+            </span>
+          </button>
+          <button type="button" aria-pressed={dashboardMode === "day"} onClick={() => setDashboardMode("day")} className={`group flex min-h-[72px] items-center gap-3 border-b border-white/10 px-4 text-left transition sm:border-b-0 sm:border-r ${dashboardMode === "day" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
+            <ListTodo size={18} className={dashboardMode === "day" ? "text-emerald-700" : "text-emerald-200"} />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Day command</span>
+              <span className={`mt-0.5 block text-[11px] ${dashboardMode === "day" ? "text-black/48" : "text-white/42"}`}>{strictList.length} priorities queued</span>
+            </span>
+          </button>
+          <Link href="/portal/agency/actions" className="flex min-h-[72px] items-center gap-3 border-r border-white/10 px-4 text-left text-white/72 transition hover:bg-white/[0.06] hover:text-white">
+            <ClipboardCheck size={18} className="text-amber-200" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Actions</span>
+              <span className="mt-0.5 block text-[11px] text-white/42">{openTasks.length} open across the business</span>
+            </span>
+          </Link>
+          <Link href="/portal/agency/company" className="flex min-h-[72px] items-center gap-3 px-4 text-left text-white/72 transition hover:bg-white/[0.06] hover:text-white">
+            <Building2 size={18} className="text-sky-200" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Company</span>
+              <span className="mt-0.5 block text-[11px] text-white/42">{counts.activeClients} clients · {counts.products} offers</span>
+            </span>
+          </Link>
+        </nav>
       </div>
 
       {dashboardMode === "radar" ? (
@@ -743,35 +786,38 @@ function BusinessRadarDashboard({
 }) {
   const [activeDomain, setActiveDomain] = useState<AdvisorDomain | "all">("all");
   const [feedMode, setFeedMode] = useState<"signals" | "checks">("signals");
-  const [checkFilter, setCheckFilter] = useState<"all" | "attention" | "blind" | "pass">("attention");
+  const [checkFilter, setCheckFilter] = useState<"all" | "attention" | "blind" | "learning" | "inactive" | "pass">("attention");
   const [checkScope, setCheckScope] = useState<"all" | RadarCheckScope>("all");
   const [checkQuery, setCheckQuery] = useState("");
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState("");
+  const [policyOpen, setPolicyOpen] = useState(false);
   const attentionCount = radar.summary.critical + radar.summary.warning;
-  const coveragePercent = radar.summary.totalChecks
-    ? Math.round((radar.summary.totalChecks - radar.summary.blindChecks) / radar.summary.totalChecks * 100)
+  const coveragePercent = radar.summary.applicableChecks
+    ? Math.round((radar.summary.applicableChecks - radar.summary.blindChecks) / radar.summary.applicableChecks * 100)
     : 0;
-  const visibleIssues = radar.issues.filter(issue => activeDomain === "all" || issue.domain === activeDomain);
+  const visibleIssues = radar.incidents.filter(issue => activeDomain === "all" || issue.domain === activeDomain);
   const normalizedCheckQuery = checkQuery.trim().toLowerCase();
   const matchingChecks = radar.checks.filter(check => {
     if (activeDomain !== "all" && check.domain !== activeDomain) return false;
-    if (checkFilter === "attention" && !["critical", "warning", "watch"].includes(check.status)) return false;
+    if (checkFilter === "attention" && !["critical", "warning", "watch", "learning"].includes(check.status)) return false;
     if (checkFilter === "blind" && check.status !== "blind") return false;
+    if (checkFilter === "learning" && check.status !== "learning") return false;
+    if (checkFilter === "inactive" && check.status !== "inactive") return false;
     if (checkFilter === "pass" && check.status !== "pass") return false;
     if (checkScope !== "all" && check.scope !== checkScope) return false;
     if (!normalizedCheckQuery) return true;
     return `${check.title} ${check.detail} ${check.domain} ${check.lensLabel} ${check.scope} ${check.sourceId}`.toLowerCase().includes(normalizedCheckQuery);
   });
   const displayedChecks = matchingChecks.slice(0, 240);
-  const trafficSignal = radar.signals.find(signal => signal.id === "metric:traffic-7d");
-  const formSignal = radar.signals.find(signal => signal.id === "metric:form-submissions");
   const domainSummaries = RADAR_DOMAINS.map((domain, index) => {
-    const issues = radar.issues.filter(issue => issue.domain === domain);
+    const issues = radar.incidents.filter(issue => issue.domain === domain);
     const sources = radar.coverage.filter(source => source.domain === domain);
     const rollup = radar.domains.find(item => item.domain === domain);
     const unavailable = sources.some(source => source.status === "disconnected" || source.status === "unavailable");
-    const status: "critical" | "warning" | "watch" | "blind" | "healthy" = issues.some(issue => issue.severity === "critical")
+    const status: "critical" | "warning" | "watch" | "blind" | "inactive" | "healthy" = rollup?.applicableChecks === 0
+      ? "inactive"
+      : issues.some(issue => issue.severity === "critical")
       ? "critical"
       : issues.some(issue => issue.severity === "warning")
         ? "warning"
@@ -815,17 +861,20 @@ function BusinessRadarDashboard({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">Active business radar</p>
-                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">Monitoring</span>
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold capitalize text-emerald-200">{radar.adaptive.operatingStage}</span>
               </div>
-              <h2 id="business-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">{attentionCount ? `${attentionCount} signals need command attention` : "No urgent business signals detected"}</h2>
-              <p className="mt-1 text-xs text-white/50">{radar.summary.totalChecks.toLocaleString()} checks · {radar.summary.catalogChecks.toLocaleString()} KPI checks · {radar.summary.historicalChecks.toLocaleString()} historical detectors · {radar.summary.sentinelChecks.toLocaleString()} live sentinels · {radar.summary.syntheticSentinels.toLocaleString()} active canaries · {radar.summary.checksPerDomain} minimum per domain · {radar.summary.detectorLenses} detector lenses per KPI · {radar.summary.correlatedRisks} compound risks · last sweep {formatRadarAge(radar.generatedAt)} · automatic rescan every minute</p>
+              <h2 id="business-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">{attentionCount ? `${attentionCount} incident${attentionCount === 1 ? "" : "s"} need command attention` : radar.adaptive.confidencePercent < 70 ? "No urgent incidents; evidence is still calibrating" : "No urgent business incidents detected"}</h2>
+              <p className="mt-1 text-xs text-white/50">{radar.summary.applicableChecks.toLocaleString()} applicable checks · {radar.adaptive.learningChecks.toLocaleString()} learning · {radar.adaptive.inactiveChecks.toLocaleString()} inactive · {radar.adaptive.alwaysOnChecks.toLocaleString()} protected · {radar.summary.correlatedRisks} compound risks · last sweep {formatRadarAge(radar.generatedAt)} · automatic rescan every minute</p>
             </div>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
+              <Settings2 size={15} /> Policy
+            </button>
             <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
               <RefreshCw size={15} className={scanBusy ? "animate-spin" : ""} /> {scanBusy ? "Scanning" : "Scan now"}
             </button>
-            <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-[#111513] hover:bg-white/90">
+            <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-[#111513] hover:bg-white/90 sm:col-auto">
               <Bot size={15} /> {advisorConfigured ? "Ask Advisor" : "Open Advisor"}
             </button>
           </div>
@@ -834,14 +883,18 @@ function BusinessRadarDashboard({
         {scanError ? <div role="alert" className="border-b border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-100 sm:px-6">{scanError}</div> : null}
 
         <div className="grid grid-cols-2 border-b border-white/10 sm:grid-cols-4 xl:grid-cols-8">
-          <RadarMetric icon={<AlertTriangle size={14} />} label="Critical" value={radar.summary.critical} tone="critical" />
-          <RadarMetric icon={<Activity size={14} />} label="Warnings" value={radar.summary.warning} tone="warning" />
-          <RadarMetric icon={<ScanSearch size={14} />} label="Checks live" value={(radar.summary.totalChecks - radar.summary.blindChecks).toLocaleString()} tone="healthy" />
-          <RadarMetric icon={<ShieldCheck size={14} />} label="Passing" value={radar.summary.passedChecks.toLocaleString()} tone="healthy" />
-          <RadarMetric icon={<Crosshair size={14} />} label="Check alarms" value={radar.summary.firingChecks.toLocaleString()} tone={radar.summary.firingChecks ? "warning" : "healthy"} />
-          <RadarMetric icon={<EyeOff size={14} />} label="Blind checks" value={radar.summary.blindChecks.toLocaleString()} tone={radar.summary.blindChecks ? "warning" : "healthy"} />
-          <RadarMetric icon={<TrendingUp size={14} />} label="Traffic 7d" value={trafficSignal?.value?.toLocaleString() ?? "—"} tone={trafficSignal?.status === "critical" ? "critical" : trafficSignal?.status === "warning" ? "warning" : "healthy"} />
-          <RadarMetric icon={<NotebookPen size={14} />} label="Forms 24h" value={formSignal?.value?.toLocaleString() ?? "—"} tone="healthy" />
+          <RadarMetric icon={<Gauge size={14} />} label="Health" value={`${radar.adaptive.healthScore}/100`} tone={radar.adaptive.healthScore < 40 ? "critical" : radar.adaptive.healthScore < 70 ? "warning" : "healthy"} />
+          <RadarMetric icon={<ShieldCheck size={14} />} label="Confidence" value={`${radar.adaptive.confidencePercent}%`} tone={radar.adaptive.confidencePercent < 40 ? "critical" : radar.adaptive.confidencePercent < 70 ? "warning" : "healthy"} />
+          <RadarMetric icon={<Target size={14} />} label="Setup" value={`${radar.adaptive.readinessPercent}%`} tone={radar.adaptive.readinessPercent < 40 ? "critical" : radar.adaptive.readinessPercent < 70 ? "warning" : "healthy"} />
+          <RadarMetric icon={<AlertTriangle size={14} />} label="Critical" value={radar.summary.critical} tone={radar.summary.critical ? "critical" : "healthy"} />
+          <RadarMetric icon={<Activity size={14} />} label="Warnings" value={radar.summary.warning} tone={radar.summary.warning ? "warning" : "healthy"} />
+          <RadarMetric icon={<ScanSearch size={14} />} label="Checks live" value={radar.adaptive.liveChecks.toLocaleString()} tone="healthy" />
+          <RadarMetric icon={<History size={14} />} label="Learning" value={radar.adaptive.learningChecks.toLocaleString()} tone="watch" />
+          <RadarMetric icon={<EyeOff size={14} />} label="Blind" value={radar.summary.blindChecks.toLocaleString()} tone={radar.summary.blindChecks ? "warning" : "healthy"} />
+        </div>
+
+        <div className="grid border-b border-white/10 md:grid-cols-2 xl:grid-cols-4">
+          {radar.adaptive.conclusions.map(conclusion => <Link key={conclusion.id} href={conclusion.href} className="border-white/10 px-4 py-3 hover:bg-white/[0.04] md:border-r sm:px-5"><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${conclusion.severity === "critical" ? "bg-red-400" : conclusion.severity === "warning" ? "bg-amber-300" : conclusion.severity === "watch" ? "bg-sky-300" : "bg-white/35"}`} /><span className="text-[10px] font-semibold uppercase text-white/40">{domainLabel(conclusion.domain)}</span></div><p className="mt-1.5 text-sm font-semibold text-white">{conclusion.title}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-white/42">{conclusion.detail}</p></Link>)}
         </div>
 
         <RadarMemoryTimeline memory={radar.memory} />
@@ -880,7 +933,8 @@ function BusinessRadarDashboard({
               <RadarDetail label="Awaiting reply" value={String(radar.speedToLead.awaitingResponseCount)} />
               <RadarDetail label="Within target" value={radar.speedToLead.withinTargetPercent === null ? "No sample" : `${radar.speedToLead.withinTargetPercent}%`} />
               <RadarDetail label="Check coverage" value={`${coveragePercent}%`} />
-              <RadarDetail label="Watch state" value={radar.summary.watchChecks.toLocaleString()} />
+              <RadarDetail label="Learning" value={radar.summary.learningChecks.toLocaleString()} />
+              <RadarDetail label="Inactive by policy" value={radar.summary.inactiveChecks.toLocaleString()} />
               <RadarDetail label="Evidence assured" value={`${radar.summary.assurancePercent}%`} />
               <RadarDetail label="Compound risks" value={radar.summary.correlatedRisks.toLocaleString()} />
               <RadarDetail label="Sentinel mesh" value={radar.summary.sentinelChecks.toLocaleString()} />
@@ -898,7 +952,7 @@ function BusinessRadarDashboard({
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
               <div><p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">Scanner ledger</p><h3 className="mt-1 text-base font-semibold text-white">{activeDomain === "all" ? "Whole business" : domainLabel(activeDomain)}</h3></div>
               <div className="inline-flex rounded-md border border-white/15 bg-white/[0.04] p-1" role="tablist" aria-label="Radar feed">
-                <button type="button" role="tab" aria-selected={feedMode === "signals"} onClick={() => setFeedMode("signals")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "signals" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Signals {visibleIssues.length}</button>
+                <button type="button" role="tab" aria-selected={feedMode === "signals"} onClick={() => setFeedMode("signals")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "signals" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Incidents {visibleIssues.length}</button>
                 <button type="button" role="tab" aria-selected={feedMode === "checks"} onClick={() => setFeedMode("checks")} className={`min-h-8 rounded px-2.5 text-[11px] font-semibold ${feedMode === "checks" ? "bg-white text-[#111513]" : "text-white/55 hover:text-white"}`}>Checks {activeDomain === "all" ? radar.summary.totalChecks : radar.domains.find(item => item.domain === activeDomain)?.totalChecks ?? 0}</button>
               </div>
             </div>
@@ -911,6 +965,8 @@ function BusinessRadarDashboard({
                 <select value={checkFilter} onChange={event => setCheckFilter(event.target.value as typeof checkFilter)} aria-label="Check status" className="min-h-9 rounded-md border border-white/15 bg-[#1a201d] px-2.5 text-xs font-semibold text-white outline-none">
                   <option value="attention">Needs attention</option>
                   <option value="blind">Blind only</option>
+                  <option value="learning">Learning only</option>
+                  <option value="inactive">Inactive only</option>
                   <option value="pass">Passing only</option>
                   <option value="all">Every check</option>
                 </select>
@@ -935,7 +991,7 @@ function BusinessRadarDashboard({
                       </div>
                       <h4 className="mt-2 text-sm font-semibold leading-5 text-white">{issue.title}</h4>
                       <p className="mt-1 text-xs leading-5 text-white/48">{issue.detail}</p>
-                      {issue.evidence[0] ? <p className="mt-2 text-[11px] leading-4 text-white/35">Evidence · {issue.evidence[0]}</p> : null}
+                      {issue.evidence[0] ? <p className="mt-2 text-[11px] leading-4 text-white/35">{issue.findingCount} grouped findings · {issue.evidence[0]}</p> : null}
                     </div>
                     <div className="flex items-start gap-1 sm:justify-end">
                       <button type="button" onClick={() => void onCreateTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} title="Add to strict queue" aria-label={`Add ${issue.title} to strict queue`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50">
@@ -953,6 +1009,8 @@ function BusinessRadarDashboard({
         </div>
       </section>
 
+      {policyOpen ? <RadarPolicyPanel key={radar.adaptive.policy.updatedAt} radar={radar} onSaved={onRadarChange} onClose={() => setPolicyOpen(false)} /> : null}
+
       <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="radar-coverage-heading">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
           <div className="flex items-center gap-3"><span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><ShieldCheck size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Never-blind matrix</p><h3 id="radar-coverage-heading" className="mt-1 text-lg font-semibold text-black/85">Check coverage by business area</h3></div></div>
@@ -961,9 +1019,9 @@ function BusinessRadarDashboard({
         <div className="grid sm:grid-cols-2 xl:grid-cols-3">
           {radar.domains.map((domain, index) => (
             <button key={domain.domain} type="button" onClick={() => { setActiveDomain(domain.domain); setFeedMode("checks"); setCheckFilter(domain.blindChecks ? "blind" : domain.firingChecks ? "attention" : "all"); }} className={`group grid min-h-32 grid-rows-[auto_auto_1fr] gap-3 border-black/10 px-4 py-4 text-left hover:bg-black/[0.025] sm:px-5 ${index ? "border-t sm:border-l xl:border-t-0" : ""}`}>
-              <div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold uppercase text-black/55">{domainLabel(domain.domain)}</span><span className="text-[10px] font-semibold tabular-nums text-black/35">{domain.totalChecks} checks · {domain.assurancePercent}% assured</span></div>
+              <div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold uppercase text-black/55">{domainLabel(domain.domain)}</span><span className="text-[10px] font-semibold tabular-nums text-black/35">{domain.applicableChecks} applicable · {domain.confidencePercent}% confidence</span></div>
               <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.07]"><div className={`h-full rounded-full ${domain.blindChecks ? "bg-amber-500" : domain.firingChecks ? "bg-red-500" : "bg-emerald-600"}`} style={{ width: `${Math.max(2, domain.coveragePercent)}%` }} /></div>
-              <div className="grid grid-cols-4 gap-2 self-end text-[10px] tabular-nums"><span><strong className="block text-sm text-emerald-700">{domain.passedChecks}</strong><span className="text-black/35">pass</span></span><span><strong className="block text-sm text-red-700">{domain.firingChecks}</strong><span className="text-black/35">fire</span></span><span><strong className="block text-sm text-sky-700">{domain.watchChecks}</strong><span className="text-black/35">watch</span></span><span><strong className="block text-sm text-amber-700">{domain.blindChecks}</strong><span className="text-black/35">blind</span></span></div>
+              <div className="grid grid-cols-5 gap-2 self-end text-[10px] tabular-nums"><span><strong className="block text-sm text-emerald-700">{domain.passedChecks}</strong><span className="text-black/35">pass</span></span><span><strong className="block text-sm text-red-700">{domain.firingChecks}</strong><span className="text-black/35">fire</span></span><span><strong className="block text-sm text-violet-700">{domain.learningChecks}</strong><span className="text-black/35">learn</span></span><span><strong className="block text-sm text-sky-700">{domain.watchChecks}</strong><span className="text-black/35">watch</span></span><span><strong className="block text-sm text-amber-700">{domain.blindChecks}</strong><span className="text-black/35">blind</span></span></div>
             </button>
           ))}
         </div>
@@ -1053,7 +1111,7 @@ function RadarEvidenceVault({ evidence }: { evidence: BusinessIssueRadar["eviden
 function RadarCheckRow({ check }: { check: BusinessRadarCheck }) {
   return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-6">
     <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border ${radarCheckIconClass(check.status)}`} title={radarCheckStatusLabel(check.status)}>
-      {check.status === "pass" ? <Check size={14} /> : check.status === "blind" ? <EyeOff size={14} /> : check.status === "watch" ? <Crosshair size={14} /> : <AlertTriangle size={14} />}
+          {check.status === "pass" ? <Check size={14} /> : check.status === "blind" ? <EyeOff size={14} /> : check.status === "watch" ? <Crosshair size={14} /> : check.status === "learning" ? <History size={14} /> : check.status === "inactive" ? <Square size={14} /> : <AlertTriangle size={14} />}
     </span>
     <div className="min-w-0">
       <div className="flex flex-wrap items-center gap-2">
@@ -1157,11 +1215,12 @@ function signedDecimal(value: number): string {
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}`;
 }
 
-function radarNodeClass(status: "critical" | "warning" | "watch" | "blind" | "healthy"): string {
+function radarNodeClass(status: "critical" | "warning" | "watch" | "blind" | "inactive" | "healthy"): string {
   if (status === "critical") return "border-red-300/35 bg-red-400/15 text-red-200";
   if (status === "warning") return "border-amber-300/35 bg-amber-400/15 text-amber-200";
   if (status === "watch") return "border-sky-300/35 bg-sky-400/15 text-sky-200";
   if (status === "blind") return "border-white/20 bg-white/10 text-white/45";
+  if (status === "inactive") return "border-white/10 bg-white/[0.04] text-white/28";
   return "border-emerald-300/25 bg-emerald-400/10 text-emerald-200";
 }
 
@@ -1176,6 +1235,8 @@ function radarCheckStatusClass(status: RadarCheckStatus): string {
   if (status === "warning") return "bg-amber-400/15 text-amber-200";
   if (status === "watch") return "bg-sky-400/15 text-sky-200";
   if (status === "blind") return "bg-white/10 text-white/55";
+  if (status === "learning") return "bg-violet-400/15 text-violet-200";
+  if (status === "inactive") return "bg-white/[0.05] text-white/35";
   return "bg-emerald-400/15 text-emerald-200";
 }
 
@@ -1184,12 +1245,16 @@ function radarCheckIconClass(status: RadarCheckStatus): string {
   if (status === "warning") return "border-amber-300/25 bg-amber-400/10 text-amber-200";
   if (status === "watch") return "border-sky-300/25 bg-sky-400/10 text-sky-200";
   if (status === "blind") return "border-white/15 bg-white/[0.06] text-white/45";
+  if (status === "learning") return "border-violet-300/25 bg-violet-400/10 text-violet-200";
+  if (status === "inactive") return "border-white/10 bg-white/[0.03] text-white/30";
   return "border-emerald-300/25 bg-emerald-400/10 text-emerald-200";
 }
 
 function radarCheckStatusLabel(status: RadarCheckStatus): string {
   if (status === "pass") return "Pass";
   if (status === "blind") return "Blind";
+  if (status === "learning") return "Learning";
+  if (status === "inactive") return "Inactive";
   return status;
 }
 

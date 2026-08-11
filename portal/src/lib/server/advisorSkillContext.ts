@@ -12,7 +12,7 @@ export async function buildAdvisorSkillContext(
 ) {
   const context = suppliedContext ?? await buildAdvisorContext(agencyId, now);
   const radar = context.businessRadar;
-  const scopedIssues = (domains: string[]) => radar.issues
+  const scopedIssues = (domains: string[]) => radar.incidents
     .filter(issue => domains.includes(issue.domain))
     .slice(0, skill.maxRecords);
   const scopedSignals = (domains: string[]) => radar.signals
@@ -21,7 +21,7 @@ export async function buildAdvisorSkillContext(
   const scopedCoverage = (domains: string[]) => radar.coverage
     .filter(source => domains.includes(source.domain));
   const scopedChecks = (domains: string[]) => radar.checks
-    .filter(check => domains.includes(check.domain) && check.status !== "pass")
+    .filter(check => domains.includes(check.domain) && check.status !== "pass" && check.status !== "inactive")
     .sort((left, right) => radarCheckRank(left.status) - radarCheckRank(right.status))
     .slice(0, skill.maxRecords);
   let data: Record<string, unknown>;
@@ -83,7 +83,7 @@ export async function buildAdvisorSkillContext(
     data = {
       memory: radar.memory,
       evidence: radar.evidence,
-      issues: radar.issues.slice(0, skill.maxRecords),
+      incidents: radar.incidents.slice(0, skill.maxRecords),
       openTasks: context.openTasks.slice(0, 100),
       instruction: "Return proposals only. Creating a task requires the separate single-task-create skill and human approval.",
     };
@@ -100,15 +100,16 @@ export async function buildAdvisorSkillContext(
       company: context.company,
       radar: {
         summary: radar.summary,
+        adaptive: radar.adaptive,
         memory: radar.memory,
         evidence: radar.evidence,
         speedToLead: radar.speedToLead,
-        issues: radar.issues.slice(0, skill.maxRecords),
+        incidents: radar.incidents.slice(0, skill.maxRecords),
         signals: radar.signals.slice(0, skill.maxRecords),
         coverage: radar.coverage,
         domains: radar.domains,
         attentionChecks: radar.checks
-          .filter(check => check.status !== "pass")
+          .filter(check => check.status !== "pass" && check.status !== "inactive")
           .sort((left, right) => radarCheckRank(left.status) - radarCheckRank(right.status))
           .slice(0, skill.maxRecords),
       },
@@ -137,5 +138,6 @@ function radarCheckRank(status: string): number {
   if (status === "warning") return 1;
   if (status === "blind") return 2;
   if (status === "watch") return 3;
-  return 4;
+  if (status === "learning") return 4;
+  return 5;
 }

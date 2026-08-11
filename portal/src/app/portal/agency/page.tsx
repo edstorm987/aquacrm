@@ -11,6 +11,7 @@
 // glance at status before diving into a board.
 
 import Link from "next/link";
+import { CalendarDays, NotebookPen } from "lucide-react";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
@@ -73,19 +74,31 @@ export default async function AgencyHome() {
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">
-            {INTERNAL_WORKSPACE_NAME}
+            {INTERNAL_WORKSPACE_NAME} · Command deck
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-black/90 sm:text-3xl">
-            Welcome back, {greet}.
+            Command center
           </h1>
           <p className="mt-2 text-sm leading-6 text-black/60">
-            Sales, clients, project work, support, and money in one clear place.
+            Welcome aboard, {greet}. Your watch, business signals, and next moves are gathered here.
           </p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <Link
+            href="/portal/agency/calendar"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 shadow-sm hover:bg-black/[0.03]"
+          >
+            <CalendarDays size={15} /> Calendar
+          </Link>
+          <Link
+            href="/portal/agency/notepad"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 shadow-sm hover:bg-black/[0.03]"
+          >
+            <NotebookPen size={15} /> Notepad
+          </Link>
+          <Link
             href="/portal/agency/pipelines/leads#new-lead"
-            className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 shadow-sm hover:bg-black/[0.03]"
+            className="inline-flex min-h-10 items-center justify-center rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/75 shadow-sm hover:bg-black/[0.03]"
           >
             Add lead
           </Link>

@@ -626,7 +626,7 @@ function CapacityEditor({ company, onSave }: { company: CompanyProfile; onSave: 
             },
           });
           setOpen(false);
-        }} className="min-h-9 rounded-md bg-black px-3 text-sm font-semibold text-white">Save capacity</button>
+        }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Save size={14} /> Save capacity</button>
       </div>
     </div>
   );
@@ -656,7 +656,7 @@ function TargetEditor({ company, onSave }: { company: CompanyProfile; onSave: (n
   const [deal, setDeal] = useState(String(company.averageDealValueCents / 100));
   const [rate, setRate] = useState(String(company.salesCallCloseRatePercent));
   if (!open) return <button onClick={() => setOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 px-3 text-sm font-medium"><Pencil size={15} /> Edit targets</button>;
-  return <div className="w-full border-y border-black/10 py-4 sm:max-w-xl"><div className="grid gap-3 sm:grid-cols-2"><MoneyInput label="Monthly target" value={monthly} setValue={setMonthly} /><MoneyInput label="Annual target" value={annual} setValue={setAnnual} /><MoneyInput label="Average deal" value={deal} setValue={setDeal} /><label className="grid gap-1 text-xs font-medium text-black/55">Call close rate (%)<input className={control} type="number" min="1" max="100" value={rate} onChange={event => setRate(event.target.value)} /></label></div><div className="mt-3 flex justify-end gap-2"><button onClick={() => setOpen(false)} className="min-h-9 px-3 text-sm">Cancel</button><button onClick={async () => { await onSave({ ...company, monthlyRevenueTargetCents: pounds(monthly), annualRevenueTargetCents: pounds(annual), averageDealValueCents: pounds(deal), salesCallCloseRatePercent: Number(rate) }); setOpen(false); }} className="min-h-9 rounded-md bg-black px-3 text-sm font-semibold text-white">Save targets</button></div></div>;
+  return <div className="w-full border-y border-black/10 py-4 sm:max-w-xl"><div className="grid gap-3 sm:grid-cols-2"><MoneyInput label="Monthly target" value={monthly} setValue={setMonthly} /><MoneyInput label="Annual target" value={annual} setValue={setAnnual} /><MoneyInput label="Average deal" value={deal} setValue={setDeal} /><label className="grid gap-1 text-xs font-medium text-black/55">Call close rate (%)<input className={control} type="number" min="1" max="100" value={rate} onChange={event => setRate(event.target.value)} /></label></div><div className="mt-3 flex justify-end gap-2"><button onClick={() => setOpen(false)} className="min-h-9 px-3 text-sm">Cancel</button><button onClick={async () => { await onSave({ ...company, monthlyRevenueTargetCents: pounds(monthly), annualRevenueTargetCents: pounds(annual), averageDealValueCents: pounds(deal), salesCallCloseRatePercent: Number(rate) }); setOpen(false); }} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Save size={14} /> Save targets</button></div></div>;
 }
 
 function ObjectiveList({ objectives, onDelete }: { objectives: CompanyObjective[]; onDelete?: (id: string) => void }) {

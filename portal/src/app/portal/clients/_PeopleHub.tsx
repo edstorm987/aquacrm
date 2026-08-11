@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Building2, ClipboardPenLine, Columns3, FolderKanban, List, Mail, Phone, Plus, Route, Search, UserRound, X } from "lucide-react";
+import { Building2, ClipboardPenLine, Columns3, FolderKanban, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, UserRound, UsersRound, X, type LucideIcon } from "lucide-react";
 
 import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
 
@@ -134,12 +134,12 @@ export function PeopleHub({
 
       <div className="mt-6 border-b border-black/10">
         <div className="flex gap-3 overflow-x-auto sm:gap-6" role="tablist" aria-label="People view">
-          <Tab active={view === "clients"} onClick={() => setView("clients")} label="Clients" count={clients.length} />
-          <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} />
-          <Tab active={view === "journey"} onClick={() => setView("journey")} label="Journey" count={journeyRows.length} />
-          <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contactRows.length} />
-          <Tab active={view === "staff"} onClick={() => setView("staff")} label="Staff" count={staffCount} />
-          <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={clients.length + contactRows.length} />
+          <Tab active={view === "clients"} onClick={() => setView("clients")} label="Clients" count={clients.length} icon={Building2} />
+          <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} icon={HeartPulse} />
+          <Tab active={view === "journey"} onClick={() => setView("journey")} label="Journey" count={journeyRows.length} icon={Route} />
+          <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contactRows.length} icon={UserRound} />
+          <Tab active={view === "staff"} onClick={() => setView("staff")} label="Staff" count={staffCount} icon={UsersRound} />
+          <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={clients.length + contactRows.length} icon={List} />
         </div>
       </div>
 
@@ -167,7 +167,7 @@ export function PeopleHub({
             <option value="suspended">Paused only</option>
           </select>
         ) : null}
-        {(query || role !== "all" || niche || clientStatus !== "all") ? <button type="button" onClick={() => { setQuery(""); setRole("all"); setNiche(""); setClientStatus("all"); }} className="min-h-11 rounded-md border border-black/15 px-3 text-sm text-black/60">Clear</button> : null}
+        {(query || role !== "all" || niche || clientStatus !== "all") ? <button type="button" onClick={() => { setQuery(""); setRole("all"); setNiche(""); setClientStatus("all"); }} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/15 px-3 text-sm text-black/60"><X size={14} /> Clear</button> : null}
       </div>
 
       {view === "all" || view === "clients" ? (
@@ -212,10 +212,10 @@ export function PeopleHub({
   );
 }
 
-function Tab({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count: number }) {
+function Tab({ active, onClick, label, count, icon: Icon }: { active: boolean; onClick: () => void; label: string; count: number; icon: LucideIcon }) {
   return (
-    <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`relative min-h-11 whitespace-nowrap text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
-      {label} <span className="ml-1 text-xs tabular-nums text-black/35">{count}</span>
+    <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
+      <Icon size={15} aria-hidden="true" /><span>{label} <span className="ml-1 text-xs tabular-nums text-black/35">{count}</span></span>
       {active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
     </button>
   );
@@ -391,7 +391,7 @@ function JourneySection({ rows, onReview }: { rows: JourneyRow[]; onReview: (con
               <Columns3 size={14} /> Kanban
             </button>
           </div>
-          <Link href="/portal/agency/marketing" className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Open marketing</Link>
+          <Link href="/portal/agency/marketing" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]"><Megaphone size={14} /> Open marketing</Link>
         </div>
       </div>
 
@@ -527,7 +527,7 @@ function ContactScratchpad({ contact, onClose, onSaved }: { contact: HubContact;
           {contact.nextMeetingAt ? <p><strong className="font-semibold text-black/65">Meeting:</strong> {new Date(contact.nextMeetingAt).toLocaleString()}</p> : null}
         </div>
         {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
-        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/15 px-4 text-sm">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save notes"}</button></div>
+        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/15 px-4 text-sm">Cancel</button><button disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><Save size={15} />{busy ? "Saving..." : "Save notes"}</button></div>
       </form>
     </div>
   );
@@ -597,7 +597,7 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
           </label>
         </div>
         {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
-        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/15 px-4 text-sm">Cancel</button><button disabled={busy} className="min-h-10 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving..." : "Save contact"}</button></div>
+        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/15 px-4 text-sm">Cancel</button><button disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><Save size={15} />{busy ? "Saving..." : "Save contact"}</button></div>
       </form>
     </div>
   );

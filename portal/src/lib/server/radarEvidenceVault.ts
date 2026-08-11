@@ -11,8 +11,9 @@ import type {
   RadarRuleLens,
 } from "@/lib/businessRadar";
 import type { RadarObservation } from "@/lib/radarCheckEngine";
+import { resolveRadarPolicy } from "@/lib/radarPolicyEngine";
 import { getState, mutate } from "@/server/storage";
-import type { RadarEvidencePoint, RadarEvidenceSeries, RadarEvidenceState } from "@/server/types";
+import type { RadarEvidencePoint, RadarEvidenceSeries, RadarEvidenceState, RadarPolicyConfiguration } from "@/server/types";
 
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
@@ -20,8 +21,8 @@ const DAY = 86_400_000;
 const FIVE_MINUTES = 5 * MINUTE;
 const RECENT_POINT_LIMIT = 288;
 const HOURLY_ROLLUP_LIMIT = 24 * 30;
-const BASELINE_POINTS = 3;
-const BASELINE_SPAN_MS = 10 * MINUTE;
+const DEFAULT_BASELINE_POINTS = 12;
+const DEFAULT_BASELINE_SPAN_MS = 30 * DAY;
 
 interface EvidenceAssessment {
   observation: RadarObservation;
@@ -48,9 +49,14 @@ export function applyRadarEvidenceBaselines(
 ): RadarObservation[] {
   const series = getState().radarEvidence[agencyId]?.series ?? {};
   return observations.map(observation => {
-    if (observation.previous !== null && observation.previous !== undefined) return observation;
-    const previous = series[seriesId(observation.domain, observation.familyId)]?.points.at(-1)?.value;
-    return previous === undefined ? observation : { ...observation, previous };
+    const evidence = series[seriesId(observation.domain, observation.familyId)];
+    const previous = observation.previous ?? evidence?.points.at(-1)?.value;
+    return {
+      ...observation,
+      previous,
+      historySamples: evidence?.totalSamples ?? 0,
+      historySpanMs: evidence?.firstSeenAt && evidence.lastSeenAt ? Math.max(0, evidence.lastSeenAt - evidence.firstSeenAt) : 0,
+    };
   });
 }
 
@@ -58,9 +64,10 @@ export function buildRadarEvidenceLayer(
   agencyId: string,
   observations: readonly RadarObservation[],
   now: number,
+  policy?: RadarPolicyConfiguration,
 ): RadarEvidenceLayer {
   const state = getState().radarEvidence[agencyId];
-  const assessments = observations.map(observation => assess(observation, state?.series[seriesId(observation.domain, observation.familyId)], now));
+  const assessments = observations.map(observation => assess(observation, state?.series[seriesId(observation.domain, observation.familyId)], now, policy));
   const measurable = assessments.filter(item => typeof item.observation.current === "number" && Number.isFinite(item.observation.current));
   const baselineReady = measurable.filter(item => item.baselineReady);
   const anomalies = baselineReady.filter(item => anomalyStatus(item) === "critical" || anomalyStatus(item) === "warning");
@@ -93,7 +100,7 @@ export function recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar)
     for (const check of samples) {
       const id = seriesId(check.domain, check.familyId);
       const existing = evidence.series[id];
-      const point: RadarEvidencePoint = { at: now, value: check.value!, status: check.status };
+      const point: RadarEvidencePoint = { at: now, value: check.value!, status: check.status === "learning" || check.status === "inactive" ? "watch" : check.status };
       const series: RadarEvidenceSeries = existing ?? {
         id,
         agencyId,
@@ -127,10 +134,18 @@ export function recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar)
   });
 }
 
-function assess(observation: RadarObservation, series: RadarEvidenceSeries | undefined, now: number): EvidenceAssessment {
+function assess(
+  observation: RadarObservation,
+  series: RadarEvidenceSeries | undefined,
+  now: number,
+  configuration?: RadarPolicyConfiguration,
+): EvidenceAssessment {
   const history = historicalPoints(series);
   const values = history.map(point => point.value);
-  const baselineReady = values.length >= BASELINE_POINTS && history.at(-1)!.at - history[0]!.at >= BASELINE_SPAN_MS;
+  const policy = configuration ? resolveRadarPolicy(configuration, observation.domain, observation.familyId) : undefined;
+  const requiredPoints = Math.max(1, policy?.minimumSampleSize ?? DEFAULT_BASELINE_POINTS);
+  const requiredSpan = policy ? Math.max(0, policy.learningPeriodDays) * DAY : DEFAULT_BASELINE_SPAN_MS;
+  const baselineReady = values.length >= requiredPoints && history.length > 0 && history.at(-1)!.at - history[0]!.at >= requiredSpan;
   const baseline = baselineReady ? median(values) : undefined;
   const previous = series?.points.at(-1)?.value ?? series?.hourly.at(-1)?.last;
   const changePercent = percentageChange(observation.current, previous);
@@ -169,6 +184,8 @@ function evidenceChecks(assessment: EvidenceAssessment, now: number): BusinessRa
     lastSeenAt: series?.lastSeenAt,
     value: current ?? undefined,
     previousValue: previous,
+    historySamples: assessment.history.length,
+    historySpanMs: assessment.history.length > 1 ? assessment.history.at(-1)!.at - assessment.history[0]!.at : 0,
     expectedDirection: observation.expectedDirection,
   };
   const noValue = current === null || !Number.isFinite(current);

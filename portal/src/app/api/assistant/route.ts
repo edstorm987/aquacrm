@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
         agencyId: session.agencyId,
         businessContext: skillContext.serialized,
         alerts: advisorContext.operationalAlerts,
-        radarIssues: advisorContext.businessRadar.issues,
+        radarIssues: advisorContext.businessRadar.incidents,
         existingTaskTitles: openTasks.map(task => task.title),
         skill,
       });

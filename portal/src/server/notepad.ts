@@ -12,6 +12,7 @@ export interface CreateNotepadNoteInput {
   body?: string;
   folderId?: string;
   tags?: string[];
+  pinned?: boolean;
 }
 
 export interface UpdateNotepadNoteInput {
@@ -90,7 +91,7 @@ export function createNotepadNote(agencyId: string, userId: string, input: Creat
     title: cleanTitle(input.title, 180) || "Untitled note",
     body: cleanBody(input.body),
     tags: cleanTags(input.tags),
-    pinned: false,
+    pinned: Boolean(input.pinned),
     status: "active",
     visibility: "private",
     createdAt: now,

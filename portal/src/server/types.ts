@@ -952,6 +952,54 @@ export interface ClientDelightRecord {
   updatedAt: number;
 }
 
+export type RadarOperatingStage = "setup" | "launch" | "operating" | "scaling" | "seasonal" | "paused";
+export type RadarPolicyState = "inherit" | "learning" | "live" | "seasonal" | "paused" | "not-applicable" | "retired";
+export type RadarActivationCondition = "immediate" | "on-first-sample" | "on-first-activity" | "manual";
+export type RadarBaselineStrategy = "target-and-baseline" | "target-only" | "rolling" | "prior-period";
+export type RadarEvaluationWindow = "realtime" | "daily" | "weekly" | "monthly" | "quarterly";
+export type RadarNotificationCadence = "immediate" | "hourly" | "daily" | "weekly" | "off";
+export type RadarPolicyExceptionEffect = "mute-notifications" | "downgrade-to-watch" | "pause-check";
+
+export interface RadarPolicyRule {
+  state?: RadarPolicyState;
+  activationCondition?: RadarActivationCondition;
+  baselineStrategy?: RadarBaselineStrategy;
+  targetValue?: number;
+  targetLabel?: string;
+  expectedDirection?: "higher" | "lower" | "neutral";
+  warningTolerancePercent?: number;
+  criticalTolerancePercent?: number;
+  minimumSampleSize?: number;
+  learningPeriodDays?: number;
+  evaluationWindow?: RadarEvaluationWindow;
+  businessHoursOnly?: boolean;
+  notificationCadence?: RadarNotificationCadence;
+  owner?: string;
+  escalationRoute?: string;
+  activationNote?: string;
+  activeMonths?: number[];
+}
+
+export interface RadarPolicyException {
+  id: string;
+  domain: string;
+  metricId?: string;
+  effect: RadarPolicyExceptionEffect;
+  reason: string;
+  expiresAt: number;
+  createdAt: number;
+  createdBy: string;
+}
+
+export interface RadarPolicyConfiguration {
+  operatingStage: RadarOperatingStage;
+  defaultPolicy: RadarPolicyRule;
+  domainPolicies: Record<string, RadarPolicyRule>;
+  metricPolicies: Record<string, RadarPolicyRule>;
+  exceptions: RadarPolicyException[];
+  updatedAt: number;
+}
+
 export interface AgencyWorkspaceSettings {
   agencyId: string;
   legalName?: string;
@@ -978,6 +1026,7 @@ export interface AgencyWorkspaceSettings {
     staleDataHours: number;
     skillPolicies: Record<string, AdvisorSkillPolicy>;
     customSkills: AdvisorCustomSkill[];
+    radarPolicy: RadarPolicyConfiguration;
   };
   notifications: {
     overdueTasks: boolean;

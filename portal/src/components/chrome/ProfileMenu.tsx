@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Eye, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { ChevronDown, Eye, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
 import { ColorModeToggle } from "./ColorModeToggle";
+import { QuickNoteWindow } from "./QuickNoteWindow";
 
 const ROLE_LABEL: Record<Role, string> = {
   "agency-owner": "Agency owner",
@@ -45,6 +46,7 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   const display = accountDisplayName(name, email);
   const firstName = display.split(/\s+/)[0] || "Account";
   const [open, setOpen] = useState(false);
+  const [quickNoteOpen, setQuickNoteOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -139,15 +141,26 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
                   <span className="flex-1">Permissions</span>
                 </Link>
                 {role.startsWith("agency-") ? (
-                  <Link
-                    href="/portal/agency/settings#showcase"
-                    role="menuitem"
-                    onClick={() => setOpen(false)}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
-                  >
-                    <Eye size={16} className="text-[#8E7340]" aria-hidden="true" />
-                    <span className="flex-1">Showcase Mode</span>
-                  </Link>
+                  <>
+                    <Link
+                      href="/portal/agency/settings#showcase"
+                      role="menuitem"
+                      onClick={() => setOpen(false)}
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
+                    >
+                      <Eye size={16} className="text-[#8E7340]" aria-hidden="true" />
+                      <span className="flex-1">Showcase Mode</span>
+                    </Link>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setOpen(false); setQuickNoteOpen(true); }}
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
+                    >
+                      <NotebookPen size={16} className="text-[#8E7340]" aria-hidden="true" />
+                      <span className="flex-1">Quick note</span>
+                    </button>
+                  </>
                 ) : null}
               </>
             )}
@@ -161,6 +174,7 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
           </form>
         </div>
       )}
+      <QuickNoteWindow open={quickNoteOpen} onClose={() => setQuickNoteOpen(false)} />
     </div>
   );
 }
