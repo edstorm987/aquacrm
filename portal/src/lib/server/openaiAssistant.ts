@@ -144,21 +144,23 @@ export async function suggestAdvisorActions(input: {
   businessContext: string;
   alerts: OperationalAlert[];
   radarIssues: BusinessRadarIssue[];
+  recommendedActions?: AdvisorActionSuggestion[];
   existingTaskTitles: string[];
   skill: AdvisorSkill;
   now?: number;
 }): Promise<AdvisorActionSuggestion[]> {
-  const managed = resolveIntegrationValues(input.agencyId, "openai");
-  const apiKey = managed.apiKey || process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new Error("assistant_not_configured");
-
   const base = startOfToday(input.now ?? Date.now());
   const existing = new Set(input.existingTaskTitles.map(title => normalize(title)));
-  const guaranteedRadarActions = input.radarIssues
+  const guaranteedRadarActions = (input.recommendedActions?.length ? input.recommendedActions : input.radarIssues
     .filter(issue => issue.severity === "critical" || issue.severity === "warning")
     .filter(issue => !existing.has(normalize(issue.title)))
-    .slice(0, 8)
-    .map((issue, index) => radarAction(issue, base, index));
+    .slice(0, 5)
+    .map((issue, index) => radarAction(issue, base, index)))
+    .filter(action => !existing.has(normalize(action.title)))
+    .slice(0, 5);
+  const managed = resolveIntegrationValues(input.agencyId, "openai");
+  const apiKey = managed.apiKey || process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return guaranteedRadarActions;
   const instructions = [
     "You are Aqua Advisor, an internal operating advisor for AquaOasis-Web.",
     "Return only grounded, concrete next actions supported by the supplied business data.",
@@ -168,7 +170,7 @@ export async function suggestAdvisorActions(input: {
     "Each recommendation must name its evidence and have a clear completed outcome.",
     "BUSINESS RADAR findings are deterministic. Never omit a critical radar issue merely because another recommendation seems more interesting.",
     advisorSkillInstruction(input.skill),
-    "Use low confidence when evidence is incomplete. Return at most eight recommendations.",
+    "Use low confidence when evidence is incomplete. Return at most five recommendations. The deterministic command recommendations are mandatory and may not be suppressed.",
   ].join(" ");
   const prompt = [
     "CURRENT DATE",
@@ -207,7 +209,7 @@ export async function suggestAdvisorActions(input: {
               properties: {
                 suggestions: {
                   type: "array",
-                  maxItems: 8,
+                  maxItems: 5,
                   items: {
                     type: "object",
                     additionalProperties: false,
@@ -265,7 +267,7 @@ export async function suggestAdvisorActions(input: {
         sourceAlertIds,
       } satisfies AdvisorActionSuggestion];
     });
-    return mergeAdvisorActions(guaranteedRadarActions, aiSuggestions).slice(0, 8);
+    return mergeAdvisorActions(guaranteedRadarActions, aiSuggestions).slice(0, 5);
   } catch (error) {
     if (guaranteedRadarActions.length) return guaranteedRadarActions;
     throw error;

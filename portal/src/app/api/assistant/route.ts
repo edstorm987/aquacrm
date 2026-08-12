@@ -103,16 +103,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...responseState(session.agencyId, session.userId) });
     }
     if (body.action === "suggest-actions") {
-      if (!isAssistantConfigured(session.agencyId)) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: "Aqua Advisor needs an OpenAI connection. Open Company → Connections and connect it there.",
-            code: "assistant_not_configured",
-          },
-          { status: 503 },
-        );
-      }
       const limit = rateLimit({
         key: `advisor-actions:${session.userId}:${clientIpFromHeaders(req.headers)}`,
         max: 8,
@@ -133,6 +123,7 @@ export async function POST(req: NextRequest) {
         businessContext: skillContext.serialized,
         alerts: advisorContext.operationalAlerts,
         radarIssues: advisorContext.businessRadar.incidents,
+        recommendedActions: advisorContext.recommendedActions,
         existingTaskTitles: openTasks.map(task => task.title),
         skill,
       });

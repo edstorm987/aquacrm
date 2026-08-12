@@ -4,7 +4,7 @@ import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
 import { ensureHydrated } from "@/server/storage";
 import { RadarInspectionWorkspace } from "./RadarInspectionWorkspace";
 
-const INSPECTION_VIEWS = ["checks", "evidence", "records", "sources", "incidents", "raw"] as const;
+const INSPECTION_VIEWS = ["kpis", "checks", "evidence", "records", "sources", "incidents", "raw"] as const;
 
 export default async function RadarInspectionPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   await ensureHydrated();

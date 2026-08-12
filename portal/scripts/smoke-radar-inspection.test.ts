@@ -36,7 +36,10 @@ test("manual inspection covers every Radar layer and links from command center",
   assert.match(dashboard, /Data inspector/);
   assert.match(dashboard, /Records, evidence and raw values/);
   assert.match(dashboard, /initialTab=\{inspectorTarget\.tab\}/);
-  assert.match(dashboard, /initialDomain=\{inspectorTarget\.domain\} embedded/);
+  assert.match(dashboard, /initialDomain=\{inspectorTarget\.domain\}/);
+  assert.match(dashboard, /initialStatus=\{inspectorTarget\.status\}/);
+  assert.match(dashboard, /initialScope=\{inspectorTarget\.scope\}/);
+  assert.match(dashboard, /initialLens=\{inspectorTarget\.lens\} embedded/);
   assert.match(dashboard, /onOpenInspector/);
   assert.match(dashboard, /Inspect source data/);
   assert.match(dashboard, /Inspect raw findings/);
@@ -64,6 +67,16 @@ test("manual inspection covers every Radar layer and links from command center",
   assert.match(workspace, /Metric signals/);
   assert.match(workspace, /Grouped incidents/);
   assert.match(workspace, /Underlying findings/);
+  assert.match(workspace, /Exact incident breakdown/);
+  assert.match(workspace, /Exact underlying issues/);
+  assert.match(workspace, /Exact detector checks/);
+  assert.match(workspace, /selectedIncident\.issueIds\.includes\(item\.id\)/);
+  assert.match(workspace, /selectedIncident\.checkIds\.map/);
+  assert.match(workspace, /Full calculation/);
+  assert.match(dashboard, /What exactly/);
+  assert.match(dashboard, /Exact breakdown/);
+  assert.match(dashboard, /issue\.issueIds\.length.*underlying issue/);
+  assert.match(dashboard, /issue\.checkIds\.length.*exact check/);
   assert.match(workspace, /Full evidence history/);
   assert.match(workspace, /Source records/);
   assert.match(workspace, /Operational source catalogue/);

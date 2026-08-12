@@ -387,6 +387,29 @@ test("adaptive Radar keeps protected checks active and groups duplicate findings
   assert.equal(result.incidents.filter(incident => incident.domain === "marketing").length <= 1, true, "related domain gaps should collapse into one incident");
 });
 
+test("grouped blind-spot incidents retain only their exact failing checks", () => {
+  const now = Date.UTC(2026, 7, 11);
+  const template = buildRadarCheckMatrix([observed("marketing", "traffic-7d", 20, "20", now)], [], now).checks.find(check => check.domain === "marketing" && check.familyId === "traffic-7d" && check.lens === "threshold")!;
+  const blindConnection = { ...template, id: "systems:missing-connection", ruleId: "systems:connection", domain: "systems" as const, familyId: "module-connection", familyLabel: "Module connection", sourceId: "core:systems", status: "blind" as const, title: "Module connection cannot be proved" };
+  const blindFreshness = { ...template, id: "systems:missing-freshness", ruleId: "systems:freshness", domain: "systems" as const, familyId: "module-freshness", familyLabel: "Module freshness", sourceId: "core:systems", status: "blind" as const, title: "Module freshness cannot be proved" };
+  const unrelatedCritical = { ...template, id: "systems:unrelated-runtime", ruleId: "systems:runtime", domain: "systems" as const, familyId: "runtime", familyLabel: "Runtime", sourceId: "runtime:probe", status: "critical" as const, title: "Runtime failed" };
+  const result = applyAdaptiveRadarPolicy({
+    checks: [blindConnection, blindFreshness, unrelatedCritical],
+    issues: [{ id: "coverage:systems-check-blindness", severity: "critical", domain: "systems", title: "2 systems checks cannot prove health", detail: "The exact blind checks must remain inspectable.", evidence: ["2 blind"], href: "/portal/agency/company", detectedAt: now, sourceIds: ["core:systems"] }],
+    signals: [],
+    coverage: [{ id: "core:systems", domain: "systems", label: "Systems", status: "disconnected", recordCount: 0, detail: "Unavailable." }],
+    policy: testPolicy(),
+    business: { currency: "GBP", monthRevenueCents: 0, monthlyRevenueTargetCents: 0, revenueGapCents: 0, leadCount: 0, activeClientCount: 0, meetingsThisMonth: 0, estimatedCallsNeeded: 0 },
+    enquiryCount: 0,
+    now,
+  });
+  const incident = result.incidents.find(item => item.id === "incident:systems:coverage")!;
+  assert.deepEqual(incident.issueIds, ["coverage:systems-check-blindness"]);
+  assert.deepEqual(incident.checkIds.sort(), [blindConnection.id, blindFreshness.id].sort());
+  assert.equal(incident.checkIds.includes(unrelatedCritical.id), false, "an unrelated domain failure must not be hidden inside the blind-spot incident");
+  assert.equal(incident.findingCount, 3, "one issue and two exact checks should be counted separately from the domain total");
+});
+
 test("adaptive Radar policy is persisted, editable, and uses business-grade learning windows", () => {
   const types = read("src/server/types.ts");
   const settings = read("src/server/agencySettings.ts");

@@ -291,7 +291,7 @@ function groupIncidents(issues: BusinessRadarIssue[], checks: BusinessRadarCheck
   return [...groups.entries()].map(([key, findings]) => {
     const sorted = [...findings].sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || right.detectedAt - left.detectedAt);
     const primary = sorted[0]!;
-    const matchingChecks = checks.filter(check => check.domain === primary.domain && (check.status === "critical" || check.status === "warning" || check.status === "blind"));
+    const matchingChecks = exactIncidentChecks(findings, checks);
     return {
       ...primary,
       id: `incident:${key}`,
@@ -303,6 +303,37 @@ function groupIncidents(issues: BusinessRadarIssue[], checks: BusinessRadarCheck
       findingCount: findings.length + matchingChecks.length,
     };
   }).sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || right.findingCount - left.findingCount).slice(0, 60);
+}
+
+function exactIncidentChecks(findings: BusinessRadarIssue[], checks: BusinessRadarCheck[]): BusinessRadarCheck[] {
+  const selected = new Map<string, BusinessRadarCheck>();
+  for (const finding of findings) {
+    const blindDomain = finding.id.match(/^coverage:([a-z-]+)-check-blindness$/)?.[1];
+    if (blindDomain) {
+      for (const check of checks) {
+        if (check.domain === blindDomain && check.status === "blind") selected.set(check.id, check);
+      }
+      continue;
+    }
+
+    for (const check of checks) {
+      if (check.domain !== finding.domain || !["critical", "warning", "watch", "blind"].includes(check.status)) continue;
+      if (finding.sourceIds.some(sourceId => referencesCheck(sourceId, check))) selected.set(check.id, check);
+    }
+  }
+  return [...selected.values()].sort((left, right) => checkStatusRank(left.status) - checkStatusRank(right.status) || left.title.localeCompare(right.title));
+}
+
+function referencesCheck(sourceId: string, check: BusinessRadarCheck): boolean {
+  const candidates = [check.id, check.sourceId, check.familyId, `${check.domain}:${check.familyId}`];
+  return candidates.some(candidate => candidate === sourceId || candidate.endsWith(`:${sourceId}`) || sourceId.endsWith(`:${candidate}`));
+}
+
+function checkStatusRank(status: RadarCheckStatus): number {
+  if (status === "critical" || status === "blind") return 0;
+  if (status === "warning") return 1;
+  if (status === "watch") return 2;
+  return 3;
 }
 
 function issueCategory(issue: BusinessRadarIssue): string {

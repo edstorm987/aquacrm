@@ -1,6 +1,7 @@
 import "server-only";
 
 import { listAgencyTasks } from "@/server/tasks";
+import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedActions";
 import { buildCompanyHealthSnapshot } from "./companyHealthSnapshot";
 import { listOperationalAlerts } from "./operationalAlerts";
 import { buildBusinessIssueRadar } from "./businessIssueRadar";
@@ -14,8 +15,15 @@ export async function buildAdvisorContext(agencyId: string, now = Date.now()) {
     company,
     operationalAlerts: alerts,
   });
-  const tasks = listAgencyTasks(agencyId)
-    .filter(task => task.status !== "done")
+  const openTaskRecords = listAgencyTasks(agencyId).filter(task => task.status !== "done");
+  const recommendedActions = buildBusinessRecommendedActions({
+    radar: businessRadar,
+    alerts,
+    existingTaskTitles: openTaskRecords.map(task => task.title),
+    now,
+    limit: 5,
+  });
+  const tasks = openTaskRecords
     .slice(0, 100)
     .map(task => ({
       id: task.id,
@@ -45,6 +53,7 @@ export async function buildAdvisorContext(agencyId: string, now = Date.now()) {
     },
     operationalAlerts: alerts.slice(0, 80),
     businessRadar,
+    recommendedActions,
     openTasks: tasks,
   };
 }

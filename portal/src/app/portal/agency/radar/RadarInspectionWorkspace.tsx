@@ -32,6 +32,8 @@ import type {
   AdvisorDomain,
   BusinessIssueRadar,
   BusinessRadarCheck,
+  BusinessRadarIncident,
+  BusinessRadarIssue,
   RadarCheckScope,
   RadarCheckStatus,
   RadarEvidenceInspectionIndex,
@@ -43,9 +45,10 @@ import type {
   RadarSourceDatasetSummary,
 } from "@/lib/businessRadar";
 
-export type RadarInspectionTab = "checks" | "evidence" | "records" | "sources" | "incidents" | "raw";
+export type RadarInspectionTab = "kpis" | "checks" | "evidence" | "records" | "sources" | "incidents" | "raw";
 type InspectionTab = RadarInspectionTab;
-type StatusFilter = RadarCheckStatus | "all" | "attention";
+type StatusFilter = RadarCheckStatus | "all" | "attention" | "applicable" | "assured" | "firing" | "live";
+type ScopeFilter = RadarCheckScope | "all" | "sentinel";
 
 const DOMAINS: AdvisorDomain[] = ["company", "sales", "inbox", "clients", "finance", "delivery", "marketing", "operations", "compliance", "development", "team", "systems"];
 const SCOPES: RadarCheckScope[] = ["kpi", "source", "property", "synthetic", "history", "watchdog"];
@@ -53,12 +56,45 @@ const LENSES: RadarRuleLens[] = ["connection", "freshness", "threshold", "trend"
 const CHECK_BATCH_SIZE = 200;
 const SOURCE_PAGE_SIZE = 100;
 
+interface RadarKpiScorecardRow {
+  id: string;
+  domain: AdvisorDomain;
+  familyId: string;
+  label: string;
+  status: RadarCheckStatus;
+  value?: number;
+  display?: string;
+  previousValue?: number;
+  targetValue?: number;
+  targetLabel: string;
+  expectedDirection: "higher" | "lower" | "neutral";
+  measuredAt: number;
+  lastSeenAt?: number;
+  sourceId: string;
+  sampleSize?: number;
+  historySamples: number;
+  historySpanMs?: number;
+  evidenceSamples: number;
+  domainConfidencePercent: number;
+  owner: string;
+  escalationRoute: string;
+  evaluationWindow: string;
+  notificationCadence: string;
+  warningTolerancePercent?: number;
+  criticalTolerancePercent?: number;
+  href: string;
+  checks: BusinessRadarCheck[];
+}
+
 export function RadarInspectionWorkspace({
   initialRadar,
   initialEvidence,
   initialTab,
   initialQuery = "",
   initialDomain = "all",
+  initialStatus = "all",
+  initialScope = "all",
+  initialLens = "all",
   embedded = false,
 }: {
   initialRadar: BusinessIssueRadar;
@@ -66,6 +102,9 @@ export function RadarInspectionWorkspace({
   initialTab: InspectionTab;
   initialQuery?: string;
   initialDomain?: AdvisorDomain | "all";
+  initialStatus?: StatusFilter;
+  initialScope?: ScopeFilter;
+  initialLens?: RadarRuleLens | "all";
   embedded?: boolean;
 }) {
   const [radar, setRadar] = useState(initialRadar);
@@ -73,9 +112,9 @@ export function RadarInspectionWorkspace({
   const [tab, setTab] = useState<InspectionTab>(initialTab);
   const [query, setQuery] = useState(initialQuery);
   const [domain, setDomain] = useState<AdvisorDomain | "all">(initialDomain);
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [scope, setScope] = useState<RadarCheckScope | "all">("all");
-  const [lens, setLens] = useState<RadarRuleLens | "all">("all");
+  const [status, setStatus] = useState<StatusFilter>(initialStatus);
+  const [scope, setScope] = useState<ScopeFilter>(initialScope);
+  const [lens, setLens] = useState<RadarRuleLens | "all">(initialLens);
   const [selectedCheckId, setSelectedCheckId] = useState(radar.checks.find(check => check.status !== "pass")?.id ?? radar.checks[0]?.id ?? "");
   const [selectedSeriesId, setSelectedSeriesId] = useState(evidence.series[0]?.id ?? "");
   const [seriesDetail, setSeriesDetail] = useState<RadarEvidenceSeriesInspection | null>(null);
@@ -88,18 +127,25 @@ export function RadarInspectionWorkspace({
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [visibleCheckCount, setVisibleCheckCount] = useState(CHECK_BATCH_SIZE);
+  const [selectedKpiId, setSelectedKpiId] = useState("");
   const deferredQuery = useDeferredValue(query);
+
+  const allKpis = useMemo(() => buildKpiScorecard(radar, evidence), [evidence, radar]);
+  const kpis = useMemo(() => {
+    const normalized = deferredQuery.trim().toLowerCase();
+    return allKpis
+      .filter(kpi => domain === "all" || kpi.domain === domain)
+      .filter(kpi => matchesStatus(kpi.status, status))
+      .filter(kpi => !normalized || JSON.stringify(kpi).toLowerCase().includes(normalized))
+      .sort((left, right) => statusRank(left.status) - statusRank(right.status) || left.domain.localeCompare(right.domain) || left.label.localeCompare(right.label));
+  }, [allKpis, deferredQuery, domain, status]);
 
   const checks = useMemo(() => {
     const normalized = deferredQuery.trim().toLowerCase();
     return radar.checks
       .filter(check => domain === "all" || check.domain === domain)
-      .filter(check => {
-        if (status === "all") return true;
-        if (status === "attention") return check.status !== "pass" && check.status !== "inactive";
-        return check.status === status;
-      })
-      .filter(check => scope === "all" || check.scope === scope)
+      .filter(check => matchesStatus(check.status, status))
+      .filter(check => matchesScope(check.scope, scope))
       .filter(check => lens === "all" || check.lens === lens)
       .filter(check => !normalized || JSON.stringify(check).toLowerCase().includes(normalized))
       .sort((left, right) => statusRank(left.status) - statusRank(right.status) || left.domain.localeCompare(right.domain) || left.familyLabel.localeCompare(right.familyLabel));
@@ -117,6 +163,7 @@ export function RadarInspectionWorkspace({
     return (sourceIndex?.datasets ?? []).filter(dataset => (domain === "all" || dataset.domain === domain) && (!normalized || JSON.stringify(dataset).toLowerCase().includes(normalized)));
   }, [deferredQuery, domain, sourceIndex]);
   const selectedDataset = filteredDatasets.find(dataset => dataset.id === selectedDatasetId) ?? filteredDatasets[0] ?? null;
+  const selectedKpi = kpis.find(kpi => kpi.id === selectedKpiId) ?? kpis[0] ?? null;
 
   useEffect(() => {
     setVisibleCheckCount(CHECK_BATCH_SIZE);
@@ -266,6 +313,7 @@ export function RadarInspectionWorkspace({
       <nav className="overflow-x-auto border-b border-black/10" aria-label="Radar inspection views">
         <div className="flex min-w-max gap-6" role="tablist">
           {([
+            ["kpis", "KPI scorecard", allKpis.length],
             ["checks", "Checks", radar.checks.length],
             ["evidence", "Evidence vault", evidence.series.length],
             ["records", "Source records", sourceIndex?.totalDatasets ?? null],
@@ -278,7 +326,7 @@ export function RadarInspectionWorkspace({
         </div>
       </nav>
 
-      {tab === "checks" || tab === "evidence" || tab === "records" ? (
+      {tab === "kpis" || tab === "checks" || tab === "evidence" || tab === "records" || tab === "incidents" ? (
         <InspectionFilters
           query={query}
           onQuery={setQuery}
@@ -291,6 +339,28 @@ export function RadarInspectionWorkspace({
           lens={lens}
           onLens={setLens}
           mode={tab}
+        />
+      ) : null}
+
+      {tab === "kpis" ? (
+        <KpiScorecard
+          rows={kpis}
+          selected={selectedKpi}
+          onSelect={setSelectedKpiId}
+          onInspectChecks={kpi => {
+            setSelectedCheckId(kpi.checks[0]?.id ?? "");
+            setQuery(kpi.familyId);
+            setDomain(kpi.domain);
+            setStatus("all");
+            setScope("kpi");
+            setLens("all");
+            void selectInspectionTab("checks");
+          }}
+          onInspectEvidence={kpi => {
+            setQuery(kpi.familyId);
+            setDomain(kpi.domain);
+            void selectInspectionTab("evidence");
+          }}
         />
       ) : null}
 
@@ -327,10 +397,138 @@ export function RadarInspectionWorkspace({
 
       {tab === "records" ? <SourceRecordsExplorer index={sourceIndex} datasets={filteredDatasets} selected={selectedDataset} detail={sourceDetail?.id === selectedDataset?.id ? sourceDetail : null} busy={sourceBusy} onRefresh={() => void loadSourceIndex()} onSelect={dataset => void loadSourceDataset(dataset)} onPage={(dataset, offset) => void loadSourceDataset(dataset, offset)} /> : null}
       {tab === "sources" ? <SourcesAndMetrics radar={radar} /> : null}
-      {tab === "incidents" ? <IncidentInspection radar={radar} /> : null}
+      {tab === "incidents" ? <IncidentInspection radar={radar} query={query} domain={domain} status={status} onInspectCheck={check => {
+        setSelectedCheckId(check.id);
+        setQuery(check.id);
+        setDomain(check.domain);
+        setStatus("all");
+        setScope(check.scope);
+        setLens(check.lens);
+        void selectInspectionTab("checks");
+      }} onInspectSource={check => void inspectCheckSource(check)} /> : null}
       {tab === "raw" ? <RawInspection radar={radar} evidence={evidence} copied={copied} onCopy={() => void copyRaw()} onExport={exportSnapshot} /> : null}
     </div>
   );
+}
+
+function KpiScorecard({ rows, selected, onSelect, onInspectChecks, onInspectEvidence }: {
+  rows: RadarKpiScorecardRow[];
+  selected: RadarKpiScorecardRow | null;
+  onSelect: (id: string) => void;
+  onInspectChecks: (row: RadarKpiScorecardRow) => void;
+  onInspectEvidence: (row: RadarKpiScorecardRow) => void;
+}) {
+  const measured = rows.filter(row => row.value !== undefined).length;
+  const passing = rows.filter(row => row.status === "pass").length;
+  const attention = rows.filter(row => ["critical", "warning", "watch"].includes(row.status)).length;
+  const calibrating = rows.filter(row => row.status === "learning" || row.status === "inactive").length;
+  const blind = rows.filter(row => row.status === "blind").length;
+
+  return <div className="grid gap-4" data-testid="radar-kpi-scorecard">
+    <section className="grid grid-cols-2 overflow-hidden border-y border-black/10 bg-white sm:grid-cols-3 xl:grid-cols-6" aria-label="KPI scorecard summary">
+      <SummaryMetric label="KPI families" value={rows.length} icon={<Target size={15} />} />
+      <SummaryMetric label="Measured" value={measured} icon={<Gauge size={15} />} tone={measured === rows.length ? "good" : "neutral"} />
+      <SummaryMetric label="On target" value={passing} icon={<Check size={15} />} tone="good" />
+      <SummaryMetric label="Attention" value={attention} icon={<AlertTriangle size={15} />} tone={attention ? "bad" : "good"} />
+      <SummaryMetric label="Calibrating" value={calibrating} icon={<History size={15} />} />
+      <SummaryMetric label="Blind" value={blind} icon={<EyeOff size={15} />} tone={blind ? "warn" : "good"} />
+    </section>
+
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 className="text-base font-semibold text-black/78">Business KPI scorecard</h2>
+        <p className="mt-1 text-xs leading-5 text-black/42">One accountable row per KPI family, consolidated from every threshold, trend, anomaly, forecast, confidence, and continuity check.</p>
+      </div>
+      <p className="text-xs tabular-nums text-black/38">{rows.length ? `${Math.round(measured / rows.length * 100)}% currently measurable` : "No KPI families match"}</p>
+    </div>
+
+    <div className="grid min-w-0 overflow-hidden border border-black/10 bg-white xl:grid-cols-[minmax(0,1fr)_440px]">
+      <section className="min-w-0 xl:border-r xl:border-black/10" aria-labelledby="kpi-ledger-heading">
+        <div className="hidden border-b border-black/10 bg-[#efeee9] px-4 py-2 text-[10px] font-semibold uppercase text-black/38 sm:grid sm:grid-cols-[minmax(190px,1fr)_110px_130px_120px_100px] sm:gap-3 sm:px-5">
+          <span id="kpi-ledger-heading">KPI</span><span>Actual</span><span>Target</span><span>Variance</span><span>Confidence</span>
+        </div>
+        <div className="max-h-[calc(100dvh-22rem)] min-h-[440px] divide-y divide-black/10 overflow-y-auto">
+          {rows.map(row => <KpiScorecardRow key={row.id} row={row} selected={selected?.id === row.id} onSelect={() => onSelect(row.id)} />)}
+          {!rows.length ? <Empty title="No matching KPIs" detail="Change the domain, status, or search phrase to widen the scorecard." /> : null}
+        </div>
+      </section>
+      <aside className="min-w-0 bg-[#faf9f6]" aria-label="Selected KPI details">
+        {selected ? <KpiInspector row={selected} onInspectChecks={() => onInspectChecks(selected)} onInspectEvidence={() => onInspectEvidence(selected)} /> : <Empty title="Choose a KPI" detail="Select a scorecard row to inspect its target, evidence, policy, and detector stack." />}
+      </aside>
+    </div>
+  </div>;
+}
+
+function KpiScorecardRow({ row, selected, onSelect }: { row: RadarKpiScorecardRow; selected: boolean; onSelect: () => void }) {
+  return <button type="button" onClick={onSelect} className={`grid w-full min-w-0 gap-3 px-4 py-3 text-left transition sm:grid-cols-[minmax(190px,1fr)_110px_130px_120px_100px] sm:items-center sm:px-5 ${selected ? "bg-black/[0.055]" : "hover:bg-black/[0.025]"}`}>
+    <span className="min-w-0">
+      <span className="flex min-w-0 items-center gap-2"><StatusIcon status={row.status} /><span className="min-w-0"><strong className="block truncate text-sm font-semibold text-black/78">{row.label}</strong><span className="mt-0.5 block truncate text-[10px] font-semibold uppercase text-black/35">{domainLabel(row.domain)} · {row.checks.length} checks</span></span></span>
+    </span>
+    <KpiRowValue label="Actual" value={formatKpiActual(row)} strong />
+    <KpiRowValue label="Target" value={row.targetLabel} />
+    <KpiRowValue label="Variance" value={formatKpiVariance(row)} tone={kpiVarianceTone(row)} />
+    <KpiRowValue label="Confidence" value={`${row.domainConfidencePercent}%`} detail={row.evidenceSamples ? `${row.evidenceSamples} points` : "No history"} />
+  </button>;
+}
+
+function KpiRowValue({ label, value, detail, strong = false, tone = "neutral" }: { label: string; value: string; detail?: string; strong?: boolean; tone?: "neutral" | "good" | "bad" }) {
+  const toneClass = tone === "good" ? "text-emerald-700" : tone === "bad" ? "text-red-700" : "text-black/62";
+  return <span className="min-w-0 text-xs tabular-nums"><span className="mb-0.5 block text-[9px] font-semibold uppercase text-black/30 sm:hidden">{label}</span><strong className={`block truncate ${strong ? "text-sm" : "text-xs"} ${toneClass}`}>{value}</strong>{detail ? <span className="mt-0.5 block truncate text-[10px] text-black/32">{detail}</span> : null}</span>;
+}
+
+function KpiInspector({ row, onInspectChecks, onInspectEvidence }: { row: RadarKpiScorecardRow; onInspectChecks: () => void; onInspectEvidence: () => void }) {
+  const trend = formatKpiTrend(row);
+  return <div className="max-h-[calc(100dvh-18rem)] min-h-[440px] overflow-y-auto">
+    <header className="border-b border-black/10 px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-center gap-2"><StatusBadge status={row.status} /><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(row.domain)} KPI · {row.checks.length} detector lenses</span></div>
+      <h2 className="mt-3 text-lg font-semibold text-black/85">{row.label}</h2>
+      <p className="mt-1 break-all font-mono text-[10px] text-black/32">{row.familyId}</p>
+    </header>
+    <InspectorSection title="Performance">
+      <div className="grid grid-cols-2 gap-px overflow-hidden border border-black/10 bg-black/10">
+        <DataCell label="Actual" value={formatKpiActual(row)} />
+        <DataCell label="Target" value={row.targetLabel} />
+        <DataCell label="Variance" value={formatKpiVariance(row)} />
+        <DataCell label="Movement" value={trend} />
+      </div>
+    </InspectorSection>
+    <InspectorSection title="Guardrails & ownership">
+      <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+        <KpiDefinition label="Expected direction" value={readable(row.expectedDirection)} />
+        <KpiDefinition label="Evaluation window" value={readable(row.evaluationWindow)} />
+        <KpiDefinition label="Warning tolerance" value={row.warningTolerancePercent === undefined ? "Not configured" : `${row.warningTolerancePercent}%`} />
+        <KpiDefinition label="Critical tolerance" value={row.criticalTolerancePercent === undefined ? "Not configured" : `${row.criticalTolerancePercent}%`} />
+        <KpiDefinition label="Owner" value={row.owner} />
+        <KpiDefinition label="Escalation" value={row.escalationRoute} />
+        <KpiDefinition label="Notifications" value={readable(row.notificationCadence)} />
+        <KpiDefinition label="Measured" value={formatDate(row.measuredAt)} />
+      </dl>
+    </InspectorSection>
+    <InspectorSection title="Evidence confidence">
+      <div className="grid grid-cols-2 gap-px overflow-hidden border border-black/10 bg-black/10">
+        <DataCell label="Domain confidence" value={`${row.domainConfidencePercent}%`} />
+        <DataCell label="Evidence points" value={row.evidenceSamples.toLocaleString()} />
+        <DataCell label="History samples" value={row.historySamples.toLocaleString()} />
+        <DataCell label="Current sample" value={row.sampleSize === undefined ? "Not declared" : row.sampleSize.toLocaleString()} />
+      </div>
+      <p className="mt-3 text-xs leading-5 text-black/42">{row.historySpanMs ? `${formatDuration(row.historySpanMs)} of retained history is contributing to this KPI family.` : "No retained history span is available yet; Radar will keep this KPI visibly learning or blind rather than pretending certainty."}</p>
+    </InspectorSection>
+    <InspectorSection title={`Contributing checks (${row.checks.length})`}>
+      <div className="divide-y divide-black/10 border-y border-black/10">
+        {row.checks.slice(0, 12).map(check => <div key={check.id} className="flex items-center justify-between gap-3 py-2.5"><span className="min-w-0"><strong className="block truncate text-xs font-semibold text-black/62">{check.lensLabel}</strong><span className="mt-0.5 block truncate text-[10px] text-black/35">{check.detail}</span></span><StatusBadge status={check.status} /></div>)}
+      </div>
+      {row.checks.length > 12 ? <p className="mt-2 text-xs text-black/38">{row.checks.length - 12} additional checks remain in the complete ledger.</p> : null}
+    </InspectorSection>
+    <div className="flex flex-wrap gap-2 px-4 py-4 sm:px-5">
+      <button type="button" onClick={onInspectChecks} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><RadioTower size={13} /> Inspect all checks</button>
+      <button type="button" onClick={onInspectEvidence} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><History size={13} /> Open evidence history</button>
+      <Link href={row.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65">Open owner workspace <ArrowUpRight size={13} /></Link>
+    </div>
+  </div>;
+}
+
+function KpiDefinition({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-[10px] font-semibold uppercase text-black/35">{label}</dt><dd className="mt-1 break-words text-sm text-black/65">{value}</dd></div>;
 }
 
 function InspectionFilters({ query, onQuery, domain, onDomain, status, onStatus, scope, onScope, lens, onLens, mode }: {
@@ -340,20 +538,21 @@ function InspectionFilters({ query, onQuery, domain, onDomain, status, onStatus,
   onDomain: (value: AdvisorDomain | "all") => void;
   status: StatusFilter;
   onStatus: (value: StatusFilter) => void;
-  scope: RadarCheckScope | "all";
-  onScope: (value: RadarCheckScope | "all") => void;
+  scope: ScopeFilter;
+  onScope: (value: ScopeFilter) => void;
   lens: RadarRuleLens | "all";
   onLens: (value: RadarRuleLens | "all") => void;
-  mode: "checks" | "evidence" | "records";
+  mode: "kpis" | "checks" | "evidence" | "records" | "incidents";
 }) {
-  const simpleMode = mode !== "checks";
-  const placeholder = mode === "records" ? "Search datasets, source IDs, fields, or domains..." : mode === "evidence" ? "Search series, source IDs, or values..." : "Search any check field, evidence, source, or ID...";
+  const showStatus = mode === "checks" || mode === "kpis" || mode === "incidents";
+  const showCheckFilters = mode === "checks";
+  const placeholder = mode === "records" ? "Search datasets, source IDs, fields, or domains..." : mode === "evidence" ? "Search series, source IDs, or values..." : mode === "incidents" ? "Search incidents, findings, evidence, check IDs, or sources..." : mode === "kpis" ? "Search KPI, owner, target, source, or domain..." : "Search any check field, evidence, source, or ID...";
   return <div className="grid gap-2 border-y border-black/10 bg-white p-3 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_160px_160px_160px_160px]">
     <label className="relative block min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => onQuery(event.target.value)} placeholder={placeholder} className="mm-field min-h-10 w-full pl-10 text-sm" /></label>
     <Select label="Domain" value={domain} onChange={value => onDomain(value as AdvisorDomain | "all")} options={["all", ...DOMAINS]} />
-    {!simpleMode ? <Select label="Status" value={status} onChange={value => onStatus(value as StatusFilter)} options={["all", "attention", "critical", "warning", "watch", "blind", "learning", "inactive", "pass"]} /> : <div className="hidden lg:block" />}
-    {!simpleMode ? <Select label="Scope" value={scope} onChange={value => onScope(value as RadarCheckScope | "all")} options={["all", ...SCOPES]} /> : <div className="hidden lg:block" />}
-    {!simpleMode ? <Select label="Lens" value={lens} onChange={value => onLens(value as RadarRuleLens | "all")} options={["all", ...LENSES]} /> : <div className="hidden lg:block" />}
+    {showStatus ? <Select label="Status" value={status} onChange={value => onStatus(value as StatusFilter)} options={mode === "incidents" ? ["all", "attention", "critical", "warning", "watch"] : ["all", "attention", "applicable", "assured", "firing", "live", "critical", "warning", "watch", "blind", "learning", "inactive", "pass"]} /> : <div className="hidden lg:block" />}
+    {showCheckFilters ? <Select label="Scope" value={scope} onChange={value => onScope(value as ScopeFilter)} options={["all", "sentinel", ...SCOPES]} /> : <div className="hidden lg:block" />}
+    {showCheckFilters ? <Select label="Lens" value={lens} onChange={value => onLens(value as RadarRuleLens | "all")} options={["all", ...LENSES]} /> : <div className="hidden lg:block" />}
   </div>;
 }
 
@@ -499,11 +698,29 @@ function SourcesAndMetrics({ radar }: { radar: BusinessIssueRadar }) {
   </div>;
 }
 
-function IncidentInspection({ radar }: { radar: BusinessIssueRadar }) {
-  return <div className="grid gap-5"><section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<ShieldCheck size={17} />} title="Adaptive conclusions" detail="High-level conclusions generated from health, confidence, readiness, and operating stage." count={radar.adaptive.conclusions.length} /><div className="grid sm:grid-cols-2 xl:grid-cols-4">{radar.adaptive.conclusions.map((item, index) => <article key={item.id} className={`px-4 py-4 sm:px-5 ${index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""}`}><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${item.severity === "critical" ? "bg-red-600" : item.severity === "warning" ? "bg-amber-500" : item.severity === "watch" ? "bg-sky-500" : "bg-black/25"}`} /><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(item.domain)}</span></div><h3 className="mt-2 text-sm font-semibold text-black/75">{item.title}</h3><p className="mt-1 text-xs leading-5 text-black/45">{item.detail}</p></article>)}</div></section>
-    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<AlertTriangle size={17} />} title="Grouped incidents" detail="Related findings grouped into command-level incidents without discarding their check IDs." count={radar.incidents.length} /><div className="divide-y divide-black/10">{radar.incidents.map(incident => <article key={incident.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_260px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(incident.severity)}`}>{incident.severity}</span><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(incident.domain)} · {incident.findingCount} findings</span></div><h3 className="mt-2 text-sm font-semibold text-black/80">{incident.title}</h3><p className="mt-1 text-sm leading-6 text-black/50">{incident.detail}</p><ul className="mt-3 space-y-1">{incident.evidence.map((item, index) => <li key={`${index}:${item}`} className="text-xs text-black/45">• {item}</li>)}</ul></div><div className="space-y-2"><Identifier label="Incident ID" value={incident.id} /><Identifier label="Source IDs" value={incident.sourceIds.join(", ") || "None"} /><Identifier label="Check IDs" value={incident.checkIds.join(", ") || "None"} /><Link href={incident.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65">Open source <ArrowUpRight size={13} /></Link></div></article>)}{!radar.incidents.length ? <Empty title="No grouped incidents" detail="Use Checks to inspect passing, learning, blind, and inactive evaluations as well." /> : null}</div></section>
-    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Activity size={17} />} title="Underlying findings" detail="The ungrouped issue records retained before incident correlation." count={radar.issues.length} /><div className="divide-y divide-black/10">{radar.issues.map(issue => <details key={issue.id} className="group px-4 py-3 sm:px-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="min-w-0"><span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(issue.severity)}`}>{issue.severity}</span><strong className="text-sm font-semibold text-black/72">{issue.title}</strong></span><span className="shrink-0 text-[10px] font-semibold uppercase text-black/35">{domainLabel(issue.domain)}</span></summary><div className="pb-2 pt-3"><p className="text-sm leading-6 text-black/50">{issue.detail}</p><pre className="mt-3 max-h-80 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(issue, null, 2)}</pre></div></details>)}</div></section>
+function IncidentInspection({ radar, query, domain, status, onInspectCheck, onInspectSource }: { radar: BusinessIssueRadar; query: string; domain: AdvisorDomain | "all"; status: StatusFilter; onInspectCheck: (check: BusinessRadarCheck) => void; onInspectSource: (check: BusinessRadarCheck) => void }) {
+  const normalized = query.trim().toLowerCase();
+  const selectedIncident = radar.incidents.find(item => item.id.toLowerCase() === normalized);
+  const matches = (item: unknown, itemDomain: AdvisorDomain, severity: BusinessRadarIssue["severity"] | "info") => (domain === "all" || itemDomain === domain) && matchesIncidentStatus(severity, status) && (!normalized || JSON.stringify(item).toLowerCase().includes(normalized));
+  const conclusions = selectedIncident ? [] : radar.adaptive.conclusions.filter(item => matches(item, item.domain, item.severity));
+  const incidents = selectedIncident ? [selectedIncident] : radar.incidents.filter(item => matches(item, item.domain, item.severity));
+  const issues = selectedIncident ? radar.issues.filter(item => selectedIncident.issueIds.includes(item.id)) : radar.issues.filter(item => matches(item, item.domain, item.severity));
+  const exactChecks = selectedIncident ? selectedIncident.checkIds.map(checkId => radar.checks.find(check => check.id === checkId)).filter((check): check is BusinessRadarCheck => Boolean(check)) : [];
+  return <div className="grid gap-5">{selectedIncident ? <IncidentExactBreakdown incident={selectedIncident} issues={issues} checks={exactChecks} onInspectCheck={onInspectCheck} onInspectSource={onInspectSource} /> : <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<ShieldCheck size={17} />} title="Adaptive conclusions" detail="High-level conclusions generated from health, confidence, readiness, and operating stage." count={conclusions.length} /><div className="grid sm:grid-cols-2 xl:grid-cols-4">{conclusions.map((item, index) => <article key={item.id} className={`px-4 py-4 sm:px-5 ${index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""}`}><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${item.severity === "critical" ? "bg-red-600" : item.severity === "warning" ? "bg-amber-500" : item.severity === "watch" ? "bg-sky-500" : "bg-black/25"}`} /><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(item.domain)}</span></div><h3 className="mt-2 text-sm font-semibold text-black/75">{item.title}</h3><p className="mt-1 text-xs leading-5 text-black/45">{item.detail}</p></article>)}</div>{!conclusions.length ? <Empty title="No matching conclusions" detail="Adjust the search or domain filter to inspect a broader command summary." /> : null}</section>}
+    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<AlertTriangle size={17} />} title="Grouped incidents" detail="Related findings stay grouped at command level, while the exact issues and checks remain independently inspectable." count={incidents.length} /><div className="divide-y divide-black/10">{incidents.map(incident => <article key={incident.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_260px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(incident.severity)}`}>{incident.severity}</span><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(incident.domain)} · {incident.issueIds.length} issues · {incident.checkIds.length} checks</span></div><h3 className="mt-2 text-sm font-semibold text-black/80">{incident.title}</h3><p className="mt-1 text-sm leading-6 text-black/50">{incident.detail}</p><ul className="mt-3 space-y-1">{incident.evidence.map((item, index) => <li key={`${index}:${item}`} className="text-xs text-black/45">• {item}</li>)}</ul></div><div className="space-y-2"><Identifier label="Incident ID" value={incident.id} /><Identifier label="Source IDs" value={incident.sourceIds.join(", ") || "None"} /><Identifier label="Check IDs" value={incident.checkIds.join(", ") || "None"} /><Link href={incident.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65">Open source <ArrowUpRight size={13} /></Link></div></article>)}{!incidents.length ? <Empty title="No matching grouped incidents" detail="The complete finding ledger remains available below and in the Checks view." /> : null}</div></section>
+    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Activity size={17} />} title="Underlying findings" detail="The ungrouped issue records retained before incident correlation." count={issues.length} /><div className="divide-y divide-black/10">{issues.map(issue => <details key={issue.id} className="group px-4 py-3 sm:px-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="min-w-0"><span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(issue.severity)}`}>{issue.severity}</span><strong className="text-sm font-semibold text-black/72">{issue.title}</strong></span><span className="shrink-0 text-[10px] font-semibold uppercase text-black/35">{domainLabel(issue.domain)}</span></summary><div className="pb-2 pt-3"><p className="text-sm leading-6 text-black/50">{issue.detail}</p><pre className="mt-3 max-h-80 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(issue, null, 2)}</pre></div></details>)}{!issues.length ? <Empty title="No matching underlying findings" detail="Adjust the search or domain filter to inspect a broader set of findings." /> : null}</div></section>
   </div>;
+}
+
+function IncidentExactBreakdown({ incident, issues, checks, onInspectCheck, onInspectSource }: { incident: BusinessRadarIncident; issues: BusinessRadarIssue[]; checks: BusinessRadarCheck[]; onInspectCheck: (check: BusinessRadarCheck) => void; onInspectSource: (check: BusinessRadarCheck) => void }) {
+  return <section className="overflow-hidden border border-black/10 bg-white" data-testid="incident-exact-breakdown">
+    <header className="border-b border-black/10 bg-[#f5f4ef] px-4 py-4 sm:px-5"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(incident.severity)}`}>{incident.severity}</span><span className="text-[10px] font-semibold uppercase text-black/38">Exact incident breakdown · {domainLabel(incident.domain)}</span></div><h2 className="mt-2 text-lg font-semibold text-black/82">{incident.title}</h2><p className="mt-1 max-w-4xl text-sm leading-6 text-black/50">These are the specific underlying findings and detector results represented by the command-level summary. Nothing below is inferred from the domain total.</p></header>
+    <div className="grid grid-cols-3 border-b border-black/10 bg-white"><DataCell label="Underlying issues" value={issues.length} /><DataCell label="Exact checks" value={checks.length} /><DataCell label="Evidence sources" value={incident.sourceIds.length} /></div>
+    <div className="grid lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
+      <section className="border-b border-black/10 lg:border-b-0 lg:border-r" aria-labelledby="exact-issues-heading"><div className="border-b border-black/10 px-4 py-3 sm:px-5"><h3 id="exact-issues-heading" className="text-sm font-semibold text-black/72">Exact underlying issues</h3><p className="mt-1 text-xs text-black/40">The original ungrouped issue records.</p></div><div className="divide-y divide-black/10">{issues.map(issue => <article key={issue.id} className="px-4 py-4 sm:px-5"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(issue.severity)}`}>{issue.severity}</span><span className="break-all font-mono text-[9px] text-black/30">{issue.id}</span></div><h4 className="mt-2 text-sm font-semibold text-black/75">{issue.title}</h4><p className="mt-1 text-xs leading-5 text-black/48">{issue.detail}</p><ul className="mt-2 space-y-1">{issue.evidence.map((item, index) => <li key={`${issue.id}:${index}`} className="text-[11px] leading-4 text-black/42">• {item}</li>)}</ul></article>)}{!issues.length ? <Empty title="No raw issue record" detail="This incident currently derives from detector state rather than an additional issue record." /> : null}</div></section>
+      <section aria-labelledby="exact-checks-heading"><div className="border-b border-black/10 px-4 py-3 sm:px-5"><h3 id="exact-checks-heading" className="text-sm font-semibold text-black/72">Exact detector checks</h3><p className="mt-1 text-xs text-black/40">Every attached check is named with its missing proof, evidence and source.</p></div><div className="divide-y divide-black/10">{checks.map(check => <article key={check.id} className="px-4 py-4 sm:px-5"><div className="flex flex-wrap items-center gap-2"><StatusBadge status={check.status} /><span className="text-[10px] font-semibold uppercase text-black/35">{readable(check.scope)} · {check.lensLabel}</span></div><h4 className="mt-2 text-sm font-semibold text-black/78">{check.title}</h4><p className="mt-1 text-xs leading-5 text-black/48">{check.detail}</p><ul className="mt-2 space-y-1">{check.evidence.map((item, index) => <li key={`${check.id}:${index}`} className="text-[11px] leading-4 text-black/42">• {item}</li>)}</ul><p className="mt-2 break-all font-mono text-[9px] text-black/30">{check.id} · {check.sourceId}</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => onInspectCheck(check)} className="inline-flex min-h-8 items-center gap-2 rounded-md bg-black px-2.5 text-[11px] font-semibold text-white"><Gauge size={12} /> Full calculation</button><button type="button" onClick={() => onInspectSource(check)} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-black/10 px-2.5 text-[11px] font-semibold text-black/62"><Database size={12} /> Source records</button></div></article>)}{!checks.length ? <Empty title="No detector record attached" detail="The original issue and its evidence remain visible on the left; no unrelated domain checks are being substituted." /> : null}</div></section>
+    </div>
+  </section>;
 }
 
 function RawInspection({ radar, evidence, copied, onCopy, onExport }: { radar: BusinessIssueRadar; evidence: RadarEvidenceInspectionIndex; copied: boolean; onCopy: () => void; onExport: () => void }) {
@@ -551,6 +768,164 @@ function StatusIcon({ status }: { status: RadarCheckStatus }) {
 }
 function StatusBadge({ status }: { status: RadarCheckStatus }) { return <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${status === "pass" ? "bg-emerald-100 text-emerald-800" : status === "critical" ? "bg-red-100 text-red-800" : status === "warning" ? "bg-amber-100 text-amber-800" : status === "blind" ? "bg-orange-100 text-orange-800" : status === "learning" ? "bg-violet-100 text-violet-800" : status === "inactive" ? "bg-black/[0.06] text-black/50" : "bg-sky-100 text-sky-800"}`}>{status}</span>; }
 function SignalBadge({ status }: { status: BusinessIssueRadar["signals"][number]["status"] }) { return <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${status === "healthy" ? "bg-emerald-100 text-emerald-800" : status === "critical" ? "bg-red-100 text-red-800" : status === "warning" ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"}`}>{status}</span>; }
+
+function buildKpiScorecard(radar: BusinessIssueRadar, evidence: RadarEvidenceInspectionIndex): RadarKpiScorecardRow[] {
+  const groups = new Map<string, BusinessRadarCheck[]>();
+  for (const check of radar.checks) {
+    if (check.scope !== "kpi") continue;
+    const key = `${check.domain}:${check.familyId}`;
+    groups.set(key, [...(groups.get(key) ?? []), check]);
+  }
+
+  const matchedSignals = new Set<string>();
+  const rows: RadarKpiScorecardRow[] = [...groups.values()].map(checks => {
+    const ordered = [...checks].sort((left, right) => Number(right.lens === "threshold") - Number(left.lens === "threshold") || right.measuredAt - left.measuredAt);
+    const primary = ordered.find(check => check.value !== undefined) ?? ordered[0]!;
+    const policyCheck = ordered.find(check => check.policy?.targetValue !== undefined || check.policy?.targetLabel) ?? ordered.find(check => check.policy);
+    const policy = policyCheck?.policy;
+    const signal = findKpiSignal(radar, primary);
+    if (signal) matchedSignals.add(signal.id);
+    const relatedEvidence = evidence.series.filter(series => series.domain === primary.domain && (series.familyId === primary.familyId || normalizeKpiKey(series.familyLabel) === normalizeKpiKey(primary.familyLabel)));
+    const domainSummary = radar.domains.find(item => item.domain === primary.domain);
+    const value = primary.value ?? signal?.value ?? undefined;
+    const status = ordered.reduce<RadarCheckStatus>((worst, check) => statusRank(check.status) < statusRank(worst) ? check.status : worst, statusFromSignal(signal?.status));
+    const targetValue = policy?.targetValue;
+    return {
+      id: `${primary.domain}:${primary.familyId}`,
+      domain: primary.domain,
+      familyId: primary.familyId,
+      label: primary.familyLabel,
+      status,
+      value: value === null ? undefined : value,
+      display: signal?.display,
+      previousValue: ordered.find(check => check.previousValue !== undefined)?.previousValue,
+      targetValue,
+      targetLabel: policy?.targetLabel || (targetValue !== undefined ? formatNumber(targetValue) : signal?.target || "Not configured"),
+      expectedDirection: policy?.expectedDirection ?? primary.expectedDirection ?? "neutral",
+      measuredAt: Math.max(signal?.measuredAt ?? 0, ...ordered.map(check => check.measuredAt)),
+      lastSeenAt: newestNumber(ordered.map(check => check.lastSeenAt)),
+      sourceId: primary.sourceId,
+      sampleSize: newestNumber(ordered.map(check => check.sampleSize)),
+      historySamples: newestNumber(ordered.map(check => check.historySamples)) ?? 0,
+      historySpanMs: newestNumber(ordered.map(check => check.historySpanMs)),
+      evidenceSamples: relatedEvidence.reduce((total, series) => total + series.totalSamples, 0),
+      domainConfidencePercent: domainSummary?.confidencePercent ?? 0,
+      owner: policy?.owner || "Unassigned",
+      escalationRoute: policy?.escalationRoute || "Not configured",
+      evaluationWindow: policy?.evaluationWindow || "Not configured",
+      notificationCadence: policy?.notificationCadence || "Not configured",
+      warningTolerancePercent: policy?.warningTolerancePercent,
+      criticalTolerancePercent: policy?.criticalTolerancePercent,
+      href: primary.href || signal?.href || "/portal/agency",
+      checks: ordered,
+    } satisfies RadarKpiScorecardRow;
+  });
+
+  for (const signal of radar.signals) {
+    if (matchedSignals.has(signal.id)) continue;
+    const relatedEvidence = evidence.series.filter(series => series.domain === signal.domain && (normalizeKpiKey(series.familyId) === normalizeKpiKey(signal.id) || normalizeKpiKey(series.familyLabel) === normalizeKpiKey(signal.label)));
+    rows.push({
+      id: `${signal.domain}:signal:${signal.id}`,
+      domain: signal.domain,
+      familyId: signal.id,
+      label: signal.label,
+      status: statusFromSignal(signal.status),
+      value: signal.value ?? undefined,
+      display: signal.display,
+      targetLabel: signal.target || "Not configured",
+      expectedDirection: "neutral",
+      measuredAt: signal.measuredAt,
+      sourceId: signal.id,
+      sampleSize: signal.sampleSize,
+      historySamples: 0,
+      evidenceSamples: relatedEvidence.reduce((total, series) => total + series.totalSamples, 0),
+      domainConfidencePercent: radar.domains.find(item => item.domain === signal.domain)?.confidencePercent ?? 0,
+      owner: "Unassigned",
+      escalationRoute: "Not configured",
+      evaluationWindow: "Not configured",
+      notificationCadence: "Not configured",
+      href: signal.href,
+      checks: [],
+    });
+  }
+
+  return rows;
+}
+
+function findKpiSignal(radar: BusinessIssueRadar, check: BusinessRadarCheck) {
+  const family = normalizeKpiKey(check.familyId);
+  const label = normalizeKpiKey(check.familyLabel);
+  return radar.signals.find(signal => {
+    if (signal.domain !== check.domain) return false;
+    const signalId = normalizeKpiKey(signal.id);
+    const signalLabel = normalizeKpiKey(signal.label);
+    return signalId === family || signalLabel === label || (signalId.length > 5 && family.includes(signalId)) || (family.length > 5 && signalId.includes(family));
+  });
+}
+
+function statusFromSignal(status?: BusinessIssueRadar["signals"][number]["status"]): RadarCheckStatus {
+  if (!status) return "pass";
+  if (status === "healthy") return "pass";
+  if (status === "critical" || status === "warning" || status === "watch") return status;
+  return "learning";
+}
+
+function matchesStatus(status: RadarCheckStatus, filter: StatusFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "attention") return status !== "pass" && status !== "inactive";
+  if (filter === "applicable") return status !== "inactive";
+  if (filter === "assured") return status === "pass" || status === "critical" || status === "warning";
+  if (filter === "firing") return status === "critical" || status === "warning";
+  if (filter === "live") return status !== "learning" && status !== "blind" && status !== "inactive";
+  return status === filter;
+}
+
+function matchesIncidentStatus(severity: BusinessRadarIssue["severity"] | "info", filter: StatusFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "attention") return severity !== "info";
+  if (filter === "critical" || filter === "warning" || filter === "watch") return severity === filter;
+  return false;
+}
+
+function matchesScope(scope: RadarCheckScope, filter: ScopeFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "sentinel") return scope === "source" || scope === "property" || scope === "synthetic" || scope === "watchdog";
+  return scope === filter;
+}
+
+function normalizeKpiKey(value: string): string { return value.toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function newestNumber(values: Array<number | undefined>): number | undefined { const available = values.filter((value): value is number => value !== undefined && Number.isFinite(value)); return available.length ? Math.max(...available) : undefined; }
+
+function formatKpiActual(row: RadarKpiScorecardRow): string {
+  if (row.display && row.value !== undefined) return row.display;
+  return row.value === undefined ? "No measurement" : formatNumber(row.value);
+}
+
+function formatKpiVariance(row: RadarKpiScorecardRow): string {
+  if (row.value === undefined) return "No actual";
+  if (row.targetValue === undefined) return "Text target";
+  if (row.expectedDirection === "neutral") return `${formatNumber(row.value - row.targetValue)} difference`;
+  const favorableDifference = row.expectedDirection === "higher" ? row.value - row.targetValue : row.targetValue - row.value;
+  if (row.targetValue === 0) return favorableDifference === 0 ? "On target" : `${favorableDifference > 0 ? "+" : ""}${formatNumber(favorableDifference)}`;
+  const percent = favorableDifference / Math.abs(row.targetValue) * 100;
+  if (Math.abs(percent) < 0.05) return "On target";
+  return `${percent > 0 ? "+" : ""}${percent.toFixed(1)}% ${percent > 0 ? "ahead" : "behind"}`;
+}
+
+function kpiVarianceTone(row: RadarKpiScorecardRow): "neutral" | "good" | "bad" {
+  if (row.value === undefined || row.targetValue === undefined || row.expectedDirection === "neutral") return "neutral";
+  const favorableDifference = row.expectedDirection === "higher" ? row.value - row.targetValue : row.targetValue - row.value;
+  return favorableDifference >= 0 ? "good" : "bad";
+}
+
+function formatKpiTrend(row: RadarKpiScorecardRow): string {
+  if (row.value === undefined || row.previousValue === undefined) return "No prior point";
+  const difference = row.value - row.previousValue;
+  if (difference === 0) return "Flat vs prior";
+  if (row.previousValue === 0) return `${difference > 0 ? "+" : ""}${formatNumber(difference)} vs prior`;
+  const percent = difference / Math.abs(row.previousValue) * 100;
+  return `${percent > 0 ? "+" : ""}${percent.toFixed(1)}% vs prior`;
+}
 
 function statusRank(status: RadarCheckStatus): number { return ({ critical: 0, warning: 1, blind: 2, watch: 3, learning: 4, inactive: 5, pass: 6 })[status]; }
 function severityClass(severity: "critical" | "warning" | "watch") { return severity === "critical" ? "bg-red-100 text-red-800" : severity === "warning" ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"; }

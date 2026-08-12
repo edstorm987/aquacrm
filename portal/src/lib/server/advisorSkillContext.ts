@@ -131,6 +131,22 @@ export async function buildAdvisorSkillContext(
       scopes: skill.scopes,
       maxRecords: skill.maxRecords,
     },
+    command: {
+      recommendedActions: context.recommendedActions,
+      visibility: {
+        healthScore: radar.adaptive.healthScore,
+        confidencePercent: radar.adaptive.confidencePercent,
+        readinessPercent: radar.adaptive.readinessPercent,
+        criticalIncidents: radar.summary.critical,
+        warningIncidents: radar.summary.warning,
+        blindChecks: radar.summary.blindChecks,
+        learningChecks: radar.summary.learningChecks,
+        connectedSources: radar.summary.connectedSources,
+        totalSources: radar.summary.totalSources,
+        calibratingDomains: radar.adaptive.calibratingDomains,
+      },
+      instruction: "These five deterministic command recommendations and visibility limits are always supplied. Never describe the business as healthy without reconciling them.",
+    },
     data,
   };
   return { payload, serialized: JSON.stringify(payload), truncated: false };

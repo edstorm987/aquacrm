@@ -29,6 +29,8 @@ import { isAssistantConfigured } from "@/lib/server/openaiAssistant";
 import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardCommandCenter";
 import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
 import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
+import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedActions";
 
 export default async function AgencyHome() {
   await ensureHydrated();
@@ -40,7 +42,11 @@ export default async function AgencyHome() {
   const products = listAgencyProducts(agency.id);
   const serviceBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
   const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
-  const businessRadar = await getCachedBusinessIssueRadar(agency.id);
+  const recommendationTime = Date.now();
+  const [businessRadar, operationalAlerts] = await Promise.all([
+    getCachedBusinessIssueRadar(agency.id),
+    listOperationalAlerts(agency.id, recommendationTime),
+  ]);
   const radarEvidence = inspectRadarEvidence(agency.id);
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
@@ -132,6 +138,13 @@ export default async function AgencyHome() {
         signals={dashboardSignals}
         businessRadar={businessRadar}
         radarEvidence={radarEvidence}
+        recommendedActions={buildBusinessRecommendedActions({
+          radar: businessRadar,
+          alerts: operationalAlerts,
+          existingTaskTitles: tasks.filter(task => task.status !== "done").map(task => task.title),
+          now: recommendationTime,
+          limit: 5,
+        })}
         advisorConfigured={isAssistantConfigured(agency.id)}
         counts={{
           activeClients: activeClients.length,
