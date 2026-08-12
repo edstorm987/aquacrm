@@ -8,6 +8,7 @@ interface TransactionalEmailInput {
   bodyHtml: string;
   agencyId: string;
   clientId?: string;
+  fromName?: string;
   externalRef: string;
 }
 
@@ -15,6 +16,26 @@ export interface TransactionalEmailResult {
   delivered: boolean;
   via: "resend" | "unconfigured";
   reason?: string;
+}
+
+export interface TransactionalEmailReadiness {
+  configured: boolean;
+  reason?: string;
+}
+
+export function transactionalEmailReadiness(
+  agencyId: string,
+  clientId?: string,
+): TransactionalEmailReadiness {
+  const managed = resolveIntegrationValues(agencyId, "resend", { clientId });
+  const apiKey = managed.apiKey || process.env.RESEND_API_KEY?.trim();
+  const fromEmail = managed.fromEmail || process.env.MILESYMEDIA_FROM_EMAIL?.trim();
+  return apiKey && fromEmail
+    ? { configured: true }
+    : {
+        configured: false,
+        reason: "Connect Resend and add a sender email in Company -> Connections.",
+      };
 }
 
 export async function sendTransactionalEmail(
@@ -31,7 +52,7 @@ export async function sendTransactionalEmail(
     };
   }
 
-  const fromName = managed.fromName || process.env.MILESYMEDIA_FROM_NAME?.trim() || "AquaOasis-Web";
+  const fromName = input.fromName?.trim() || managed.fromName || process.env.MILESYMEDIA_FROM_NAME?.trim() || "AquaOasis-Web";
   const result = await sendResendEmail({
     apiKey,
     to: input.to,

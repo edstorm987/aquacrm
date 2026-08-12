@@ -76,6 +76,7 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
     if (isAgencyRole(input.role)) {
       // AquaOasis-Web canonical sidebar: the business's daily operating areas.
       // rows under Agency OS, in this order. Everything else stays parked.
+      items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -9 });
       items.push({ id: "inbox",       label: "Master inbox",       href: "/portal/agency/inbox",           panelId: "main", order: -8 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "main", order: -5.8 });
       items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -5.5 });
@@ -204,7 +205,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
-      "home", "inbox", "fulfilment", "you-deserve-it",
+      "home", "actions", "inbox", "fulfilment", "you-deserve-it",
       "pipelines", "development", "marketing", "finance", "sop-library",
     ]);
     const canonicalOrder = [...canonicalMainIds];

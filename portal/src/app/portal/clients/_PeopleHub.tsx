@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { Building2, ClipboardPenLine, Columns3, FolderKanban, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, UserRound, UsersRound, X, type LucideIcon } from "lucide-react";
 
 import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
@@ -135,8 +136,8 @@ export function PeopleHub({
       <div className="mt-6 border-b border-black/10">
         <div className="flex gap-3 overflow-x-auto sm:gap-6" role="tablist" aria-label="People view">
           <Tab active={view === "clients"} onClick={() => setView("clients")} label="Clients" count={clients.length} icon={Building2} />
-          <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} icon={HeartPulse} />
-          <Tab active={view === "journey"} onClick={() => setView("journey")} label="Journey" count={journeyRows.length} icon={Route} />
+          <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} icon={HeartPulse} attentionPrefixHref="/portal/clients" />
+          <Tab active={view === "journey"} onClick={() => setView("journey")} label="Journey" count={journeyRows.length} icon={Route} attentionPrefixHref="/portal/agency/pipelines" />
           <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contactRows.length} icon={UserRound} />
           <Tab active={view === "staff"} onClick={() => setView("staff")} label="Staff" count={staffCount} icon={UsersRound} />
           <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={clients.length + contactRows.length} icon={List} />
@@ -212,10 +213,10 @@ export function PeopleHub({
   );
 }
 
-function Tab({ active, onClick, label, count, icon: Icon }: { active: boolean; onClick: () => void; label: string; count: number; icon: LucideIcon }) {
+function Tab({ active, onClick, label, count, icon: Icon, attentionPrefixHref }: { active: boolean; onClick: () => void; label: string; count: number; icon: LucideIcon; attentionPrefixHref?: string }) {
   return (
     <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
-      <Icon size={15} aria-hidden="true" /><span>{label} <span className="ml-1 text-xs tabular-nums text-black/35">{count}</span></span>
+      <Icon size={15} aria-hidden="true" /><span>{label} <span className="ml-1 text-xs tabular-nums text-black/35">{count}</span></span><AttentionDot prefixHref={attentionPrefixHref} />
       {active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
     </button>
   );

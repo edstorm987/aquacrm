@@ -8,6 +8,18 @@ export type WebsiteEnquiryChannel = "form" | "chatbot" | "support";
 export type WebsiteEnquiryPriority = "urgent" | "high" | "normal";
 export type WebsiteEnquiryStatus = "open" | "reviewed" | "resolved";
 
+export interface WebsiteEnquiryReply {
+  id: string;
+  subject: string;
+  message: string;
+  recipient: string;
+  sentAt: number;
+  sentBy: string;
+  status: "sent" | "failed";
+  via: "resend" | "unconfigured";
+  error?: string;
+}
+
 export interface WebsiteEnquiry {
   id: string;
   brand: string;
@@ -38,6 +50,7 @@ export interface WebsiteEnquiry {
   resolvedAt?: number;
   firstRespondedAt?: number;
   lastRespondedAt?: number;
+  replies: WebsiteEnquiryReply[];
   notification: "sent" | "failed" | "not-configured" | "pending" | "unknown";
 }
 
@@ -84,6 +97,35 @@ function metadataStamp(metadata: Record<string, unknown>, key: string): number |
   if (typeof value !== "string") return undefined;
   const stamp = Date.parse(value);
   return Number.isFinite(stamp) ? stamp : undefined;
+}
+
+function inboxReplies(metadata: Record<string, unknown>): WebsiteEnquiryReply[] {
+  if (!Array.isArray(metadata.inboxReplies)) return [];
+  return metadata.inboxReplies.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const value = item as Record<string, unknown>;
+    if (
+      typeof value.id !== "string"
+      || typeof value.subject !== "string"
+      || typeof value.message !== "string"
+      || typeof value.recipient !== "string"
+      || typeof value.sentAt !== "number"
+      || typeof value.sentBy !== "string"
+      || (value.status !== "sent" && value.status !== "failed")
+      || (value.via !== "resend" && value.via !== "unconfigured")
+    ) return [];
+    return [{
+      id: value.id,
+      subject: value.subject,
+      message: value.message,
+      recipient: value.recipient,
+      sentAt: value.sentAt,
+      sentBy: value.sentBy,
+      status: value.status as WebsiteEnquiryReply["status"],
+      via: value.via as WebsiteEnquiryReply["via"],
+      error: typeof value.error === "string" ? value.error : undefined,
+    }];
+  }).sort((a, b) => a.sentAt - b.sentAt);
 }
 
 export async function recordWebsiteEnquiryResponse(enquiryId: string, respondedAt: number, actorUserId: string): Promise<boolean> {
@@ -197,6 +239,7 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       resolvedAt: metadataStamp(metadata, "lastResolvedAt") ?? metadataStamp(metadata, "resolvedAt"),
       firstRespondedAt: metadataStamp(metadata, "firstRespondedAt"),
       lastRespondedAt: metadataStamp(metadata, "lastRespondedAt"),
+      replies: inboxReplies(metadata),
       notification,
     };
   });

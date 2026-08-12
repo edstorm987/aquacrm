@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import { TABS, type TabId } from "./_tabs";
+import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 
 export type { TabId };
 
@@ -29,7 +30,7 @@ export function OverviewTabs({ clientId, active }: { clientId: string; active: T
                 : "border-transparent text-black/65 hover:text-black/85",
             ].join(" ")}
           >
-            {tab.label}
+            <span className="inline-flex items-center gap-2">{tab.label}<AttentionDot href={href} /></span>
           </Link>
         );
       })}

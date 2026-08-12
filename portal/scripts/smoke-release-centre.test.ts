@@ -24,8 +24,9 @@ test("settings exposes version and release history", () => {
 });
 
 test("notification centre combines operational alerts and product updates", () => {
-  assert.match(bellSource, /operationalCount \+ \(updateUnread \? 1 : 0\)/);
-  assert.match(bellSource, /Explore what&apos;s new/);
+  assert.match(bellSource, /groups\.attention\.length \+ \(updateUnread \? 1 : 0\)/);
+  assert.match(bellSource, /\/portal\/agency\/settings#updates/);
+  assert.match(bellSource, /useNotificationAttention/);
   assert.match(bellSource, /RELEASE_SEEN_EVENT/);
 });
 

@@ -122,6 +122,7 @@ describe("§ Profile picture upload — route handler", () => {
   it("DELETE clears avatar via updateUser({ avatarUrl: null })", () => {
     const src = readFileSync(ROUTE, "utf8");
     assert.ok(src.includes("avatarUrl: null"));
+    assert.ok(src.includes('error: "save_failed"'));
   });
 });
 
@@ -189,6 +190,24 @@ describe("§ Profile picture upload — account page upload zone", () => {
   it("DELETE path wired for clear→fallback to initials", () => {
     const src = readFileSync(UPLOADER, "utf8");
     assert.ok(src.includes('method: "DELETE"'));
+  });
+
+  it("supports deliberate crop, zoom, reposition, reset and save controls", () => {
+    const src = readFileSync(UPLOADER, "utf8");
+    assert.ok(src.includes("paintCrop"));
+    assert.ok(src.includes('aria-label="Photo size"'));
+    assert.ok(src.includes('aria-label="Horizontal photo position"'));
+    assert.ok(src.includes('aria-label="Vertical photo position"'));
+    assert.ok(src.includes("onPointerMove={updatePanFromPointer}"));
+    assert.ok(src.includes("Reset framing"));
+    assert.ok(src.includes("Save photo"));
+  });
+
+  it("makes replace, adjust and remove actions explicit", () => {
+    const src = readFileSync(UPLOADER, "utf8");
+    assert.ok(src.includes("Replace photo"));
+    assert.ok(src.includes("Adjust framing"));
+    assert.ok(src.includes("Remove photo"));
   });
 
   it("account page mounts AvatarUploader with current avatar + initials", () => {

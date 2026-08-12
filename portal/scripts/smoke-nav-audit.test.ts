@@ -65,6 +65,7 @@ describe("standalone portal nav audit", () => {
     const src = read(SIDEBAR_LAYOUT);
     const block = agencyMainItemBlock(src);
     const expected = [
+      ["actions", "/portal/agency/actions"],
       ["fulfilment", "/portal/agency/fulfilment"],
       ["pipelines", "/portal/clients?view=journey"],
       ["marketing", "/portal/agency/marketing"],
@@ -81,7 +82,6 @@ describe("standalone portal nav audit", () => {
     assert.ok(!block.includes('label: "Clients & contacts"'), "clients and contacts should live inside Journey");
     assert.ok(!block.includes('id: "contacts"'), "contacts should live inside the clients hub");
     assert.ok(src.includes('label: "Command center"'), "the dashboard should be named Command center");
-    assert.ok(!block.includes('id: "actions"'), "actions should live inside Command center");
     assert.ok(!block.includes('id: "company"'), "company should live inside Command center");
     assert.ok(!block.includes('id: "sales"'), "sales should live inside Pipelines");
     assert.ok(!block.includes('id: "products"'), "products should live inside Company");
@@ -90,7 +90,7 @@ describe("standalone portal nav audit", () => {
     assert.ok(read(PEOPLE_HUB).includes('label="Contacts"'), "contacts should remain available inside Journey");
     assert.ok(read(CLIENTS_PAGE).includes(': "journey";'), "Journey should be the default people-hub view");
 
-    const priorityOrder = ["home", "inbox", "fulfilment", "pipelines", "development", "marketing", "finance", "sop-library"];
+    const priorityOrder = ["home", "actions", "inbox", "fulfilment", "pipelines", "development", "marketing", "finance", "sop-library"];
     const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
     assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
@@ -100,10 +100,9 @@ describe("standalone portal nav audit", () => {
   it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "fulfilment", "pipelines", "marketing", "development", "inbox", "finance", "sop-library"]) {
+    for (const id of ["home", "actions", "fulfilment", "pipelines", "marketing", "development", "inbox", "finance", "sop-library"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
-    assert.ok(!canonical.includes('"actions"'), "actions should be accessed from Command center");
     assert.ok(!canonical.includes('"company"'), "company should be accessed from Command center");
     assert.ok(!canonical.includes('"clients"'), "clients should be merged into the Journey sidebar item");
     assert.ok(!canonical.includes('"performance"'), "performance should live inside Development rather than the main sidebar");

@@ -5,6 +5,8 @@ import { ensureAgencyWebsite } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { listInstalledFor } from "@/server/pluginInstalls";
+import { ensureDefaultDevelopmentWorkflow, listDevelopmentWorkflows, listVisibleDevelopmentResources } from "@/server/developmentToolkit";
+import { listSops } from "@/server/sops";
 import { AGENCY_ROLES } from "@/server/types";
 import {
   DevelopmentPortfolio,
@@ -13,6 +15,7 @@ import {
   type DevelopmentProjectStatus,
 } from "./_DevelopmentPortfolio";
 import { DevelopmentNav } from "./_DevelopmentNav";
+import { DevelopmentDashboard } from "./_DevelopmentDashboard";
 
 type Product = {
   id?: string;
@@ -34,11 +37,16 @@ type ClientMetadata = {
   telemetryLastSeenAt?: number;
 };
 
-export default async function DevelopmentPage() {
+export default async function DevelopmentPage({ searchParams }: { searchParams: Promise<{ view?: string; status?: string }> }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId).filter(client => client.status !== "archived");
   const ownWebsite = ensureAgencyWebsite(session.agencyId);
+  const requested = await searchParams;
+  const view = requested.view === "workspace" ? "workspace" : "overview";
+  const initialStatus = ["active", "all", "planning", "building", "review", "live", "redirected", "archived"].includes(requested.status ?? "")
+    ? requested.status
+    : "active";
 
   const projects: DevelopmentProjectRow[] = FIRST_PARTY_DEVELOPMENT_PROJECTS.map(project => {
     const projectEvents = project.telemetryPropertyId
@@ -136,10 +144,25 @@ export default async function DevelopmentPage() {
     }
   }
 
+  ensureDefaultDevelopmentWorkflow(session.agencyId, session.userId);
+  const resources = listVisibleDevelopmentResources(session.agencyId, session.userId, session.role);
+  const toolkitCount = resources.filter(resource => !["course", "knowledge", "credential", "sop"].includes(resource.kind)).length;
+  const vaultCount = resources.length - toolkitCount;
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
-      <DevelopmentNav active="systems" />
-      <DevelopmentPortfolio initialProjects={projects} />
+      <DevelopmentNav active={view === "workspace" ? "systems" : "overview"} />
+      {view === "workspace" ? (
+        <DevelopmentPortfolio initialProjects={projects} initialStatus={initialStatus} />
+      ) : (
+        <DevelopmentDashboard
+          projects={projects}
+          toolkitCount={toolkitCount}
+          vaultCount={vaultCount}
+          workflowCount={listDevelopmentWorkflows(session.agencyId).length}
+          sopCount={listSops(session.agencyId).length}
+        />
+      )}
     </div>
   );
 }

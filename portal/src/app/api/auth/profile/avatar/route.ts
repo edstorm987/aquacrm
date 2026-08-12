@@ -58,10 +58,13 @@ export async function DELETE() {
   if (!user) {
     return NextResponse.json({ ok: false, error: "user_not_found" }, { status: 404 });
   }
-  updateUser(
+  const saved = updateUser(
     user.email,
     { avatarUrl: null },
     { clientId: user.clientId, role: user.role },
   );
+  if (!saved) {
+    return NextResponse.json({ ok: false, error: "save_failed" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

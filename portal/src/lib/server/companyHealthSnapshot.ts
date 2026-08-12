@@ -28,7 +28,7 @@ export interface CompanyHealthActuals {
 
 export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.now()) {
   const clients = listClients(agencyId);
-  const activeClients = clients.filter(client => client.status === "active");
+  const activeClients = clients.filter(client => client.status === "active" && client.stage !== "churned");
   const milestones = listClientMilestones(agencyId);
   const tasks = listAgencyTasks(agencyId);
   const openTasks = tasks.filter(task => task.status !== "done");

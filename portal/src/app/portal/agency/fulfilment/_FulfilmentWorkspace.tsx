@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PipelineBoard } from "../pipelines/[slug]/_PipelineBoard";
 import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspaceRecord } from "../portals/_PortalsWorkspace";
+import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 
 export type FulfilmentView = "overview" | "stages" | "services" | "clients" | "portals";
 
@@ -160,7 +161,7 @@ export function FulfilmentWorkspace({
             const href = item.id === "overview" ? "/portal/agency/fulfilment" : `/portal/agency/fulfilment?view=${item.id}`;
             return (
               <Link key={item.id} href={href} aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded px-2 text-center text-xs font-semibold sm:shrink-0 sm:px-3 sm:text-sm ${active ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04] hover:text-black/80"}`}>
-                <Icon size={15} /> {item.label}
+                <Icon size={15} /> {item.label}{item.id === "clients" ? <AttentionDot prefixHref="/portal/clients?tab=fulfilment" /> : null}
               </Link>
             );
           })}

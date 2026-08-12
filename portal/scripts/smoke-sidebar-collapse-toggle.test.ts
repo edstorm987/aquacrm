@@ -67,7 +67,8 @@ describe("Sidebar wires the toggle (R035)", () => {
   it("nav links carry title= tooltip + first-letter fallback (no auto-collapse on click)", () => {
     const src = readFileSync(SIDEBAR, "utf8");
     const navLink = readFileSync(SIDEBAR_NAV_LINK, "utf8");
-    assert.ok(navLink.includes("title={label}"));
+    assert.ok(navLink.includes("title={hoverTitle}"));
+    assert.ok(navLink.includes("attentionTitle(liveAttention)"));
     assert.ok(navLink.includes("mm-sidebar-link-icon"));
     // Critical: nothing in the Link onClick mutates data-collapsed or
     // calls setItem on the collapsed key. Source-marker assertion.

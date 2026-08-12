@@ -160,7 +160,14 @@ function NavItems({ panel, currentPath }: { panel: NavPanel; currentPath: string
       {panel.items.map(item => {
         return (
           <li key={`${panel.id}:${item.id}:${item.href}`}>
-            <SidebarNavLink id={item.id} href={item.href} label={item.label} icon={item.icon} badge={item.badge} />
+            <SidebarNavLink
+              id={item.id}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+              badge={item.badge}
+              attentionCount={item.attentionCount}
+            />
           </li>
         );
       })}

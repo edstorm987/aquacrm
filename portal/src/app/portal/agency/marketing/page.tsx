@@ -32,6 +32,7 @@ import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/firstPartyDevelopmentPro
 import { listInboxConnections } from "@/lib/server/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/metaMessaging";
 import { listAutomationWorkflows } from "@/server/automations";
+import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 
 const LEADS_PLUGIN = "leads-pipeline";
 const FINANCE_PLUGIN = "agency-finance";
@@ -741,7 +742,7 @@ function OverviewRow({ label, value }: { label: string; value: string }) {
 function MarketingTab({ href, active, icon: Icon, children }: { href: string; active: boolean; icon: typeof Activity; children: React.ReactNode }) {
   return (
     <Link href={href} aria-current={active ? "page" : undefined} className={`relative inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}>
-      <Icon size={15} aria-hidden="true" />{children}
+      <Icon size={15} aria-hidden="true" />{children}<AttentionDot href={href} categories={href.includes("view=campaigns") ? ["marketing"] : undefined} />
       {active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
     </Link>
   );

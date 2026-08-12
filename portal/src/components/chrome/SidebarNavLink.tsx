@@ -40,6 +40,7 @@ import {
   Wrench,
   Workflow,
 } from "lucide-react";
+import { attentionTitle, useAttentionMatches, useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
 
 const NAV_ICONS: Record<string, typeof Circle> = {
   home: Radar,
@@ -117,12 +118,14 @@ export function SidebarNavLink({
   label,
   icon,
   badge,
+  attentionCount = 0,
 }: {
   id: string;
   href: string;
   label: string;
   icon?: ReactNode;
   badge?: string | number;
+  attentionCount?: number;
 }) {
   const pathname = usePathname();
   const active = id === "home"
@@ -134,12 +137,17 @@ export function SidebarNavLink({
         || pathname.startsWith("/portal/agency/pipelines/fulfilment")
       : pathname === href || pathname.startsWith(`${href}/`);
   const Icon = NAV_ICONS[id] ?? Circle;
+  const attentionContext = useNotificationAttention();
+  const liveAttention = useAttentionMatches({ navId: id, hrefs: [href] });
+  const resolvedAttentionCount = attentionContext ? liveAttention.length : attentionCount;
+  const hoverTitle = liveAttention.length ? `${label}\n${attentionTitle(liveAttention)}` : label;
 
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      title={label}
+      aria-label={resolvedAttentionCount > 0 ? `${label}, ${resolvedAttentionCount} notification${resolvedAttentionCount === 1 ? "" : "s"} need attention` : undefined}
+      title={hoverTitle}
       data-sidebar-nav-link
       data-nav-tone={NAV_TONES[id] ?? "slate"}
       className={[
@@ -149,12 +157,25 @@ export function SidebarNavLink({
     >
       <span
         aria-hidden
-        className="mm-sidebar-link-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+        className="mm-sidebar-link-icon relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
       >
         {icon ?? <Icon size={16} strokeWidth={1.8} />}
+        {resolvedAttentionCount > 0 ? (
+          <span
+            aria-hidden
+            className="mm-sidebar-attention-dot absolute -right-0.5 -top-0.5 size-2 rounded-full bg-red-600 ring-2 ring-white"
+          />
+        ) : null}
       </span>
       <span className="mm-sidebar-link-label flex-1 truncate">{label}</span>
-      {badge !== undefined ? (
+      {resolvedAttentionCount > 0 ? (
+        <span
+          aria-hidden
+          className="mm-attention-badge mm-sidebar-link-badge grid min-h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white"
+        >
+          {resolvedAttentionCount > 99 ? "99+" : resolvedAttentionCount}
+        </span>
+      ) : badge !== undefined ? (
         <span aria-label={`${badge}`} className="mm-sidebar-link-badge rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] text-black/70">
           {String(badge)}
         </span>

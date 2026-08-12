@@ -1,4 +1,10 @@
-import type { RadarPolicyConfiguration, RadarPolicyRule } from "@/server/types";
+import type {
+  RadarEvidenceHourlyRollup,
+  RadarEvidencePoint,
+  RadarPolicyConfiguration,
+  RadarPolicyRule,
+} from "@/server/types";
+import type { CommercialLifecycleSnapshot } from "@/lib/commercialLifecycle";
 
 export type AdvisorDomain =
   | "company"
@@ -212,6 +218,70 @@ export interface RadarEvidenceDigest {
   topMovements: RadarEvidenceMovement[];
 }
 
+export interface RadarEvidenceSeriesSummary {
+  id: string;
+  domain: AdvisorDomain;
+  familyId: string;
+  familyLabel: string;
+  sourceId: string;
+  expectedDirection: "higher" | "lower" | "neutral";
+  firstSeenAt: number;
+  lastSeenAt: number;
+  totalSamples: number;
+  retainedPointCount: number;
+  hourlyRollupCount: number;
+  latestValue?: number;
+  latestStatus?: RadarEvidencePoint["status"];
+  recentPoints: RadarEvidencePoint[];
+  recentHourly: RadarEvidenceHourlyRollup[];
+}
+
+export interface RadarEvidenceInspectionIndex {
+  available: boolean;
+  totalSamples: number;
+  firstRecordedAt?: number;
+  lastRecordedAt?: number;
+  series: RadarEvidenceSeriesSummary[];
+}
+
+export interface RadarEvidenceSeriesInspection extends RadarEvidenceSeriesSummary {
+  points: RadarEvidencePoint[];
+  hourly: RadarEvidenceHourlyRollup[];
+}
+
+export type RadarSourceDatasetStatus = "available" | "empty" | "unavailable";
+
+export interface RadarSourceDatasetSummary {
+  id: string;
+  domain: AdvisorDomain;
+  label: string;
+  description: string;
+  status: RadarSourceDatasetStatus;
+  recordCount: number;
+  lastUpdatedAt?: number;
+  href: string;
+  sourceIds: string[];
+  fields: string[];
+  unavailableReason?: string;
+}
+
+export interface RadarSourceDataIndex {
+  generatedAt: number;
+  totalDatasets: number;
+  availableDatasets: number;
+  unavailableDatasets: number;
+  totalRecords: number;
+  datasets: RadarSourceDatasetSummary[];
+}
+
+export interface RadarSourceDatasetInspection extends RadarSourceDatasetSummary {
+  generatedAt: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+  records: Array<Record<string, unknown>>;
+}
+
 export interface BusinessIssueRadar {
   generatedAt: number;
   summary: {
@@ -239,6 +309,7 @@ export interface BusinessIssueRadar {
     sourceSentinels: number;
     propertySentinels: number;
     syntheticSentinels: number;
+    commercialLifecycleChecks: number;
     historicalChecks: number;
     watchdogChecks: number;
     monitoredProperties: number;
@@ -251,6 +322,7 @@ export interface BusinessIssueRadar {
     historicalAnomalies: number;
   };
   speedToLead: SpeedToLeadRadar;
+  commercial: CommercialLifecycleSnapshot;
   issues: BusinessRadarIssue[];
   incidents: BusinessRadarIncident[];
   signals: BusinessMetricSignal[];
@@ -265,6 +337,7 @@ export interface BusinessIssueRadar {
 export type AdvisorRadarDigest = BusinessIssueRadar["summary"] & {
   generatedAt: number;
   speedToLead: SpeedToLeadRadar;
+  commercial: CommercialLifecycleSnapshot;
   topIssues: BusinessRadarIssue[];
   topIncidents: BusinessRadarIncident[];
   coverage: AdvisorCoverageSource[];
@@ -280,6 +353,7 @@ export function radarDigest(radar: BusinessIssueRadar): AdvisorRadarDigest {
     ...radar.summary,
     generatedAt: radar.generatedAt,
     speedToLead: radar.speedToLead,
+    commercial: radar.commercial,
     topIssues: radar.incidents.slice(0, 6),
     topIncidents: radar.incidents.slice(0, 6),
     coverage: radar.coverage,

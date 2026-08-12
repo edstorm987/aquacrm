@@ -28,6 +28,7 @@ import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 import { isAssistantConfigured } from "@/lib/server/openaiAssistant";
 import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardCommandCenter";
 import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
+import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
 
 export default async function AgencyHome() {
   await ensureHydrated();
@@ -40,6 +41,7 @@ export default async function AgencyHome() {
   const serviceBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
   const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
   const businessRadar = await getCachedBusinessIssueRadar(agency.id);
+  const radarEvidence = inspectRadarEvidence(agency.id);
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
   // even if it pre-dates the R034 seed in `bootstrapAgency`.
@@ -129,6 +131,7 @@ export default async function AgencyHome() {
         tasks={tasks}
         signals={dashboardSignals}
         businessRadar={businessRadar}
+        radarEvidence={radarEvidence}
         advisorConfigured={isAssistantConfigured(agency.id)}
         counts={{
           activeClients: activeClients.length,

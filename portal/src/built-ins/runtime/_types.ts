@@ -329,6 +329,7 @@ export interface NavItem {
   href: string;
   icon?: ReactNode;
   badge?: string | number;
+  attentionCount?: number;
   requiresFeature?: string;
   order?: number;
   panelId?: string;

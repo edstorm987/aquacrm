@@ -3,6 +3,7 @@ import "server-only";
 import type { InboxSnapshot } from "@/lib/inbox/types";
 import type { AdvisorCoverageSource, AdvisorDomain, BusinessSignalStatus, SpeedToLeadRadar } from "@/lib/businessRadar";
 import type { RadarObservation } from "@/lib/radarCheckEngine";
+import type { CommercialLifecycleSnapshot } from "@/lib/commercialLifecycle";
 import { RADAR_SIGNAL_FAMILIES } from "@/lib/radarRuleCatalog";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import type { OperationalAlert } from "@/lib/server/operationalAlerts";
@@ -28,12 +29,13 @@ export interface RadarObservationInputs {
   speedToLead: SpeedToLeadRadar;
   telemetry: RadarTelemetrySnapshot;
   coverage: AdvisorCoverageSource[];
+  commercial: CommercialLifecycleSnapshot;
 }
 
 export function buildRadarObservations(input: RadarObservationInputs): RadarObservation[] {
-  const { now, state, agencyId, company, clients, tasks, legalDocuments, team, enquiries, inbox, operationalAlerts, speedToLead, telemetry, coverage } = input;
+  const { now, state, agencyId, company, clients, tasks, legalDocuments, team, enquiries, inbox, operationalAlerts, speedToLead, telemetry, coverage, commercial } = input;
   const observations: RadarObservation[] = [];
-  const activeClients = clients.filter(client => client.status === "active");
+  const activeClients = clients.filter(client => client.status === "active" && client.stage !== "churned");
   const clientMetadata = activeClients.map(client => ({ client, metadata: client.metadata ?? {} }));
   const current7dEnquiries = enquiries.filter(enquiry => enquiry.submittedAt >= now - 7 * DAY);
   const previous7dEnquiries = enquiries.filter(enquiry => enquiry.submittedAt >= now - 14 * DAY && enquiry.submittedAt < now - 7 * DAY);
@@ -121,8 +123,13 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("sales", "p90-response", durationMetric(speedToLead.p90ResponseMs, speedToLead.status, speedToLead.targetMinutes * 60_000, "P90 first response time.", "/portal/agency/inbox?view=forms", "sales:response", enquiryConnected(enquiries), latest(enquiries)));
   add("sales", "awaiting-response", zeroTargetMetric(speedToLead.awaitingResponseCount, "Open leads without a first response.", "/portal/agency/inbox?view=forms", "sales:response", enquiryConnected(enquiries), latest(openEnquiries), 1, 4));
   add("sales", "target-breaches", zeroTargetMetric(speedToLead.breachedCount, "Leads outside the response target.", "/portal/agency/inbox?view=forms", "sales:response", enquiryConnected(enquiries), latest(openEnquiries), 1, 4));
-  add("sales", "pipeline-leads", metric(company?.actuals.leadCount ?? null, null, leadInstall ? "healthy" : "unknown", String(company?.actuals.leadCount ?? 0), "Pipeline connected", "/portal/agency/pipelines/leads", "sales:pipeline", Boolean(leadInstall), "Lead records available to the pipeline.", leadInstall?.installedAt ?? now, company?.actuals.leadCount, undefined, "higher"));
+  add("sales", "pipeline-leads", metric(commercial.leadCount, null, commercial.available ? "healthy" : "unknown", String(commercial.leadCount), "Pipeline connected", "/portal/agency/pipelines/leads", "sales:pipeline", commercial.available, "Lead records available to the pipeline.", commercial.latestActivityAt ?? leadInstall?.installedAt ?? now, commercial.leadCount, undefined, "higher"));
   add("sales", "enquiry-linkage", percentMetric(current30dEnquiries.length ? Math.round(linkedEnquiries.length / current30dEnquiries.length * 100) : null, 90, "Enquiries linked to a lead record.", "/portal/clients?view=journey", "sales:linkage", enquiryConnected(enquiries), latest(enquiries)));
+  add("sales", "lead-conversion-rate", metric(commercial.conversionRatePercent, null, higherRateStatus(commercial.conversionRatePercent, commercial.leadCount, 5, 20, 10), displayPercent(commercial.conversionRatePercent), "20% or above after 5 leads", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, "Lead capture through to recorded client conversion.", commercial.latestActivityAt, commercial.leadCount, undefined, "higher"));
+  add("sales", "lost-decision-rate", metric(commercial.lostDecisionRatePercent, null, lowerRateStatus(commercial.lostDecisionRatePercent, commercial.convertedLeadCount + commercial.lostLeadCount, 5, 35, 60), displayPercent(commercial.lostDecisionRatePercent), "Below 35% of closed decisions", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, "Lost outcomes among leads with a recorded won or lost decision.", commercial.latestActivityAt, commercial.convertedLeadCount + commercial.lostLeadCount, undefined, "lower"));
+  add("sales", "stale-open-leads", zeroTargetMetric(commercial.staleOpenLeadCount, "Open leads untouched for at least 14 days.", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, commercial.latestActivityAt, 1, 5));
+  add("sales", "conversion-cycle", metric(commercial.medianConversionMs, null, commercial.convertedLeadCount < 3 ? "unknown" : commercial.medianConversionMs && commercial.medianConversionMs >= 90 * DAY ? "critical" : commercial.medianConversionMs && commercial.medianConversionMs >= 45 * DAY ? "warning" : "healthy", commercial.medianConversionMs === null ? "Learning" : duration(commercial.medianConversionMs), "Median below 45 days", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, "Median elapsed time from lead capture to client conversion.", commercial.latestActivityAt, commercial.convertedLeadCount, undefined, "lower"));
+  add("sales", "source-conversion-spread", metric(commercial.conversionSpreadPercent, null, lowerRateStatus(commercial.conversionSpreadPercent, commercial.cohorts.filter(cohort => cohort.conversionSampleReady).length, 2, 35, 60), displayPercent(commercial.conversionSpreadPercent), "Below 35 percentage points", "/portal/agency/marketing", "commercial:lifecycle", commercial.available, "Conversion performance spread across mature lead-source cohorts.", commercial.latestActivityAt, commercial.cohorts.filter(cohort => cohort.conversionSampleReady).length, undefined, "lower"));
 
   add("inbox", "conversation-volume", countMetric(inboxThreads.length, null, "Connected social conversation volume.", "/portal/agency/inbox", "inbox:conversations", Boolean(inbox), latestInboxAt, "higher"));
   add("inbox", "open-conversations", zeroTargetMetric(openThreads.length, "Conversations still open.", "/portal/agency/inbox", "inbox:open", Boolean(inbox), latestInboxAt, 8, 20));
@@ -151,8 +158,11 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("clients", "open-requests", zeroTargetMetric(allRequests.filter(request => ["open", "reviewed"].includes(clean(request.status))).length, "Open client requests.", "/portal/agency/inbox?view=support", "clients:requests", true, newest(allRequests.map(item => timestamp(item))), 5, 15));
   add("clients", "blocked-milestones", zeroTargetMetric(milestones.filter(item => item.status === "blocked").length, "Blocked client milestones.", "/portal/agency/performance", "clients:milestones", true, newest(milestones.map(item => item.updatedAt)), 1, 4));
   add("clients", "product-coverage", percentMetric(activeClients.length ? Math.round(clientsWithProducts / activeClients.length * 100) : null, 100, "Active clients with products assigned.", "/portal/agency/products", "clients:products", true, newest(activeClients.map(client => client.updatedAt))));
-  add("clients", "source-attribution", percentMetric(activeClients.length ? Math.round(clientMetadata.filter(({ metadata }) => Boolean(clean(metadata.leadSource))).length / activeClients.length * 100) : null, 90, "Clients with lead source metadata.", "/portal/clients?view=journey", "clients:source", true, newest(activeClients.map(client => client.updatedAt))));
-  add("clients", "retention-state", metric(clients.filter(client => client.status === "archived" || client.stage === "churned").length, null, "healthy", String(clients.filter(client => client.status === "archived" || client.stage === "churned").length), "Review every churned relationship", "/portal/clients", "clients:retention", true, "Recorded churn and archive state.", newest(clients.map(client => client.updatedAt)) ?? now, clients.length));
+  add("clients", "source-attribution", percentMetric(commercial.clientSourceCoveragePercent, 85, "Clients traceable to their original lead source.", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, commercial.latestActivityAt));
+  add("clients", "retention-state", metric(commercial.retentionRatePercent, null, higherRateStatus(commercial.retentionRatePercent, commercial.activeClientCount + commercial.churnedClientCount, 3, 80, 60), displayPercent(commercial.retentionRatePercent), "80% or above", "/portal/clients?view=health", "commercial:lifecycle", commercial.available, "Active clients as a share of active plus recorded churned relationships.", commercial.latestActivityAt, commercial.activeClientCount + commercial.churnedClientCount, undefined, "higher"));
+  add("clients", "recent-client-churn", zeroTargetMetric(commercial.recentlyChurnedClientCount, "Clients marked churned or archived in 90 days.", "/portal/clients?view=health", "commercial:lifecycle", commercial.available, commercial.latestActivityAt, 1, 3));
+  add("clients", "pending-cancellations", zeroTargetMetric(commercial.pendingCancellationCount, "Open cancellation and provider-move requests.", "/portal/agency/inbox?view=support", "commercial:lifecycle", commercial.available, commercial.latestActivityAt, 1, 1));
+  add("clients", "source-churn-spread", metric(commercial.churnSpreadPercent, null, lowerRateStatus(commercial.churnSpreadPercent, commercial.cohorts.filter(cohort => cohort.retentionSampleReady).length, 2, 20, 40), displayPercent(commercial.churnSpreadPercent), "Below 20 percentage points", "/portal/agency/marketing", "commercial:lifecycle", commercial.available, "Recorded churn spread across mature acquisition-source cohorts.", commercial.latestActivityAt, commercial.cohorts.filter(cohort => cohort.retentionSampleReady).length, undefined, "lower"));
 
   const alertCount = (pattern: RegExp) => financeAlerts.filter(alert => pattern.test(alert.id)).length;
   add("finance", "monthly-revenue", metric(company?.actuals.monthRevenueCents ?? null, null, financeInstall ? "healthy" : "unknown", money(company?.actuals.monthRevenueCents, company?.actuals.currency), "Recorded monthly income", "/portal/agency/agency-finance", "finance:revenue", Boolean(financeInstall), "Current month recorded revenue.", now));
@@ -197,6 +207,9 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("marketing", "unattributed-leads", zeroTargetMetric(Math.max(0, current30dEnquiries.length - attributedEnquiries), "Recent enquiries without attribution.", "/portal/agency/marketing", "marketing:attribution", enquiryConnected(enquiries), latest(enquiries), 3, 10));
   add("marketing", "search-visibility", metric(telemetry.totals.searchClicks28d, null, telemetry.totals.searchImpressions28d ? "healthy" : "unknown", `${telemetry.totals.searchClicks28d} clicks / ${telemetry.totals.searchImpressions28d} impressions`, "Search data connected", "/portal/agency/performance", "marketing:search", telemetry.totals.properties > 0, "Search Console visibility.", telemetry.totals.latestEventAt ?? now, telemetry.totals.searchImpressions28d, undefined, "higher"));
   add("marketing", "campaign-records", metric(marketingInstall ? pluginRecordCount(state, marketingInstall.id) : null, null, marketingInstall ? "healthy" : "unknown", String(marketingInstall ? pluginRecordCount(state, marketingInstall.id) : 0), "Marketing module connected", "/portal/agency/marketing", "marketing:campaigns", Boolean(marketingInstall), "Campaign and channel records readable by the radar.", marketingInstall?.healthCheckedAt ?? marketingInstall?.installedAt ?? now));
+  add("marketing", "lead-source-attribution", metric(commercial.leadCount ? Math.round((commercial.leadCount - commercial.unattributedLeadCount) / commercial.leadCount * 1000) / 10 : null, null, lowerRateStatus(commercial.leadCount ? commercial.unattributedLeadCount / commercial.leadCount * 100 : null, commercial.leadCount, 3, 15, 40), commercial.leadCount ? `${Math.round((commercial.leadCount - commercial.unattributedLeadCount) / commercial.leadCount * 1000) / 10}%` : "Learning", "85% or above", "/portal/agency/marketing", "commercial:lifecycle", commercial.available, "Retained leads with a usable acquisition source.", commercial.latestActivityAt, commercial.leadCount, undefined, "higher"));
+  add("marketing", "source-concentration", metric(commercial.sourceConcentrationPercent, null, lowerRateStatus(commercial.sourceConcentrationPercent, commercial.leadCount, 10, 70, 85), displayPercent(commercial.sourceConcentrationPercent), "No source above 70%", "/portal/agency/marketing", "commercial:lifecycle", commercial.available, "Share of all leads contributed by the largest source cohort.", commercial.latestActivityAt, commercial.leadCount, undefined, "lower"));
+  add("marketing", "source-outcome-depth", countMetric(commercial.cohorts.filter(cohort => cohort.conversionSampleReady).length, null, "Lead sources with enough retained leads for conversion comparison.", "/portal/agency/marketing", "commercial:lifecycle", commercial.available, commercial.latestActivityAt, "higher"));
 
   add("operations", "open-tasks", zeroTargetMetric(openTasks.length, "Open task volume.", "/portal/agency/actions", "operations:tasks", true, newest(tasks.map(task => task.updatedAt)), 20, 50));
   add("operations", "overdue-tasks", zeroTargetMetric(overdueTasks.length, "Tasks beyond due date.", "/portal/agency/actions", "operations:tasks", true, newest(tasks.map(task => task.updatedAt)), 1, 5));
@@ -372,6 +385,20 @@ function ratioStatus(value: number, target: number): BusinessSignalStatus {
   if (!target) return "unknown";
   const ratio = value / target;
   return ratio < 0.35 ? "critical" : ratio < 0.7 ? "warning" : ratio < 0.9 ? "watch" : "healthy";
+}
+
+function higherRateStatus(value: number | null, sample: number, minimumSample: number, warningBelow: number, criticalBelow: number): BusinessSignalStatus {
+  if (sample < minimumSample || value === null) return "unknown";
+  return value < criticalBelow ? "critical" : value < warningBelow ? "warning" : "healthy";
+}
+
+function lowerRateStatus(value: number | null, sample: number, minimumSample: number, warningAbove: number, criticalAbove: number): BusinessSignalStatus {
+  if (sample < minimumSample || value === null) return "unknown";
+  return value >= criticalAbove ? "critical" : value >= warningAbove ? "warning" : "healthy";
+}
+
+function displayPercent(value: number | null): string {
+  return value === null ? "Learning" : `${value}%`;
 }
 
 function minimumStatus(value: number, minimum: number): BusinessSignalStatus {

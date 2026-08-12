@@ -15,7 +15,8 @@ import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
-import { NotificationBell } from "@/components/chrome/NotificationBell";
+import { NotificationCentreButton } from "@/components/chrome/NotificationCentreButton";
+import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
 import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { getPreviewPhase, escapeStyleContent, escapeScriptContent } from "@/lib/server/previewPhase";
@@ -25,6 +26,8 @@ import { getAgency } from "@/server/tenants";
 import { WelcomeGate } from "@/components/chrome/WelcomeGate";
 import { cookies } from "next/headers";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
+import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
 
 export default async function ClientLayout({
   children,
@@ -128,6 +131,9 @@ export default async function ClientLayout({
     !!activePhase.welcomeBody &&
     !welcomeCookie;
   const sessionUser = getUserById(session.userId);
+  const alertViews = session.role.startsWith("agency-")
+    ? listOperationalAlertViews(session.agencyId, session.userId, await listOperationalAlerts(session.agencyId))
+    : [];
 
   // Phase sidebar override — when the active phase carries a custom
   // sidebar shape, replace the auto-built panels with a single
@@ -164,6 +170,7 @@ export default async function ClientLayout({
         />
       ) : null}
       <ThemeInjector brand={client.brand} scope="client" />
+      <NotificationAttentionProvider initialAlerts={alertViews}>
       <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -188,7 +195,7 @@ export default async function ClientLayout({
             ]}
             previewActive={!!previewActive}
             notifications={session.role.startsWith("agency-")
-              ? <NotificationBell agencyId={session.agencyId} actor={session.userId} />
+              ? <NotificationCentreButton />
               : undefined}
             advisorControl={session.role === "agency-owner" || session.role === "agency-manager" ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={sessionUser?.name || session.email} />
@@ -199,6 +206,7 @@ export default async function ClientLayout({
           </main>
         </div>
       </div>
+      </NotificationAttentionProvider>
       {showWelcome && activePhase && (
         <WelcomeGate
           clientId={client.id}

@@ -31,6 +31,7 @@ export async function buildAdvisorSkillContext(
       memory: radar.memory,
       evidence: radar.evidence,
       speedToLead: radar.speedToLead,
+      commercialLifecycle: radar.commercial,
       issues: scopedIssues(["sales", "inbox", "marketing"]),
       signals: scopedSignals(["sales", "inbox", "marketing"]),
       coverage: scopedCoverage(["sales", "inbox", "marketing"]),
@@ -40,6 +41,7 @@ export async function buildAdvisorSkillContext(
     data = {
       memory: radar.memory,
       evidence: radar.evidence,
+      commercialLifecycle: radar.commercial,
       clients: listClients(agencyId).slice(0, skill.maxRecords).map(client => ({
         id: client.id,
         name: client.name,
@@ -104,6 +106,7 @@ export async function buildAdvisorSkillContext(
         memory: radar.memory,
         evidence: radar.evidence,
         speedToLead: radar.speedToLead,
+        commercialLifecycle: radar.commercial,
         incidents: radar.incidents.slice(0, skill.maxRecords),
         signals: radar.signals.slice(0, skill.maxRecords),
         coverage: radar.coverage,

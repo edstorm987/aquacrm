@@ -41,9 +41,10 @@ import {
 } from "lucide-react";
 
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
-import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus } from "@/lib/businessRadar";
+import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus, RadarEvidenceInspectionIndex } from "@/lib/businessRadar";
 import type { AgencyTask, AgencyTaskPriority, DashboardDayPlan, DashboardWeekPlan, DashboardWorkSession } from "@/server/types";
 import { RadarPolicyPanel } from "./_RadarPolicyPanel";
+import { RadarInspectionWorkspace, type RadarInspectionTab } from "./radar/RadarInspectionWorkspace";
 
 export type DashboardSignal = {
   id: string;
@@ -78,11 +79,19 @@ type StrictItem = DashboardSignal & {
   status?: AgencyTask["status"];
 };
 
+type RadarInspectorTarget = {
+  tab: RadarInspectionTab;
+  query: string;
+  domain: AdvisorDomain | "all";
+  version: number;
+};
+
 export function DashboardCommandCenter({
   planning,
   tasks,
   signals,
   businessRadar,
+  radarEvidence,
   advisorConfigured,
   counts,
 }: {
@@ -90,6 +99,7 @@ export function DashboardCommandCenter({
   tasks: AgencyTask[];
   signals: DashboardSignal[];
   businessRadar: BusinessIssueRadar;
+  radarEvidence: RadarEvidenceInspectionIndex;
   advisorConfigured: boolean;
   counts: { activeClients: number; leads: number; delivery: number; products: number };
 }) {
@@ -124,8 +134,19 @@ export function DashboardCommandCenter({
   const [statusMessage, setStatusMessage] = useState("");
   const [operationError, setOperationError] = useState("");
   const [now, setNow] = useState(Date.now());
-  const [dashboardMode, setDashboardMode] = useState<"radar" | "day">(businessRadar.summary.critical ? "radar" : "day");
+  const [dashboardMode, setDashboardMode] = useState<"radar" | "inspector" | "day">(businessRadar.summary.critical ? "radar" : "day");
   const [radarSnapshot, setRadarSnapshot] = useState(businessRadar);
+  const [inspectorTarget, setInspectorTarget] = useState<RadarInspectorTarget>({ tab: "records", query: "", domain: "all", version: 0 });
+
+  function openInspector(target: Partial<Omit<RadarInspectorTarget, "version">> = {}) {
+    setInspectorTarget(current => ({
+      tab: target.tab ?? "records",
+      query: target.query ?? "",
+      domain: target.domain ?? "all",
+      version: current.version + 1,
+    }));
+    setDashboardMode("inspector");
+  }
 
   useEffect(() => {
     if (!activeSession) return;
@@ -480,12 +501,19 @@ export function DashboardCommandCenter({
           </span>
         </div>
 
-        <nav className="grid grid-cols-2 border-t border-white/10 sm:grid-cols-4" aria-label="Command center stations">
+        <nav className="grid grid-cols-2 border-t border-white/10 sm:grid-cols-5" aria-label="Command center stations">
           <button type="button" aria-pressed={dashboardMode === "radar"} onClick={() => setDashboardMode("radar")} className={`group flex min-h-[72px] items-center gap-3 border-b border-r border-white/10 px-4 text-left transition sm:border-b-0 ${dashboardMode === "radar" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
             <Radar size={18} className={dashboardMode === "radar" ? "text-emerald-700" : "text-emerald-200"} />
             <span className="min-w-0">
               <span className="block text-sm font-semibold">Active radar</span>
               <span className={`mt-0.5 block text-[11px] ${dashboardMode === "radar" ? "text-black/48" : "text-white/42"}`}>{radarSnapshot.summary.critical + radarSnapshot.summary.warning} alerts on watch</span>
+            </span>
+          </button>
+          <button type="button" aria-pressed={dashboardMode === "inspector"} onClick={() => openInspector()} className={`group flex min-h-[72px] items-center gap-3 border-b border-r border-white/10 px-4 text-left transition sm:border-b-0 ${dashboardMode === "inspector" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
+            <Database size={18} className={dashboardMode === "inspector" ? "text-emerald-700" : "text-emerald-200"} />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Data inspector</span>
+              <span className={`mt-0.5 block text-[11px] ${dashboardMode === "inspector" ? "text-black/48" : "text-white/42"}`}>Records, evidence and raw values</span>
             </span>
           </button>
           <button type="button" aria-pressed={dashboardMode === "day"} onClick={() => setDashboardMode("day")} className={`group flex min-h-[72px] items-center gap-3 border-b border-white/10 px-4 text-left transition sm:border-b-0 sm:border-r ${dashboardMode === "day" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
@@ -512,13 +540,16 @@ export function DashboardCommandCenter({
         </nav>
       </div>
 
-      {dashboardMode === "radar" ? (
+      {dashboardMode === "inspector" ? (
+        <RadarInspectionWorkspace key={inspectorTarget.version} initialRadar={radarSnapshot} initialEvidence={radarEvidence} initialTab={inspectorTarget.tab} initialQuery={inspectorTarget.query} initialDomain={inspectorTarget.domain} embedded />
+      ) : dashboardMode === "radar" ? (
         <BusinessRadarDashboard
           radar={radarSnapshot}
           onRadarChange={setRadarSnapshot}
           onCreateTask={addRadarTask}
           taskBusyId={taskBusyId}
           advisorConfigured={advisorConfigured}
+          onOpenInspector={openInspector}
         />
       ) : (
       <>
@@ -777,12 +808,14 @@ function BusinessRadarDashboard({
   onCreateTask,
   taskBusyId,
   advisorConfigured,
+  onOpenInspector,
 }: {
   radar: BusinessIssueRadar;
   onRadarChange: (radar: BusinessIssueRadar) => void;
   onCreateTask: (issue: BusinessRadarIssue) => Promise<void>;
   taskBusyId: string | null;
   advisorConfigured: boolean;
+  onOpenInspector: (target?: Partial<Omit<RadarInspectorTarget, "version">>) => void;
 }) {
   const [activeDomain, setActiveDomain] = useState<AdvisorDomain | "all">("all");
   const [feedMode, setFeedMode] = useState<"signals" | "checks">("signals");
@@ -868,13 +901,16 @@ function BusinessRadarDashboard({
             </div>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <button type="button" onClick={() => onOpenInspector()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
+              <Database size={15} /> Inspect source data
+            </button>
             <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
               <Settings2 size={15} /> Policy
             </button>
             <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
               <RefreshCw size={15} className={scanBusy ? "animate-spin" : ""} /> {scanBusy ? "Scanning" : "Scan now"}
             </button>
-            <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-[#111513] hover:bg-white/90 sm:col-auto">
+            <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-[#111513] hover:bg-white/90">
               <Bot size={15} /> {advisorConfigured ? "Ask Advisor" : "Open Advisor"}
             </button>
           </div>
@@ -898,7 +934,8 @@ function BusinessRadarDashboard({
         </div>
 
         <RadarMemoryTimeline memory={radar.memory} />
-        <RadarEvidenceVault evidence={radar.evidence} />
+        <RadarEvidenceVault evidence={radar.evidence} onInspect={() => onOpenInspector({ tab: "evidence" })} />
+        <CommercialLifecycleStrip commercial={radar.commercial} />
 
         <div className="grid lg:grid-cols-[minmax(340px,.92fr)_minmax(0,1.08fr)]">
           <div className="border-b border-white/10 p-4 sm:p-6 lg:border-b-0 lg:border-r">
@@ -945,6 +982,11 @@ function BusinessRadarDashboard({
               <RadarDetail label="Baseline coverage" value={`${radar.summary.baselineCoveragePercent}%`} />
               <RadarDetail label="Evidence samples" value={radar.summary.evidenceSamples.toLocaleString()} />
               <RadarDetail label="Pattern breaks" value={radar.summary.historicalAnomalies.toLocaleString()} />
+              <RadarDetail label="Lead conversion" value={radar.commercial.conversionRatePercent === null ? "Learning" : `${radar.commercial.conversionRatePercent}%`} />
+              <RadarDetail label="Portfolio retention" value={radar.commercial.retentionRatePercent === null ? "Learning" : `${radar.commercial.retentionRatePercent}%`} />
+              <RadarDetail label="Churned in 90d" value={radar.commercial.recentlyChurnedClientCount.toLocaleString()} />
+              <RadarDetail label="Cancellation risk" value={radar.commercial.pendingCancellationCount.toLocaleString()} />
+              <RadarDetail label="Lifecycle checks" value={radar.summary.commercialLifecycleChecks.toLocaleString()} />
             </div>
           </div>
 
@@ -997,10 +1039,11 @@ function BusinessRadarDashboard({
                       <button type="button" onClick={() => void onCreateTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} title="Add to strict queue" aria-label={`Add ${issue.title} to strict queue`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50">
                         {taskBusyId === `radar:${issue.id}` ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={15} />}
                       </button>
-                      <Link href={issue.href} title="Open evidence" aria-label={`Open evidence for ${issue.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link>
+                      <button type="button" onClick={() => onOpenInspector({ tab: "checks", query: issue.checkIds[0] ?? issue.title, domain: issue.domain })} title="Inspect raw findings" aria-label={`Inspect raw findings for ${issue.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><Database size={14} /></button>
+                      <Link href={issue.href} title="Open operational workspace" aria-label={`Open workspace for ${issue.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link>
                     </div>
                   </article>
-                )) : displayedChecks.map(check => <RadarCheckRow key={check.id} check={check} />)}
+                )) : displayedChecks.map(check => <RadarCheckRow key={check.id} check={check} onInspect={() => onOpenInspector({ tab: "records", query: check.sourceId, domain: check.domain })} />)}
               {feedMode === "signals" && !visibleIssues.length ? <div className="px-6 py-16 text-center"><ShieldCheck className="mx-auto text-emerald-300" size={26} /><p className="mt-3 text-sm font-semibold text-white">Domain clear</p><p className="mt-1 text-xs text-white/40">No current signals in this scope.</p></div> : null}
               {feedMode === "checks" && !displayedChecks.length ? <div className="px-6 py-16 text-center"><ScanSearch className="mx-auto text-emerald-300" size={26} /><p className="mt-3 text-sm font-semibold text-white">No matching checks</p><p className="mt-1 text-xs text-white/40">Change the domain, status, or search phrase.</p></div> : null}
               {feedMode === "checks" && matchingChecks.length > displayedChecks.length ? <div className="px-6 py-3 text-center text-[11px] text-white/35">Showing the first {displayedChecks.length} of {matchingChecks.length} matching checks. Select a domain to narrow the scanner.</div> : null}
@@ -1030,7 +1073,7 @@ function BusinessRadarDashboard({
           <Link href="/portal/agency/company?view=connections" className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/55 hover:bg-black/[0.03]" title="Manage connections" aria-label="Manage radar connections"><ArrowUpRight size={14} /></Link>
         </div>
         <div className="grid md:grid-cols-2 xl:grid-cols-3">
-          {radar.coverage.map((source, index) => <CoverageRow key={source.id} source={source} divided={index > 0} />)}
+          {radar.coverage.map((source, index) => <CoverageRow key={source.id} source={source} divided={index > 0} onInspect={() => onOpenInspector({ tab: "records", query: source.id, domain: source.domain })} />)}
         </div>
       </section>
     </div>
@@ -1080,12 +1123,12 @@ function RadarMemoryStat({ label, value, tone }: { label: string; value: React.R
   return <div className="bg-[#151a17] px-3 py-2.5"><p className="text-[9px] font-semibold uppercase text-white/35">{label}</p><p className={`mt-1 text-sm font-semibold tabular-nums ${valueClass}`}>{value}</p></div>;
 }
 
-function RadarEvidenceVault({ evidence }: { evidence: BusinessIssueRadar["evidence"] }) {
+function RadarEvidenceVault({ evidence, onInspect }: { evidence: BusinessIssueRadar["evidence"]; onInspect: () => void }) {
   return <div className="grid gap-4 border-b border-white/10 bg-[#121714] px-4 py-4 sm:px-6 xl:grid-cols-[minmax(0,.78fr)_minmax(320px,1.22fr)]">
     <div className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2"><Database size={14} className="text-sky-300" /><p className="text-[10px] font-semibold uppercase text-sky-300">Durable evidence vault</p></div>
-        <p className="text-[10px] tabular-nums text-white/35">{evidence.totalSamples.toLocaleString()} retained samples</p>
+        <button type="button" onClick={onInspect} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-white/15 px-2.5 text-[10px] font-semibold text-white/60 hover:bg-white/10 hover:text-white"><Database size={12} /> Inspect {evidence.totalSamples.toLocaleString()} samples</button>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-white/10 bg-white/10 sm:grid-cols-4 xl:grid-cols-2">
         <RadarMemoryStat label="KPI streams" value={`${evidence.measurableSeries}/${evidence.totalSeries}`} tone="neutral" />
@@ -1108,7 +1151,47 @@ function RadarEvidenceVault({ evidence }: { evidence: BusinessIssueRadar["eviden
   </div>;
 }
 
-function RadarCheckRow({ check }: { check: BusinessRadarCheck }) {
+function CommercialLifecycleStrip({ commercial }: { commercial: BusinessIssueRadar["commercial"] }) {
+  const cohorts = commercial.cohorts.slice(0, 4);
+  return (
+    <section className="border-b border-white/10" aria-labelledby="commercial-lifecycle-heading">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-200/65">Commercial lifecycle</p>
+          <h3 id="commercial-lifecycle-heading" className="mt-1 text-sm font-semibold text-white">Source quality from first lead to retained client</h3>
+        </div>
+        <Link href="/portal/clients?view=journey" className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-white/55 hover:text-white">Open journey evidence <ArrowUpRight size={13} /></Link>
+      </div>
+      <div className="grid grid-cols-2 border-b border-white/10 sm:grid-cols-4">
+        <RadarDetail label="Leads retained" value={commercial.leadCount.toLocaleString()} />
+        <RadarDetail label="Converted" value={commercial.conversionRatePercent === null ? "Learning" : `${commercial.conversionRatePercent}%`} />
+        <RadarDetail label="Retention" value={commercial.retentionRatePercent === null ? "Learning" : `${commercial.retentionRatePercent}%`} />
+        <RadarDetail label="Pending exits" value={commercial.pendingCancellationCount.toLocaleString()} />
+      </div>
+      {cohorts.length ? (
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4">
+          {cohorts.map((cohort, index) => (
+            <div key={cohort.key} className={`min-w-0 px-4 py-3 sm:px-5 ${index < cohorts.length - 1 ? "border-b border-white/10 sm:border-r xl:border-b-0" : ""}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-semibold text-white">{cohort.label}</p>
+                <span className={`size-2 shrink-0 rounded-full ${cohort.conversionSampleReady ? "bg-emerald-300" : "bg-sky-300/60"}`} title={cohort.conversionSampleReady ? "Cohort ready" : "Cohort learning"} />
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-white/42">
+                <div><span className="block text-sm font-semibold tabular-nums text-white/80">{cohort.leadCount}</span>leads</div>
+                <div><span className="block text-sm font-semibold tabular-nums text-white/80">{cohort.conversionRatePercent === null ? "-" : `${cohort.conversionRatePercent}%`}</span>convert</div>
+                <div><span className="block text-sm font-semibold tabular-nums text-white/80">{cohort.churnRatePercent === null ? "-" : `${cohort.churnRatePercent}%`}</span>churn</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="px-4 py-5 text-xs leading-5 text-white/42 sm:px-6">Source cohorts will appear after the first lead or client source is recorded. Until then, conversion and churn comparisons remain in learning rather than pretending to be healthy.</div>
+      )}
+    </section>
+  );
+}
+
+function RadarCheckRow({ check, onInspect }: { check: BusinessRadarCheck; onInspect: () => void }) {
   return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-6">
     <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border ${radarCheckIconClass(check.status)}`} title={radarCheckStatusLabel(check.status)}>
           {check.status === "pass" ? <Check size={14} /> : check.status === "blind" ? <EyeOff size={14} /> : check.status === "watch" ? <Crosshair size={14} /> : check.status === "learning" ? <History size={14} /> : check.status === "inactive" ? <Square size={14} /> : <AlertTriangle size={14} />}
@@ -1122,16 +1205,16 @@ function RadarCheckRow({ check }: { check: BusinessRadarCheck }) {
       <p className="mt-1 text-xs leading-5 text-white/48">{check.detail}</p>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/32"><span>Source {check.sourceId}</span>{check.evidence.slice(0, 2).map(item => <span key={item}>{item}</span>)}</div>
     </div>
-    <Link href={check.href} title="Open check evidence" aria-label={`Open evidence for ${check.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link>
+    <div className="flex gap-1"><button type="button" onClick={onInspect} title="Inspect source records" aria-label={`Inspect source records for ${check.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><Database size={14} /></button><Link href={check.href} title="Open operational workspace" aria-label={`Open workspace for ${check.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link></div>
   </article>;
 }
 
-function CoverageRow({ source, divided }: { source: AdvisorCoverageSource; divided: boolean }) {
+function CoverageRow({ source, divided, onInspect }: { source: AdvisorCoverageSource; divided: boolean; onInspect: () => void }) {
   const healthy = source.status === "connected" || source.status === "empty";
   return <div className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-black/10 px-4 py-3.5 sm:px-5 ${divided ? "border-t md:border-t-0 md:border-l" : ""}`}>
     <span className={`mt-1.5 size-2 rounded-full ${healthy ? source.status === "empty" ? "bg-sky-500" : "bg-emerald-600" : "bg-red-600"}`} />
     <div className="min-w-0"><p className="truncate text-sm font-semibold text-black/75">{source.label}</p><p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-black/42">{source.detail}</p></div>
-    <div className="text-right"><p className={`text-[9px] font-bold uppercase ${healthy ? "text-emerald-700" : "text-red-700"}`}>{coverageStatusLabel(source.status)}</p><p className="mt-1 text-[10px] tabular-nums text-black/35">{source.recordCount} records</p></div>
+    <div className="flex items-start gap-2"><div className="text-right"><p className={`text-[9px] font-bold uppercase ${healthy ? "text-emerald-700" : "text-red-700"}`}>{coverageStatusLabel(source.status)}</p><p className="mt-1 text-[10px] tabular-nums text-black/35">{source.recordCount} records</p></div><button type="button" onClick={onInspect} title={`Inspect ${source.label} records`} aria-label={`Inspect ${source.label} records`} className="grid size-8 place-items-center rounded-md border border-black/10 bg-white text-black/45 hover:bg-black/[0.03] hover:text-black/70"><Database size={13} /></button></div>
   </div>;
 }
 

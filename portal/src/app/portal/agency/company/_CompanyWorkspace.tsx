@@ -9,6 +9,7 @@ import { LegalCompliancePanel } from "./_LegalCompliancePanel";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import { CompanyConnectionsWorkspace } from "./_CompanyConnectionsWorkspace";
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
+import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 
 interface Actuals {
   monthRevenueCents: number;
@@ -151,7 +152,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
           ["legal", "Legal & compliance", ShieldCheck],
         ] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => selectView(id)} className={`inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium ${view === id ? "border-brand text-brand" : "border-transparent text-black/50 hover:text-black/75"}`}>
-            <Icon size={16} />{label}
+            <Icon size={16} />{label}{id === "legal" ? <AttentionDot href="/portal/agency/company#legal" /> : null}
           </button>
         ))}
       </nav>

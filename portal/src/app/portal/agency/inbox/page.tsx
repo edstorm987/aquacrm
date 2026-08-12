@@ -8,6 +8,8 @@ import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { listInboxSnapshot } from "@/lib/server/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/metaMessaging";
+import { transactionalEmailReadiness } from "@/lib/server/transactionalEmail";
+import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
 
 import { MasterInbox } from "./_MasterInbox";
 
@@ -18,7 +20,12 @@ type RequestRecord = {
   status: "open" | "reviewed" | "closed";
   submittedBy: string;
   submittedAt: number;
-  replies?: unknown[];
+  replies?: Array<{
+    id: string;
+    message: string;
+    from: "customer" | "milesymedia";
+    createdAt: number;
+  }>;
   propertyId?: string;
   siteLabel?: string;
   siteUrl?: string;
@@ -41,7 +48,7 @@ export default async function AgencyInboxPage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId);
-  const [alerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
+  const [liveAlerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
     listOperationalAlerts(session.agencyId),
     Promise.resolve(listActivity({ agencyId: session.agencyId, limit: 150 })),
     listWebsiteEnquiries().then(
@@ -59,6 +66,7 @@ export default async function AgencyInboxPage() {
       }),
     ),
   ]);
+  const alerts = listOperationalAlertViews(session.agencyId, session.userId, liveAlerts).filter(alert => alert.attention);
   const conversations = clients.flatMap(client => {
     const metadata = client.metadata as { clientRequests?: RequestRecord[]; properties?: PropertyRecord[] } | undefined;
     const properties = Array.isArray(metadata?.properties) ? metadata.properties : [];
@@ -77,6 +85,7 @@ export default async function AgencyInboxPage() {
         submittedBy: request.submittedBy,
         submittedAt: request.submittedAt,
         replyCount: request.replies?.length ?? 0,
+        replies: request.replies ?? [],
         propertyId: request.propertyId ?? selectedProperty?.id,
         siteName: request.siteLabel ?? selectedProperty?.label ?? "Client portal",
         siteUrl: request.siteUrl ?? selectedProperty?.liveUrl ?? selectedProperty?.previewUrl,
@@ -102,6 +111,7 @@ export default async function AgencyInboxPage() {
     socialInboxError={socialInboxResult.error}
     metaReadiness={metaInboxReadiness()}
     currentUserId={session.userId}
+    emailReplyConfigured={transactionalEmailReadiness(session.agencyId).configured}
     updates={activity.map(entry => ({
       id: entry.id,
       message: entry.message,

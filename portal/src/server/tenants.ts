@@ -194,8 +194,19 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
     const existing = state.clients[clientId];
     if (!existing) return;
     if (existing.agencyId !== agencyId) return;
+    const now = Date.now();
     oldStage = existing.stage;
     stageChanged = patch.stage !== undefined && patch.stage !== existing.stage;
+    const nextStage = patch.stage ?? existing.stage;
+    const nextStatus = patch.status ?? existing.status;
+    const metadata = patch.metadata !== undefined
+      ? { ...(existing.metadata ?? {}), ...patch.metadata }
+      : { ...(existing.metadata ?? {}) };
+    if (stageChanged && nextStage === "churned") metadata.churnedAt = now;
+    if (stageChanged && existing.stage === "churned" && nextStage !== "churned") metadata.reactivatedAt = now;
+    if (patch.status === "archived" && existing.status !== "archived") metadata.archivedAt = now;
+    if (patch.status === "suspended" && existing.status !== "suspended") metadata.suspendedAt = now;
+    if (patch.status === "active" && existing.status !== "active") metadata.reactivatedAt = now;
     saved = {
       ...existing,
       companyId: patch.companyId === null ? undefined : patch.companyId ?? existing.companyId,
@@ -203,15 +214,13 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
       ownerEmail: patch.ownerEmail ?? existing.ownerEmail,
       websiteUrl: patch.websiteUrl === null ? undefined : patch.websiteUrl ?? existing.websiteUrl,
       brand: patch.brand ? { ...existing.brand, ...patch.brand } : existing.brand,
-      status: patch.status ?? existing.status,
-      stage: patch.stage ?? existing.stage,
+      status: nextStatus,
+      stage: nextStage,
       endCustomers: patch.endCustomers !== undefined
         ? { ...(existing.endCustomers ?? {}), ...patch.endCustomers }
         : existing.endCustomers,
-      metadata: patch.metadata !== undefined
-        ? { ...(existing.metadata ?? {}), ...patch.metadata }
-        : existing.metadata,
-      updatedAt: Date.now(),
+      metadata,
+      updatedAt: now,
     };
     state.clients[clientId] = saved;
   });

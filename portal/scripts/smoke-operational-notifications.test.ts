@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { before, test } from "node:test";
 import { readFileSync } from "node:fs";
+import { operationalAlertMatchesHref, operationalAlertMatchesHrefPrefix } from "../src/lib/operationalAttention";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -18,11 +19,15 @@ type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Installs = typeof import("../src/server/pluginInstalls");
 type Alerts = typeof import("../src/lib/server/operationalAlerts");
+type SidebarAttention = typeof import("../src/lib/server/sidebarAttention");
+type AlertPreferences = typeof import("../src/lib/server/operationalAlertPreferences");
 
 let storage: Storage;
 let tenants: Tenants;
 let installs: Installs;
 let alerts: Alerts;
+let sidebarAttention: SidebarAttention;
+let alertPreferences: AlertPreferences;
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -30,6 +35,8 @@ before(async () => {
   tenants = await import("../src/server/tenants");
   installs = await import("../src/server/pluginInstalls");
   alerts = await import("../src/lib/server/operationalAlerts");
+  sidebarAttention = await import("../src/lib/server/sidebarAttention");
+  alertPreferences = await import("../src/lib/server/operationalAlertPreferences");
   await storage.ensureHydrated();
   await storage.reset();
 });
@@ -191,4 +198,97 @@ test("live notifications are exposed to global workspace search", () => {
   assert.match(search, /listOperationalAlerts\(agencyId\)/);
   assert.match(search, /category: "Notification"/);
   assert.match(searchUi, /category === "Notification"/);
+});
+
+test("live alerts mark the relevant sidebar destination without making every area noisy", () => {
+  const panels = [{
+    id: "main",
+    label: "",
+    order: 0,
+    items: [
+      { id: "actions", label: "Actions", href: "/portal/agency/actions" },
+      { id: "inbox", label: "Master inbox", href: "/portal/agency/inbox" },
+      { id: "marketing", label: "Marketing", href: "/portal/agency/marketing" },
+      { id: "finance", label: "Finance", href: "/portal/agency/agency-finance" },
+      { id: "sop-library", label: "SOP library", href: "/portal/agency/sop-library" },
+    ],
+  }];
+  const now = Date.parse("2026-08-11T12:00:00Z");
+  const marked = sidebarAttention.addSidebarAttention(panels, [
+    { id: "task:one", severity: "warning", category: "task", title: "Task", detail: "Overdue", href: "/portal/agency/actions", occurredAt: now },
+    { id: "task:two", severity: "critical", category: "task", title: "Task", detail: "Overdue", href: "/portal/agency/actions", occurredAt: now },
+    { id: "message:one", severity: "notice", category: "support", title: "Support", detail: "Reply", href: "/portal/agency/inbox?view=support", occurredAt: now },
+    { id: "budget:one", severity: "warning", category: "money", title: "Budget", detail: "Review", href: "/portal/agency/agency-finance/budgets", occurredAt: now },
+  ]);
+
+  const items = marked[0].items;
+  assert.equal(items.find(item => item.id === "actions")?.attentionCount, 2);
+  assert.equal(items.find(item => item.id === "inbox")?.attentionCount, 1);
+  assert.equal(items.find(item => item.id === "finance")?.attentionCount, 1);
+  assert.equal(items.find(item => item.id === "marketing")?.attentionCount, undefined);
+  assert.equal(items.find(item => item.id === "sop-library")?.attentionCount, undefined);
+});
+
+test("sidebar attention remains visible when collapsed and announces its count", () => {
+  const nav = readFileSync("src/components/chrome/SidebarNavLink.tsx", "utf8");
+  assert.match(nav, /mm-sidebar-attention-dot/);
+  assert.match(nav, /notification\$\{resolvedAttentionCount === 1/);
+  assert.match(nav, /resolvedAttentionCount > 99 \? "99\+" : resolvedAttentionCount/);
+  assert.match(nav, /attentionTitle\(liveAttention\)/);
+});
+
+test("read, parked, dismissed, and changed alerts have durable attention semantics", async () => {
+  await storage.reset();
+  const now = Date.parse("2026-08-12T08:00:00Z");
+  const agency = tenants.createAgency({ name: "Attention State", slug: "attention-state" });
+  const userId = "founder_attention";
+  const alert = {
+    id: "task:attention",
+    severity: "warning" as const,
+    category: "task" as const,
+    title: "Reply to Ed",
+    detail: "The response is overdue.",
+    href: "/portal/agency/actions",
+    occurredAt: now - 1_000,
+  };
+
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [alert], now)[0].attention, true);
+
+  alertPreferences.setOperationalAlertPreference({ agencyId: agency.id, userId, alert, action: "read", now });
+  const read = alertPreferences.listOperationalAlertViews(agency.id, userId, [alert], now);
+  assert.equal(read[0].state, "read");
+  assert.equal(read[0].attention, false);
+
+  alertPreferences.setOperationalAlertPreference({ agencyId: agency.id, userId, alert, action: "park", parkedUntil: now + 60_000, now });
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [alert], now)[0].state, "parked");
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [alert], now + 61_000)[0].attention, true);
+
+  alertPreferences.setOperationalAlertPreference({ agencyId: agency.id, userId, alert, action: "dismiss", now });
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [alert], now).length, 0);
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [{ ...alert, occurredAt: now + 1 }], now + 1)[0].attention, true);
+});
+
+test("workspace tab destinations expose shared attention points", () => {
+  const provider = readFileSync("src/components/chrome/NotificationAttentionProvider.tsx", "utf8");
+  const inbox = readFileSync("src/app/portal/agency/inbox/_MasterInbox.tsx", "utf8");
+  const finance = readFileSync("src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx", "utf8");
+  const development = readFileSync("src/app/portal/agency/development/_DevelopmentNav.tsx", "utf8");
+  const clientTabs = readFileSync("src/app/portal/clients/[clientId]/_OverviewTabs.tsx", "utf8");
+  assert.match(provider, /export function AttentionDot/);
+  assert.match(provider, /title=\{title\}/);
+  assert.match(inbox, /attentionHref="\/portal\/agency\/inbox\?view=forms"/);
+  assert.match(inbox, /Mark read/);
+  assert.match(inbox, /Park for 24 hours/);
+  assert.match(finance, /<AttentionDot href=\{href\}/);
+  assert.match(development, /<AttentionDot href=\{item.href\}/);
+  assert.match(clientTabs, /<AttentionDot href=\{href\}/);
+});
+
+test("attention links resolve to the narrowest matching workspace tab", () => {
+  const financeAlert = { id: "finance", severity: "warning" as const, category: "money" as const, title: "Receipt needed", detail: "Attach evidence", href: "/portal/agency/agency-finance/expenses?evidence=missing", occurredAt: 1 };
+  const clientAlert = { id: "client", severity: "notice" as const, category: "client" as const, title: "Portal ready", detail: "Review access", href: "/portal/clients/one?tab=fulfilment", occurredAt: 1 };
+  assert.equal(operationalAlertMatchesHref(financeAlert, "/portal/agency/agency-finance/expenses"), true);
+  assert.equal(operationalAlertMatchesHref(financeAlert, "/portal/agency/agency-finance"), false);
+  assert.equal(operationalAlertMatchesHrefPrefix(clientAlert, "/portal/clients?tab=fulfilment"), true);
+  assert.equal(operationalAlertMatchesHrefPrefix(clientAlert, "/portal/clients?tab=finance"), false);
 });

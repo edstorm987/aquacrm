@@ -44,6 +44,7 @@ test("Aqua Advisor remains available globally with history, memory, and voice", 
   const ui = read("src/app/portal/agency/assistant/AssistantWorkspace.tsx");
   const topbar = read("src/components/chrome/Topbar.tsx");
   const drawer = read("src/components/chrome/GlobalAdvisorDrawer.tsx");
+  const styles = read("src/app/globals.css");
   const control = read("src/components/chrome/AdvisorDrawerControl.tsx");
   const agencyLayout = read("src/app/portal/agency/layout.tsx");
   const journeyPage = read("src/app/portal/clients/page.tsx");
@@ -65,6 +66,9 @@ test("Aqua Advisor remains available globally with history, memory, and voice", 
   assert.match(drawer, /aria-live="polite"/);
   assert.match(drawer, /event\.key === "Escape"/);
   assert.match(drawer, /aqua-advisor:open/);
+  assert.match(drawer, /mm-advisor-drawer/);
+  assert.match(styles, /\.mm-advisor-drawer\s*\{\s*width: 100%;\s*max-width: none;/);
+  assert.match(styles, /@media \(min-width: 640px\)[\s\S]*?\.mm-advisor-drawer\s*\{[\s\S]*?width: min\(520px, calc\(100vw - 6rem\)\);/);
   assert.match(control, /buildAssistantBusinessContext/);
   assert.match(agencyLayout, /AdvisorDrawerControl/);
   assert.match(journeyPage, /AdvisorDrawerControl/);

@@ -1866,6 +1866,19 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   transition-timing-function: var(--mm-ease-out) !important;
 }
 
+.mm-advisor-drawer {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 640px) {
+  .mm-advisor-drawer {
+    width: min(520px, calc(100vw - 6rem));
+    max-width: 520px;
+    border-left: 1px solid rgb(0 0 0 / 0.1);
+  }
+}
+
 .mm-popover {
   animation: mm-popover-enter var(--mm-motion-base) var(--mm-ease-out);
   transform-origin: top right;

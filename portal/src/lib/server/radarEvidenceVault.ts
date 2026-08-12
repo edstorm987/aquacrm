@@ -7,7 +7,10 @@ import type {
   BusinessRadarIssue,
   RadarCheckStatus,
   RadarEvidenceDigest,
+  RadarEvidenceInspectionIndex,
   RadarEvidenceMovement,
+  RadarEvidenceSeriesInspection,
+  RadarEvidenceSeriesSummary,
   RadarRuleLens,
 } from "@/lib/businessRadar";
 import type { RadarObservation } from "@/lib/radarCheckEngine";
@@ -132,6 +135,51 @@ export function recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar)
     evidence.lastRecordedAt = now;
     state.radarEvidence[agencyId] = evidence;
   });
+}
+
+export function inspectRadarEvidence(agencyId: string): RadarEvidenceInspectionIndex {
+  const evidence = getState().radarEvidence[agencyId];
+  if (!evidence) return { available: false, totalSamples: 0, series: [] };
+  return {
+    available: true,
+    totalSamples: evidence.totalSamples,
+    firstRecordedAt: evidence.firstRecordedAt,
+    lastRecordedAt: evidence.lastRecordedAt,
+    series: Object.values(evidence.series)
+      .map(evidenceSeriesSummary)
+      .sort((left, right) => right.lastSeenAt - left.lastSeenAt || left.familyLabel.localeCompare(right.familyLabel)),
+  };
+}
+
+export function inspectRadarEvidenceSeries(agencyId: string, id: string): RadarEvidenceSeriesInspection | null {
+  const series = getState().radarEvidence[agencyId]?.series[id];
+  if (!series) return null;
+  return {
+    ...evidenceSeriesSummary(series),
+    points: series.points.map(point => ({ ...point })),
+    hourly: series.hourly.map(rollup => ({ ...rollup })),
+  };
+}
+
+function evidenceSeriesSummary(series: RadarEvidenceSeries): RadarEvidenceSeriesSummary {
+  const latest = series.points.at(-1);
+  return {
+    id: series.id,
+    domain: series.domain as AdvisorDomain,
+    familyId: series.familyId,
+    familyLabel: series.familyLabel,
+    sourceId: series.sourceId,
+    expectedDirection: series.expectedDirection,
+    firstSeenAt: series.firstSeenAt,
+    lastSeenAt: series.lastSeenAt,
+    totalSamples: series.totalSamples,
+    retainedPointCount: series.points.length,
+    hourlyRollupCount: series.hourly.length,
+    latestValue: latest?.value,
+    latestStatus: latest?.status,
+    recentPoints: series.points.slice(-24).map(point => ({ ...point })),
+    recentHourly: series.hourly.slice(-24).map(rollup => ({ ...rollup })),
+  };
 }
 
 function assess(

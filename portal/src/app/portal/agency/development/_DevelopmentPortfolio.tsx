@@ -7,6 +7,7 @@ import {
   AppWindow,
   ArrowUpRight,
   Boxes,
+  ArrowLeft,
   ExternalLink,
   FolderGit2,
   GitBranch,
@@ -95,12 +96,14 @@ const kindLabels: Record<DevelopmentProjectKind, string> = {
 
 export function DevelopmentPortfolio({
   initialProjects,
+  initialStatus = "active",
 }: {
   initialProjects: DevelopmentProjectRow[];
+  initialStatus?: string;
 }) {
   const [projects, setProjects] = useState(initialProjects);
   const [view, setView] = useState<(typeof views)[number]["id"]>("all");
-  const [status, setStatus] = useState("active");
+  const [status, setStatus] = useState(initialStatus);
   const [folder, setFolder] = useState("all");
   const [tag, setTag] = useState("all");
   const [query, setQuery] = useState("");
@@ -186,9 +189,10 @@ export function DevelopmentPortfolio({
             Every website, portal, software product, repository and live signal across the Personal EcoSystem and client work.
           </p>
         </div>
-        <Link href="/portal/clients" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
-          <Boxes size={16} />Add client project
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/portal/agency/development" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/60 hover:border-black/25 hover:text-black"><ArrowLeft size={15} />Back to dashboard</Link>
+          <Link href="/portal/clients" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85"><Boxes size={16} />Add client project</Link>
+        </div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

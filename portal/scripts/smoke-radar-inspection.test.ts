@@ -1,0 +1,72 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+
+const read = (path: string) => readFileSync(path, "utf8");
+
+test("Radar inspection is a tenant-scoped owner and manager workspace", () => {
+  const page = read("src/app/portal/agency/radar/page.tsx");
+  const route = read("src/app/api/portal/advisor/radar/evidence/route.ts");
+  assert.match(page, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
+  assert.match(page, /getCachedBusinessIssueRadar/);
+  assert.match(page, /inspectRadarEvidence/);
+  assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
+  assert.match(route, /session\.agencyId/);
+  assert.match(route, /cache-control/);
+  assert.match(route, /private, no-store/);
+  assert.match(route, /seriesId\.length > 240/);
+});
+
+test("evidence inspection exposes an index, complete series, and archive without agency leakage", () => {
+  const vault = read("src/lib/server/radarEvidenceVault.ts");
+  const route = read("src/app/api/portal/advisor/radar/evidence/route.ts");
+  assert.match(vault, /inspectRadarEvidence\(/);
+  assert.match(vault, /inspectRadarEvidenceSeries\(/);
+  assert.match(vault, /recentPoints: series\.points\.slice\(-24\)/);
+  assert.match(vault, /points: series\.points\.map/);
+  assert.match(vault, /hourly: series\.hourly\.map/);
+  assert.match(route, /format.*=== "json"/s);
+  assert.match(route, /content-disposition/);
+  assert.doesNotMatch(vault, /agencyId: series\.agencyId/);
+});
+
+test("manual inspection covers every Radar layer and links from command center", () => {
+  const workspace = read("src/app/portal/agency/radar/RadarInspectionWorkspace.tsx");
+  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  assert.match(dashboard, /Data inspector/);
+  assert.match(dashboard, /Records, evidence and raw values/);
+  assert.match(dashboard, /initialTab=\{inspectorTarget\.tab\}/);
+  assert.match(dashboard, /initialDomain=\{inspectorTarget\.domain\} embedded/);
+  assert.match(dashboard, /onOpenInspector/);
+  assert.match(dashboard, /Inspect source data/);
+  assert.match(dashboard, /Inspect raw findings/);
+  assert.match(dashboard, /Inspect source records/);
+  assert.match(dashboard, /Inspect.*samples/);
+  assert.match(dashboard, /initialQuery=\{inspectorTarget\.query\}/);
+  assert.match(dashboard, /initialDomain=\{inspectorTarget\.domain\}/);
+  assert.match(workspace, /initialTab: InspectionTab/);
+  assert.match(workspace, /Browse source records/);
+  assert.match(workspace, /Inspect source records/);
+  assert.match(workspace, /setQuery\(check\.sourceId\)/);
+  assert.match(workspace, /sourceIds\.includes\(check\.sourceId\)/);
+  assert.match(workspace, /Complete scanner ledger/);
+  assert.match(workspace, /Resolved policy/);
+  assert.match(workspace, /Evidence used/);
+  assert.match(workspace, /Raw check record/);
+  assert.match(workspace, /CHECK_BATCH_SIZE = 200/);
+  assert.match(workspace, /checks\.slice\(0, visibleCheckCount\)/);
+  assert.match(workspace, /Load.*more/);
+  assert.match(workspace, /checks\.find\(check => check\.id === selectedCheckId\)/);
+  assert.match(workspace, /filteredSeries\.find\(series => series\.id === selectedSeriesId\)/);
+  assert.match(workspace, /Load every retained point/);
+  assert.match(workspace, /Domain rollups/);
+  assert.match(workspace, /Source coverage/);
+  assert.match(workspace, /Metric signals/);
+  assert.match(workspace, /Grouped incidents/);
+  assert.match(workspace, /Underlying findings/);
+  assert.match(workspace, /Full evidence history/);
+  assert.match(workspace, /Source records/);
+  assert.match(workspace, /Operational source catalogue/);
+  assert.match(workspace, /JSON\.stringify\(check, null, 2\)/);
+  assert.doesNotMatch(workspace, /\.slice\(0, 240\)/);
+});

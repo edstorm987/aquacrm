@@ -88,6 +88,22 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     above("inbox", "support-demand", "Open support demand", 0),
     above("clients", "attention-clients", "Clients needing attention", 0),
   ]),
+  correlation("pipeline-leakage", "sales", "warning", "Stale leads and lost decisions are compounding", "Open leads are aging while the recorded loss rate is also outside its guardrail. Review source quality, qualification, ownership, and stage exit reasons together.", "/portal/clients?view=journey", [
+    above("sales", "stale-open-leads", "Stale open leads", 0),
+    attention("sales", ["lost-decision-rate"], "Closed-deal loss rate"),
+  ]),
+  correlation("source-quality-retention", "marketing", "warning", "Acquisition source quality is carrying into retention", "Conversion and churn vary materially by source. Compare the promise, qualification, product fit, onboarding, and long-term value of each mature cohort before increasing spend.", "/portal/agency/marketing", [
+    attention("sales", ["source-conversion-spread"], "Source conversion spread"),
+    attention("clients", ["source-churn-spread"], "Source churn spread"),
+  ]),
+  correlation("cancellation-health-risk", "clients", "critical", "Cancellation intent overlaps with wider client risk", "A cancellation or provider-move request is open while client health concerns are already present. Treat this as an immediate save, handover, and root-cause workflow.", "/portal/agency/inbox?view=support", [
+    above("clients", "pending-cancellations", "Pending cancellations", 0),
+    above("clients", "attention-clients", "Clients needing attention", 0),
+  ]),
+  correlation("source-dependency-attribution", "marketing", "warning", "Acquisition is concentrated while attribution is incomplete", "The commercial engine depends heavily on one retained source while some lead origins remain unclear. Channel resilience and spend decisions cannot yet be trusted together.", "/portal/agency/marketing", [
+    attention("marketing", ["source-concentration"], "Source concentration"),
+    attention("marketing", ["lead-source-attribution"], "Lead source attribution"),
+  ]),
 ] as const;
 
 export function buildRadarCorrelationIssues(

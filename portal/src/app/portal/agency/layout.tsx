@@ -16,11 +16,15 @@ import { effectiveRole } from "@/lib/server/effectiveRole";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
-import { NotificationBell } from "@/components/chrome/NotificationBell";
+import { NotificationCentreButton } from "@/components/chrome/NotificationCentreButton";
 import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { INTERNAL_WORKSPACE_NAME, INTERNAL_WORKSPACE_SUBTITLE } from "@/lib/internalWorkspace";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
+import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { addSidebarAttention } from "@/lib/server/sidebarAttention";
+import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
+import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
 
 export default async function AgencyLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -58,13 +62,16 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
 
   const installs = listInstalledFor({ agencyId: agency.id });
   const eff = effectiveRole(session);
-  const panels = buildSidebar({
+  const basePanels = buildSidebar({
     role: session.role,
     scope: "agency",
     installedPlugins: installs,
     permissions: eff.permissions,
     isFounder: eff.isFounder,
   });
+  const operationalAlerts = await listOperationalAlerts(agency.id);
+  const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
+  const panels = addSidebarAttention(basePanels, alertViews.filter(alert => alert.attention));
 
   // Best-effort current path for "active" highlighting. Falls back to ""
   // when the header isn't present (some preview environments).
@@ -91,6 +98,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   return (
     <>
       <ThemeInjector brand={agency.brand} scope="agency" />
+      <NotificationAttentionProvider initialAlerts={alertViews}>
       <div className="mm-portal-root flex h-dvh overflow-hidden">
         <Sidebar
           panels={panels}
@@ -112,7 +120,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
             publicShowcase={session.publicShowcase}
             privacyTerms={privacyTerms}
-            notifications={<NotificationBell agencyId={agency.id} actor={session.userId} />}
+            notifications={<NotificationCentreButton />}
             advisorControl={advisorEnabled ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} />
             ) : null}
@@ -122,6 +130,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
           </main>
         </div>
       </div>
+      </NotificationAttentionProvider>
     </>
   );
 }

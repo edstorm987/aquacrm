@@ -1549,6 +1549,16 @@ export interface RadarEvidenceState {
   series: Record<string, RadarEvidenceSeries>;
 }
 
+export interface OperationalAlertPreference {
+  agencyId: string;
+  userId: string;
+  alertId: string;
+  state: "read" | "parked" | "dismissed";
+  alertOccurredAt: number;
+  updatedAt: number;
+  parkedUntil?: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export interface PortalState {
@@ -1598,4 +1608,5 @@ export interface PortalState {
   radarMemory: Record<string, RadarMemoryState>;
   radarSyntheticProbes: Record<string, Record<string, RadarSyntheticProbeResult>>;
   radarEvidence: Record<string, RadarEvidenceState>;
+  operationalAlertPreferences: Record<string, OperationalAlertPreference>;
 }

@@ -13,19 +13,9 @@ import { listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
 import type { ClientContract } from "@/lib/clientContracts";
 import { listWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
+import type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
 
-export type OperationalAlertSeverity = "critical" | "warning" | "notice";
-
-export interface OperationalAlert {
-  id: string;
-  severity: OperationalAlertSeverity;
-  category: "outage" | "support" | "money" | "meeting" | "client" | "marketing" | "task" | "compliance" | "contract" | "development";
-  title: string;
-  detail: string;
-  href: string;
-  clientName?: string;
-  occurredAt: number;
-}
+export type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -213,7 +203,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       });
     }
 
-    if (notificationSettings.clientAlerts && client.status === "active" && (!metadata?.lastContactedAt || now - metadata.lastContactedAt > OPERATIONAL_ALERT_THRESHOLDS.clientContactDays * DAY)) {
+    if (notificationSettings.clientAlerts && client.status === "active" && client.stage !== "churned" && (!metadata?.lastContactedAt || now - metadata.lastContactedAt > OPERATIONAL_ALERT_THRESHOLDS.clientContactDays * DAY)) {
       alerts.push({
         id: `contact:${client.id}`,
         severity: "warning",

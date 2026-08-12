@@ -64,6 +64,7 @@ const empty = (): PortalState => ({
   radarMemory: {},
   radarSyntheticProbes: {},
   radarEvidence: {},
+  operationalAlertPreferences: {},
 });
 
 // ─── Backend interface ────────────────────────────────────────────────────
@@ -364,6 +365,7 @@ function parseBlob(raw: string): PortalState {
       radarMemory: parsed.radarMemory ?? {},
       radarSyntheticProbes: parsed.radarSyntheticProbes ?? {},
       radarEvidence: parsed.radarEvidence ?? {},
+      operationalAlertPreferences: parsed.operationalAlertPreferences ?? {},
     };
   } catch {
     return empty();
