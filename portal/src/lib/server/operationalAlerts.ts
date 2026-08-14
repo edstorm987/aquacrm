@@ -330,14 +330,37 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   const leadsInstall = getInstall({ agencyId }, "leads-pipeline");
   if (leadsInstall?.enabled) {
     ensureLeadsPipelineFoundationRegistered();
-    const { campaigns, leads } = containerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
-    const [campaignRows, leadRows, websiteEnquiries] = await Promise.all([
+    const { campaigns, leads, prospects } = containerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
+    const [campaignRows, leadRows, prospectRows, websiteEnquiries] = await Promise.all([
       campaigns.list(),
       leads.list(),
+      prospects.list(),
       listWebsiteEnquiries().catch(() => []),
     ]);
     const websiteEnquiryById = new Map(websiteEnquiries.map(enquiry => [enquiry.id, enquiry]));
     const alertedEnquiryIds = new Set<string>();
+
+    if (notificationSettings.clientAlerts) {
+      for (const prospect of prospectRows.filter(item => item.status === "scouting" && !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt <= now)) {
+        const label = prospect.company || prospect.name || prospect.website || "Scouting prospect";
+        const overdueMs = now - (prospect.nextContactAt ?? now);
+        const lastAttempt = prospect.outreachAttempts.at(-1);
+        alerts.push({
+          id: `prospect-follow-up:${prospect.id}`,
+          severity: overdueMs >= 7 * DAY ? "critical" : overdueMs >= DAY ? "warning" : "notice",
+          category: "client",
+          title: `Scouting follow-up due: ${label}`,
+          detail: [
+            prospect.nextContactReason || "A retained recontact commitment is due.",
+            prospect.preferredChannel ? `Preferred route: ${prospect.preferredChannel}.` : "",
+            lastAttempt ? `Last outcome: ${lastAttempt.outcome}.` : "No previous outreach attempt is recorded.",
+          ].filter(Boolean).join(" "),
+          href: "/portal/agency/pipelines/leads#scouting",
+          persistentUntilResolved: true,
+          occurredAt: prospect.nextContactAt ?? now,
+        });
+      }
+    }
 
     for (const lead of leadRows) {
       if (!isLeadJourneyEligible(lead)) continue;

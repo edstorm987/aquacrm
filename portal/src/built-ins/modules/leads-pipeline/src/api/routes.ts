@@ -23,6 +23,8 @@ import {
   previewAudienceHandler,
   previewCsvHandler,
   prospectsHandler,
+  prospectNotesHandler,
+  prospectOutreachHandler,
   qualifyProspectHandler,
   dismissProspectHandler,
   sendCampaignHandler,
@@ -42,6 +44,8 @@ const AGENCY_ALL = ["agency-owner", "agency-manager", "agency-staff"] as const;
 export const ROUTES: PluginApiRoute[] = [
   // Scouting
   { path: "prospects", methods: ["GET", "POST", "PATCH"], handler: prospectsHandler, visibleToRoles: [...AGENCY_ALL] },
+  { path: "prospects/outreach", methods: ["POST"], handler: prospectOutreachHandler, visibleToRoles: [...AGENCY_ALL] },
+  { path: "prospects/notes", methods: ["POST"], handler: prospectNotesHandler, visibleToRoles: [...AGENCY_ALL] },
   { path: "prospects/qualify", methods: ["POST"], handler: qualifyProspectHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "prospects/dismiss", methods: ["POST"], handler: dismissProspectHandler, visibleToRoles: [...AGENCY_ADMIN] },
 

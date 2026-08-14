@@ -25,6 +25,10 @@ import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
 import { listRadarSourceSearchDatasets, type RadarSourceSearchDataset } from "@/lib/server/radarSourceInspection";
 import { listPeopleApplications, listPeopleEmployees, listPeopleLeaveRequests, listPeopleTraining } from "@/server/people";
 import { cleanClientMarketingService } from "@/lib/clientMarketingService";
+import { getInstall } from "@/server/pluginInstalls";
+import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
+import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 
 export interface GlobalSearchResult {
   id: string;
@@ -149,6 +153,48 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
   const clientById = new Map(clients.map(client => [client.id, client]));
   const candidates: Candidate[] = [];
   const company = state.companyProfiles[agencyId] ? getCompanyProfile(agencyId) : undefined;
+
+  const leadsInstall = getInstall({ agencyId }, "leads-pipeline");
+  if (leadsInstall?.enabled) {
+    ensureLeadsPipelineFoundationRegistered();
+    const { prospects } = leadsContainerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
+    for (const prospect of await prospects.list()) {
+      if (prospect.status !== "scouting") continue;
+      const latestAttempt = prospect.outreachAttempts.at(-1);
+      push(candidates, {
+        id: `prospect:${prospect.id}`,
+        category: "Lead",
+        title: prospect.company || prospect.name || prospect.website || "Scouting prospect",
+        subtitle: [
+          "Scouting",
+          prospect.niche,
+          readable(prospect.qualificationState),
+          prospect.nextContactAt ? `Recontact ${new Date(prospect.nextContactAt).toLocaleDateString("en-GB")}` : "",
+        ].filter(Boolean).join(" · "),
+        href: "/portal/agency/pipelines/leads#scouting",
+        timestamp: prospect.updatedAt,
+      }, [
+        prospect.name,
+        prospect.email,
+        prospect.phone,
+        prospect.address,
+        prospect.website,
+        prospect.googleMapsUrl,
+        prospect.instagramUrl,
+        prospect.facebookUrl,
+        prospect.linkedinUrl,
+        prospect.source,
+        prospect.foundAt,
+        prospect.opportunity,
+        prospect.researchNotes,
+        prospect.nextStep,
+        prospect.nextContactReason,
+        prospect.tags.join(" "),
+        prospect.notes.map(note => note.body).join(" "),
+        prospect.outreachAttempts.map(attempt => `${attempt.channel} ${attempt.outcome} ${attempt.note ?? ""} ${attempt.followUpReason ?? ""}`).join(" "),
+      ], { matchLabel: latestAttempt ? `Scouting dossier · last ${readable(latestAttempt.outcome)}` : "Scouting dossier", timestamp: prospect.updatedAt });
+    }
+  }
 
   push(candidates, {
     id: `company:${agencyId}`,

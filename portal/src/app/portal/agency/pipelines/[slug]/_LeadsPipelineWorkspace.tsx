@@ -10,6 +10,7 @@ import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMe
 import { formatUkDateTime } from "@/lib/formatDateTime";
 import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/leadTiming";
 import { BoardSwitcher } from "./_PipelineBoard";
+import { ScoutingCommand, type ScoutingProspectView } from "./_ScoutingCommand";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
@@ -92,22 +93,7 @@ interface LeadJourneyEventView {
   clientId?: string;
 }
 
-interface ProspectView {
-  id: string;
-  name?: string;
-  company?: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  niche?: string;
-  source: string;
-  foundAt?: string;
-  opportunity?: string;
-  researchNotes?: string;
-  nextStep?: string;
-  capturedAt: number;
-  updatedAt: number;
-}
+type ProspectView = ScoutingProspectView;
 
 interface LeadsPipelineWorkspaceProps {
   referenceNow: number;
@@ -154,12 +140,24 @@ const EMPTY_PROSPECT = {
   email: "",
   phone: "",
   website: "",
+  address: "",
+  googleMapsUrl: "",
+  instagramUrl: "",
+  facebookUrl: "",
+  linkedinUrl: "",
   niche: "",
+  tags: "",
   source: "local-sighting",
   foundAt: "",
   opportunity: "",
   researchNotes: "",
   nextStep: "",
+  qualificationState: "unreviewed" as ProspectView["qualificationState"],
+  fitScore: "",
+  preferredChannel: "" as "" | ProspectView["preferredChannel"],
+  doNotContact: false,
+  nextContactAt: "",
+  nextContactReason: "",
 };
 
 type WorkFilter = "all" | "waiting" | "scouting" | "new" | "contacted" | "meeting" | "proposal" | "awaiting-payment" | "won";
@@ -249,6 +247,15 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 60_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const syncHash = () => {
+      if (window.location.hash === "#scouting") setWorkFilter("scouting");
+    };
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
   }, []);
 
   const availableTags = useMemo(() => {
@@ -421,12 +428,24 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       email: prospect.email ?? "",
       phone: prospect.phone ?? "",
       website: prospect.website ?? "",
+      address: prospect.address ?? "",
+      googleMapsUrl: prospect.googleMapsUrl ?? "",
+      instagramUrl: prospect.instagramUrl ?? "",
+      facebookUrl: prospect.facebookUrl ?? "",
+      linkedinUrl: prospect.linkedinUrl ?? "",
       niche: prospect.niche ?? "",
+      tags: prospect.tags.join(", "),
       source: prospect.source,
       foundAt: prospect.foundAt ?? "",
       opportunity: prospect.opportunity ?? "",
       researchNotes: prospect.researchNotes ?? "",
       nextStep: prospect.nextStep ?? "",
+      qualificationState: prospect.qualificationState,
+      fitScore: prospect.fitScore === undefined ? "" : String(prospect.fitScore),
+      preferredChannel: prospect.preferredChannel ?? "",
+      doNotContact: Boolean(prospect.doNotContact),
+      nextContactAt: prospect.nextContactAt ? toDateTimeLocal(prospect.nextContactAt) : "",
+      nextContactReason: prospect.nextContactReason ?? "",
     } : EMPTY_PROSPECT);
     setShowProspectForm(true);
   }
@@ -441,7 +460,13 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       const res = await fetch(`/api/portal/leads-pipeline/prospects${suffix}`, {
         method: editingProspect ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(prospectForm),
+        body: JSON.stringify({
+          ...prospectForm,
+          tags: splitTags(prospectForm.tags),
+          fitScore: prospectForm.fitScore.trim() ? Number(prospectForm.fitScore) : undefined,
+          preferredChannel: prospectForm.preferredChannel || undefined,
+          nextContactAt: prospectForm.nextContactAt ? new Date(prospectForm.nextContactAt).getTime() : null,
+        }),
       });
       const data = await res.json() as { ok: boolean; error?: string };
       if (!data.ok) throw new Error(data.error ?? "Could not save this prospect.");
@@ -872,8 +897,20 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
         </div>
       )}
 
-      <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
-        <div className="grid grid-cols-1 gap-3 pb-2 lg:w-max lg:grid-flow-col lg:auto-cols-[280px]">
+      {workFilter === "scouting" ? (
+        <div id="scouting" className="scroll-mt-24">
+          <ScoutingCommand
+            prospects={filteredProspects}
+            referenceNow={clock}
+            onNew={() => openProspectForm()}
+            onEdit={prospect => openProspectForm(prospect)}
+            onQualify={prospect => void qualifyProspect(prospect)}
+            onDismiss={prospect => void dismissProspect(prospect)}
+          />
+        </div>
+      ) : (
+        <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
+          <div className="grid grid-cols-1 gap-3 pb-2 lg:w-max lg:grid-flow-col lg:auto-cols-[280px]">
           {columns.map(col => {
           const cards = grouped.get(col.id) ?? [];
           const scoutCards = col.id === "scouting" ? filteredProspects : [];
@@ -1094,8 +1131,9 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
             </section>
           );
           })}
+          </div>
         </div>
-      </div>
+      )}
       {conversionLead && (
         <ConvertLeadModal
           lead={conversionLead}
@@ -1148,9 +1186,39 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                 </select>
               </label>
               <Field label="Where or identifying detail" value={prospectForm.foundAt} onChange={foundAt => setProspectForm(current => ({ ...current, foundAt }))} placeholder="High Street, blue van, July newspaper..." />
+              <Field label="Business address" value={prospectForm.address} onChange={address => setProspectForm(current => ({ ...current, address }))} placeholder="Street, town, postcode" />
+              <Field label="Google Maps listing" value={prospectForm.googleMapsUrl} onChange={googleMapsUrl => setProspectForm(current => ({ ...current, googleMapsUrl }))} placeholder="https://maps.google.com/..." type="url" />
               <Field label="Website" value={prospectForm.website} onChange={website => setProspectForm(current => ({ ...current, website }))} placeholder="https://..." type="url" />
               <Field label="Email, when found" value={prospectForm.email} onChange={email => setProspectForm(current => ({ ...current, email }))} placeholder="hello@business.com" type="email" />
               <Field label="Phone" value={prospectForm.phone} onChange={phone => setProspectForm(current => ({ ...current, phone }))} placeholder="+44..." />
+              <Field label="Instagram" value={prospectForm.instagramUrl} onChange={instagramUrl => setProspectForm(current => ({ ...current, instagramUrl }))} placeholder="https://instagram.com/..." type="url" />
+              <Field label="Facebook" value={prospectForm.facebookUrl} onChange={facebookUrl => setProspectForm(current => ({ ...current, facebookUrl }))} placeholder="https://facebook.com/..." type="url" />
+              <Field label="LinkedIn" value={prospectForm.linkedinUrl} onChange={linkedinUrl => setProspectForm(current => ({ ...current, linkedinUrl }))} placeholder="https://linkedin.com/..." type="url" />
+              <Field label="Tags" value={prospectForm.tags} onChange={tags => setProspectForm(current => ({ ...current, tags }))} placeholder="local, high-fit, owner-found" />
+              <label className="text-xs font-medium text-black/60">
+                Qualification state
+                <select value={prospectForm.qualificationState} onChange={event => setProspectForm(current => ({ ...current, qualificationState: event.target.value as ProspectView["qualificationState"] }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                  <option value="unreviewed">Unreviewed</option>
+                  <option value="researching">Researching</option>
+                  <option value="ready">Ready to approach</option>
+                  <option value="outreach">In outreach</option>
+                  <option value="engaged">Engaged</option>
+                  <option value="not-now">Not now</option>
+                </select>
+              </label>
+              <Field label="Fit score (0–100)" value={prospectForm.fitScore} onChange={fitScore => setProspectForm(current => ({ ...current, fitScore }))} placeholder="75" type="number" />
+              <label className="text-xs font-medium text-black/60">
+                Preferred contact route
+                <select value={prospectForm.preferredChannel} onChange={event => setProspectForm(current => ({ ...current, preferredChannel: event.target.value as typeof prospectForm.preferredChannel }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                  <option value="">Not known</option>
+                  <option value="call">Call</option>
+                  <option value="email">Email</option>
+                  <option value="sms">Text</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="dm">Social DM</option>
+                  <option value="in-person">In person</option>
+                </select>
+              </label>
               <label className="block text-xs font-medium text-black/60 sm:col-span-2">
                 Why could AquaOasis-Web help?
                 <textarea value={prospectForm.opportunity} onChange={event => setProspectForm(current => ({ ...current, opportunity: event.target.value }))} rows={2} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm" placeholder="What looks missing, weak, outdated, invisible, or unnecessarily difficult?" />
@@ -1160,9 +1228,15 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                 <textarea value={prospectForm.researchNotes} onChange={event => setProspectForm(current => ({ ...current, researchNotes: event.target.value }))} rows={3} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm" placeholder="Website, Google profile, reviews, competitors, decision maker, useful context..." />
               </label>
               <Field label="Next research step" value={prospectForm.nextStep} onChange={nextStep => setProspectForm(current => ({ ...current, nextStep }))} placeholder="Find owner email, check website, revisit..." />
+              <Field label="Recontact at" value={prospectForm.nextContactAt} onChange={nextContactAt => setProspectForm(current => ({ ...current, nextContactAt }))} type="datetime-local" />
+              <Field label="Recontact reason" value={prospectForm.nextContactReason} onChange={nextContactReason => setProspectForm(current => ({ ...current, nextContactReason }))} placeholder="Asked me to call after the bank holiday" />
+              <label className="flex min-h-11 items-center gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/65">
+                <input type="checkbox" checked={prospectForm.doNotContact} onChange={event => setProspectForm(current => ({ ...current, doNotContact: event.target.checked }))} className="size-4 accent-red-700" />
+                Do not contact
+              </label>
             </div>
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 px-5 py-4 sm:px-6">
-              <p className="text-xs text-black/45">An email is required only when you qualify this into the sales board.</p>
+              <p className="text-xs text-black/45">A phone number or email is needed only when this moves into Journey.</p>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowProspectForm(false)} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/65">Cancel</button>
                 <button type="submit" disabled={busy === "prospect:add" || busy === `prospect:${editingProspect?.id}`} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-50">

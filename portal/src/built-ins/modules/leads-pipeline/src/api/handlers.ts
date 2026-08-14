@@ -40,6 +40,9 @@ import type {
   MeetingAttemptOutcome,
   MeetingMode,
   MeetingStatus,
+  ProspectOutreachChannel,
+  ProspectOutreachOutcome,
+  RecordProspectOutreachInput,
   SalesPresentation,
   SaveCommercialPackInput,
   UpdateContactPatch,
@@ -65,6 +68,8 @@ const EXCEL_MIME_TYPES = new Set([
 const CUSTOM_FIELDS_KEY = "contacts/custom-field-definitions";
 const CUSTOM_TAGS_KEY = "contacts/custom-tags";
 const CUSTOM_FIELD_TYPES = new Set<CustomFieldType>(["text", "number", "date", "url", "select", "multi-select", "checkbox"]);
+const PROSPECT_OUTREACH_CHANNELS = new Set<ProspectOutreachChannel>(["call", "email", "sms", "whatsapp", "dm", "in-person"]);
+const PROSPECT_OUTREACH_OUTCOMES = new Set<ProspectOutreachOutcome>(["attempted", "no-answer", "left-message", "sent", "replied", "interested", "not-now", "not-fit", "wrong-contact", "meeting-booked"]);
 
 const buildContainer = (ctx: PluginCtx) =>
   containerFor({ agencyId: ctx.agencyId, storage: ctx.storage });
@@ -141,25 +146,36 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
   const c = buildContainer(ctx);
   const prospect = await c.prospects.get(body.id);
   if (!prospect || prospect.status !== "scouting") return notFound("active_prospect_not_found");
-  if (!prospect.email) {
-    return unprocessable("Add an email before qualifying this prospect as a lead.");
+  if (!prospect.email && !prospect.phone) {
+    return unprocessable("Add an email address or phone number before qualifying this prospect as a lead.");
   }
+  if (prospect.doNotContact) return unprocessable("Remove the do-not-contact hold before qualifying this prospect.");
+  const outreachHistory = prospect.outreachAttempts.map(attempt => {
+    const followUp = attempt.followUpAt ? ` · follow-up ${new Date(attempt.followUpAt).toISOString()}` : "";
+    return `${new Date(attempt.at).toISOString()} · ${attempt.channel} · ${attempt.outcome}${followUp}${attempt.note ? ` · ${attempt.note}` : ""}`;
+  }).join("\n");
+  const fieldNotes = prospect.notes.map(note => `${new Date(note.at).toISOString()} · ${note.body}`).join("\n");
   const scoutingNotes = [
     prospect.opportunity ? `Why we could help: ${prospect.opportunity}` : "",
     prospect.researchNotes ? `Scouting research: ${prospect.researchNotes}` : "",
     prospect.nextStep ? `Suggested next step: ${prospect.nextStep}` : "",
     prospect.foundAt ? `Found at: ${prospect.foundAt}` : "",
+    prospect.address ? `Address: ${prospect.address}` : "",
     prospect.website ? `Website: ${prospect.website}` : "",
+    outreachHistory ? `Cold outreach history:\n${outreachHistory}` : "",
+    fieldNotes ? `Scouting notes:\n${fieldNotes}` : "",
   ].filter(Boolean).join("\n\n");
   try {
     const result = await c.leads.upsert({
-      email: prospect.email,
+      email: prospect.email ?? "",
       name: prospect.name,
       phone: prospect.phone,
       company: prospect.company,
       source: `scouting:${prospect.source}`,
       tags: [
         "scouted",
+        ...prospect.tags,
+        ...(prospect.preferredChannel ? [`preferred:${prospect.preferredChannel}`] : []),
         ...(prospect.niche ? [`niche:${prospect.niche.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`] : []),
       ],
       notes: scoutingNotes || undefined,
@@ -171,6 +187,18 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
         ...(prospect.researchNotes ? { "scouting-research": prospect.researchNotes } : {}),
         ...(prospect.nextStep ? { "scouting-next-step": prospect.nextStep } : {}),
         ...(prospect.website ? { website: prospect.website } : {}),
+        ...(prospect.address ? { "scouting-address": prospect.address } : {}),
+        ...(prospect.googleMapsUrl ? { "scouting-google-maps": prospect.googleMapsUrl } : {}),
+        ...(prospect.instagramUrl ? { "scouting-instagram": prospect.instagramUrl } : {}),
+        ...(prospect.facebookUrl ? { "scouting-facebook": prospect.facebookUrl } : {}),
+        ...(prospect.linkedinUrl ? { "scouting-linkedin": prospect.linkedinUrl } : {}),
+        ...(prospect.fitScore !== undefined ? { "scouting-fit-score": String(prospect.fitScore) } : {}),
+        "scouting-qualification-state": prospect.qualificationState,
+        ...(prospect.preferredChannel ? { "scouting-preferred-channel": prospect.preferredChannel } : {}),
+        ...(prospect.lastContactedAt ? { "scouting-last-contacted-at": new Date(prospect.lastContactedAt).toISOString() } : {}),
+        ...(prospect.nextContactAt ? { "scouting-next-contact-at": new Date(prospect.nextContactAt).toISOString() } : {}),
+        ...(prospect.nextContactReason ? { "scouting-next-contact-reason": prospect.nextContactReason } : {}),
+        "scouting-outreach-attempts": String(prospect.outreachAttempts.length),
       },
     }, ctx.actor);
     const updated = await c.prospects.update(prospect.id, {
@@ -178,6 +206,32 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
       qualifiedLeadId: result.lead.id,
     }, ctx.actor);
     return json({ ok: true, prospect: updated, lead: result.lead, created: result.created });
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function prospectOutreachHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const body = await safeJson<RecordProspectOutreachInput & { id: string }>(req);
+  if (!body?.id) return badRequest("id required.");
+  if (!PROSPECT_OUTREACH_CHANNELS.has(body.channel)) return badRequest("valid channel required.");
+  if (!PROSPECT_OUTREACH_OUTCOMES.has(body.outcome)) return badRequest("valid outcome required.");
+  try {
+    const prospect = await buildContainer(ctx).prospects.recordOutreach(body.id, body, ctx.actor);
+    return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function prospectNotesHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const body = await safeJson<{ id: string; body: string }>(req);
+  if (!body?.id) return badRequest("id required.");
+  try {
+    const prospect = await buildContainer(ctx).prospects.addNote(body.id, body.body, ctx.actor);
+    return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }

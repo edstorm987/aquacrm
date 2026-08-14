@@ -133,6 +133,37 @@ export interface CustomFieldDefinition {
 // ─── Scouting prospect ───────────────────────────────────────────────────
 
 export type ProspectStatus = "scouting" | "qualified" | "dismissed";
+export type ProspectQualificationState = "unreviewed" | "researching" | "ready" | "outreach" | "engaged" | "not-now";
+export type ProspectOutreachChannel = "call" | "email" | "sms" | "whatsapp" | "dm" | "in-person";
+export type ProspectOutreachOutcome =
+  | "attempted"
+  | "no-answer"
+  | "left-message"
+  | "sent"
+  | "replied"
+  | "interested"
+  | "not-now"
+  | "not-fit"
+  | "wrong-contact"
+  | "meeting-booked";
+
+export interface ProspectOutreachAttempt {
+  id: string;
+  at: number;
+  actorUserId?: string;
+  channel: ProspectOutreachChannel;
+  outcome: ProspectOutreachOutcome;
+  note?: string;
+  followUpAt?: number;
+  followUpReason?: string;
+}
+
+export interface ProspectNote {
+  id: string;
+  at: number;
+  actorUserId?: string;
+  body: string;
+}
 
 export interface Prospect {
   id: string;
@@ -142,12 +173,27 @@ export interface Prospect {
   email?: string;
   phone?: string;
   website?: string;
+  address?: string;
+  googleMapsUrl?: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  linkedinUrl?: string;
   niche?: string;
+  tags: string[];
   source: string;
   foundAt?: string;
   opportunity?: string;
   researchNotes?: string;
   nextStep?: string;
+  qualificationState: ProspectQualificationState;
+  fitScore?: number;
+  preferredChannel?: ProspectOutreachChannel;
+  doNotContact?: boolean;
+  nextContactAt?: number;
+  nextContactReason?: string;
+  lastContactedAt?: number;
+  outreachAttempts: ProspectOutreachAttempt[];
+  notes: ProspectNote[];
   status: ProspectStatus;
   qualifiedLeadId?: string;
   capturedAt: number;
@@ -160,12 +206,24 @@ export interface CreateProspectInput {
   email?: string;
   phone?: string;
   website?: string;
+  address?: string;
+  googleMapsUrl?: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  linkedinUrl?: string;
   niche?: string;
+  tags?: string[];
   source: string;
   foundAt?: string;
   opportunity?: string;
   researchNotes?: string;
   nextStep?: string;
+  qualificationState?: ProspectQualificationState;
+  fitScore?: number;
+  preferredChannel?: ProspectOutreachChannel;
+  doNotContact?: boolean;
+  nextContactAt?: number;
+  nextContactReason?: string;
 }
 
 export interface UpdateProspectPatch {
@@ -174,14 +232,35 @@ export interface UpdateProspectPatch {
   email?: string;
   phone?: string;
   website?: string;
+  address?: string;
+  googleMapsUrl?: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  linkedinUrl?: string;
   niche?: string;
+  tags?: string[];
   source?: string;
   foundAt?: string;
   opportunity?: string;
   researchNotes?: string;
   nextStep?: string;
+  qualificationState?: ProspectQualificationState;
+  fitScore?: number;
+  preferredChannel?: ProspectOutreachChannel;
+  doNotContact?: boolean;
+  nextContactAt?: number | null;
+  nextContactReason?: string;
   status?: ProspectStatus;
   qualifiedLeadId?: string;
+}
+
+export interface RecordProspectOutreachInput {
+  channel: ProspectOutreachChannel;
+  outcome: ProspectOutreachOutcome;
+  note?: string;
+  contactedAt?: number;
+  followUpAt?: number;
+  followUpReason?: string;
 }
 
 // ─── Lead ─────────────────────────────────────────────────────────────────
