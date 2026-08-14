@@ -25,7 +25,7 @@ describe("company connections workspace", () => {
     assert.ok(connections.includes('fetch("/api/portal/settings"'));
     assert.ok(connections.includes('fetch("/api/portal/trading-companies"'));
     assert.ok(connections.includes("Company websites"));
-    assert.ok(connections.includes("Websites and development"));
+    assert.ok(connections.includes("Technical delivery"));
     assert.ok(page.includes("workspaceWebsite={settings.website}"));
     assert.ok(page.includes("clients={clients.map"));
     assert.ok(page.includes("requestedIntegration"));

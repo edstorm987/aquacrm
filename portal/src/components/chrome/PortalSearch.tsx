@@ -4,12 +4,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  Activity,
+  BarChart3,
   Bell,
   Bot,
   Building2,
   CalendarDays,
   CircleDollarSign,
   Contact,
+  Crosshair,
+  Database,
   FileSearch2,
   FileText,
   FlaskConical,
@@ -18,7 +22,9 @@ import {
   MessageSquare,
   NotebookPen,
   Package,
+  Radar,
   Search,
+  Target,
   UserRound,
   UsersRound,
   X,
@@ -49,6 +55,11 @@ interface SearchOption {
   page?: PortalSearchItem;
 }
 
+interface SearchIndexMeta {
+  indexed: number;
+  categories: Record<string, number>;
+}
+
 export function PortalSearch({ items, recordsEnabled = false }: { items: PortalSearchItem[]; recordsEnabled?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -56,6 +67,8 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
   const [query, setQuery] = useState("");
   const [recordResults, setRecordResults] = useState<RecordResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [indexMeta, setIndexMeta] = useState<SearchIndexMeta>({ indexed: 0, categories: {} });
+  const [totalMatches, setTotalMatches] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -95,7 +108,12 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
     if (!recordsEnabled) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      void fetch("/api/portal/search?warm=1", { signal: controller.signal }).catch(() => undefined);
+      void fetch("/api/portal/search?warm=1", { signal: controller.signal })
+        .then(response => response.ok ? response.json() : null)
+        .then((json: { indexed?: number; categories?: Record<string, number> } | null) => {
+          if (!controller.signal.aborted && json?.indexed) setIndexMeta({ indexed: json.indexed, categories: json.categories ?? {} });
+        })
+        .catch(() => undefined);
     }, 600);
     return () => {
       window.clearTimeout(timer);
@@ -107,6 +125,7 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
     const normalised = query.trim();
     if (!recordsEnabled || !open || normalised.length < 2) {
       setRecordResults([]);
+      setTotalMatches(0);
       setLoading(false);
       return;
     }
@@ -115,8 +134,12 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
       setLoading(true);
       try {
         const response = await fetch(`/api/portal/search?q=${encodeURIComponent(normalised)}`, { signal: controller.signal });
-        const json = await response.json().catch(() => null) as { results?: RecordResult[] } | null;
-        if (response.ok) setRecordResults(json?.results ?? []);
+        const json = await response.json().catch(() => null) as { results?: RecordResult[]; total?: number; indexed?: number; categories?: Record<string, number> } | null;
+        if (response.ok) {
+          setRecordResults(json?.results ?? []);
+          setTotalMatches(json?.total ?? json?.results?.length ?? 0);
+          if (json?.indexed) setIndexMeta({ indexed: json.indexed, categories: json.categories ?? {} });
+        }
         else setRecordResults([]);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) setRecordResults([]);
@@ -219,8 +242,8 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
                   value={query}
                   onChange={event => setQuery(event.target.value)}
                   onKeyDown={onInputKeyDown}
-                  placeholder={recordsEnabled ? "Search people, enquiries, messages, notes..." : "Search pages..."}
-                  aria-label={recordsEnabled ? "Search all workspace records" : "Search pages"}
+                  placeholder={recordsEnabled ? "Search all data, KPIs, checks, messages..." : "Search pages..."}
+                  aria-label={recordsEnabled ? "Search the whole business workspace" : "Search pages"}
                   aria-autocomplete="list"
                   aria-controls="aqua-search-results"
                   aria-activedescendant={options[activeIndex] ? `aqua-search-option-${activeIndex}` : undefined}
@@ -238,6 +261,14 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
               </div>
             </div>
 
+            {recordsEnabled ? <div className="flex min-h-9 items-center gap-2 border-b border-black/[0.08] bg-black/[0.018] px-4 text-[10px] text-black/42">
+              <Database size={12} className="shrink-0 text-brand" aria-hidden="true" />
+              <strong className="font-semibold text-black/58">Whole workspace</strong>
+              <span aria-hidden="true">·</span>
+              <span>{indexMeta.indexed ? `${indexMeta.indexed.toLocaleString()} searchable records` : "Live index preparing"}</span>
+              <span className="ml-auto hidden text-black/30 sm:inline">CRM · KPIs · Radar · evidence · messages · files</span>
+            </div> : null}
+
             {normalised && (recordResults.length > 0 || loading) ? (
               <div className="flex min-h-11 items-end gap-5 overflow-x-auto border-b border-black/[0.08] px-4" aria-label="Search result filters">
                 <CategoryTab label="All" count={recordResults.length} active={categoryFilter === "All"} onClick={() => { setCategoryFilter("All"); setActiveIndex(0); }} />
@@ -252,7 +283,7 @@ export function PortalSearch({ items, recordsEnabled = false }: { items: PortalS
                 <div className="pb-1">
                   <div className="flex items-center justify-between px-2 pb-2 pt-1">
                     <p className="text-[11px] font-semibold uppercase text-black/40">Best matches</p>
-                    <p className="text-[11px] text-black/40">{filteredRecords.length} {filteredRecords.length === 1 ? "result" : "results"}</p>
+                    <p className="text-[11px] text-black/40">{categoryFilter === "All" && totalMatches > filteredRecords.length ? `${filteredRecords.length} of ${totalMatches.toLocaleString()}` : filteredRecords.length} {filteredRecords.length === 1 ? "result" : "results"}</p>
                   </div>
                   {filteredRecords.map((result, index) => (
                     <SearchResultRow
@@ -406,6 +437,13 @@ function resultIcon(category: string) {
   if (category === "Meeting") return <CalendarDays size={16} />;
   if (category === "Assistant") return <Bot size={16} />;
   if (category === "Notification") return <Bell size={16} />;
+  if (category === "KPI") return <BarChart3 size={16} />;
+  if (category === "Radar") return <Radar size={16} />;
+  if (category === "Check") return <Crosshair size={16} />;
+  if (category === "Evidence" || category === "Data" || category === "Source") return <Database size={16} />;
+  if (category === "Campaign") return <Target size={16} />;
+  if (category === "Audience") return <UsersRound size={16} />;
+  if (category === "Activity") return <Activity size={16} />;
   if (category === "Experiment") return <FlaskConical size={16} />;
   if (category === "File" || category === "Contract" || category === "Form") return <FileSearch2 size={16} />;
   return <Contact size={16} />;

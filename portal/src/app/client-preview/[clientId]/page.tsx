@@ -65,7 +65,7 @@ export default async function ClientPreviewPage({
   const data = requestedMode && validModes.has(requestedMode as CustomerPortalMode)
     ? { ...loadedData, mode: portalMode(requestedMode) }
     : loadedData;
-  const backHref = `/portal/clients/${client.id}?tab=fulfilment`;
+  const backHref = `/portal/clients/${client.id}?tab=portal`;
   const previewParams = new URLSearchParams();
   if (embedded) previewParams.set("embedded", "1");
   if (manage) previewParams.set("manage", "1");

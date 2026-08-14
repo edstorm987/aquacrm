@@ -28,6 +28,8 @@ import { cookies } from "next/headers";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
+import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
+import { clientWorkspaceHref } from "@/lib/clientWorkspace";
 
 export default async function ClientLayout({
   children,
@@ -63,25 +65,32 @@ export default async function ClientLayout({
     order: 0,
     items: [
       { id: "back-to-agency", label: "← Back to agency", href: "/portal/agency", order: 0 },
-      { id: "client-overview", label: "Overview", href: overviewBase, order: 10 },
-      { id: "client-fulfilment", label: "Fulfilment", href: `${overviewBase}?tab=fulfilment`, order: 20 },
-      { id: "client-kanban", label: "Tasks", href: `${overviewBase}?tab=kanban`, order: 30 },
+      { id: "client-overview", label: "Client overview", href: clientWorkspaceHref(client.id, "overview"), order: 10 },
+      { id: "client-relationship", label: "Relationship", href: clientWorkspaceHref(client.id, "relationship"), order: 20 },
+      { id: "client-communications", label: "Communications", href: clientWorkspaceHref(client.id, "communications"), order: 30 },
     ],
   };
   let panels: import("@/lib/chrome/sidebarLayout").NavPanel[] = [
     workspacePanel,
     {
+      id: "fulfillment",
+      label: "Delivery",
+      order: 30,
+      items: [
+        { id: "client-delivery", label: "Delivery workspace", href: clientWorkspaceHref(client.id, "delivery"), order: 10 },
+        { id: "client-marketing", label: "Social and paid media", href: clientWorkspaceHref(client.id, "marketing"), order: 20 },
+        { id: "client-files", label: "Files and assets", href: clientWorkspaceHref(client.id, "files"), order: 30 },
+        { id: "client-portal", label: "Client portal", href: clientWorkspaceHref(client.id, "portal"), order: 40 },
+      ],
+    },
+    {
       id: "ops",
-      label: "Manage",
+      label: "Operations",
       order: 50,
       items: [
-        { id: "client-website", label: "Website", href: `${overviewBase}?tab=website`, order: 10 },
-        { id: "client-properties", label: "Development", href: `${overviewBase}?tab=properties`, order: 20 },
-        { id: "client-finance", label: "Finance", href: `${overviewBase}?tab=finance`, order: 30 },
-        { id: "client-assets", label: "Assets", href: `${overviewBase}?tab=assets`, order: 40 },
-        { id: "client-files", label: "Files", href: `${overviewBase}?tab=files`, order: 50 },
-        { id: "client-sops", label: "Processes", href: `${overviewBase}?tab=sops`, order: 60 },
-        { id: "client-systems", label: "Monitoring", href: `${overviewBase}?tab=systems`, order: 70 },
+        { id: "client-systems", label: "Systems and development", href: clientWorkspaceHref(client.id, "systems"), order: 10 },
+        { id: "client-finance", label: "Finance", href: clientWorkspaceHref(client.id, "finance"), order: 20 },
+        { id: "client-notes", label: "Internal notes", href: clientWorkspaceHref(client.id, "notes"), order: 30 },
       ],
     },
     {
@@ -139,7 +148,7 @@ export default async function ClientLayout({
   // sidebar shape, replace the auto-built panels with a single
   // "Workspace" panel containing exactly the override entries. Lets a
   // phase like "Onboarding" present a minimal, focused nav.
-  if (activePhase?.sidebarOverride && activePhase.sidebarOverride.length > 0) {
+  if ((!session.role.startsWith("agency-") || previewActive) && activePhase?.sidebarOverride && activePhase.sidebarOverride.length > 0) {
     panels = [{
       id: "main",
       label: "Workspace",
@@ -172,7 +181,7 @@ export default async function ClientLayout({
       <ThemeInjector brand={client.brand} scope="client" />
       <NotificationAttentionProvider initialAlerts={alertViews}>
       <div className="mm-portal-root flex h-dvh overflow-hidden">
-        <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} />
+        <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} navAlignment="start" />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             title={client.name}
@@ -197,6 +206,7 @@ export default async function ClientLayout({
             notifications={session.role.startsWith("agency-")
               ? <NotificationCentreButton />
               : undefined}
+            radarControl={session.role === "agency-owner" || session.role === "agency-manager" ? <RadarQuickLookControl agencyId={session.agencyId} /> : null}
             advisorControl={session.role === "agency-owner" || session.role === "agency-manager" ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={sessionUser?.name || session.email} />
             ) : null}

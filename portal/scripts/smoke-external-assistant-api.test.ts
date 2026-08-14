@@ -46,12 +46,15 @@ test("owners can manage multiple scoped keys without persisting plaintext secret
 
 test("managed key permissions and modules are enforced at every data route", () => {
   const context = read("src/app/api/v1/assistant/context/route.ts");
+  const advisor = read("src/app/api/v1/advisor/context/route.ts");
   const records = read("src/app/api/v1/records/route.ts");
   const record = read("src/app/api/v1/records/[recordId]/route.ts");
   const search = read("src/app/api/v1/search/route.ts");
   const exportRoute = read("src/app/api/v1/export/route.ts");
 
   assert.match(context, /requireExternalAssistantPermission\(auth, "context:read"\)/);
+  assert.match(advisor, /requireExternalAssistantPermission\(auth, "advisor:read"\)/);
+  assert.match(advisor, /buildExternalAdvisorContext/);
   for (const source of [records, record]) {
     assert.match(source, /requireExternalAssistantPermission\(auth, "records:read"\)/);
     assert.match(source, /requireExternalAssistantModule/);
@@ -71,30 +74,38 @@ test("external assistant data is sanitised before leaving the portal", () => {
   assert.doesNotMatch(gateway, /state\.assistant/);
 });
 
-test("read-only context, records, search, and export routes exist", () => {
+test("business records stay read-only while proposals use an isolated approval route", () => {
   const context = read("src/app/api/v1/assistant/context/route.ts");
+  const advisor = read("src/app/api/v1/advisor/context/route.ts");
   const records = read("src/app/api/v1/records/route.ts");
   const record = read("src/app/api/v1/records/[recordId]/route.ts");
   const search = read("src/app/api/v1/search/route.ts");
   const exportRoute = read("src/app/api/v1/export/route.ts");
-  for (const source of [context, records, record, exportRoute]) {
+  for (const source of [context, advisor, records, record, exportRoute]) {
     assert.match(source, /authenticateExternalAssistant/);
     assert.doesNotMatch(source, /export async function (POST|PUT|PATCH|DELETE)/);
   }
   assert.match(search, /authenticateExternalAssistant/);
   assert.match(search, /export async function POST/);
   assert.match(exportRoute, /recordsToCsv/);
+  const proposals = read("src/app/api/v1/actions/proposals/route.ts");
+  assert.match(proposals, /requireExternalAssistantPermission\(auth, "actions:propose"\)/);
+  assert.match(proposals, /submitExternalAssistantActionProposal/);
+  assert.doesNotMatch(proposals, /createAgencyTask|updateAgencyTask|deleteAgencyTask/);
 });
 
 test("OpenAPI contract and reusable model-independent skill are shipped", () => {
   const openapi = read("src/app/api/v1/openapi.json/route.ts");
   const skill = read("assistant-integrations/milesymedia-api/SKILL.md");
   assert.match(openapi, /AquaCRM Business Assistant API/);
+  assert.match(openapi, /getAquaCrmAdvisorContext/);
   assert.match(openapi, /bearerAuth/);
   assert.match(openapi, /read-only/i);
-  assert.match(skill, /MILESYMEDIA_API_BASE_URL/);
+  assert.match(skill, /AQUACRM_API_BASE_URL/);
+  assert.match(skill, /AQUACRM_MCP_URL/);
   assert.match(skill, /GET \/assistant\/context/);
-  assert.match(skill, /This API is read-only/);
+  assert.match(skill, /business records remain read-only/i);
+  assert.match(skill, /aqua_propose_action/);
 });
 
 test("assistant setup prompt and downloadable handoff are available in settings", () => {
@@ -104,11 +115,14 @@ test("assistant setup prompt and downloadable handoff are available in settings"
   assert.match(setup, /buildExternalAssistantSetupPrompt/);
   assert.match(setup, /buildExternalAssistantSetupDocument/);
   assert.match(setup, /GET \/assistant\/context/);
+  assert.match(setup, /aqua_advisor_context/);
+  assert.match(setup, /MCP server URL/);
   assert.match(setup, /Never reveal, repeat, log, or place the bearer token/);
   assert.match(setup, /normal chat or document upload cannot make API requests by itself/i);
   assert.match(ui, /Copy setup prompt/);
   assert.match(ui, /Download setup guide/);
   assert.match(ui, /Download complete setup file/);
+  assert.match(ui, /MCP server/);
 
   const document = buildExternalAssistantSetupDocument({
     assistantName: "Ed's private assistant",
@@ -122,6 +136,7 @@ test("assistant setup prompt and downloadable handoff are available in settings"
   });
   assert.match(document, /Authorization: Bearer aqa_test_token/);
   assert.match(document, /Modules: clients, finance/);
-  assert.match(document, /getMilesymediaContext/);
+  assert.match(document, /getAquaCrmAdvisorContext/);
+  assert.match(document, /MCP server URL: https:\/\/aqua-crm\.com\/api\/mcp/);
   assert.equal(externalAssistantSetupFilename("Ed's private assistant"), "aquacrm-ed-s-private-assistant-setup.md");
 });

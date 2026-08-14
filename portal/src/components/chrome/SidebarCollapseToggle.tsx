@@ -50,6 +50,7 @@ export function SidebarCollapseToggle() {
       type="button"
       onClick={onToggle}
       data-sidebar-collapse-toggle
+      data-nav-tone="slate"
       aria-label={collapsed ? "Open sidebar" : "Collapse sidebar"}
       aria-pressed={collapsed}
       title={collapsed ? "Open sidebar" : "Collapse sidebar"}

@@ -5,6 +5,13 @@ export type StoragePatchOperation =
 
 type JsonObject = Record<string, unknown>;
 
+// PostgreSQL applies each jsonb_set against the complete datastore value. A
+// Radar sweep can update hundreds of leaves in one agency branch, so sending
+// every leaf separately turns a small logical write into hundreds of full
+// JSONB rewrites. Compact only busy nested branches; sibling agencies and
+// unrelated collections remain independently mergeable.
+const MAX_PATCH_OPERATIONS_PER_BRANCH = 64;
+
 function isObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -47,6 +54,9 @@ export function diffStorageValue(
     const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
     for (const key of keys) {
       operations.push(...diffStorageValue(before[key], after[key], [...path, key]));
+    }
+    if (path.length >= 2 && operations.length > MAX_PATCH_OPERATIONS_PER_BRANCH) {
+      return [{ op: "set", path, value: clone(after) }];
     }
     return operations;
   }

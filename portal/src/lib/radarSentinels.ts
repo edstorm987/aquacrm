@@ -193,9 +193,9 @@ function domainRoute(domain: AdvisorDomain): string {
   if (domain === "delivery") return "/portal/agency/fulfilment";
   if (domain === "marketing") return "/portal/agency/marketing";
   if (domain === "operations" || domain === "team") return "/portal/agency/actions";
-  if (domain === "development") return "/portal/agency/performance";
+  if (domain === "development") return "/portal/agency/fulfilment/technical/performance";
   if (domain === "systems") return "/portal/agency/company?view=connections";
-  return "/portal/agency/company";
+  return "/portal/agency?station=battle";
 }
 
 function percentageChange(current: number, previous: number): number | null {

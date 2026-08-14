@@ -1,6 +1,7 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
+import { FinanceNav } from "../components/FinanceNav";
 
 export default async function SettingsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
@@ -14,7 +15,9 @@ export default async function SettingsPage(props: PluginPageProps) {
   const sentInvoices = invoices.filter(i => i.status === "sent").length;
   const pendingExpenses = expenses.filter(e => e.status === "pending").length;
   return (
-    <section className="finance-settings">
+    <section className="finance-settings mx-auto w-full max-w-6xl space-y-8 pb-12">
+      <FinanceNav active="settings" />
+      <div>
       <header><h1>Settings</h1><p>Agency-finance install state.</p></header>
       <dl className="finance-settings-grid">
         <div><dt>Categories</dt><dd>{categories.length} ({categories.filter(c => c.status === "active").length} active)</dd></div>
@@ -34,6 +37,7 @@ export default async function SettingsPage(props: PluginPageProps) {
         <div><dt>Plugin id</dt><dd>{props.install.pluginId}</dd></div>
         <div><dt>Enabled</dt><dd>{props.install.enabled ? "Yes" : "No"}</dd></div>
       </dl>
+      </div>
     </section>
   );
 }

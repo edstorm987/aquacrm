@@ -54,21 +54,21 @@ export function DevelopmentDashboard({ projects, toolkitCount, vaultCount, workf
     <div className="space-y-7">
       <header className="flex flex-col gap-5 border-b border-black/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><Code2 size={13} aria-hidden /> Development dashboard</p>
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><Code2 size={13} aria-hidden /> Fulfilment · Technical delivery</p>
           <h1 className="mt-2 text-3xl font-semibold text-black/90">Build, release and monitor from one view.</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">See every first-party and client build, what is moving, what is live, and what needs intervention before opening the full project workspace.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/portal/agency/development?view=workspace" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
-            <GitBranch size={16} /> Open development workspace
+          <Link href="/portal/agency/fulfilment?view=technical&technical=projects" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
+            <GitBranch size={16} /> Open project workspace
           </Link>
-          <Link href="/portal/agency/development/website" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-black/65 hover:border-black/25 hover:text-black">
+          <Link href="/portal/agency/fulfilment/technical/website" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-black/65 hover:border-black/25 hover:text-black">
             <Globe2 size={16} /> Website control
           </Link>
         </div>
       </header>
 
-      <section aria-label="Development health" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section aria-label="Technical delivery health" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric label="Active projects" value={String(active.length)} detail={`${ecosystem} ecosystem · ${clients} client`} icon={<Layers3 size={16} />} tone="blue" />
         <Metric label="In progress" value={String(inProgress)} detail={`${countStatus(active, "review")} awaiting review`} icon={<Workflow size={16} />} tone="violet" />
         <Metric label="Live systems" value={String(live)} detail={`${active.length ? Math.round(live / active.length * 100) : 0}% of active portfolio`} icon={<Rocket size={16} />} tone="emerald" />
@@ -78,12 +78,12 @@ export function DevelopmentDashboard({ projects, toolkitCount, vaultCount, workf
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.65fr)]">
         <div>
-          <SectionHeading eyebrow="Delivery state" title="Build pipeline" detail="The current movement from planning through production." action={{ label: "Manage projects", href: "/portal/agency/development?view=workspace" }} />
+          <SectionHeading eyebrow="Delivery state" title="Build pipeline" detail="The current movement from planning through production." action={{ label: "Manage projects", href: "/portal/agency/fulfilment?view=technical&technical=projects" }} />
           <div className="mt-4 grid border-y border-black/10 sm:grid-cols-2 lg:grid-cols-4">
             {pipeline.map((stage, index) => {
               const count = countStatus(active, stage.status);
               return (
-                <Link key={stage.status} href={`/portal/agency/development?view=workspace&status=${stage.status}`} className={`group min-h-32 px-4 py-5 ${index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""} ${index === 2 ? "lg:border-l" : ""}`}>
+                <Link key={stage.status} href={`/portal/agency/fulfilment?view=technical&technical=projects&status=${stage.status}`} className={`group min-h-32 px-4 py-5 ${index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""} ${index === 2 ? "lg:border-l" : ""}`}>
                   <span className="text-[10px] font-semibold uppercase text-black/35">0{index + 1}</span>
                   <span className="mt-3 flex items-end justify-between gap-3">
                     <span><strong className="block text-2xl font-semibold text-black/80">{count}</strong><span className="mt-1 block text-xs font-medium text-black/50">{stage.label}</span></span>
@@ -132,12 +132,12 @@ export function DevelopmentDashboard({ projects, toolkitCount, vaultCount, workf
           </div>
 
           <div>
-            <SectionHeading eyebrow="Build system" title="Development library" detail="Reusable knowledge and controls behind delivery." />
+            <SectionHeading eyebrow="Build system" title="Technical delivery library" detail="Reusable knowledge and controls behind delivery." />
             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-              <WorkspaceLink href="/portal/agency/development/toolkit" title="Toolkit" value={toolkitCount} detail="Tools, templates and components" icon={<Blocks size={16} />} />
-              <WorkspaceLink href="/portal/agency/development/vault" title="Knowledge vault" value={vaultCount} detail="Knowledge, courses and credentials" icon={<BookOpen size={16} />} />
-              <WorkspaceLink href="/portal/agency/development/workflow" title="Build flows" value={workflowCount} detail="Reusable delivery workflows" icon={<Workflow size={16} />} />
-              <WorkspaceLink href="/portal/agency/sop-library" title="Linked SOPs" value={sopCount} detail="Operational development processes" icon={<CheckCircle2 size={16} />} />
+              <WorkspaceLink href="/portal/agency/fulfilment/technical/toolkit" title="Toolkit" value={toolkitCount} detail="Tools, templates and components" icon={<Blocks size={16} />} />
+              <WorkspaceLink href="/portal/agency/fulfilment/technical/vault" title="Knowledge vault" value={vaultCount} detail="Knowledge, courses and credentials" icon={<BookOpen size={16} />} />
+              <WorkspaceLink href="/portal/agency/fulfilment/technical/workflow" title="Build flows" value={workflowCount} detail="Reusable delivery workflows" icon={<Workflow size={16} />} />
+              <WorkspaceLink href="/portal/agency/sop-library" title="Linked SOPs" value={sopCount} detail="Operational technical-delivery processes" icon={<CheckCircle2 size={16} />} />
             </div>
           </div>
         </aside>
@@ -146,10 +146,10 @@ export function DevelopmentDashboard({ projects, toolkitCount, vaultCount, workf
       <section>
         <SectionHeading eyebrow="Workspaces" title="Go deeper" detail="Open the specialist surface needed for the next decision." />
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <QuickLink href="/portal/agency/development?view=workspace" title="Project workspace" detail="Search, filter and manage every build." icon={<GitBranch size={17} />} />
-          <QuickLink href="/portal/agency/development/website" title="Website control" detail="Preview, release and monitor the first-party site." icon={<Globe2 size={17} />} />
-          <QuickLink href="/portal/agency/development/performance" title="Performance" detail="Traffic, conversions, experiments and reports." icon={<Activity size={17} />} />
-          <QuickLink href="/portal/agency/development/workflow" title="Build flow" detail="Configure repeatable delivery stages." icon={<Workflow size={17} />} />
+          <QuickLink href="/portal/agency/fulfilment?view=technical&technical=projects" title="Project workspace" detail="Search, filter and manage every build." icon={<GitBranch size={17} />} />
+          <QuickLink href="/portal/agency/fulfilment/technical/website" title="Website control" detail="Preview, release and monitor the first-party site." icon={<Globe2 size={17} />} />
+          <QuickLink href="/portal/agency/fulfilment/technical/performance" title="Performance" detail="Traffic, conversions, experiments and reports." icon={<Activity size={17} />} />
+          <QuickLink href="/portal/agency/fulfilment/technical/workflow" title="Build flow" detail="Configure repeatable delivery stages." icon={<Workflow size={17} />} />
         </div>
       </section>
     </div>

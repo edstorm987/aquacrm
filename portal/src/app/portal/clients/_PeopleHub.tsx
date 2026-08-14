@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
-import { Building2, ClipboardPenLine, Columns3, FolderKanban, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, UserRound, UsersRound, X, type LucideIcon } from "lucide-react";
+import { Building2, ClipboardPenLine, Columns3, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, UserRound, UsersRound, X, type LucideIcon } from "lucide-react";
 
 import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
+import {
+  WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
+  type WebsiteEnquiryClassification,
+} from "@/lib/enquiryClassification";
 
 export type ContactRole = "lead" | "customer" | "account" | "vendor" | "employee" | "other";
 
@@ -25,6 +29,10 @@ export interface HubClient {
   lastContactedAt?: number;
   health: "healthy" | "attention";
   healthNotes: string[];
+  brandId?: string;
+  brandName?: string;
+  serviceIds: string[];
+  serviceNames: string[];
 }
 
 export interface HubContact {
@@ -43,7 +51,13 @@ export interface HubContact {
   capturedAt?: number;
   createdAt?: number;
   pipelineCardId?: string;
+  clientId?: string;
   recordKind: "contact" | "lead";
+  enquiryClassification?: WebsiteEnquiryClassification;
+  brandIds: string[];
+  brandNames: string[];
+  serviceIds: string[];
+  serviceNames: string[];
 }
 
 type View = "all" | "clients" | "health" | "journey" | "contacts" | "staff";
@@ -65,6 +79,7 @@ export function PeopleHub({
   products,
   brands,
   clientDefaults,
+  journeyWorkspace,
 }: {
   clients: HubClient[];
   contacts: HubContact[];
@@ -72,6 +87,7 @@ export function PeopleHub({
   products: NewClientProductOption[];
   brands: NewClientBrandOption[];
   clientDefaults: NewClientDefaults;
+  journeyWorkspace: React.ReactNode;
 }) {
   const [contactRows, setContactRows] = useState(contacts);
   const [view, setView] = useState<View>(initialView);
@@ -79,6 +95,9 @@ export function PeopleHub({
   const [role, setRole] = useState<ContactRole | "all">("all");
   const [niche, setNiche] = useState("");
   const [clientStatus, setClientStatus] = useState<"all" | "active" | "suspended">("all");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [serviceFilter, setServiceFilter] = useState("");
+  const [relationshipFilter, setRelationshipFilter] = useState<WebsiteEnquiryClassification | "">("");
   const [addingContact, setAddingContact] = useState(false);
   const [reviewing, setReviewing] = useState<HubContact | null>(null);
 
@@ -87,8 +106,10 @@ export function PeopleHub({
     return clients
       .filter(client => !niche || client.niche === niche)
       .filter(client => clientStatus === "all" || client.status === clientStatus)
-      .filter(client => !q || `${client.name} ${client.ownerEmail ?? ""} ${client.websiteUrl ?? ""} ${client.stageLabel} ${client.source} ${client.niche ?? ""}`.toLowerCase().includes(q));
-  }, [clientStatus, clients, niche, query]);
+      .filter(client => !brandFilter || client.brandId === brandFilter)
+      .filter(client => !serviceFilter || client.serviceIds.includes(serviceFilter))
+      .filter(client => !q || `${client.name} ${client.ownerEmail ?? ""} ${client.websiteUrl ?? ""} ${client.stageLabel} ${client.source} ${client.niche ?? ""} ${client.brandName ?? ""} ${client.serviceNames.join(" ")}`.toLowerCase().includes(q));
+  }, [brandFilter, clientStatus, clients, niche, query, serviceFilter]);
 
   const availableNiches = useMemo(
     () => [...new Set(clients.map(client => client.niche).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)),
@@ -100,20 +121,18 @@ export function PeopleHub({
     return contactRows.filter(contact => {
       if (view === "staff" && contact.type !== "employee") return false;
       if (view !== "staff" && role !== "all" && contact.type !== role) return false;
-      return !q || `${contact.name ?? ""} ${contact.email} ${contact.phone ?? ""} ${contact.company ?? ""} ${contact.notes ?? ""} ${contact.tags.join(" ")}`.toLowerCase().includes(q);
+      if (view !== "staff" && brandFilter && !contact.brandIds.includes(brandFilter)) return false;
+      if (view !== "staff" && serviceFilter && !contact.serviceIds.includes(serviceFilter)) return false;
+      if (view !== "staff" && relationshipFilter && contact.enquiryClassification !== relationshipFilter) return false;
+      return !q || `${contact.name ?? ""} ${contact.email} ${contact.phone ?? ""} ${contact.company ?? ""} ${contact.notes ?? ""} ${contact.tags.join(" ")} ${contact.brandNames.join(" ")} ${contact.serviceNames.join(" ")} ${contact.enquiryClassification ? WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[contact.enquiryClassification] : ""}`.toLowerCase().includes(q);
     });
-  }, [contactRows, query, role, view]);
+  }, [brandFilter, contactRows, query, relationshipFilter, role, serviceFilter, view]);
 
   const staffCount = useMemo(() => contactRows.filter(contact => contact.type === "employee").length, [contactRows]);
   const journeyRows = useMemo(() => buildJourneyRows(clients, contactRows), [clients, contactRows]);
-  const filteredJourneyRows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return journeyRows;
-    return journeyRows.filter(row => `${row.title} ${row.subtitle} ${row.source} ${row.stage} ${row.notes ?? ""} ${journeyStatusLabel(row.status)}`.toLowerCase().includes(q));
-  }, [journeyRows, query]);
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
+    <div className={view === "journey" ? "w-full" : "mx-auto w-full max-w-7xl"}>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Journey</p>
@@ -121,11 +140,6 @@ export function PeopleHub({
           <p className="mt-1 max-w-2xl text-sm text-black/55">Trace campaign and enquiry sources into contacts, manual relationships and clients without forcing every person to become a customer.</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-          {view === "journey" ? (
-            <Link href="/portal/agency/pipelines/leads" className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85 sm:col-auto">
-              <FolderKanban size={16} aria-hidden="true" /> Open journey workspace
-            </Link>
-          ) : null}
           <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
             <Plus size={16} /> Add contact
           </button>
@@ -144,12 +158,12 @@ export function PeopleHub({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-black/10 py-4">
+      {view !== "journey" ? <div className="flex flex-wrap items-center gap-2 border-b border-black/10 py-4">
         <label className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" size={16} />
           <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search people, notes, or tags" className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
         </label>
-        {view !== "clients" && view !== "health" && view !== "staff" && view !== "journey" ? (
+        {view !== "clients" && view !== "health" && view !== "staff" ? (
           <select value={role} onChange={event => setRole(event.target.value as ContactRole | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto">
             <option value="all">Every contact type</option>
             {Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -168,8 +182,26 @@ export function PeopleHub({
             <option value="suspended">Paused only</option>
           </select>
         ) : null}
-        {(query || role !== "all" || niche || clientStatus !== "all") ? <button type="button" onClick={() => { setQuery(""); setRole("all"); setNiche(""); setClientStatus("all"); }} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/15 px-3 text-sm text-black/60"><X size={14} /> Clear</button> : null}
-      </div>
+        {(view === "clients" || view === "health" || view === "contacts" || view === "all") ? (
+          <select value={brandFilter} onChange={event => setBrandFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter by brand">
+            <option value="">Every brand</option>
+            {brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+          </select>
+        ) : null}
+        {(view === "clients" || view === "health" || view === "contacts" || view === "all") ? (
+          <select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter by service">
+            <option value="">Every service</option>
+            {products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
+          </select>
+        ) : null}
+        {(view === "contacts" || view === "all") ? (
+          <select value={relationshipFilter} onChange={event => setRelationshipFilter(event.target.value as WebsiteEnquiryClassification | "")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter contacts by relationship">
+            <option value="">Every relationship</option>
+            {Object.entries(WEBSITE_ENQUIRY_CLASSIFICATION_LABELS).filter(([value]) => !["unclassified", "sales", "spam"].includes(value)).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        ) : null}
+        {(query || role !== "all" || niche || clientStatus !== "all" || brandFilter || serviceFilter || relationshipFilter) ? <button type="button" onClick={() => { setQuery(""); setRole("all"); setNiche(""); setClientStatus("all"); setBrandFilter(""); setServiceFilter(""); setRelationshipFilter(""); }} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/15 px-3 text-sm text-black/60"><X size={14} /> Clear</button> : null}
+      </div> : null}
 
       {view === "all" || view === "clients" ? (
         <PeopleSection title="Clients" count={filteredClients.length} hidden={view === "all" && filteredClients.length === 0}>
@@ -191,7 +223,7 @@ export function PeopleHub({
         </section>
       ) : null}
 
-      {view === "journey" ? <JourneySection rows={filteredJourneyRows} onReview={setReviewing} /> : null}
+      {view === "journey" ? <div className="mt-6 min-w-0">{journeyWorkspace}</div> : null}
 
       {view === "all" || view === "contacts" || view === "staff" ? (
         <PeopleSection title={view === "staff" ? "Staff" : "Contacts"} count={filteredContacts.length} hidden={view === "all" && filteredContacts.length === 0}>
@@ -241,10 +273,10 @@ function ClientRow({ client }: { client: HubClient }) {
     <div className="mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5">
       <div className="grid size-10 place-items-center rounded-md text-xs font-semibold text-white" style={{ backgroundColor: client.primaryColor }}>{initials}</div>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p><Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}</div>
+        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p><Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}{client.brandName ? <Badge>{client.brandName}</Badge> : null}{client.serviceNames.slice(0, 2).map(service => <Badge key={service}>{service}</Badge>)}</div>
         <p className="mt-0.5 truncate text-xs text-black/45">{client.ownerEmail || "No account email"} · Source: {sourceLabel(client.source)}{client.websiteUrl ? ` · ${client.websiteUrl}` : ""}</p>
       </div>
-      <Link href={`/portal/clients/${client.id}`} className="col-start-2 w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03] sm:col-start-auto">Open</Link>
+      <Link href={`/portal/clients/${client.id}?tab=relationship`} className="col-start-2 w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03] sm:col-start-auto">Open</Link>
     </div>
   );
 }
@@ -253,7 +285,7 @@ function HealthRow({ client }: { client: HubClient }) {
   return <div className="mm-interactive-row grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] sm:items-center sm:px-5">
     <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/80">{client.name}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${client.health === "healthy" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{client.health === "healthy" ? "Healthy" : "Needs attention"}</span></div><p className="mt-1 text-xs text-black/45">Source: {sourceLabel(client.source)} · {client.stageLabel}</p></div>
     <div className="text-xs leading-5 text-black/55">{client.healthNotes.length ? client.healthNotes.join(" · ") : "Details are complete and contact is current."}</div>
-    <Link href={`/portal/clients/${client.id}`} className="w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Review</Link>
+    <Link href={`/portal/clients/${client.id}?tab=relationship`} className="w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Review</Link>
   </div>;
 }
 
@@ -289,7 +321,11 @@ function buildJourneyRows(clients: HubClient[], contacts: HubContact[]): Journey
       status: "client",
       client,
       notes: client.health === "attention" ? client.healthNotes.join(" · ") : undefined,
-      href: `/portal/clients/${client.id}`,
+      href: `/portal/clients/${client.id}?tab=relationship`,
+      brandIds: client.brandId ? [client.brandId] : [],
+      brandNames: client.brandName ? [client.brandName] : [],
+      serviceIds: client.serviceIds,
+      serviceNames: client.serviceNames,
     });
   }
   for (const contact of contacts) {
@@ -308,6 +344,10 @@ function buildJourneyRows(clients: HubClient[], contacts: HubContact[]): Journey
       contact,
       notes: contact.notes,
       href: contact.recordKind === "lead" ? "/portal/agency/pipelines/leads" : "/portal/agency/leads-pipeline/contacts",
+      brandIds: contact.brandIds,
+      brandNames: contact.brandNames,
+      serviceIds: contact.serviceIds,
+      serviceNames: contact.serviceNames,
     });
   }
   return rows.sort((a, b) => journeySortTime(b) - journeySortTime(a));
@@ -331,6 +371,9 @@ function ContactRow({ contact, onReview }: { contact: HubContact; onReview: (con
           <p className="truncate text-sm font-semibold text-black/85">{contact.name || contact.company || contact.email}</p>
           <Badge>{roleLabels[contact.type]}</Badge>
           {contact.company && contact.name ? <span className="truncate text-xs text-black/40">{contact.company}</span> : null}
+          {contact.enquiryClassification ? <Badge>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[contact.enquiryClassification]}</Badge> : null}
+          {contact.brandNames.slice(0, 1).map(brand => <Badge key={brand}>{brand}</Badge>)}
+          {contact.serviceNames.slice(0, 2).map(service => <Badge key={service}>{service}</Badge>)}
         </div>
         <p className="mt-0.5 truncate text-xs text-black/45">{contact.email}{contact.phone ? ` · ${contact.phone}` : ""} · Source: {sourceLabel(contact.source)}{contact.tags.length ? ` · ${contact.tags.join(", ")}` : ""}</p>
         {contact.notes ? <p className="mt-1 truncate text-xs text-black/42">{contact.notes}</p> : null}
@@ -356,6 +399,10 @@ type JourneyRow = {
   client?: HubClient;
   notes?: string;
   href: string;
+  brandIds: string[];
+  brandNames: string[];
+  serviceIds: string[];
+  serviceNames: string[];
 };
 
 const journeyColumns: Array<{ id: JourneyRow["status"]; label: string; description: string }> = [

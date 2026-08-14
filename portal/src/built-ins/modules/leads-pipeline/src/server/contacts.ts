@@ -82,6 +82,13 @@ export class ContactService {
           nextMeetingAt: existing.nextMeetingAt ?? input.nextMeetingAt,
           meetingLink: existing.meetingLink ?? input.meetingLink,
           meetingNotes: existing.meetingNotes ?? input.meetingNotes,
+          meetingMode: existing.meetingMode ?? input.meetingMode,
+          meetingLocation: existing.meetingLocation ?? input.meetingLocation,
+          meetingStatus: existing.meetingStatus ?? input.meetingStatus,
+          meetingConfirmedAt: existing.meetingConfirmedAt ?? input.meetingConfirmedAt,
+          meetingReminderAt: existing.meetingReminderAt ?? input.meetingReminderAt,
+          meetingReminderSentAt: existing.meetingReminderSentAt ?? input.meetingReminderSentAt,
+          meetingAttempts: existing.meetingAttempts ?? input.meetingAttempts,
           salesPresentations: existing.salesPresentations ?? input.salesPresentations,
           callRecordingUrl: existing.callRecordingUrl ?? input.callRecordingUrl,
           sessionNotes: existing.sessionNotes ?? input.sessionNotes,
@@ -118,6 +125,13 @@ export class ContactService {
       nextMeetingAt: input.nextMeetingAt,
       meetingLink: input.meetingLink,
       meetingNotes: input.meetingNotes,
+      meetingMode: input.meetingMode,
+      meetingLocation: input.meetingLocation,
+      meetingStatus: input.meetingStatus,
+      meetingConfirmedAt: input.meetingConfirmedAt,
+      meetingReminderAt: input.meetingReminderAt,
+      meetingReminderSentAt: input.meetingReminderSentAt,
+      meetingAttempts: input.meetingAttempts,
       salesPresentations: input.salesPresentations,
       callRecordingUrl: input.callRecordingUrl,
       sessionNotes: input.sessionNotes,
@@ -173,6 +187,13 @@ export class ContactService {
         nextMeetingAt: lead.nextMeetingAt,
         meetingLink: lead.meetingLink,
         meetingNotes: lead.meetingNotes,
+        meetingMode: lead.meetingMode,
+        meetingLocation: lead.meetingLocation,
+        meetingStatus: lead.meetingStatus,
+        meetingConfirmedAt: lead.meetingConfirmedAt,
+        meetingReminderAt: lead.meetingReminderAt,
+        meetingReminderSentAt: lead.meetingReminderSentAt,
+        meetingAttempts: lead.meetingAttempts,
         salesPresentations: lead.salesPresentations,
         callRecordingUrl: lead.callRecordingUrl,
         sessionNotes: lead.sessionNotes,
@@ -231,6 +252,25 @@ export class ContactService {
     const updated: Contact = { ...existing, lastContactedAt: ts, updatedAt: now() };
     await this.storage.set(contactKey(contactId), updated);
     return updated;
+  }
+
+  async delete(id: string, actor: UserId): Promise<boolean> {
+    const existing = await this.get(id);
+    if (!existing) return false;
+    await this.storage.del(contactKey(id));
+    await this.storage.del(emailPtrKey(existing.email));
+    const index = (await this.storage.get<string[]>(CONTACT_INDEX_KEY)) ?? [];
+    await this.storage.set(CONTACT_INDEX_KEY, index.filter(value => value !== id));
+    await this.activity.logActivity({
+      agencyId: this.agencyId,
+      actorUserId: actor,
+      category: "leads",
+      action: "leads.contact.archived",
+      message: `Archived contact ${existing.email}.`,
+      metadata: { contactId: id, type: existing.type },
+    });
+    this.events.emit({ agencyId: this.agencyId }, "leads.contact.updated", { contactId: id, archived: true });
+    return true;
   }
 }
 

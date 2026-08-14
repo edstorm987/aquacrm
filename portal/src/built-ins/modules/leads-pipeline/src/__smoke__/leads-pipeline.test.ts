@@ -582,12 +582,27 @@ describe("leads-pipeline / ContactService", () => {
       notes: "Ready for portal setup.",
       nextMeetingAt: meeting,
       meetingNotes: "Portal onboarding",
+      meetingMode: "google-meet",
+      meetingLocation: "Remote",
+      meetingStatus: "confirmed",
+      meetingConfirmedAt: meeting - 86_400_000,
+      meetingReminderAt: meeting - 3_600_000,
+      meetingAttempts: [{
+        id: "attempt_contact_test",
+        at: meeting - 86_400_000,
+        channel: "email",
+        outcome: "reached",
+        notes: "Time agreed.",
+      }],
     }, ACTOR);
     assert.equal(updated?.name, "Contact Person");
     assert.equal(updated?.type, "customer");
     assert.deepEqual(updated?.tags, ["converted", "support"]);
     assert.equal(updated?.nextMeetingAt, meeting);
     assert.equal(updated?.meetingNotes, "Portal onboarding");
+    assert.equal(updated?.meetingMode, "google-meet");
+    assert.equal(updated?.meetingStatus, "confirmed");
+    assert.equal(updated?.meetingAttempts?.[0]?.outcome, "reached");
   });
 
   test("stampLastContactedAt tracks one-off calls and emails", async () => {

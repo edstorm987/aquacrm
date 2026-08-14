@@ -360,6 +360,7 @@ export async function loadCustomerPortalData(
           message: reply.message,
           from: reply.from,
           createdAt: reply.createdAt,
+          attachments: Array.isArray(reply.attachments) ? reply.attachments : [],
         }))
       : [],
   }));

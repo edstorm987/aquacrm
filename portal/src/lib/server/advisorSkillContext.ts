@@ -133,6 +133,7 @@ export async function buildAdvisorSkillContext(
     },
     command: {
       recommendedActions: context.recommendedActions,
+      workAccountability: context.workAccountability,
       visibility: {
         healthScore: radar.adaptive.healthScore,
         confidencePercent: radar.adaptive.confidencePercent,
@@ -145,7 +146,7 @@ export async function buildAdvisorSkillContext(
         totalSources: radar.summary.totalSources,
         calibratingDomains: radar.adaptive.calibratingDomains,
       },
-      instruction: "These five deterministic command recommendations and visibility limits are always supplied. Never describe the business as healthy without reconciling them.",
+      instruction: "These five deterministic command recommendations, visibility limits, and work-accountability evidence are always supplied. Never describe the business as healthy without reconciling them. Treat unconfirmed clock time as uncertainty, never as productive work or proof of procrastination.",
     },
     data,
   };

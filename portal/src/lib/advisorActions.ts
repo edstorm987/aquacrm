@@ -25,13 +25,13 @@ export interface AdvisorActionSuggestion {
 }
 
 export const ADVISOR_CATEGORY_HREF: Record<AdvisorActionCategory, string> = {
-  company: "/portal/agency/company",
+  company: "/portal/agency?station=battle",
   client: "/portal/clients",
   sales: "/portal/agency/pipelines/leads",
   finance: "/portal/agency/agency-finance",
   delivery: "/portal/agency/fulfilment",
   support: "/portal/agency/inbox",
-  development: "/portal/agency/development",
+  development: "/portal/agency/fulfilment?view=technical",
   marketing: "/portal/agency/marketing",
   operations: "/portal/agency/actions",
 };

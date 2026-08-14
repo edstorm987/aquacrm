@@ -689,6 +689,9 @@ async function executeAction(workflow: AutomationWorkflow, run: AutomationRun, n
       notes,
       priority: node.config.taskPriority ?? "normal",
       dueAt: Date.now() + dueIn * 60_000,
+      origin: "crm",
+      sourceId: `automation:${workflow.id}:${node.id}`,
+      sourceHref: "/portal/agency/marketing?view=automations",
       createdBy: run.initiatedBy || workflow.createdBy,
     });
     appendRunLog(run.id, { nodeId: node.id, level: "success", message: `Created task "${task.title}".` });

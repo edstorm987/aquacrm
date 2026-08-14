@@ -283,6 +283,7 @@ export async function POST(req: NextRequest) {
           siteName: publicSite?.siteName ?? brandDefinition.name,
           pagePath,
           inboxStatus: "open",
+          enquiryClassification: "unclassified",
           notification: "pending",
         },
       })
@@ -326,6 +327,7 @@ export async function POST(req: NextRequest) {
           consentCapturedAt: capturedAt,
           publicBrand: brandDefinition.name,
           enquiryChannel: channel,
+          enquiryClassification: "unclassified",
           propertyId: publicSite?.propertyId ?? brand,
           pagePath,
         },
@@ -399,6 +401,7 @@ export async function POST(req: NextRequest) {
         siteName: publicSite?.siteName ?? brandDefinition.name,
         pagePath,
         inboxStatus: "open",
+        enquiryClassification: "unclassified",
         notification,
         source: `website:${brand}`,
         leadId: leadId ?? null,

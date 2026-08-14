@@ -9,13 +9,26 @@ type ColorModeToggleVariant = "icon" | "menu";
 
 export function ColorModeToggle({ variant = "icon" }: { variant?: ColorModeToggleVariant }) {
   const [mode, setMode] = useState<ColorMode>("light");
+  const [commandLocked, setCommandLocked] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
-    const sync = () => setMode(root.dataset.colorMode === "dark" ? "dark" : "light");
+    if (root.dataset.colorMode !== "dark" && root.dataset.colorMode !== "light") {
+      let storedMode: ColorMode = "light";
+      try {
+        storedMode = localStorage.getItem(COLOR_MODE_STORAGE_KEY) === "dark" ? "dark" : "light";
+      } catch {
+        /* localStorage may be blocked; light remains the safe default */
+      }
+      root.dataset.colorMode = storedMode;
+    }
+    const sync = () => {
+      setMode(root.dataset.colorMode === "dark" ? "dark" : "light");
+      setCommandLocked(root.dataset.portalShell === "command");
+    };
     sync();
     const observer = new MutationObserver(sync);
-    observer.observe(root, { attributes: true, attributeFilter: ["data-color-mode"] });
+    observer.observe(root, { attributes: true, attributeFilter: ["data-color-mode", "data-portal-shell"] });
     return () => observer.disconnect();
   }, []);
 
@@ -25,6 +38,8 @@ export function ColorModeToggle({ variant = "icon" }: { variant?: ColorModeToggl
     localStorage.setItem(COLOR_MODE_STORAGE_KEY, next);
     setMode(next);
   }
+
+  if (commandLocked) return null;
 
   const dark = mode === "dark";
   if (variant === "menu") {

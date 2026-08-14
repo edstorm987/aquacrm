@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, ChartPie, Check, ChevronRight, CircleAlert, Compass, Flag, Gauge, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, X } from "lucide-react";
+import { Building2, ChartPie, Check, ChevronRight, CircleAlert, Compass, Flag, Gauge, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, SopDocument, TradingCompany } from "@/server/types";
 import { calculateCompanyHealth } from "@/lib/companyHealth";
@@ -90,7 +90,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
       label: "Income pace",
       score: health.income,
       detail: `${money(actuals.monthRevenueCents, actuals.currency)} recorded · ${health.monthElapsedPercent}% of the month elapsed`,
-      href: "/portal/agency/agency-finance/income",
+      href: "/portal/agency/agency-finance/payments",
     },
     {
       label: "Client health",
@@ -141,18 +141,17 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
         {status ? <p role="status" className="text-xs font-medium text-black/50">{status}</p> : null}
       </header>
 
-      <nav className="flex gap-1 overflow-x-auto border-b border-black/10" aria-label="Company sections">
+      <nav className="flex gap-1 overflow-x-auto border-b border-black/10" aria-label="Company systems">
+        <Link href="/portal/agency?station=battle" className="inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-black/50 hover:text-brand">
+          <Compass size={16} />Battle Table
+        </Link>
         {([
-          ["overview", "Overview", TrendingUp],
-          ["direction", "Direction", Compass],
-          ["plans", "Plans & reviews", Flag],
-          ["capacity", "Capacity", Gauge],
           ["products", "Products", Package],
           ["connections", "Connections", PlugZap],
           ["legal", "Legal & compliance", ShieldCheck],
         ] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => selectView(id)} className={`inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-medium ${view === id ? "border-brand text-brand" : "border-transparent text-black/50 hover:text-black/75"}`}>
-            <Icon size={16} />{label}{id === "legal" ? <AttentionDot href="/portal/agency/company#legal" /> : null}
+            <Icon size={16} />{label}{id === "legal" ? <AttentionDot href="/portal/agency/company?view=legal" /> : null}
           </button>
         ))}
       </nav>
@@ -431,8 +430,9 @@ function CompanyDashboard({
         {serviceBrands.filter(item => item.status !== "archived").length > 5 ? <p className="mt-3 text-xs text-black/40">Open grid view to see every service brand.</p> : null}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <DashboardLink title="Service brands" value={String(activeBrands)} detail={`${tradingCompanies.length} total service brands`} icon={<Building2 size={16} />} href="/portal/agency/company?view=companies" />
+        <DashboardLink title="People operations" value={String(staffCount)} detail="Staff, departments, leave and roles" icon={<UsersRound size={16} />} href="/portal/agency/agency-hr" />
         <DashboardAction title="Products" value={String(productCount)} detail="Offers, packages, pricing and welcome packs" icon={<Package size={16} />} onClick={() => onSelect("products")} />
         <DashboardAction title="Connections" value={actuals.leadCount ? String(actuals.leadCount) : "Open"} detail="Website, tools, integrations and client links" icon={<PlugZap size={16} />} onClick={() => onSelect("connections")} />
         <DashboardAction title="Compliance" value={String(legalCount)} detail="Policies, contracts and legal documents" icon={<ShieldCheck size={16} />} onClick={() => onSelect("legal")} />

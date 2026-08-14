@@ -124,6 +124,11 @@ test("funnel workspace configuration survives create, update, and filtered list"
             primaryGoal: "Booked consultations",
             primaryCta: "Book a review",
             conversionEvent: "consultation_booked",
+            audienceNiche: "Independent dental practices",
+            bookingDurationMinutes: 45,
+            bookingCalendarUrl: "https://calendar.example.com/dental-review",
+            bookingMeetingMode: "Google Meet",
+            bookingConfirmation: "Your dental systems review is booked.",
             steps: [
               { id: "step_landing", name: "Landing page", path: "/systems-check", kind: "landing" },
               { id: "step_booking", name: "Book", path: "/systems-check/book", kind: "booking" },
@@ -145,6 +150,9 @@ test("funnel workspace configuration survives create, update, and filtered list"
         format: string;
         editorUrl: string;
         primaryCta: string;
+        audienceNiche: string;
+        bookingDurationMinutes: number;
+        bookingCalendarUrl: string;
         steps: Array<{ kind: string }>;
       };
     };
@@ -154,6 +162,9 @@ test("funnel workspace configuration survives create, update, and filtered list"
   assert.equal(updatedBody.asset.funnel.format, "multi-page");
   assert.equal(updatedBody.asset.funnel.editorUrl, "/portal/agency/development/projects/aqua_site?panel=editor");
   assert.equal(updatedBody.asset.funnel.primaryCta, "Book a review");
+  assert.equal(updatedBody.asset.funnel.audienceNiche, "Independent dental practices");
+  assert.equal(updatedBody.asset.funnel.bookingDurationMinutes, 45);
+  assert.equal(updatedBody.asset.funnel.bookingCalendarUrl, "https://calendar.example.com/dental-review");
   assert.deepEqual(updatedBody.asset.funnel.steps.map(step => step.kind), ["landing", "booking", "thank-you"]);
 
   const listResponse = await listMarketingAssetsHandler(

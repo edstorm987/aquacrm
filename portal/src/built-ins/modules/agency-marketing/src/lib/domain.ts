@@ -95,6 +95,11 @@ export interface FunnelWorkspaceConfig {
   conversionEvent?: string;
   telemetrySiteKey?: string;
   telemetryPropertyId?: string;
+  audienceNiche?: string;
+  bookingDurationMinutes?: number;
+  bookingCalendarUrl?: string;
+  bookingMeetingMode?: string;
+  bookingConfirmation?: string;
   steps: FunnelStep[];
 }
 

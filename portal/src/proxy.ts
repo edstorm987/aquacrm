@@ -15,6 +15,16 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const COOKIE = "lk_session_v1";
 
+// A public showcase session must never trap a real user outside their own
+// workspace. These routes only replace or clear authentication state; they do
+// not mutate CRM records. Keep this list exact so every business API remains
+// read-only while the public showcase token is active.
+const PUBLIC_SHOWCASE_SESSION_ESCAPE_PATHS = new Set([
+  "/api/auth/login",
+  "/api/auth/login/browser",
+  "/api/auth/logout",
+]);
+
 interface ProxySession {
   role?: string;
   agencyId?: string;
@@ -41,11 +51,36 @@ export function proxy(req: NextRequest) {
   const token = req.cookies.get(COOKIE)?.value;
   const payload = decodePayload(token);
   const safeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
+  const publicShowcaseSessionEscape = PUBLIC_SHOWCASE_SESSION_ESCAPE_PATHS.has(path);
+
+  // Staff identities use the deliberately scoped Team workspace. Keep
+  // owner agency pages and unrelated agency APIs out of their blast radius
+  // even when PORTAL_SECURITY is relaxed in local development.
+  if (payload?.role === "agency-staff") {
+    if (path.startsWith("/portal/agency")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/portal/team";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    if (path.startsWith("/api/portal/")) {
+      const staffApiRoots = [
+        "/api/portal/dashboard-planning",
+        "/api/portal/tasks",
+        "/api/portal/calendar",
+        "/api/portal/people",
+        "/api/portal/notepad",
+      ];
+      if (!staffApiRoots.some(root => path === root || path.startsWith(`${root}/`))) {
+        return NextResponse.json({ ok: false, error: "This API is not available in the employee workspace." }, { status: 403 });
+      }
+    }
+  }
 
   // A public product-tour token is signed and later re-verified by the
   // route itself. Catch mutations here so the real UI remains explorable
   // without allowing visitors to alter even the fictional shared tenant.
-  if (payload?.publicShowcase && !safeMethod) {
+  if (payload?.publicShowcase && !safeMethod && !publicShowcaseSessionEscape) {
     return NextResponse.json(
       { ok: false, error: "This public showcase is read-only." },
       { status: 403, headers: { "cache-control": "no-store" } },

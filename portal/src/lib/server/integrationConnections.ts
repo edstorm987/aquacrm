@@ -264,6 +264,23 @@ function environmentValues(provider: IntegrationProvider): Record<string, string
       replyTo: process.env.MILESYMEDIA_REPLY_TO,
       notifyTo: process.env.ENQUIRY_NOTIFY_TO,
     },
+    smtp: {
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      username: process.env.SMTP_USERNAME,
+      password: process.env.SMTP_PASSWORD,
+      fromEmail: process.env.SMTP_FROM_EMAIL,
+      fromName: process.env.SMTP_FROM_NAME,
+      replyTo: process.env.SMTP_REPLY_TO,
+    },
+    twilio: {
+      accountSid: process.env.TWILIO_ACCOUNT_SID,
+      authToken: process.env.TWILIO_AUTH_TOKEN,
+      smsFrom: process.env.TWILIO_SMS_FROM_NUMBER,
+      whatsappFrom: process.env.TWILIO_WHATSAPP_FROM_NUMBER,
+      voiceFrom: process.env.TWILIO_VOICE_FROM_NUMBER,
+      agentPhone: process.env.TWILIO_AGENT_PHONE_NUMBER,
+    },
     stripe: { secretKey: process.env.STRIPE_SECRET_KEY, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET },
     github: { token: process.env.GITHUB_TOKEN, owner: process.env.GITHUB_OWNER },
     vercel: { token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID },
@@ -299,6 +316,26 @@ async function testProvider(
   if (provider === "resend") {
     await request("https://api.resend.com/domains?limit=1", `Bearer ${values.apiKey}`);
     return "Resend accepted the key and sender settings are saved.";
+  }
+  if (provider === "smtp") {
+    const { createTransport } = await import("nodemailer");
+    const port = Number(values.port);
+    const transport = createTransport({
+      host: values.host,
+      port: Number.isFinite(port) ? port : 587,
+      secure: port === 465,
+      auth: { user: values.username, pass: values.password },
+      connectionTimeout: TEST_TIMEOUT_MS,
+    });
+    await transport.verify();
+    return "SMTP accepted the credentials and sender settings are saved.";
+  }
+  if (provider === "twilio") {
+    await request(
+      `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(values.accountSid)}.json`,
+      `Basic ${Buffer.from(`${values.accountSid}:${values.authToken}`).toString("base64")}`,
+    );
+    return "Twilio accepted the account credentials. SMS and WhatsApp activate independently when their sender numbers are present.";
   }
   if (provider === "stripe") {
     await request("https://api.stripe.com/v1/balance", `Bearer ${values.secretKey}`);

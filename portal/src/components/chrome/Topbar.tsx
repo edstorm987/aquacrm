@@ -43,14 +43,16 @@ interface Props {
   /** Phase preview cookie active for this scope — show "Exit preview" → phases admin. */
   previewActive?: boolean;
   notifications?: ReactNode;
+  radarControl?: ReactNode;
   companySwitcher?: ReactNode;
   advisorControl?: ReactNode;
   privacyTerms?: string[];
+  searchRecordsEnabled?: boolean;
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, publicShowcase, previewActive, notifications, companySwitcher, advisorControl, privacyTerms }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, publicShowcase, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
-  const recordsEnabled = role === "agency-owner" || role === "agency-manager" || role === "agency-staff";
+  const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
   return (
     <header className="mm-portal-topbar relative z-40 flex min-h-14 shrink-0 items-center justify-between gap-1.5 border-b border-black/10 bg-white/40 px-3 py-2 backdrop-blur-xl sm:gap-2 sm:px-4 md:px-6">
@@ -73,6 +75,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           showcaseMode={showcaseMode}
           sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
         />
+        {!publicShowcase ? radarControl : null}
         {publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}
         <div className="hidden sm:block"><ColorModeToggle /></div>
         {previewActive ? (
@@ -93,7 +96,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           </Link>
         ) : null}
         {publicShowcase ? (
-          <span className="hidden rounded-md border border-black/10 bg-white px-2 py-1 font-medium text-black/55 sm:inline">Demo visitor</span>
+          <span className="mm-public-showcase-visitor hidden rounded-md border border-black/10 bg-white px-2 py-1 font-medium text-black/55 sm:inline">Demo visitor</span>
         ) : (
           <div className="mm-private-chrome"><ProfileMenu email={email} role={role} name={name} avatarUrl={avatarUrl} /></div>
         )}

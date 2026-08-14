@@ -465,6 +465,19 @@ export function listCards(pipelineId: string): PipelineCard[] {
     .sort((a, b) => a.order - b.order);
 }
 
+export function deleteCard(agencyId: string, cardId: string): boolean {
+  let removed = false;
+  mutate(state => {
+    const card = state.pipelineCards[cardId];
+    if (!card) return;
+    const pipeline = state.pipelines[card.pipelineId];
+    if (!pipeline || pipeline.agencyId !== agencyId) return;
+    delete state.pipelineCards[cardId];
+    removed = true;
+  });
+  return removed;
+}
+
 export function listCardsByAgency(agencyId: string): PipelineCard[] {
   const pipelineIds = new Set(
     Object.values(getState().pipelines)

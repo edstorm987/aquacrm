@@ -7,7 +7,8 @@
 // URLs at the boundary.
 //
 // Routing table (chapter #124 WS-A R022):
-//   agency-owner / agency-manager / agency-staff      → /portal/agency
+//   agency-owner / agency-manager                     → /portal/agency
+//   agency-staff                                      → /portal/team
 //   client-owner / client-staff / freelancer          → /portal/clients/<slug>
 //   end-customer                                      → /portal/customer
 //   lead (not portal-scoped yet)                      → /login
@@ -50,8 +51,9 @@ export function resolvePostLoginPath(
   switch (src.role) {
     case "agency-owner":
     case "agency-manager":
-    case "agency-staff":
       return "/portal/agency";
+    case "agency-staff":
+      return "/portal/team";
     case "client-owner":
     case "client-staff":
     case "freelancer": {

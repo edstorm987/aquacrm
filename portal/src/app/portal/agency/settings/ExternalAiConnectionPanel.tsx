@@ -38,6 +38,8 @@ interface ApiKeySummary {
 interface ConnectionStatus {
   ready: boolean;
   readOnly: boolean;
+  mcpReady: boolean;
+  advisorPeerReady: boolean;
   tokenConfigured: boolean;
   tokenStrongEnough: boolean;
   tokenFingerprint: string | null;
@@ -53,6 +55,8 @@ interface ConnectionStatus {
 }
 
 const PERMISSION_LABELS: Record<string, { label: string; detail: string }> = {
+  "advisor:read": { label: "Advisor peer", detail: "Scoped health, Radar, alerts, recommendations and task context." },
+  "actions:propose": { label: "Propose actions", detail: "Submit evidence-backed work into the approval inbox. Cannot create or alter tasks directly." },
   "context:read": { label: "Business overview", detail: "Company context, totals and attention items." },
   "records:read": { label: "Read records", detail: "List and inspect permitted records." },
   "search:read": { label: "Search", detail: "Search across permitted modules." },
@@ -132,7 +136,7 @@ export function ExternalAiConnectionPanel() {
       };
       if (json.connection) applyConnection(json.connection);
       if (!response.ok || !json.ok) throw new Error(json.error || "The connection test failed.");
-      setStatus(`Connected. ${json.recordCount ?? 0} records are available across ${json.moduleCount ?? 0} modules.`);
+      setStatus(`MCP and REST are ready. ${json.recordCount ?? 0} records are available across ${json.moduleCount ?? 0} modules.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "The connection test failed.");
     } finally {
@@ -231,6 +235,7 @@ export function ExternalAiConnectionPanel() {
       workspace: connection?.agencyId || "milesymedia",
       apiBaseUrl: baseUrl,
       openApiUrl,
+      mcpUrl,
       modules: key?.modules ?? connection?.modules ?? [],
       permissions: key?.permissions ?? connection?.permissions ?? [],
       token,
@@ -266,6 +271,7 @@ export function ExternalAiConnectionPanel() {
 
   const baseUrl = `${origin}/api/v1`;
   const openApiUrl = `${origin}/api/v1/openapi.json`;
+  const mcpUrl = `${origin}/api/mcp`;
   const activeKeys = connection?.keys.filter(key => key.status === "active") ?? [];
   const inactiveKeys = connection?.keys.filter(key => key.status !== "active") ?? [];
   const setupPrompt = buildExternalAssistantSetupPrompt(setupOptions());
@@ -279,7 +285,7 @@ export function ExternalAiConnectionPanel() {
             <h3 className="text-sm font-semibold text-black/85">External AI data access</h3>
           </div>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-black/50">
-            Give trusted assistants private, read-only access. Every key has its own data scope and can be revoked independently.
+            Give trusted assistants private Advisor-grade access through MCP or REST. Every assistant has its own read-only scope, credential, audit trail, and kill switch.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -294,15 +300,17 @@ export function ExternalAiConnectionPanel() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatusItem label="Active keys" ready={activeKeys.length > 0} detail={`${activeKeys.length} managed key${activeKeys.length === 1 ? "" : "s"}`} />
         <StatusItem label="Workspace scope" ready={Boolean(connection?.agencyExists)} detail={connection?.agencyId || "Checking..."} />
-        <StatusItem label="Access level" ready={Boolean(connection?.readOnly)} detail="Read-only · secrets excluded" />
+        <StatusItem label="MCP + REST" ready={Boolean(connection?.mcpReady)} detail="One key · both transports" />
+        <StatusItem label="Advisor peer" ready={Boolean(connection?.advisorPeerReady)} detail="Scoped Radar and recommendations" />
       </div>
 
       <div className="mt-5 divide-y divide-black/10 border-y border-black/10">
         <ConnectionValue label="API base URL" value={baseUrl} onCopy={() => copy(baseUrl, "base")} copied={copied === "base"} />
         <ConnectionValue label="OpenAPI schema" value={openApiUrl} onCopy={() => copy(openApiUrl, "schema")} copied={copied === "schema"} link />
+        <ConnectionValue label="MCP server" value={mcpUrl} onCopy={() => copy(mcpUrl, "mcp")} copied={copied === "mcp"} />
         <ConnectionValue label="Authentication" value="Authorization: Bearer YOUR_PRIVATE_TOKEN" onCopy={() => copy("Authorization: Bearer YOUR_PRIVATE_TOKEN", "auth")} copied={copied === "auth"} />
       </div>
 
@@ -331,7 +339,7 @@ export function ExternalAiConnectionPanel() {
           <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-black/10 px-4 py-4 text-[11px] leading-5 text-black/55">{setupPrompt}</pre>
         </details>
         <p className="mt-3 text-[11px] leading-4 text-black/40">
-          Compatible assistants still need an OpenAPI Action, Connector, MCP server, or authenticated HTTP tool. A normal document-only chat cannot call live APIs.
+          MCP clients connect directly to the server above. OpenAPI assistants can import the schema instead. Both use the same independently revocable bearer key.
         </p>
       </section>
 
@@ -369,7 +377,7 @@ export function ExternalAiConnectionPanel() {
 
       {connection?.legacyKeyConfigured ? (
         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900/75">
-          A legacy environment key is still configured. Managed keys work alongside it; remove <code className="font-mono">MILESYMEDIA_ASSISTANT_API_TOKEN</code> from <a href="https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">Vercel environment variables</a> when every assistant has moved to a managed key.
+          An environment key is still configured. Managed keys work alongside it; remove <code className="font-mono">AQUACRM_ASSISTANT_API_TOKEN</code> (or its legacy alias) from <a href="https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">Vercel environment variables</a> when every assistant has moved to its own managed key.
         </div>
       ) : null}
 
@@ -387,7 +395,7 @@ export function ExternalAiConnectionPanel() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 id="create-api-key-title" className="text-lg font-semibold text-black/90">Generate private key</h3>
-                <p className="mt-1 text-sm leading-6 text-black/50">Name the assistant, choose what it can read, then copy its token once.</p>
+                <p className="mt-1 text-sm leading-6 text-black/50">Name the assistant, grant Advisor peer or narrower data access, then copy its MCP/REST token once.</p>
               </div>
               <button type="button" onClick={() => setCreateOpen(false)} className="rounded-md p-2 text-black/45 hover:bg-black/[0.05]" aria-label="Close"><X size={18} /></button>
             </div>
@@ -452,7 +460,7 @@ export function ExternalAiConnectionPanel() {
             </div>
             <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
               <p className="text-xs font-semibold text-emerald-950/80">Fastest setup</p>
-              <p className="mt-1 text-xs leading-5 text-emerald-950/60">Download one Markdown file containing the setup prompt, API details, exact permissions and this one-time token.</p>
+              <p className="mt-1 text-xs leading-5 text-emerald-950/60">Download one Markdown file containing the MCP URL, REST API, operating prompt, exact scope and this one-time token.</p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <button type="button" onClick={() => downloadSetupDocument(revealed.token, revealed.key)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-900 px-4 text-xs font-semibold text-white">
                   <Download size={14} /> Download complete setup file

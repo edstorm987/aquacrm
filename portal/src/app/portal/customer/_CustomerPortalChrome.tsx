@@ -19,6 +19,7 @@ import {
   Route,
   ScanSearch,
   Settings2,
+  ShoppingBag,
   Sparkles,
   X,
 } from "lucide-react";
@@ -142,6 +143,21 @@ function NavItems({
         );
       })}
       {sharedNav.length ? <div className="mt-4 border-t border-white/8 pt-4"><p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">Shared workspace</p><div className="grid gap-0.5">{shellLinks(sharedNav)}</div></div> : null}
+      {!previewHrefPrefix ? (
+        <div className="mt-4 border-t border-white/8 pt-4">
+          <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">Account activity</p>
+          <div className="grid gap-0.5">
+            {[
+              { href: "/portal/customer/orders", label: "Orders", icon: ShoppingBag },
+              { href: "/portal/customer/bookings", label: "Bookings", icon: CalendarDays },
+            ].map(item => {
+              const Icon = item.icon;
+              const active = pathname.startsWith(item.href);
+              return <Link key={item.href} href={item.href} onClick={close} aria-current={active ? "page" : undefined} className={`group flex min-h-10 items-center gap-3 rounded-sm px-3 text-sm transition ${active ? "bg-[#f4efe6] text-[#151310]" : "text-white/58 hover:bg-white/[0.07] hover:text-white"}`}><Icon size={16} strokeWidth={1.65} aria-hidden="true" /><span>{item.label}</span></Link>;
+            })}
+          </div>
+        </div>
+      ) : null}
     </nav>
   );
 }

@@ -1,7 +1,7 @@
 // Per-client overview — /portal/clients/[clientId].
 //
-// One screen, tabbed. Tab persists via `?tab=`:
-//   Overview · Website · Fulfilment · Kanban · Finance · Assets · Systems.
+// One canonical client record with contextual lenses for relationship,
+// delivery, technical operations, finance, communications, and portal work.
 //
 // Server-rendered: every tab's content is computed here so deep-links
 // (e.g. `?tab=systems`) hydrate with full data. The "+ Add system"
@@ -19,7 +19,7 @@ import { listInstalledFor } from "@/server/pluginInstalls";
 import { listActivity } from "@/server/activity";
 import { phaseLabel, listPhasesForAgency } from "@/server/phases";
 import { listPlugins } from "@/built-ins/runtime/_registry";
-import { TABS, type TabId } from "./_tabs";
+import type { TabId } from "./_tabs";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { toolCopy } from "./toolCopy";
 import { BuildPortalWizard, type WizardPlugin } from "./_BuildPortalWizard";
@@ -48,6 +48,20 @@ import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/verce
 import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
 import { ClientContactsPanel } from "./_ClientContactsPanel";
 import { WebsiteBuilderLauncher } from "./_WebsiteBuilderLauncher";
+import { OverviewTabs } from "./_OverviewTabs";
+import { ClientSpineOverview } from "./_ClientSpineOverview";
+import { ClientDeliveryOverview } from "./_ClientDeliveryOverview";
+import { ClientNotesWorkspace } from "./_ClientNotesWorkspace";
+import { calculateClientAquaHealth } from "@/lib/clientAquaHealth";
+import { cleanPortalProducts } from "@/lib/portalProducts";
+import { clientProductWorkspaces } from "@/server/productWorkspaces";
+import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
+import { listClientMilestones } from "@/server/clientMilestones";
+import { getInstall } from "@/server/pluginInstalls";
+import { clientWorkspaceHref, resolveClientWorkspaceTab } from "@/lib/clientWorkspace";
+import { Boxes, Globe2, MonitorCog } from "lucide-react";
+import { cleanClientMarketingService } from "@/lib/clientMarketingService";
+import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
 import {
   AQUA_PHASE_ORDER,
   AQUA_MILESTONES,
@@ -87,8 +101,6 @@ function customPortalExists(slug: string): boolean {
   return existsSync(path);
 }
 
-const TAB_IDS = new Set(TABS.map(t => t.id));
-
 function formatRelative(ts: number): string {
   const delta = Date.now() - ts;
   if (delta < 60_000) return "just now";
@@ -124,8 +136,9 @@ export default async function ClientHome({
   if (!client) notFound();
 
   const rawTabInput = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
-  const rawTab = rawTabInput === "tools" ? "systems" : rawTabInput === "portal" ? "fulfilment" : rawTabInput;
-  const tab: TabId = rawTab && TAB_IDS.has(rawTab as TabId) ? (rawTab as TabId) : "overview";
+  const tab: TabId = resolveClientWorkspaceTab(rawTabInput);
+  const rawSystemView = Array.isArray(sp.systemView) ? sp.systemView[0] : sp.systemView;
+  const systemView = rawSystemView === "properties" || rawSystemView === "website" ? rawSystemView : "monitoring";
 
   const installs = listInstalledFor({ agencyId: client.agencyId, clientId: client.id });
   const installedIds = new Set(installs.map(i => i.pluginId));
@@ -215,6 +228,7 @@ export default async function ClientHome({
     portalApprovals?: ClientApproval[];
     clientEntityType?: ClientEntityType;
     linkedContacts?: unknown;
+    clientMarketingService?: unknown;
   };
   const PLAN_LABELS: Record<NonNullable<typeof meta.planTier>, string> = {
     foundational: "Foundational Flow",
@@ -226,9 +240,12 @@ export default async function ClientHome({
   const portalProviderName = client.companyId
     ? getTradingCompany(session.agencyId, client.companyId)?.name ?? "AquaOasis-Web"
     : "AquaOasis-Web";
-  const customerPortalData = tab === "fulfilment"
-    ? await loadCustomerPortalData(client, meta.portalContactName ?? client.name, portalProviderName)
-    : null;
+  const customerPortalData = await loadCustomerPortalData(
+    client,
+    meta.portalContactName ?? client.name,
+    portalProviderName,
+    { audience: "agency" },
+  );
   const contractTemplates: ClientContractTemplate[] = tab === "finance"
     ? [
         ...listContractTemplates(session.agencyId),
@@ -252,6 +269,32 @@ export default async function ClientHome({
   const live = isLivePhase(client.stage);
   const portalMaterialized = live && customPortalExists(client.slug);
   const liveRecommended = LIVE_RECOMMENDED_PLUGINS;
+  const aquaHealth = calculateClientAquaHealth({
+    financeConnected: Boolean(getInstall({ agencyId: session.agencyId }, "agency-finance")?.enabled),
+    invoices: customerPortalData.invoices,
+    lastContactedAt: meta.lastContactedAt,
+    requestsObserved: Array.isArray(meta.clientRequests),
+    requests: customerPortalData.requests,
+    contracts: customerPortalData.contracts,
+  });
+  const selectedProducts = cleanPortalProducts(meta.portalProducts);
+  const workspacesByProduct = new Map(clientProductWorkspaces(client).map(workspace => [workspace.productId, workspace]));
+  const deliveryProducts = selectedProducts.map(product => {
+    const workspace = workspacesByProduct.get(product.id);
+    return {
+      id: product.id,
+      name: product.name,
+      stage: workspace?.stage ? workspace.stage.replaceAll("-", " ") : meta.portalMode?.replaceAll("-", " ") || "onboarding",
+      progress: workspace ? portalWorkspaceProgress(workspace) : 0,
+    };
+  });
+  const clientMilestones = listClientMilestones(session.agencyId, client.id);
+  const deliveryProgress = deliveryProducts.length
+    ? Math.round(deliveryProducts.reduce((total, product) => total + product.progress, 0) / deliveryProducts.length)
+    : null;
+  const openMilestones = clientMilestones.filter(item => item.status !== "complete");
+  const now = Date.now();
+  const propertyRecords = Array.isArray(meta.properties) ? meta.properties : [];
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -352,6 +395,8 @@ export default async function ClientHome({
         )}
       </header>
 
+      <OverviewTabs clientId={client.id} active={tab} />
+
       {(() => {
         const pack = meta.commercialPack;
         const paidCents = pack?.payments?.reduce((sum, payment) => sum + payment.amountCents, 0) ?? 0;
@@ -369,7 +414,34 @@ export default async function ClientHome({
         );
       })()}
 
-      {tab === "overview" && isAquaStage(client.stage) && (() => {
+      {tab === "overview" && (
+        <ClientSpineOverview
+          clientId={client.id}
+          relationship={{
+            score: aquaHealth.score,
+            confidence: aquaHealth.confidence,
+            state: aquaHealth.state,
+            summary: aquaHealth.summary,
+            openRequests: customerPortalData.requests.filter(request => request.status === "open").length,
+          }}
+          delivery={{
+            progress: deliveryProgress,
+            assignedProducts: deliveryProducts.length,
+            openMilestones: openMilestones.length,
+            blockedMilestones: openMilestones.filter(item => item.status === "blocked").length,
+            overdueMilestones: openMilestones.filter(item => item.status !== "blocked" && Boolean(item.targetAt && item.targetAt < now)).length,
+          }}
+          systems={{
+            properties: propertyRecords.length,
+            tagsInstalled: propertyRecords.filter(property => property.tagStatus === "installed").length,
+            tagsNeedingAttention: propertyRecords.filter(property => property.tagStatus === "missing" || property.tagStatus === "broken").length,
+            websiteConnected: Boolean(client.websiteUrl),
+          }}
+          portalReady={Boolean(meta.portalBuiltAt)}
+        />
+      )}
+
+      {tab === "relationship" && isAquaStage(client.stage) && (() => {
         const aquaPhases = phases.filter(p => AQUA_PHASE_ORDER.includes(p.stage));
         aquaPhases.sort((a, b) => AQUA_PHASE_ORDER.indexOf(a.stage) - AQUA_PHASE_ORDER.indexOf(b.stage));
         const currentIdx = AQUA_PHASE_ORDER.indexOf(client.stage);
@@ -402,7 +474,7 @@ export default async function ClientHome({
         );
       })()}
 
-      {tab === "overview" && (
+      {tab === "relationship" && (
         <section className="grid gap-4 md:grid-cols-2">
           <ClientContactsPanel
             clientId={client.id}
@@ -463,13 +535,13 @@ export default async function ClientHome({
           <div className="rounded-xl border border-black/10 bg-white p-4">
             <h2 className="text-sm font-medium uppercase tracking-wide text-black/55">Quick actions</h2>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link href={`/portal/clients/${client.id}?tab=website`} className="rounded-md bg-brand px-3 py-2 text-xs font-medium text-white shadow hover:opacity-90">
+              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className="rounded-md bg-brand px-3 py-2 text-xs font-medium text-white shadow hover:opacity-90">
                 Edit website
               </Link>
-              <Link href={`/portal/clients/${client.id}?tab=fulfilment`} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
+              <Link href={clientWorkspaceHref(client.id, "portal")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
                 {meta.portalBuiltAt ? "Portal preview" : "Create client portal"}
               </Link>
-              <Link href={`/portal/clients/${client.id}?tab=systems`} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
+              <Link href={clientWorkspaceHref(client.id, "systems")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
                 + Add system
               </Link>
               {meta.whatsappLink && (
@@ -494,7 +566,6 @@ export default async function ClientHome({
               )}
             </div>
           </div>
-          <ClientRequestsPanel clientId={client.id} initialRequests={meta.clientRequests ?? []} />
           <div className="md:col-span-2">
             <CollapsibleSection title="Recent activity" description="The latest changes to this client." badge={String(recentActivity.length)}>
             {recentActivity.length === 0 ? (
@@ -514,27 +585,38 @@ export default async function ClientHome({
         </section>
       )}
 
-      {tab === "website" && (
-        <section className="rounded-xl border border-black/10 bg-white p-6">
-          <h2 className="text-lg font-medium text-black/90">Website</h2>
-          <p className="mt-1 text-sm text-black/60">
-            Visually build pages and responsive sections, add custom code, preview every device, and publish when {client.name} is ready.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <WebsiteBuilderLauncher
-              clientId={client.id}
-              ready={installs.some(install => install.pluginId === "website-editor" && install.enabled)}
-            />
-            {client.websiteUrl && (
-              <a href={client.websiteUrl} target="_blank" rel="noreferrer" className="rounded-md border border-black/15 px-4 py-2 text-sm hover:bg-black/5">
-                Open live site ↗
-              </a>
-            )}
-          </div>
-        </section>
+      {tab === "delivery" && (
+        <div className="grid gap-7">
+          <ClientDeliveryOverview
+            clientId={client.id}
+            products={deliveryProducts}
+            milestones={clientMilestones.map(item => ({ id: item.id, title: item.title, status: item.status, targetAt: item.targetAt }))}
+            portalReady={Boolean(meta.portalBuiltAt)}
+          />
+          <KanbanTabClient clientId={client.id} clientName={client.name} />
+          {(() => {
+            try {
+              assertSopsAccess(session, undefined);
+            } catch (err) {
+              if (err instanceof SopsAccessError) return null;
+              throw err;
+            }
+            return <ClientSopsTab families={familiesForStage(client.stage)} phaseLabel={phaseLabel(client.stage)} />;
+          })()}
+        </div>
       )}
 
-      {tab === "fulfilment" && (
+      {tab === "marketing" && (
+        <ClientMarketingServiceWorkspace
+          clientId={client.id}
+          clientName={client.name}
+          initial={cleanClientMarketingService(meta.clientMarketingService)}
+          canManage={isAgencyRole(session.role)}
+          canApprove={!isAgencyRole(session.role)}
+        />
+      )}
+
+      {tab === "portal" && (
         <FulfilmentPortalPreview
           clientId={client.id}
           clientName={client.name}
@@ -549,9 +631,9 @@ export default async function ClientHome({
             experienceHeadline: meta.portalExperienceHeadline ?? "",
             billingCadence: meta.portalBillingCadence ?? "As agreed",
             welcomeNote: meta.portalWelcomeNote ?? "",
-            supportEmail: meta.portalSupportEmail ?? customerPortalData?.support.email ?? "",
-            supportPhone: meta.portalSupportPhone ?? customerPortalData?.support.phone ?? "",
-            supportWhatsappUrl: meta.portalSupportWhatsappUrl ?? customerPortalData?.support.whatsappUrl ?? "",
+            supportEmail: meta.portalSupportEmail ?? customerPortalData.support.email ?? "",
+            supportPhone: meta.portalSupportPhone ?? customerPortalData.support.phone ?? "",
+            supportWhatsappUrl: meta.portalSupportWhatsappUrl ?? customerPortalData.support.whatsappUrl ?? "",
             logoUrl: meta.portalLogoUrl ?? "",
             accentColor: meta.portalAccentColor ?? "#8b6c33",
             billingUrl: meta.stripeLink ?? "",
@@ -560,35 +642,55 @@ export default async function ClientHome({
             portalBuiltAt: meta.portalBuiltAt,
             accessSentAt: meta.portalAccessSentAt,
             accessPreparedAt: meta.portalAccessPreparedAt,
-            fileCount: customerPortalData?.files.length ?? 0,
-            invoiceCount: customerPortalData?.invoices.length ?? 0,
-            outstandingInvoiceCount: customerPortalData?.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").length ?? 0,
-            contractCount: customerPortalData?.contracts.filter(contract => contract.status === "accepted").length ?? 0,
-            propertyCount: customerPortalData?.properties.length ?? 0,
-            tagInstalledCount: customerPortalData?.properties.filter(property => property.tagStatus === "installed").length ?? 0,
-            approvals: customerPortalData?.approvals ?? [],
+            fileCount: customerPortalData.files.length,
+            invoiceCount: customerPortalData.invoices.length,
+            outstandingInvoiceCount: customerPortalData.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").length,
+            contractCount: customerPortalData.contracts.filter(contract => contract.status === "accepted").length,
+            propertyCount: customerPortalData.properties.length,
+            tagInstalledCount: customerPortalData.properties.filter(property => property.tagStatus === "installed").length,
+            approvals: customerPortalData.approvals,
           }}
         />
       )}
 
-      {tab === "properties" && (
-        <PropertiesTabClient
-          clientId={client.id}
-          clientName={client.name}
-          initialProperties={Array.isArray(meta.properties) ? meta.properties : []}
-          githubPublishingConfigured={isGitHubPublishingConfiguredForAgency(session.agencyId, client.id)}
-          vercelDeploymentConfigured={isVercelProjectDeploymentConfiguredForAgency(session.agencyId, client.id)}
-        />
-      )}
-
-      {tab === "kanban" && (
-        <KanbanTabClient clientId={client.id} clientName={client.name} />
+      {tab === "systems" && (
+        <RequirePermission session={session} requires={["clients.view"]}>
+          <div className="grid gap-6">
+            <nav aria-label="Technical workspace views" className="grid gap-px overflow-hidden border border-black/10 bg-black/10 sm:grid-cols-3">
+              <Link href={clientWorkspaceHref(client.id, "systems")} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "monitoring" ? "text-brand" : "text-black/58"}`}><MonitorCog size={17} /> Monitoring</Link>
+              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "properties" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "properties" ? "text-brand" : "text-black/58"}`}><Boxes size={17} /> Properties and deployments</Link>
+              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "website" ? "text-brand" : "text-black/58"}`}><Globe2 size={17} /> Website editor</Link>
+            </nav>
+            {systemView === "monitoring" ? (
+              <ClientSystemsWorkspace clientId={client.id} clientName={client.name} properties={propertyRecords} />
+            ) : systemView === "properties" ? (
+              <PropertiesTabClient
+                clientId={client.id}
+                clientName={client.name}
+                initialProperties={propertyRecords}
+                githubPublishingConfigured={isGitHubPublishingConfiguredForAgency(session.agencyId, client.id)}
+                vercelDeploymentConfigured={isVercelProjectDeploymentConfiguredForAgency(session.agencyId, client.id)}
+              />
+            ) : (
+              <section className="border-y border-black/10 bg-white py-6">
+                <h2 className="text-lg font-medium text-black/90">Website editor</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">Visually build pages and responsive sections, add custom code, preview every device, and publish when {client.name} is ready.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <WebsiteBuilderLauncher clientId={client.id} ready={installs.some(install => install.pluginId === "website-editor" && install.enabled)} />
+                  {client.websiteUrl ? <a href={client.websiteUrl} target="_blank" rel="noreferrer" className="rounded-md border border-black/15 px-4 py-2 text-sm hover:bg-black/5">Open live site ↗</a> : null}
+                </div>
+              </section>
+            )}
+          </div>
+        </RequirePermission>
       )}
 
       {tab === "finance" && (
         <RequirePermission session={session} requires={["finance.view"]}>
           <FinanceTabClient
             clientId={client.id}
+            clientName={client.name}
+            recipientEmail={meta.portalLoginEmail ?? meta.clientEmail ?? client.ownerEmail}
             initialContracts={Array.isArray(meta.contracts) ? meta.contracts : []}
             initialContractTemplates={contractTemplates}
             initial={{
@@ -601,60 +703,39 @@ export default async function ClientHome({
         </RequirePermission>
       )}
 
-      {tab === "assets" && (
-        <section className="rounded-xl border border-black/10 bg-white p-6">
-          <h2 className="text-lg font-medium text-black/90">Assets</h2>
-          <p className="mt-1 text-sm text-black/60">
-            Brand assets, uploads, screenshots, design references, and working files.
-          </p>
-          <div className="mt-4">
-            <Link
-              href={`/portal/clients/${client.id}/assets`}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90"
-            >
-              Open assets
-            </Link>
-          </div>
-        </section>
+      {tab === "communications" && (
+        <div className="grid gap-5">
+          <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5">
+            <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Relationship communications</p><h2 className="mt-2 text-2xl font-semibold text-black/88">Messages and requests</h2><p className="mt-1 text-sm text-black/55">Support history, customer requests, replies, and the handoff into the unified Master Inbox.</p></div>
+            <Link href={`/portal/agency/inbox?view=all&thread=profile:${encodeURIComponent(client.id)}`} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white">Open unified inbox</Link>
+          </header>
+          <ClientRequestsPanel clientId={client.id} initialRequests={meta.clientRequests ?? []} />
+        </div>
       )}
-
-      {tab === "sops" && (() => {
-        try {
-          assertSopsAccess(session, undefined);
-        } catch (err) {
-          if (err instanceof SopsAccessError) {
-            return (
-              <section className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-                403 — {err.message}
-              </section>
-            );
-          }
-          throw err;
-        }
-        const families = familiesForStage(client.stage);
-        return (
-          <ClientSopsTab families={families} phaseLabel={phaseLabel(client.stage)} />
-        );
-      })()}
 
       {tab === "files" && (
-        <FilesTabClient
-          clientId={client.id}
-          initialFiles={(((client.metadata ?? {}) as { files?: Array<{
-            id: string; name: string; url: string;
-            category: FileCategory; uploadedBy?: string; uploadedAt: number;
-          }> }).files) ?? []}
-        />
+        <div className="grid gap-5">
+          <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5"><div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Shared evidence</p><h2 className="mt-2 text-2xl font-semibold text-black/88">Files and assets</h2><p className="mt-1 text-sm text-black/55">Working files, customer uploads, screenshots, brand assets, and delivery evidence in one lens.</p></div><Link href={`/portal/clients/${client.id}/assets`} className="rounded-md border border-black/12 bg-white px-4 py-2 text-sm font-semibold text-black/65">Open asset library</Link></header>
+          <FilesTabClient
+            clientId={client.id}
+            initialFiles={(((client.metadata ?? {}) as { files?: Array<{
+              id: string; name: string; url: string;
+              category: FileCategory; uploadedBy?: string; uploadedAt: number;
+            }> }).files) ?? []}
+          />
+        </div>
       )}
 
-      {tab === "systems" && (
-        <RequirePermission session={session} requires={["clients.view"]}>
-          <ClientSystemsWorkspace
-            clientId={client.id}
-            clientName={client.name}
-            properties={Array.isArray(meta.properties) ? meta.properties : []}
-          />
-        </RequirePermission>
+      {tab === "notes" && (
+        <ClientNotesWorkspace
+          clientId={client.id}
+          initial={{
+            notes: meta.notes ?? meta.buyingJourney?.notes ?? "",
+            sessionNotes: meta.sessionNotes ?? meta.buyingJourney?.sessionNotes ?? "",
+            meetingNotes: meta.meetingNotes ?? "",
+            supportNotes: meta.supportNotes ?? "",
+          }}
+        />
       )}
     </div>
   );

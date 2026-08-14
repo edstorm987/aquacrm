@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowUpRight,
+  CalendarClock,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -17,15 +18,18 @@ import {
   EyeOff,
   FileJson,
   Gauge,
+  Globe2,
   History,
   Layers3,
   LoaderCircle,
+  MessageSquareText,
   RadioTower,
   RefreshCw,
   Search,
   ShieldCheck,
   Square,
   Target,
+  TimerReset,
 } from "lucide-react";
 
 import type {
@@ -95,6 +99,8 @@ export function RadarInspectionWorkspace({
   initialStatus = "all",
   initialScope = "all",
   initialLens = "all",
+  initialSourceId = "",
+  initialDatasetId = "",
   embedded = false,
 }: {
   initialRadar: BusinessIssueRadar;
@@ -105,6 +111,8 @@ export function RadarInspectionWorkspace({
   initialStatus?: StatusFilter;
   initialScope?: ScopeFilter;
   initialLens?: RadarRuleLens | "all";
+  initialSourceId?: string;
+  initialDatasetId?: string;
   embedded?: boolean;
 }) {
   const [radar, setRadar] = useState(initialRadar);
@@ -120,7 +128,7 @@ export function RadarInspectionWorkspace({
   const [seriesDetail, setSeriesDetail] = useState<RadarEvidenceSeriesInspection | null>(null);
   const [seriesBusy, setSeriesBusy] = useState(false);
   const [sourceIndex, setSourceIndex] = useState<RadarSourceDataIndex | null>(null);
-  const [selectedDatasetId, setSelectedDatasetId] = useState("");
+  const [selectedDatasetId, setSelectedDatasetId] = useState(initialDatasetId);
   const [sourceDetail, setSourceDetail] = useState<RadarSourceDatasetInspection | null>(null);
   const [sourceBusy, setSourceBusy] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
@@ -170,8 +178,8 @@ export function RadarInspectionWorkspace({
   }, [deferredQuery, domain, lens, scope, status]);
 
   useEffect(() => {
-    if (initialTab === "records") void loadSourceIndex(initialQuery, initialDomain);
-  }, [initialDomain, initialQuery, initialTab]);
+    if (initialTab === "records") void loadSourceIndex(initialDatasetId || initialSourceId || initialQuery, initialDomain);
+  }, [initialDatasetId, initialDomain, initialQuery, initialSourceId, initialTab]);
 
   async function scanNow() {
     setScanBusy(true);
@@ -230,26 +238,33 @@ export function RadarInspectionWorkspace({
   async function loadSourceIndex(preferredSourceId = "", preferredDomain: AdvisorDomain | "all" = "all") {
     setSourceBusy(true);
     setError("");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15_000);
     try {
-      const response = await fetch(`/api/portal/advisor/radar/sources${sourceIndex ? "?refresh=1" : ""}`, { cache: "no-store" });
+      const response = await fetch(`/api/portal/advisor/radar/sources${sourceIndex ? "?refresh=1" : ""}`, { cache: "no-store", signal: controller.signal });
       const result = await response.json().catch(() => null) as { ok?: boolean; index?: RadarSourceDataIndex; error?: string } | null;
       if (!response.ok || !result?.ok || !result.index) throw new Error(result?.error || "Radar source catalogue could not be loaded.");
       setSourceIndex(result.index);
-      const first = result.index.datasets.find(dataset => preferredSourceId && dataset.sourceIds.includes(preferredSourceId))
+      const first = result.index.datasets.find(dataset => preferredSourceId && dataset.id === preferredSourceId)
+        ?? result.index.datasets.find(dataset => preferredSourceId && dataset.sourceIds.includes(preferredSourceId))
         ?? result.index.datasets.find(dataset => preferredDomain !== "all" && dataset.domain === preferredDomain)
         ?? result.index.datasets[0];
       if (first) await loadSourceDataset(first, 0, false);
       return result.index;
     } catch (sourceError) {
-      setError(sourceError instanceof Error ? sourceError.message : "Radar source catalogue could not be loaded.");
+      setError(sourceError instanceof DOMException && sourceError.name === "AbortError"
+        ? "The source catalogue took longer than 15 seconds. Refresh it to try again."
+        : sourceError instanceof Error ? sourceError.message : "Radar source catalogue could not be loaded.");
       return null;
     } finally {
+      window.clearTimeout(timeout);
       setSourceBusy(false);
     }
   }
 
   async function loadSourceDataset(dataset: RadarSourceDatasetSummary, offset = 0, manageBusy = true) {
     setSelectedDatasetId(dataset.id);
+    if (!embedded) window.history.replaceState(null, "", `/portal/agency/radar?view=records&dataset=${encodeURIComponent(dataset.id)}`);
     if (manageBusy) setSourceBusy(true);
     setError("");
     try {
@@ -285,8 +300,8 @@ export function RadarInspectionWorkspace({
     <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-5" data-testid="radar-inspection-workspace">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
-          {!embedded ? <Link href="/portal/agency" className="inline-flex items-center gap-1.5 text-xs font-semibold text-black/45 hover:text-black/75"><ArrowLeft size={14} /> Command center</Link> : null}
-          <p className={`${embedded ? "" : "mt-4"} text-xs font-semibold uppercase tracking-wide text-brand`}>{embedded ? "Command deck station" : "Manual audit room"}</p>
+          {!embedded ? <Link href="/portal/agency" className="inline-flex items-center gap-1.5 text-xs font-semibold text-black/45 hover:text-black/75"><ArrowLeft size={14} /> Command Centre</Link> : null}
+          <p className={`${embedded ? "" : "mt-4"} text-xs font-semibold uppercase tracking-wide text-brand`}>{embedded ? "Omega data station" : "Manual audit room"}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90 sm:text-3xl">{embedded ? "Data inspector" : "Radar inspection"}</h1>
           <p className="mt-2 text-sm leading-6 text-black/55">Inspect the actual business records first, then trace every calculation, source, policy decision, incident, and retained data point behind the business radar.</p>
         </div>
@@ -317,7 +332,7 @@ export function RadarInspectionWorkspace({
             ["checks", "Checks", radar.checks.length],
             ["evidence", "Evidence vault", evidence.series.length],
             ["records", "Source records", sourceIndex?.totalDatasets ?? null],
-            ["sources", "Sources & metrics", radar.coverage.length + radar.signals.length],
+            ["sources", "Connections & coverage", radar.coverage.length + radar.signals.length],
             ["incidents", "Incidents", radar.incidents.length],
             ["raw", "Raw data", null],
           ] as const).map(([id, label, count]) => (
@@ -397,7 +412,12 @@ export function RadarInspectionWorkspace({
 
       {tab === "records" ? <SourceRecordsExplorer index={sourceIndex} datasets={filteredDatasets} selected={selectedDataset} detail={sourceDetail?.id === selectedDataset?.id ? sourceDetail : null} busy={sourceBusy} onRefresh={() => void loadSourceIndex()} onSelect={dataset => void loadSourceDataset(dataset)} onPage={(dataset, offset) => void loadSourceDataset(dataset, offset)} /> : null}
       {tab === "sources" ? <SourcesAndMetrics radar={radar} /> : null}
-      {tab === "incidents" ? <IncidentInspection radar={radar} query={query} domain={domain} status={status} onInspectCheck={check => {
+      {tab === "incidents" ? <IncidentInspection radar={radar} query={query} domain={domain} status={status} onSelectIncident={incident => {
+        setQuery(incident.id);
+        setDomain(incident.domain);
+        setStatus("all");
+        if (!embedded) window.history.replaceState(null, "", `/portal/agency/radar?view=incidents&domain=${incident.domain}&query=${encodeURIComponent(incident.id)}`);
+      }} onInspectCheck={check => {
         setSelectedCheckId(check.id);
         setQuery(check.id);
         setDomain(check.domain);
@@ -690,15 +710,65 @@ function recordDigest(record: Record<string, unknown>): string {
 
 function SourcesAndMetrics({ radar }: { radar: BusinessIssueRadar }) {
   return <div className="grid gap-5">
+    <PrioritySignalCentre radar={radar} />
     <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<RadioTower size={17} />} title="Domain rollups" detail="Complete assurance, readiness, confidence, and outcome counts for each business area." count={radar.domains.length} /><div className="overflow-x-auto"><table className="w-full min-w-[1120px] border-collapse text-left text-xs"><thead className="bg-[#efeee9]"><tr><Th>Domain</Th><Th>Total</Th><Th>Applicable</Th><Th>Pass</Th><Th>Firing</Th><Th>Watch</Th><Th>Blind</Th><Th>Learning</Th><Th>Inactive</Th><Th>Coverage</Th><Th>Assurance</Th><Th>Confidence</Th><Th>Readiness</Th><Th>Last signal</Th></tr></thead><tbody className="divide-y divide-black/10">{radar.domains.map(item => <tr key={item.domain}><Td><strong>{domainLabel(item.domain)}</strong></Td><Td mono>{item.totalChecks}</Td><Td mono>{item.applicableChecks}</Td><Td mono>{item.passedChecks}</Td><Td mono>{item.firingChecks}</Td><Td mono>{item.watchChecks}</Td><Td mono>{item.blindChecks}</Td><Td mono>{item.learningChecks}</Td><Td mono>{item.inactiveChecks}</Td><Td mono>{item.coveragePercent}%</Td><Td mono>{item.assurancePercent}%</Td><Td mono>{item.confidencePercent}%</Td><Td mono>{item.readinessPercent}%</Td><Td>{item.lastSignalAt ? formatDate(item.lastSignalAt) : "None"}</Td></tr>)}</tbody></table></div></section>
     <div className="grid gap-5 xl:grid-cols-2">
-      <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Database size={17} />} title="Source coverage" detail="Every connected, empty, unavailable, or disconnected source Radar evaluates." count={radar.coverage.length} /><div className="divide-y divide-black/10">{radar.coverage.map(source => <article key={source.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_120px_150px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-black/75">{source.label}</h3><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${source.status === "connected" ? "bg-emerald-100 text-emerald-800" : source.status === "empty" ? "bg-sky-100 text-sky-800" : "bg-red-100 text-red-800"}`}>{source.status}</span></div><p className="mt-1 text-xs leading-5 text-black/45">{source.detail}</p><p className="mt-2 break-all font-mono text-[10px] text-black/30">{source.id}</p></div><DataPair label="Records" value={source.recordCount.toLocaleString()} /><DataPair label="Last activity" value={source.lastActivityAt ? formatDate(source.lastActivityAt) : "Not recorded"} /></article>)}</div></section>
+      <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Database size={17} />} title="Source coverage" detail="Every source Radar evaluates, including freshness and the exact next activation step." count={radar.coverage.length} /><div className="divide-y divide-black/10">{radar.coverage.map(source => {
+        const state = sourceConnectionState(source, radar.generatedAt);
+        const activation = sourceActivation(source.id, source.domain);
+        return <article key={source.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_120px_150px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-black/75">{source.label}</h3><ConnectionStateBadge state={state} /></div><p className="mt-1 text-xs leading-5 text-black/45">{source.detail}</p>{state !== "connected" ? <p className="mt-2 border-l-2 border-amber-400 pl-2 text-[11px] leading-5 text-amber-900"><strong>Activate:</strong> {activation.detail}</p> : null}<div className="mt-2 flex flex-wrap items-center gap-3"><p className="break-all font-mono text-[10px] text-black/30">{source.id}</p><Link href={`/portal/agency/radar?view=records&source=${encodeURIComponent(source.id)}`} className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand hover:text-black">Inspect records <Database size={11} /></Link><Link href={activation.href} className="inline-flex items-center gap-1 text-[10px] font-semibold text-black/45 hover:text-black">Open setup <ArrowUpRight size={11} /></Link></div></div><DataPair label="Records" value={source.recordCount.toLocaleString()} /><DataPair label="Last activity" value={source.lastActivityAt ? formatDate(source.lastActivityAt) : "Not recorded"} /></article>;
+      })}</div></section>
       <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Gauge size={17} />} title="Metric signals" detail="The direct business values supplied to incident and policy evaluation." count={radar.signals.length} /><div className="divide-y divide-black/10">{radar.signals.map(signal => <article key={signal.id} className="px-4 py-4 sm:px-5"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><h3 className="text-sm font-semibold text-black/75">{signal.label}</h3><SignalBadge status={signal.status} /></div><strong className="text-sm tabular-nums text-black/70">{signal.display}</strong></div><p className="mt-2 text-xs leading-5 text-black/45">{signal.detail}</p><div className="mt-3 grid gap-2 sm:grid-cols-3"><DataPair label="Target" value={signal.target} /><DataPair label="Domain" value={domainLabel(signal.domain)} /><DataPair label="Measured" value={formatDate(signal.measuredAt)} /></div><p className="mt-2 break-all font-mono text-[10px] text-black/30">{signal.id}</p></article>)}</div></section>
     </div>
   </div>;
 }
 
-function IncidentInspection({ radar, query, domain, status, onInspectCheck, onInspectSource }: { radar: BusinessIssueRadar; query: string; domain: AdvisorDomain | "all"; status: StatusFilter; onInspectCheck: (check: BusinessRadarCheck) => void; onInspectSource: (check: BusinessRadarCheck) => void }) {
+function PrioritySignalCentre({ radar }: { radar: BusinessIssueRadar }) {
+  const configs = [
+    { sourceId: "external:website-enquiries", datasetId: "external:website-enquiries", signalId: "metric:form-submissions", label: "Enquiries", detail: "Every website form and chatbot contact.", href: "/portal/agency/inbox?view=forms", freshnessHours: 168, icon: <MessageSquareText size={17} /> },
+    { sourceId: "external:response-time-clocks", datasetId: "external:response-time-clocks", signalId: "metric:speed-to-lead", label: "Response clocks", detail: "Receipt-to-first-reply timers and SLA breaches.", href: "/portal/agency/inbox?view=forms", freshnessHours: 168, icon: <TimerReset size={17} /> },
+    { sourceId: "core:website-telemetry", datasetId: "core:website-telemetry", signalId: "metric:traffic-7d", label: "Website telemetry", detail: "Aqua Tag traffic, forms, errors and heartbeats.", href: "/portal/agency/fulfilment/technical/performance", freshnessHours: 24, icon: <Globe2 size={17} /> },
+    { sourceId: "external:inbox-messages", datasetId: "external:social-messages", label: "Inbox messages", detail: "Inbound, outbound and conversation continuity evidence.", href: "/portal/agency/inbox", freshnessHours: 168, icon: <MessageSquareText size={17} /> },
+    { sourceId: "core:calendar-commitments", datasetId: "core:calendar-commitments", signalId: "metric:calendar-commitments-7d", label: "Calendar", detail: "Lead meetings, dated work and command plans.", href: "/portal/agency/calendar", freshnessHours: 168, icon: <CalendarClock size={17} /> },
+  ];
+  return <section aria-labelledby="priority-signal-centre-heading" className="border-y border-black/10 bg-[#0b1717] text-white">
+    <header className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-5"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-cyan-300">Connection and coverage centre</p><h2 id="priority-signal-centre-heading" className="mt-1 text-lg font-semibold">Priority signal mesh</h2><p className="mt-1 text-xs leading-5 text-white/52">The five first-response sources Radar and Aqua Advisor must be able to prove.</p></div><Link href="/portal/agency/radar?view=records" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/15 px-3 text-xs font-semibold text-white/75 hover:bg-white/5">Inspect raw records <ArrowUpRight size={13} /></Link></header>
+    <div className="grid sm:grid-cols-2 xl:grid-cols-5">{configs.map((config, index) => {
+      const source = radar.coverage.find(item => item.id === config.sourceId);
+      const signal = config.signalId ? radar.signals.find(item => item.id === config.signalId) : undefined;
+      const state = sourceConnectionState(source, radar.generatedAt, config.freshnessHours);
+      const activation = sourceActivation(config.sourceId, source?.domain ?? "systems");
+      return <article key={config.sourceId} className={`min-w-0 px-4 py-4 ${index ? "border-t border-white/10 sm:border-l sm:border-t-0" : ""}`}><div className="flex items-center justify-between gap-2"><span className="grid size-8 place-items-center rounded-md border border-cyan-300/20 bg-cyan-300/10 text-cyan-200">{config.icon}</span><ConnectionStateBadge state={state} dark /></div><h3 className="mt-3 text-sm font-semibold text-white/90">{config.label}</h3><p className="mt-1 min-h-10 text-[11px] leading-5 text-white/45">{config.detail}</p><div className="mt-3 border-t border-white/10 pt-3"><strong className="block text-lg tabular-nums text-white">{signal?.display ?? source?.recordCount.toLocaleString() ?? "—"}</strong><span className="text-[10px] text-white/38">{source?.lastActivityAt ? `Last signal ${formatDate(source.lastActivityAt)}` : "No signal recorded"}</span></div>{state !== "connected" ? <p className="mt-3 text-[10px] leading-4 text-amber-200/80">{activation.detail}</p> : null}<div className="mt-3 flex flex-wrap gap-3"><Link href={`/portal/agency/radar?view=records&dataset=${encodeURIComponent(config.datasetId)}`} className="inline-flex min-h-8 items-center gap-1 text-[10px] font-semibold text-cyan-200">Inspect data <Database size={11} /></Link><Link href={config.href} className="inline-flex min-h-8 items-center gap-1 text-[10px] font-semibold text-white/48">Open source <ArrowUpRight size={11} /></Link></div></article>;
+    })}</div>
+  </section>;
+}
+
+type ConnectionState = "connected" | "empty" | "stale" | "missing";
+
+function sourceConnectionState(source: BusinessIssueRadar["coverage"][number] | undefined, now: number, freshnessHours = 72): ConnectionState {
+  if (!source || source.status === "disconnected" || source.status === "unavailable") return "missing";
+  if (source.status === "empty") return "empty";
+  if (source.lastActivityAt && now - source.lastActivityAt > freshnessHours * 3_600_000) return "stale";
+  return "connected";
+}
+
+function ConnectionStateBadge({ state, dark = false }: { state: ConnectionState; dark?: boolean }) {
+  const style = dark
+    ? state === "connected" ? "bg-emerald-300/12 text-emerald-200" : state === "stale" ? "bg-amber-300/12 text-amber-200" : state === "empty" ? "bg-sky-300/12 text-sky-200" : "bg-red-300/12 text-red-200"
+    : state === "connected" ? "bg-emerald-100 text-emerald-800" : state === "stale" ? "bg-amber-100 text-amber-800" : state === "empty" ? "bg-sky-100 text-sky-800" : "bg-red-100 text-red-800";
+  return <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${style}`}>{state}</span>;
+}
+
+function sourceActivation(sourceId: string, domain: AdvisorDomain): { detail: string; href: string } {
+  if (sourceId.includes("website-enquiries") || sourceId.includes("response-time")) return { detail: "Connect the website form or chatbot to Master Inbox, then record the first reply on each enquiry.", href: "/portal/agency/inbox?view=forms" };
+  if (sourceId.includes("website-telemetry") || sourceId === "core:development") return { detail: "Install Aqua Tag on the property and send a fresh heartbeat or pageview event.", href: "/portal/agency/fulfilment?view=technical" };
+  if (sourceId.includes("inbox-message") || sourceId === "core:inbox") return { detail: "Connect an inbox channel, complete webhook verification and sync the latest conversation.", href: "/portal/agency/inbox?view=social" };
+  if (sourceId.includes("calendar")) return { detail: "Add a dated task, daily plan or lead meeting and assign an owner.", href: "/portal/agency/calendar" };
+  const href: Record<AdvisorDomain, string> = { company: "/portal/agency?station=battle", sales: "/portal/clients?view=journey", inbox: "/portal/agency/inbox", clients: "/portal/clients", finance: "/portal/agency/agency-finance", delivery: "/portal/agency/fulfilment", marketing: "/portal/agency/marketing", operations: "/portal/agency/actions", compliance: "/portal/agency/company?view=legal", development: "/portal/agency/fulfilment?view=technical", team: "/portal/account/permissions", systems: "/portal/agency/company?view=connections" };
+  return { detail: "Open the owning workspace, enable the source and add or sync its first fresh record.", href: href[domain] };
+}
+
+function IncidentInspection({ radar, query, domain, status, onSelectIncident, onInspectCheck, onInspectSource }: { radar: BusinessIssueRadar; query: string; domain: AdvisorDomain | "all"; status: StatusFilter; onSelectIncident: (incident: BusinessRadarIncident) => void; onInspectCheck: (check: BusinessRadarCheck) => void; onInspectSource: (check: BusinessRadarCheck) => void }) {
   const normalized = query.trim().toLowerCase();
   const selectedIncident = radar.incidents.find(item => item.id.toLowerCase() === normalized);
   const matches = (item: unknown, itemDomain: AdvisorDomain, severity: BusinessRadarIssue["severity"] | "info") => (domain === "all" || itemDomain === domain) && matchesIncidentStatus(severity, status) && (!normalized || JSON.stringify(item).toLowerCase().includes(normalized));
@@ -707,7 +777,7 @@ function IncidentInspection({ radar, query, domain, status, onInspectCheck, onIn
   const issues = selectedIncident ? radar.issues.filter(item => selectedIncident.issueIds.includes(item.id)) : radar.issues.filter(item => matches(item, item.domain, item.severity));
   const exactChecks = selectedIncident ? selectedIncident.checkIds.map(checkId => radar.checks.find(check => check.id === checkId)).filter((check): check is BusinessRadarCheck => Boolean(check)) : [];
   return <div className="grid gap-5">{selectedIncident ? <IncidentExactBreakdown incident={selectedIncident} issues={issues} checks={exactChecks} onInspectCheck={onInspectCheck} onInspectSource={onInspectSource} /> : <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<ShieldCheck size={17} />} title="Adaptive conclusions" detail="High-level conclusions generated from health, confidence, readiness, and operating stage." count={conclusions.length} /><div className="grid sm:grid-cols-2 xl:grid-cols-4">{conclusions.map((item, index) => <article key={item.id} className={`px-4 py-4 sm:px-5 ${index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""}`}><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${item.severity === "critical" ? "bg-red-600" : item.severity === "warning" ? "bg-amber-500" : item.severity === "watch" ? "bg-sky-500" : "bg-black/25"}`} /><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(item.domain)}</span></div><h3 className="mt-2 text-sm font-semibold text-black/75">{item.title}</h3><p className="mt-1 text-xs leading-5 text-black/45">{item.detail}</p></article>)}</div>{!conclusions.length ? <Empty title="No matching conclusions" detail="Adjust the search or domain filter to inspect a broader command summary." /> : null}</section>}
-    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<AlertTriangle size={17} />} title="Grouped incidents" detail="Related findings stay grouped at command level, while the exact issues and checks remain independently inspectable." count={incidents.length} /><div className="divide-y divide-black/10">{incidents.map(incident => <article key={incident.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_260px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(incident.severity)}`}>{incident.severity}</span><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(incident.domain)} · {incident.issueIds.length} issues · {incident.checkIds.length} checks</span></div><h3 className="mt-2 text-sm font-semibold text-black/80">{incident.title}</h3><p className="mt-1 text-sm leading-6 text-black/50">{incident.detail}</p><ul className="mt-3 space-y-1">{incident.evidence.map((item, index) => <li key={`${index}:${item}`} className="text-xs text-black/45">• {item}</li>)}</ul></div><div className="space-y-2"><Identifier label="Incident ID" value={incident.id} /><Identifier label="Source IDs" value={incident.sourceIds.join(", ") || "None"} /><Identifier label="Check IDs" value={incident.checkIds.join(", ") || "None"} /><Link href={incident.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65">Open source <ArrowUpRight size={13} /></Link></div></article>)}{!incidents.length ? <Empty title="No matching grouped incidents" detail="The complete finding ledger remains available below and in the Checks view." /> : null}</div></section>
+    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<AlertTriangle size={17} />} title="Grouped incidents" detail="Related findings stay grouped at command level, while the exact issues and checks remain independently inspectable." count={incidents.length} /><div className="divide-y divide-black/10">{incidents.map(incident => <article key={incident.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_260px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(incident.severity)}`}>{incident.severity}</span><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(incident.domain)} · {incident.issueIds.length} issues · {incident.checkIds.length} checks</span></div><h3 className="mt-2 text-sm font-semibold text-black/80">{incident.title}</h3><p className="mt-1 text-sm leading-6 text-black/50">{incident.detail}</p><ul className="mt-3 space-y-1">{incident.evidence.map((item, index) => <li key={`${index}:${item}`} className="text-xs text-black/45">• {item}</li>)}</ul></div><div className="space-y-2"><Identifier label="Incident ID" value={incident.id} /><Identifier label="Source IDs" value={incident.sourceIds.join(", ") || "None"} /><Identifier label="Check IDs" value={incident.checkIds.join(", ") || "None"} /><div className="flex flex-wrap gap-2"><button type="button" onClick={() => onSelectIncident(incident)} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Database size={13} /> Exact breakdown</button><Link href={incident.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65">Open source <ArrowUpRight size={13} /></Link></div></div></article>)}{!incidents.length ? <Empty title="No matching grouped incidents" detail="The complete finding ledger remains available below and in the Checks view." /> : null}</div></section>
     <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Activity size={17} />} title="Underlying findings" detail="The ungrouped issue records retained before incident correlation." count={issues.length} /><div className="divide-y divide-black/10">{issues.map(issue => <details key={issue.id} className="group px-4 py-3 sm:px-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="min-w-0"><span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(issue.severity)}`}>{issue.severity}</span><strong className="text-sm font-semibold text-black/72">{issue.title}</strong></span><span className="shrink-0 text-[10px] font-semibold uppercase text-black/35">{domainLabel(issue.domain)}</span></summary><div className="pb-2 pt-3"><p className="text-sm leading-6 text-black/50">{issue.detail}</p><pre className="mt-3 max-h-80 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(issue, null, 2)}</pre></div></details>)}{!issues.length ? <Empty title="No matching underlying findings" detail="Adjust the search or domain filter to inspect a broader set of findings." /> : null}</div></section>
   </div>;
 }

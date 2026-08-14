@@ -233,7 +233,7 @@ function buildConclusions(input: AdaptiveRadarInput, checks: BusinessRadarCheck[
       severity: "critical",
       title: "Commercial engine not yet established",
       detail: "Revenue, active clients, and pipeline are all at zero. This is an operating gap against the plan, not a healthy baseline.",
-      href: "/portal/agency/company",
+      href: "/portal/agency?station=battle",
     });
   }
   if (target > 0 && input.business.revenueGapCents > 0 && input.business.meetingsThisMonth < input.business.estimatedCallsNeeded) {
@@ -297,12 +297,12 @@ function groupIncidents(issues: BusinessRadarIssue[], checks: BusinessRadarCheck
       id: `incident:${key}`,
       detail: findings.length > 1 ? `${primary.detail} ${findings.length - 1} related finding${findings.length === 2 ? " is" : "s are"} grouped here.` : primary.detail,
       evidence: [...new Set(findings.flatMap(finding => finding.evidence))].slice(0, 8),
-      sourceIds: [...new Set(findings.flatMap(finding => finding.sourceIds))].slice(0, 40),
+      sourceIds: [...new Set(findings.flatMap(finding => finding.sourceIds))],
       issueIds: findings.map(finding => finding.id),
-      checkIds: matchingChecks.map(check => check.id).slice(0, 40),
+      checkIds: matchingChecks.map(check => check.id),
       findingCount: findings.length + matchingChecks.length,
     };
-  }).sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || right.findingCount - left.findingCount).slice(0, 60);
+  }).sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || right.findingCount - left.findingCount);
 }
 
 function exactIncidentChecks(findings: BusinessRadarIssue[], checks: BusinessRadarCheck[]): BusinessRadarCheck[] {
@@ -354,7 +354,7 @@ function groupCoverage(coverage: AdvisorCoverageSource[]): Map<AdvisorDomain, Ad
 }
 
 function dedupeIssues(issues: BusinessRadarIssue[]): BusinessRadarIssue[] {
-  return [...new Map(issues.map(issue => [issue.id, issue])).values()].sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || right.detectedAt - left.detectedAt).slice(0, 320);
+  return [...new Map(issues.map(issue => [issue.id, issue])).values()].sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || right.detectedAt - left.detectedAt);
 }
 
 function severityRank(severity: BusinessRadarIssue["severity"]): number {

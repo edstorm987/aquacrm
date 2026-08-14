@@ -1,17 +1,11 @@
-import { requireRole } from "@/lib/server/auth";
-import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
-import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
-import { ensureHydrated } from "@/server/storage";
-import { RadarInspectionWorkspace } from "./RadarInspectionWorkspace";
+import { redirect } from "next/navigation";
 
-const INSPECTION_VIEWS = ["kpis", "checks", "evidence", "records", "sources", "incidents", "raw"] as const;
-
-export default async function RadarInspectionPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  await ensureHydrated();
-  const session = await requireRole(["agency-owner", "agency-manager"]);
-  const requestedView = (await searchParams).view;
-  const initialTab = INSPECTION_VIEWS.find(view => view === requestedView) ?? "records";
-  const radar = await getCachedBusinessIssueRadar(session.agencyId);
-  const evidence = inspectRadarEvidence(session.agencyId);
-  return <RadarInspectionWorkspace initialRadar={radar} initialEvidence={evidence} initialTab={initialTab} />;
+export default async function RadarInspectionPage({ searchParams }: { searchParams: Promise<{ view?: string; query?: string; domain?: string; status?: string; scope?: string; lens?: string; source?: string; dataset?: string }> }) {
+  const requested = await searchParams;
+  const params = new URLSearchParams({ station: "radar-inspector" });
+  for (const key of ["view", "query", "domain", "status", "scope", "lens", "source", "dataset"] as const) {
+    const value = requested[key];
+    if (typeof value === "string" && value.trim()) params.set(key, value.trim().slice(0, 240));
+  }
+  redirect(`/portal/agency?${params.toString()}`);
 }

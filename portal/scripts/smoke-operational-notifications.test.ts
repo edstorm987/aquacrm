@@ -21,6 +21,8 @@ type Installs = typeof import("../src/server/pluginInstalls");
 type Alerts = typeof import("../src/lib/server/operationalAlerts");
 type SidebarAttention = typeof import("../src/lib/server/sidebarAttention");
 type AlertPreferences = typeof import("../src/lib/server/operationalAlertPreferences");
+type Proposals = typeof import("../src/lib/server/externalAssistantProposals");
+type Tasks = typeof import("../src/server/tasks");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -28,6 +30,8 @@ let installs: Installs;
 let alerts: Alerts;
 let sidebarAttention: SidebarAttention;
 let alertPreferences: AlertPreferences;
+let proposals: Proposals;
+let tasks: Tasks;
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -37,6 +41,8 @@ before(async () => {
   alerts = await import("../src/lib/server/operationalAlerts");
   sidebarAttention = await import("../src/lib/server/sidebarAttention");
   alertPreferences = await import("../src/lib/server/operationalAlertPreferences");
+  proposals = await import("../src/lib/server/externalAssistantProposals");
+  tasks = await import("../src/server/tasks");
   await storage.ensureHydrated();
   await storage.reset();
 });
@@ -158,6 +164,27 @@ test("budget pots raise cross-module funding and overspend alerts", async () => 
   assert.equal(result.find(alert => alert.id === "finance:budget-over:gear")?.href, "/portal/agency/agency-finance/budgets");
 });
 
+test("client social and paid-media delivery raises exact operational alerts", async () => {
+  const now = Date.parse("2026-08-14T12:00:00Z");
+  const agency = tenants.createAgency({ name: "Managed Growth", slug: "managed-growth-alerts" });
+  const client = tenants.createClient(agency.id, {
+    name: "Example Client",
+    metadata: {
+      clientMarketingService: {
+        enabled: true,
+        status: "active",
+        profiles: [{ id: "profile-1", platform: "Instagram", handle: "@example", status: "attention" }],
+        content: [{ id: "content-1", title: "Launch reel", platform: "Instagram", format: "Reel", status: "review", approval: "pending", updatedAt: now - 2_000 }],
+        campaigns: [{ id: "campaign-1", name: "Lead campaign", platform: "Meta Ads", objective: "Leads", status: "active", approval: "approved", budgetCents: 10_000, spendCents: 12_000, impressions: 10_000, clicks: 200, leads: 2, conversions: 1, revenueCents: 20_000, updatedAt: now - 1_000 }],
+      },
+    },
+  });
+  const result = await alerts.listOperationalAlerts(agency.id, now);
+  assert.equal(result.find(alert => alert.id === `client-marketing-budget:${client.id}:campaign-1`)?.severity, "critical");
+  assert.equal(result.find(alert => alert.id === `client-marketing-access:${client.id}`)?.severity, "warning");
+  assert.equal(result.find(alert => alert.id === `client-marketing-approvals:${client.id}`)?.href, `/portal/clients/${client.id}?tab=marketing`);
+});
+
 test("finance operations warns about compliance and people payments", async () => {
   const now = Date.parse("2026-08-08T12:00:00Z");
   const agency = tenants.createAgency({ name: "Finance Operations Alerts", slug: "finance-operations-alerts" });
@@ -229,12 +256,86 @@ test("live alerts mark the relevant sidebar destination without making every are
   assert.equal(items.find(item => item.id === "sop-library")?.attentionCount, undefined);
 });
 
+test("pending external AI proposals feed Actions attention and parked proposals stay quiet", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Proposal notifications", slug: "proposal-notifications" });
+  const proposal = proposals.submitExternalAssistantActionProposal({
+    agencyId: agency.id,
+    assistantFingerprint: "assistant-fingerprint",
+    assistantName: "External strategist",
+    title: "Review the oldest enquiry",
+    detail: "A website enquiry is outside the response target.",
+    priority: "urgent",
+    sourceHref: "/portal/agency/inbox?view=forms",
+  });
+
+  const pendingAlerts = await alerts.listOperationalAlerts(agency.id);
+  const proposalAlert = pendingAlerts.find(alert => alert.id === `external-proposal:${proposal.id}`);
+  assert.equal(proposalAlert?.severity, "critical");
+  assert.equal(proposalAlert?.category, "task");
+  assert.equal(proposalAlert?.href, `/portal/agency/actions#external-proposal-${proposal.id}`);
+
+  const marked = sidebarAttention.addSidebarAttention([{
+    id: "main",
+    label: "",
+    order: 0,
+    items: [{ id: "actions", label: "Actions", href: "/portal/agency/actions" }],
+  }], pendingAlerts);
+  assert.equal(marked[0].items[0].attentionCount, 1);
+
+  proposals.decideExternalAssistantActionProposal({
+    agencyId: agency.id,
+    proposalId: proposal.id,
+    decision: "park",
+    actorUserId: "owner-user",
+    parkedUntil: Date.now() + 86_400_000,
+  });
+  const parkedAlerts = await alerts.listOperationalAlerts(agency.id);
+  assert.equal(parkedAlerts.some(alert => alert.id === `external-proposal:${proposal.id}`), false);
+});
+
 test("sidebar attention remains visible when collapsed and announces its count", () => {
   const nav = readFileSync("src/components/chrome/SidebarNavLink.tsx", "utf8");
+  const provider = readFileSync("src/components/chrome/NotificationAttentionProvider.tsx", "utf8");
   assert.match(nav, /mm-sidebar-attention-dot/);
   assert.match(nav, /notification\$\{resolvedAttentionCount === 1/);
   assert.match(nav, /resolvedAttentionCount > 99 \? "99\+" : resolvedAttentionCount/);
-  assert.match(nav, /attentionTitle\(liveAttention\)/);
+  assert.match(nav, /attentionTitle\(visibleAttention\)/);
+  assert.match(provider, /useUnresolvedAttentionMatches/);
+});
+
+test("open Actions keep a sidebar count until the underlying task is resolved", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Persistent Actions", slug: "persistent-actions" });
+  const task = tasks.createAgencyTask({
+    agencyId: agency.id,
+    title: "Send the proposal",
+    priority: "high",
+    createdBy: "owner-user",
+  });
+  const now = Date.now() + 1_000;
+  const live = await alerts.listOperationalAlerts(agency.id, now);
+  const taskAlert = live.find(alert => alert.id === `task:${task.id}`);
+  assert.equal(taskAlert?.persistentUntilResolved, true);
+  assert.match(taskAlert?.title ?? "", /Open action: Send the proposal/);
+
+  alertPreferences.setOperationalAlertPreference({ agencyId: agency.id, userId: "owner-user", alert: taskAlert!, action: "read", now });
+  const readViews = alertPreferences.listOperationalAlertViews(agency.id, "owner-user", live, now);
+  const readTask = readViews.find(alert => alert.id === taskAlert?.id);
+  assert.equal(readTask?.attention, false);
+  assert.equal(readTask?.persistentUntilResolved, true);
+
+  const marked = sidebarAttention.addSidebarAttention([{
+    id: "main",
+    label: "",
+    order: 0,
+    items: [{ id: "actions", label: "Actions", href: "/portal/agency/actions" }],
+  }], readViews.filter(alert => alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")));
+  assert.equal(marked[0].items[0].attentionCount, 1);
+
+  tasks.updateAgencyTask(agency.id, task.id, { status: "done" }, "owner-user");
+  const resolved = await alerts.listOperationalAlerts(agency.id, now + 1_000);
+  assert.equal(resolved.some(alert => alert.id === taskAlert?.id), false);
 });
 
 test("read, parked, dismissed, and changed alerts have durable attention semantics", async () => {

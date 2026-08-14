@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { FinanceNav } from "../components/FinanceNav";
 
 export default async function LockInPage(props: PluginPageProps) {
   const c = containerFor({
@@ -12,7 +13,9 @@ export default async function LockInPage(props: PluginPageProps) {
   const totalPaid = rows.reduce((s, r) => s + r.paidCents, 0);
 
   return (
-    <section>
+    <section className="mx-auto w-full max-w-6xl space-y-8 pb-12">
+      <FinanceNav active="deposits" />
+      <div>
       <header style={{ marginBottom: 16 }}>
         <h1>Deposit tracker</h1>
         <p style={{ color: "rgba(0,0,0,0.6)", margin: 0 }}>
@@ -58,6 +61,7 @@ export default async function LockInPage(props: PluginPageProps) {
       <p style={{ color: "rgba(0,0,0,0.5)", fontSize: 13, marginTop: 24 }}>
         Deposits are matched to the related client invoice and payment record.
       </p>
+      </div>
     </section>
   );
 }

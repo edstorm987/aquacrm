@@ -12,6 +12,7 @@ export default async function PortalIndex() {
   const session = await getSession();
   if (!session) redirect("/login?next=/portal");
 
+  if (session.role === "agency-staff") redirect("/portal/team");
   if (isAgencyRole(session.role)) redirect("/portal/agency");
   if (isClientRole(session.role) && session.clientId) redirect(`/portal/clients/${session.clientId}`);
   if (session.role === "end-customer") redirect("/portal/customer");

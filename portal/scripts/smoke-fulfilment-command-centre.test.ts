@@ -29,7 +29,7 @@ describe("fulfilment command centre", () => {
     }
     assert.ok(workspace.includes("<PipelineBoard"), "product-aware delivery board must remain interactive");
     assert.ok(workspace.includes("<PortalsWorkspace"), "the real portal workspace must be embedded");
-    assert.ok(workspace.includes("Web development"), "specialist web delivery should remain linked from fulfilment");
+    assert.ok(workspace.includes("Technical delivery"), "specialist technical delivery should remain linked from fulfilment");
   });
 
   it("rolls up real client products, milestones, workspaces, and pipeline stages", () => {

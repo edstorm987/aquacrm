@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { NextRequest } from "next/server";
+
+import { proxy } from "../src/proxy";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -41,12 +44,21 @@ test("settings and top bar make showcase state and exit unmistakable", () => {
   const panel = read("src/app/portal/agency/settings/ShowcaseModePanel.tsx");
   const topbar = read("src/components/chrome/Topbar.tsx");
   const control = read("src/components/chrome/ShowcaseModeControl.tsx");
+  const publicControl = read("src/components/chrome/PublicShowcaseControl.tsx");
+  const styles = read("src/app/globals.css");
   assert.match(settings, /label: "Showcase"/);
   assert.match(panel, /Enter Showcase Mode/);
   assert.match(panel, /Return to Live Mode/);
   assert.match(panel, /Reset sample data/);
   assert.match(topbar, /ShowcaseModeControl/);
   assert.match(control, /Exit Showcase Mode/);
+  assert.match(control, /mm-showcase-control/);
+  assert.match(publicControl, /mm-public-showcase-control/);
+  assert.match(topbar, /mm-public-showcase-visitor/);
+  assert.match(styles, /data-color-mode="light"\]\[data-portal-shell="command"\] \.mm-portal-topbar \.mm-showcase-control/);
+  assert.match(styles, /data-color-mode="dark"\]\[data-portal-shell="command"\] \.mm-portal-topbar \.mm-showcase-control/);
+  assert.match(styles, /data-color-mode="light"\]\[data-portal-shell="command"\] \.mm-portal-topbar \.mm-public-showcase-control/);
+  assert.match(styles, /data-color-mode="dark"\]\[data-portal-shell="command"\] \.mm-portal-topbar \.mm-public-showcase-control/);
 });
 
 test("showcase reset removes every tenant-owned data collection", () => {
@@ -89,6 +101,34 @@ test("public showcase launches the real product with fictional read-only data", 
   assert.match(proxy, /This public showcase is read-only/);
   assert.match(topbar, /PublicShowcaseControl/);
   assert.match(exit, /AQUACRM_WEBSITE_URL/);
-  assert.match(projects, /http:\/\/localhost:3041\/showcase/);
+  assert.match(projects, /http:\/\/localhost:3032\/showcase/);
+  assert.match(projects, /https:\/\/aqua-crm\.com\/showcase/);
+});
+
+test("public showcase stays read-only without trapping a real user at sign-in", () => {
+  const token = `${Buffer.from(JSON.stringify({ publicShowcase: true })).toString("base64url")}.test-signature`;
+  const request = (path: string) => new NextRequest(`http://localhost:3032${path}`, {
+    method: "POST",
+    headers: { cookie: `lk_session_v1=${token}` },
+  });
+
+  assert.equal(proxy(request("/api/auth/login")).status, 200);
+  assert.equal(proxy(request("/api/auth/login/browser")).status, 200);
+  assert.equal(proxy(request("/api/auth/logout")).status, 200);
+  assert.equal(proxy(request("/api/portal/tasks")).status, 403);
+});
+
+test("live client login and public project showcase are separate entry paths", () => {
+  const login = read("src/app/login/page.tsx");
+  const liveBoundary = read("src/app/login/live/route.ts");
+  const projects = read("public/aquacrm-site/projects.js");
+
+  assert.match(login, /session\?\.publicShowcase/);
+  assert.match(login, /redirect\(`\/login\/live\?/);
+  assert.match(liveBoundary, /clearSessionCookie/);
+  assert.match(liveBoundary, /session\?\.publicShowcase/);
+  assert.match(liveBoundary, /NextResponse\.redirect\(destination, 303\)/);
+  assert.match(projects, /\/login\/live\?brand=aquacrm&next=\/portal/);
+  assert.match(projects, /http:\/\/localhost:3032\/showcase/);
   assert.match(projects, /https:\/\/aqua-crm\.com\/showcase/);
 });

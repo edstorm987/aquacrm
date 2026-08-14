@@ -5,6 +5,7 @@ import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedAction
 import { buildCompanyHealthSnapshot } from "./companyHealthSnapshot";
 import { listOperationalAlerts } from "./operationalAlerts";
 import { buildBusinessIssueRadar } from "./businessIssueRadar";
+import { dashboardWorkAccountabilitySnapshot } from "@/server/dashboardPlanning";
 
 export async function buildAdvisorContext(agencyId: string, now = Date.now()) {
   const [company, alerts] = await Promise.all([
@@ -50,10 +51,12 @@ export async function buildAdvisorContext(agencyId: string, now = Date.now()) {
       estimatedCallsNeeded: company.estimatedCallsNeeded,
       objectives: company.profile.objectives,
       activePlans: company.profile.plans.filter(plan => !["complete", "paused"].includes(plan.status)),
+      capital: company.profile.capital,
     },
     operationalAlerts: alerts.slice(0, 80),
     businessRadar,
     recommendedActions,
     openTasks: tasks,
+    workAccountability: dashboardWorkAccountabilitySnapshot(agencyId, now),
   };
 }

@@ -3,7 +3,8 @@ import "server-only";
 import crypto from "node:crypto";
 import { getState, mutate } from "./storage";
 import { logActivity } from "./activity";
-import type { AgencyTask, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus } from "./types";
+import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus } from "./types";
+import type { BusinessIssueRadar } from "@/lib/businessRadar";
 
 export interface CreateAgencyTaskInput {
   agencyId: string;
@@ -15,6 +16,13 @@ export interface CreateAgencyTaskInput {
   reminderAt?: number;
   recurrence?: AgencyTaskRecurrence;
   seriesId?: string;
+  origin?: AgencyTaskOrigin;
+  sourceId?: string;
+  sourceHref?: string;
+  evidence?: string[];
+  evidenceSourceIds?: string[];
+  expectedOutcome?: string;
+  reconciliationSourceIds?: string[];
   assigneeUserId?: string;
   sopIds?: string[];
   createdBy: string;
@@ -29,7 +37,14 @@ export function listAgencyTasks(agencyId: string): AgencyTask[] {
 export function createAgencyTask(input: CreateAgencyTaskInput): AgencyTask {
   const title = input.title.trim().slice(0, 240);
   if (!title) throw new Error("Task title required.");
+  const origin = validOrigin(input.origin);
+  const sourceId = input.sourceId?.trim().slice(0, 240) || undefined;
+  if (origin !== "manual" && sourceId) {
+    const existing = Object.values(getState().tasks).find(task => task.agencyId === input.agencyId && task.status !== "done" && taskOrigin(task) === origin && task.sourceId === sourceId);
+    if (existing) return existing;
+  }
   const now = Date.now();
+  const reconciliationSourceIds = cleanList(input.reconciliationSourceIds, 20, 240);
   const task: AgencyTask = {
     id: `task_${crypto.randomBytes(8).toString("hex")}`,
     agencyId: input.agencyId,
@@ -42,6 +57,19 @@ export function createAgencyTask(input: CreateAgencyTaskInput): AgencyTask {
     reminderAt: input.reminderAt,
     recurrence: validRecurrence(input.recurrence),
     seriesId: input.seriesId,
+    origin,
+    sourceId,
+    sourceHref: validSourceHref(input.sourceHref),
+    evidence: cleanList(input.evidence, 20, 500),
+    evidenceSourceIds: cleanList(input.evidenceSourceIds, 30, 240),
+    expectedOutcome: input.expectedOutcome?.trim().slice(0, 600) || undefined,
+    reconciliation: reconciliationSourceIds?.length ? {
+      status: "pending",
+      sourceIds: reconciliationSourceIds,
+      activeSourceIds: [],
+      detail: "Awaiting the next Radar sweep.",
+    } : undefined,
+    acceptedAt: origin !== "manual" ? now : undefined,
     assigneeUserId: input.assigneeUserId,
     sopIds: validSopIds(input.agencyId, input.sopIds),
     createdBy: input.createdBy,
@@ -91,10 +119,69 @@ function createNextOccurrence(task: AgencyTask, actorUserId: string): AgencyTask
     reminderAt: advanceDate(task.reminderAt, recurrence),
     recurrence,
     seriesId,
+    origin: task.origin,
+    sourceId: task.sourceId,
+    sourceHref: task.sourceHref,
+    evidence: task.evidence,
+    evidenceSourceIds: task.evidenceSourceIds,
+    expectedOutcome: task.expectedOutcome,
+    reconciliationSourceIds: task.reconciliation?.sourceIds,
     assigneeUserId: task.assigneeUserId,
     sopIds: task.sopIds,
     createdBy: actorUserId,
   });
+}
+
+export function reconcileAgencyTasksWithRadar(agencyId: string, radar: BusinessIssueRadar, now = Date.now()): AgencyTask[] {
+  const activeIds = new Set<string>();
+  for (const issue of radar.issues) {
+    activeIds.add(issue.id);
+    for (const sourceId of issue.sourceIds) activeIds.add(sourceId);
+  }
+  for (const incident of radar.incidents) activeIds.add(incident.id);
+  for (const check of radar.checks.filter(check => check.status === "critical" || check.status === "warning" || check.status === "watch" || check.status === "blind")) {
+    activeIds.add(check.id);
+  }
+  for (const source of radar.coverage.filter(source => source.status === "disconnected" || source.status === "unavailable")) activeIds.add(source.id);
+  for (const conclusion of radar.adaptive.conclusions.filter(conclusion => conclusion.severity !== "info")) activeIds.add(conclusion.id);
+
+  const changed: AgencyTask[] = [];
+  for (const task of listAgencyTasks(agencyId)) {
+    const reconciliation = task.reconciliation;
+    if (!reconciliation?.sourceIds.length) continue;
+    const activeSourceIds = reconciliation.sourceIds.filter(id => activeIds.has(id));
+    const sourceStillFiring = activeSourceIds.length > 0;
+    const shouldReopen = sourceStillFiring && task.status === "done";
+    const status = sourceStillFiring
+      ? shouldReopen ? "reopened" : "still-firing"
+      : "resolved";
+    const detail = sourceStillFiring
+      ? `${activeSourceIds.length} linked Radar condition${activeSourceIds.length === 1 ? " remains" : "s remain"} active.`
+      : "The linked condition is no longer active in the latest Radar sweep.";
+    const unchanged = reconciliation.status === status
+      && reconciliation.detail === detail
+      && reconciliation.activeSourceIds.join("|") === activeSourceIds.join("|")
+      && !shouldReopen;
+    if (unchanged) continue;
+    const updated: AgencyTask = {
+      ...task,
+      status: shouldReopen ? "in-progress" : task.status,
+      completedAt: shouldReopen ? undefined : task.completedAt,
+      updatedAt: now,
+      reconciliation: {
+        ...reconciliation,
+        status,
+        activeSourceIds,
+        checkedAt: now,
+        resolvedAt: status === "resolved" ? reconciliation.resolvedAt ?? now : undefined,
+        detail,
+      },
+    };
+    mutate(state => { state.tasks[task.id] = updated; });
+    changed.push(updated);
+    if (shouldReopen) logActivity({ agencyId, category: "system", action: "task.reopened_by_radar", message: `Radar reopened task “${updated.title}” because its source condition returned.`, metadata: { taskId: updated.id, sourceIds: activeSourceIds } });
+  }
+  return changed;
 }
 
 function advanceDate(value: number | undefined, recurrence: Exclude<AgencyTaskRecurrence, "none">): number | undefined {
@@ -121,6 +208,24 @@ function validSopIds(agencyId: string, ids?: string[]): string[] | undefined {
 
 function validRecurrence(value?: AgencyTaskRecurrence): Exclude<AgencyTaskRecurrence, "none"> | undefined {
   return value === "daily" || value === "weekly" || value === "monthly" ? value : undefined;
+}
+
+function validOrigin(value?: AgencyTaskOrigin): AgencyTaskOrigin {
+  return value === "radar" || value === "advisor" || value === "crm" ? value : "manual";
+}
+
+function taskOrigin(task: AgencyTask): AgencyTaskOrigin {
+  return task.origin ?? "manual";
+}
+
+function validSourceHref(value?: string): string | undefined {
+  const href = value?.trim().slice(0, 1_000);
+  return href?.startsWith("/") ? href : undefined;
+}
+
+function cleanList(values: string[] | undefined, limit: number, itemLimit: number): string[] | undefined {
+  const cleaned = [...new Set((values ?? []).map(value => typeof value === "string" ? value.trim().slice(0, itemLimit) : "").filter(Boolean))].slice(0, limit);
+  return cleaned.length ? cleaned : undefined;
 }
 
 export function deleteAgencyTask(agencyId: string, id: string): boolean {

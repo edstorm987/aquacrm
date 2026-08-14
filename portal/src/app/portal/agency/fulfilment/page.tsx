@@ -12,6 +12,10 @@ import { portalProductModule } from "@/lib/portalProductModules";
 import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
 import { defaultProductPipelineStage, PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
 import { portalWorkspaceData } from "../portals/_portalWorkspaceData";
+import { listSops } from "@/server/sops";
+import { listTradingCompanies } from "@/server/tradingCompanies";
+import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import DevelopmentPage from "../development/page";
 import {
   FulfilmentWorkspace,
   type FulfilmentAttentionItem,
@@ -25,9 +29,11 @@ import {
 interface SearchParams {
   view?: string;
   product?: string;
+  technical?: string;
+  status?: string;
 }
 
-const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "clients", "portals"];
+const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "products", "clients", "portals"];
 
 export default async function FulfilmentPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await ensureHydrated();
@@ -42,7 +48,8 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   const requested = await searchParams;
   const view = VALID_VIEWS.includes(requested.view as FulfilmentView) ? requested.view as FulfilmentView : "overview";
   ensureDefaultAgencyProducts(agencyId);
-  const agencyProducts = listAgencyProducts(agencyId).filter(product => product.active);
+  const allAgencyProducts = listAgencyProducts(agencyId, true);
+  const agencyProducts = allAgencyProducts.filter(product => product.active);
   const clients = listClients(agencyId).filter(client => client.status === "active" && client.stage !== "churned");
   const milestones = listClientMilestones(agencyId);
   const milestoneMap = groupMilestones(milestones);
@@ -52,6 +59,7 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   const flow = flowSummary(clientRecords);
   const stageBoard = buildStageBoard(requested.product, clients, agencyProducts);
   const { portals, products: portalProducts } = portalWorkspaceData(agencyId, session.userId);
+  const settings = getAgencyWorkspaceSettings(agencyId);
 
   return <FulfilmentWorkspace
     view={view}
@@ -62,6 +70,18 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
     stageBoard={stageBoard}
     portals={portals}
     portalProducts={portalProducts}
+    productEditor={{
+      initialProducts: allAgencyProducts,
+      sops: listSops(agencyId),
+      companies: listTradingCompanies(agencyId, true),
+      defaults: { taxRatePercent: settings.defaultTaxRatePercent, paymentTermsDays: settings.defaultPaymentTermsDays },
+    }}
+    technicalWorkspace={view === "technical" ? (
+      <DevelopmentPage searchParams={Promise.resolve({
+        view: requested.technical === "projects" ? "workspace" : "overview",
+        status: requested.status,
+      })} />
+    ) : undefined}
     canManage={session.role === "agency-owner" || session.role === "agency-manager"}
   />;
 }
@@ -169,7 +189,7 @@ function buildStageBoard(requestedProduct: string | undefined, clients: Client[]
       : {};
     const stored = typeof stages[definition.catalogKey] === "string" ? stages[definition.catalogKey] as string : "";
     const columnId = columns.some(column => column.id === stored) ? stored : defaultProductPipelineStage(definition.catalogKey, client.stage);
-    return [{ id: client.id, label: client.name, sub: definition.name, href: `/portal/clients/${client.id}?tab=fulfilment`, columnId }];
+    return [{ id: client.id, label: client.name, sub: definition.name, href: `/portal/clients/${client.id}?tab=delivery`, columnId }];
   });
   return { productKey: definition.catalogKey, productName: definition.name, products: unique, columns, cards };
 }
@@ -180,14 +200,14 @@ function attentionItems(clients: FulfilmentClientRecord[], milestoneMap: Map<str
   for (const client of clients) {
     const milestones = milestoneMap.get(client.id) ?? [];
     for (const milestone of milestones.filter(item => item.status === "blocked")) {
-      items.push({ id: `blocked:${milestone.id}`, title: `${client.name}: ${milestone.title}`, detail: milestone.description || "This milestone is blocked and needs an owner or decision.", href: `/portal/clients/${client.id}?tab=fulfilment`, level: "urgent", label: "Blocked" });
+      items.push({ id: `blocked:${milestone.id}`, title: `${client.name}: ${milestone.title}`, detail: milestone.description || "This milestone is blocked and needs an owner or decision.", href: `/portal/clients/${client.id}?tab=delivery`, level: "urgent", label: "Blocked" });
     }
     for (const milestone of milestones.filter(item => item.status !== "complete" && item.status !== "blocked" && item.targetAt && item.targetAt < now)) {
-      items.push({ id: `overdue:${milestone.id}`, title: `${client.name}: ${milestone.title}`, detail: `Target date passed ${formatDate(milestone.targetAt!)}. Move it, complete it, or reset the expectation.`, href: `/portal/clients/${client.id}?tab=fulfilment`, level: "urgent", label: "Overdue" });
+      items.push({ id: `overdue:${milestone.id}`, title: `${client.name}: ${milestone.title}`, detail: `Target date passed ${formatDate(milestone.targetAt!)}. Move it, complete it, or reset the expectation.`, href: `/portal/clients/${client.id}?tab=delivery`, level: "urgent", label: "Overdue" });
     }
-    if (!client.products.length) items.push({ id: `service:${client.id}`, title: `Assign a service to ${client.name}`, detail: "The client has no product workspace, delivery stages, or defined outputs yet.", href: `/portal/clients/${client.id}?tab=fulfilment`, level: "high", label: "Setup" });
-    if (client.portalRequired && !client.portalReady) items.push({ id: `portal:${client.id}`, title: `Create ${client.name}'s portal`, detail: "At least one assigned product requires a portal, but the shared client workspace is not ready.", href: `/portal/clients/${client.id}?tab=fulfilment`, level: "high", label: "Portal" });
-    if (!client.ownerEmail) items.push({ id: `email:${client.id}`, title: `Add a primary contact for ${client.name}`, detail: "Delivery updates and portal access cannot be sent without a client email.", href: `/portal/clients/${client.id}`, level: "normal", label: "Contact" });
+    if (!client.products.length) items.push({ id: `service:${client.id}`, title: `Assign a service to ${client.name}`, detail: "The client has no product workspace, delivery stages, or defined outputs yet.", href: `/portal/clients/${client.id}?tab=delivery`, level: "high", label: "Setup" });
+    if (client.portalRequired && !client.portalReady) items.push({ id: `portal:${client.id}`, title: `Create ${client.name}'s portal`, detail: "At least one assigned product requires a portal, but the shared client workspace is not ready.", href: `/portal/clients/${client.id}?tab=portal`, level: "high", label: "Portal" });
+    if (!client.ownerEmail) items.push({ id: `email:${client.id}`, title: `Add a primary contact for ${client.name}`, detail: "Delivery updates and portal access cannot be sent without a client email.", href: `/portal/clients/${client.id}?tab=relationship`, level: "normal", label: "Contact" });
   }
   const rank = { urgent: 0, high: 1, normal: 2 } as const;
   return items.sort((left, right) => rank[left.level] - rank[right.level] || left.title.localeCompare(right.title));
@@ -207,7 +227,7 @@ function flowSummary(clients: FulfilmentClientRecord[]) {
 
 function productGroup(product: AgencyProduct): ServiceGroupKey {
   const value = `${product.name} ${product.category}`.toLowerCase();
-  if (product.portalTemplateKey === "content" || product.portalTemplateKey === "google-profile") return "growth";
+  if (product.portalTemplateKey === "content" || product.portalTemplateKey === "social-ads" || product.portalTemplateKey === "google-profile") return "growth";
   if (product.portalTemplateKey === "photography" || product.portalTemplateKey === "brand-identity") return "creative";
   if (product.portalTemplateKey === "website") return "digital";
   if (product.portalTemplateKey === "automation" || product.portalTemplateKey === "custom-software") return "systems";

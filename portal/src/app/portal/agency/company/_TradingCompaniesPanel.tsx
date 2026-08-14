@@ -62,8 +62,8 @@ export function TradingCompaniesPanel({
           <p className="mt-1 max-w-3xl text-sm leading-6 text-black/50">Everything is managed together in AquaOasis-Web. Attach a service brand to products, clients and portals only when the customer should see it.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/portal/agency/company" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 hover:border-black/20 hover:text-black">
-            <Gauge size={15} /> Company dashboard
+          <Link href="/portal/agency?station=battle&battle=systems" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 hover:border-black/20 hover:text-black">
+            <Gauge size={15} /> Battle Table
           </Link>
           {canEdit ? (
             <button type="button" onClick={() => setEditing("new")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">

@@ -6,6 +6,7 @@ import { AGENCY_ROLES, CLIENT_ROLES, isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import type { ClientContract, ClientContractRevision } from "@/lib/clientContracts";
+import { sendTransactionalEmail, type TransactionalEmailResult } from "@/lib/server/transactionalEmail";
 
 type Action = "create" | "update" | "send" | "accept" | "decline" | "delete";
 
@@ -80,6 +81,7 @@ export async function POST(req: Request) {
   const now = Date.now();
   let message = "";
   let activityAction = "";
+  let contractForDelivery: ClientContract | null = null;
 
   if (action === "create") {
     const title = cleanText(body?.title, 180);
@@ -169,6 +171,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "write terms or attach a document before sending" }, { status: 409 });
       }
       contracts[index] = { ...current, status: "sent", issuedAt: now, updatedAt: now };
+      contractForDelivery = contracts[index];
       message = `Sent agreement “${current.title}” to ${client.name}.`;
       activityAction = "contract.sent";
     } else if (action === "accept") {
@@ -225,7 +228,45 @@ export async function POST(req: Request) {
     message,
   });
 
+  let delivery: TransactionalEmailResult | undefined;
+  if (contractForDelivery) {
+    const recipient = cleanText((client.metadata as { portalLoginEmail?: unknown; clientEmail?: unknown } | undefined)?.portalLoginEmail, 320)
+      || cleanText((client.metadata as { clientEmail?: unknown } | undefined)?.clientEmail, 320)
+      || client.ownerEmail?.trim()
+      || "";
+    if (recipient) {
+      const origin = new URL(req.url).origin;
+      const portalUrl = `${origin}/login?brand=aquacrm&next=${encodeURIComponent("/portal/customer")}`;
+      delivery = await sendTransactionalEmail({
+        agencyId: session.agencyId,
+        clientId,
+        to: recipient,
+        fromName: "AquaCRM",
+        subject: `Agreement ready for review · ${contractForDelivery.title}`,
+        bodyText: [`Hello ${client.name},`, "", `Your agreement “${contractForDelivery.title}” is ready to review.`, contractForDelivery.summary || "", "", `Review the agreement: ${portalUrl}`].filter(Boolean).join("\n"),
+        bodyHtml: `<div style="font-family:Arial,sans-serif;background:#f3f6f5;padding:28px;color:#192321"><div style="max-width:640px;margin:auto;background:#fff;border:1px solid #dce4e1;padding:28px"><p style="margin:0 0 20px;color:#087f8c;font-size:13px;font-weight:700">AQUACRM AGREEMENT</p><h1 style="font-size:24px;margin:0 0 12px">${escapeHtml(contractForDelivery.title)}</h1>${contractForDelivery.summary ? `<p style="line-height:1.6;color:#58635f">${escapeHtml(contractForDelivery.summary)}</p>` : ""}<a href="${escapeHtml(portalUrl)}" style="display:inline-block;margin-top:18px;background:#102d2a;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700">Review agreement</a></div></div>`,
+        externalRef: `contract-delivery:${session.agencyId}:${clientId}:${contractForDelivery.id}:${contractForDelivery.updatedAt}`,
+      });
+    } else {
+      delivery = { delivered: false, via: "unconfigured", reason: "Add a client email before delivering this agreement." };
+    }
+    logActivity({
+      agencyId: session.agencyId,
+      clientId,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: "finance",
+      action: delivery.delivered ? "contract.delivered" : "contract.delivery_failed",
+      message: delivery.delivered ? `Delivered agreement “${contractForDelivery.title}” to ${recipient}.` : `Agreement “${contractForDelivery.title}” is in the portal but email delivery failed.`,
+      metadata: { contractId: contractForDelivery.id, recipient, via: delivery.via, reason: delivery.reason },
+    });
+  }
+
   await flushPendingWrites();
 
-  return NextResponse.json({ ok: true, contracts });
+  return NextResponse.json({ ok: true, contracts, delivery });
+}
+
+function escapeHtml(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }

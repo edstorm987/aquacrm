@@ -9,8 +9,17 @@ import type { OperationalAlertView } from "@/lib/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import { formatElapsed, LEAD_WAIT_THRESHOLDS } from "@/lib/leadTiming";
 import type { InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
+import type { OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
 import { SocialInboxWorkspace } from "./_SocialInboxWorkspace";
+import { EnquiryCommunications } from "./_EnquiryCommunications";
+import { UnifiedInboxWorkspace, type UnifiedClientProfile } from "./_UnifiedInboxWorkspace";
 import { AttentionDot, useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
+import { resolveAttentionThreadKey, type AttentionThreadCandidate } from "@/lib/inbox/attentionThread";
+import {
+  WEBSITE_ENQUIRY_CLASSIFICATIONS,
+  WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
+  type WebsiteEnquiryClassification,
+} from "@/lib/enquiryClassification";
 
 type Conversation = {
   id: string;
@@ -27,6 +36,7 @@ type Conversation = {
     message: string;
     from: "customer" | "milesymedia";
     createdAt: number;
+    attachments?: import("@/lib/inbox/media").InboxOutboundAttachment[];
   }>;
   propertyId?: string;
   siteName: string;
@@ -35,6 +45,8 @@ type Conversation = {
   priority: "urgent" | "high" | "normal";
   topic: string;
   suggestedAction: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
 };
 
 type Update = {
@@ -47,13 +59,13 @@ type Update = {
   ts: number;
 };
 
-type View = "attention" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
+type View = "all" | "attention" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
 
-export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, emailReplyConfigured, updates }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; emailReplyConfigured: boolean; updates: Update[] }) {
+export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedView = searchParams.get("view");
-  const initialView: View = requestedView === "social" || requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations" || requestedView === "updates" || requestedView === "channels"
+  const initialView: View = requestedView === "all" || requestedView === "attention" || requestedView === "social" || requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations" || requestedView === "updates" || requestedView === "channels"
     ? requestedView
     : "attention";
   const [view, setView] = useState<View>(initialView);
@@ -63,22 +75,22 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   const [openForm, setOpenForm] = useState<string | null>(searchParams.get("form"));
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [conversationReplyError, setConversationReplyError] = useState<Record<string, string>>({});
-  const [websiteReplyDrafts, setWebsiteReplyDrafts] = useState<Record<string, string>>({});
-  const [websiteSubjectDrafts, setWebsiteSubjectDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [leadBusyId, setLeadBusyId] = useState<string | null>(null);
   const [leadError, setLeadError] = useState<Record<string, string>>({});
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<Record<string, string>>({});
-  const [websiteReplyBusyId, setWebsiteReplyBusyId] = useState<string | null>(null);
-  const [websiteReplyError, setWebsiteReplyError] = useState<Record<string, string>>({});
-  const [websiteReplySuccess, setWebsiteReplySuccess] = useState<Record<string, string>>({});
+  const [classificationBusyId, setClassificationBusyId] = useState<string | null>(null);
+  const [classificationError, setClassificationError] = useState<Record<string, string>>({});
+  const [classificationFilter, setClassificationFilter] = useState<WebsiteEnquiryClassification | "all">("all");
+  const [focusThreadKey, setFocusThreadKey] = useState<string | null>(searchParams.get("thread"));
   const notificationAttention = useNotificationAttention();
   const attentionAlerts = notificationAttention?.alerts.filter(alert => alert.attention) ?? alerts;
   const urgent = attentionAlerts.filter(alert => alert.severity === "critical").length;
 
   const visibleAlerts = useMemo(() => filterRows(attentionAlerts, query, alert => `${alert.title} ${alert.detail} ${alert.clientName ?? ""}`), [attentionAlerts, query]);
-  const visibleWebsiteForms = useMemo(() => filterRows(websiteForms, query, item => `${item.name} ${item.email ?? ""} ${item.phone ?? ""} ${item.brandName} ${item.siteName} ${item.siteHost ?? ""} ${item.pagePath} ${item.source} ${item.channel} ${item.topic} ${item.services.join(" ")} ${item.message ?? ""} ${item.campaign ?? ""}`), [websiteForms, query]);
+  const visibleWebsiteForms = useMemo(() => filterRows(websiteForms, query, item => `${item.name} ${item.email ?? ""} ${item.phone ?? ""} ${item.brandName} ${item.siteName} ${item.siteHost ?? ""} ${item.pagePath} ${item.source} ${item.channel} ${item.topic} ${item.classification} ${WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]} ${item.services.join(" ")} ${item.message ?? ""} ${item.campaign ?? ""}`)
+    .filter(item => classificationFilter === "all" || item.classification === classificationFilter), [classificationFilter, websiteForms, query]);
   const visibleConversations = useMemo(() => filterRows(conversations, query, item => `${item.clientName} ${item.siteName} ${item.siteKind} ${item.message} ${item.type} ${item.topic} ${item.submittedBy}`), [conversations, query]);
   const enquiryForms = visibleWebsiteForms.filter(item => item.channel === "form");
   const chatbotMessages = visibleWebsiteForms.filter(item => item.channel === "chatbot");
@@ -86,6 +98,19 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   const clientSupport = visibleConversations.filter(item => ["support-ticket", "cancel", "move-provider"].includes(item.type));
   const clientMessages = visibleConversations.filter(item => !["support-ticket", "cancel", "move-provider"].includes(item.type));
   const visibleUpdates = useMemo(() => filterRows(updates, query, item => `${item.message} ${item.category} ${item.action} ${item.actorEmail ?? ""}`), [updates, query]);
+  const attentionThreadCandidates = useMemo<AttentionThreadCandidate[]>(() => [
+    ...websiteForms.map(item => ({ key: `website:${item.id}`, formId: item.id, name: item.name, email: item.email })),
+    ...socialInbox.conversations.map(item => ({ key: `social:${item.id}`, name: item.identity.displayName })),
+    ...conversations.map(item => ({ key: `client:${item.id}`, requestId: item.id, clientId: item.clientId, name: item.clientName, email: item.ownerEmail })),
+    ...clientProfiles.map(item => ({ key: `profile:${item.id}`, clientId: item.id, name: item.name, email: item.ownerEmail })),
+  ], [clientProfiles, conversations, socialInbox.conversations, websiteForms]);
+
+  function openAttentionContact(alert: OperationalAlertView) {
+    const target = resolveAttentionThreadKey(alert, attentionThreadCandidates);
+    if (!target) return;
+    setFocusThreadKey(target);
+    setView("all");
+  }
 
   async function sendTeamNote(event: React.FormEvent) {
     event.preventDefault();
@@ -171,30 +196,21 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     router.refresh();
   }
 
-  async function replyToWebsiteEnquiry(item: WebsiteEnquiry) {
-    const message = websiteReplyDrafts[item.id]?.trim();
-    if (!message || !item.email) return;
-    setWebsiteReplyBusyId(item.id);
-    setWebsiteReplyError(current => ({ ...current, [item.id]: "" }));
-    setWebsiteReplySuccess(current => ({ ...current, [item.id]: "" }));
-    const response = await fetch("/api/portal/website-enquiries/reply", {
-      method: "POST",
+  async function classifyWebsiteEnquiry(item: WebsiteEnquiry, classification: WebsiteEnquiryClassification) {
+    if (classification === item.classification) return;
+    setClassificationBusyId(item.id);
+    setClassificationError(current => ({ ...current, [item.id]: "" }));
+    const response = await fetch("/api/portal/website-enquiries/classification", {
+      method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        enquiryId: item.id,
-        subject: websiteSubjectDrafts[item.id] || `Re: Your enquiry with ${item.brandName}`,
-        message,
-      }),
+      body: JSON.stringify({ enquiryId: item.id, classification }),
     });
     const payload = await response.json().catch(() => null) as { error?: string } | null;
-    setWebsiteReplyBusyId(null);
+    setClassificationBusyId(null);
     if (!response.ok) {
-      setWebsiteReplyError(current => ({ ...current, [item.id]: payload?.error || "The reply could not be sent." }));
-      router.refresh();
+      setClassificationError(current => ({ ...current, [item.id]: payload?.error || "The enquiry could not be routed." }));
       return;
     }
-    setWebsiteReplyDrafts(current => ({ ...current, [item.id]: "" }));
-    setWebsiteReplySuccess(current => ({ ...current, [item.id]: `Reply sent to ${item.email}.` }));
     router.refresh();
   }
 
@@ -205,7 +221,13 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">Master inbox</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Messages, support, production alerts, money, meetings, and business performance in one place.</p>
       </div>
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+        <Link href="/portal/agency/email-sender" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 font-semibold text-black/65 hover:border-black/25 hover:text-black">
+          <Mail size={15} aria-hidden="true" /> Email operations
+        </Link>
+        <Link href="/portal/agency/activity-inbox" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 font-semibold text-black/65 hover:border-black/25 hover:text-black">
+          <Clock3 size={15} aria-hidden="true" /> Activity log
+        </Link>
         <span className={`rounded-full px-3 py-1.5 font-medium ${urgent ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{urgent ? `${urgent} urgent` : "No urgent issues"}</span>
         <span className="rounded-full bg-black/[0.04] px-3 py-1.5 text-black/55">{attentionAlerts.length} open</span>
       </div>
@@ -213,6 +235,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
 
     <nav className="flex gap-6 overflow-x-auto border-b border-black/10" aria-label="Inbox view">
       <Tab active={view === "attention"} onClick={() => setView("attention")} label="Needs attention" count={attentionAlerts.length} icon={AlertTriangle} attentionAll />
+      <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={websiteForms.filter(item => item.status !== "resolved").length + socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0) + conversations.filter(item => item.status === "open").length} icon={Inbox} />
       <Tab active={view === "social"} onClick={() => setView("social")} label="Social inbox" count={socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)} icon={Radio} />
       <Tab active={view === "forms"} onClick={() => setView("forms")} label="Enquiries" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} icon={FileText} attentionHref="/portal/agency/inbox?view=forms" />
       <Tab active={view === "chatbot"} onClick={() => setView("chatbot")} label="Chatbot" count={websiteForms.filter(item => item.channel === "chatbot" && item.status !== "resolved").length} icon={Bot} attentionHref="/portal/agency/inbox?view=chatbot" />
@@ -222,12 +245,26 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" icon={Inbox} />
     </nav>
 
-    {view !== "channels" && view !== "social" ? <label className="relative block"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label> : null}
+    {view !== "all" && view !== "channels" && view !== "social" ? <div className="flex flex-wrap gap-2"><label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label>{view === "forms" || view === "chatbot" || view === "support" ? <select value={classificationFilter} onChange={event => setClassificationFilter(event.target.value as WebsiteEnquiryClassification | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by classification"><option value="all">Every classification</option>{WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}</select> : null}</div> : null}
+
+    {view === "all" ? <UnifiedInboxWorkspace
+      websiteForms={websiteForms}
+      conversations={conversations}
+      socialInbox={socialInbox}
+      websiteFormsError={websiteFormsError}
+      socialInboxError={socialInboxError}
+      communicationReadiness={communicationReadiness}
+      clientProfiles={clientProfiles}
+      focusThreadKey={focusThreadKey}
+    /> : null}
 
     {view === "attention" ? <section>
       <SectionHeader title="What needs you now" detail="Critical items first. Resolve each item at its source." />
       <div className="mt-3 grid gap-2">
-        {visibleAlerts.map(alert => <AlertRow key={alert.id} alert={alert} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />)}
+        {visibleAlerts.map(alert => {
+          const contactThreadKey = resolveAttentionThreadKey(alert, attentionThreadCandidates);
+          return <AlertRow key={alert.id} alert={alert} contactAvailable={Boolean(contactThreadKey)} onContact={() => openAttentionContact(alert)} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />;
+        })}
       </div>
       {!visibleAlerts.length ? <Empty icon={<CircleCheck size={25} />} title="Nothing needs attention" detail="Support, monitoring, overdue money, meetings, client health, and campaign pacing are clear." /> : null}
     </section> : null}
@@ -245,20 +282,15 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       onToggle={id => setOpenForm(current => current === id ? null : id)}
       onLinkLead={linkFormToLead}
       onStatus={updateWebsiteStatus}
+      onClassify={classifyWebsiteEnquiry}
       referenceNow={referenceNow}
       leadBusyId={leadBusyId}
       statusBusyId={statusBusyId}
+      classificationBusyId={classificationBusyId}
       leadError={leadError}
       statusError={statusError}
-      emailReplyConfigured={emailReplyConfigured}
-      replyDrafts={websiteReplyDrafts}
-      subjectDrafts={websiteSubjectDrafts}
-      replyBusyId={websiteReplyBusyId}
-      replyError={websiteReplyError}
-      replySuccess={websiteReplySuccess}
-      onReplyChange={(id, value) => setWebsiteReplyDrafts(current => ({ ...current, [id]: value }))}
-      onSubjectChange={(id, value) => setWebsiteSubjectDrafts(current => ({ ...current, [id]: value }))}
-      onReply={replyToWebsiteEnquiry}
+      classificationError={classificationError}
+      communicationReadiness={communicationReadiness}
     /> : null}
 
     {view === "chatbot" ? <WebsiteEnquirySection
@@ -272,20 +304,15 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       onToggle={id => setOpenForm(current => current === id ? null : id)}
       onLinkLead={linkFormToLead}
       onStatus={updateWebsiteStatus}
+      onClassify={classifyWebsiteEnquiry}
       referenceNow={referenceNow}
       leadBusyId={leadBusyId}
       statusBusyId={statusBusyId}
+      classificationBusyId={classificationBusyId}
       leadError={leadError}
       statusError={statusError}
-      emailReplyConfigured={emailReplyConfigured}
-      replyDrafts={websiteReplyDrafts}
-      subjectDrafts={websiteSubjectDrafts}
-      replyBusyId={websiteReplyBusyId}
-      replyError={websiteReplyError}
-      replySuccess={websiteReplySuccess}
-      onReplyChange={(id, value) => setWebsiteReplyDrafts(current => ({ ...current, [id]: value }))}
-      onSubjectChange={(id, value) => setWebsiteSubjectDrafts(current => ({ ...current, [id]: value }))}
-      onReply={replyToWebsiteEnquiry}
+      classificationError={classificationError}
+      communicationReadiness={communicationReadiness}
     /> : null}
 
     {view === "support" ? <div className="grid gap-9">
@@ -300,20 +327,15 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         onToggle={id => setOpenForm(current => current === id ? null : id)}
         onLinkLead={linkFormToLead}
         onStatus={updateWebsiteStatus}
+        onClassify={classifyWebsiteEnquiry}
         referenceNow={referenceNow}
         leadBusyId={leadBusyId}
         statusBusyId={statusBusyId}
+        classificationBusyId={classificationBusyId}
         leadError={leadError}
         statusError={statusError}
-        emailReplyConfigured={emailReplyConfigured}
-        replyDrafts={websiteReplyDrafts}
-        subjectDrafts={websiteSubjectDrafts}
-        replyBusyId={websiteReplyBusyId}
-        replyError={websiteReplyError}
-        replySuccess={websiteReplySuccess}
-        onReplyChange={(id, value) => setWebsiteReplyDrafts(current => ({ ...current, [id]: value }))}
-        onSubjectChange={(id, value) => setWebsiteSubjectDrafts(current => ({ ...current, [id]: value }))}
-        onReply={replyToWebsiteEnquiry}
+        classificationError={classificationError}
+        communicationReadiness={communicationReadiness}
       />
       <ConversationSection
         title="Client support tickets"
@@ -354,8 +376,10 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       <div className="grid gap-3 md:grid-cols-2">
         <Channel icon={<LifeBuoy size={19} />} name="Client portal & support" detail="Tickets, feedback, approvals, and customer replies." connected />
         <Channel icon={<Users size={19} />} name="AquaOasis-Web team" detail="Internal notes shared with staff inside this inbox." connected />
-        <Channel icon={<MessageCircle size={19} />} name="WhatsApp" detail="Connect the WhatsApp Business API to receive and reply here." />
-        <Channel icon={<Mail size={19} />} name="Outbound email replies" detail={emailReplyConfigured ? "Resend is connected. Website enquiries can be answered directly from their thread." : "Connect Resend to answer website enquiries without leaving AquaCRM."} connected={emailReplyConfigured} />
+        <Channel icon={<MessageCircle size={19} />} name="WhatsApp" detail={communicationReadiness.whatsappConfigured ? `${communicationReadiness.senders.filter(sender => sender.channel === "whatsapp").length} send-as account(s) ready.` : "Connect a WhatsApp sender number to reply here."} connected={communicationReadiness.whatsappConfigured} />
+        <Channel icon={<MessageCircle size={19} />} name="Text messages" detail={communicationReadiness.smsConfigured ? `${communicationReadiness.senders.filter(sender => sender.channel === "sms").length} SMS send-as account(s) ready.` : "Connect an SMS sender number to reply here."} connected={communicationReadiness.smsConfigured} />
+        <Channel icon={<Phone size={19} />} name="Call mode" detail="Device dialler, call timer, consent-controlled recording, notes, outcome and follow-up history." connected />
+        <Channel icon={<Mail size={19} />} name="Outbound email replies" detail={communicationReadiness.emailConfigured ? `${communicationReadiness.senders.filter(sender => sender.channel === "email").length} Resend or SMTP mailbox(es) ready.` : "Connect Resend or SMTP to answer enquiries without leaving AquaCRM."} connected={communicationReadiness.emailConfigured} />
         <Channel icon={<MessageCircle size={19} />} name="Meta social messages" detail={socialInbox.connections.length ? `${socialInbox.connections.filter(item => item.status === "connected").length} of ${socialInbox.connections.length} Instagram and Facebook channels live.` : "Credential-ready for Instagram and Facebook messaging."} connected={socialInbox.connections.some(item => item.status === "connected")} />
         <Channel icon={<Radio size={19} />} name="Website forms" detail="Forms are attributed to their brand and page, with direct email replies and retained history." connected />
         <Channel icon={<MessageCircle size={19} />} name="Website chatbot" detail="AquaOasis-Web chatbot messages are captured with the exact source page." connected />
@@ -376,20 +400,15 @@ function WebsiteEnquirySection({
   onToggle,
   onLinkLead,
   onStatus,
+  onClassify,
   referenceNow,
   leadBusyId,
   statusBusyId,
+  classificationBusyId,
   leadError,
   statusError,
-  emailReplyConfigured,
-  replyDrafts,
-  subjectDrafts,
-  replyBusyId,
-  replyError,
-  replySuccess,
-  onReplyChange,
-  onSubjectChange,
-  onReply,
+  classificationError,
+  communicationReadiness,
 }: {
   title: string;
   detail: string;
@@ -401,20 +420,15 @@ function WebsiteEnquirySection({
   onToggle: (id: string) => void;
   onLinkLead: (item: WebsiteEnquiry) => Promise<void>;
   onStatus: (item: WebsiteEnquiry, status: WebsiteEnquiry["status"]) => Promise<void>;
+  onClassify: (item: WebsiteEnquiry, classification: WebsiteEnquiryClassification) => Promise<void>;
   referenceNow: number;
   leadBusyId: string | null;
   statusBusyId: string | null;
+  classificationBusyId: string | null;
   leadError: Record<string, string>;
   statusError: Record<string, string>;
-  emailReplyConfigured: boolean;
-  replyDrafts: Record<string, string>;
-  subjectDrafts: Record<string, string>;
-  replyBusyId: string | null;
-  replyError: Record<string, string>;
-  replySuccess: Record<string, string>;
-  onReplyChange: (id: string, value: string) => void;
-  onSubjectChange: (id: string, value: string) => void;
-  onReply: (item: WebsiteEnquiry) => Promise<void>;
+  classificationError: Record<string, string>;
+  communicationReadiness: OutboundCommunicationReadiness;
 }) {
   return <section>
     <SectionHeader title={title} detail={detail} />
@@ -434,6 +448,7 @@ function WebsiteEnquirySection({
                 <Pill>{item.topic}</Pill>
                 <Pill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : "neutral"}>{item.priority}</Pill>
                 <Pill tone={item.status === "resolved" ? "green" : item.status === "reviewed" ? "blue" : "amber"}>{item.status}</Pill>
+                <Pill tone={classificationTone(item.classification)}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]}</Pill>
                 {!item.firstRespondedAt && item.status !== "resolved" ? <Pill tone={enquiryWaitTone(elapsedSinceEnquiry)}>Waiting {formatElapsed(elapsedSinceEnquiry)}</Pill> : null}
               </span>
               <span data-enquiry-message={item.id} className="mt-2 block whitespace-pre-wrap break-words border-l-2 border-brand/30 pl-3 text-sm leading-6 text-black/70">
@@ -442,8 +457,17 @@ function WebsiteEnquirySection({
               <span className="mt-2 block text-xs text-black/45">{sourceLocation(item)} · received {formatElapsed(elapsedSinceEnquiry)} ago · {formatDate(item.submittedAt)}</span>
             </span>
             <div className="flex flex-wrap gap-2">
+              <select
+                value={item.classification}
+                onChange={event => void onClassify(item, event.target.value as WebsiteEnquiryClassification)}
+                disabled={classificationBusyId === item.id}
+                aria-label={`Classify enquiry from ${item.name}`}
+                className={`min-h-9 max-w-full rounded-md border px-2 text-xs font-semibold disabled:opacity-50 ${item.classification === "unclassified" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-black/10 bg-white text-black/65"}`}
+              >
+                {WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}
+              </select>
               <button type="button" onClick={() => onToggle(item.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/65">{openId === item.id ? <X size={13} /> : item.email ? <Send size={13} /> : null}{openId === item.id ? "Close" : item.email ? "Reply" : "Inspect"}</button>
-              {!item.leadId && (item.email || item.phone) ? <button type="button" onClick={() => void onLinkLead(item)} disabled={leadBusyId === item.id} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50"><UserPlus size={14} />{leadBusyId === item.id ? "Linking..." : "Create lead"}</button> : null}
+              {item.classification === "sales" && !item.leadId && (item.email || item.phone) ? <button type="button" onClick={() => void onLinkLead(item)} disabled={leadBusyId === item.id} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50"><UserPlus size={14} />{leadBusyId === item.id ? "Linking..." : "Create lead"}</button> : null}
               {item.email ? <a href={`mailto:${item.email}`} aria-label={`Email ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Mail size={15} /></a> : null}
               {item.phone ? <a href={`tel:${item.phone}`} aria-label={`Call ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Phone size={15} /></a> : null}
             </div>
@@ -451,6 +475,11 @@ function WebsiteEnquirySection({
           {openId === item.id ? <div className="ml-0 mt-3 grid gap-4 rounded-md border border-black/[0.07] bg-black/[0.025] p-4 sm:ml-[52px]">
             {leadError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{leadError[item.id]}</p> : null}
             {statusError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{statusError[item.id]}</p> : null}
+            {classificationError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{classificationError[item.id]}</p> : null}
+            <div className={`rounded-md border px-3 py-3 text-xs ${classificationRouteStyle(item.classification)}`}>
+              <p className="font-semibold">Relationship route · {WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]}</p>
+              <p className="mt-1 leading-5 opacity-80">{item.routeNote ?? classificationRouteDescription(item.classification)}</p>
+            </div>
             <div className={`rounded-md border px-3 py-3 text-xs ${triageStyle(item.priority)}`}>
               <p className="font-semibold">Automatic triage · {item.topic}</p>
               <p className="mt-1 leading-5 opacity-80">{item.suggestedAction}</p>
@@ -463,8 +492,10 @@ function WebsiteEnquirySection({
               <Detail label="Preferred reply" value={item.contactMethod?.replaceAll("-", " ") || "Not supplied"} />
               <Detail label="Campaign" value={item.campaign || "Direct / not supplied"} />
               <Detail label="Services" value={item.services.join(", ") || "Not specified"} />
+              <Detail label="Relationship" value={WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]} />
               <Detail label="Email notification" value={item.notification.replaceAll("-", " ")} />
-              <Detail label="Sales record" value={item.leadId ? `Linked · ${item.leadId}` : "Not linked yet"} />
+              <Detail label="Sales record" value={item.leadId ? `Linked · ${item.leadId}` : item.classification === "sales" ? "Awaiting lead creation" : "Excluded from Journey"} />
+              <Detail label="Contact record" value={item.contactId ? `Filed · ${item.contactId}` : item.classification === "spam" ? "Not created for spam" : "Not created"} />
               <Detail label="Elapsed since enquiry" value={formatElapsed(elapsedSinceEnquiry)} />
               <Detail label="First review" value={item.reviewedAt ? `${formatElapsed(item.reviewedAt - item.submittedAt)} after receipt` : "Waiting"} />
               <Detail label="Lead linked" value={item.leadLinkedAt ? `${formatElapsed(item.leadLinkedAt - item.submittedAt)} after receipt` : item.leadId ? "Linked, legacy time unavailable" : "Waiting"} />
@@ -473,36 +504,11 @@ function WebsiteEnquirySection({
               <Detail label="Submission ID" value={item.id} />
               {item.sourceUrl ? <div><dt className="font-medium text-black/40">Source page</dt><dd className="mt-1"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand">Open page <ExternalLink size={12} /></a></dd></div> : null}
             </dl>
-            <div className="border-t border-black/[0.07] pt-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-semibold text-black/75">Reply from AquaCRM</h3>
-                  <p className="mt-1 text-xs text-black/45">Send an email without leaving the enquiry. Every attempt is retained in its history.</p>
-                </div>
-                {item.replies.length ? <span className="text-[11px] font-medium text-black/40">{item.replies.length} sent or attempted</span> : null}
-              </div>
-              {item.replies.length ? <div className="mt-4 grid gap-3">
-                {item.replies.map(reply => <div key={reply.id} className="ml-auto w-full max-w-[88%] border-r-2 border-brand/35 pr-3 text-right">
-                  <div className="flex flex-wrap items-center justify-end gap-2 text-[10px] text-black/38"><span>{reply.subject}</span><span>·</span><time>{formatDate(reply.sentAt)}</time><Pill tone={reply.status === "sent" ? "green" : "red"}>{reply.status}</Pill></div>
-                  <p className="mt-1 whitespace-pre-wrap text-left text-xs leading-5 text-black/65">{reply.message}</p>
-                  {reply.error ? <p className="mt-1 text-left text-[11px] text-red-700">{reply.error}</p> : null}
-                </div>)}
-              </div> : null}
-              {replyError[item.id] ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{replyError[item.id]}</p> : null}
-              {replySuccess[item.id] ? <p role="status" className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{replySuccess[item.id]}</p> : null}
-              {!item.email ? <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">No email address was supplied. Use the available phone number or link this person to a contact before replying.</p> : !emailReplyConfigured ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><span>Email delivery needs a connected Resend sender.</span><Link href="/portal/agency/company?view=connections&integration=resend" className="font-semibold underline underline-offset-2">Connect sender</Link></div> : <div className="mt-4 grid gap-2">
-                <label className="grid gap-1 text-xs font-medium text-black/50">Subject<input value={subjectDrafts[item.id] ?? `Re: Your enquiry with ${item.brandName}`} onChange={event => onSubjectChange(item.id, event.target.value)} maxLength={180} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm font-normal text-black/75 outline-none focus:border-brand" /></label>
-                <label className="grid gap-1 text-xs font-medium text-black/50">Message<textarea value={replyDrafts[item.id] ?? ""} onChange={event => onReplyChange(item.id, event.target.value)} rows={5} maxLength={8_000} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm font-normal leading-6 text-black/75 outline-none focus:border-brand" placeholder={`Write an email reply to ${item.name}`} /></label>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-[11px] text-black/40">Sending to {item.email}</span>
-                  <button type="button" onClick={() => void onReply(item)} disabled={replyBusyId === item.id || !replyDrafts[item.id]?.trim()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{replyBusyId === item.id ? "Sending..." : "Send email reply"}</button>
-                </div>
-              </div>}
-            </div>
+            <EnquiryCommunications item={item} readiness={communicationReadiness} />
             <div className="flex flex-wrap gap-2 border-t border-black/[0.07] pt-3">
               {item.status === "open" ? <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "reviewed")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Mark reviewed</button> : null}
               {item.status !== "resolved" ? <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "resolved")} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Resolve</button> : <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "open")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Reopen</button>}
-              <Link href="/portal/agency/pipelines/leads" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open sales <ExternalLink size={13} /></Link>
+              {item.classification === "sales" ? <Link href="/portal/clients?view=journey" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open Journey <ExternalLink size={13} /></Link> : <Link href="/portal/clients?view=contacts" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open contacts <ExternalLink size={13} /></Link>}
             </div>
           </div> : null}
         </article>;
@@ -544,7 +550,7 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => onToggle(item.id)} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/65">{openId === item.id ? <X size={13} /> : <MessageCircle size={13} />}{openId === item.id ? "Close" : "Reply"}</button>
             {item.siteUrl ? <a href={item.siteUrl} target="_blank" rel="noreferrer" aria-label={`Open ${item.siteName}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><ExternalLink size={15} /></a> : null}
-            <Link href={`/portal/clients/${item.clientId}?tab=overview`} aria-label={`Open ${item.clientName}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><Users size={15} /></Link>
+            <Link href={`/portal/clients/${item.clientId}?tab=communications`} aria-label={`Open ${item.clientName} communications`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/40"><Users size={15} /></Link>
           </div>
         </div>
         {openId === item.id ? <div className="ml-0 mt-3 grid gap-3 rounded-md bg-black/[0.025] p-3 sm:ml-[52px]">
@@ -579,9 +585,9 @@ function Tab({ active, onClick, label, count, icon: Icon, attentionHref, attenti
   return <button type="button" onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}><Icon size={15} aria-hidden="true" /><span>{label}{count !== undefined ? <span className="ml-1 text-xs text-black/35">{count}</span> : null}</span><AttentionDot href={attentionHref} all={attentionAll} />{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}</button>;
 }
 
-function AlertRow({ alert, onAction }: { alert: OperationalAlertView; onAction: (action: "read" | "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
+function AlertRow({ alert, contactAvailable, onContact, onAction }: { alert: OperationalAlertView; contactAvailable: boolean; onContact: () => void; onAction: (action: "read" | "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
   const styles = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
-  return <article title={`${alert.title}\n${alert.detail}`} className="mm-surface-card mm-interactive-row grid gap-3 rounded-md p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span><span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><Link href={alert.href} onClick={() => void onAction("read")} className="text-sm font-semibold text-black/80 hover:underline">{alert.title}</Link><Pill>{alert.category}</Pill></span><span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span></span><span className="flex items-center gap-1.5"><button type="button" onClick={() => void onAction("read")} title="Mark read" aria-label={`Mark ${alert.title} read`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04]"><CheckCheck size={14} /></button><button type="button" onClick={() => void onAction("park", Date.now() + 24 * 60 * 60 * 1000)} title="Park for 24 hours" aria-label={`Park ${alert.title} for 24 hours`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04]"><Clock3 size={14} /></button><button type="button" onClick={() => void onAction("dismiss")} title="Dismiss until this issue changes" aria-label={`Dismiss ${alert.title}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><X size={14} /></button><Link href={alert.href} aria-label={`Open ${alert.title}`} className="grid size-8 place-items-center text-black/25 hover:text-black/60"><ExternalLink size={16} /></Link></span></article>;
+  return <article title={`${alert.title}\n${alert.detail}`} className="mm-surface-card mm-interactive-row grid gap-3 rounded-md p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span><span className="min-w-0"><span className="flex flex-wrap items-center gap-2">{contactAvailable ? <button type="button" onClick={onContact} className="text-left text-sm font-semibold text-black/80 hover:underline">{alert.title}</button> : <Link href={alert.href} className="text-sm font-semibold text-black/80 hover:underline">{alert.title}</Link>}<Pill>{alert.category}</Pill>{contactAvailable ? <Pill tone="blue">Contact found</Pill> : null}</span><span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span></span><span className="flex items-center gap-1.5">{contactAvailable ? <button type="button" onClick={onContact} title="Open contact in All inbox" aria-label={`Open ${alert.title} in All inbox`} className="grid size-8 place-items-center rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"><MessageCircle size={14} /></button> : null}<button type="button" onClick={() => void onAction("read")} title="Mark read" aria-label={`Mark ${alert.title} read`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04]"><CheckCheck size={14} /></button><button type="button" onClick={() => void onAction("park", Date.now() + 24 * 60 * 60 * 1000)} title="Park for 24 hours" aria-label={`Park ${alert.title} for 24 hours`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04]"><Clock3 size={14} /></button><button type="button" onClick={() => void onAction("dismiss")} title="Dismiss until this issue changes" aria-label={`Dismiss ${alert.title}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><X size={14} /></button><Link href={alert.href} aria-label={`Open source for ${alert.title}`} title="Open source" className="grid size-8 place-items-center text-black/25 hover:text-black/60"><ExternalLink size={16} /></Link></span></article>;
 }
 
 function Channel({ icon, name, detail, connected = false }: { icon: React.ReactNode; name: string; detail: string; connected?: boolean }) {
@@ -594,6 +600,14 @@ function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?
 function Empty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <div className="py-16 text-center text-black/30">{<span className="inline-grid">{icon}</span>}<h3 className="mt-3 text-sm font-semibold text-black/70">{title}</h3><p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-black/45">{detail}</p></div>; }
 function requestLabel(type: string) { return ({ "support-ticket": "Support", "design-feedback": "Design feedback", suggestion: "Suggestion", cancel: "Cancellation", "move-provider": "Handover" } as Record<string, string>)[type] ?? "Message"; }
 function triageStyle(priority: "urgent" | "high" | "normal") { return priority === "urgent" ? "border-red-200 bg-red-50 text-red-800" : priority === "high" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"; }
+function classificationTone(classification: WebsiteEnquiryClassification): "neutral" | "amber" | "green" | "red" | "blue" { return classification === "unclassified" ? "amber" : classification === "sales" ? "green" : classification === "spam" ? "red" : classification === "existing-client" ? "blue" : "neutral"; }
+function classificationRouteStyle(classification: WebsiteEnquiryClassification) { return classification === "unclassified" ? "border-amber-200 bg-amber-50 text-amber-900" : classification === "sales" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : classification === "spam" ? "border-red-200 bg-red-50 text-red-800" : "border-blue-200 bg-blue-50 text-blue-900"; }
+function classificationRouteDescription(classification: WebsiteEnquiryClassification) {
+  if (classification === "unclassified") return "Review this message before it enters Journey or Contacts.";
+  if (classification === "sales") return "This is a genuine opportunity and belongs in the sales Journey.";
+  if (classification === "spam") return "This remains searchable for audit but does not create a contact or sales work.";
+  return "This is retained as a relationship contact and kept outside the sales Journey.";
+}
 function enquiryWaitTone(elapsedMs: number): "blue" | "amber" | "red" { return elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseCriticalMs ? "red" : elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseWarningMs ? "amber" : "blue"; }
 function formatDate(value: number) { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
 function sourceLocation(item: WebsiteEnquiry) { return `${item.siteHost ?? item.siteName}${item.pagePath === "/" ? "" : item.pagePath}`; }

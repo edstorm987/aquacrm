@@ -6,6 +6,7 @@ export type PortalProductKey =
   | "photography"
   | "google-profile"
   | "content"
+  | "social-ads"
   | "automation"
   | "custom-software"
   | "ongoing-care"
@@ -115,6 +116,21 @@ export const PORTAL_PRODUCT_CATALOG: PortalProductDefinition[] = [
       designing: "Review drafts and shape the tone and direction.",
       "developed-launch": "Approve final content and confirm publishing details.",
       maintenance: "Request new content and keep the plan current.",
+    },
+  },
+  {
+    id: "social-ads",
+    catalogKey: "social-ads",
+    name: "Social & paid media",
+    description: "An always-on social presence and paid acquisition system with clear approvals and measurable results.",
+    projectLabel: "Growth",
+    homeHeading: "Your content and campaigns, moving as one system.",
+    deliverables: ["Channel and audience strategy", "Content planning and production", "Paid campaign management and reporting"],
+    stageFocus: {
+      onboarding: "Connect accounts, define audiences, agree goals and establish the approval rhythm.",
+      designing: "Review content directions, campaign creative, targeting and the publishing plan.",
+      "developed-launch": "Approve the launch queue, confirm tracking and release the first campaigns.",
+      maintenance: "Review performance, approve upcoming content and improve spend from retained evidence.",
     },
   },
   {

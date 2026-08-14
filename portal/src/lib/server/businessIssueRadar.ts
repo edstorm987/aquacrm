@@ -28,13 +28,15 @@ import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/fou
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
-import { listAgencyTasks } from "@/server/tasks";
+import { listAgencyTasks, reconcileAgencyTasksWithRadar } from "@/server/tasks";
+import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import { listClients } from "@/server/tenants";
 import { listUsersForAgency } from "@/server/users";
 import { listInboxSnapshot } from "./inboxStore";
 import { buildCompanyHealthSnapshot } from "./companyHealthSnapshot";
 import { listOperationalAlerts, type OperationalAlert } from "./operationalAlerts";
 import { listWebsiteEnquiries, type WebsiteEnquiry } from "./websiteEnquiries";
+import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
 import { buildRadarObservations } from "./radarObservations";
 import { buildRadarMemoryDigest, buildRadarMemoryIssues } from "./radarMemory";
 import { applyRadarEvidenceBaselines, buildRadarEvidenceLayer } from "./radarEvidenceVault";
@@ -96,6 +98,10 @@ export async function buildBusinessIssueRadar(
   const settings = getAgencyWorkspaceSettings(agencyId);
   const clients = listClients(agencyId, { includeArchived: true });
   const tasks = listAgencyTasks(agencyId);
+  const calendarEntries = listAgencyCommandCalendarEntries(agencyId);
+  const externalCalendarSources = Object.values(state.commandCalendarSources).filter(source => source.agencyId === agencyId && source.selected);
+  const externalCalendarSourceIds = new Set(externalCalendarSources.map(source => source.id));
+  const externalCalendarEvents = Object.values(state.commandCalendarExternalEvents).filter(event => event.agencyId === agencyId && externalCalendarSourceIds.has(event.sourceId));
   const legalDocuments = listLegalDocuments(agencyId);
   const team = listUsersForAgency(agencyId);
   const installs = Object.values(state.pluginInstalls).filter(install => install.agencyId === agencyId && install.enabled);
@@ -112,8 +118,9 @@ export async function buildBusinessIssueRadar(
   const enquiries = enquiryResult.status === "fulfilled" ? enquiryResult.value : [];
   const inbox = inboxResult.status === "fulfilled" ? inboxResult.value : null;
   const leadRows = leadResult.status === "fulfilled" ? leadResult.value : [];
+  const journeyLeadRows = leadRows.filter(isLeadJourneyEligible);
   const commercial = buildCommercialLifecycleSnapshot({
-    leads: leadRows,
+    leads: journeyLeadRows,
     clients,
     now,
     available: Boolean(leadInstall) && leadResult.status === "fulfilled",
@@ -127,7 +134,7 @@ export async function buildBusinessIssueRadar(
   issues.push(...telemetry.issues);
   issues.push(...buildSyntheticCanaryIssues(telemetry, syntheticProbes, now));
 
-  const recentEnquiries = enquiries.filter(enquiry => enquiry.submittedAt >= now - 30 * DAY);
+  const recentEnquiries = enquiries.filter(enquiry => enquiry.classification === "sales" && enquiry.submittedAt >= now - 30 * DAY);
   const speedToLead = buildSpeedToLeadRadar(recentEnquiries, settings.advisor, now);
   signals.push(speedToLeadSignal(speedToLead, now));
   signals.push(...buildCommercialLifecycleSignals(commercial));
@@ -145,7 +152,7 @@ export async function buildBusinessIssueRadar(
       target: "80 or above",
       status: scoreStatus(company.health.overall),
       detail: `Income ${company.health.income}, clients ${company.health.clients}, pipeline ${company.health.pipeline}, operations ${company.health.operations}.`,
-      href: "/portal/agency/company",
+      href: "/portal/agency?station=battle",
       measuredAt: now,
     });
     if (company.health.overall < 70) {
@@ -161,7 +168,7 @@ export async function buildBusinessIssueRadar(
           `Pipeline ${company.health.pipeline}/100`,
           `Operations ${company.health.operations}/100`,
         ],
-        href: "/portal/agency/company",
+        href: "/portal/agency?station=battle",
         detectedAt: now,
         sourceIds: ["metric:company-health"],
       });
@@ -200,6 +207,51 @@ export async function buildBusinessIssueRadar(
     sampleSize: activeClients.length,
   });
 
+  const dayPlans = Object.values(state.dashboardDayPlans).filter(plan => plan.agencyId === agencyId);
+  const datedTasks = tasks.filter(task => task.startAt || task.dueAt || task.reminderAt);
+  const leadMeetings = leadRows.filter(lead => typeof lead.nextMeetingAt === "number");
+  const plannedCalendarEntries = calendarEntries.filter(entry => entry.status === "planned" && entry.type !== "note");
+  const upcomingTaskCommitments = openTasks.filter(task => {
+    const at = task.dueAt ?? task.startAt;
+    return Boolean(at && at >= now && at <= now + 7 * DAY);
+  });
+  const upcomingLeadMeetings = leadMeetings.filter(lead => (lead.nextMeetingAt ?? 0) >= now && (lead.nextMeetingAt ?? 0) <= now + 7 * DAY);
+  const upcomingCalendarEntries = plannedCalendarEntries.filter(entry => {
+    const at = entry.endsAt ?? entry.startsAt;
+    return at >= now && entry.startsAt <= now + 7 * DAY;
+  });
+  const upcomingExternalCalendarEvents = externalCalendarEvents.filter(event => (event.endsAt ?? event.startsAt) >= now && event.startsAt <= now + 7 * DAY);
+  const upcomingCommitments = upcomingTaskCommitments.length + upcomingLeadMeetings.length + upcomingCalendarEntries.length + upcomingExternalCalendarEvents.length;
+  const unownedCommitments = upcomingTaskCommitments.filter(task => !task.assigneeUserId).length;
+  signals.push(
+    {
+      id: "metric:calendar-commitments-7d",
+      domain: "operations",
+      label: "Calendar commitments",
+      value: upcomingCommitments,
+      display: `${upcomingCommitments} next 7d`,
+      target: "Every commitment owned and prepared",
+      status: upcomingCommitments ? "healthy" : "unknown",
+      detail: `${upcomingTaskCommitments.length} dated tasks, ${upcomingCalendarEntries.length} Aqua calendar items, ${upcomingExternalCalendarEvents.length} synced work events and ${upcomingLeadMeetings.length} lead meetings are due in the next seven days.`,
+      href: "/portal/agency?station=calendar",
+      measuredAt: now,
+      sampleSize: datedTasks.length + dayPlans.length + calendarEntries.length + externalCalendarEvents.length + leadMeetings.length,
+    },
+    {
+      id: "metric:calendar-unowned",
+      domain: "operations",
+      label: "Unowned commitments",
+      value: unownedCommitments,
+      display: String(unownedCommitments),
+      target: "0 unowned",
+      status: unownedCommitments > 2 ? "warning" : unownedCommitments ? "watch" : upcomingTaskCommitments.length ? "healthy" : "unknown",
+      detail: "Upcoming dated tasks without an owner can be missed even when they appear on the calendar.",
+      href: "/portal/agency/actions?view=calendar",
+      measuredAt: now,
+      sampleSize: upcomingTaskCommitments.length,
+    },
+  );
+
   const recentActivity = state.activity.filter(entry => entry.agencyId === agencyId);
   const lastWorkspaceActivity = recentActivity.reduce((latest, entry) => Math.max(latest, entry.ts), 0);
   if (lastWorkspaceActivity && now - lastWorkspaceActivity > settings.advisor.staleDataHours * HOUR) {
@@ -237,6 +289,12 @@ export async function buildBusinessIssueRadar(
   const developmentStatus: AdvisorCoverageSource["status"] = telemetry.totals.properties
     ? telemetry.totals.connectedTags ? "connected" : "empty"
     : developmentWebsite ? "empty" : "disconnected";
+  const enquiryStatus: AdvisorCoverageSource["status"] = enquiryResult.status === "rejected" ? "unavailable" : enquiries.length ? "connected" : "empty";
+  const responseClockStatus: AdvisorCoverageSource["status"] = enquiryResult.status === "rejected" ? "unavailable" : recentEnquiries.length ? "connected" : "empty";
+  const inboxMessages = inbox?.conversations.flatMap(conversation => conversation.messages) ?? [];
+  const inboxMessageStatus: AdvisorCoverageSource["status"] = inboxResult.status === "rejected" ? "unavailable" : inboxMessages.length ? "connected" : "empty";
+  const telemetryStatus: AdvisorCoverageSource["status"] = telemetry.totals.properties ? telemetry.totals.connectedTags ? "connected" : "empty" : developmentWebsite ? "empty" : "disconnected";
+  const calendarStatus: AdvisorCoverageSource["status"] = datedTasks.length || dayPlans.length || calendarEntries.length || externalCalendarEvents.length || leadMeetings.length ? "connected" : "empty";
 
   coverage.push(
     coverageSource("core:company", "company", "Company planning", "connected", company ? 1 : 0, company ? "Company health, objectives, plans and targets are readable." : "Company health could not be calculated.", now),
@@ -250,6 +308,11 @@ export async function buildBusinessIssueRadar(
     coverageSource("core:marketing", "marketing", "Marketing and acquisition", marketingStatus, (marketingInstall || leadInstall ? pluginRecordCount(state, marketingInstall?.id ?? leadInstall?.id ?? "") : 0) + telemetry.totals.forms7d + telemetry.totals.conversions7d, marketingInstall || leadInstall || telemetry.totals.properties ? "Campaigns, attribution, forms, conversions, search, and property traffic are monitored." : "Enable Marketing or connect Aqua Tag to measure acquisition.", Math.max(marketingInstall?.installedAt ?? 0, leadInstall?.installedAt ?? 0, telemetry.totals.latestEventAt ?? 0)),
     coverageSource("core:delivery", "delivery", "Fulfilment", deliveryStatus, agencyPipelines.length, "Fulfilment pipelines, client milestones and delivery records.", fulfilmentInstall?.installedAt ?? latestTimestamp(agencyPipelines)),
     coverageSource("core:development", "development", "Websites, servers and Aqua Tag", developmentStatus, telemetry.totals.properties + telemetry.properties.reduce((total, property) => total + property.events.length, 0), "Agency and client property telemetry, errors, heartbeats, tags, releases, traffic, forms, and performance.", telemetry.totals.latestEventAt),
+    coverageSource("external:website-enquiries", "inbox", "Website enquiries", enquiryStatus, enquiries.length, "Form and chatbot submissions with source, campaign, identity and lifecycle timestamps.", latestTimestamp(enquiries)),
+    coverageSource("external:response-time-clocks", "sales", "Lead response clocks", responseClockStatus, recentEnquiries.length, "First-response timers, waiting duration and response SLA evidence for every recent enquiry.", latestTimestamp(recentEnquiries)),
+    coverageSource("core:website-telemetry", "development", "Website telemetry", telemetryStatus, telemetry.properties.reduce((total, property) => total + property.events.length, 0), "Aqua Tag pageviews, forms, conversions, errors, performance and heartbeat events.", telemetry.totals.latestEventAt),
+    coverageSource("external:inbox-messages", "inbox", "Inbox messages", inboxMessageStatus, inboxMessages.length, "Inbound and outbound message records used to prove replies and conversation continuity.", latestTimestamp(inboxMessages)),
+    coverageSource("core:calendar-commitments", "operations", "Calendar commitments", calendarStatus, datedTasks.length + dayPlans.length + calendarEntries.length + externalCalendarEvents.length + leadMeetings.length, "Dated tasks, Aqua calendar entries, synced Google work events, daily plans and lead meetings used to monitor upcoming, overdue and unowned commitments.", Math.max(latestTimestamp(datedTasks), latestTimestamp(dayPlans), latestTimestamp(calendarEntries), latestTimestamp(externalCalendarEvents), latestTimestamp(leadRows))),
   );
 
   for (const install of installs) {
@@ -289,7 +352,7 @@ export async function buildBusinessIssueRadar(
       target: "Stable or growing week over week",
       status: telemetry.totals.trafficDrops ? "warning" : telemetry.totals.properties ? "healthy" : "unknown",
       detail: `${telemetry.totals.trafficSurges} surging and ${telemetry.totals.trafficDrops} declining propert${telemetry.totals.trafficDrops === 1 ? "y" : "ies"}.`,
-      href: "/portal/agency/performance",
+      href: "/portal/agency/fulfilment/technical/performance",
       measuredAt: now,
       sampleSize: telemetry.totals.properties,
     },
@@ -315,7 +378,7 @@ export async function buildBusinessIssueRadar(
       target: "Every live property reporting",
       status: telemetry.totals.expectedProperties === 0 ? "unknown" : telemetry.totals.connectedTags < telemetry.totals.expectedProperties ? "warning" : "healthy",
       detail: `${telemetry.totals.staleTags} tag${telemetry.totals.staleTags === 1 ? " is" : "s are"} stale beyond 48 hours.`,
-      href: "/portal/agency/performance",
+      href: "/portal/agency/fulfilment/technical/performance",
       measuredAt: now,
       sampleSize: telemetry.totals.expectedProperties,
     },
@@ -328,7 +391,7 @@ export async function buildBusinessIssueRadar(
       target: "0 errors",
       status: telemetry.totals.errors24h >= 5 ? "critical" : telemetry.totals.errors24h ? "warning" : telemetry.totals.properties ? "healthy" : "unknown",
       detail: `${telemetry.totals.slowProperties} propert${telemetry.totals.slowProperties === 1 ? "y is" : "ies are"} slower than 2500ms.`,
-      href: "/portal/agency/performance",
+      href: "/portal/agency/fulfilment/technical/performance",
       measuredAt: now,
       sampleSize: telemetry.totals.properties,
     },
@@ -385,7 +448,7 @@ export async function buildBusinessIssueRadar(
     });
   }
 
-  const dedupedIssues = dedupeIssues(issues).sort(issueSort).slice(0, 320);
+  const dedupedIssues = dedupeIssues(issues).sort(issueSort);
   const businessContext = {
     currency: company?.actuals.currency ?? settings.defaultCurrency,
     monthRevenueCents: company?.actuals.monthRevenueCents ?? 0,
@@ -468,7 +531,7 @@ export async function buildBusinessIssueRadar(
   const memory = buildRadarMemoryDigest(agencyId, radar, now);
   const withMemory = applyAdaptiveRadarPolicy({
     checks: rawChecks,
-    issues: dedupeIssues([...dedupedIssues, ...buildRadarMemoryIssues(memory, now)]).sort(issueSort).slice(0, 320),
+    issues: dedupeIssues([...dedupedIssues, ...buildRadarMemoryIssues(memory, now)]).sort(issueSort),
     signals,
     coverage,
     policy: settings.advisor.radarPolicy,
@@ -476,7 +539,7 @@ export async function buildBusinessIssueRadar(
     enquiryCount: recentEnquiries.length,
     now,
   });
-  return {
+  const result: BusinessIssueRadar = {
     ...radar,
     summary: {
       ...radar.summary,
@@ -491,6 +554,8 @@ export async function buildBusinessIssueRadar(
     adaptive: withMemory.adaptive,
     memory,
   };
+  reconcileAgencyTasksWithRadar(agencyId, result, now);
+  return result;
 }
 
 async function listRadarLeads(agencyId: string, installId: string) {
@@ -583,7 +648,7 @@ function speedToLeadIssue(metric: SpeedToLeadRadar, enquiries: WebsiteEnquiry[],
     ],
     href: oldest ? `/portal/agency/inbox?view=${oldest.channel === "form" ? "forms" : oldest.channel}&form=${encodeURIComponent(oldest.id)}` : "/portal/agency/inbox?view=forms",
     detectedAt: now,
-    sourceIds: breached.map(enquiry => `website-enquiry:${enquiry.id}`).slice(0, 25),
+    sourceIds: breached.map(enquiry => `website-enquiry:${enquiry.id}`),
   };
 }
 

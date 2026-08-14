@@ -18,7 +18,7 @@ import {
   updateInboxConversation,
   updateInboxMessage,
 } from "@/lib/server/inboxStore";
-import { readMetaMessagingConfig, sendMetaTextMessage } from "@/lib/server/metaMessaging";
+import { readMetaMessagingConfig, sendMetaAttachmentMessage, sendMetaTextMessage } from "@/lib/server/metaMessaging";
 import { logActivity } from "@/server/activity";
 import { triggerAutomations } from "@/server/automations";
 
@@ -199,9 +199,11 @@ export async function sendInboxReply(input: {
   actorUserId: string;
   actorEmail?: string;
   origin?: string;
+  attachments?: InboxAttachment[];
 }): Promise<InboxMessage> {
   const text = input.text.trim().slice(0, 2_000);
-  if (!text) throw new Error("inbox_reply_empty");
+  const attachments = (input.attachments ?? []).filter(item => item.url).slice(0, 10);
+  if (!text && !attachments.length) throw new Error("inbox_reply_empty");
   const conversation = await getInboxConversation(input.agencyId, input.conversationId);
   if (!conversation) throw new Error("inbox_conversation_not_found");
   if (conversation.responseDueAt && conversation.responseDueAt < Date.now()) throw new Error("meta_reply_window_closed");
@@ -217,17 +219,23 @@ export async function sendInboxReply(input: {
     connectionId: connection.id,
     conversationId: conversation.id,
     direction: "outbound",
-    type: "text",
-    text,
-    attachments: [],
+    type: attachments[0]?.type ?? "text",
+    text: text || undefined,
+    attachments,
     status: "pending",
     metadata: { actorUserId: input.actorUserId },
     sentAt: now,
   });
   try {
-    const result = await sendMetaTextMessage(config, connection, conversation.identity.externalUserId, text);
+    const messageIds: string[] = [];
+    if (text) messageIds.push((await sendMetaTextMessage(config, connection, conversation.identity.externalUserId, text)).messageId);
+    for (const attachment of attachments) {
+      if (!attachment.url) continue;
+      const type = attachment.type === "image" || attachment.type === "audio" || attachment.type === "video" ? attachment.type : "file";
+      messageIds.push((await sendMetaAttachmentMessage(config, connection, conversation.identity.externalUserId, { type, url: attachment.url })).messageId);
+    }
     const sent = await updateInboxMessage(input.agencyId, pending.id, {
-      externalMessageId: result.messageId,
+      externalMessageId: messageIds.at(-1),
       status: "sent",
       error: undefined,
     });

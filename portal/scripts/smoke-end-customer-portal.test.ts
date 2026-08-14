@@ -19,7 +19,7 @@ const ROOT = join(__dirname, "..");
 const CUSTOMER = join(ROOT, "src", "app", "portal", "customer");
 
 describe("End-customer portal sub-routes (R019)", () => {
-  for (const route of ["orders", "bookings", "membership", "affiliate"]) {
+  for (const route of ["bookings", "membership", "affiliate"]) {
     it(`/portal/customer/${route}/page.tsx exists`, () => {
       assert.equal(existsSync(join(CUSTOMER, route, "page.tsx")), true);
     });
@@ -30,6 +30,15 @@ describe("End-customer portal sub-routes (R019)", () => {
       assert.ok(src.includes("export default"), "should default-export a page component");
     });
   }
+
+  it("/portal/customer/orders/page.tsx exposes secure customer order history", () => {
+    const src = readFileSync(join(CUSTOMER, "orders", "page.tsx"), "utf8");
+    assert.ok(src.includes('requireRole("end-customer")'));
+    assert.ok(src.includes('getInstall({ agencyId: session.agencyId, clientId: session.clientId }, "ecommerce")'));
+    assert.ok(src.includes("order.endCustomerUserId === session.userId"));
+    assert.ok(src.includes("order.customerEmail?.toLowerCase() === session.email.toLowerCase()"));
+    assert.ok(src.includes("export default"));
+  });
 
   it("/portal/customer/account/page.tsx is a built-in customer account page", () => {
     const src = readFileSync(join(CUSTOMER, "account", "page.tsx"), "utf8");
@@ -101,10 +110,11 @@ describe("End-customer portal sub-routes (R019)", () => {
 });
 
 describe("End-customer portal subroute config contracts", () => {
-  it("orders → ecommerce, no redirect (no customer surface yet)", () => {
+  it("orders reads the client-scoped ecommerce service directly", () => {
     const src = readFileSync(join(CUSTOMER, "orders", "page.tsx"), "utf8");
-    assert.ok(src.includes('pluginId: "ecommerce"'));
-    assert.ok(!src.includes("redirectTo"), "ecommerce has no customer surface yet");
+    assert.ok(src.includes('"ecommerce"'));
+    assert.ok(src.includes("listOrdersForClient(session.clientId)"));
+    assert.ok(!src.includes("redirectTo"), "orders should render in the customer portal");
   });
 
   it("profile updates return end-customers to their built-in account page", () => {

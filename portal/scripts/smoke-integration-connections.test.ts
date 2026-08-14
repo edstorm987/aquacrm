@@ -16,10 +16,12 @@ require.cache[serverOnlyPath] = {
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Connections = typeof import("../src/lib/server/integrationConnections");
+type Communications = typeof import("../src/lib/server/outboundCommunications");
 
 let storage: Storage;
 let tenants: Tenants;
 let connections: Connections;
+let communications: Communications;
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -27,8 +29,77 @@ before(async () => {
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
   connections = await import("../src/lib/server/integrationConnections");
+  communications = await import("../src/lib/server/outboundCommunications");
   await storage.ensureHydrated();
   await storage.reset();
+});
+
+test("multiple messaging accounts remain distinct send-as identities", async () => {
+  const agency = tenants.createAgency({ name: "Messaging Accounts", slug: "messaging-accounts" });
+  const first = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "twilio",
+    label: "AquaCRM sales",
+    values: { accountSid: "AC_sales", authToken: "sales-secret", smsFrom: "+447700900101", whatsappFrom: "+447700900102", voiceFrom: "+447700900103", agentPhone: "+447700900100" },
+    actorUserId: "owner",
+  });
+  connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "twilio",
+    label: "Milesymedia support",
+    values: { accountSid: "AC_support", authToken: "support-secret", smsFrom: "+447700900201", whatsappFrom: "+447700900202", voiceFrom: "+447700900203", agentPhone: "+447700900200" },
+    actorUserId: "owner",
+  });
+  connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "smtp",
+    label: "AquaCRM hello",
+    values: { host: "smtp.example.com", port: "587", username: "hello@example.com", password: "smtp-secret", fromEmail: "hello@example.com", fromName: "AquaCRM" },
+    actorUserId: "owner",
+  });
+
+  const readiness = communications.outboundCommunicationReadiness(agency.id);
+  assert.equal(readiness.senders.filter(sender => sender.channel === "sms").length, 2);
+  assert.equal(readiness.senders.filter(sender => sender.channel === "whatsapp").length, 2);
+  assert.equal(readiness.senders.filter(sender => sender.channel === "email").length, 1);
+  assert.equal(readiness.senders.filter(sender => sender.channel === "call").length, 3);
+  const selected = communications.resolveCommunicationSender(agency.id, `connection:${first.id}:sms`, "sms");
+  assert.equal(selected?.label, "AquaCRM sales · SMS");
+  assert.equal(communications.resolveCommunicationSender(agency.id, `connection:${first.id}:sms`, "whatsapp"), null);
+
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.match(String(url), /Accounts\/AC_sales\/Messages\.json/);
+    assert.equal(new Headers(init?.headers).get("authorization"), `Basic ${Buffer.from("AC_sales:sales-secret").toString("base64")}`);
+    const body = new URLSearchParams(String(init?.body));
+    assert.equal(body.get("From"), "+447700900101");
+    assert.equal(body.get("To"), "+447700900999");
+    return Response.json({ sid: "SM_test" });
+  };
+  try {
+    const sent = await communications.sendPhoneMessage({ agencyId: agency.id, sender: selected!, channel: "sms", to: "07700 900999", body: "Hello" });
+    assert.equal(sent.delivered, true);
+    assert.equal(sent.externalMessageId, "SM_test");
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+
+  const voiceSender = communications.resolveCommunicationSender(agency.id, `connection:${first.id}:call`, "call");
+  globalThis.fetch = async (url, init) => {
+    assert.match(String(url), /Accounts\/AC_sales\/Calls\.json/);
+    const body = new URLSearchParams(String(init?.body));
+    assert.equal(body.get("To"), "+447700900100");
+    assert.equal(body.get("From"), "+447700900103");
+    assert.match(body.get("Twiml") ?? "", /<Number>\+447700900999<\/Number>/);
+    return Response.json({ sid: "CA_test" });
+  };
+  try {
+    const call = await communications.initiatePhoneCall({ agencyId: agency.id, sender: voiceSender!, customerPhone: "07700 900999" });
+    assert.equal(call.initiated, true);
+    assert.equal(call.externalCallId, "CA_test");
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
 });
 
 test("integration secrets are encrypted at rest and redacted from browser records", () => {

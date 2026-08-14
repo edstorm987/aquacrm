@@ -25,7 +25,7 @@ export default async function PlanningPage(props: PluginPageProps) {
   const previous = months.at(-2);
   const currentRevenue = latest?.revenueCents ?? 0;
   const previousRevenue = previous?.revenueCents ?? 0;
-  const monthlyGrowthRate = previousRevenue > 0 ? (currentRevenue - previousRevenue) / previousRevenue : 0;
+  const monthlyGrowthRate = previousRevenue > 0 ? (currentRevenue - previousRevenue) / previousRevenue : null;
   const averageExpenseCents = months.length
     ? Math.round(months.reduce((sum, month) => sum + month.expensesCents, 0) / months.length)
     : 0;
@@ -46,7 +46,7 @@ export default async function PlanningPage(props: PluginPageProps) {
     startMonth: latest?.month ?? new Date(now).getUTCMonth() + 1,
     startRevenueCents: Math.max(currentRevenue, snapshot.mrrCents),
     expenseCents: averageExpenseCents,
-    growthRate: clamp(monthlyGrowthRate, -0.25, 0.5),
+    growthRate: clamp(monthlyGrowthRate ?? 0, -0.25, 0.5),
   });
   const projectedAnnualRevenue = projected.reduce((sum, month) => sum + month.revenueCents, 0);
   const projectedAnnualNet = projected.reduce((sum, month) => sum + month.netCents, 0);
@@ -61,7 +61,7 @@ export default async function PlanningPage(props: PluginPageProps) {
           <h1 className="mt-1 text-2xl font-semibold text-black/90">Targets and projections</h1>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-black/55">A forward view using live finance actuals, company goals and editable sales assumptions from Company.</p>
         </div>
-        <Link href="/portal/agency/company" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03]">
+        <Link href="/portal/agency?station=battle&battle=projections" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03]">
           Edit objectives <ArrowRight size={15} />
         </Link>
       </header>
@@ -70,14 +70,14 @@ export default async function PlanningPage(props: PluginPageProps) {
         <Metric label="Current month" value={money(currentRevenue, currency)} icon={BarChart3} />
         <Metric label="Monthly target" value={money(monthlyTarget, currency)} icon={Target} />
         <Metric label="MRR / ARR" value={`${money(snapshot.mrrCents, currency)} / ${money(snapshot.arrCents, currency)}`} icon={TrendingUp} />
-        <Metric label="Growth rate" value={percent(monthlyGrowthRate)} icon={TrendingUp} tone={monthlyGrowthRate >= 0 ? "good" : "warn"} />
+        <Metric label="Growth rate" value={monthlyGrowthRate === null ? currentRevenue > 0 ? "New revenue" : "No baseline" : percent(monthlyGrowthRate)} icon={TrendingUp} tone={monthlyGrowthRate === null ? undefined : monthlyGrowthRate >= 0 ? "good" : "warn"} />
         <Metric label="Target gap" value={money(targetGap, currency)} icon={Flag} tone={targetGap === 0 ? "good" : "warn"} />
       </dl>
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
           <h2 className="text-base font-semibold text-black/85">12 month projection</h2>
-          <p className="mt-1 text-sm text-black/45">Projection starts from current revenue or MRR, whichever is higher, and applies the latest monthly growth rate.</p>
+          <p className="mt-1 text-sm text-black/45">Projection starts from current revenue or MRR, whichever is higher, and applies the latest measurable monthly growth rate. It holds flat until a prior-month baseline exists.</p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead className="border-b border-black/10 text-left text-[11px] uppercase tracking-wide text-black/45">

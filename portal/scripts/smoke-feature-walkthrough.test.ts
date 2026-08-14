@@ -130,11 +130,14 @@ describe("Client lifecycle and portal generation", () => {
   it("has client workspace tabs and systems language", () => {
     const clientPage = read(join(PORTAL, "clients", "[clientId]", "page.tsx"));
     const tabs = read(join(PORTAL, "clients", "[clientId]", "_tabs.ts"));
+    const workspaceTabs = read(join(SRC, "lib", "clientWorkspace.ts"));
     const picker = read(join(PORTAL, "clients", "[clientId]", "_ToolsPicker.tsx"));
 
-    assert.ok(tabs.includes('id: "systems"'));
-    assert.ok(tabs.includes('label: "Systems"'));
-    assert.ok(clientPage.includes('rawTabInput === "tools" ? "systems"'));
+    assert.ok(tabs.includes("CLIENT_WORKSPACE_TABS"));
+    assert.ok(workspaceTabs.includes('id: "systems"'));
+    assert.ok(workspaceTabs.includes('label: "Systems"'));
+    assert.ok(workspaceTabs.includes('tools: "systems"'));
+    assert.ok(clientPage.includes("resolveClientWorkspaceTab(rawTabInput)"));
     assert.ok(clientPage.includes("+ Add system"));
     assert.ok(picker.includes("Typical live-stage system set"));
     assert.ok(!clientPage.includes(">Capabilities<"));

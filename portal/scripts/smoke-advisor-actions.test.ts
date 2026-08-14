@@ -37,7 +37,8 @@ test("a person must approve each recommendation before it becomes a task", () =>
   assert.match(actions, /Find smart actions/);
   assert.match(actions, /Open evidence/);
   assert.match(actions, /Dismiss/);
-  assert.match(actions, /Add to Actions/);
+  assert.match(actions, /Accept task/);
+  assert.match(actions, /acceptSuggestion\(suggestion, "advisor"\)/);
   assert.match(actions, /fetch\("\/api\/assistant"/);
   assert.match(actions, /fetch\("\/api\/portal\/tasks"/);
 });

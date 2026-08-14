@@ -84,16 +84,23 @@ export function FinanceTabClient({
   initial,
   initialContracts,
   initialContractTemplates,
+  clientName,
+  recipientEmail,
+  showContracts = true,
 }: {
   clientId: string;
   initial: InitialState;
   initialContracts: ClientContract[];
   initialContractTemplates: ClientContractTemplate[];
+  clientName?: string;
+  recipientEmail?: string;
+  showContracts?: boolean;
 }) {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [clientExpenses, setClientExpenses] = useState<ClientExpense[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
   const [pluginMissing, setPluginMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -168,10 +175,10 @@ export function FinanceTabClient({
         return;
       }
       if (data.invoice && draft.status === "sent") {
-        await updateInvoiceStatus(data.invoice.id, "sent", false);
+        await updateInvoiceStatus(data.invoice.id, "sent", false, true);
       }
       if (data.invoice && draft.status === "paid") {
-        await updateInvoiceStatus(data.invoice.id, "sent", false);
+        await updateInvoiceStatus(data.invoice.id, "sent", false, false);
         await markPaid(data.invoice.id, false);
       }
       setDraft({
@@ -188,7 +195,7 @@ export function FinanceTabClient({
     }
   }
 
-  async function updateInvoiceStatus(id: string, status: Invoice["status"], shouldRefresh = true) {
+  async function updateInvoiceStatus(id: string, status: Invoice["status"], shouldRefresh = true, deliver = status === "sent") {
     setBusy(true);
     setError(null);
     try {
@@ -202,10 +209,26 @@ export function FinanceTabClient({
         setError(data.error ?? "Invoice update failed.");
         return;
       }
+      if (deliver && status === "sent") await deliverPaymentRequest(id);
       if (shouldRefresh) await refresh();
     } finally {
       setBusy(false);
     }
+  }
+
+  async function deliverPaymentRequest(invoiceId: string) {
+    setDeliveryNotice(null);
+    const response = await fetch("/api/portal/journey/payment-request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId, invoiceId }),
+    });
+    const payload = await response.json().catch(() => null) as { ok?: boolean; delivered?: boolean; error?: string; reason?: string } | null;
+    if (payload?.delivered) {
+      setDeliveryNotice(`Payment request emailed to ${recipientEmail || "the client"} and published in the portal.`);
+      return;
+    }
+    setDeliveryNotice(payload?.reason || payload?.error || "Payment request is in the client portal, but email delivery is not configured.");
   }
 
   async function markPaid(id: string, shouldRefresh = true) {
@@ -380,16 +403,21 @@ export function FinanceTabClient({
         )}
       </section>
 
-      <ContractsPanel
+      {showContracts ? <ContractsPanel
         clientId={clientId}
+        clientName={clientName}
+        recipientEmail={recipientEmail}
         initialContracts={initialContracts}
         initialTemplates={initialContractTemplates}
-      />
+      /> : null}
 
       {/* Invoices */}
       <section className="rounded-xl border border-black/10 bg-white">
         <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-black/10 p-3">
-          <h2 className="text-sm font-medium text-black/85">Invoices</h2>
+          <div>
+            <h2 className="text-sm font-medium text-black/85">Payment requests & invoices</h2>
+            <p className="mt-0.5 text-xs text-black/45">Issue a request to the client portal and email it through your connected sender.</p>
+          </div>
           <div className="flex items-center gap-2 text-xs">
             <a href="/portal/agency/agency-finance" className="text-black/55 hover:underline">
               Open agency finance →
@@ -492,7 +520,8 @@ export function FinanceTabClient({
             </div>
           </form>
         )}
-        {error && <p role="alert" className="border-b border-black/10 px-3 py-1 text-xs text-red-700">{error}</p>}
+        {error && <p role="alert" className="border-b border-black/10 px-3 py-2 text-xs text-red-700">{error}</p>}
+        {deliveryNotice && <p role="status" className="border-b border-black/10 bg-blue-50 px-3 py-2 text-xs text-blue-800">{deliveryNotice}</p>}
         {invoices === null ? (
           <p className="px-3 py-6 text-center text-sm text-black/55">Loading…</p>
         ) : invoices.length === 0 ? (

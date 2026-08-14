@@ -605,6 +605,7 @@ export function CustomerSupportForm({
                           <span className="text-[10px] text-black/30">{formatShortDate(item.createdAt)}</span>
                         </div>
                         <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-black/60">{item.message}</p>
+                        {item.attachments?.map(attachment => <ReplyMedia key={attachment.id} attachment={attachment} />)}
                       </div>
                     ))}
                   </div>
@@ -638,6 +639,12 @@ export function CustomerSupportForm({
       </aside>
     </div>
   );
+}
+
+function ReplyMedia({ attachment }: { attachment: import("@/lib/inbox/media").InboxOutboundAttachment }) {
+  if (attachment.kind === "image") return <a href={attachment.url} target="_blank" rel="noreferrer" className="mt-2 block"><img src={attachment.url} alt={attachment.name} className="max-h-48 max-w-full rounded-md object-contain" /></a>;
+  if (attachment.kind === "audio") return <audio controls preload="metadata" src={attachment.url} className="mt-2 h-9 max-w-full" />;
+  return <a href={attachment.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--portal-accent)]">{attachment.name} <ArrowUpRight size={12} /></a>;
 }
 
 export function CustomerFileLinkForm({ clientId, readOnly = false }: { clientId: string; readOnly?: boolean }) {

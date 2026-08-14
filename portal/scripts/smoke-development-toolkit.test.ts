@@ -180,7 +180,7 @@ test("legacy stage names are migrated onto the default workflow without leaking 
   assert.equal(migrated?.workflowStageIds.includes(toolkit.developmentStageRef(secondFlow.id, "design")), false);
 });
 
-test("navigation, APIs, upload and global search expose the complete Development workspace", () => {
+test("Fulfilment navigation, APIs, upload and global search expose the complete technical workspace", () => {
   const sidebar = readFileSync("src/lib/chrome/sidebarLayout.ts", "utf8");
   const nav = readFileSync("src/app/portal/agency/development/_DevelopmentNav.tsx", "utf8");
   const api = readFileSync("src/app/api/portal/development/route.ts", "utf8");
@@ -190,8 +190,9 @@ test("navigation, APIs, upload and global search expose the complete Development
   const workspace = readFileSync("src/app/portal/agency/development/_DevelopmentToolkitWorkspace.tsx", "utf8");
   const toolkit = readFileSync("src/server/developmentToolkit.ts", "utf8");
   const search = readFileSync("src/app/api/portal/search/route.ts", "utf8");
-  assert.match(sidebar, /href: "\/portal\/agency\/development"/);
-  for (const path of ["toolkit", "workflow", "vault"]) assert.match(nav, new RegExp(`development/${path}`));
+  assert.match(sidebar, /href: "\/portal\/agency\/fulfilment"/);
+  assert.doesNotMatch(sidebar, /items\.push\(\{ id: "development"/);
+  for (const path of ["toolkit", "workflow", "vault"]) assert.match(nav, new RegExp(`fulfilment/technical/${path}`));
   assert.match(api, /catalogue:workspace/);
   assert.match(api, /credential:reveal/);
   assert.match(api, /hasSharedLogin/);

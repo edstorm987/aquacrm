@@ -253,7 +253,7 @@ export function FirstPartyProjectWorkspace({
     <div className="space-y-7">
       <header className="flex flex-wrap items-end justify-between gap-5">
         <div className="max-w-3xl">
-          <Link href="/portal/agency/development" className="inline-flex items-center gap-1.5 text-xs font-medium text-black/45 hover:text-black/75">
+          <Link href="/portal/agency/fulfilment?view=technical" className="inline-flex items-center gap-1.5 text-xs font-medium text-black/45 hover:text-black/75">
             <ArrowLeft size={13} />Development control centre
           </Link>
           <div className="mt-4 flex flex-wrap items-center gap-2">

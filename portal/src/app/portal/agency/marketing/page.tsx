@@ -33,18 +33,20 @@ import { listInboxConnections } from "@/lib/server/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/metaMessaging";
 import { listAutomationWorkflows } from "@/server/automations";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
+import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
+import { cleanClientMarketingService } from "@/lib/clientMarketingService";
 
 const LEADS_PLUGIN = "leads-pipeline";
 const FINANCE_PLUGIN = "agency-finance";
 const EMAIL_PLUGIN = "email-sender";
 const MARKETING_PLUGIN = "agency-marketing";
 const MARKETING_ASSETS_KEY = "milesymedia/channel-assets/v1";
-type MarketingView = "overview" | "campaigns" | "customer-profiles" | "social" | "website" | "funnels" | "google-ads" | "google-business" | "reputation" | "sources" | "automations";
+type MarketingView = "overview" | "client-services" | "campaigns" | "customer-profiles" | "social" | "website" | "funnels" | "google-ads" | "google-business" | "reputation" | "sources" | "automations";
 
 export default async function MarketingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; brand?: string; compose?: string }>;
+  searchParams: Promise<{ view?: string; brand?: string; compose?: string; client?: string }>;
 }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
@@ -194,6 +196,38 @@ export default async function MarketingPage({
   });
   const automationWorkflows = listAutomationWorkflows(session.agencyId);
 
+  if (view === "client-services") {
+    const selectedClient = clients.find(client => client.id === params.client) ?? clients.find(client => cleanClientMarketingService((client.metadata ?? {}).clientMarketingService).enabled) ?? clients[0] ?? null;
+    return (
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+        <header className="grid gap-5 border-b border-black/10 pb-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><Users size={13} aria-hidden /> Managed client delivery</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Client social and ads services</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Operate client channels, approvals, paid media and attributable results from the same Marketing system used internally.</p>
+            <Link href="/portal/agency/marketing" className="mt-3 inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowLeft size={14} /> Back to marketing dashboard</Link>
+          </div>
+          <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Users size={17} aria-hidden /></span>
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Service portfolio</p><p className="text-sm font-semibold text-black/75">{clients.filter(client => cleanClientMarketingService((client.metadata ?? {}).clientMarketingService).enabled).length} active · {clients.length} clients</p></div>
+          </div>
+        </header>
+        <MarketingWorkspaceNavigation view={view} brandScope="all" />
+        <section aria-labelledby="marketing-client-scope-heading">
+          <div className="flex items-end justify-between gap-4"><div><h2 id="marketing-client-scope-heading" className="text-sm font-semibold text-black/75">Client scope</h2><p className="mt-1 text-xs text-black/45">Every record below is tenant-scoped to the selected client.</p></div>{selectedClient ? <Link href={`/portal/clients/${encodeURIComponent(selectedClient.id)}?tab=marketing`} className="text-xs font-semibold text-brand">Open client workspace <ArrowUpRight className="inline" size={13} /></Link> : null}</div>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {clients.map(client => {
+              const active = client.id === selectedClient?.id;
+              const service = cleanClientMarketingService((client.metadata ?? {}).clientMarketingService);
+              return <Link key={client.id} href={`/portal/agency/marketing?view=client-services&client=${encodeURIComponent(client.id)}`} aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold ${active ? "border-brand bg-brand text-white" : "border-black/10 bg-white text-black/58"}`}><span className={`size-2 rounded-full ${service.enabled && service.status === "active" ? "bg-emerald-400" : "bg-black/20"}`} />{client.name}</Link>;
+            })}
+          </div>
+        </section>
+        {selectedClient ? <ClientMarketingServiceWorkspace clientId={selectedClient.id} clientName={selectedClient.name} initial={cleanClientMarketingService((selectedClient.metadata ?? {}).clientMarketingService)} canManage canApprove={false} embeddedInMarketing /> : <p className="border-y border-black/10 py-16 text-center text-sm text-black/45">Add a client before configuring a managed social or ads service.</p>}
+      </div>
+    );
+  }
+
   if (view === "overview") {
     return (
       <div className="mx-auto flex min-h-[calc(100dvh-8rem)] w-full max-w-7xl flex-col gap-6 pb-10">
@@ -210,6 +244,9 @@ export default async function MarketingPage({
             </div>
             <Link href={marketingHref("campaigns", brandScope)} className="inline-flex min-h-12 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">
               Open marketing workspace <ArrowUpRight size={16} />
+            </Link>
+            <Link href={marketingHref("client-services", "all")} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-black/12 bg-white px-4 text-sm font-semibold text-black/70">
+              Client services <Users size={16} />
             </Link>
           </div>
         </header>
@@ -236,7 +273,10 @@ export default async function MarketingPage({
           <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand"><LockKeyhole size={13} aria-hidden /> Internal workspace</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">Marketing workspace</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-black/55">Configure campaigns, audiences, channels, websites, funnels, advertising and reputation for the selected business.</p>
-          <Link href={marketingHref("overview", brandScope)} className="mt-3 inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowLeft size={14} /> Back to dashboard</Link>
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            <Link href={marketingHref("overview", brandScope)} className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowLeft size={14} /> Back to dashboard</Link>
+            <Link href="/portal/agency/agency-marketing" className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-brand hover:underline"><ArrowUpRight size={14} /> Templates, reports and calendar</Link>
+          </div>
         </div>
         <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Building2 size={17} aria-hidden /></span>
@@ -362,7 +402,7 @@ export default async function MarketingPage({
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">The same first-party website Development controls, viewed here as a marketing asset: traffic, conversion routes, public availability and the pages carrying the offer.</p>
                 </div>
               </div>
-              <Link href="/portal/agency/development/website" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">Open website control <ArrowUpRight size={15} /></Link>
+              <Link href="/portal/agency/fulfilment/technical/website" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">Open website control <ArrowUpRight size={15} /></Link>
             </div>
             <div className="grid border-t border-black/10 sm:grid-cols-4">
               <WebsiteMetric icon={<RadioTower size={15} />} label="Public mode" value={ownWebsite.status === "live" ? "Live" : ownWebsite.status === "maintenance" ? "Maintenance" : "Redesign gate"} />
@@ -395,7 +435,7 @@ function BrandScopeNavigation({ companies, view, activeScope }: { companies: Tra
     <section aria-labelledby="brand-scope-heading">
       <div className="flex items-center justify-between gap-4">
         <div><h2 id="brand-scope-heading" className="text-sm font-semibold text-black/75">Brand scope</h2><p className="mt-0.5 text-xs text-black/45">Switch the whole workspace without splitting the CRM.</p></div>
-        <Link href="/portal/agency/company" className="shrink-0 text-xs font-medium text-brand hover:underline">Manage brands</Link>
+        <Link href="/portal/agency/company?view=companies" className="shrink-0 text-xs font-medium text-brand hover:underline">Manage brands</Link>
       </div>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
         <BrandScopeLink href={marketingHref(view, "all")} active={activeScope === "all"} label="All brands" colour="#111111" />
@@ -753,6 +793,7 @@ function MarketingWorkspaceNavigation({ view, brandScope }: { view: MarketingVie
   return (
     <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
       {view === "automations" ? automationTab : null}
+      <MarketingTab href={marketingHref("client-services", "all")} active={view === "client-services"} icon={Users}>Client services</MarketingTab>
       <MarketingTab href={marketingHref("campaigns", brandScope)} active={view === "campaigns"} icon={Megaphone}>Campaigns</MarketingTab>
       <MarketingTab href={marketingHref("customer-profiles", brandScope)} active={view === "customer-profiles"} icon={UserRoundSearch}>Customer profiles</MarketingTab>
       <MarketingTab href={marketingHref("social", brandScope)} active={view === "social"} icon={RadioTower}>Social media</MarketingTab>
@@ -768,10 +809,10 @@ function MarketingWorkspaceNavigation({ view, brandScope }: { view: MarketingVie
 }
 
 function isMarketingView(value: string | undefined): value is MarketingView {
-  return ["overview", "campaigns", "customer-profiles", "social", "website", "funnels", "google-ads", "google-business", "reputation", "sources", "automations"].includes(value ?? "");
+  return ["overview", "client-services", "campaigns", "customer-profiles", "social", "website", "funnels", "google-ads", "google-business", "reputation", "sources", "automations"].includes(value ?? "");
 }
 
-function viewToAssetKind(view: Exclude<MarketingView, "overview" | "campaigns" | "customer-profiles" | "sources" | "google-business" | "automations">): MarketingAssetKind {
+function viewToAssetKind(view: Exclude<MarketingView, "overview" | "client-services" | "campaigns" | "customer-profiles" | "sources" | "google-business" | "automations">): MarketingAssetKind {
   return view === "funnels" ? "funnel" : view;
 }
 

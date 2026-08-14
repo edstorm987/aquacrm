@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
   destinationForOperationalAlert,
@@ -15,6 +15,7 @@ interface AttentionContextValue {
   alerts: OperationalAlertView[];
   busyAlertId: string | null;
   error: string;
+  refreshAlerts: () => Promise<boolean>;
   updateAlert: (alertId: string, action: OperationalAlertAction, parkedUntil?: number) => Promise<boolean>;
 }
 
@@ -27,21 +28,38 @@ export function NotificationAttentionProvider({ initialAlerts, children }: { ini
 
   useEffect(() => setAlerts(initialAlerts), [initialAlerts]);
 
+  const refreshAlerts = useCallback(async (): Promise<boolean> => {
+    const response = await fetch("/api/portal/notifications", { method: "GET", cache: "no-store" }).catch(() => null);
+    if (!response?.ok) return false;
+    const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[] } | null;
+    if (!payload?.alerts) return false;
+    setAlerts(payload.alerts);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    const refreshWhenActive = () => {
+      if (!document.hidden) void refreshAlerts();
+    };
+    const interval = window.setInterval(refreshWhenActive, 30_000);
+    window.addEventListener("focus", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+    };
+  }, [refreshAlerts]);
+
   useEffect(() => {
     const parkedUntil = alerts
       .filter(alert => alert.state === "parked" && alert.parkedUntil)
       .map(alert => alert.parkedUntil as number)
       .sort((a, b) => a - b)[0];
-    const parkDelay = parkedUntil ? Math.max(1_000, parkedUntil - Date.now() + 500) : Number.POSITIVE_INFINITY;
-    const delay = Math.min(60_000, parkDelay, 2_147_000_000);
-    const timer = window.setTimeout(async () => {
-      const response = await fetch("/api/portal/notifications", { method: "GET" }).catch(() => null);
-      if (!response?.ok) return;
-      const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[] } | null;
-      if (payload?.alerts) setAlerts(payload.alerts);
-    }, delay);
+    if (!parkedUntil) return;
+    const timer = window.setTimeout(() => void refreshAlerts(), Math.min(Math.max(1_000, parkedUntil - Date.now() + 500), 2_147_000_000));
     return () => window.clearTimeout(timer);
-  }, [alerts]);
+  }, [alerts, refreshAlerts]);
 
   async function updateAlert(alertId: string, action: OperationalAlertAction, parkedUntil?: number): Promise<boolean> {
     const previous = alerts;
@@ -68,7 +86,7 @@ export function NotificationAttentionProvider({ initialAlerts, children }: { ini
     }
   }
 
-  const value = useMemo(() => ({ alerts, busyAlertId, error, updateAlert }), [alerts, busyAlertId, error]);
+  const value = useMemo(() => ({ alerts, busyAlertId, error, refreshAlerts, updateAlert }), [alerts, busyAlertId, error, refreshAlerts]);
   return <AttentionContext.Provider value={value}>{children}</AttentionContext.Provider>;
 }
 
@@ -101,6 +119,18 @@ export function useAttentionMatches({
         || prefixHrefs.some(href => operationalAlertMatchesHrefPrefix(alert, href));
     });
   }, [all, categories, context?.alerts, hrefs, navId, prefixHrefs]);
+}
+
+export function useUnresolvedAttentionMatches({ navId }: { navId: string }): OperationalAlertView[] {
+  const context = useNotificationAttention();
+  return useMemo(() => {
+    if (!context) return [];
+    return context.alerts.filter(alert =>
+      alert.persistentUntilResolved
+      && alert.state !== "parked"
+      && destinationForOperationalAlert(alert) === navId
+    );
+  }, [context, navId]);
 }
 
 export function AttentionDot({

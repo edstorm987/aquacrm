@@ -80,7 +80,7 @@ export const FIRST_PARTY_DEVELOPMENT_PROJECTS: readonly FirstPartyDevelopmentPro
     status: "building",
     description: "Reusable starters and modules for faster client delivery without coupling client repositories together.",
     publicUrl: "https://github.com/edstorm987/aquacrm",
-    previewUrl: "http://localhost:3032/portal/agency/development/toolkit",
+    previewUrl: "http://localhost:3032/portal/agency/fulfilment/technical/toolkit",
     sourcePath: `${ecosystemRoot}/aquaCRM/github-templates`,
     repositoryUrl: "https://github.com/edstorm987/aquacrm",
     tags: ["internal", "templates", "starters", "modules"],

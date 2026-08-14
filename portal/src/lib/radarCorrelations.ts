@@ -23,7 +23,7 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     above("sales", "enquiries-7d", "Weekly enquiries", 0),
     above("sales", "awaiting-response", "Leads awaiting response", 0),
   ]),
-  correlation("traffic-conversion-leak", "marketing", "warning", "Traffic is arriving without a conversion signal", "The properties are receiving meaningful traffic, but the radar cannot see forms or conversions. Check the offer, journey, forms, and event instrumentation together.", "/portal/agency/performance", [
+  correlation("traffic-conversion-leak", "marketing", "warning", "Traffic is arriving without a conversion signal", "The properties are receiving meaningful traffic, but the radar cannot see forms or conversions. Check the offer, journey, forms, and event instrumentation together.", "/portal/agency/fulfilment/technical/performance", [
     atLeast("marketing", "traffic-7d", "Weekly traffic", 20),
     atMost("marketing", "form-submissions", "Form submissions", 0),
     atMost("marketing", "conversions", "Tracked conversions", 0),
@@ -36,7 +36,7 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     above("clients", "attention-clients", "Clients needing attention", 0),
     attention("delivery", ["blocked-milestones", "overdue-milestones"], "Blocked or overdue milestones"),
   ]),
-  correlation("client-technology-risk", "clients", "critical", "Client production trouble may be going stale", "Production errors and weak telemetry freshness overlap. Client impact may continue without a trustworthy recovery signal.", "/portal/agency/performance", [
+  correlation("client-technology-risk", "clients", "critical", "Client production trouble may be going stale", "Production errors and weak telemetry freshness overlap. Client impact may continue without a trustworthy recovery signal.", "/portal/agency/fulfilment/technical/performance", [
     above("clients", "production-errors", "Client production errors", 0),
     attention("clients", ["telemetry-freshness"], "Client telemetry freshness"),
   ]),
@@ -60,11 +60,11 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     attention("compliance", ["due-records", "action-required"], "Compliance action due"),
     above("finance", "obligations", "Finance obligations", 0),
   ]),
-  correlation("production-acquisition-impact", "development", "critical", "Production errors coincide with traffic loss", "Runtime errors and falling traffic overlap. Acquisition performance may be suffering from a technical failure rather than a campaign problem.", "/portal/agency/performance", [
+  correlation("production-acquisition-impact", "development", "critical", "Production errors coincide with traffic loss", "Runtime errors and falling traffic overlap. Acquisition performance may be suffering from a technical failure rather than a campaign problem.", "/portal/agency/fulfilment/technical/performance", [
     above("development", "production-errors", "Production errors", 0),
     above("marketing", "traffic-drops", "Properties losing traffic", 0),
   ]),
-  correlation("silent-property-risk", "development", "critical", "A live property is losing observability", "Expected production properties are silent or their Aqua Tags are stale. Healthy-looking downstream metrics cannot be trusted until reporting resumes.", "/portal/agency/performance", [
+  correlation("silent-property-risk", "development", "critical", "A live property is losing observability", "Expected production properties are silent or their Aqua Tags are stale. Healthy-looking downstream metrics cannot be trusted until reporting resumes.", "/portal/agency/fulfilment/technical/performance", [
     attention("development", ["monitoring-silence", "tag-freshness", "tag-coverage"], "Tag or monitoring silence"),
     above("development", "property-coverage", "Tracked properties", 0),
   ]),
@@ -72,7 +72,7 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     above("systems", "integration-failures", "Integration failures", 0),
     attention("systems", ["telemetry-ingestion", "inbox-ingestion"], "Inbound data flow"),
   ]),
-  correlation("sales-revenue-gap", "company", "warning", "Revenue gap and pipeline weakness overlap", "The current revenue gap is not backed by a confidently healthy sales pipeline. The plan needs more qualified demand, faster conversion, or both.", "/portal/agency/company", [
+  correlation("sales-revenue-gap", "company", "warning", "Revenue gap and pipeline weakness overlap", "The current revenue gap is not backed by a confidently healthy sales pipeline. The plan needs more qualified demand, faster conversion, or both.", "/portal/agency?station=battle&battle=projections", [
     above("company", "revenue-gap", "Revenue gap", 0),
     attention("company", ["pipeline-health"], "Pipeline health"),
   ]),
@@ -80,7 +80,7 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     above("operations", "unassigned-tasks", "Unassigned tasks", 0),
     above("inbox", "unassigned-conversations", "Unassigned conversations", 0),
   ]),
-  correlation("release-regression", "development", "critical", "A release may be degrading production", "Release-linked errors and slow live properties overlap. Compare deployment timing with the first affected telemetry event.", "/portal/agency/development/website", [
+  correlation("release-regression", "development", "critical", "A release may be degrading production", "Release-linked errors and slow live properties overlap. Compare deployment timing with the first affected telemetry event.", "/portal/agency/fulfilment/technical/website", [
     above("development", "release-errors", "Release-linked errors", 0),
     above("development", "slow-properties", "Slow properties", 0),
   ]),
@@ -153,7 +153,7 @@ export function buildRadarCorrelationIssues(
       evidence: [...families].slice(0, 8).map(readable),
       href: sourceChecks[0]?.href ?? "/portal/agency",
       detectedAt: now,
-      sourceIds: [...new Set(sourceChecks.map(check => check.sourceId))].slice(0, 25),
+      sourceIds: [...new Set(sourceChecks.map(check => check.sourceId))],
     });
   }
 

@@ -42,6 +42,7 @@ export function buildRadarMemoryDigest(
     status: !previous ? "first-sweep" : scanGapMs! > 3 * MINUTE ? "delayed" : "current",
     totalSweeps: (memory?.totalSweeps ?? 0) + (includeCurrentSweep ? 1 : 0),
     firstSweepAt: memory?.firstSweepAt ?? (includeCurrentSweep ? now : undefined),
+    lastSweepAt: includeCurrentSweep ? now : memory?.lastSweepAt,
     previousSweepAt: previous?.scannedAt,
     scanGapMs,
     newIssues,

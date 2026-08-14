@@ -72,19 +72,22 @@ export interface BuildSidebarInput {
 function defaultMainItems(input: BuildSidebarInput): NavItem[] {
   const items: NavItem[] = [];
   if (input.scope === "agency") {
-    items.push({ id: "home", label: "Command center", href: "/portal/agency", panelId: "main", order: -10 });
+    items.push({ id: "home", label: "Command Centre", href: "/portal/agency", panelId: "main", order: -10 });
     if (isAgencyRole(input.role)) {
       // AquaOasis-Web canonical sidebar: the business's daily operating areas.
       // rows under Agency OS, in this order. Everything else stays parked.
-      items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -9 });
-      items.push({ id: "inbox",       label: "Master inbox",       href: "/portal/agency/inbox",           panelId: "main", order: -8 });
-      items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "main", order: -5.8 });
-      items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -5.5 });
-      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "main", order: -5 });
-      items.push({ id: "development", label: "Development",        href: "/portal/agency/development", panelId: "ops", order: -3 });
+      items.push({ id: "inbox",       label: "Master inbox",       href: "/portal/agency/inbox",           panelId: "main", order: -9 });
+      items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -8 });
+      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "main", order: -7 });
+      items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "main", order: -6 });
+      items.push({ id: "finance",     label: "Finance",            href: "/portal/agency/agency-finance",  panelId: "ops",  order: -4 });
+      if (input.role === "agency-owner" || input.role === "agency-manager") {
+        items.push({ id: "people",      label: "Staff",              href: "/portal/agency/people",          panelId: "main", order: -3 });
+      }
+      items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -2.5 });
       items.push({ id: "marketing",   label: "Marketing",          href: "/portal/agency/marketing",       panelId: "main", order: -2 });
-      items.push({ id: "finance",     label: "Finance",            href: "/portal/agency/agency-finance",  panelId: "ops",  order: -3 });
       items.push({ id: "sop-library", label: "SOP library",        href: "/portal/agency/sop-library",     panelId: "ops",  order: -2 });
+      items.push({ id: "tools",       label: "Tools",              href: "/portal/agency/tools",           panelId: "tools", order: -1 });
     }
   } else if (input.scope === "client" && input.currentClient) {
     items.push({
@@ -205,8 +208,8 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
-      "home", "actions", "inbox", "fulfilment", "you-deserve-it",
-      "pipelines", "development", "marketing", "finance", "sop-library",
+          "home", "inbox", "actions", "pipelines", "fulfilment",
+      "finance", "people", "you-deserve-it", "marketing", "sop-library", "tools",
     ]);
     const canonicalOrder = [...canonicalMainIds];
     // Collect any "Logs" items from any panel and re-route to settings.

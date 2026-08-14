@@ -76,6 +76,20 @@ export function ensureDefaultAgencyProducts(agencyId: string): AgencyProduct[] {
         });
       }
     }
+    const socialAds = PORTAL_PRODUCT_CATALOG.find(definition => definition.catalogKey === "social-ads");
+    if (socialAds && !existing.some(product => product.portalTemplateKey === "social-ads" || product.name.toLowerCase() === socialAds.name.toLowerCase())) {
+      createAgencyProduct(agencyId, {
+        name: socialAds.name,
+        category: defaultCategory(socialAds.catalogKey),
+        description: socialAds.description,
+        pricing: "recurring",
+        billingInterval: "month",
+        deliverables: socialAds.deliverables,
+        portalRequirement: "required",
+        portalTemplateKey: socialAds.catalogKey,
+        portalHeadline: socialAds.homeHeading,
+      }, "system");
+    }
     return listAgencyProducts(agencyId, true);
   }
   for (const definition of PORTAL_PRODUCT_CATALOG) {
@@ -270,6 +284,7 @@ function validKind(value?: AgencyProductKind): AgencyProductKind {
 }
 
 function defaultCategory(key: string): string {
+  if (key === "social-ads") return "Growth";
   if (key === "photography" || key === "content" || key === "brand-identity") return "Creative";
   if (key === "ongoing-care") return "Support";
   if (key === "business-os" || key === "health-check") return "Lead magnets";

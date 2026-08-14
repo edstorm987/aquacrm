@@ -4,12 +4,14 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Radar inspection is a tenant-scoped owner and manager workspace", () => {
+test("legacy Radar links preserve their inspector state inside Command Centre", () => {
   const page = read("src/app/portal/agency/radar/page.tsx");
   const route = read("src/app/api/portal/advisor/radar/evidence/route.ts");
-  assert.match(page, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
-  assert.match(page, /getCachedBusinessIssueRadar/);
-  assert.match(page, /inspectRadarEvidence/);
+  assert.match(page, /redirect/);
+  assert.match(page, /station: "radar-inspector"/);
+  assert.match(page, /"view", "query", "domain", "status", "scope", "lens", "source", "dataset"/);
+  assert.match(page, /params\.set\(key, value\.trim\(\)\.slice\(0, 240\)\)/);
+  assert.match(page, /redirect\(`\/portal\/agency\?\$\{params\.toString\(\)\}`\)/);
   assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
   assert.match(route, /session\.agencyId/);
   assert.match(route, /cache-control/);
@@ -30,18 +32,29 @@ test("evidence inspection exposes an index, complete series, and archive without
   assert.doesNotMatch(vault, /agencyId: series\.agencyId/);
 });
 
-test("manual inspection covers every Radar layer and links from command center", () => {
+test("manual inspection covers every Radar layer and links from Command Centre", () => {
   const workspace = read("src/app/portal/agency/radar/RadarInspectionWorkspace.tsx");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const stationNav = read("src/app/portal/agency/_CommandStationNav.tsx");
+  assert.match(stationNav, /label="Command Centre"/);
+  assert.doesNotMatch(stationNav, /Radar workspace/);
+  assert.doesNotMatch(stationNav, /KPI Intelligence/);
+  assert.match(dashboard, /CommandInstrumentDock/);
+  assert.match(dashboard, /Open Radar Workspace/);
+  assert.match(dashboard, /Open KPI Intelligence/);
+  assert.match(dashboard, /Back to Command Centre/);
   assert.match(dashboard, /Data inspector/);
-  assert.match(dashboard, /Records, evidence and raw values/);
   assert.match(dashboard, /initialTab=\{inspectorTarget\.tab\}/);
   assert.match(dashboard, /initialDomain=\{inspectorTarget\.domain\}/);
   assert.match(dashboard, /initialStatus=\{inspectorTarget\.status\}/);
   assert.match(dashboard, /initialScope=\{inspectorTarget\.scope\}/);
-  assert.match(dashboard, /initialLens=\{inspectorTarget\.lens\} embedded/);
+  assert.match(dashboard, /initialLens=\{inspectorTarget\.lens\}/);
+  assert.match(dashboard, /<RadarInspectionWorkspace[^>]* embedded \/>/s);
+  assert.match(dashboard, /initialSourceId=\{inspectorTarget\.sourceId\}/);
+  assert.match(dashboard, /initialDatasetId=\{inspectorTarget\.datasetId\}/);
+  assert.match(dashboard, /searchParams\.get\("station"\) !== "radar-inspector"/);
   assert.match(dashboard, /onOpenInspector/);
-  assert.match(dashboard, /Inspect source data/);
+  assert.match(dashboard, /Data inspector/);
   assert.match(dashboard, /Inspect raw findings/);
   assert.match(dashboard, /Inspect source records/);
   assert.match(dashboard, /Inspect.*samples/);

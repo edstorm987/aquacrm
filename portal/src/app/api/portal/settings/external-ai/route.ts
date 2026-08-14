@@ -157,17 +157,24 @@ export async function DELETE(req: NextRequest) {
 function connectionStatus(sessionAgencyId: string) {
   const keys = listExternalAssistantApiKeys(sessionAgencyId);
   const activeKeys = keys.filter(key => key.status === "active");
-  const legacyToken = process.env.MILESYMEDIA_ASSISTANT_API_TOKEN?.trim() ?? "";
-  const legacyAgencyId = process.env.MILESYMEDIA_ASSISTANT_AGENCY_ID?.trim() || "milesymedia";
+  const legacyToken = process.env.AQUACRM_ASSISTANT_API_TOKEN?.trim()
+    || process.env.MILESYMEDIA_ASSISTANT_API_TOKEN?.trim()
+    || "";
+  const legacyAgencyId = process.env.AQUACRM_ASSISTANT_AGENCY_ID?.trim()
+    || process.env.MILESYMEDIA_ASSISTANT_AGENCY_ID?.trim()
+    || "milesymedia";
   const legacyReady = legacyToken.length >= 32
     && legacyAgencyId === sessionAgencyId
     && Boolean(getState().agencies[legacyAgencyId]);
   const primaryFingerprint = activeKeys[0]?.fingerprint
     || (legacyToken ? crypto.createHash("sha256").update(legacyToken).digest("hex").slice(0, 12) : null);
 
+  const ready = activeKeys.length > 0 || legacyReady;
   return {
-    ready: activeKeys.length > 0 || legacyReady,
+    ready,
     readOnly: true,
+    mcpReady: ready,
+    advisorPeerReady: activeKeys.some(key => key.permissions.includes("advisor:read")) || legacyReady,
     tokenConfigured: activeKeys.length > 0 || legacyToken.length > 0,
     tokenStrongEnough: activeKeys.length > 0 || legacyToken.length >= 32,
     tokenFingerprint: primaryFingerprint,

@@ -12,6 +12,7 @@ export type OperationalAlertCategory =
   | "contract"
   | "development";
 
+
 export interface OperationalAlert {
   id: string;
   severity: OperationalAlertSeverity;
@@ -19,6 +20,7 @@ export interface OperationalAlert {
   title: string;
   detail: string;
   href: string;
+  persistentUntilResolved?: boolean;
   clientName?: string;
   occurredAt: number;
 }
@@ -38,8 +40,8 @@ const CATEGORY_DESTINATION: Record<OperationalAlertCategory, string> = {
   support: "inbox",
   meeting: "pipelines",
   client: "pipelines",
-  outage: "development",
-  development: "development",
+  outage: "fulfilment",
+  development: "fulfilment",
   marketing: "marketing",
   money: "finance",
   compliance: "finance",
@@ -50,11 +52,11 @@ export function destinationForOperationalAlert(alert: OperationalAlert): string 
   const href = alert.href;
   if (href.startsWith("/portal/agency/actions")) return "actions";
   if (href.startsWith("/portal/agency/inbox")) return "inbox";
-  if (href.startsWith("/portal/agency/fulfilment") || href.startsWith("/portal/agency/portals") || href.includes("tab=fulfilment")) return "fulfilment";
+  if (href.startsWith("/portal/agency/marketing") || href.includes("tab=marketing")) return "marketing";
+  if (href.startsWith("/portal/agency/fulfilment") || href.startsWith("/portal/agency/portals") || href.startsWith("/portal/agency/development") || href.startsWith("/portal/agency/performance") || href.includes("tab=fulfilment") || href.includes("tab=delivery") || href.includes("tab=portal") || href.includes("tab=systems") || href.includes("tab=properties")) return "fulfilment";
   if (href.startsWith("/portal/agency/pipelines") || href.startsWith("/portal/clients?")) return "pipelines";
-  if (href.startsWith("/portal/agency/development") || href.includes("tab=systems") || href.includes("tab=properties")) return "development";
-  if (href.startsWith("/portal/agency/marketing")) return "marketing";
   if (href.startsWith("/portal/agency/agency-finance") || href.includes("tab=finance")) return "finance";
+  if (href.startsWith("/portal/agency/people")) return "people";
   return CATEGORY_DESTINATION[alert.category];
 }
 

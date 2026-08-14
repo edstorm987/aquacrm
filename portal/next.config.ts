@@ -61,8 +61,20 @@ const nextConfig: NextConfig = {
           destination: "/aquacrm-site/privacy/index.html",
         },
         {
+          source: "/contact",
+          destination: "/aquacrm-site/contact/index.html",
+        },
+        {
+          source: "/contact/",
+          destination: "/aquacrm-site/contact/index.html",
+        },
+        {
           source: "/styles.css",
           destination: "/aquacrm-site/styles.css",
+        },
+        {
+          source: "/site-experience.js",
+          destination: "/aquacrm-site/site-experience.js",
         },
         {
           source: "/projects.js",

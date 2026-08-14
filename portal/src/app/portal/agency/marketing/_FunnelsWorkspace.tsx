@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  CalendarClock,
   Check,
   Code2,
   ExternalLink,
@@ -75,6 +76,11 @@ type FunnelDraft = {
   conversionEvent: string;
   telemetrySiteKey: string;
   telemetryPropertyId: string;
+  audienceNiche: string;
+  bookingDurationMinutes: string;
+  bookingCalendarUrl: string;
+  bookingMeetingMode: string;
+  bookingConfirmation: string;
   budget: string;
   spend: string;
   leads: string;
@@ -107,6 +113,11 @@ const EMPTY_DRAFT: FunnelDraft = {
   conversionEvent: "funnel_complete",
   telemetrySiteKey: "",
   telemetryPropertyId: "",
+  audienceNiche: "",
+  bookingDurationMinutes: "30",
+  bookingCalendarUrl: "",
+  bookingMeetingMode: "Google Meet",
+  bookingConfirmation: "You're booked. We will send the joining details and preparation notes shortly.",
   budget: "",
   spend: "",
   leads: "0",
@@ -120,11 +131,13 @@ export function FunnelsWorkspace({
   companies = [],
   projects = [],
   defaultCompanyIds = [],
+  bookingFirst = false,
 }: {
   assets: MarketingAsset[];
   companies?: FunnelCompanyOption[];
   projects?: FunnelProjectOption[];
   defaultCompanyIds?: string[];
+  bookingFirst?: boolean;
 }) {
   const router = useRouter();
   const [records, setRecords] = useState(assets);
@@ -163,7 +176,17 @@ export function FunnelsWorkspace({
     : 0;
 
   function startNew() {
-    setDraft({ ...EMPTY_DRAFT, companyIds: [...defaultCompanyIds], steps: DEFAULT_STEPS.map(step => ({ ...step, id: createId("step") })) });
+    const steps = bookingFirst ? bookingSteps() : DEFAULT_STEPS.map(step => ({ ...step, id: createId("step") }));
+    setDraft({
+      ...EMPTY_DRAFT,
+      companyIds: [...defaultCompanyIds],
+      name: bookingFirst ? "Niche discovery call" : "",
+      objective: bookingFirst ? "Turn a qualified visitor into a confirmed meeting." : "",
+      primaryGoal: bookingFirst ? "Book a qualified meeting" : "",
+      primaryCta: bookingFirst ? "Choose a time" : "Get started",
+      conversionEvent: bookingFirst ? "meeting_booked" : "funnel_complete",
+      steps,
+    });
     setActiveStepId("");
     setView("builder");
     setNotice("");
@@ -268,6 +291,11 @@ export function FunnelsWorkspace({
         conversionEvent: draft.conversionEvent,
         telemetrySiteKey: draft.telemetrySiteKey,
         telemetryPropertyId: draft.telemetryPropertyId,
+        audienceNiche: draft.audienceNiche,
+        bookingDurationMinutes: countValue(draft.bookingDurationMinutes),
+        bookingCalendarUrl: draft.bookingCalendarUrl,
+        bookingMeetingMode: draft.bookingMeetingMode,
+        bookingConfirmation: draft.bookingConfirmation,
         steps: draft.steps,
       },
     };
@@ -317,9 +345,9 @@ export function FunnelsWorkspace({
     <section className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Conversion journeys</p>
-          <h2 className="mt-1 text-2xl font-semibold text-black/88">Funnels</h2>
-          <p className="mt-2 text-sm leading-6 text-black/52">Build the route, inspect every breakpoint, connect the repository and track the action that turns attention into a lead, meeting or sale.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">{bookingFirst ? "Journey · Booking experience" : "Conversion journeys"}</p>
+          <h2 className="mt-1 text-2xl font-semibold text-black/88">{bookingFirst ? "Booking funnels" : "Funnels"}</h2>
+          <p className="mt-2 text-sm leading-6 text-black/52">{bookingFirst ? "Create a niche-specific route that earns trust, qualifies the visitor and carries them into a confirmed meeting without exposing a generic scheduler." : "Build the route, inspect every breakpoint, connect the repository and track the action that turns attention into a lead, meeting or sale."}</p>
         </div>
         <button type="button" onClick={startNew} className={primary}><Plus size={16} />New funnel</button>
       </header>
@@ -476,6 +504,17 @@ function BuilderView({
         <div className="mt-4"><BrandAssignment companyIds={draft.companyIds} companies={companies} onChange={companyIds => onDraft({ companyIds })} /></div>
       </section>
 
+      {draft.steps.some(step => step.kind === "booking") ? <section>
+        <SectionHeading icon={<CalendarClock size={16} />} title="Booking experience" detail="Shape the scheduler around this audience and retain the calendar destination used by the live build." />
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Field label="Audience or niche" value={draft.audienceNiche} onChange={value => onDraft({ audienceNiche: value })} placeholder="Independent dental practices" />
+          <Field label="Meeting length (minutes)" type="number" value={draft.bookingDurationMinutes} onChange={value => onDraft({ bookingDurationMinutes: value })} placeholder="30" />
+          <Field label="Calendar or scheduler URL" value={draft.bookingCalendarUrl} onChange={value => onDraft({ bookingCalendarUrl: value })} placeholder="https://calendar.google.com/..." />
+          <Field label="Meeting format" value={draft.bookingMeetingMode} onChange={value => onDraft({ bookingMeetingMode: value })} placeholder="Google Meet" />
+          <div className="md:col-span-2"><Field label="Confirmation message" value={draft.bookingConfirmation} onChange={value => onDraft({ bookingConfirmation: value })} placeholder="You're booked. Here is what happens next..." /></div>
+        </div>
+      </section> : null}
+
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <SectionHeading icon={<FileStack size={16} />} title="Steps and pages" detail="Keep it one page, or arrange every screen in the order visitors see it." />
@@ -614,11 +653,11 @@ function ConnectionsView({
             { value: "", label: "No linked project" },
             ...projects.map(project => ({ value: project.id, label: `${project.brand}  -  ${project.name}` })),
           ]} />
-          {linkedProject ? <Link href={`/portal/agency/development/projects/${linkedProject.id}`} className={primary}><PencilRuler size={15} />Open full editor</Link> : <Link href="/portal/agency/development" className={secondary}><Layers3 size={15} />Development</Link>}
+          {linkedProject ? <Link href={`/portal/agency/fulfilment/technical/projects/${linkedProject.id}`} className={primary}><PencilRuler size={15} />Open full editor</Link> : <Link href="/portal/agency/fulfilment?view=technical" className={secondary}><Layers3 size={15} />Technical delivery</Link>}
         </div>
         {linkedProject ? (
           <div className="mt-3 grid gap-2 rounded-md border border-black/10 bg-black/[0.018] p-3 sm:grid-cols-3">
-            <ConnectionPill label="Project explorer" href={`/portal/agency/development/projects/${linkedProject.id}`} />
+            <ConnectionPill label="Project explorer" href={`/portal/agency/fulfilment/technical/projects/${linkedProject.id}`} />
             <ConnectionPill label="Repository" href={draft.repositoryUrl || linkedProject.repositoryUrl} external />
             <ConnectionPill label="Local preview" href={draft.previewUrl || linkedProject.previewUrl} external />
           </div>
@@ -630,7 +669,7 @@ function ConnectionsView({
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <Field label="Preview or staging URL" value={draft.previewUrl} onChange={value => onDraft({ previewUrl: value })} placeholder="http://localhost:3000/funnel" />
           <Field label="Production URL" value={draft.productionUrl} onChange={value => onDraft({ productionUrl: value })} placeholder="https://example.com/start" />
-          <Field label="Editor route" value={draft.editorUrl} onChange={value => onDraft({ editorUrl: value })} placeholder="/portal/agency/development/projects/..." />
+          <Field label="Editor route" value={draft.editorUrl} onChange={value => onDraft({ editorUrl: value })} placeholder="/portal/agency/fulfilment/technical/projects/..." />
           <Field label="GitHub repository" value={draft.repositoryUrl} onChange={value => onDraft({ repositoryUrl: value })} placeholder="https://github.com/..." />
           <Field label="Local source folder" value={draft.localPath} onChange={value => onDraft({ localPath: value })} placeholder="/Users/.../project" />
         </div>
@@ -777,13 +816,18 @@ function assetToDraft(asset: MarketingAsset): FunnelDraft {
     primaryCta: funnel?.primaryCta ?? "",
     previewUrl: funnel?.previewUrl ?? "",
     productionUrl: funnel?.productionUrl ?? asset.url ?? "",
-    editorUrl: funnel?.editorUrl ?? (funnel?.developmentProjectId ? `/portal/agency/development/projects/${funnel.developmentProjectId}` : ""),
+    editorUrl: funnel?.editorUrl ?? (funnel?.developmentProjectId ? `/portal/agency/fulfilment/technical/projects/${funnel.developmentProjectId}` : ""),
     repositoryUrl: funnel?.repositoryUrl ?? "",
     localPath: funnel?.localPath ?? "",
     developmentProjectId: funnel?.developmentProjectId ?? "",
     conversionEvent: funnel?.conversionEvent ?? "funnel_complete",
     telemetrySiteKey: funnel?.telemetrySiteKey ?? "",
     telemetryPropertyId: funnel?.telemetryPropertyId ?? "",
+    audienceNiche: funnel?.audienceNiche ?? "",
+    bookingDurationMinutes: String(funnel?.bookingDurationMinutes ?? 30),
+    bookingCalendarUrl: funnel?.bookingCalendarUrl ?? "",
+    bookingMeetingMode: funnel?.bookingMeetingMode ?? "Google Meet",
+    bookingConfirmation: funnel?.bookingConfirmation ?? "You're booked. We will send the joining details and preparation notes shortly.",
     budget: centsToInput(asset.budgetCents),
     spend: centsToInput(asset.spendCents),
     leads: String(asset.leads),
@@ -793,8 +837,17 @@ function assetToDraft(asset: MarketingAsset): FunnelDraft {
   };
 }
 
+function bookingSteps(): FunnelStep[] {
+  return [
+    { id: createId("step"), name: "Niche landing", path: "/", kind: "landing", headline: "A focused conversation about what is holding growth back", ctaLabel: "See if this is for me" },
+    { id: createId("step"), name: "Qualification", path: "/fit", kind: "form", headline: "A few details so the call starts in the right place", ctaLabel: "Choose a time" },
+    { id: createId("step"), name: "Book a time", path: "/book", kind: "booking", headline: "Choose a time that works for you", ctaLabel: "Confirm meeting" },
+    { id: createId("step"), name: "Meeting confirmed", path: "/confirmed", kind: "thank-you", headline: "You are booked", ctaLabel: "" },
+  ];
+}
+
 function projectEditorUrl(project: FunnelProjectOption): string {
-  return `/portal/agency/development/projects/${project.id}`;
+  return `/portal/agency/fulfilment/technical/projects/${project.id}`;
 }
 
 function joinUrl(base: string, path: string): string {

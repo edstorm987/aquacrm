@@ -8,10 +8,11 @@ import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { listInboxSnapshot } from "@/lib/server/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/metaMessaging";
-import { transactionalEmailReadiness } from "@/lib/server/transactionalEmail";
+import { outboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
 
 import { MasterInbox } from "./_MasterInbox";
+import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 
 type RequestRecord = {
   id: string;
@@ -25,6 +26,7 @@ type RequestRecord = {
     message: string;
     from: "customer" | "milesymedia";
     createdAt: number;
+    attachments?: InboxOutboundAttachment[];
   }>;
   propertyId?: string;
   siteLabel?: string;
@@ -93,6 +95,12 @@ export default async function AgencyInboxPage() {
         priority: request.priority ?? triage.priority,
         topic: request.topic ?? triage.topic,
         suggestedAction: request.suggestedAction ?? triage.suggestedAction,
+        ownerEmail: client.ownerEmail,
+        ownerPhone: typeof client.metadata?.phone === "string"
+          ? client.metadata.phone
+          : typeof client.metadata?.contactPhone === "string"
+            ? client.metadata.contactPhone
+            : undefined,
       };
     });
   }).sort((a, b) => {
@@ -111,7 +119,21 @@ export default async function AgencyInboxPage() {
     socialInboxError={socialInboxResult.error}
     metaReadiness={metaInboxReadiness()}
     currentUserId={session.userId}
-    emailReplyConfigured={transactionalEmailReadiness(session.agencyId).configured}
+    communicationReadiness={outboundCommunicationReadiness(session.agencyId)}
+    clientProfiles={clients.map(client => ({
+      id: client.id,
+      name: client.name,
+      ownerEmail: client.ownerEmail || (typeof client.metadata?.clientEmail === "string" ? client.metadata.clientEmail : undefined),
+      ownerPhone: typeof client.metadata?.phone === "string"
+        ? client.metadata.phone
+        : typeof client.metadata?.contactPhone === "string"
+          ? client.metadata.contactPhone
+          : undefined,
+      stage: client.stage,
+      source: typeof client.metadata?.source === "string" ? client.metadata.source : "AquaCRM client",
+      createdAt: client.createdAt,
+      lastContactedAt: typeof client.metadata?.lastContactedAt === "number" ? client.metadata.lastContactedAt : undefined,
+    }))}
     updates={activity.map(entry => ({
       id: entry.id,
       message: entry.message,

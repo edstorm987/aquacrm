@@ -249,7 +249,7 @@ export function AssistantWorkspace({
 
   return (
     <div className={[
-      "flex w-full overflow-hidden bg-white/35",
+      "mm-assistant-workspace flex w-full overflow-hidden bg-white/35",
       variant === "drawer"
         ? "h-full"
         : "mx-auto min-h-[calc(100dvh-6.5rem)] max-w-[1500px] border-y border-black/10 sm:min-h-[calc(100dvh-7rem)]",
@@ -264,8 +264,8 @@ export function AssistantWorkspace({
         />
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-3 sm:px-6">
+      <section className="mm-assistant-main flex min-w-0 flex-1 flex-col">
+        <header className="mm-assistant-header flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-md bg-black text-white">
               <Brain size={17} aria-hidden="true" />
@@ -305,7 +305,7 @@ export function AssistantWorkspace({
 
         <RadarBar radar={coverage.radar} configured={configured} onReview={() => void sendMessage("Review every current business radar issue, explain the evidence, and prioritise what I should do now.")} busy={busy} />
 
-        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+        <div className="mm-assistant-content flex-1 overflow-y-auto px-4 py-6 sm:px-6">
           {coverage.radar.topIssues.length ? <div className="mx-auto w-full max-w-3xl pb-4"><RadarIssues issues={coverage.radar.topIssues} /></div> : null}
           {!configured ? (
             <SetupPanel />
@@ -366,7 +366,7 @@ export function AssistantWorkspace({
           </div>
         )}
 
-        <footer className="border-t border-black/10 bg-white/70 px-4 py-3 sm:px-6 sm:py-4">
+        <footer className="mm-assistant-composer border-t border-black/10 bg-white/70 px-4 py-3 sm:px-6 sm:py-4">
           <form
             className="mx-auto flex w-full max-w-3xl items-end gap-2"
             onSubmit={event => {
@@ -515,7 +515,7 @@ function RadarBar({ radar, configured, onReview, busy }: { radar: AdvisorRadarDi
       ? `${formatElapsed(speed.oldestWaitingMs)} waiting`
       : "no data";
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 bg-black/[0.018] px-4 py-2.5 sm:px-6">
+    <div className="mm-assistant-radar-bar flex flex-wrap items-center justify-between gap-3 border-b border-black/10 bg-black/[0.018] px-4 py-2.5 sm:px-6">
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
         <span className={`inline-flex items-center gap-1.5 font-semibold ${radar.critical ? "text-red-700" : radar.warning ? "text-amber-700" : "text-emerald-700"}`}>
           {attention ? <AlertTriangle size={13} /> : <CircleCheck size={13} />}{attention ? `${attention} need attention` : "Radar clear"}
@@ -815,7 +815,7 @@ function Drawer({
         aria-modal="true"
         aria-label={title}
         onMouseDown={event => event.stopPropagation()}
-        className={`absolute inset-y-0 ${side === "left" ? "left-0" : "right-0"} flex w-[min(90vw,360px)] flex-col bg-[#fbfaf8] shadow-2xl`}
+        className={`mm-assistant-panel-drawer absolute inset-y-0 ${side === "left" ? "left-0" : "right-0"} flex w-[min(90vw,360px)] flex-col bg-[#fbfaf8] shadow-2xl`}
       >
         <header className="flex min-h-14 items-center justify-between border-b border-black/10 px-4">
           <h2 className="font-semibold text-black/85">{title}</h2>

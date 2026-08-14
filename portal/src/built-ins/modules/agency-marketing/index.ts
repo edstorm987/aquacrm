@@ -106,7 +106,7 @@ const manifest: AquaPlugin = {
     { path: "calendar", component: () => import("./src/pages/CalendarPage") },
     { path: "touchpoints", component: () => import("./src/pages/TouchpointsPage") },
     { path: "performance", component: () => import("./src/pages/PerformancePage") },
-    { path: "settings", component: () => import("./src/pages/SettingsPage") },
+    { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...AGENCY_ADMINS] },
   ],
 
   api: ROUTES,

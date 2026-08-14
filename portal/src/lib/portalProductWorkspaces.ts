@@ -421,6 +421,11 @@ const FIELD_PRESETS: Partial<Record<NonNullable<PortalProductSelection["catalogK
     ["Draft feedback", "Proof and source material", "Calls to action", "Approval requirements"],
     ["Publishing details", "Final formats", "Distribution plan", "Measurement and learning"],
   ],
+  "social-ads": [
+    ["Commercial goal", "Priority audiences", "Channel access", "Approval owners"],
+    ["Content pillars", "Creative references", "Paid targeting", "Voice and exclusions"],
+    ["Launch queue", "Tracking and attribution", "Budget guardrails", "Reporting decisions"],
+  ],
   automation: [
     ["Current process", "Triggers and inputs", "People and systems", "Exceptions and risks"],
     ["Workflow decisions", "Data and permissions", "Notifications", "Failure handling"],

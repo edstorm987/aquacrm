@@ -188,7 +188,7 @@ function ClientPerformance({ client, adding, setAdding, onUpdate, onDelete, peri
   return (
     <>
       <section className="grid gap-4 border-y border-black/10 py-5 lg:grid-cols-[minmax(0,1fr)_repeat(3,minmax(120px,0.35fr))]">
-        <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold text-black/90">{client.name}</h2><Health client={client} /></div><p className="mt-2 text-sm text-black/50">{client.stage} · {client.products.map(product => product.name).join(", ") || "No products assigned"}</p>{client.scope === "client" ? <Link href={`/portal/clients/${client.id}`} className="mt-3 inline-flex text-xs font-semibold text-black/60 hover:text-black">Open client record →</Link> : <Link href="/portal/agency/development/website" className="mt-3 inline-flex text-xs font-semibold text-black/60 hover:text-black">Open website control →</Link>}</div>
+        <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold text-black/90">{client.name}</h2><Health client={client} /></div><p className="mt-2 text-sm text-black/50">{client.stage} · {client.products.map(product => product.name).join(", ") || "No products assigned"}</p>{client.scope === "client" ? <Link href={`/portal/clients/${client.id}`} className="mt-3 inline-flex text-xs font-semibold text-black/60 hover:text-black">Open client record →</Link> : <Link href="/portal/agency/fulfilment/technical/website" className="mt-3 inline-flex text-xs font-semibold text-black/60 hover:text-black">Open website control →</Link>}</div>
         <SmallMetric label="Progress" value={`${score(client)}%`} />
         <SmallMetric label="Gross profit" value={money(client.revenueCents - client.costCents)} />
         <SmallMetric label={`${period}d result`} value={`${analytics.current.conversions} conversions`} />
@@ -349,7 +349,7 @@ function DigitalPerformance({ client, product, kind }: { client: PerformanceClie
     <div className="border-y border-black/10">
       <div className="flex flex-wrap items-center justify-between gap-3 py-4">
         <div><div className="flex items-center gap-2">{kind === "website" ? <Globe2 size={17} /> : kind === "software" ? <Code2 size={17} /> : <Activity size={17} />}<h3 className="font-semibold text-black/85">{heading}</h3></div><p className="mt-1 text-sm text-black/45">{detail}</p></div>
-        <Link href={client.scope === "agency" ? "/portal/agency/development/website" : `/portal/clients/${client.id}?tab=properties`} className="inline-flex items-center gap-1 text-xs font-semibold text-black/60 hover:text-black">{client.scope === "agency" ? "Open website control" : "Manage properties"} <ChevronRight size={13} /></Link>
+        <Link href={client.scope === "agency" ? "/portal/agency/fulfilment/technical/website" : `/portal/clients/${client.id}?tab=systems&systemView=properties`} className="inline-flex items-center gap-1 text-xs font-semibold text-black/60 hover:text-black">{client.scope === "agency" ? "Open website control" : "Manage properties"} <ChevronRight size={13} /></Link>
       </div>
       <div className="grid grid-cols-2 border-y border-black/[0.08] md:grid-cols-5">
         <Signal label="Connected" value={`${connected}/${digitalProperties.length}`} icon={<Server size={15} />} />
@@ -407,7 +407,7 @@ function CreativePerformance({ client, product }: { client: PerformanceClient; p
 function CarePerformance({ client }: { client: PerformanceClient }) {
   return (
     <div className="border-y border-black/10">
-      <PerformanceHeading icon={<HeartPulse size={17} />} title="Support health" detail="Open client requests and live monitoring signals across maintained properties." href={`/portal/clients/${client.id}?tab=fulfilment`} action="Open support" />
+      <PerformanceHeading icon={<HeartPulse size={17} />} title="Support health" detail="Open client requests and live monitoring signals across maintained properties." href={`/portal/clients/${client.id}?tab=communications`} action="Open support" />
       <div className="grid grid-cols-2 border-t border-black/[0.08] md:grid-cols-5">
         <Signal label="Open requests" value={String(client.requests.open)} icon={<AlertTriangle size={15} />} bad={client.requests.open > 0} />
         <Signal label="Resolved" value={String(client.requests.closed)} icon={<Check size={15} />} />

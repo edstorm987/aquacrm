@@ -29,6 +29,8 @@ import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { cleanPortalProducts, PORTAL_PRODUCT_CATALOG, type PortalProductKey } from "@/lib/portalProducts";
 import { defaultProductPipelineStage, PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
+import { listTradingCompanies } from "@/server/tradingCompanies";
+import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
 
 interface RouteProps {
   params: Promise<{ slug: string }>;
@@ -42,6 +44,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
   const { slug } = await params;
   ensureDefaultAgencyProducts(agency.id);
   const agencyProducts = listAgencyProducts(agency.id);
+  const activeBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
 
   const pipeline = getPipelineBySlug(agency.id, slug);
   if (!pipeline) notFound();
@@ -75,6 +78,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
       const storage = makePluginStorage(install.id);
       const { leads, prospects } = leadsContainerFor({ agencyId: agency.id, storage: storage as never });
       const [leadList, prospectList] = await Promise.all([leads.list(), prospects.list()]);
+      const journeyLeadList = leadList.filter(isLeadJourneyEligible);
       const clients = listClients(agency.id);
       const cards = listCards(pipeline.id);
       const columnByLeadId = new Map<string, string>();
@@ -82,7 +86,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
       for (const card of cards) {
         if (card.kind !== "lead") continue;
         const snapshot = card.lead as unknown as { leadId?: string; email?: string };
-        const key = snapshot.leadId ?? leadList.find(lead => lead.email === snapshot.email)?.id;
+        const key = snapshot.leadId ?? journeyLeadList.find(lead => lead.email === snapshot.email)?.id;
         if (key) {
           columnByLeadId.set(key, card.columnId);
           cardUpdatedAtByLeadId.set(key, card.updatedAt);
@@ -109,13 +113,16 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
             capturedAt: prospect.capturedAt,
             updatedAt: prospect.updatedAt,
           }))}
-          leads={leadList.map(lead => {
+          leads={journeyLeadList.map(lead => {
             const client = clients.find(candidate => {
               const sameLead = candidate.metadata?.leadId === lead.id;
               const sameEmail = candidate.ownerEmail?.trim().toLowerCase() === lead.email.trim().toLowerCase();
               return sameLead || sameEmail;
             });
             const clientMetadata = client?.metadata ?? {};
+            const services = cleanPortalProducts(clientMetadata.portalProducts ?? clientMetadata.products);
+            const canonicalServiceIds = (lead.serviceLines ?? []).map(value => agencyProducts.find(product => product.id === value || product.name.toLowerCase() === value.toLowerCase())?.id ?? value);
+            const serviceIds = [...new Set([...services.map(service => service.id), ...canonicalServiceIds])];
             return {
               id: lead.id,
               clientId: client?.id,
@@ -161,7 +168,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               existingServicePlan: typeof clientMetadata.portalServicePlan === "string"
                 ? clientMetadata.portalServicePlan
                 : undefined,
-              existingProductId: cleanPortalProducts(clientMetadata.portalProducts)[0]?.id,
+              existingProductId: services[0]?.id,
               existingProjectValue: typeof clientMetadata.agreedProjectValue === "string"
                 ? clientMetadata.agreedProjectValue
                 : undefined,
@@ -173,11 +180,18 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
                 : lead.tags.find(tag => tag.startsWith("niche:"))?.slice("niche:".length).replace(/-/g, " "),
               sentCount: lead.sentCount,
               columnId: columnByLeadId.get(lead.id) ?? pipeline.columns[0]?.id ?? "new",
+              brandId: client?.companyId ?? lead.companyId ?? lead.companyIds?.[0],
+              brandName: activeBrands.find(brand => brand.id === (client?.companyId ?? lead.companyId ?? lead.companyIds?.[0]))?.name,
+              serviceIds,
+              serviceNames: serviceIds.map(id => services.find(service => service.id === id)?.name ?? agencyProducts.find(product => product.id === id)?.name ?? id),
+              enquiryId: typeof lead.customFields?.enquiryId === "string" ? lead.customFields.enquiryId : undefined,
+              enquiryClassification: lead.customFields?.enquiryClassification === "sales" ? "sales" : undefined,
             };
           })}
           importHref="/portal/agency/leads-pipeline/contacts"
           campaignsHref="/portal/agency/marketing"
           boards={boardLinks}
+          brands={activeBrands.map(brand => ({ id: brand.id, name: brand.name }))}
           products={agencyProducts.map(product => ({
             id: product.id,
             kind: product.kind,
@@ -265,7 +279,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               {overviewRows.map(({ client, products }) => (
                 <div key={client.id} className="grid min-h-20 gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(240px,1.5fr)_auto] sm:items-center">
                   <div className="min-w-0">
-                    <Link href={`/portal/clients/${client.id}`} className="truncate text-sm font-semibold text-black/80 hover:underline">{client.name}</Link>
+                    <Link href={`/portal/clients/${client.id}?tab=delivery`} className="truncate text-sm font-semibold text-black/80 hover:underline">{client.name}</Link>
                     <p className="mt-0.5 text-xs text-black/40">{phaseLabel(client.stage)}</p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -278,7 +292,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
                     ))}
                     {products.length === 0 ? <span className="text-xs text-amber-700">No services assigned</span> : null}
                   </div>
-                  <Link href={`/portal/clients/${client.id}?tab=fulfilment`} className="text-xs font-medium text-black/55 hover:text-black">Manage</Link>
+                  <Link href={`/portal/clients/${client.id}?tab=delivery`} className="text-xs font-medium text-black/55 hover:text-black">Manage</Link>
                 </div>
               ))}
               {overviewRows.length === 0 ? <p className="py-12 text-center text-sm text-black/40">No clients yet.</p> : null}
@@ -305,7 +319,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
         id: client.id,
         label: client.name,
         sub: selectedProduct.name,
-        href: `/portal/clients/${client.id}?tab=fulfilment`,
+        href: `/portal/clients/${client.id}?tab=delivery`,
         columnId,
       }];
     });

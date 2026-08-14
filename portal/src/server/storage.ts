@@ -34,6 +34,7 @@ const empty = (): PortalState => ({
   pipelineCards: {},
   assistant: {},
   externalAssistantApiKeys: {},
+  externalAssistantActionProposals: {},
   integrationConnections: {},
   tasks: {},
   notepadFolders: {},
@@ -45,6 +46,10 @@ const empty = (): PortalState => ({
   dashboardDayPlans: {},
   dashboardWeekPlans: {},
   dashboardWorkSessions: {},
+  commandCalendarEntries: {},
+  commandCalendarConnections: {},
+  commandCalendarSources: {},
+  commandCalendarExternalEvents: {},
   sops: {},
   agencyProducts: {},
   clientMilestones: {},
@@ -65,6 +70,11 @@ const empty = (): PortalState => ({
   radarSyntheticProbes: {},
   radarEvidence: {},
   operationalAlertPreferences: {},
+  peopleApplications: {},
+  peopleEmployees: {},
+  peopleLeaveRequests: {},
+  peopleShifts: {},
+  peopleTrainingAssignments: {},
 });
 
 // ─── Backend interface ────────────────────────────────────────────────────
@@ -335,6 +345,7 @@ function parseBlob(raw: string): PortalState {
       pipelineCards: parsed.pipelineCards ?? {},
       assistant: parsed.assistant ?? {},
       externalAssistantApiKeys: parsed.externalAssistantApiKeys ?? {},
+      externalAssistantActionProposals: parsed.externalAssistantActionProposals ?? {},
       integrationConnections: parsed.integrationConnections ?? {},
       tasks: parsed.tasks ?? {},
       notepadFolders: parsed.notepadFolders ?? {},
@@ -346,6 +357,10 @@ function parseBlob(raw: string): PortalState {
       dashboardDayPlans: parsed.dashboardDayPlans ?? {},
       dashboardWeekPlans: parsed.dashboardWeekPlans ?? {},
       dashboardWorkSessions: parsed.dashboardWorkSessions ?? {},
+      commandCalendarEntries: parsed.commandCalendarEntries ?? {},
+      commandCalendarConnections: parsed.commandCalendarConnections ?? {},
+      commandCalendarSources: parsed.commandCalendarSources ?? {},
+      commandCalendarExternalEvents: parsed.commandCalendarExternalEvents ?? {},
       sops: parsed.sops ?? {},
       agencyProducts: parsed.agencyProducts ?? {},
       clientMilestones: parsed.clientMilestones ?? {},
@@ -366,6 +381,11 @@ function parseBlob(raw: string): PortalState {
       radarSyntheticProbes: parsed.radarSyntheticProbes ?? {},
       radarEvidence: parsed.radarEvidence ?? {},
       operationalAlertPreferences: parsed.operationalAlertPreferences ?? {},
+      peopleApplications: parsed.peopleApplications ?? {},
+      peopleEmployees: parsed.peopleEmployees ?? {},
+      peopleLeaveRequests: parsed.peopleLeaveRequests ?? {},
+      peopleShifts: parsed.peopleShifts ?? {},
+      peopleTrainingAssignments: parsed.peopleTrainingAssignments ?? {},
     };
   } catch {
     return empty();
@@ -407,7 +427,11 @@ async function flush(options?: { throwOnError?: boolean }): Promise<void> {
       }
     } catch (e) {
       lastFlushError = e instanceof Error ? e : new Error(String(e));
-      writable = false;
+      // A remote timeout or brief outage is recoverable. Keep the pending
+      // operations and allow the next mutation or explicit flush to retry.
+      // Only a failed local file write indicates a process-level read-only
+      // state that should remain disabled until restart.
+      if (backend.kind === "file") writable = false;
       if (process.env.NODE_ENV !== "test") {
         console.warn(
           `[portal] backend "${backend.kind}" save failed:`,

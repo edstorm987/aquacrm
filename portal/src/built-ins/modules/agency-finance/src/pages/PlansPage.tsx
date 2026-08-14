@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { FinanceNav } from "../components/FinanceNav";
 
 export default async function PlansPage(props: PluginPageProps) {
   const c = containerFor({
@@ -11,7 +12,9 @@ export default async function PlansPage(props: PluginPageProps) {
   const apiBase = "/api/portal/agency-finance";
 
   return (
-    <section>
+    <section className="mx-auto w-full max-w-6xl space-y-8 pb-12">
+      <FinanceNav active="plans" />
+      <div>
       <header style={{ marginBottom: 16 }}>
         <h1>Plans</h1>
         <p style={{ color: "rgba(0,0,0,0.6)", margin: 0 }}>
@@ -65,6 +68,7 @@ export default async function PlansPage(props: PluginPageProps) {
         <label>Deposit (pence)<input name="lockInFeeCents" type="number" min={0} defaultValue={0} /></label>
         <button type="submit">Create plan</button>
       </form>
+      </div>
     </section>
   );
 }

@@ -247,7 +247,7 @@ export function DevelopmentToolkitWorkspace({
   }
 
   async function removeResource(resource: PublicResource) {
-    if (!window.confirm(`Delete "${resource.title}" from Development?`)) return;
+    if (!window.confirm(`Delete "${resource.title}" from the technical delivery library?`)) return;
     const response = await fetch("/api/portal/development", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -334,7 +334,7 @@ export function DevelopmentToolkitWorkspace({
   return (
     <div className="space-y-7">
       <Header
-        eyebrow={mode === "vault" ? "Knowledge vault" : "Development toolkit"}
+        eyebrow={mode === "vault" ? "Knowledge vault" : "Technical delivery toolkit"}
         title={mode === "vault" ? "What the team knows and can access." : "Everything you reach for, ready."}
         detail={mode === "vault"
           ? "Courses, notes, procedures and controlled shared logins. Passwords are encrypted and only revealed to permitted roles."
@@ -448,7 +448,7 @@ function ResourceDialog({ draft, setDraft, workflows, sops, busy, onClose, onSub
 function UploadDialog({ mode, workflows, onClose, onUploaded }: { mode: Mode; workflows: DevelopmentWorkflow[]; onClose: () => void; onUploaded: (resource: PublicResource) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  return <Modal title="Upload to Development" onClose={onClose}><form className="grid gap-4" onSubmit={async event => { event.preventDefault(); setBusy(true); setError(""); const response = await fetch("/api/portal/development/upload", { method: "POST", body: new FormData(event.currentTarget) }); const result = await response.json().catch(() => null); setBusy(false); if (!response.ok || !result?.resource) return setError(result?.error ?? "Upload failed."); onUploaded(result.resource); }}>
+  return <Modal title="Upload to technical delivery" onClose={onClose}><form className="grid gap-4" onSubmit={async event => { event.preventDefault(); setBusy(true); setError(""); const response = await fetch("/api/portal/development/upload", { method: "POST", body: new FormData(event.currentTarget) }); const result = await response.json().catch(() => null); setBusy(false); if (!response.ok || !result?.resource) return setError(result?.error ?? "Upload failed."); onUploaded(result.resource); }}>
     <label className="grid min-h-32 cursor-pointer place-items-center rounded-md border border-dashed border-black/20 bg-black/[0.015] text-center"><span><Upload size={22} className="mx-auto text-black/35" /><strong className="mt-2 block text-sm text-black/70">Choose a file</strong><small className="mt-1 block text-black/40">Images, PDF, presentation, document, text, JSON or ZIP · 25 MB</small></span><input required type="file" name="file" className="sr-only" /></label>
     <div className="grid gap-4 sm:grid-cols-2"><Field label="Title"><input name="title" className={control} /></Field><Field label="Type"><select name="kind" defaultValue={mode === "vault" ? "knowledge" : "inspiration-pack"} className={control}>{KINDS.filter(item => item.group === mode && item.id !== "credential").map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Field></div>
     <Field label="Description"><textarea name="description" rows={3} className={`${control} py-2`} /></Field>

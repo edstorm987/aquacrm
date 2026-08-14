@@ -183,14 +183,14 @@ export function DevelopmentPortfolio({
     <div className="space-y-7">
       <header className="flex flex-wrap items-end justify-between gap-5">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Development</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Fulfilment · Technical delivery</p>
           <h1 className="mt-1 text-3xl font-semibold text-black/90">Everything we build.</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
             Every website, portal, software product, repository and live signal across the Personal EcoSystem and client work.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/portal/agency/development" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/60 hover:border-black/25 hover:text-black"><ArrowLeft size={15} />Back to dashboard</Link>
+          <Link href="/portal/agency/fulfilment?view=technical" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/60 hover:border-black/25 hover:text-black"><ArrowLeft size={15} />Back to Fulfilment</Link>
           <Link href="/portal/clients" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85"><Boxes size={16} />Add client project</Link>
         </div>
       </header>
@@ -314,7 +314,7 @@ export function DevelopmentPortfolio({
                     <Link
                       href={project.builderReady
                         ? `/portal/clients/${encodeURIComponent(project.clientId)}/edit-website`
-                        : `/portal/clients/${encodeURIComponent(project.clientId)}?tab=website`}
+                        : `/portal/clients/${encodeURIComponent(project.clientId)}?tab=systems&systemView=website`}
                       className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-2 text-[11px] font-semibold text-black/55 hover:bg-black/[0.04] hover:text-black/80"
                     >
                       <LayoutTemplate size={13} aria-hidden="true" /> Design

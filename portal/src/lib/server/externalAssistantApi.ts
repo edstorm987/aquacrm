@@ -57,6 +57,9 @@ export interface ExternalAssistantAuth {
   managed: boolean;
 }
 
+const LEGACY_ENV_PERMISSIONS: ExternalAssistantApiPermission[] = EXTERNAL_ASSISTANT_PERMISSIONS
+  .filter(permission => permission !== "actions:propose");
+
 export class ExternalAssistantApiError extends Error {
   status: number;
   code: string;
@@ -72,7 +75,8 @@ export class ExternalAssistantApiError extends Error {
 }
 
 export async function authenticateExternalAssistant(request: Request): Promise<ExternalAssistantAuth> {
-  const configuredToken = process.env.MILESYMEDIA_ASSISTANT_API_TOKEN?.trim();
+  const configuredToken = process.env.AQUACRM_ASSISTANT_API_TOKEN?.trim()
+    || process.env.MILESYMEDIA_ASSISTANT_API_TOKEN?.trim();
   const hasManagedKeys = Object.values(getState().externalAssistantApiKeys)
     .some(key => !key.revokedAt && (!key.expiresAt || key.expiresAt > Date.now()));
   if (!configuredToken && !hasManagedKeys) {
@@ -105,6 +109,7 @@ export async function authenticateExternalAssistant(request: Request): Promise<E
   }
 
   const agencyId = managedKey?.agencyId
+    || process.env.AQUACRM_ASSISTANT_AGENCY_ID?.trim()
     || process.env.MILESYMEDIA_ASSISTANT_AGENCY_ID?.trim()
     || "milesymedia";
   const state = getState();
@@ -138,7 +143,7 @@ export async function authenticateExternalAssistant(request: Request): Promise<E
     agencyId,
     category: "integrations",
     action: "external_ai.data_accessed",
-    message: "An external AI assistant accessed Milesymedia data.",
+    message: "An external AI assistant accessed AquaCRM data.",
     metadata: {
       method: request.method,
       path: url.pathname,
@@ -158,7 +163,7 @@ export async function authenticateExternalAssistant(request: Request): Promise<E
     modules: managedKey
       ? managedKey.modules.filter(isExternalAssistantModule)
       : [...EXTERNAL_ASSISTANT_MODULES],
-    permissions: managedKey?.permissions ?? [...EXTERNAL_ASSISTANT_PERMISSIONS],
+    permissions: managedKey?.permissions ?? [...LEGACY_ENV_PERMISSIONS],
     managed: Boolean(managedKey),
   };
 }
@@ -166,7 +171,7 @@ export async function authenticateExternalAssistant(request: Request): Promise<E
 export function externalApiErrorResponse(error: unknown): Response {
   if (!(error instanceof ExternalAssistantApiError)) throw error;
   const headers = externalApiHeaders();
-  if (error.status === 401) headers.set("www-authenticate", 'Bearer realm="Milesymedia Assistant API"');
+  if (error.status === 401) headers.set("www-authenticate", 'Bearer realm="AquaCRM External Assistant"');
   if (error.retryAfter) headers.set("retry-after", String(error.retryAfter));
   return Response.json(
     { ok: false, error: { code: error.code, message: error.message } },
@@ -558,7 +563,7 @@ function moduleDescription(module: ExternalAssistantModule): string {
     products: "Products, packages, pricing, contracts, and delivery configuration.",
     milestones: "Custom client milestones and progress.",
     "client-care": "Welcome packs, gifts, occasions, and client-care activity.",
-    company: "Company mission, objectives, plans, projections, and reviews.",
+  company: "Company mission, objectives, plans, projections, reviews, ownership, investments, distributions, and governance.",
     legal: "Contracts, policies, insurance, HMRC, letters, and compliance reminders.",
     finance: "Invoices, income, expenses, and other finance records.",
     activity: "Recent tenant-scoped audit and business activity.",

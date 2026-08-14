@@ -5,6 +5,7 @@ import {
   externalApiHeaders,
   requireExternalAssistantPermission,
 } from "@/lib/server/externalAssistantApi";
+import { buildExternalAdvisorContext } from "@/lib/server/externalAdvisorContext";
 import { ensureHydrated } from "@/server/storage";
 
 export async function GET(request: Request) {
@@ -12,8 +13,15 @@ export async function GET(request: Request) {
     await ensureHydrated();
     const auth = await authenticateExternalAssistant(request);
     requireExternalAssistantPermission(auth, "context:read");
+    const advisor = auth.permissions.includes("advisor:read")
+      ? await buildExternalAdvisorContext(auth)
+      : undefined;
     return Response.json(
-      { ok: true, context: buildExternalAssistantContext(auth.agencyId, auth.modules, auth.permissions) },
+      {
+        ok: true,
+        context: buildExternalAssistantContext(auth.agencyId, auth.modules, auth.permissions),
+        advisor,
+      },
       { headers: externalApiHeaders() },
     );
   } catch (error) {

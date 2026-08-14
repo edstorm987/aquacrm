@@ -514,6 +514,8 @@ export interface AdvisorSkillPolicy {
 }
 
 export type ExternalAssistantApiPermission =
+  | "advisor:read"
+  | "actions:propose"
   | "context:read"
   | "records:read"
   | "search:read"
@@ -536,11 +538,59 @@ export interface ExternalAssistantApiKey {
   revokedBy?: string;
 }
 
+export type ExternalAssistantProposalStatus = "pending" | "parked" | "accepted" | "rejected";
+export type ExternalAssistantProposalCategory =
+  | "company"
+  | "client"
+  | "sales"
+  | "finance"
+  | "delivery"
+  | "support"
+  | "development"
+  | "marketing"
+  | "operations";
+
+export interface ExternalAssistantActionProposal {
+  id: string;
+  agencyId: string;
+  assistantKeyId?: string;
+  assistantFingerprint: string;
+  assistantName: string;
+  title: string;
+  detail: string;
+  evidence: string[];
+  category: ExternalAssistantProposalCategory;
+  priority: AgencyTaskPriority;
+  suggestedDueAt?: number;
+  sourceIds: string[];
+  sourceHref?: string;
+  expectedOutcome?: string;
+  status: ExternalAssistantProposalStatus;
+  submittedAt: number;
+  updatedAt: number;
+  parkedUntil?: number;
+  decidedAt?: number;
+  decidedBy?: string;
+  decisionNote?: string;
+  taskId?: string;
+}
+
 // ─── Agency tasks ────────────────────────────────────────────────────────
 
 export type AgencyTaskStatus = "todo" | "in-progress" | "done";
 export type AgencyTaskPriority = "low" | "normal" | "high" | "urgent";
 export type AgencyTaskRecurrence = "none" | "daily" | "weekly" | "monthly";
+export type AgencyTaskOrigin = "manual" | "radar" | "advisor" | "crm";
+export type AgencyTaskReconciliationStatus = "pending" | "still-firing" | "resolved" | "unverifiable" | "reopened";
+
+export interface AgencyTaskReconciliation {
+  status: AgencyTaskReconciliationStatus;
+  sourceIds: string[];
+  activeSourceIds: string[];
+  checkedAt?: number;
+  resolvedAt?: number;
+  detail: string;
+}
 
 export interface AgencyTask {
   id: string;
@@ -554,6 +604,14 @@ export interface AgencyTask {
   reminderAt?: number;
   recurrence?: AgencyTaskRecurrence;
   seriesId?: string;
+  origin?: AgencyTaskOrigin;
+  sourceId?: string;
+  sourceHref?: string;
+  evidence?: string[];
+  evidenceSourceIds?: string[];
+  expectedOutcome?: string;
+  reconciliation?: AgencyTaskReconciliation;
+  acceptedAt?: number;
   assigneeUserId?: string;
   sopIds?: string[];
   createdBy: string;
@@ -751,6 +809,93 @@ export interface DashboardDayPlan {
   updatedAt: number;
 }
 
+export type CommandCalendarEntryType = "event" | "work-block" | "note" | "reminder" | "goal" | "target";
+export type CommandCalendarEntryStatus = "planned" | "completed" | "cancelled";
+
+export interface CommandCalendarEntry {
+  id: string;
+  agencyId: string;
+  ownerUserId: string;
+  type: CommandCalendarEntryType;
+  title: string;
+  notes?: string;
+  startsAt: number;
+  endsAt?: number;
+  allDay: boolean;
+  reminderAt?: number;
+  status: CommandCalendarEntryStatus;
+  targetValue?: number;
+  currentValue?: number;
+  targetUnit?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type CommandCalendarConnectionStatus = "connected" | "syncing" | "error" | "revoked";
+
+export interface CommandCalendarConnection {
+  id: string;
+  agencyId: string;
+  ownerUserId: string;
+  provider: "google";
+  providerAccountId: string;
+  accountEmail: string;
+  accountName?: string;
+  status: CommandCalendarConnectionStatus;
+  encryptedAccessToken: string;
+  encryptedRefreshToken?: string;
+  accessTokenExpiresAt?: number;
+  scopes: string[];
+  lastSyncedAt?: number;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CommandCalendarSource {
+  id: string;
+  agencyId: string;
+  ownerUserId: string;
+  connectionId: string;
+  provider: "google";
+  providerCalendarId: string;
+  name: string;
+  description?: string;
+  color: string;
+  foregroundColor?: string;
+  timeZone?: string;
+  accessRole: "none" | "freeBusyReader" | "reader" | "writer" | "owner";
+  primary: boolean;
+  selected: boolean;
+  writable: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CommandCalendarExternalEvent {
+  id: string;
+  agencyId: string;
+  ownerUserId: string;
+  connectionId: string;
+  sourceId: string;
+  provider: "google";
+  providerEventId: string;
+  title: string;
+  notes?: string;
+  location?: string;
+  startsAt: number;
+  endsAt?: number;
+  allDay: boolean;
+  status: "confirmed" | "tentative";
+  htmlLink?: string;
+  organizerEmail?: string;
+  attendeeCount?: number;
+  recurringEventId?: string;
+  sourceUpdatedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DashboardWeekPlan {
   id: string;
   agencyId: string;
@@ -758,8 +903,56 @@ export interface DashboardWeekPlan {
   weekStart: string;
   outcome?: string;
   reviewNotes?: string;
+  wins?: string;
+  misses?: string;
+  lessons?: string;
+  decisions?: string;
+  risks?: string;
+  startDoing?: string;
+  stopDoing?: string;
+  continueDoing?: string;
+  nextWeekPriorities?: string;
+  executionScore?: 1 | 2 | 3 | 4 | 5;
+  energyScore?: 1 | 2 | 3 | 4 | 5;
+  confidenceScore?: 1 | 2 | 3 | 4 | 5;
+  reviewStatus?: "draft" | "complete";
+  reviewedAt?: number;
+  evidenceSnapshot?: DashboardWeeklyEvidenceSnapshot;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface DashboardWeeklyEvidenceSnapshot {
+  plannedHours: number;
+  confirmedHours: number;
+  unconfirmedHours: number;
+  completedTasks: number;
+  openTasks: number;
+  revenueTargetPounds: number;
+  dayReviewsCompleted: number;
+  capturedAt: number;
+}
+
+export type DashboardWorkActivityMode = "aqua" | "external" | "break" | "unconfirmed";
+
+export interface DashboardWorkActivityBlock {
+  id: string;
+  mode: DashboardWorkActivityMode;
+  startedAt: number;
+  endedAt?: number;
+  focus?: string;
+  note?: string;
+  source: "clock" | "activity" | "declaration" | "idle" | "legacy";
+}
+
+export interface DashboardClockOutReview {
+  outcome: string;
+  openWork?: string;
+  nothingOpen: boolean;
+  nextPriority: string;
+  dayScore: 1 | 2 | 3 | 4 | 5;
+  unconfirmedTimeAcknowledged: boolean;
+  submittedAt: number;
 }
 
 export interface DashboardWorkSession {
@@ -771,6 +964,25 @@ export interface DashboardWorkSession {
   endedAt?: number;
   focus?: string;
   notes?: string;
+  currentMode?: DashboardWorkActivityMode;
+  currentModeSince?: number;
+  lastAccountedAt?: number;
+  lastHeartbeatAt?: number;
+  lastInteractionAt?: number;
+  lastVisibleAt?: number;
+  lastPageVisibility?: "visible" | "hidden";
+  lastCheckInAt?: number;
+  nextCheckInAt?: number;
+  needsActivityConfirmation?: boolean;
+  aquaActiveMs?: number;
+  externalWorkMs?: number;
+  breakMs?: number;
+  unconfirmedIdleMs?: number;
+  currentPath?: string;
+  routeActiveMs?: Record<string, number>;
+  routeSwitches?: number;
+  activityBlocks?: DashboardWorkActivityBlock[];
+  clockOutReview?: DashboardClockOutReview;
   createdAt: number;
   updatedAt: number;
 }
@@ -799,7 +1011,7 @@ export interface SopDocument {
 export type AgencyProductPricing = "fixed" | "from" | "recurring" | "custom";
 export type AgencyProductPortalRequirement = "required" | "optional" | "none";
 export type AgencyProductKind = "product" | "package";
-export type AgencyProductPortalTemplateKey = "website" | "brand-identity" | "photography" | "google-profile" | "content" | "automation" | "custom-software" | "ongoing-care" | "business-os" | "health-check";
+export type AgencyProductPortalTemplateKey = "website" | "brand-identity" | "photography" | "google-profile" | "content" | "social-ads" | "automation" | "custom-software" | "ongoing-care" | "business-os" | "health-check";
 export type AgencyProductPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
 export interface AgencyProduct {
@@ -1184,11 +1396,54 @@ export interface CompanyPlan {
 export interface CompanyQuarterlyReview {
   id: string;
   period: string;
+  status?: "draft" | "complete";
+  executiveSummary?: string;
   wins: string;
+  misses?: string;
   lessons: string;
+  marketSignals?: string;
+  customerSignals?: string;
+  financialDiagnosis?: string;
+  operatingDiagnosis?: string;
+  strategicBets?: string;
+  risks?: string;
+  stopDoing?: string;
   decisions: string;
   nextPriorities: string;
+  successMeasures?: string;
+  ownerCommitment?: string;
+  implementationHandover?: string;
+  scorecard?: CompanyQuarterlyScorecard;
+  evidenceSnapshot?: CompanyQuarterlyEvidenceSnapshot;
+  completedAt?: number;
   updatedAt: number;
+}
+
+export interface CompanyQuarterlyScorecard {
+  growth: 1 | 2 | 3 | 4 | 5;
+  finance: 1 | 2 | 3 | 4 | 5;
+  customer: 1 | 2 | 3 | 4 | 5;
+  operations: 1 | 2 | 3 | 4 | 5;
+  capability: 1 | 2 | 3 | 4 | 5;
+}
+
+export interface CompanyQuarterlyEvidenceSnapshot {
+  revenueCents: number;
+  revenueTargetCents: number;
+  revenueProgressPercent: number;
+  monthlyGrowthPercent?: number;
+  activeClients: number;
+  clientsNeedingAttention: number;
+  openLeads: number;
+  openTasks: number;
+  overdueTasks: number;
+  healthScore: number;
+  objectiveProgressPercent: number;
+  objectivesAtRisk: number;
+  capacityUtilisationPercent: number;
+  connectedSources: number;
+  totalSources: number;
+  capturedAt: number;
 }
 
 export interface CompanyCapacityPlan {
@@ -1197,6 +1452,124 @@ export interface CompanyCapacityPlan {
   salesHoursPerCall: number;
   adminBufferPercent: number;
   hiringTriggerPercent: number;
+  notes?: string;
+}
+
+export interface CompanyProjectionPlan {
+  horizonMonths: number;
+  baseMonthlyGrowthPercent: number;
+  targetMonthlyGrowthPercent: number;
+  grossMarginTargetPercent: number;
+  monthlyOperatingCostCents: number;
+  cashReserveTargetCents: number;
+}
+
+export interface CompanyShareClass {
+  id: string;
+  name: string;
+  authorisedShares: number;
+  nominalValueCents: number;
+  votingRightsPerShare: number;
+  dividendEligible: boolean;
+  notes?: string;
+}
+
+export interface CompanyShareholder {
+  id: string;
+  name: string;
+  kind: "founder" | "individual" | "employee" | "investor" | "company" | "trust" | "other";
+  shareClassId: string;
+  shares: number;
+  investedCents: number;
+  status: "active" | "former";
+  director: boolean;
+  boardSeat: boolean;
+  joinedAt?: number;
+  notes?: string;
+}
+
+export interface CompanyCapitalTransaction {
+  id: string;
+  kind: "share-issue" | "capital-contribution" | "director-loan-in" | "director-loan-repayment" | "share-transfer" | "buyback" | "grant" | "other";
+  title: string;
+  shareholderId?: string;
+  shareClassId?: string;
+  counterparty?: string;
+  amountCents: number;
+  currency: string;
+  shares: number;
+  occurredAt: number;
+  status: "planned" | "approved" | "completed" | "cancelled";
+  approvalId?: string;
+  reference?: string;
+  notes?: string;
+}
+
+export interface CompanyInvestmentHolding {
+  id: string;
+  name: string;
+  kind: "cash-equivalent" | "fund" | "equity" | "bond" | "crypto" | "property" | "equipment" | "subsidiary" | "other";
+  platform?: string;
+  currency: string;
+  costBasisCents: number;
+  currentValueCents: number;
+  incomeReceivedCents: number;
+  acquiredAt?: number;
+  valuedAt?: number;
+  status: "planned" | "active" | "sold" | "written-off";
+  risk: "low" | "medium" | "high";
+  owner?: string;
+  reference?: string;
+  notes?: string;
+}
+
+export interface CompanyDividendAllocation {
+  shareholderId: string;
+  amountCents: number;
+}
+
+export interface CompanyDividendDistribution {
+  id: string;
+  title: string;
+  period: string;
+  currency: string;
+  declaredCents: number;
+  paidCents: number;
+  declaredAt?: number;
+  paymentDueAt?: number;
+  paidAt?: number;
+  status: "draft" | "approved" | "part-paid" | "paid" | "cancelled";
+  allocations: CompanyDividendAllocation[];
+  approvalId?: string;
+  reference?: string;
+  notes?: string;
+}
+
+export interface CompanyGovernanceDecision {
+  id: string;
+  title: string;
+  kind: "board" | "shareholder" | "written" | "ordinary" | "special";
+  status: "draft" | "approved" | "rejected" | "superseded";
+  summary: string;
+  proposedBy?: string;
+  meetingAt?: number;
+  effectiveAt?: number;
+  approvedAt?: number;
+  votesForPercent?: number;
+  votesAgainstPercent?: number;
+  documentId?: string;
+  relatedRecordIds: string[];
+  notes?: string;
+}
+
+export interface CompanyCapitalPlan {
+  currency: string;
+  shareClasses: CompanyShareClass[];
+  shareholders: CompanyShareholder[];
+  transactions: CompanyCapitalTransaction[];
+  investments: CompanyInvestmentHolding[];
+  dividends: CompanyDividendDistribution[];
+  decisions: CompanyGovernanceDecision[];
   notes?: string;
 }
 
@@ -1211,6 +1584,8 @@ export interface CompanyProfile {
   salesCallCloseRatePercent: number;
   annualRevenueTargetCents: number;
   capacity: CompanyCapacityPlan;
+  projection: CompanyProjectionPlan;
+  capital: CompanyCapitalPlan;
   objectives: CompanyObjective[];
   plans: CompanyPlan[];
   reviews: CompanyQuarterlyReview[];
@@ -1559,6 +1934,180 @@ export interface OperationalAlertPreference {
   parkedUntil?: number;
 }
 
+// ─── People ──────────────────────────────────────────────────────────────
+
+export type PeopleApplicationStage =
+  | "applied"
+  | "under-review"
+  | "interview"
+  | "shortlisted"
+  | "offer"
+  | "accepted"
+  | "onboarding"
+  | "declined"
+  | "withdrawn";
+
+export interface PeopleApplicationStageEntry {
+  stage: PeopleApplicationStage;
+  at: number;
+  note?: string;
+  actorUserId?: string;
+}
+
+export interface PeopleApplication {
+  id: string;
+  agencyId: string;
+  statusTokenHash: string;
+  name: string;
+  email: string;
+  phone?: string;
+  roleInterest: string;
+  employmentPreference?: PeopleEmploymentType;
+  location?: string;
+  portfolioUrl?: string;
+  linkedInUrl?: string;
+  coverNote?: string;
+  availabilityNote?: string;
+  cv: {
+    fileName: string;
+    contentType: string;
+    size: number;
+    storageProvider: "supabase" | "vercel-blob" | "local";
+    storageKey: string;
+  };
+  stage: PeopleApplicationStage;
+  stageHistory: PeopleApplicationStageEntry[];
+  internalNotes: string[];
+  employeeId?: string;
+  submittedAt: number;
+  updatedAt: number;
+}
+
+export type PeopleEmploymentType =
+  | "full-time"
+  | "part-time"
+  | "contractor"
+  | "freelancer"
+  | "intern"
+  | "volunteer";
+
+export type PeopleWorkspaceStationId =
+  | "my-day"
+  | "actions"
+  | "calendar"
+  | "onboarding"
+  | "leave"
+  | "training"
+  | "pay"
+  | "notes";
+
+export interface PeopleWorkspaceAccess {
+  stationId: PeopleWorkspaceStationId;
+  mode: "view" | "edit";
+  order: number;
+}
+
+export interface PeopleOnboardingItem {
+  id: string;
+  label: string;
+  detail?: string;
+  status: "todo" | "in-progress" | "done" | "blocked";
+  owner: "company" | "employee";
+  dueAt?: number;
+  completedAt?: number;
+  evidence?: string;
+}
+
+export interface PeopleCommissionRule {
+  id: string;
+  label: string;
+  basis: "revenue" | "gross-margin" | "new-client" | "product" | "fixed-bonus";
+  ratePercent?: number;
+  fixedAmountMinor?: number;
+  thresholdMinor?: number;
+  capMinor?: number;
+  productIds?: string[];
+  cadence: "per-event" | "monthly" | "quarterly";
+  status: "draft" | "active" | "paused" | "retired";
+  startsAt?: number;
+  endsAt?: number;
+}
+
+export interface PeopleEmployee {
+  id: string;
+  agencyId: string;
+  applicationId?: string;
+  userId?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  title: string;
+  department?: string;
+  managerEmployeeId?: string;
+  employmentType: PeopleEmploymentType;
+  status: "preboarding" | "active" | "leave" | "suspended" | "alumni";
+  startDate?: number;
+  endDate?: number;
+  probationEndsAt?: number;
+  weeklyHours?: number;
+  holidayAllowanceDays?: number;
+  payBasis: "salary" | "hourly" | "day-rate" | "commission-only" | "unpaid";
+  basePayMinor?: number;
+  currency: string;
+  compensationProfileId?: string;
+  commissionRules: PeopleCommissionRule[];
+  workspaceAccess: PeopleWorkspaceAccess[];
+  onboardingItems: PeopleOnboardingItem[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PeopleLeaveRequest {
+  id: string;
+  agencyId: string;
+  employeeId: string;
+  type: "annual" | "sick" | "unpaid" | "compassionate" | "parental" | "other";
+  startsOn: string;
+  endsOn: string;
+  days: number;
+  note?: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  reviewerUserId?: string;
+  decisionNote?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PeopleShift {
+  id: string;
+  agencyId: string;
+  employeeId: string;
+  title: string;
+  startsAt: number;
+  endsAt: number;
+  location?: string;
+  note?: string;
+  status: "draft" | "published" | "completed" | "cancelled";
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PeopleTrainingAssignment {
+  id: string;
+  agencyId: string;
+  employeeId: string;
+  title: string;
+  description?: string;
+  sopId?: string;
+  resourceUrl?: string;
+  dueAt?: number;
+  status: "assigned" | "in-progress" | "completed" | "overdue";
+  completedAt?: number;
+  evidence?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
 
 export interface PortalState {
@@ -1578,6 +2127,7 @@ export interface PortalState {
   // `${agencyId}|${userId}` → private assistant history and memories.
   assistant?: Record<string, AssistantWorkspaceState>;
   externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
+  externalAssistantActionProposals: Record<string, ExternalAssistantActionProposal>;
   integrationConnections: Record<string, IntegrationConnection>;
   tasks: Record<string, AgencyTask>;
   notepadFolders: Record<string, NotepadFolder>;
@@ -1589,6 +2139,10 @@ export interface PortalState {
   dashboardDayPlans: Record<string, DashboardDayPlan>;
   dashboardWeekPlans: Record<string, DashboardWeekPlan>;
   dashboardWorkSessions: Record<string, DashboardWorkSession>;
+  commandCalendarEntries: Record<string, CommandCalendarEntry>;
+  commandCalendarConnections: Record<string, CommandCalendarConnection>;
+  commandCalendarSources: Record<string, CommandCalendarSource>;
+  commandCalendarExternalEvents: Record<string, CommandCalendarExternalEvent>;
   sops: Record<string, SopDocument>;
   agencyProducts: Record<string, AgencyProduct>;
   clientMilestones: Record<string, ClientMilestone>;
@@ -1609,4 +2163,9 @@ export interface PortalState {
   radarSyntheticProbes: Record<string, Record<string, RadarSyntheticProbeResult>>;
   radarEvidence: Record<string, RadarEvidenceState>;
   operationalAlertPreferences: Record<string, OperationalAlertPreference>;
+  peopleApplications: Record<string, PeopleApplication>;
+  peopleEmployees: Record<string, PeopleEmployee>;
+  peopleLeaveRequests: Record<string, PeopleLeaveRequest>;
+  peopleShifts: Record<string, PeopleShift>;
+  peopleTrainingAssignments: Record<string, PeopleTrainingAssignment>;
 }

@@ -86,7 +86,7 @@ export function NotificationCentreButton() {
         <section
           role="dialog"
           aria-label="Notification centre"
-          className="mm-popover fixed right-3 top-14 z-50 flex max-h-[min(42rem,calc(100dvh-4.5rem))] w-[min(29rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:absolute sm:right-0 sm:top-11"
+          className="mm-popover mm-notification-centre fixed right-3 top-14 z-50 flex max-h-[min(42rem,calc(100dvh-4.5rem))] w-[min(29rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)] sm:absolute sm:right-0 sm:top-11"
         >
           <header className="flex items-center justify-between border-b border-black/10 px-4 py-3">
             <div>
@@ -123,7 +123,7 @@ export function NotificationCentreButton() {
           <Link
             href="/portal/agency/settings#updates"
             onClick={() => { markReleaseRead(); setOpen(false); }}
-            className="group flex shrink-0 items-center gap-3 border-t border-black/10 bg-black/[0.018] px-4 py-3 transition hover:bg-black/[0.035]"
+            className="mm-notification-release group flex shrink-0 items-center gap-3 border-t border-black/10 bg-black/[0.018] px-4 py-3 transition hover:bg-black/[0.035]"
           >
             <span className="grid size-8 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><Sparkles size={15} aria-hidden /></span>
             <span className="min-w-0 flex-1">
@@ -139,7 +139,7 @@ export function NotificationCentreButton() {
 }
 
 function CentreTab({ active, label, count, onClick }: { active: boolean; label: string; count: number; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`relative min-h-9 text-xs font-semibold ${active ? "text-black/80" : "text-black/40 hover:text-black/65"}`}>{label} <span className="ml-1 tabular-nums">{count}</span>{active ? <span className="absolute inset-x-2 bottom-0 h-0.5 bg-black" /> : null}</button>;
+  return <button type="button" onClick={onClick} className={`relative min-h-9 text-xs font-semibold ${active ? "text-black/80" : "text-black/40 hover:text-black/65"}`}>{label} <span className="ml-1 tabular-nums">{count}</span>{active ? <span className="mm-notification-tab-indicator absolute inset-x-2 bottom-0 h-0.5 bg-black" /> : null}</button>;
 }
 
 function NotificationRow({
@@ -155,7 +155,7 @@ function NotificationRow({
 }) {
   const tone = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
   return (
-    <article title={`${alert.title}\n${alert.detail}`} className="px-4 py-3.5 transition hover:bg-black/[0.018]">
+    <article title={`${alert.title}\n${alert.detail}`} className="mm-notification-row px-4 py-3.5 transition hover:bg-black/[0.018]">
       <div className="flex items-start gap-3">
         <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md ${tone}`}><Bell size={15} aria-hidden /></span>
         <div className="min-w-0 flex-1">

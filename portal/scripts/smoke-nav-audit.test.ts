@@ -19,6 +19,18 @@ const PROFILE = join(ROOT, "src", "components", "chrome", "ProfileMenu.tsx");
 const ARCHIVED_MULTI_AGENCY = join(ROOT, "src", "archive", "multi-agency");
 const CATCHALL = join(ROOT, "src", "app", "portal", "agency", "[...rest]", "page.tsx");
 const AGENCY_HOME = join(ROOT, "src", "app", "portal", "agency", "page.tsx");
+const TOOLS_PAGE = join(ROOT, "src", "app", "portal", "agency", "tools", "page.tsx");
+const COMPANY_WORKSPACE = join(ROOT, "src", "app", "portal", "agency", "company", "_CompanyWorkspace.tsx");
+const BATTLE_TABLE = join(ROOT, "src", "app", "portal", "agency", "_BattleTableWorkspace.tsx");
+const MASTER_INBOX = join(ROOT, "src", "app", "portal", "agency", "inbox", "_MasterInbox.tsx");
+const MARKETING_PAGE = join(ROOT, "src", "app", "portal", "agency", "marketing", "page.tsx");
+const SEARCH_ROUTE = join(ROOT, "src", "app", "api", "portal", "search", "route.ts");
+const CLIENT_SOPS = join(ROOT, "src", "app", "portal", "clients", "[clientId]", "_ClientSopsTab.tsx");
+const PLUGIN_WORKSPACE_NAV = join(ROOT, "src", "components", "workspaces", "PluginWorkspaceNav.tsx");
+const FINANCE_NAV = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "components", "FinanceNav.tsx");
+const FINANCE_PLANS = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "pages", "PlansPage.tsx");
+const FINANCE_LOCK_IN = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "pages", "LockInPage.tsx");
+const FINANCE_SETTINGS = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "pages", "SettingsPage.tsx");
 const PIPELINE_PAGE = join(ROOT, "src", "app", "portal", "agency", "pipelines", "[slug]", "page.tsx");
 const CLIENTS_PAGE = join(ROOT, "src", "app", "portal", "clients", "page.tsx");
 const PEOPLE_HUB = join(ROOT, "src", "app", "portal", "clients", "_PeopleHub.tsx");
@@ -46,6 +58,9 @@ const CUSTOMER_HOME = join(ROOT, "src", "app", "portal", "customer", "page.tsx")
 const CUSTOMER_SUBROUTE = join(ROOT, "src", "app", "portal", "customer", "_subroute.tsx");
 const CUSTOMER_BOOKINGS = join(ROOT, "src", "app", "portal", "customer", "bookings", "page.tsx");
 const CUSTOMER_ORDERS = join(ROOT, "src", "app", "portal", "customer", "orders", "page.tsx");
+const CUSTOMER_CHROME = join(ROOT, "src", "app", "portal", "customer", "_CustomerPortalChrome.tsx");
+const ORDER_DETAIL = join(ROOT, "src", "built-ins", "modules", "ecommerce", "src", "components", "admin", "OrderDetail.tsx");
+const ORDER_DETAIL_PAGE = join(ROOT, "src", "built-ins", "modules", "ecommerce", "src", "pages", "OrderDetailPage.tsx");
 const TENANTS = join(ROOT, "src", "server", "tenants.ts");
 const FINANCE_MANIFEST = join(ROOT, "src", "built-ins", "modules", "agency-finance", "index.ts");
 const LEADS_MANIFEST = join(ROOT, "src", "built-ins", "modules", "leads-pipeline", "index.ts");
@@ -69,10 +84,10 @@ describe("standalone portal nav audit", () => {
       ["fulfilment", "/portal/agency/fulfilment"],
       ["pipelines", "/portal/clients?view=journey"],
       ["marketing", "/portal/agency/marketing"],
-      ["development", "/portal/agency/development"],
       ["inbox", "/portal/agency/inbox"],
       ["finance", "/portal/agency/agency-finance"],
       ["sop-library", "/portal/agency/sop-library"],
+      ["tools", "/portal/agency/tools"],
     ];
 
     for (const [id, href] of expected) {
@@ -81,16 +96,19 @@ describe("standalone portal nav audit", () => {
     }
     assert.ok(!block.includes('label: "Clients & contacts"'), "clients and contacts should live inside Journey");
     assert.ok(!block.includes('id: "contacts"'), "contacts should live inside the clients hub");
-    assert.ok(src.includes('label: "Command center"'), "the dashboard should be named Command center");
-    assert.ok(!block.includes('id: "company"'), "company should live inside Command center");
+    assert.ok(src.includes('label: "Command Centre"'), "the dashboard should be named Command Centre");
+    assert.ok(src.includes('id: "people",      label: "Staff"'), "the primary People workspace should be labelled Staff");
+    assert.ok(!block.includes('id: "command-center"'), "Day Command should live in the Command Centre station strip");
+    assert.ok(!block.includes('id: "company"'), "executive Company work should live in Battle Table rather than the sidebar");
+    assert.ok(!block.includes('id: "development"'), "technical delivery should live inside Fulfilment rather than the sidebar");
     assert.ok(!block.includes('id: "sales"'), "sales should live inside Pipelines");
-    assert.ok(!block.includes('id: "products"'), "products should live inside Company");
+    assert.ok(!block.includes('id: "products"'), "products should live in Battle Table's executive systems map");
     assert.ok(!block.includes('id: "fulfillment", label: "Fulfilment"'), "duplicate Fulfilment main nav item should stay removed");
     assert.ok(read(PEOPLE_HUB).includes('label="Clients"'), "clients should remain available inside Journey");
     assert.ok(read(PEOPLE_HUB).includes('label="Contacts"'), "contacts should remain available inside Journey");
     assert.ok(read(CLIENTS_PAGE).includes(': "journey";'), "Journey should be the default people-hub view");
 
-    const priorityOrder = ["home", "actions", "inbox", "fulfilment", "pipelines", "development", "marketing", "finance", "sop-library"];
+    const priorityOrder = ["home", "inbox", "actions", "pipelines", "fulfilment", "finance", "people", "you-deserve-it", "marketing", "sop-library", "tools"];
     const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
     assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
@@ -100,13 +118,15 @@ describe("standalone portal nav audit", () => {
   it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "actions", "fulfilment", "pipelines", "marketing", "development", "inbox", "finance", "sop-library"]) {
+    for (const id of ["home", "actions", "inbox", "fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "sop-library", "tools"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
-    assert.ok(!canonical.includes('"company"'), "company should be accessed from Command center");
+    assert.ok(!canonical.includes('"command-center"'), "Day Command should not be a standalone sidebar item");
     assert.ok(!canonical.includes('"clients"'), "clients should be merged into the Journey sidebar item");
-    assert.ok(!canonical.includes('"performance"'), "performance should live inside Development rather than the main sidebar");
-    assert.ok(!canonical.includes('"products"'), "products should live inside Company rather than the main sidebar");
+    assert.ok(!canonical.includes('"development"'), "technical delivery should live inside Fulfilment rather than the main sidebar");
+    assert.ok(!canonical.includes('"performance"'), "performance should live inside Fulfilment rather than the main sidebar");
+    assert.ok(!canonical.includes('"company"'), "Company should be consolidated into Battle Table");
+    assert.ok(!canonical.includes('"products"'), "products should live inside Battle Table rather than the main sidebar");
     assert.ok(!canonical.includes('"calendar"'), "calendar should live on the main dashboard rather than the sidebar");
     assert.ok(!canonical.includes('"notepad"'), "notepad should live on the main dashboard rather than the sidebar");
     assert.ok(!canonical.includes('"sops"'), "the duplicate systems dashboard should not be a main nav item");
@@ -116,10 +136,64 @@ describe("standalone portal nav audit", () => {
     assert.ok(!canonical.includes('"automations"'), "internal automations should live inside Marketing");
   });
 
-  it("keeps performance inside the Development workspace", () => {
+  it("keeps Calendar and Notepad together in the Tools quick-action hub", () => {
+    assert.ok(existsSync(TOOLS_PAGE), "Tools page should be mounted");
+    const page = read(TOOLS_PAGE);
+    assert.ok(page.includes('href: "/portal/agency/calendar"'));
+    assert.ok(page.includes('href: "/portal/agency/notepad"'));
+    assert.ok(page.includes("Quick actions"));
+  });
+
+  it("keeps every specialist workspace visibly reachable", () => {
+    const tools = read(TOOLS_PAGE);
+    const company = read(COMPANY_WORKSPACE);
+    const battleTable = read(BATTLE_TABLE);
+    const inbox = read(MASTER_INBOX);
+    const marketing = read(MARKETING_PAGE);
+    const workspaceNav = read(PLUGIN_WORKSPACE_NAV);
+
+    for (const href of [
+      "/portal/agency/activity-inbox",
+      "/portal/agency/agency-hr",
+      "/portal/agency/email-sender",
+      "/portal/agency/agency-marketing",
+    ]) assert.ok(tools.includes(href), `${href} missing from Tools`);
+    assert.ok(battleTable.includes('href: "/portal/agency/agency-hr"'), "Battle Table should launch People operations");
+    assert.ok(inbox.includes('href="/portal/agency/email-sender"'), "Master Inbox should launch Email operations");
+    assert.ok(inbox.includes('href="/portal/agency/activity-inbox"'), "Master Inbox should launch Activity log");
+    assert.ok(marketing.includes('href="/portal/agency/agency-marketing"'), "Marketing should launch templates and reporting");
+    for (const destination of ["departments", "leave", "employees", "roles", "email-sender/logs", "agency-marketing/templates", "agency-marketing/reports", "agency-marketing/calendar", "agency-marketing/touchpoints", "agency-marketing/performance"]) {
+      assert.ok(workspaceNav.includes(destination), `${destination} missing from contextual workspace navigation`);
+    }
+    assert.ok(read(CATCHALL).includes('["agency-hr", "email-sender", "agency-marketing"]'), "visible optional workspaces should activate when opened");
+    assert.ok(read(CATCHALL).includes("mayProvisionWorkspace"), "only agency administrators should activate optional workspaces");
+    assert.ok(workspaceNav.includes("item.adminOnly"), "administrative workspace links should stay role-gated");
+  });
+
+  it("keeps Finance links valid and exposes all specialist finance sections", () => {
+    const company = read(COMPANY_WORKSPACE);
+    const search = read(SEARCH_ROUTE);
+    const nav = read(FINANCE_NAV);
+    assert.ok(company.includes("/portal/agency/agency-finance/payments"));
+    assert.ok(search.includes("/portal/agency/agency-finance/payments?entry="));
+    assert.ok(!company.includes("/portal/agency/agency-finance/income"));
+    assert.ok(!search.includes("/portal/agency/agency-finance/income"));
+    for (const href of ["/plans", "/lock-in", "/settings"]) assert.ok(nav.includes(href), `${href} missing from Finance navigation`);
+    assert.ok(read(FINANCE_PLANS).includes('<FinanceNav active="plans" />'));
+    assert.ok(read(FINANCE_LOCK_IN).includes('<FinanceNav active="deposits" />'));
+    assert.ok(read(FINANCE_SETTINGS).includes('<FinanceNav active="settings" />'));
+  });
+
+  it("keeps client SOP navigation on the mounted library route", () => {
+    const src = read(CLIENT_SOPS);
+    assert.ok(src.includes('href="/portal/agency/sop-library"'));
+    assert.ok(!src.includes('href="/portal/agency/sops"'));
+  });
+
+  it("keeps performance inside the Fulfilment technical workspace", () => {
     const nav = read(DEVELOPMENT_NAV);
     const page = read(DEVELOPMENT_PERFORMANCE);
-    assert.ok(nav.includes('/portal/agency/development/performance'));
+    assert.ok(nav.includes('/portal/agency/fulfilment/technical/performance'));
     assert.ok(nav.includes('label: "Performance"'));
     assert.ok(page.includes('<DevelopmentNav active="performance" />'));
     assert.ok(page.includes('PerformancePage'));
@@ -141,6 +215,10 @@ describe("standalone portal nav audit", () => {
     assert.ok(src.includes('if (rest[1] === "clients") redirect("/portal/agency/fulfilment?view=clients")'));
     assert.ok(src.includes('if (rest[1] === "marketplace") redirect("/portal/agency/fulfilment?view=services")'));
     assert.ok(src.includes('if (rest[1] === "phases") redirect("/portal/agency/phases")'));
+    assert.ok(src.includes('redirect(`/portal/clients/${encodeURIComponent(rest[1])}?tab=delivery`)'), "old client fulfilment routes should open the canonical delivery lens");
+    assert.ok(src.includes('if (rest.length === 1) redirect("/portal/agency/leads-pipeline/contacts")'), "old leads root should open contacts");
+    assert.ok(src.includes('if (rest[1] === "board") redirect("/portal/agency/pipelines/leads")'), "old lead board should open the current board");
+    assert.ok(src.includes('if (rest[0] === "agency-finance" && rest[1] === "founder")'), "duplicate founder finance route should redirect");
   });
 
   it("keeps the current clients page as the only visible create-client surface", () => {
@@ -173,20 +251,20 @@ describe("standalone portal nav audit", () => {
     assert.ok(websiteLauncher.includes("/edit-website`"), "website CTA route missing");
     assert.ok(websiteLauncher.includes("marketplace/install"), "website CTA should activate the builder when needed");
     assert.ok(clientHome.includes("`/portal/clients/${client.id}/assets`"), "assets CTA route missing");
-    assert.ok(clientHome.includes("<FulfilmentPortalPreview"), "customer portal preview should remain mounted in fulfilment");
+    assert.ok(clientHome.includes("<FulfilmentPortalPreview"), "customer portal preview should remain mounted in the client workspace");
   });
 
   it("presents client capabilities as built-in systems", () => {
     const clientHome = read(CLIENT_HOME);
-    const clientTabs = read(join(ROOT, "src", "app", "portal", "clients", "[clientId]", "_tabs.ts"));
+    const clientTabs = read(join(ROOT, "src", "lib", "clientWorkspace.ts"));
     const clientLayout = read(join(ROOT, "src", "app", "portal", "clients", "[clientId]", "layout.tsx"));
     const picker = read(join(ROOT, "src", "app", "portal", "clients", "[clientId]", "_ToolsPicker.tsx"));
 
     assert.ok(clientTabs.includes('id: "systems"'), "client tab id should be systems");
     assert.ok(clientTabs.includes('label: "Systems"'), "client tab label should be Systems");
-    assert.ok(clientLayout.includes('label: "Monitoring"'), "client sidebar should show Monitoring");
-    assert.ok(clientLayout.includes("tab=systems"), "client sidebar should use systems tab");
-    assert.ok(clientHome.includes('rawTabInput === "tools" ? "systems"'), "legacy tools tab links should resolve to systems");
+    assert.ok(clientLayout.includes('label: "Systems and development"'), "client sidebar should show the technical lens");
+    assert.ok(clientLayout.includes('clientWorkspaceHref(client.id, "systems")'), "client sidebar should use the systems lens");
+    assert.ok(clientTabs.includes('tools: "systems"'), "legacy tools tab links should resolve to systems");
     assert.ok(clientHome.includes('tab === "systems"'), "client systems tab branch missing");
     assert.ok(clientHome.includes("+ Add system"), "quick action should say Add system");
     assert.ok(picker.includes("Typical live-stage system set"), "live recommendation copy should say system set");
@@ -367,12 +445,23 @@ describe("standalone portal nav audit", () => {
     assert.ok(subroute.includes("not available yet"), "customer subroutes should use available/not available language");
     assert.ok(subroute.includes("is being prepared for your account"), "active-but-unexposed systems should read as prepared");
     assert.ok(bookings.includes("scheduling is ready for your account"), "bookings fallback should be customer-friendly");
-    assert.ok(orders.includes("ordering is ready for your account"), "orders fallback should be customer-friendly");
+    assert.ok(orders.includes('requireRole("end-customer")'), "orders must require a customer session");
+    assert.ok(orders.includes('getInstall({ agencyId: session.agencyId, clientId: session.clientId }, "ecommerce")'), "orders must use the client-scoped commerce install");
+    assert.ok(orders.includes("order.endCustomerUserId === session.userId"), "orders must filter by the signed-in customer");
+    assert.ok(orders.includes("order.customerEmail?.toLowerCase() === session.email.toLowerCase()"), "guest purchases should match the signed-in email");
     for (const [name, src] of [["customer home", home], ["customer subroute", subroute], ["bookings", bookings], ["orders", orders]] as const) {
       assert.ok(!src.includes("not enabled"), `${name} should not say not enabled`);
       assert.ok(!src.includes("enabled but"), `${name} should not say enabled but`);
       assert.ok(!src.includes("exposes the"), `${name} should not use exposed-surface language`);
       assert.ok(!src.includes("portal tools"), `${name} should not say portal tools`);
     }
+  });
+
+  it("exposes customer Orders, Bookings, and admin receipts from visible controls", () => {
+    const chrome = read(CUSTOMER_CHROME);
+    assert.ok(chrome.includes('href: "/portal/customer/orders"'));
+    assert.ok(chrome.includes('href: "/portal/customer/bookings"'));
+    assert.ok(read(ORDER_DETAIL).includes("receiptHref"), "order toolbar should expose the receipt");
+    assert.ok(read(ORDER_DETAIL_PAGE).includes("/receipt`"), "order detail should build the mounted receipt URL");
   });
 });

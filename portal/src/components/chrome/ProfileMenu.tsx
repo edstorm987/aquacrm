@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Eye, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
+import { ChevronDown, Eye, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
+import { PERFORMANCE_MODE_EVENT, PERFORMANCE_MODE_STORAGE_KEY, performanceModeEnabled, setPerformanceMode } from "@/lib/chrome/performanceMode";
 import { ColorModeToggle } from "./ColorModeToggle";
 import { QuickNoteWindow } from "./QuickNoteWindow";
 
@@ -47,7 +48,26 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   const firstName = display.split(/\s+/)[0] || "Account";
   const [open, setOpen] = useState(false);
   const [quickNoteOpen, setQuickNoteOpen] = useState(false);
+  const [performanceMode, setPerformanceModeState] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const sync = () => setPerformanceModeState(performanceModeEnabled());
+    const syncCustom = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled?: boolean }>).detail;
+      setPerformanceModeState(typeof detail?.enabled === "boolean" ? detail.enabled : performanceModeEnabled());
+    };
+    const syncStorage = (event: StorageEvent) => {
+      if (event.key === PERFORMANCE_MODE_STORAGE_KEY) sync();
+    };
+    sync();
+    window.addEventListener(PERFORMANCE_MODE_EVENT, syncCustom);
+    window.addEventListener("storage", syncStorage);
+    return () => {
+      window.removeEventListener(PERFORMANCE_MODE_EVENT, syncCustom);
+      window.removeEventListener("storage", syncStorage);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -110,6 +130,26 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
 
           <div className="px-2 py-2">
             <ColorModeToggle variant="menu" />
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={performanceMode}
+              onClick={() => {
+                const next = !performanceMode;
+                setPerformanceModeState(next);
+                setPerformanceMode(next);
+              }}
+              className="mm-performance-mode-toggle flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
+            >
+              <Gauge size={16} className="text-[#8E7340]" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">Performance mode</span>
+                <span className="mt-0.5 block text-[10px] leading-4 text-[#776D60]">Skip cinematic loading screens</span>
+              </span>
+              <span aria-hidden="true" data-enabled={performanceMode} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
+                <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={performanceMode} />
+              </span>
+            </button>
             <Link
               href={role === "end-customer" ? "/portal/customer/account" : "/portal/account"}
               role="menuitem"

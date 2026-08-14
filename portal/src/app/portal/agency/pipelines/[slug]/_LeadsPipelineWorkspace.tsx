@@ -10,6 +10,11 @@ import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMe
 import { formatUkDateTime } from "@/lib/formatDateTime";
 import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/leadTiming";
 import { BoardSwitcher } from "./_PipelineBoard";
+import {
+  WEBSITE_ENQUIRY_CLASSIFICATIONS,
+  WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
+  type WebsiteEnquiryClassification,
+} from "@/lib/enquiryClassification";
 
 interface PipelineColumnView {
   id: string;
@@ -64,6 +69,12 @@ interface LeadView {
   niche?: string;
   sentCount?: number;
   columnId: string;
+  brandId?: string;
+  brandName?: string;
+  serviceIds: string[];
+  serviceNames: string[];
+  enquiryId?: string;
+  enquiryClassification?: WebsiteEnquiryClassification;
 }
 
 interface LeadJourneyEventView {
@@ -106,6 +117,7 @@ interface LeadsPipelineWorkspaceProps {
   importHref: string;
   campaignsHref: string;
   boards: Array<{ slug: string; label: string }>;
+  brands: Array<{ id: string; name: string }>;
   products: AgencyProductOption[];
 }
 
@@ -132,6 +144,8 @@ const EMPTY_FORM = {
   tags: "",
   notes: "",
   source: "manual",
+  brandId: "",
+  serviceId: "",
 };
 
 const EMPTY_PROSPECT = {
@@ -208,7 +222,7 @@ interface ClientConversionPackage {
   billingCadence: string;
 }
 
-export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, products }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
   const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -220,6 +234,8 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
   const [tagFilter, setTagFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [nicheFilter, setNicheFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [serviceFilter, setServiceFilter] = useState("");
   const [workFilter, setWorkFilter] = useState<WorkFilter>("all");
   const [conversionLead, setConversionLead] = useState<LeadView | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
@@ -251,19 +267,39 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
     return [...new Set([...leads.map(lead => lead.niche), ...prospects.map(prospect => prospect.niche)].filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b));
   }, [leads, prospects]);
 
-  const filteredLeads = useMemo(() => {
+  const availableBrands = useMemo(() => {
+    return [...brands].sort((a, b) => a.name.localeCompare(b.name));
+  }, [brands]);
+
+  const availableServices = useMemo(() => {
+    const options = new Map(products.map(product => [product.id, product.name]));
+    for (const lead of leads) {
+      lead.serviceIds.forEach((id, index) => options.set(id, lead.serviceNames[index] ?? options.get(id) ?? id));
+    }
+    return [...options]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [leads, products]);
+
+  const scopedLeads = useMemo(() => {
     return leads
       .filter(lead => matchesQuery(lead, query))
       .filter(lead => !tagFilter || lead.tags.includes(tagFilter))
       .filter(lead => !sourceFilter || lead.source === sourceFilter)
       .filter(lead => !nicheFilter || lead.niche === nicheFilter)
-      .filter(lead => matchesWorkFilter(lead, workFilter, clock));
-  }, [clock, leads, nicheFilter, query, sourceFilter, tagFilter, workFilter]);
+      .filter(lead => !brandFilter || lead.brandId === brandFilter)
+      .filter(lead => !serviceFilter || lead.serviceIds.includes(serviceFilter));
+  }, [brandFilter, leads, nicheFilter, query, serviceFilter, sourceFilter, tagFilter]);
+
+  const filteredLeads = useMemo(() => {
+    return scopedLeads.filter(lead => matchesWorkFilter(lead, workFilter, clock));
+  }, [clock, scopedLeads, workFilter]);
 
   const filteredProspects = useMemo(() => {
     if (workFilter !== "all" && workFilter !== "scouting") return [];
     const q = query.trim().toLowerCase();
     return prospects
+      .filter(() => !brandFilter && !serviceFilter)
       .filter(prospect => !q || [
         prospect.name,
         prospect.company,
@@ -277,7 +313,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       ].filter(Boolean).join(" ").toLowerCase().includes(q))
       .filter(prospect => !sourceFilter || prospect.source === sourceFilter)
       .filter(prospect => !nicheFilter || prospect.niche === nicheFilter);
-  }, [nicheFilter, prospects, query, sourceFilter, workFilter]);
+  }, [brandFilter, nicheFilter, prospects, query, serviceFilter, sourceFilter, workFilter]);
 
   const grouped = useMemo(() => {
     const out = new Map(columns.map(col => [col.id, [] as LeadView[]]));
@@ -294,7 +330,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
   const contacted = filteredLeads.filter(l => l.lastContactedAt || (l.sentCount ?? 0) > 0).length;
   const meetings = filteredLeads.filter(l => l.nextMeetingAt || l.tags.some(t => /meeting|booked|call/i.test(t))).length;
   const won = filteredLeads.filter(l => l.tags.includes("converted") || l.columnId === "won").length;
-  const timingRows = leads.map(lead => ({ lead, timing: leadTimingSnapshot(lead, clock) }));
+  const timingRows = scopedLeads.map(lead => ({ lead, timing: leadTimingSnapshot(lead, clock) }));
   const awaitingResponse = timingRows.filter(row => row.timing.awaitingResponse && !["won", "lost"].includes(row.lead.currentStageId ?? row.lead.columnId));
   const followUpDue = timingRows.filter(row => row.timing.needsFollowUp);
   const stalled = timingRows.filter(row => row.timing.stageStalled);
@@ -305,19 +341,19 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
     .filter(row => !["won", "lost"].includes(row.lead.currentStageId ?? row.lead.columnId))
     .reduce((oldest, row) => Math.max(oldest, row.timing.stageAgeMs), 0);
   const stageRows = columns.map(column => {
-    const leadCount = leads.filter(lead => (columnOverrides[lead.id] ?? lead.columnId) === column.id).length;
-    const prospectCount = column.id === "scouting" ? prospects.length : 0;
+    const leadCount = scopedLeads.filter(lead => (columnOverrides[lead.id] ?? lead.columnId) === column.id).length;
+    const prospectCount = column.id === "scouting" ? filteredProspects.length : 0;
     return { id: column.id, label: column.label, color: column.color, count: leadCount + prospectCount };
   });
-  const sourceRows = [...new Set([...leads.map(lead => lead.source), ...prospects.map(prospect => prospect.source)].filter(Boolean))]
+  const sourceRows = [...new Set([...scopedLeads.map(lead => lead.source), ...filteredProspects.map(prospect => prospect.source)].filter(Boolean))]
     .map(source => ({
       source,
-      count: leads.filter(lead => lead.source === source).length + prospects.filter(prospect => prospect.source === source).length,
+      count: scopedLeads.filter(lead => lead.source === source).length + filteredProspects.filter(prospect => prospect.source === source).length,
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
   const upcomingMeetings = useMemo(() => {
-    return leads
+    return scopedLeads
       .filter(lead => typeof lead.nextMeetingAt === "number")
       .map(lead => ({
         id: lead.id,
@@ -336,7 +372,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
         reminderDue: Boolean(lead.meetingReminderAt && !lead.meetingReminderSentAt && lead.meetingReminderAt <= Date.now()),
         salesPresentations: lead.salesPresentations,
       }));
-  }, [leads]);
+  }, [scopedLeads]);
 
   async function addLead(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -358,6 +394,9 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
           ],
           source: form.source.trim() || "manual",
           notes: form.notes || undefined,
+          companyId: form.brandId || undefined,
+          companyIds: form.brandId ? [form.brandId] : undefined,
+          serviceLines: form.serviceId ? [form.serviceId] : undefined,
           customFields: form.niche.trim() ? { niche: form.niche.trim() } : undefined,
         }),
       });
@@ -540,6 +579,28 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function rerouteWebsiteLead(lead: LeadView, classification: WebsiteEnquiryClassification) {
+    if (!lead.enquiryId || classification === lead.enquiryClassification) return;
+    setBusy(`route:${lead.id}`);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch("/api/portal/website-enquiries/classification", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enquiryId: lead.enquiryId, classification }),
+      });
+      const payload = await response.json().catch(() => null) as { error?: string; routeNote?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Could not move this enquiry out of sales.");
+      setSuccess(payload?.routeNote ?? "Enquiry re-routed.");
+      router.refresh();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Could not move this enquiry out of sales.");
     } finally {
       setBusy(null);
     }
@@ -731,9 +792,9 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
           <details className="group ml-auto">
             <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:bg-black/[0.03]">
               <Search size={13} aria-hidden="true" />
-              Search and filter
+              Search and filter{brandFilter || serviceFilter ? " · scoped" : ""}
             </summary>
-            <div className="mt-3 grid gap-3 rounded-lg border border-black/10 bg-white p-4 shadow-lg md:grid-cols-[minmax(0,1fr)_160px_160px_160px_auto] md:items-end">
+            <div className="mt-3 grid gap-3 rounded-lg border border-black/10 bg-white p-4 shadow-lg md:grid-cols-2 md:items-end xl:grid-cols-[minmax(220px,1fr)_150px_150px_150px_170px_180px_auto]">
               <Field label="Search pipeline" value={query} onChange={setQuery} placeholder="Name, company, niche, notes..." />
               <label className="text-xs font-medium text-black/60">
                 Tag
@@ -756,6 +817,20 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                   {availableNiches.map(niche => <option key={niche} value={niche}>{niche}</option>)}
                 </select>
               </label>
+              <label className="text-xs font-medium text-black/60">
+                Brand
+                <select value={brandFilter} onChange={event => setBrandFilter(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                  <option value="">Every brand</option>
+                  {availableBrands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-black/60">
+                Service
+                <select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                  <option value="">Every service</option>
+                  {availableServices.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={() => {
@@ -763,6 +838,8 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                   setTagFilter("");
                   setSourceFilter("");
                   setNicheFilter("");
+                  setBrandFilter("");
+                  setServiceFilter("");
                   setWorkFilter("all");
                 }}
                 className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]"
@@ -786,7 +863,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                 <Link href={`/client-preview/${convertedClient.id}?section=home`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
                   Preview portal
                 </Link>
-                <Link href={`/portal/clients/${convertedClient.id}?tab=properties`} className="rounded-md bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-900">
+                <Link href={`/portal/clients/${convertedClient.id}?tab=systems&systemView=properties`} className="rounded-md bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-900">
                   Open Development
                 </Link>
               </div>
@@ -880,6 +957,13 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                         ) : null}
                       </div>
                     )}
+                    {lead.brandName || lead.serviceNames.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {lead.brandName ? <span className="rounded-full bg-brand/[0.08] px-2 py-0.5 text-[11px] font-medium text-brand">{lead.brandName}</span> : null}
+                        {lead.serviceNames.slice(0, 2).map(service => <span key={service} className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/55">{service}</span>)}
+                        {lead.serviceNames.length > 2 ? <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/45">+{lead.serviceNames.length - 2} services</span> : null}
+                      </div>
+                    ) : null}
 
                     {lead.lastContactedAt && (
                       <p className="mt-3 text-[11px] font-medium text-black/45">
@@ -978,6 +1062,17 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                           {busy === `convert:${lead.id}` ? "Updating..." : "Update client"}
                         </button>
                       )}
+                      {lead.enquiryId && !lead.tags.includes("converted") ? (
+                        <select
+                          value={lead.enquiryClassification ?? "sales"}
+                          onChange={event => void rerouteWebsiteLead(lead, event.target.value as WebsiteEnquiryClassification)}
+                          disabled={busy === `route:${lead.id}`}
+                          aria-label={`Route ${lead.name || lead.email || lead.phone || "enquiry"} relationship`}
+                          className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-black/70 disabled:opacity-50"
+                        >
+                          {WEBSITE_ENQUIRY_CLASSIFICATIONS.filter(value => value !== "unclassified").map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}
+                        </select>
+                      ) : null}
                       <button
                         type="button"
                           onClick={() => archiveLead(lead.id, lead.name || lead.company || lead.email || lead.phone || "lead")}
@@ -1105,6 +1200,20 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
               <Field label="Company" value={form.company} onChange={v => setForm(f => ({ ...f, company: v }))} placeholder="Company Ltd" />
               <Field label="Niche" value={form.niche} onChange={v => setForm(f => ({ ...f, niche: v }))} placeholder="Plumber, clinic, consultant..." />
               <Field label="Lead source" value={form.source} onChange={v => setForm(f => ({ ...f, source: v }))} placeholder="Referral, Google, event..." />
+              <label className="text-xs font-medium text-black/60">
+                Brand
+                <select value={form.brandId} onChange={event => setForm(current => ({ ...current, brandId: event.target.value }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                  <option value="">Not assigned yet</option>
+                  {brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-black/60">
+                Service interest
+                <select value={form.serviceId} onChange={event => setForm(current => ({ ...current, serviceId: event.target.value }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                  <option value="">Not assigned yet</option>
+                  {products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
+                </select>
+              </label>
               <div className="sm:col-span-2">
                 <Field label="Tags" value={form.tags} onChange={v => setForm(f => ({ ...f, tags: v }))} placeholder="google-profile, meetup" />
               </div>
@@ -2196,6 +2305,8 @@ function matchesQuery(lead: LeadView, query: string): boolean {
     lead.company,
     lead.source,
     lead.notes,
+    lead.brandName,
+    lead.serviceNames.join(" "),
     lead.tags.join(" "),
   ].some(value => (value ?? "").toLowerCase().includes(q));
 }

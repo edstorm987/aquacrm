@@ -18,6 +18,7 @@ test("sidebar uses real icons and presents the merged people hub as Journey", ()
 test("portal dark mode is persistent and scoped", () => {
   const mode = read("src/lib/chrome/colorMode.ts");
   const toggle = read("src/components/chrome/ColorModeToggle.tsx");
+  const routeCanvas = read("src/components/chrome/PortalRouteCanvas.tsx");
   const profile = read("src/components/chrome/ProfileMenu.tsx");
   const css = read("src/app/globals.css");
   const agencyLayout = read("src/app/portal/agency/layout.tsx");
@@ -29,16 +30,24 @@ test("portal dark mode is persistent and scoped", () => {
   assert.match(toggle, /variant === "menu"/);
   assert.match(toggle, /role="menuitemcheckbox"/);
   assert.match(toggle, /MutationObserver/);
+  assert.match(toggle, /commandLocked/);
+  assert.match(toggle, /data-portal-shell/);
+  assert.match(toggle, /if \(commandLocked\) return null/);
+  assert.match(routeCanvas, /commandPreviousColorMode/);
+  assert.match(routeCanvas, /root\.dataset\.colorMode = "dark"/);
+  assert.match(routeCanvas, /localStorage\.getItem\(COLOR_MODE_STORAGE_KEY\)/);
+  assert.doesNotMatch(routeCanvas, /localStorage\.setItem/);
   assert.match(profile, /ColorModeToggle variant="menu"/);
   assert.match(profile, /mm-profile-trigger/);
   assert.match(profile, /mm-profile-menu-header/);
   assert.match(profile, /bg-\[#FFFDF8\]/);
   assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root/);
+  assert.match(css, /html\[data-portal-shell="command"\] \.mm-color-mode-toggle\s*\{\s*display:\s*none !important/);
   assert.match(css, /\.mm-profile-trigger\[data-open="true"\]/);
   assert.match(css, /\.mm-profile-menu-header\s*\{\s*background:\s*#F8EEDB/);
   assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root \.mm-profile-trigger/);
   assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root \.mm-profile-menu-header/);
-  assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root \.mm-profile-menu \[role="menuitem"\]/);
+  assert.match(css, /html\[data-color-mode="dark"\] \.mm-portal-root \.mm-profile-menu :is\(\[role="menuitem"\], \[role="menuitemcheckbox"\]\)/);
   assert.match(agencyLayout, /mm-portal-root/);
   assert.match(clientLayout, /mm-portal-root/);
   assert.match(customerChrome, /mm-portal-root/);

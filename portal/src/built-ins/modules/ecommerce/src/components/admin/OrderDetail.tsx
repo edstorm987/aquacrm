@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, FileJson, FilePenLine, Printer, Save, X } from "lucide-react";
+import { Download, FileJson, FilePenLine, Printer, ReceiptText, Save, X } from "lucide-react";
 import { useState } from "react";
 
 import { formatPrice } from "../../lib/admin/orders";
@@ -9,6 +9,7 @@ import type { OrderStatus, ServerOrder } from "../../server/orders";
 export interface OrderDetailProps {
   order: ServerOrder;
   apiBase: string;
+  receiptHref?: string;
 }
 
 const STATUSES: OrderStatus[] = [
@@ -16,7 +17,7 @@ const STATUSES: OrderStatus[] = [
 ];
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
 
-export function OrderDetail({ order, apiBase }: OrderDetailProps) {
+export function OrderDetail({ order, apiBase, receiptHref }: OrderDetailProps) {
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [customerName, setCustomerName] = useState(order.customerName ?? "");
@@ -79,6 +80,7 @@ export function OrderDetail({ order, apiBase }: OrderDetailProps) {
           <p className="mt-1 text-sm text-black/50">{formatPrice(order.amountTotal, order.currency)} · {new Date(order.createdAt).toLocaleString("en-GB")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {receiptHref ? <a href={receiptHref} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]"><ReceiptText size={16} /> Receipt</a> : null}
           <a href={downloadUrl} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]"><Download size={16} /> Download</a>
           <a href={`${downloadUrl}&format=json`} className="inline-flex size-10 items-center justify-center rounded-md border border-black/15 bg-white text-black/60 hover:bg-black/[0.03]" aria-label="Download order data" title="Download order data"><FileJson size={17} /></a>
           <a href={`${downloadUrl}&print=1`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]"><Printer size={16} /> Print / save PDF</a>

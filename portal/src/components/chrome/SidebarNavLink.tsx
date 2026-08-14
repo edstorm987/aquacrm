@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   Bell,
@@ -36,11 +36,13 @@ import {
   Sparkles,
   Target,
   Users,
+  UsersRound,
+  UserRoundCheck,
   WalletCards,
   Wrench,
   Workflow,
 } from "lucide-react";
-import { attentionTitle, useAttentionMatches, useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
+import { attentionTitle, useAttentionMatches, useNotificationAttention, useUnresolvedAttentionMatches } from "@/components/chrome/NotificationAttentionProvider";
 
 const NAV_ICONS: Record<string, typeof Circle> = {
   home: Radar,
@@ -63,22 +65,30 @@ const NAV_ICONS: Record<string, typeof Circle> = {
   finance: WalletCards,
   "agency-finance": WalletCards,
   "sop-library": BookOpen,
+  tools: Wrench,
   settings: Settings,
   "agency-settings": Settings,
   "agency-phases": Boxes,
   "back-to-agency": House,
   "client-overview": LayoutDashboard,
-  "client-fulfilment": FolderKanban,
-  "client-kanban": ClipboardCheck,
-  "client-website": PanelTop,
-  "client-properties": MonitorCog,
+  "client-relationship": UsersRound,
+  "client-delivery": FolderKanban,
+  "client-marketing": Megaphone,
+  "client-communications": Inbox,
   "client-finance": ReceiptText,
-  "client-assets": Images,
   "client-files": FileText,
-  "client-sops": BookOpen,
-  "client-systems": Wrench,
+  "client-portal": PanelTop,
+  "client-notes": NotebookPen,
+  "client-systems": MonitorCog,
   "client-settings": Settings,
   customer: Users,
+  people: UsersRound,
+  "my-day": Gauge,
+  onboarding: UserRoundCheck,
+  leave: CalendarDays,
+  training: BookOpen,
+  pay: WalletCards,
+  notes: NotebookPen,
   orders: ShoppingBag,
   bookings: Bell,
   membership: Sparkles,
@@ -105,9 +115,18 @@ const NAV_TONES: Record<string, string> = {
   development: "blue",
   performance: "blue",
   marketing: "pink",
+  "client-marketing": "pink",
   finance: "emerald",
   "agency-finance": "emerald",
   "sop-library": "slate",
+  tools: "cyan",
+  people: "violet",
+  "my-day": "teal",
+  onboarding: "sky",
+  leave: "rose",
+  training: "blue",
+  pay: "emerald",
+  notes: "amber",
   settings: "slate",
   "agency-settings": "slate",
 };
@@ -128,19 +147,34 @@ export function SidebarNavLink({
   attentionCount?: number;
 }) {
   const pathname = usePathname();
-  const active = id === "home"
-    ? pathname === href
+  const searchParams = useSearchParams();
+  const target = href.startsWith("/") ? new URL(href, "https://aqua.local") : null;
+  const targetHasQuery = Boolean(target?.search);
+  const queryMatches = targetHasQuery && target
+    ? [...target.searchParams.entries()].every(([key, value]) => searchParams.get(key) === value)
+    : false;
+  const clientOverviewAtRoot = id === "client-overview" && pathname === target?.pathname && !searchParams.has("tab");
+  const active = targetHasQuery
+    ? pathname === target?.pathname && queryMatches
+    : id === "client-overview"
+      ? clientOverviewAtRoot
+      : id === "home"
+        ? pathname === href
     : id === "fulfilment"
       ? pathname === href
         || pathname.startsWith(`${href}/`)
+        || pathname.startsWith("/portal/agency/development")
+        || pathname.startsWith("/portal/agency/performance")
         || pathname.startsWith("/portal/agency/portals")
         || pathname.startsWith("/portal/agency/pipelines/fulfilment")
       : pathname === href || pathname.startsWith(`${href}/`);
   const Icon = NAV_ICONS[id] ?? Circle;
   const attentionContext = useNotificationAttention();
   const liveAttention = useAttentionMatches({ navId: id, hrefs: [href] });
-  const resolvedAttentionCount = attentionContext ? liveAttention.length : attentionCount;
-  const hoverTitle = liveAttention.length ? `${label}\n${attentionTitle(liveAttention)}` : label;
+  const unresolvedAttention = useUnresolvedAttentionMatches({ navId: id });
+  const visibleAttention = [...new Map([...liveAttention, ...unresolvedAttention].map(alert => [alert.id, alert])).values()];
+  const resolvedAttentionCount = attentionContext ? visibleAttention.length : attentionCount;
+  const hoverTitle = visibleAttention.length ? `${label}\n${attentionTitle(visibleAttention)}` : label;
 
   return (
     <Link

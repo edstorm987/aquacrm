@@ -3,7 +3,7 @@ import Link from "next/link";
 // Renamed to avoid clashing with the route-level `dynamic` const below.
 import nextDynamic from "next/dynamic";
 import { isGoogleOAuthConfigured } from "@/lib/server/oauthGoogle";
-import { getCurrentUser } from "@/lib/server/auth";
+import { getCurrentUser, getSession } from "@/lib/server/auth";
 import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
 import { getAuthBrand } from "@/lib/authBrand";
 import type { Metadata } from "next";
@@ -36,10 +36,26 @@ export async function generateMetadata({
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string }>;
+  searchParams: Promise<{ brand?: string; next?: string }>;
 }) {
   const params = await searchParams;
   const brand = getAuthBrand(params.brand);
+  const contactHref = brand.id === "aquacrm"
+    ? brand.homeUrl.startsWith("http")
+      ? new URL("/contact/", brand.homeUrl).toString()
+      : "/contact/"
+    : brand.homeUrl;
+  // Public project tours and live account access share a domain locally and
+  // in production, but they must never share an identity. Visiting the real
+  // login boundary retires only the fictional showcase session, then returns
+  // here for normal Supabase-backed authentication.
+  const session = await getSession();
+  if (session?.publicShowcase) {
+    const query = new URLSearchParams({ brand: brand.id });
+    if (params.next?.startsWith("/")) query.set("next", params.next);
+    redirect(`/login/live?${query.toString()}`);
+  }
+
   // 2026-05-09 — if already signed in, route straight to the primary
   // portal for this user's role (agency/client/team workspace,
   // Business OS for leads). No login form needed.
@@ -67,7 +83,7 @@ export default async function LoginPage({
             {brand.points.map((point) => <li key={point}>{point}</li>)}
           </ul>
           <span className="mm-auth-brand-foot">
-            Private access provided by {brand.name}
+            Secure access issued by AquaCRM
           </span>
         </aside>
 
@@ -77,13 +93,16 @@ export default async function LoginPage({
           </Link>
           <div className="mm-auth-card-head">
             <h1>Welcome back</h1>
-            <p>Sign in to your {brand.name} workspace.</p>
+            <p>{brand.id === "aquacrm" ? "Sign in with the access issued to you." : `Sign in to your ${brand.name} workspace.`}</p>
           </div>
           <LoginForm googleEnabled={isGoogleOAuthConfigured()} />
           <div className="mm-auth-foot">
             <span>One account</span>
             <span>Secure access</span>
           </div>
+          <p className="mm-auth-lead-link">
+            Not a client yet? <Link href={contactHref}>Let&apos;s get in touch</Link>.
+          </p>
         </div>
       </div>
     </main>

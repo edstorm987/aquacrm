@@ -10,10 +10,12 @@ import {
   ExternalLink,
   KeyRound,
   Mail,
+  MessageSquareText,
   Pencil,
   Plus,
   RefreshCw,
   SearchCheck,
+  Server,
   ShieldCheck,
   Trash2,
   X,
@@ -49,6 +51,8 @@ type ModalState = {
 
 const providerIcon: Record<IntegrationProvider, typeof Mail> = {
   resend: Mail,
+  smtp: Server,
+  twilio: MessageSquareText,
   stripe: CreditCard,
   github: Code2,
   vercel: Cloud,

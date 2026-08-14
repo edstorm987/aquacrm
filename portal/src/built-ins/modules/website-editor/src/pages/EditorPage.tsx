@@ -487,7 +487,7 @@ function VisualEditorPageInner() {
   return (
     <main className="fixed inset-0 z-[80] flex flex-col bg-[#0a0a0a]">
       <EditorTopBar
-        backHref={clientIdFromPath ? `/portal/clients/${encodeURIComponent(clientIdFromPath)}?tab=website` : "/portal/agency/development"}
+        backHref={clientIdFromPath ? `/portal/clients/${encodeURIComponent(clientIdFromPath)}?tab=systems&systemView=website` : "/portal/agency/fulfilment?view=technical"}
         sites={sites.map(s => ({ id: s.id, name: s.name }))}
         siteId={site?.id ?? ""}
         onSiteChange={id => setSite(sites.find(s => s.id === id) ?? null)}

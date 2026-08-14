@@ -24,14 +24,13 @@ export function getAuthBrand(value: string | undefined): AuthBrand {
       id: "aquacrm",
       name: "AquaCRM",
       mark: "A",
-      eyebrow: "Business operating system",
-      headline: "One system for the whole customer journey.",
+      eyebrow: "Secure client access",
+      headline: "Your private workspace.",
       tagline:
-        "Keep sales, clients, work, money, support and performance connected in one calm workspace.",
+        "Use the access issued for your project or client account.",
       points: [
-        "Keep every customer and decision in context.",
-        "Run actions, delivery, billing and support together.",
-        "See what needs attention without switching tools.",
+        "Project, files and approvals.",
+        "Billing, support and updates.",
       ],
       homeUrl:
         process.env.NEXT_PUBLIC_AQUACRM_WEBSITE_URL ??

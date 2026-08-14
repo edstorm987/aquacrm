@@ -122,8 +122,8 @@ export function CompanyConnectionsWorkspace({
         <h2 id="connected-work-heading" className="text-base font-semibold text-black/80">Use the connections</h2>
         <p className="mt-1 text-sm leading-6 text-black/50">Connect credentials once here, then attach repositories, deployments, analytics and customer communication where the work happens.</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <WorkspaceLink href="/portal/agency/development">Websites and development</WorkspaceLink>
-          <WorkspaceLink href="/portal/agency/development/performance">Website performance</WorkspaceLink>
+          <WorkspaceLink href="/portal/agency/fulfilment?view=technical">Technical delivery</WorkspaceLink>
+          <WorkspaceLink href="/portal/agency/fulfilment/technical/performance">Website performance</WorkspaceLink>
           <WorkspaceLink href="/portal/agency/agency-finance">Payments and finance</WorkspaceLink>
           <WorkspaceLink href="/portal/agency/inbox">Inbox and enquiries</WorkspaceLink>
         </div>

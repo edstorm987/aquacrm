@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/server/auth";
 import { buildCompanyHealthSnapshot } from "@/lib/server/companyHealthSnapshot";
 import { listLegalDocuments } from "@/server/legalDocuments";
@@ -21,7 +22,18 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
   const query = await searchParams;
   const requestedView = singleValue(query.view);
   const requestedIntegration = integrationProvider(singleValue(query.integration));
-  const initialView = requestedView === "connections" ? "connections" : requestedView === "products" ? "products" : requestedView === "capacity" ? "capacity" : undefined;
+  const specialistView = requestedView === "connections" || requestedView === "products" || requestedView === "legal" || requestedView === "companies";
+  if (!specialistView) {
+    const battle = requestedView === "direction" ? "strategy"
+      : requestedView === "capacity" ? "capacity"
+        : requestedView === "plans" ? "plans"
+          : requestedView === "reviews" ? "reviews"
+            : requestedView === "objectives" ? "objectives"
+              : requestedView === "projections" ? "projections"
+                : "overview";
+    redirect(`/portal/agency?station=battle&battle=${battle}`);
+  }
+  const initialView = requestedView === "connections" ? "connections" : requestedView === "products" ? "products" : requestedView === "legal" ? "legal" : undefined;
   const showCompaniesGrid = requestedView === "companies";
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId);

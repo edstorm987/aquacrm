@@ -23,7 +23,11 @@ export function listOperationalAlertViews(
     const preference = preferences[preferenceKey(agencyId, userId, alert.id)];
     const changed = Boolean(preference && alert.occurredAt > preference.alertOccurredAt);
     if (!preference || changed) return [{ ...alert, state: "unread" as const, attention: true }];
-    if (preference.state === "dismissed") return [];
+    if (preference.state === "dismissed") {
+      return alert.persistentUntilResolved
+        ? [{ ...alert, state: "read" as const, attention: false }]
+        : [];
+    }
     if (preference.state === "parked" && (preference.parkedUntil ?? 0) > now) {
       return [{ ...alert, state: "parked" as const, attention: false, parkedUntil: preference.parkedUntil }];
     }

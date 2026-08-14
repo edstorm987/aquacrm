@@ -327,7 +327,7 @@ function PortalCard({ portal }: { portal: PortalWorkspaceRecord }) {
               <Eye size={15} /> View portal <ArrowUpRight size={14} />
             </Link>
           ) : null}
-          <Link href={isBuilt ? `/portal/agency/portals/editor?scope=client&clientId=${portal.id}` : `/portal/clients/${portal.id}?tab=fulfilment`} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBuilt ? "border border-black/12 bg-white text-black/70 hover:bg-black/[0.03]" : "bg-black text-white hover:bg-black/85"}`}>
+          <Link href={isBuilt ? `/portal/agency/portals/editor?scope=client&clientId=${portal.id}` : `/portal/clients/${portal.id}?tab=portal`} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBuilt ? "border border-black/12 bg-white text-black/70 hover:bg-black/[0.03]" : "bg-black text-white hover:bg-black/85"}`}>
             {isBuilt ? <MonitorCog size={15} /> : <Sparkles size={15} />}{isBuilt ? "Portal editor" : "Create portal"}
           </Link>
         </div>

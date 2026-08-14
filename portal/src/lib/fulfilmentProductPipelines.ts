@@ -50,6 +50,15 @@ export const PRODUCT_PIPELINE_COLUMNS: Record<PortalProductKey, ProductPipelineC
     { id: "approved", label: "Approved", color: "#c07842" },
     { id: "published", label: "Published", color: "#2f8b68" },
   ],
+  "social-ads": [
+    { id: "brief", label: "Brief", color: "#7c8f8e" },
+    { id: "access", label: "Account access", color: "#9a7b4f" },
+    { id: "strategy", label: "Strategy", color: "#8a6f9e" },
+    { id: "production", label: "Production", color: "#527aa3" },
+    { id: "review", label: "Client review", color: "#c07842" },
+    { id: "live", label: "Scheduled / live", color: "#2f8b68" },
+    { id: "optimise", label: "Optimise", color: "#3f6f65" },
+  ],
   automation: [
     { id: "discovery", label: "Discovery", color: "#7c8f8e" },
     { id: "mapping", label: "Workflow map", color: "#9a7b4f" },

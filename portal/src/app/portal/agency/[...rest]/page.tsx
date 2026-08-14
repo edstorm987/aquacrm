@@ -25,6 +25,8 @@ import { pluginPageAllowedRoles } from "@/built-ins/runtime/_types";
 import type { PluginPageProps } from "@/built-ins/runtime/_types";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { PluginWorkspaceNav } from "@/components/workspaces/PluginWorkspaceNav";
+import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 
 interface RouteProps {
   params: Promise<{ rest: string[] }>;
@@ -43,12 +45,30 @@ export default async function AgencyPluginCatchAll({ params, searchParams }: Rou
     if (rest[1] === "clients") redirect("/portal/agency/fulfilment?view=clients");
     if (rest[1] === "marketplace") redirect("/portal/agency/fulfilment?view=services");
     if (rest[1] === "phases") redirect("/portal/agency/phases");
+    if (rest.length === 2) redirect(`/portal/clients/${encodeURIComponent(rest[1])}?tab=delivery`);
   }
-  if (rest[0] === "leads-pipeline" && rest[1] === "campaigns") {
-    redirect("/portal/agency/marketing");
+  if (rest[0] === "leads-pipeline") {
+    if (rest.length === 1) redirect("/portal/agency/leads-pipeline/contacts");
+    if (rest[1] === "board") redirect("/portal/agency/pipelines/leads");
+    if (rest[1] === "campaigns") redirect("/portal/agency/marketing");
   }
+  if (rest[0] === "agency-finance" && rest[1] === "founder") redirect("/portal/agency/agency-finance");
 
-  const resolved = resolveAgencyPluginPage({ agencyId: session.agencyId, rest });
+  let resolved = resolveAgencyPluginPage({ agencyId: session.agencyId, rest });
+  const workspacePluginId = rest[0];
+  const mayProvisionWorkspace = session.role === "agency-owner" || session.role === "agency-manager";
+  if (!resolved && mayProvisionWorkspace && workspacePluginId && ["agency-hr", "email-sender", "agency-marketing"].includes(workspacePluginId)) {
+    const existing = getInstall({ agencyId: session.agencyId }, workspacePluginId);
+    if (!existing) {
+      await installPlugin(workspacePluginId, {
+        scope: { agencyId: session.agencyId },
+        installedBy: session.userId,
+      });
+    } else if (!existing.enabled) {
+      await setPluginEnabled({ agencyId: session.agencyId }, workspacePluginId, true);
+    }
+    resolved = resolveAgencyPluginPage({ agencyId: session.agencyId, rest });
+  }
   if (!resolved) {
     // Friendly path — the URL's first segment matches a built-in tool id we
     // ship but the tenant hasn't activated it. Sidebar wires
@@ -118,6 +138,7 @@ export default async function AgencyPluginCatchAll({ params, searchParams }: Rou
   return (
     <ErrorBoundary label={`${install.pluginId}${page.path ? `/${page.path}` : ""}`}>
       <div className="plugin-page-shell" data-plugin-id={install.pluginId}>
+        <PluginWorkspaceNav pluginId={install.pluginId} activePath={page.path} role={session.role} />
         <Component {...props} />
       </div>
     </ErrorBoundary>

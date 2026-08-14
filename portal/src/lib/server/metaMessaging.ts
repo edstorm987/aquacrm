@@ -323,6 +323,28 @@ export async function sendMetaTextMessage(
   return { messageId };
 }
 
+export async function sendMetaAttachmentMessage(
+  config: MetaMessagingConfig,
+  connection: PrivateInboxConnection,
+  recipientId: string,
+  attachment: { type: "image" | "audio" | "video" | "file"; url: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ messageId: string }> {
+  const accessToken = decryptInboxSecret(connection.encryptedAccessToken);
+  const host = connection.authMode === "instagram-login" ? "graph.instagram.com" : "graph.facebook.com";
+  const url = `https://${host}/${config.graphApiVersion}/${connection.externalAccountId}/messages`;
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ recipient: { id: recipientId }, message: { attachment: { type: attachment.type, payload: { url: attachment.url, is_reusable: true } } } }),
+    cache: "no-store",
+  });
+  const payload = await parseMetaResponse<{ message_id?: string; id?: string }>(response, "meta_attachment_send_failed");
+  const messageId = payload.message_id || payload.id;
+  if (!messageId) throw new Error("meta_message_id_missing");
+  return { messageId };
+}
+
 export function verifyMetaWebhookSignature(rawBody: string, signatureHeader: string | null, appSecret: string): boolean {
   if (!signatureHeader?.startsWith("sha256=")) return false;
   const received = signatureHeader.slice("sha256=".length);

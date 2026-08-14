@@ -34,7 +34,6 @@ export function GlobalAdvisorDrawer({
   const [notice, setNotice] = useState("");
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const openRef = useRef(false);
-  const attentionCount = coverage.radar.critical + coverage.radar.warning;
 
   useEffect(() => {
     setPortalRoot(document.body);
@@ -75,14 +74,14 @@ export function GlobalAdvisorDrawer({
       <button
         type="button"
         onClick={openDrawer}
-        aria-label={attentionCount ? `Open Aqua Advisor, ${attentionCount} issues need attention` : "Open Aqua Advisor"}
+        aria-label={notice ? "Open Aqua Advisor, reply ready" : "Open Aqua Advisor"}
         aria-expanded={open}
         aria-controls="aqua-advisor-drawer"
         className="mm-has-attention-badge relative inline-flex size-9 items-center justify-center gap-2 overflow-visible rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"
       >
         <Sparkles size={16} />
         <span className="hidden text-xs font-semibold xl:inline">Advisor</span>
-        {attentionCount ? <span className="mm-attention-badge absolute -right-1.5 -top-1.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white" aria-hidden>{Math.min(99, attentionCount)}</span> : notice ? <span className="mm-attention-badge absolute -right-1 -top-1 size-2 rounded-full bg-brand" aria-hidden /> : null}
+        {notice ? <span className="mm-attention-badge absolute -right-1 -top-1 size-2 rounded-full bg-brand" aria-hidden /> : null}
       </button>
 
       {portalRoot ? createPortal(

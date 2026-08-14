@@ -7,6 +7,8 @@ import { logActivity } from "@/server/activity";
 import type { ClientProperty } from "@/app/api/tenants/client-properties/route";
 import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/websiteEnquiries";
 import { triggerAutomations } from "@/server/automations";
+import type { InboxOutboundAttachment } from "@/lib/inbox/media";
+import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inboxMedia";
 
 export type ClientRequestType = "suggestion" | "design-feedback" | "support-ticket" | "cancel" | "move-provider";
 
@@ -15,6 +17,7 @@ export interface ClientRequestReply {
   message: string;
   from: "customer" | "milesymedia";
   createdAt: number;
+  attachments?: InboxOutboundAttachment[];
 }
 
 const TYPES: readonly ClientRequestType[] = [
@@ -148,13 +151,22 @@ interface UpdateBody {
   requestId?: string;
   status?: "reviewed" | "closed" | "open";
   reply?: string;
+  attachments?: Array<{ token?: string }>;
 }
 
 export async function PATCH(req: Request) {
   try {
     await ensureHydrated();
     const body = await req.json().catch(() => null) as UpdateBody | null;
-    const reply = body?.reply?.trim().slice(0, 4_000) ?? "";
+    const replyInput = body?.reply?.trim().slice(0, 4_000) ?? "";
+    const targetId = body?.clientId && body.requestId ? `${body.clientId}:${body.requestId}` : "";
+    const attachments = (body?.attachments ?? []).flatMap(item => {
+      const token = typeof item?.token === "string" ? item.token : "";
+      const payload = token ? verifyInboxMediaToken(token) : null;
+      if (!payload || payload.targetKind !== "client" || payload.targetId !== targetId) return [];
+      return [{ id: payload.id, name: payload.name, size: payload.size, contentType: payload.contentType, kind: payload.kind, token, url: inboxMediaUrl(new URL(req.url).origin, token) }];
+    }).slice(0, 10);
+    const reply = replyInput || (attachments.length ? `Sent ${attachments.length === 1 ? "an attachment" : `${attachments.length} attachments`}.` : "");
     if (!body?.clientId || !body.requestId || (!body.status && !reply)) {
       return NextResponse.json({ ok: false, error: "clientId, requestId, and a status or reply are required" }, { status: 400 });
     }
@@ -168,6 +180,7 @@ export async function PATCH(req: Request) {
     );
     const client = getClientForAgency(session.agencyId, body.clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+    if (attachments.some(attachment => verifyInboxMediaToken(attachment.token)?.agencyId !== session.agencyId)) return NextResponse.json({ ok: false, error: "An attachment is invalid." }, { status: 400 });
 
     const meta = (client.metadata ?? {}) as { clientRequests?: ClientRequest[] };
     const requests = Array.isArray(meta.clientRequests) ? [...meta.clientRequests] : [];
@@ -184,6 +197,7 @@ export async function PATCH(req: Request) {
         message: reply,
         from: fromMilesymedia ? "milesymedia" : "customer",
         createdAt: now,
+        attachments,
       });
     }
     const changed: ClientRequest = {

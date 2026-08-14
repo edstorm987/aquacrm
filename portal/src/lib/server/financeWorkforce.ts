@@ -2,6 +2,7 @@ import "server-only";
 
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
+import { listPeopleEmployees } from "@/server/people";
 
 export interface FinanceStaffOption {
   id: string;
@@ -25,8 +26,23 @@ export async function listFinanceWorkforceOptions(agencyId: string): Promise<{
   departments: FinanceDepartmentOption[];
   hrEnabled: boolean;
 }> {
+  const nativeEmployees = listPeopleEmployees(agencyId).filter(employee => employee.status !== "alumni");
+  const nativeStaff: FinanceStaffOption[] = nativeEmployees.map(employee => ({
+    id: employee.id,
+    name: employee.name,
+    email: employee.email,
+    title: employee.title,
+    role: employee.employmentType,
+    departmentId: employee.department ? `people:${employee.department.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-")}` : undefined,
+    hourlyRate: employee.payBasis === "hourly" && employee.basePayMinor !== undefined ? employee.basePayMinor / 100 : undefined,
+    status: employee.status,
+  }));
+  const nativeDepartments: FinanceDepartmentOption[] = [...new Set(nativeEmployees.map(employee => employee.department).filter((value): value is string => Boolean(value)))].map(name => ({
+    id: `people:${name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    name,
+  }));
   const install = getInstall({ agencyId }, "agency-hr");
-  if (!install?.enabled) return { staff: [], departments: [], hrEnabled: false };
+  if (!install?.enabled) return { staff: nativeStaff, departments: nativeDepartments, hrEnabled: nativeStaff.length > 0 };
   const storage = makePluginStorage(install.id);
   const [staffIds, departmentIds] = await Promise.all([
     storage.get<string[]>("staff/index"),
@@ -36,9 +52,11 @@ export async function listFinanceWorkforceOptions(agencyId: string): Promise<{
     Promise.all((staffIds ?? []).map(id => storage.get<FinanceStaffOption>(`staff:${id}`))),
     Promise.all((departmentIds ?? []).map(id => storage.get<FinanceDepartmentOption>(`dept:${id}`))),
   ]);
+  const legacyStaff = staffRows.filter((row): row is FinanceStaffOption => Boolean(row) && row!.status !== "alumni");
+  const legacyDepartments = departmentRows.filter((row): row is FinanceDepartmentOption => Boolean(row));
   return {
-    staff: staffRows.filter((row): row is FinanceStaffOption => Boolean(row) && row!.status !== "alumni").sort((left, right) => left.name.localeCompare(right.name)),
-    departments: departmentRows.filter((row): row is FinanceDepartmentOption => Boolean(row)).sort((left, right) => left.name.localeCompare(right.name)),
+    staff: [...nativeStaff, ...legacyStaff.filter(row => !nativeStaff.some(native => native.email.toLocaleLowerCase() === row.email.toLocaleLowerCase()))].sort((left, right) => left.name.localeCompare(right.name)),
+    departments: [...nativeDepartments, ...legacyDepartments.filter(row => !nativeDepartments.some(native => native.name.toLocaleLowerCase() === row.name.toLocaleLowerCase()))].sort((left, right) => left.name.localeCompare(right.name)),
     hrEnabled: true,
   };
 }

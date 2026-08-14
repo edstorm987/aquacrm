@@ -13,7 +13,11 @@ import { listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
 import type { ClientContract } from "@/lib/clientContracts";
 import { listWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
+import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
+import { listExternalAssistantActionProposals } from "@/lib/server/externalAssistantProposals";
+import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
+import { cleanClientMarketingService } from "@/lib/clientMarketingService";
 
 export type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
 
@@ -32,10 +36,23 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   const clients = listClients(agencyId);
   const alerts: OperationalAlert[] = [];
   const notificationSettings = getAgencyWorkspaceSettings(agencyId).notifications;
+  const state = getState();
+  const peopleApplications = Object.values(state.peopleApplications).filter(application => application.agencyId === agencyId);
+  const peopleEmployees = Object.values(state.peopleEmployees).filter(employee => employee.agencyId === agencyId && employee.status !== "alumni");
+  const peopleLeave = Object.values(state.peopleLeaveRequests).filter(request => request.agencyId === agencyId);
+  const peopleTraining = Object.values(state.peopleTrainingAssignments).filter(training => training.agencyId === agencyId);
+  const staleApplications = peopleApplications.filter(application => !["declined", "withdrawn", "onboarding"].includes(application.stage) && now - application.updatedAt > 7 * DAY);
+  if (staleApplications.length) alerts.push({ id: "people:application-backlog", severity: staleApplications.length >= 4 ? "critical" : "warning", category: "task", title: `${staleApplications.length} candidate application${staleApplications.length === 1 ? " needs" : "s need"} review`, detail: "These applications have no retained update for more than seven days.", href: "/portal/agency/people?view=candidates", occurredAt: Math.min(...staleApplications.map(application => application.updatedAt)) });
+  const pendingLeave = peopleLeave.filter(request => request.status === "pending" && now - request.createdAt > 2 * DAY);
+  if (pendingLeave.length) alerts.push({ id: "people:leave-decisions", severity: "warning", category: "task", title: `${pendingLeave.length} leave request${pendingLeave.length === 1 ? " is" : "s are"} waiting`, detail: "A retained approve or reject decision is due.", href: "/portal/agency/people?view=time", occurredAt: Math.min(...pendingLeave.map(request => request.createdAt)) });
+  const overdueTraining = peopleTraining.filter(training => training.status !== "completed" && Boolean(training.dueAt && training.dueAt < now));
+  if (overdueTraining.length) alerts.push({ id: "people:training-overdue", severity: overdueTraining.length >= 4 ? "critical" : "warning", category: "task", title: `${overdueTraining.length} training assignment${overdueTraining.length === 1 ? " is" : "s are"} overdue`, detail: "Review the assigned employee, due date and completion evidence.", href: "/portal/agency/people?view=development", occurredAt: Math.min(...overdueTraining.map(training => training.dueAt ?? now)) });
+  const incompleteTerms = peopleEmployees.filter(employee => !employee.title || !employee.startDate || employee.weeklyHours === undefined || !employee.payBasis || !employee.currency);
+  if (incompleteTerms.length) alerts.push({ id: "people:employment-terms", severity: "notice", category: "task", title: `${incompleteTerms.length} People record${incompleteTerms.length === 1 ? " needs" : "s need"} complete terms`, detail: "Retain title, start date, hours, pay basis and currency before relying on capacity or payroll calculations.", href: "/portal/agency/people?view=team", occurredAt: Math.min(...incompleteTerms.map(employee => employee.updatedAt)) });
 
   for (const document of notificationSettings.complianceAlerts ? listLegalDocuments(agencyId) : []) {
     if (document.status === "archived") continue;
-    const href = "/portal/agency/company#legal";
+    const href = "/portal/agency/company?view=legal";
     if (document.expiresAt && document.expiresAt < now) {
       alerts.push({
         id: `compliance-expired:${document.id}`,
@@ -82,27 +99,56 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   for (const task of notificationSettings.overdueTasks ? listAgencyTasks(agencyId) : []) {
     if (task.status === "done") continue;
     const owner = task.assigneeUserId ? getUserById(task.assigneeUserId)?.name : undefined;
+    const baseAlert = {
+      id: `task:${task.id}`,
+      category: "task" as const,
+      href: "/portal/agency/actions",
+      persistentUntilResolved: true,
+    };
     if (task.dueAt && task.dueAt < now) {
       alerts.push({
-        id: `task:${task.id}`,
+        ...baseAlert,
         severity: task.priority === "urgent" ? "critical" : "warning",
-        category: "task",
         title: `Overdue task: ${task.title}`,
         detail: `${owner ? `${owner} owns this task. ` : "This task is unassigned. "}It was due ${formatRelativeDate(task.dueAt, now)}.`,
-        href: "/portal/agency/actions",
         occurredAt: task.dueAt,
       });
     } else if (task.reminderAt && task.reminderAt <= now) {
       alerts.push({
-        id: `task-reminder:${task.id}`,
+        ...baseAlert,
         severity: task.priority === "urgent" ? "critical" : "notice",
-        category: "task",
         title: `Task reminder: ${task.title}`,
         detail: owner ? `${owner} owns this task.` : "This task is unassigned.",
-        href: "/portal/agency/actions",
         occurredAt: task.reminderAt,
       });
+    } else {
+      alerts.push({
+        ...baseAlert,
+        severity: task.priority === "urgent" ? "warning" : "notice",
+        title: `Open action: ${task.title}`,
+        detail: `${owner ? `${owner} owns this action.` : "This action is unassigned. "}${task.dueAt ? `Due ${new Date(task.dueAt).toLocaleDateString("en-GB")}.` : "No deadline is recorded."}`,
+        occurredAt: task.updatedAt,
+      });
     }
+  }
+
+  for (const entry of notificationSettings.overdueTasks ? listAgencyCommandCalendarEntries(agencyId) : []) {
+    if (entry.status !== "planned") continue;
+    const alertAt = entry.reminderAt ?? (["reminder", "goal", "target"].includes(entry.type) ? entry.startsAt : undefined);
+    if (!alertAt || alertAt > now) continue;
+    const targetMissed = (entry.type === "goal" || entry.type === "target")
+      && entry.targetValue !== undefined
+      && (entry.currentValue ?? 0) < entry.targetValue
+      && entry.startsAt <= now;
+    alerts.push({
+      id: `calendar-reminder:${entry.id}`,
+      severity: targetMissed ? "warning" : "notice",
+      category: "task",
+      title: `${targetMissed ? "Target review" : "Calendar reminder"}: ${entry.title}`,
+      detail: entry.notes || calendarAlertDetail(entry.type, entry.startsAt, entry.endsAt),
+      href: "/portal/agency?station=calendar",
+      occurredAt: alertAt,
+    });
   }
 
   for (const client of clients) {
@@ -125,7 +171,56 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       portalBuiltAt?: number;
       portalAccessPreparedAt?: number;
       portalAccessSentAt?: number;
+      clientMarketingService?: unknown;
     } | undefined;
+
+    if (notificationSettings.marketingAlerts && metadata?.clientMarketingService) {
+      const marketing = cleanClientMarketingService(metadata.clientMarketingService);
+      if (marketing.enabled) {
+        const marketingHref = `/portal/clients/${encodeURIComponent(client.id)}?tab=marketing`;
+        const pending = marketing.content.filter(item => item.approval === "pending").length
+          + marketing.campaigns.filter(item => item.approval === "pending").length;
+        if (pending > 0) alerts.push({
+          id: `client-marketing-approvals:${client.id}`,
+          severity: "notice",
+          category: "marketing",
+          title: `${client.name} has ${pending} marketing approval${pending === 1 ? "" : "s"} waiting`,
+          detail: "Open the exact content and campaign records awaiting a client decision.",
+          href: marketingHref,
+          occurredAt: marketing.updatedAt ?? client.updatedAt,
+        });
+        const attentionProfiles = marketing.profiles.filter(profile => profile.status === "attention");
+        if (attentionProfiles.length) alerts.push({
+          id: `client-marketing-access:${client.id}`,
+          severity: "warning",
+          category: "marketing",
+          title: `${client.name} has ${attentionProfiles.length} social account access issue${attentionProfiles.length === 1 ? "" : "s"}`,
+          detail: attentionProfiles.map(profile => `${profile.platform}: ${profile.handle}`).join(" · "),
+          href: marketingHref,
+          occurredAt: marketing.updatedAt ?? client.updatedAt,
+        });
+        for (const campaign of marketing.campaigns.filter(item => item.status === "active" || item.status === "scheduled")) {
+          if (campaign.budgetCents > 0 && campaign.spendCents > campaign.budgetCents) alerts.push({
+            id: `client-marketing-budget:${client.id}:${campaign.id}`,
+            severity: "critical",
+            category: "marketing",
+            title: `${client.name}: ${campaign.name} is over budget`,
+            detail: `${money(campaign.spendCents)} spent against ${money(campaign.budgetCents)} allocated.`,
+            href: marketingHref,
+            occurredAt: campaign.updatedAt,
+          });
+          else if (campaign.budgetCents > 0 && campaign.spendCents >= campaign.budgetCents * 0.5 && campaign.leads === 0) alerts.push({
+            id: `client-marketing-no-leads:${client.id}:${campaign.id}`,
+            severity: "warning",
+            category: "marketing",
+            title: `${client.name}: ${campaign.name} needs a performance review`,
+            detail: `${money(campaign.spendCents)} spent with zero attributed leads.`,
+            href: marketingHref,
+            occurredAt: campaign.updatedAt,
+          });
+        }
+      }
+    }
 
     for (const request of notificationSettings.supportRequests ? metadata?.clientRequests ?? [] : []) {
       if (request.status !== "open") continue;
@@ -152,7 +247,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         severity: "critical",
         category: "outage",
         title: `${client.name} reported ${recentErrors.length} production error${recentErrors.length === 1 ? "" : "s"}`,
-        detail: latest.message || latest.path || "Open development monitoring to inspect the latest error.",
+        detail: latest.message || latest.path || "Open technical delivery monitoring to inspect the latest error.",
         href: `/portal/clients/${client.id}?tab=systems`,
         clientName: client.name,
         occurredAt: latest.occurredAt,
@@ -197,7 +292,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         category: "client",
         title: `${client.name}'s portal access is ready to review`,
         detail: `Access has been prepared for ${OPERATIONAL_ALERT_THRESHOLDS.portalAccessDays} days or more but has not been sent.`,
-        href: `/portal/clients/${client.id}?tab=fulfilment`,
+        href: `/portal/clients/${client.id}?tab=portal`,
         clientName: client.name,
         occurredAt: portalReadyAt,
       });
@@ -220,6 +315,18 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   if (notificationSettings.financeAlerts) addFinanceAlerts(alerts, agencyId, now);
   if (notificationSettings.developmentAlerts) addDevelopmentAlerts(alerts, agencyId, now);
 
+  for (const proposal of listExternalAssistantActionProposals(agencyId, ["pending"])) {
+    alerts.push({
+      id: `external-proposal:${proposal.id}`,
+      severity: proposal.priority === "urgent" ? "critical" : proposal.priority === "high" ? "warning" : "notice",
+      category: "task",
+      title: `AI proposal: ${proposal.title}`,
+      detail: `${proposal.assistantName} is waiting for approval. ${proposal.detail}`.slice(0, 420),
+      href: `/portal/agency/actions#external-proposal-${encodeURIComponent(proposal.id)}`,
+      occurredAt: proposal.submittedAt,
+    });
+  }
+
   const leadsInstall = getInstall({ agencyId }, "leads-pipeline");
   if (leadsInstall?.enabled) {
     ensureLeadsPipelineFoundationRegistered();
@@ -233,6 +340,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
     const alertedEnquiryIds = new Set<string>();
 
     for (const lead of leadRows) {
+      if (!isLeadJourneyEligible(lead)) continue;
       const label = lead.name || lead.company || lead.email;
       if (notificationSettings.meetingReminders && lead.meetingReminderAt && !lead.meetingReminderSentAt && lead.meetingReminderAt <= now && !["completed", "cancelled"].includes(lead.meetingStatus ?? "")) {
         alerts.push({
@@ -274,6 +382,18 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       for (const enquiry of websiteEnquiries) {
         if (alertedEnquiryIds.has(enquiry.id)) continue;
         if (enquiry.status === "resolved") continue;
+        if (enquiry.classification === "unclassified") {
+          alerts.push({
+            id: `enquiry-classification:${enquiry.id}`,
+            severity: now - enquiry.submittedAt > DAY ? "warning" : "notice",
+            category: "client",
+            title: `Classify enquiry from ${enquiry.name}`,
+            detail: `${enquiry.siteName} · Decide whether this is sales, an existing client, supplier, partnership, marketer, recruitment, spam, or another relationship. It will stay out of Journey until classified.`,
+            href: `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`,
+            occurredAt: enquiry.submittedAt,
+          });
+          continue;
+        }
         const matchingLead = leadRows.find(lead =>
           lead.id === enquiry.leadId
           || (Boolean(enquiry.email) && lead.email.toLowerCase() === enquiry.email?.toLowerCase()),
@@ -327,6 +447,12 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
 
 function enquiryView(enquiry: WebsiteEnquiry): "forms" | "chatbot" | "support" {
   return enquiry.channel === "form" ? "forms" : enquiry.channel;
+}
+
+function calendarAlertDetail(type: string, startsAt: number, endsAt?: number): string {
+  const format = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+  const timing = endsAt ? `${format.format(startsAt)} to ${format.format(endsAt)}` : format.format(startsAt);
+  return `${type.replaceAll("-", " ")} scheduled for ${timing}.`;
 }
 
 function enquirySeverity(enquiry: WebsiteEnquiry | undefined, submittedAt: number, now: number): OperationalAlertSeverity {
@@ -559,8 +685,8 @@ function addDevelopmentAlerts(alerts: OperationalAlert[], agencyId: string, now:
       severity: "critical",
       category: "development",
       title: `${website.name} recorded ${recentErrors.length} production error${recentErrors.length === 1 ? "" : "s"}`,
-      detail: latest.message || latest.path || "Open the development control centre to inspect the latest event.",
-      href: "/portal/agency/development/website",
+      detail: latest.message || latest.path || "Open Fulfilment technical delivery to inspect the latest event.",
+      href: "/portal/agency/fulfilment/technical/website",
       occurredAt: latest.occurredAt,
     });
   }
@@ -571,7 +697,7 @@ function addDevelopmentAlerts(alerts: OperationalAlert[], agencyId: string, now:
       category: "development",
       title: `${website.name} monitoring has gone quiet`,
       detail: `No telemetry has arrived for more than ${OPERATIONAL_ALERT_THRESHOLDS.staleMonitoringDays} days. Check the Aqua tag and production deployment.`,
-      href: "/portal/agency/development/website",
+      href: "/portal/agency/fulfilment/technical/website",
       occurredAt: website.telemetryLastSeenAt,
     });
   }

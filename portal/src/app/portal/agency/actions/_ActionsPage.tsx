@@ -1,9 +1,15 @@
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
+import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedActions";
+import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
+import { listExternalAssistantActionProposals } from "@/lib/server/externalAssistantProposals";
 import { requireRole } from "@/lib/server/auth";
 import { isAssistantConfigured } from "@/lib/server/openaiAssistant";
+import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
+import { listCommandCalendarEntries } from "@/server/commandCalendar";
+import { getCommandCalendarIntegrationSnapshot } from "@/lib/server/googleCalendar";
 import { listSops } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { listAgencyTasks } from "@/server/tasks";
@@ -29,6 +35,13 @@ export async function AgencyActionsPage({
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId);
   const now = Date.now();
+  const initialTasks = listAgencyTasks(session.agencyId);
+  const calendarIntegration = getCommandCalendarIntegrationSnapshot(session.agencyId, session.userId);
+  const acceptedSourceIds = new Set(initialTasks.filter(task => task.status !== "done").map(task => task.sourceId).filter((id): id is string => Boolean(id)));
+  const [businessRadar, operationalAlerts] = await Promise.all([
+    getCachedBusinessIssueRadar(session.agencyId),
+    listOperationalAlerts(session.agencyId, now),
+  ]);
   const actions: GeneratedAction[] = [];
   const calendarEvents: GeneratedAction[] = [];
   const leadsInstall = getInstall({ agencyId: session.agencyId }, "leads-pipeline");
@@ -62,9 +75,9 @@ export async function AgencyActionsPage({
   for (const client of clients.filter(client => client.status === "active")) {
     const lastContactedAt = Number(client.metadata?.lastContactedAt ?? 0);
     if (!lastContactedAt || now - lastContactedAt > WEEK) actions.push(signal(`${client.id}:contact`, `Check in with ${client.name}`, lastContactedAt ? "No client contact has been recorded for seven days." : "No client contact has been recorded yet.", `/portal/clients/${client.id}`, "Client", "high", lastContactedAt ? lastContactedAt + WEEK : client.createdAt));
-    if (client.stage === "onboarding" || client.stage === "aqua-epic-intro") actions.push(signal(`${client.id}:onboarding`, `Continue ${client.name}'s onboarding`, "Collect the remaining information, access, content, or decisions.", `/portal/clients/${client.id}?tab=fulfilment`, "Delivery", "normal"));
+    if (client.stage === "onboarding" || client.stage === "aqua-epic-intro") actions.push(signal(`${client.id}:onboarding`, `Continue ${client.name}'s onboarding`, "Collect the remaining information, access, content, or decisions.", `/portal/clients/${client.id}?tab=relationship`, "Journey", "normal"));
     if (!client.ownerEmail) actions.push(signal(`${client.id}:email`, `Add ${client.name}'s account email`, "The client record is missing its main contact email.", `/portal/clients/${client.id}`, "Client", "high"));
-    if ((client.stage === "live" || client.stage === "aqua-mastery") && !client.websiteUrl) actions.push(signal(`${client.id}:live-link`, `Connect ${client.name}'s live website`, "Production is marked live but no website is linked.", `/portal/clients/${client.id}?tab=properties`, "Development", "high"));
+    if ((client.stage === "live" || client.stage === "aqua-mastery") && !client.websiteUrl) actions.push(signal(`${client.id}:live-link`, `Connect ${client.name}'s live website`, "Production is marked live but no website is linked.", `/portal/clients/${client.id}?tab=systems&systemView=properties`, "Development", "high"));
     const requests = Array.isArray(client.metadata?.clientRequests) ? client.metadata.clientRequests as Array<{ id: string; type: string; status: string; submittedAt: number }> : [];
     for (const request of requests.filter(request => request.status === "open")) {
       actions.push(signal(`request:${client.id}:${request.id}`, `Respond to ${client.name}'s ${request.type.replaceAll("-", " ")}`, "Open the conversation and make the next step clear.", "/portal/agency/inbox", "Support", request.type === "support-ticket" ? "urgent" : "high", request.submittedAt));
@@ -87,12 +100,23 @@ export async function AgencyActionsPage({
   )));
 
   return <ActionsWorkspace
-    initialTasks={listAgencyTasks(session.agencyId)}
-    generatedActions={actions.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER))}
+    initialTasks={initialTasks}
+    initialExternalProposals={listExternalAssistantActionProposals(session.agencyId)}
+    generatedActions={actions.filter(action => !acceptedSourceIds.has(action.id)).sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER))}
+    commandRecommendations={buildBusinessRecommendedActions({
+      radar: businessRadar,
+      alerts: operationalAlerts,
+      existingTaskTitles: initialTasks.filter(task => task.status !== "done").map(task => task.title),
+      now,
+      limit: 5,
+    }).filter(recommendation => !acceptedSourceIds.has(recommendation.id))}
+    recommendationsGeneratedAt={businessRadar.generatedAt}
     advisorConfigured={isAssistantConfigured(session.agencyId)}
     team={team}
     sops={listSops(session.agencyId)}
     calendarEvents={calendarEvents}
+    initialCalendarEntries={listCommandCalendarEntries(session.agencyId, session.userId)}
+    initialCalendarIntegration={calendarIntegration}
     initialView={initialView}
     heading={heading}
     description={description}

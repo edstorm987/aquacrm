@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, BarChart3, FileText, Landmark, LayoutDashboard, Target, WalletCards } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, BarChart3, FileText, Landmark, LayoutDashboard, LockKeyhole, Settings, Sparkles, Target, WalletCards } from "lucide-react";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 
 const ITEMS = [
@@ -10,9 +10,12 @@ const ITEMS = [
   ["Budgets", "/portal/agency/agency-finance/budgets", WalletCards],
   ["Operations", "/portal/agency/agency-finance/operations", Landmark],
   ["Planning", "/portal/agency/agency-finance/planning", Target],
+  ["Plans", "/portal/agency/agency-finance/plans", Sparkles],
+  ["Deposits", "/portal/agency/agency-finance/lock-in", LockKeyhole],
+  ["Settings", "/portal/agency/agency-finance/settings", Settings],
 ] as const;
 
-export function FinanceNav({ active }: { active: "overview" | "income" | "expenses" | "invoices" | "reports" | "budgets" | "operations" | "planning" }) {
+export function FinanceNav({ active }: { active: "overview" | "income" | "expenses" | "invoices" | "reports" | "budgets" | "operations" | "planning" | "plans" | "deposits" | "settings" }) {
   return <nav aria-label="Finance sections" className="flex gap-3 overflow-x-auto border-b border-black/10 sm:gap-5">
     {ITEMS.map(([label, href, Icon]) => {
       const id = label.toLowerCase() as typeof active;

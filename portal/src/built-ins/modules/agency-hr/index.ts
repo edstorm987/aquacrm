@@ -89,8 +89,8 @@ const manifest: AquaPlugin = {
     { path: "departments", component: () => import("./src/pages/DepartmentsPage") },
     { path: "leave", component: () => import("./src/pages/LeaveRequestsPage") },
     { path: "employees", component: () => import("./src/pages/EmployeesPage") },
-    { path: "roles", component: () => import("./src/pages/RolesPage") },
-    { path: "settings", component: () => import("./src/pages/SettingsPage") },
+    { path: "roles", component: () => import("./src/pages/RolesPage"), visibleToRoles: [...AGENCY_ADMINS] },
+    { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...AGENCY_ADMINS] },
   ],
 
   api: ROUTES,

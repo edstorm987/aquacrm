@@ -69,7 +69,7 @@ const projects = {
     image: "/assets/aquacrm-workspace.png", alt: "Aqua CRM business operating platform",
     summary: "Our modular platform for managing the journey from first contact through sales, delivery, finance, support and long-term performance.",
     themes: ["Commercial control", "Client delivery", "Operational intelligence"], launchView: "agency", realDemo: true,
-    showcase: { local: "http://localhost:3041/showcase", production: "https://aqua-crm.com/showcase" },
+    showcase: { local: "http://localhost:3032/showcase", production: "https://aqua-crm.com/showcase" },
     modules: [["agency", "Agency operating system", "Sales, clients, delivery, finance, support and performance in one workspace."]],
   },
   beast: {
@@ -179,5 +179,5 @@ const aquaCrmLoginOrigin = ["localhost", "127.0.0.1"].includes(window.location.h
   ? "http://localhost:3032"
   : "https://aqua-crm.com";
 document.querySelectorAll("[data-aquacrm-login]").forEach((link) => {
-  link.href = `${aquaCrmLoginOrigin}/login?brand=aquacrm&next=/portal`;
+  link.href = `${aquaCrmLoginOrigin}/login/live?brand=aquacrm&next=/portal`;
 });

@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { UserPlus } from "lucide-react";
 
 interface PhasePreset {
   stage: string;
@@ -122,7 +123,7 @@ function composedDisplayName(state: FormState): string {
   return state.entityType === "company" ? p || t : t || p;
 }
 
-export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults }) {
+export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, className, commandDeck = false }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults; className?: string; commandDeck?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<FormState>(() => defaultState(defaults));
@@ -246,10 +247,9 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS }: {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90"
+        className={className ?? "inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90"}
       >
-        <span aria-hidden="true">＋</span>
-        New client
+        {commandDeck ? <><span className="grid size-8 shrink-0 place-items-center border border-[#68f5d0]/30 bg-[#68f5d0]/[0.07] text-[#68f5d0]"><UserPlus size={15} /></span><span><span className="block text-[8px] font-semibold uppercase text-[#68f5d0]/60">Order 04 · Commission</span><span className="mt-1 block text-sm font-semibold">New client</span></span></> : <><span aria-hidden="true">＋</span>New client</>}
       </button>
 
       {open && (

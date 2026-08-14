@@ -193,6 +193,7 @@ export function ClientRequestsPanel({
                         <span className="text-[10px] text-black/35">{formatRequestDate(reply.createdAt)}</span>
                       </div>
                       <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-black/60">{reply.message}</p>
+                      {reply.attachments?.map(attachment => <ReplyMedia key={attachment.id} attachment={attachment} />)}
                     </div>
                   ))}
                 </div>
@@ -240,4 +241,10 @@ export function ClientRequestsPanel({
       )}
     </section>
   );
+}
+
+function ReplyMedia({ attachment }: { attachment: import("@/lib/inbox/media").InboxOutboundAttachment }) {
+  if (attachment.kind === "image") return <a href={attachment.url} target="_blank" rel="noreferrer" className="mt-2 block"><img src={attachment.url} alt={attachment.name} className="max-h-48 max-w-full rounded-md object-contain" /></a>;
+  if (attachment.kind === "audio") return <audio controls preload="metadata" src={attachment.url} className="mt-2 h-9 max-w-full" />;
+  return <a href={attachment.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-semibold text-brand hover:underline">{attachment.name}</a>;
 }

@@ -1451,21 +1451,64 @@ export async function addContactToBoardHandler(req: Request, ctx: PluginCtx): Pr
 
 export async function updateContactMeetingHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
-  const body = await safeJson<{ id: string; nextMeetingAt?: number | null; meetingLink?: string; meetingNotes?: string; salesPresentations?: Array<{ id?: string; title?: string; url?: string }> }>(req);
+  const body = await safeJson<{
+    id: string;
+    nextMeetingAt?: number | null;
+    meetingLink?: string;
+    meetingNotes?: string;
+    meetingMode?: MeetingMode;
+    meetingLocation?: string;
+    meetingStatus?: MeetingStatus;
+    meetingConfirmed?: boolean;
+    meetingReminderAt?: number | null;
+    salesPresentations?: Array<{ id?: string; title?: string; url?: string }>;
+    attempt?: { channel?: MeetingAttemptChannel; outcome?: MeetingAttemptOutcome; notes?: string; at?: number };
+  }>(req);
   if (!body?.id) return badRequest("id required.");
+  const service = buildContainer(ctx).contacts;
+  const existing = await service.get(body.id);
+  if (!existing) return notFound("contact_not_found");
+  const validModes: MeetingMode[] = ["google-meet", "phone", "in-person", "other"];
+  const validStatuses: MeetingStatus[] = ["scheduled", "confirmed", "completed", "no-show", "cancelled", "rescheduled"];
+  const validChannels: MeetingAttemptChannel[] = ["call", "email", "sms", "whatsapp", "in-person"];
+  const validOutcomes: MeetingAttemptOutcome[] = ["attempted", "reached", "reminder-sent", "no-show", "rescheduled", "completed"];
+  if (body.meetingMode && !validModes.includes(body.meetingMode)) return badRequest("invalid meeting mode");
+  if (body.meetingStatus && !validStatuses.includes(body.meetingStatus)) return badRequest("invalid meeting status");
   const salesPresentations = body.salesPresentations === undefined
     ? undefined
     : cleanSalesPresentations(body.salesPresentations);
   if (salesPresentations === null) {
     return badRequest("Sales presentations need a title and a valid http or https link.");
   }
+  const attempts = [...(existing.meetingAttempts ?? [])];
+  if (body.attempt?.outcome) {
+    const channel = body.attempt.channel;
+    const outcome = body.attempt.outcome;
+    if (!channel || !validChannels.includes(channel) || !validOutcomes.includes(outcome)) return badRequest("valid attempt channel and outcome required");
+    attempts.push({
+      id: `attempt_${randomUUID()}`,
+      at: typeof body.attempt.at === "number" ? body.attempt.at : Date.now(),
+      channel,
+      outcome,
+      notes: body.attempt.notes?.trim() || undefined,
+    });
+  }
   const patch: UpdateContactPatch = {
     nextMeetingAt: typeof body.nextMeetingAt === "number" ? body.nextMeetingAt : undefined,
     meetingLink: body.meetingLink?.trim() || undefined,
     meetingNotes: body.meetingNotes?.trim() || undefined,
+    meetingMode: body.meetingMode,
+    meetingLocation: body.meetingLocation?.trim() || undefined,
+    meetingStatus: body.meetingStatus,
+    meetingConfirmedAt: body.meetingConfirmed ? existing.meetingConfirmedAt ?? Date.now() : undefined,
+    meetingReminderAt: typeof body.meetingReminderAt === "number" ? body.meetingReminderAt : undefined,
+    meetingReminderSentAt: body.attempt?.outcome === "reminder-sent" ? Date.now() : existing.meetingReminderSentAt,
+    meetingAttempts: attempts,
   };
   if (salesPresentations !== undefined) patch.salesPresentations = salesPresentations;
-  const updated = await buildContainer(ctx).contacts.update(body.id, patch, ctx.actor);
+  if (body.nextMeetingAt === null) patch.nextMeetingAt = undefined;
+  if (body.meetingReminderAt === null) patch.meetingReminderAt = undefined;
+  const updated = await service.update(body.id, patch, ctx.actor);
   if (!updated) return notFound("contact_not_found");
   return json({ ok: true, contact: updated });
 }

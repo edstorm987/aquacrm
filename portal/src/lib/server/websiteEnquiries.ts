@@ -1,8 +1,10 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isWebsiteEnquiryClassification, type WebsiteEnquiryClassification } from "@/lib/enquiryClassification";
 import { publicAquaSite, publicAquaSiteName, resolvePublicAquaSite } from "@/lib/publicSites";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
+import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 
 export type WebsiteEnquiryChannel = "form" | "chatbot" | "support";
 export type WebsiteEnquiryPriority = "urgent" | "high" | "normal";
@@ -10,14 +12,43 @@ export type WebsiteEnquiryStatus = "open" | "reviewed" | "resolved";
 
 export interface WebsiteEnquiryReply {
   id: string;
-  subject: string;
+  channel: "email" | "sms" | "whatsapp";
+  subject?: string;
   message: string;
   recipient: string;
+  senderId?: string;
+  senderLabel?: string;
   sentAt: number;
   sentBy: string;
   status: "sent" | "failed";
-  via: "resend" | "unconfigured";
+  via: "resend" | "smtp" | "twilio" | "unconfigured";
+  externalMessageId?: string;
   error?: string;
+  attachments: InboxOutboundAttachment[];
+}
+
+export interface WebsiteEnquiryCall {
+  id: string;
+  phone: string;
+  senderId: string;
+  senderLabel: string;
+  startedAt: number;
+  endedAt?: number;
+  durationSeconds?: number;
+  status: "in-progress" | "completed";
+  outcome?: "connected" | "voicemail" | "no-answer" | "follow-up" | "wrong-number";
+  notes?: string;
+  followUpAt?: number;
+  createdBy: string;
+  via?: "device" | "twilio";
+  externalCallId?: string;
+  recording?: {
+    url: string;
+    fileName: string;
+    contentType: string;
+    size: number;
+    consentConfirmed: true;
+  };
 }
 
 export interface WebsiteEnquiry {
@@ -27,6 +58,9 @@ export interface WebsiteEnquiry {
   source: string;
   channel: WebsiteEnquiryChannel;
   status: WebsiteEnquiryStatus;
+  classification: WebsiteEnquiryClassification;
+  classificationAt?: number;
+  routeNote?: string;
   priority: WebsiteEnquiryPriority;
   topic: string;
   suggestedAction: string;
@@ -45,12 +79,14 @@ export interface WebsiteEnquiry {
   campaign?: string;
   submittedAt: number;
   leadId?: string;
+  contactId?: string;
   leadLinkedAt?: number;
   reviewedAt?: number;
   resolvedAt?: number;
   firstRespondedAt?: number;
   lastRespondedAt?: number;
   replies: WebsiteEnquiryReply[];
+  calls: WebsiteEnquiryCall[];
   notification: "sent" | "failed" | "not-configured" | "pending" | "unknown";
 }
 
@@ -106,26 +142,90 @@ function inboxReplies(metadata: Record<string, unknown>): WebsiteEnquiryReply[] 
     const value = item as Record<string, unknown>;
     if (
       typeof value.id !== "string"
-      || typeof value.subject !== "string"
       || typeof value.message !== "string"
       || typeof value.recipient !== "string"
       || typeof value.sentAt !== "number"
       || typeof value.sentBy !== "string"
       || (value.status !== "sent" && value.status !== "failed")
-      || (value.via !== "resend" && value.via !== "unconfigured")
+      || !["resend", "smtp", "twilio", "unconfigured"].includes(String(value.via))
     ) return [];
+    const channel: WebsiteEnquiryReply["channel"] = value.channel === "sms" || value.channel === "whatsapp" ? value.channel : "email";
+    const attachments = Array.isArray(value.attachments) ? value.attachments.flatMap(item => {
+      if (!item || typeof item !== "object") return [];
+      const attachment = item as Record<string, unknown>;
+      if (typeof attachment.id !== "string" || typeof attachment.name !== "string" || typeof attachment.url !== "string" || typeof attachment.token !== "string" || typeof attachment.size !== "number" || typeof attachment.contentType !== "string" || !["image", "audio", "video", "file"].includes(String(attachment.kind))) return [];
+      return [{ id: attachment.id, name: attachment.name, url: attachment.url, token: attachment.token, size: attachment.size, contentType: attachment.contentType, kind: attachment.kind as InboxOutboundAttachment["kind"] }];
+    }) : [];
     return [{
       id: value.id,
-      subject: value.subject,
+      channel,
+      subject: typeof value.subject === "string" ? value.subject : undefined,
       message: value.message,
       recipient: value.recipient,
+      senderId: typeof value.senderId === "string" ? value.senderId : undefined,
+      senderLabel: typeof value.senderLabel === "string" ? value.senderLabel : undefined,
       sentAt: value.sentAt,
       sentBy: value.sentBy,
       status: value.status as WebsiteEnquiryReply["status"],
       via: value.via as WebsiteEnquiryReply["via"],
+      externalMessageId: typeof value.externalMessageId === "string" ? value.externalMessageId : undefined,
       error: typeof value.error === "string" ? value.error : undefined,
+      attachments,
     }];
   }).sort((a, b) => a.sentAt - b.sentAt);
+}
+
+function inboxCalls(metadata: Record<string, unknown>): WebsiteEnquiryCall[] {
+  if (!Array.isArray(metadata.inboxCalls)) return [];
+  return metadata.inboxCalls.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const value = item as Record<string, unknown>;
+    if (
+      typeof value.id !== "string"
+      || typeof value.phone !== "string"
+      || typeof value.senderId !== "string"
+      || typeof value.senderLabel !== "string"
+      || typeof value.startedAt !== "number"
+      || typeof value.createdBy !== "string"
+      || (value.status !== "in-progress" && value.status !== "completed")
+    ) return [];
+    const recordingValue = value.recording && typeof value.recording === "object" ? value.recording as Record<string, unknown> : null;
+    const recording = recordingValue
+      && typeof recordingValue.url === "string"
+      && typeof recordingValue.fileName === "string"
+      && typeof recordingValue.contentType === "string"
+      && typeof recordingValue.size === "number"
+      && recordingValue.consentConfirmed === true
+      ? {
+          url: recordingValue.url,
+          fileName: recordingValue.fileName,
+          contentType: recordingValue.contentType,
+          size: recordingValue.size,
+          consentConfirmed: true as const,
+        }
+      : undefined;
+    const outcome = ["connected", "voicemail", "no-answer", "follow-up", "wrong-number"].includes(String(value.outcome))
+      ? value.outcome as WebsiteEnquiryCall["outcome"]
+      : undefined;
+    const via: WebsiteEnquiryCall["via"] = value.via === "twilio" ? "twilio" : value.via === "device" ? "device" : undefined;
+    return [{
+      id: value.id,
+      phone: value.phone,
+      senderId: value.senderId,
+      senderLabel: value.senderLabel,
+      startedAt: value.startedAt,
+      endedAt: typeof value.endedAt === "number" ? value.endedAt : undefined,
+      durationSeconds: typeof value.durationSeconds === "number" ? value.durationSeconds : undefined,
+      status: value.status as WebsiteEnquiryCall["status"],
+      outcome,
+      notes: typeof value.notes === "string" ? value.notes : undefined,
+      followUpAt: typeof value.followUpAt === "number" ? value.followUpAt : undefined,
+      createdBy: value.createdBy,
+      via,
+      externalCallId: typeof value.externalCallId === "string" ? value.externalCallId : undefined,
+      recording,
+    }];
+  }).sort((a, b) => a.startedAt - b.startedAt);
 }
 
 export async function recordWebsiteEnquiryResponse(enquiryId: string, respondedAt: number, actorUserId: string): Promise<boolean> {
@@ -199,6 +299,9 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
     const channel = inferChannel(row, metadata);
     const statusValue = typeof metadata.inboxStatus === "string" ? metadata.inboxStatus : "open";
     const status = STATUSES.has(statusValue as WebsiteEnquiryStatus) ? statusValue as WebsiteEnquiryStatus : "open";
+    const classification = isWebsiteEnquiryClassification(metadata.enquiryClassification)
+      ? metadata.enquiryClassification
+      : "unclassified";
     const source = sourceParts(row.source_url);
     const siteKey = typeof metadata.siteKey === "string" ? metadata.siteKey : undefined;
     const storedSite = siteKey ? publicAquaSite(siteKey) : null;
@@ -218,6 +321,9 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       source: typeof metadata.source === "string" ? metadata.source : `website:${row.brand_slug}`,
       channel,
       status,
+      classification,
+      classificationAt: metadataStamp(metadata, "enquiryClassificationAt"),
+      routeNote: typeof metadata.enquiryRouteNote === "string" ? metadata.enquiryRouteNote : undefined,
       ...triage,
       siteKey: siteKey ?? resolvedSite?.siteKey,
       propertyId,
@@ -234,12 +340,14 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       campaign: row.campaign || undefined,
       submittedAt: Date.parse(row.created_at),
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
+      contactId: typeof metadata.contactId === "string" ? metadata.contactId : undefined,
       leadLinkedAt: metadataStamp(metadata, "leadLinkedAt"),
       reviewedAt: metadataStamp(metadata, "firstReviewedAt") ?? metadataStamp(metadata, "reviewedAt"),
       resolvedAt: metadataStamp(metadata, "lastResolvedAt") ?? metadataStamp(metadata, "resolvedAt"),
       firstRespondedAt: metadataStamp(metadata, "firstRespondedAt"),
       lastRespondedAt: metadataStamp(metadata, "lastRespondedAt"),
       replies: inboxReplies(metadata),
+      calls: inboxCalls(metadata),
       notification,
     };
   });

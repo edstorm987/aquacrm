@@ -266,6 +266,31 @@ const MODULES: Record<PortalProductKey, PortalProductModule> = {
       },
     ],
   },
+  "social-ads": {
+    label: "Social growth studio",
+    shortLabel: "Social & ads",
+    promise: "Channel access, content production, client approvals, paid acquisition and commercial results stay visible in one continuing growth system.",
+    pages: [
+      {
+        id: "channel-strategy", navLabel: "Channel strategy", icon: "plan", eyebrow: "Growth foundation", title: "Put every channel behind one commercial direction.",
+        body: "Keep the audience, offer, content pillars, platform roles, account access, budgets, exclusions and success measures agreed before production begins.",
+        checklistTitle: "Strategy foundation", checklist: ["Priority audience agreed", "Channel roles defined", "Account access connected", "Goals and budget guardrails recorded"],
+        outputTitle: "Strategy outputs", outputs: ["Audience definition", "Channel plan", "Content pillars", "Media budget"], actionLabel: "Review growth brief", actionTarget: "project",
+      },
+      {
+        id: "content-approvals", navLabel: "Content & approvals", icon: "review", eyebrow: "Publishing operation", title: "See what is being made, what needs a decision and what goes live next.",
+        body: "Review ideas, scripts, creative, captions, formats, scheduled dates and feedback through a precise approval trail shared with the delivery team.",
+        checklistTitle: "Publishing workflow", checklist: ["Content queue planned", "Creative produced", "Client decisions recorded", "Publishing dates confirmed"],
+        outputTitle: "Content outputs", outputs: ["Content calendar", "Approved creative", "Publishing queue", "Decision history"], actionLabel: "Open content queue", actionTarget: "project",
+      },
+      {
+        id: "campaign-results", navLabel: "Campaign results", icon: "insights", eyebrow: "Paid acquisition", title: "Know what the media spend is producing.",
+        body: "Follow budget, spend, impressions, clicks, leads, conversions, attributed revenue, cost per lead and return on ad spend without vague performance claims.",
+        checklistTitle: "Campaign assurance", checklist: ["Tracking verified", "Creative approved", "Budget pacing checked", "Results reviewed against target"],
+        outputTitle: "Performance outputs", outputs: ["Campaign register", "Attribution record", "Performance report", "Optimisation plan"], actionLabel: "Review campaign evidence", actionTarget: "results",
+      },
+    ],
+  },
   "ongoing-care": {
     label: "Care desk",
     shortLabel: "Care",

@@ -14,6 +14,7 @@ import {
 } from "@/server/notepad";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
+import { canUsePeopleStation } from "@/server/people";
 
 type Body = UpdateNotepadNoteInput & {
   action?: "create-note" | "update-note" | "delete-note" | "create-folder" | "update-folder" | "delete-folder";
@@ -27,6 +28,7 @@ export async function GET() {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
+    if (session.role === "agency-staff" && !canUsePeopleStation(session.agencyId, session.userId, "notes")) throw new AuthError(403, "station_forbidden");
     return NextResponse.json({
       ok: true,
       notes: listNotepadNotes(session.agencyId, session.userId),
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
+    if (session.role === "agency-staff" && !canUsePeopleStation(session.agencyId, session.userId, "notes", true)) throw new AuthError(403, "station_forbidden");
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
 

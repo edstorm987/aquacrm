@@ -125,6 +125,8 @@ export interface PluginPage {
   component: () => Promise<{ default: ComponentType<PluginPageProps> }>;
   requiresFeature?: string;
   title?: string;
+  visibleToRoles?: PluginRoleVisibility[];
+  roles?: PluginRoleVisibility[];
 }
 
 export interface PluginPageProps {

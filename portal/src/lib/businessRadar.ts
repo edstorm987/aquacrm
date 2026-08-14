@@ -178,6 +178,7 @@ export interface RadarMemoryDigest {
   status: "first-sweep" | "current" | "delayed";
   totalSweeps: number;
   firstSweepAt?: number;
+  lastSweepAt?: number;
   previousSweepAt?: number;
   scanGapMs?: number;
   newIssues: number;

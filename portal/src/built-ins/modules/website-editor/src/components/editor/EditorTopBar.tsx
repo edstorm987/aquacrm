@@ -71,7 +71,7 @@ interface Props {
 }
 
 export default function EditorTopBar({
-  backHref = "/portal/agency/development",
+  backHref = "/portal/agency/fulfilment?view=technical",
   sites, siteId, onSiteChange,
   pages, pageId, onPageChange,
   mode, onModeChange,

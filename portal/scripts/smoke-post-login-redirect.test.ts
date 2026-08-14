@@ -31,13 +31,13 @@ describe("Post-login redirect resolver (R022)", () => {
     assert.ok(src.includes("clientLookup"));
   });
 
-  it("agency-* roles route to /portal/agency", () => {
+  it("owners and managers route to the agency workspace while staff route to team", () => {
     const src = readFileSync(RESOLVER, "utf8");
     assert.ok(src.includes('case "agency-owner"'));
     assert.ok(src.includes('case "agency-manager"'));
     assert.ok(src.includes('case "agency-staff"'));
-    // The agency arm returns the bare string.
-    assert.ok(src.includes('return "/portal/agency"'));
+    assert.match(src, /case "agency-manager":\s*return "\/portal\/agency";/);
+    assert.match(src, /case "agency-staff":\s*return "\/portal\/team";/);
   });
 
   it("client-* roles route to /portal/clients/<slug> with deleted-client fallback", () => {

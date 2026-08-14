@@ -78,7 +78,7 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
               type="button"
               aria-label="Close navigation menu"
               onClick={() => setOpen(false)}
-              className="absolute right-5 top-6 z-20 inline-flex size-10 items-center justify-center rounded-md border border-black/10 bg-white text-black/75 shadow-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
+              className="mm-mobile-nav-close absolute right-5 top-6 z-20 inline-flex size-10 items-center justify-center rounded-md border border-black/10 bg-white text-black/75 shadow-sm hover:bg-black/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
             >
               <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
                 <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />

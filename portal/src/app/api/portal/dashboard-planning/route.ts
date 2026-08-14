@@ -4,20 +4,26 @@ import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/serve
 import {
   clockInDashboard,
   clockOutDashboard,
+  DashboardClockOutReviewError,
+  DashboardWeeklyReviewError,
   dashboardPlanningSnapshot,
   deleteDashboardWorkSession,
+  heartbeatDashboardWorkSession,
   logDashboardWorkSession,
+  resolveDashboardWorkActivity,
   updateDashboardWorkSession,
   upsertDashboardDayPlan,
   upsertDashboardWeekPlan,
 } from "@/server/dashboardPlanning";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
+import { canUsePeopleStation } from "@/server/people";
 
 async function agencySession(request: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(request);
   if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "unauthorized");
+  if (session.role === "agency-staff" && !canUsePeopleStation(session.agencyId, session.userId, "my-day", request.method !== "GET")) throw new AuthError(403, "station_forbidden");
   return session;
 }
 
@@ -35,11 +41,34 @@ export async function POST(request: NextRequest) {
   try {
     const session = await agencySession(request);
     const body = await request.json().catch(() => null) as {
-      action?: "save-plan" | "save-week" | "clock-in" | "clock-out" | "log-hours" | "update-session" | "delete-session";
+      action?: "save-plan" | "save-week" | "clock-in" | "clock-out" | "heartbeat" | "resolve-activity" | "log-hours" | "update-session" | "delete-session";
       date?: string;
       weekStart?: string;
       weekOutcome?: string;
       weekReviewNotes?: string;
+      weekWins?: string;
+      weekMisses?: string;
+      weekLessons?: string;
+      weekDecisions?: string;
+      weekRisks?: string;
+      weekStartDoing?: string;
+      weekStopDoing?: string;
+      weekContinueDoing?: string;
+      weekNextPriorities?: string;
+      weekExecutionScore?: number;
+      weekEnergyScore?: number;
+      weekConfidenceScore?: number;
+      weekReviewStatus?: "draft" | "complete";
+      weekEvidenceSnapshot?: {
+        plannedHours?: number;
+        confirmedHours?: number;
+        unconfirmedHours?: number;
+        completedTasks?: number;
+        openTasks?: number;
+        revenueTargetPounds?: number;
+        dayReviewsCompleted?: number;
+        capturedAt?: number;
+      };
       focus?: string;
       planNotes?: string;
       doneNotes?: string;
@@ -48,6 +77,20 @@ export async function POST(request: NextRequest) {
       sessionId?: string;
       hours?: number;
       notes?: string;
+      visible?: boolean;
+      lastInteractionAt?: number;
+      activityMode?: "aqua" | "external" | "break";
+      activityFocus?: string;
+      nextCheckInMinutes?: number;
+      currentPath?: string;
+      clockOutReview?: {
+        outcome?: string;
+        openWork?: string;
+        nothingOpen?: boolean;
+        nextPriority?: string;
+        dayScore?: 1 | 2 | 3 | 4 | 5;
+        unconfirmedTimeAcknowledged?: boolean;
+      };
     } | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
 
@@ -69,11 +112,44 @@ export async function POST(request: NextRequest) {
         weekStart: body.weekStart,
         outcome: body.weekOutcome,
         reviewNotes: body.weekReviewNotes,
+        wins: body.weekWins,
+        misses: body.weekMisses,
+        lessons: body.weekLessons,
+        decisions: body.weekDecisions,
+        risks: body.weekRisks,
+        startDoing: body.weekStartDoing,
+        stopDoing: body.weekStopDoing,
+        continueDoing: body.weekContinueDoing,
+        nextWeekPriorities: body.weekNextPriorities,
+        executionScore: body.weekExecutionScore,
+        energyScore: body.weekEnergyScore,
+        confidenceScore: body.weekConfidenceScore,
+        reviewStatus: body.weekReviewStatus,
+        evidenceSnapshot: body.weekEvidenceSnapshot,
       });
     } else if (body.action === "clock-in") {
-      clockInDashboard({ agencyId: session.agencyId, userId: session.userId, date: body.date, focus: body.focus });
+      clockInDashboard({ agencyId: session.agencyId, userId: session.userId, date: body.date, focus: body.focus, currentPath: body.currentPath });
     } else if (body.action === "clock-out") {
-      clockOutDashboard(session.agencyId, session.userId, body.notes);
+      clockOutDashboard({ agencyId: session.agencyId, userId: session.userId, review: body.clockOutReview });
+    } else if (body.action === "heartbeat") {
+      heartbeatDashboardWorkSession({
+        agencyId: session.agencyId,
+        userId: session.userId,
+        visible: body.visible !== false,
+        lastInteractionAt: body.lastInteractionAt,
+        currentPath: body.currentPath,
+      });
+    } else if (body.action === "resolve-activity") {
+      if (!body.activityMode) return NextResponse.json({ ok: false, error: "activityMode required" }, { status: 400 });
+      const updated = resolveDashboardWorkActivity({
+        agencyId: session.agencyId,
+        userId: session.userId,
+        mode: body.activityMode,
+        focus: body.activityFocus,
+        note: body.notes,
+        nextCheckInMinutes: body.nextCheckInMinutes,
+      });
+      if (!updated) return NextResponse.json({ ok: false, error: body.activityMode === "external" ? "Describe the off-app work first" : "active session not found" }, { status: 400 });
     } else if (body.action === "log-hours") {
       const logged = logDashboardWorkSession({ agencyId: session.agencyId, userId: session.userId, date: body.date, hours: body.hours, focus: body.focus, notes: body.notes });
       if (!logged) return NextResponse.json({ ok: false, error: "valid past or current date and hours required" }, { status: 400 });
@@ -89,6 +165,9 @@ export async function POST(request: NextRequest) {
     await flushPendingWrites();
     return NextResponse.json({ ok: true, planning: dashboardPlanningSnapshot(session.agencyId, session.userId, body.date) });
   } catch (error) {
+    if (error instanceof DashboardClockOutReviewError || error instanceof DashboardWeeklyReviewError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    }
     return authErrorResponse(error);
   }
 }

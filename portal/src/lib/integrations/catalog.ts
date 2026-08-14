@@ -1,4 +1,4 @@
-export type IntegrationProvider = "resend" | "stripe" | "github" | "vercel" | "openai" | "google-search-console";
+export type IntegrationProvider = "resend" | "smtp" | "twilio" | "stripe" | "github" | "vercel" | "openai" | "google-search-console";
 
 export type IntegrationFieldKind = "text" | "email" | "url" | "password";
 
@@ -38,6 +38,41 @@ export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
       { id: "fromName", label: "Sender name", kind: "text", required: true, placeholder: "AquaOasis-Web", help: "The name customers see beside the sender address." },
       { id: "replyTo", label: "Reply-to email", kind: "email", placeholder: "support@your-domain.com", help: "Replies will go here. Leave blank to use the sender email." },
       { id: "notifyTo", label: "Enquiry notification email", kind: "email", placeholder: "you@your-domain.com", help: "New public enquiries are forwarded to this inbox." },
+    ],
+  },
+  {
+    id: "smtp",
+    name: "SMTP email",
+    category: "Communication",
+    description: "Send customer replies through an existing mailbox or transactional SMTP service.",
+    setupUrl: "https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol",
+    setupLabel: "Review SMTP requirements",
+    outcome: "AquaCRM can send enquiry replies from the selected mailbox while retaining every delivery attempt in the contact history.",
+    fields: [
+      { id: "host", label: "SMTP host", kind: "text", required: true, placeholder: "smtp.example.com", help: "The outgoing mail server supplied by your email provider." },
+      { id: "port", label: "SMTP port", kind: "text", required: true, placeholder: "587", help: "Usually 587 for STARTTLS or 465 for implicit TLS." },
+      { id: "username", label: "Username", kind: "text", required: true, placeholder: "hello@example.com", help: "The SMTP login username." },
+      { id: "password", label: "Password", kind: "password", secret: true, required: true, placeholder: "App password", help: "Use an app-specific password or restricted SMTP credential." },
+      { id: "fromEmail", label: "Sender email", kind: "email", required: true, placeholder: "hello@example.com", help: "The address customers will see as the sender." },
+      { id: "fromName", label: "Sender name", kind: "text", required: true, placeholder: "AquaOasis-Web", help: "The name displayed beside the sender address." },
+      { id: "replyTo", label: "Reply-to email", kind: "email", placeholder: "support@example.com", help: "Replies return here. Leave blank to use the sender email." },
+    ],
+  },
+  {
+    id: "twilio",
+    name: "Twilio messaging",
+    category: "Communication",
+    description: "Send SMS and WhatsApp replies from Master Inbox using verified Twilio senders.",
+    setupUrl: "https://console.twilio.com/",
+    setupLabel: "Open Twilio Console",
+    outcome: "Phone enquiries can be answered by text or WhatsApp from the same retained communication history.",
+    fields: [
+      { id: "accountSid", label: "Account SID", kind: "text", required: true, placeholder: "AC...", help: "The Account SID shown in the Twilio Console." },
+      { id: "authToken", label: "Auth token", kind: "password", secret: true, required: true, placeholder: "Twilio auth token", help: "AquaCRM encrypts this token in the integration vault." },
+      { id: "smsFrom", label: "SMS sender number", kind: "text", placeholder: "+44...", help: "An SMS-capable Twilio number in E.164 format." },
+      { id: "whatsappFrom", label: "WhatsApp sender number", kind: "text", placeholder: "+44...", help: "The WhatsApp-enabled number approved for this Twilio account." },
+      { id: "voiceFrom", label: "Voice caller ID", kind: "text", placeholder: "+44...", help: "An outbound voice-capable Twilio number customers should see when you call." },
+      { id: "agentPhone", label: "Your answering phone", kind: "text", placeholder: "+44...", help: "Twilio rings this private number first, then bridges the customer using the selected caller ID." },
     ],
   },
   {

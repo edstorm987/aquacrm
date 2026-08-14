@@ -91,6 +91,13 @@ function cleanMarketingAssetInput(input: CreateMarketingAssetInput): Omit<Market
       conversionEvent: text(value.conversionEvent, 120),
       telemetrySiteKey: text(value.telemetrySiteKey, 160),
       telemetryPropertyId: text(value.telemetryPropertyId, 160),
+      audienceNiche: text(value.audienceNiche, 160),
+      bookingDurationMinutes: typeof value.bookingDurationMinutes === "number" && Number.isFinite(value.bookingDurationMinutes)
+        ? Math.min(480, Math.max(5, Math.round(value.bookingDurationMinutes)))
+        : undefined,
+      bookingCalendarUrl: text(value.bookingCalendarUrl, 500),
+      bookingMeetingMode: text(value.bookingMeetingMode, 80),
+      bookingConfirmation: text(value.bookingConfirmation, 500),
       steps,
     };
   };

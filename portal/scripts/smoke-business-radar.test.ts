@@ -41,15 +41,33 @@ test("radar declares coverage and includes every installed module", () => {
   assert.match(route, /buildBusinessIssueRadar/);
 });
 
+test("priority business signals are independently connected and inspectable", () => {
+  const radar = read("src/lib/server/businessIssueRadar.ts");
+  const sources = read("src/lib/server/radarSourceInspection.ts");
+  const workspace = read("src/app/portal/agency/radar/RadarInspectionWorkspace.tsx");
+  for (const sourceId of ["external:website-enquiries", "external:response-time-clocks", "core:website-telemetry", "external:inbox-messages", "core:calendar-commitments"]) {
+    assert.match(radar, new RegExp(sourceId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(sources, /Lead response clocks/);
+  assert.match(sources, /Calendar commitments/);
+  assert.match(workspace, /Connection and coverage centre/);
+  assert.match(workspace, /Priority signal mesh/);
+  assert.match(workspace, /sourceConnectionState/);
+  assert.match(workspace, /Activate:/);
+});
+
 test("critical radar findings survive model omission and reach visible Advisor UI", () => {
   const advisor = read("src/lib/server/openaiAssistant.ts");
   const drawer = read("src/components/chrome/GlobalAdvisorDrawer.tsx");
+  const quickLook = read("src/components/chrome/RadarQuickLookButton.tsx");
   const workspace = read("src/app/portal/agency/assistant/AssistantWorkspace.tsx");
   assert.match(advisor, /guaranteedRadarActions/);
   assert.match(advisor, /BUSINESS RADAR findings are deterministic/);
   assert.match(advisor, /mergeAdvisorActions/);
   assert.match(advisor, /if \(guaranteedRadarActions\.length\) return guaranteedRadarActions/);
-  assert.match(drawer, /issues need attention/);
+  assert.doesNotMatch(drawer, /issues need attention/);
+  assert.match(drawer, /reply ready/);
+  assert.match(quickLook, /alerts need attention/);
   assert.match(workspace, /Business radar/);
   assert.match(workspace, /Speed to lead/);
   assert.match(workspace, /Review radar/);
@@ -57,6 +75,7 @@ test("critical radar findings survive model omission and reach visible Advisor U
 
 test("the main dashboard exposes an active, actionable radar mode", () => {
   const page = read("src/app/portal/agency/page.tsx");
+  const stationNav = read("src/app/portal/agency/_CommandStationNav.tsx");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   const policyPanel = read("src/app/portal/agency/_RadarPolicyPanel.tsx");
   assert.match(page, /getCachedBusinessIssueRadar/);
@@ -66,7 +85,7 @@ test("the main dashboard exposes an active, actionable radar mode", () => {
   assert.match(dashboard, /\/api\/portal\/advisor\/radar/);
   assert.match(dashboard, /Check coverage by business area/);
   assert.match(dashboard, /addRadarTask/);
-  assert.match(dashboard, /Radar findings automatically join your strict priority queue/);
+  assert.match(stationNav, /Radar findings automatically join your strict priority queue/);
   assert.match(dashboard, /applicable checks/);
   assert.match(dashboard, /RadarPolicyPanel/);
   assert.match(policyPanel, /Radar operating policy/);
@@ -74,23 +93,143 @@ test("the main dashboard exposes an active, actionable radar mode", () => {
   assert.match(dashboard, /Compound risks/);
 });
 
+test("the Command Centre exposes twenty source-backed decision KPIs and dedicated intelligence diagrams", () => {
+  const snapshot = read("src/lib/server/commandIntelligence.ts");
+  const workspace = read("src/app/portal/agency/_CommandIntelligenceWorkspace.tsx");
+  const trajectory = read("src/app/portal/agency/_CommandCentreKpiTrajectory.tsx");
+  const daySensor = read("src/app/portal/agency/_DayCommandSensorPanel.tsx");
+  const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
+  const stationNav = read("src/app/portal/agency/_CommandStationNav.tsx");
+  const page = read("src/app/portal/agency/page.tsx");
+  const kpiIds = [...snapshot.matchAll(/makeKpi\(\{ id: "([^"]+)"/g)].map(match => match[1]);
+
+  assert.equal(kpiIds.length, 20);
+  assert.equal(new Set(kpiIds).size, 20);
+  assert.match(snapshot, /MARKETING_CUSTOMER_PROFILES_KEY/);
+  assert.match(snapshot, /buildCampaignRows/);
+  assert.match(snapshot, /buildAudienceLocations/);
+  assert.match(snapshot, /buildAudienceSignals/);
+  assert.match(snapshot, /hydrateCommandEvidence/);
+  assert.match(snapshot, /inspectRadarEvidenceSeries/);
+  assert.match(snapshot, /sourceCohorts: radar\.commercial\.cohorts/);
+  assert.doesNotMatch(snapshot, /Math\.random/);
+  assert.match(workspace, /AudienceMap/);
+  assert.match(workspace, /SignalBank/);
+  assert.match(workspace, /CampaignPortfolioSummary/);
+  assert.match(workspace, /DemandFlow/);
+  assert.match(workspace, /KpiInspector/);
+  assert.match(workspace, /KpiComparisonWorkspace/);
+  for (const range of ["90d", "quarter", "ytd", "12m", "custom"]) assert.match(workspace, new RegExp(`"${range}"`));
+  assert.match(workspace, /ComparisonChart/);
+  assert.match(workspace, /PlanGapChart/);
+  assert.match(workspace, /PlanningAssumptions/);
+  assert.match(workspace, /Actual progress against required pace and forecast/);
+  assert.match(workspace, /directionalShortfall/);
+  assert.match(workspace, /KPI_PLAN_OVERRIDES_KEY/);
+  assert.match(workspace, /SAVED_COMPARISON_KEY/);
+  assert.match(workspace, /type="date"/);
+  assert.match(workspace, /data-kpi-id=\{kpi\.id\}/);
+  assert.match(trajectory, /Five primary stations/i);
+  assert.match(trajectory, /CommandCentreKpiTrajectory/);
+  assert.match(trajectory, /COMMAND CENTRE · DECISION TREND ARRAY/);
+  assert.match(trajectory, /Executive KPI trajectory/);
+  assert.match(trajectory, /Open all five primary KPI stations in Intelligence/);
+  assert.match(trajectory, /COMMAND_PRIMARY_KPI_STATIONS/);
+  assert.match(daySensor, /Radar and primary instruments/);
+  assert.match(daySensor, /COMMAND_PRIMARY_KPI_STATIONS/);
+  assert.match(daySensor, /Open .* intelligence from Day Command/);
+  assert.match(dashboard, /DayCommandSensorPanel/);
+  assert.doesNotMatch(stationNav, /KPI Intelligence/);
+  assert.doesNotMatch(stationNav, /Radar workspace/);
+  assert.doesNotMatch(stationNav, /Omega Dashboard/);
+  assert.match(dashboard, /CommandCentreKpiTrajectory/);
+  assert.match(dashboard, /CommandInstrumentDock/);
+  assert.match(dashboard, /Open KPI Intelligence/);
+  assert.match(dashboard, /Open Radar Workspace/);
+  assert.match(dashboard, /Back to Command Centre/);
+  assert.match(dashboard, /data-testid="unified-command-centre"/);
+  assert.match(dashboard, /CommandIntelligenceWorkspace/);
+  assert.match(dashboard, /requestedStation \?\? "day"/);
+  assert.ok(stationNav.indexOf('label="Day command"') < stationNav.indexOf('label="Command Centre"'));
+  assert.match(dashboard, /if \(value === "omega"\) return "executive"/);
+  assert.match(page, /buildCommandIntelligenceSnapshot/);
+  assert.match(page, /intelligenceSnapshot=\{intelligenceSnapshot\}/);
+  assert.match(snapshot, /baselineValue/);
+  assert.match(snapshot, /targetValue/);
+  assert.match(snapshot, /Company monthly revenue target/);
+  assert.match(snapshot, /id: "revenue-growth"/);
+  assert.match(snapshot, /Formula: \(current month - previous month\) \/ previous month x 100/);
+  assert.match(snapshot, /revenueGrowthStatus/);
+  const intelligenceTypes = read("src/lib/commandIntelligence.ts");
+  for (const kpiId of ["revenue-growth", "traffic-7d", "revenue-target", "business-health", "client-attention"]) assert.match(intelligenceTypes, new RegExp(`kpiId: "${kpiId}"`));
+  assert.match(read("src/built-ins/modules/agency-finance/src/pages/PlanningPage.tsx"), /"No baseline"/);
+  assert.match(snapshot, /Configured .*minute first-response SLA/);
+  assert.match(snapshot, /buildRadarTelemetrySnapshot/);
+  assert.match(snapshot, /buildIntelligenceScopes/);
+  assert.match(snapshot, /websiteScopeReadings/);
+  assert.match(snapshot, /Whole Aqua ecosystem/);
+  assert.match(workspace, /IntelligenceScopeBar/);
+  assert.match(workspace, /applyIntelligenceScope/);
+  assert.match(workspace, /aria-label="Intelligence scope"/);
+  assert.match(workspace, /exact evidence only/);
+  assert.match(workspace, /kpi\.scope\.label/);
+  assert.match(workspace, /Radar will not borrow Aqua-wide figures/);
+  assert.match(dashboard, /initialScopeId=\{intelligenceEntry\.scopeId\}/);
+  assert.match(dashboard, /searchParams\.get\("scope"\)/);
+  assert.match(snapshot, /buildCommercialIntelligence/);
+  assert.match(workspace, /CommercialIntelligenceWorkspace/);
+  assert.match(workspace, /label="Lifecycle"/);
+  const commercialWorkspace = read("src/app/portal/agency/_CommercialIntelligenceWorkspace.tsx");
+  assert.match(commercialWorkspace, /Marketing-to-client control/);
+  assert.match(commercialWorkspace, /Commercial metric register/);
+  assert.match(commercialWorkspace, /Customer and lead ledger/);
+  assert.match(commercialWorkspace, /Acquisition source matrix/);
+  assert.match(commercialWorkspace, /FormulaInspector/);
+});
+
+test("the command Radar shows its last full run and can force a complete persisted scan", () => {
+  const page = read("src/app/portal/agency/page.tsx");
+  const console = read("src/app/portal/agency/_DynamicRadarConsole.tsx");
+  const control = read("src/app/portal/agency/_RadarScanControl.tsx");
+  const route = read("src/app/api/portal/advisor/radar/route.ts");
+  assert.match(page, /DynamicRadarConsole/);
+  assert.match(console, /RadarScanControl/);
+  assert.match(page, /initialLastRunAt=\{businessRadar\.memory\.lastSweepAt\}/);
+  assert.match(control, /Last full scan/);
+  assert.match(control, /Never · Run one now/);
+  assert.match(control, /Run full scan/);
+  assert.match(control, /Scanning all systems/);
+  assert.match(control, /Scan complete/);
+  assert.match(control, /Scan failed · Retry/);
+  assert.match(control, /fetch\("\/api\/portal\/advisor\/radar", \{ method: "POST", cache: "no-store" \}\)/);
+  assert.match(route, /async function runFullRadarScan/);
+  assert.match(route, /runAgencySyntheticProbes\(session\.agencyId, \{ force: true \}\)/);
+  assert.match(route, /recordRadarSweep\(session\.agencyId, radar\)/);
+  assert.match(route, /recordRadarEvidence\(session\.agencyId, radar\)/);
+  assert.match(route, /reconcileAgencyTasksWithRadar\(session\.agencyId, radar\)/);
+  assert.match(route, /export async function GET\(\)/);
+  assert.match(route, /export async function POST\(\)/);
+  assert.match(read("src/app/portal/agency/_DashboardCommandCenter.tsx"), /method: showBusy \? "POST" : "GET"/);
+  assert.match(read("src/lib/server/radarMemory.ts"), /lastSweepAt: includeCurrentSweep \? now : memory\?\.lastSweepAt/);
+});
+
 test("every radar domain carries at least 140 deterministic checks", () => {
   const domains = Object.keys(RADAR_SIGNAL_FAMILIES) as AdvisorDomain[];
   assert.equal(domains.length, 12);
   assert.equal(RADAR_RULE_LENSES.length, 12);
   assert.equal(RADAR_CHECKS_PER_DOMAIN, 144);
-  assert.equal(BUSINESS_RADAR_RULE_CATALOG.length, domains.length * RADAR_CHECKS_PER_DOMAIN);
+  assert.ok(BUSINESS_RADAR_RULE_CATALOG.length >= domains.length * RADAR_CHECKS_PER_DOMAIN);
   for (const domain of domains) {
-    assert.equal(RADAR_SIGNAL_FAMILIES[domain].length, 12, `${domain} should retain 12 metric families`);
-    assert.equal(BUSINESS_RADAR_RULE_CATALOG.filter(rule => rule.domain === domain).length, 144, `${domain} should retain 144 checks`);
+    assert.ok(RADAR_SIGNAL_FAMILIES[domain].length >= 12, `${domain} should retain at least 12 metric families`);
+    assert.ok(BUSINESS_RADAR_RULE_CATALOG.filter(rule => rule.domain === domain).length >= 144, `${domain} should retain at least 144 checks`);
   }
 });
 
 test("missing observations become explicit blind checks instead of false passes", () => {
   const matrix = buildRadarCheckMatrix([], [], Date.UTC(2026, 7, 11));
-  assert.equal(matrix.checks.length, 1728);
+  assert.equal(matrix.checks.length, BUSINESS_RADAR_RULE_CATALOG.length);
   assert.equal(matrix.checks.every(check => check.status === "blind"), true);
-  assert.equal(matrix.domains.every(domain => domain.totalChecks === 144 && domain.blindChecks === 144 && domain.coveragePercent === 0 && domain.assurancePercent === 0), true);
+  assert.equal(matrix.domains.every(domain => domain.totalChecks >= 144 && domain.blindChecks === domain.totalChecks && domain.coveragePercent === 0 && domain.assurancePercent === 0), true);
 });
 
 test("every domain accounts for assured, watch, and blind outcomes without ambiguity", () => {
@@ -390,12 +529,11 @@ test("adaptive Radar keeps protected checks active and groups duplicate findings
 test("grouped blind-spot incidents retain only their exact failing checks", () => {
   const now = Date.UTC(2026, 7, 11);
   const template = buildRadarCheckMatrix([observed("marketing", "traffic-7d", 20, "20", now)], [], now).checks.find(check => check.domain === "marketing" && check.familyId === "traffic-7d" && check.lens === "threshold")!;
-  const blindConnection = { ...template, id: "systems:missing-connection", ruleId: "systems:connection", domain: "systems" as const, familyId: "module-connection", familyLabel: "Module connection", sourceId: "core:systems", status: "blind" as const, title: "Module connection cannot be proved" };
-  const blindFreshness = { ...template, id: "systems:missing-freshness", ruleId: "systems:freshness", domain: "systems" as const, familyId: "module-freshness", familyLabel: "Module freshness", sourceId: "core:systems", status: "blind" as const, title: "Module freshness cannot be proved" };
+  const blindChecks = Array.from({ length: 52 }, (_, index) => ({ ...template, id: `systems:missing-${index}`, ruleId: `systems:missing-${index}`, domain: "systems" as const, familyId: `module-${index}`, familyLabel: `Module ${index}`, sourceId: `core:systems:${index}`, status: "blind" as const, title: `Module ${index} cannot be proved` }));
   const unrelatedCritical = { ...template, id: "systems:unrelated-runtime", ruleId: "systems:runtime", domain: "systems" as const, familyId: "runtime", familyLabel: "Runtime", sourceId: "runtime:probe", status: "critical" as const, title: "Runtime failed" };
   const result = applyAdaptiveRadarPolicy({
-    checks: [blindConnection, blindFreshness, unrelatedCritical],
-    issues: [{ id: "coverage:systems-check-blindness", severity: "critical", domain: "systems", title: "2 systems checks cannot prove health", detail: "The exact blind checks must remain inspectable.", evidence: ["2 blind"], href: "/portal/agency/company", detectedAt: now, sourceIds: ["core:systems"] }],
+    checks: [...blindChecks, unrelatedCritical],
+    issues: [{ id: "coverage:systems-check-blindness", severity: "critical", domain: "systems", title: "52 systems checks cannot prove health", detail: "The exact blind checks must remain inspectable.", evidence: ["52 blind"], href: "/portal/agency/company", detectedAt: now, sourceIds: ["core:systems"] }],
     signals: [],
     coverage: [{ id: "core:systems", domain: "systems", label: "Systems", status: "disconnected", recordCount: 0, detail: "Unavailable." }],
     policy: testPolicy(),
@@ -405,9 +543,9 @@ test("grouped blind-spot incidents retain only their exact failing checks", () =
   });
   const incident = result.incidents.find(item => item.id === "incident:systems:coverage")!;
   assert.deepEqual(incident.issueIds, ["coverage:systems-check-blindness"]);
-  assert.deepEqual(incident.checkIds.sort(), [blindConnection.id, blindFreshness.id].sort());
+  assert.deepEqual(incident.checkIds.sort(), blindChecks.map(check => check.id).sort(), "the exact breakdown must not truncate after 40 checks");
   assert.equal(incident.checkIds.includes(unrelatedCritical.id), false, "an unrelated domain failure must not be hidden inside the blind-spot incident");
-  assert.equal(incident.findingCount, 3, "one issue and two exact checks should be counted separately from the domain total");
+  assert.equal(incident.findingCount, 53, "one issue and every exact check should be counted separately from the domain total");
 });
 
 test("adaptive Radar policy is persisted, editable, and uses business-grade learning windows", () => {

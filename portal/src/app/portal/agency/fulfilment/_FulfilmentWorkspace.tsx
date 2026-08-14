@@ -21,8 +21,10 @@ import {
 import { PipelineBoard } from "../pipelines/[slug]/_PipelineBoard";
 import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspaceRecord } from "../portals/_PortalsWorkspace";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
+import { ProductsWorkspace } from "../products/_ProductsWorkspace";
+import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
 
-export type FulfilmentView = "overview" | "stages" | "services" | "clients" | "portals";
+export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "products" | "clients" | "portals";
 
 export interface FulfilmentProductRecord {
   id: string;
@@ -92,6 +94,8 @@ const VIEW_ITEMS: Array<{ id: FulfilmentView; label: string; icon: typeof Gauge 
   { id: "overview", label: "Overview", icon: Gauge },
   { id: "stages", label: "Stage board", icon: FolderKanban },
   { id: "services", label: "Service workspaces", icon: Layers3 },
+  { id: "technical", label: "Technical delivery", icon: Code2 },
+  { id: "products", label: "Product editor", icon: PackageCheck },
   { id: "clients", label: "Client delivery", icon: UsersRound },
   { id: "portals", label: "Portals", icon: PanelsTopLeft },
 ];
@@ -114,6 +118,8 @@ export function FulfilmentWorkspace({
   stageBoard,
   portals,
   portalProducts,
+  productEditor,
+  technicalWorkspace,
   canManage,
 }: {
   view: FulfilmentView;
@@ -124,6 +130,13 @@ export function FulfilmentWorkspace({
   stageBoard: FulfilmentStageBoard;
   portals: PortalWorkspaceRecord[];
   portalProducts: PortalTemplateProductRecord[];
+  productEditor: {
+    initialProducts: AgencyProduct[];
+    sops: SopDocument[];
+    companies: TradingCompany[];
+    defaults: { taxRatePercent: number; paymentTermsDays: number };
+  };
+  technicalWorkspace?: ReactNode;
   canManage: boolean;
 }) {
   const activeServices = clients.reduce((total, client) => total + client.products.length, 0);
@@ -141,14 +154,14 @@ export function FulfilmentWorkspace({
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Delivery operating system</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black/90 sm:text-4xl">Fulfilment</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
-              Run every client outcome from one place, whether the work is a shoot, social service, website, system, advisory programme, or a bespoke package.
+              Run every client outcome from one place, including production, websites, software, releases, monitoring, social services, advisory programmes and bespoke packages.
             </p>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <Link href="/portal/agency/actions" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]">
               <CheckCircle2 size={15} /> Delivery tasks
             </Link>
-            <Link href="/portal/agency/company?view=products" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
+            <Link href="/portal/agency/fulfilment?view=products" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
               <Settings2 size={15} /> Manage services
             </Link>
           </div>
@@ -161,7 +174,7 @@ export function FulfilmentWorkspace({
             const href = item.id === "overview" ? "/portal/agency/fulfilment" : `/portal/agency/fulfilment?view=${item.id}`;
             return (
               <Link key={item.id} href={href} aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded px-2 text-center text-xs font-semibold sm:shrink-0 sm:px-3 sm:text-sm ${active ? "bg-black text-white" : "text-black/55 hover:bg-black/[0.04] hover:text-black/80"}`}>
-                <Icon size={15} /> {item.label}{item.id === "clients" ? <AttentionDot prefixHref="/portal/clients?tab=fulfilment" /> : null}
+                <Icon size={15} /> {item.label}{item.id === "clients" ? <AttentionDot prefixHref="/portal/clients?tab=delivery" /> : null}
               </Link>
             );
           })}
@@ -177,6 +190,29 @@ export function FulfilmentWorkspace({
       /> : null}
       {view === "stages" ? <StageBoard board={stageBoard} /> : null}
       {view === "services" ? <ServiceWorkspaces products={products} /> : null}
+      {view === "technical" ? <div className="pt-6">{technicalWorkspace}</div> : null}
+      {view === "products" ? (
+        <div className="pt-6">
+          {canManage ? (
+            <ProductsWorkspace
+              initialProducts={productEditor.initialProducts}
+              sops={productEditor.sops}
+              companies={productEditor.companies}
+              defaults={productEditor.defaults}
+              embedded
+              embeddedLabel="Fulfilment catalogue"
+            />
+          ) : (
+            <section className="flex min-h-56 items-center border-y border-black/10 py-8">
+              <div className="max-w-xl">
+                <CircleAlert size={22} className="text-amber-600" />
+                <h2 className="mt-3 text-xl font-semibold text-black/85">Catalogue management is restricted</h2>
+                <p className="mt-2 text-sm leading-6 text-black/55">An owner or manager can edit products, pricing, contracts, delivery instructions and portal behaviour.</p>
+              </div>
+            </section>
+          )}
+        </div>
+      ) : null}
       {view === "clients" ? <ClientDelivery clients={clients} /> : null}
       {view === "portals" ? (
         <div className="pt-6">
@@ -262,9 +298,9 @@ function Overview({
         <SectionHeading eyebrow="Connected workspaces" title="Delivery toolkit" detail="Specialist tools stay focused while Fulfilment remains the control room." />
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <ToolkitLink href="/portal/agency/fulfilment?view=portals" title="Client portals" detail="Preview, edit and launch the shared experience." icon={<PanelsTopLeft size={17} />} />
-          <ToolkitLink href="/portal/agency/development" title="Web development" detail="Build, repositories, releases and performance." icon={<Code2 size={17} />} />
+          <ToolkitLink href="/portal/agency/fulfilment?view=technical" title="Technical delivery" detail="Projects, repositories, releases and performance." icon={<Code2 size={17} />} />
           <ToolkitLink href="/portal/agency/sop-library" title="SOP library" detail="Open the procedure behind repeatable delivery." icon={<BriefcaseBusiness size={17} />} />
-          <ToolkitLink href="/portal/agency/company?view=capacity" title="Capacity" detail="Check whether the team can take on the work." icon={<Gauge size={17} />} />
+          <ToolkitLink href="/portal/agency?station=battle&battle=capacity" title="Capacity" detail="Check whether the team can take on the work." icon={<Gauge size={17} />} />
         </div>
       </section>
     </div>
@@ -344,14 +380,14 @@ function ProductWorkspaceCard({ product }: { product: FulfilmentProductRecord })
         </div>
 
         <div className="mt-3 flex min-h-6 flex-wrap gap-x-3 gap-y-1 text-xs text-black/45">
-          {product.clientNames.slice(0, 3).map(client => <Link key={client.id} href={`/portal/clients/${client.id}?tab=fulfilment`} className="hover:text-brand hover:underline">{client.name}</Link>)}
+          {product.clientNames.slice(0, 3).map(client => <Link key={client.id} href={`/portal/clients/${client.id}?tab=delivery`} className="hover:text-brand hover:underline">{client.name}</Link>)}
           {!product.clientNames.length ? <span>No client assignments yet</span> : null}
           {product.clientNames.length > 3 ? <span>+{product.clientNames.length - 3} more</span> : null}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href={boardHref} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85"><FolderKanban size={15} /> {product.portalTemplateKey ? "Open stage board" : "Open product"}</Link>
-          <Link href={`/portal/agency/products/${product.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold text-black/60 hover:bg-black/[0.03]"><Settings2 size={15} /> Configure</Link>
+          <Link href="/portal/agency/fulfilment?view=products" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold text-black/60 hover:bg-black/[0.03]"><Settings2 size={15} /> Configure</Link>
         </div>
       </div>
     </article>
@@ -366,12 +402,12 @@ function ClientDelivery({ clients }: { clients: FulfilmentClientRecord[] }) {
         {clients.map(client => (
           <article key={client.id} className="grid gap-4 py-5 lg:grid-cols-[minmax(180px,.65fr)_minmax(300px,1.45fr)_minmax(180px,.55fr)_auto] lg:items-center">
             <div className="min-w-0">
-              <Link href={`/portal/clients/${client.id}`} className="truncate text-sm font-semibold text-black/82 hover:underline">{client.name}</Link>
+              <Link href={`/portal/clients/${client.id}?tab=delivery`} className="truncate text-sm font-semibold text-black/82 hover:underline">{client.name}</Link>
               <p className="mt-1 truncate text-xs text-black/42">{client.ownerEmail || "No primary email"} · {client.stageLabel}</p>
             </div>
             <div className="flex min-w-0 flex-wrap gap-1.5">
               {client.products.map(product => (
-                <Link key={product.id} href={`/portal/clients/${client.id}?tab=fulfilment`} title={`${product.stageLabel} · ${product.progress}% complete`} className="inline-flex max-w-full items-center gap-2 rounded-md border border-black/[0.08] bg-white px-2.5 py-1.5 text-xs text-black/58">
+                <Link key={product.id} href={`/portal/clients/${client.id}?tab=delivery`} title={`${product.stageLabel} · ${product.progress}% complete`} className="inline-flex max-w-full items-center gap-2 rounded-md border border-black/[0.08] bg-white px-2.5 py-1.5 text-xs text-black/58">
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: product.accentColor }} />
                   <span className="truncate font-medium">{product.name}</span>
                   <span className="tabular-nums text-black/35">{product.progress}%</span>
@@ -386,7 +422,7 @@ function ClientDelivery({ clients }: { clients: FulfilmentClientRecord[] }) {
             </div>
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${client.portalReady ? "bg-emerald-50 text-emerald-700" : client.portalRequired ? "bg-amber-50 text-amber-700" : "bg-black/5 text-black/45"}`}>{client.portalReady ? "Portal ready" : client.portalRequired ? "Portal needed" : "Portal optional"}</span>
-              <Link href={`/portal/clients/${client.id}?tab=fulfilment`} aria-label={`Open ${client.name} fulfilment`} title="Open client fulfilment" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.04]"><ArrowRight size={15} /></Link>
+              <Link href={`/portal/clients/${client.id}?tab=delivery`} aria-label={`Open ${client.name} delivery`} title="Open client delivery" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.04]"><ArrowRight size={15} /></Link>
             </div>
           </article>
         ))}

@@ -93,10 +93,14 @@ export function ContractsPanel({
   clientId,
   initialContracts,
   initialTemplates,
+  clientName,
+  recipientEmail,
 }: {
   clientId: string;
   initialContracts: ClientContract[];
   initialTemplates: ClientContractTemplate[];
+  clientName?: string;
+  recipientEmail?: string;
 }) {
   const [contracts, setContracts] = useState(initialContracts);
   const [templates, setTemplates] = useState(initialTemplates);
@@ -218,7 +222,12 @@ export function ContractsPanel({
       const payload = await response.json() as { ok: boolean; error?: string; contracts?: ClientContract[] };
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Contract update failed.");
       setContracts(payload.contracts ?? contracts);
-      setNotice(action === "send" ? "Contract sent to the customer portal." : action === "accept" ? "Acceptance recorded." : "Draft deleted.");
+      const delivery = (payload as { delivery?: { delivered?: boolean; reason?: string } }).delivery;
+      setNotice(action === "send"
+        ? delivery?.delivered
+          ? `Contract emailed to ${recipientEmail || clientName || "the client"} and published in the customer portal.`
+          : `Contract published in the customer portal. ${delivery?.reason || "Connect Resend or SMTP to deliver it by email."}`
+        : action === "accept" ? "Acceptance recorded." : "Draft deleted.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Contract update failed.");
     } finally {

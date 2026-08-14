@@ -24,8 +24,8 @@ export function ShowcaseModeControl() {
   }
 
   return (
-    <div className="inline-flex min-h-9 items-center overflow-hidden rounded-md border border-amber-300 bg-amber-50 text-amber-950 shadow-sm">
-      <span className="inline-flex items-center gap-1.5 px-2.5 font-semibold">
+    <div className="mm-showcase-control inline-flex min-h-9 items-center overflow-hidden rounded-md border border-amber-300 bg-amber-50 text-amber-950 shadow-sm">
+      <span className="mm-showcase-control-label inline-flex items-center gap-1.5 px-2.5 font-semibold">
         <Eye size={14} aria-hidden="true" />
         <span className="hidden sm:inline">Showcase</span>
       </span>
@@ -34,7 +34,7 @@ export function ShowcaseModeControl() {
         onClick={exitShowcase}
         disabled={busy}
         title="Exit Showcase Mode"
-        className="grid min-h-9 min-w-9 place-items-center border-l border-amber-300 hover:bg-amber-100 disabled:opacity-50"
+        className="mm-showcase-control-exit grid min-h-9 min-w-9 place-items-center border-l border-amber-300 hover:bg-amber-100 disabled:opacity-50"
       >
         <LogOut size={14} aria-hidden="true" />
         <span className="sr-only">{busy ? "Exiting Showcase Mode" : "Exit Showcase Mode"}</span>

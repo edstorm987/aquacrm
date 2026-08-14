@@ -20,7 +20,7 @@ const publicSites = readFileSync(join(ROOT, "src/lib/publicSites.ts"), "utf8");
 const aquaChatbot = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/ChatBot.tsx"), "utf8");
 const aquaSupport = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/SupportForm.tsx"), "utf8");
 
-test("public website enquiries enter the real sales system", () => {
+test("public website enquiries are captured as unclassified intake before sales routing", () => {
   assert.match(route, /leads\.upsert\(/);
   assert.match(route, /source:\s*`website:\$\{brand\}`/);
   assert.match(route, /"website-enquiry"/);
@@ -28,6 +28,7 @@ test("public website enquiries enter the real sales system", () => {
   assert.match(route, /preferredContactMethod/);
   assert.match(route, /enquiryMessage/);
   assert.match(route, /leadId\s*=\s*result\.lead\.id/);
+  assert.match(route, /enquiryClassification:\s*"unclassified"/);
   assert.match(route, /await flushPendingWrites\(\)/);
   assert.match(legacyRoute, /await flushPendingWrites\(\)/);
 });

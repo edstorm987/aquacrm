@@ -109,7 +109,7 @@ describe("personal notepad surface", () => {
     assert.match(quickNote, /pinned: sticky/);
     assert.match(quickNote, /Page:/);
     assert.match(dashboard, /href="\/portal\/agency\/notepad"/);
-    assert.match(dashboard, /href="\/portal\/agency\/calendar"/);
+    assert.match(dashboard, /calendarWorkspace=/);
     assert.match(search, /category: "Note"/);
     assert.match(search, /\/portal\/agency\/notepad\?note=/);
   });

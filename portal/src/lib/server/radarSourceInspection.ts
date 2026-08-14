@@ -11,6 +11,7 @@ import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/s
 import { FOUNDER_AGENCY_SLUG } from "@/lib/server/founderSeed";
 import { getState } from "@/server/storage";
 import { listAgencyTasks } from "@/server/tasks";
+import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import { listClients } from "@/server/tenants";
 import { listUsersForAgency } from "@/server/users";
 import { listLegalDocuments } from "@/server/legalDocuments";
@@ -19,6 +20,10 @@ import { makePluginStorage } from "./pluginStorage";
 import { listWebsiteEnquiries } from "./websiteEnquiries";
 
 interface RadarSourceDataset extends RadarSourceDatasetSummary {
+  records: Array<Record<string, unknown>>;
+}
+
+export interface RadarSourceSearchDataset extends RadarSourceDatasetSummary {
   records: Array<Record<string, unknown>>;
 }
 
@@ -44,6 +49,14 @@ const sourceCache = new Map<string, { expiresAt: number; datasets?: RadarSourceD
 export async function inspectRadarSourceData(agencyId: string): Promise<RadarSourceDataIndex> {
   const datasets = await getRadarSourceDatasets(agencyId);
   return sourceDataIndex(datasets);
+}
+
+export async function listRadarSourceSearchDatasets(agencyId: string): Promise<RadarSourceSearchDataset[]> {
+  const datasets = await getRadarSourceDatasets(agencyId);
+  return datasets.map(dataset => ({
+    ...summary(dataset),
+    records: dataset.records.map(record => ({ ...record })),
+  }));
 }
 
 export async function inspectRadarSourceDataset(
@@ -114,31 +127,53 @@ async function buildRadarSourceDatasets(agencyId: string): Promise<RadarSourceDa
   ]);
   const website = state.agencyWebsites[agencyId];
   const inbox = inboxResult.status === "fulfilled" ? inboxResult.value : null;
+  const enquiries = enquiryResult.status === "fulfilled" ? enquiryResult.value : [];
+  const leads = leadResult.status === "fulfilled" ? leadResult.value : [];
+  const calendarCommitments = [
+    ...listAgencyTasks(agencyId).filter(task => task.startAt || task.dueAt || task.reminderAt).map(task => ({ recordType: "task", ...task })),
+    ...listAgencyCommandCalendarEntries(agencyId).map(entry => ({ recordType: "calendar-entry", ...entry })),
+    ...Object.values(state.dashboardDayPlans).filter(plan => plan.agencyId === agencyId).map(plan => ({ recordType: "day-plan", ...plan })),
+    ...leads.filter(lead => lead.nextMeetingAt).map(lead => ({ recordType: "lead-meeting", id: lead.id, name: lead.name, email: lead.email, nextMeetingAt: lead.nextMeetingAt, meetingStatus: lead.meetingStatus, meetingMode: lead.meetingMode, meetingLocation: lead.meetingLocation, meetingReminderAt: lead.meetingReminderAt })),
+  ];
+  const responseClocks = enquiries.map(enquiry => ({
+    id: enquiry.id,
+    enquiryId: enquiry.id,
+    name: enquiry.name,
+    siteName: enquiry.siteName,
+    channel: enquiry.channel,
+    status: enquiry.status,
+    submittedAt: enquiry.submittedAt,
+    firstRespondedAt: enquiry.firstRespondedAt,
+    responseTimeMs: enquiry.firstRespondedAt ? Math.max(0, enquiry.firstRespondedAt - enquiry.submittedAt) : undefined,
+    awaitingResponse: !enquiry.firstRespondedAt && enquiry.status !== "resolved",
+  }));
 
   const datasets: RadarSourceDataset[] = [
     dataset({ id: "core:clients", domain: "clients", label: "Clients and contacts", description: "Client identity, lifecycle, ownership, brand and status records used by client health and commercial checks.", href: "/portal/clients", sourceIds: ["core:clients", "clients", "client-health", "clients:active"], records: clients }),
     dataset({ id: "core:tasks", domain: "operations", label: "Tasks and actions", description: "Open, overdue, assigned and completed work used by operational load and ownership checks.", href: "/portal/agency/actions", sourceIds: ["core:operations", "tasks", "operations:tasks"], records: listAgencyTasks(agencyId) }),
     dataset({ id: "core:activity", domain: "systems", label: "Workspace activity", description: "Tenant activity events used to assess freshness, continuity and operational change.", href: "/portal/agency/settings#logs", sourceIds: ["activity-log", "systems:activity", "core:operations"], records: state.activity.filter(entry => entry.agencyId === agencyId) }),
     dataset({ id: "core:team", domain: "team", label: "Team and access", description: "Safe user identity, role and ownership fields. Authentication material is never exposed.", href: "/portal/account/permissions", sourceIds: ["core:team", "team", "team:users"], records: listUsersForAgency(agencyId).map(user => ({ id: user.id, email: user.email, username: user.username, name: user.name, role: user.role, agencyIds: user.agencyIds, companyIds: user.companyIds, clientId: user.clientId, mustChangePassword: user.mustChangePassword, emailVerifiedAt: user.emailVerifiedAt, createdAt: user.createdAt, updatedAt: user.updatedAt })) }),
-    dataset({ id: "core:company", domain: "company", label: "Company plans and targets", description: "Business plan, objectives, targets, capacity assumptions and reviews behind company health.", href: "/portal/agency/company", sourceIds: ["core:company", "company-health", "company:planning"], records: Object.values(state.companyProfiles).filter(profile => profile.agencyId === agencyId) }),
+    dataset({ id: "core:company", domain: "company", label: "Company plans, capital and targets", description: "Business plan, objectives, targets, capacity, ownership, investments, distributions, authority and reviews behind executive health.", href: "/portal/agency?station=battle", sourceIds: ["core:company", "company-health", "company:planning", "company:capital"], records: Object.values(state.companyProfiles).filter(profile => profile.agencyId === agencyId) }),
     dataset({ id: "core:legal", domain: "compliance", label: "Legal and compliance", description: "Contracts, insurance, filing reminders and expiry records used by compliance checks.", href: "/portal/agency/company?view=legal", sourceIds: ["core:compliance", "legal", "compliance:legal"], records: listLegalDocuments(agencyId) }),
     dataset({ id: "core:pipelines", domain: "sales", label: "Journey pipelines", description: "Configured lead, sales, fulfilment and custom pipeline definitions.", href: "/portal/clients?view=journey", sourceIds: ["pipelines", "sales:pipelines", "delivery:pipelines"], records: pipelines }),
     dataset({ id: "core:pipeline-cards", domain: "sales", label: "Pipeline cards", description: "Tenant cards and their current columns, including lead, client, deal and custom cards.", href: "/portal/clients?view=journey", sourceIds: ["pipeline-cards", "sales:pipeline-cards"], records: Object.values(state.pipelineCards).filter(card => pipelineIds.has(card.pipelineId)) }),
     dataset({ id: "core:products", domain: "delivery", label: "Products and packages", description: "Offer, pricing, fulfilment, portal and product configuration used by client and delivery checks.", href: "/portal/agency/products", sourceIds: ["products", "delivery:products"], records: Object.values(state.agencyProducts).filter(record => record.agencyId === agencyId) }),
     dataset({ id: "core:milestones", domain: "delivery", label: "Client milestones", description: "Delivery progress, blockers, targets and tracked client outcomes.", href: "/portal/agency/fulfilment", sourceIds: ["milestones", "delivery:milestones"], records: Object.values(state.clientMilestones).filter(record => record.agencyId === agencyId) }),
-    dataset({ id: "core:experiments", domain: "marketing", label: "Performance experiments", description: "Active and completed experiments, variants, traffic and conversion evidence.", href: "/portal/agency/performance", sourceIds: ["performance-experiments", "marketing:experiments"], records: Object.values(state.performanceExperiments).filter(record => record.agencyId === agencyId) }),
+    dataset({ id: "core:experiments", domain: "marketing", label: "Performance experiments", description: "Active and completed experiments, variants, traffic and conversion evidence.", href: "/portal/agency/fulfilment/technical/performance", sourceIds: ["performance-experiments", "marketing:experiments"], records: Object.values(state.performanceExperiments).filter(record => record.agencyId === agencyId) }),
     dataset({ id: "core:experience-packages", domain: "clients", label: "Experience packages", description: "Curated client and staff experience packages, costs and fulfilment steps.", href: "/portal/agency/you-deserve-it", sourceIds: ["experience-packages", "clients:experience"], records: Object.values(state.experiencePackages).filter(record => record.agencyId === agencyId) }),
     dataset({ id: "core:client-delight", domain: "clients", label: "Client experience records", description: "Planned and delivered care, rewards, events, trips and client experience outcomes.", href: "/portal/agency/you-deserve-it", sourceIds: ["client-delight", "clients:delight"], records: Object.values(state.clientDelight).filter(record => record.agencyId === agencyId) }),
     dataset({ id: "core:automations", domain: "operations", label: "Automation workflows", description: "Workflow configuration, state, ownership and aggregate run outcomes.", href: "/portal/agency/marketing?view=automations", sourceIds: ["automations", "operations:automations"], records: Object.values(state.automationWorkflows).filter(record => record.agencyId === agencyId) }),
     dataset({ id: "core:automation-runs", domain: "operations", label: "Automation runs", description: "Run status, trigger evidence, node logs, waits and failures.", href: "/portal/agency/marketing?view=automations", sourceIds: ["automation-runs", "operations:automation-runs"], records: Object.values(state.automationRuns).filter(record => record.agencyId === agencyId) }),
     dataset({ id: "core:sops", domain: "operations", label: "SOP library", description: "Procedure metadata, categories, tags and content references used by operational readiness checks.", href: "/portal/agency/sop-library", sourceIds: ["sops", "operations:sops"], records: Object.values(state.sops).filter(record => record.agencyId === agencyId) }),
-    dataset({ id: "core:development-resources", domain: "development", label: "Development resources", description: "Tools, components, resources and saved references. Credential secrets are redacted.", href: "/portal/agency/development", sourceIds: ["development-resources", "development:resources"], records: Object.values(state.developmentResources).filter(record => record.agencyId === agencyId) }),
-    dataset({ id: "core:development-workflows", domain: "development", label: "Development workflows", description: "Configured delivery workflows and stages for technical work.", href: "/portal/agency/development/workflow", sourceIds: ["development-workflows", "development:workflow"], records: Object.values(state.developmentWorkflows).filter(record => record.agencyId === agencyId) }),
-    dataset({ id: "core:website-pages", domain: "development", label: "Website project and pages", description: "First-party release state, routes and page update evidence.", href: "/portal/agency/development/website", sourceIds: ["agency-website", "development:websites"], records: website ? [{ ...website, telemetryEvents: undefined }] : [] }),
-    dataset({ id: "core:website-telemetry", domain: "development", label: "Website telemetry events", description: "Pageviews, forms, conversions, errors, performance, search and heartbeat events received by Aqua Tag.", href: "/portal/agency/performance", sourceIds: ["website-telemetry", "development:telemetry", "marketing:telemetry"], records: website?.telemetryEvents ?? [] }),
-    dataset({ id: "core:synthetic-probes", domain: "systems", label: "Synthetic probe results", description: "Active property probes, response status and failure evidence used by uptime sentinels.", href: "/portal/agency/development", sourceIds: ["synthetic-probes", "systems:synthetic"], records: Object.values(state.radarSyntheticProbes[agencyId] ?? {}) }),
+    dataset({ id: "core:development-resources", domain: "development", label: "Technical delivery resources", description: "Tools, components, resources and saved references. Credential secrets are redacted.", href: "/portal/agency/fulfilment/technical/toolkit", sourceIds: ["development-resources", "development:resources"], records: Object.values(state.developmentResources).filter(record => record.agencyId === agencyId) }),
+    dataset({ id: "core:development-workflows", domain: "development", label: "Technical delivery workflows", description: "Configured delivery workflows and stages for technical work.", href: "/portal/agency/fulfilment/technical/workflow", sourceIds: ["development-workflows", "development:workflow"], records: Object.values(state.developmentWorkflows).filter(record => record.agencyId === agencyId) }),
+    dataset({ id: "core:website-pages", domain: "development", label: "Website project and pages", description: "First-party release state, routes and page update evidence.", href: "/portal/agency/fulfilment/technical/website", sourceIds: ["agency-website", "development:websites"], records: website ? [{ ...website, telemetryEvents: undefined }] : [] }),
+    dataset({ id: "core:website-telemetry", domain: "development", label: "Website telemetry events", description: "Pageviews, forms, conversions, errors, performance, search and heartbeat events received by Aqua Tag.", href: "/portal/agency/fulfilment/technical/performance", sourceIds: ["website-telemetry", "development:telemetry", "marketing:telemetry"], records: website?.telemetryEvents ?? [] }),
+    dataset({ id: "core:synthetic-probes", domain: "systems", label: "Synthetic probe results", description: "Active property probes, response status and failure evidence used by uptime sentinels.", href: "/portal/agency/fulfilment?view=technical", sourceIds: ["synthetic-probes", "systems:synthetic"], records: Object.values(state.radarSyntheticProbes[agencyId] ?? {}) }),
     dataset({ id: "core:dashboard-sessions", domain: "operations", label: "Work sessions", description: "Clocked work sessions, focus and completion notes used by capacity and execution checks.", href: "/portal/agency", sourceIds: ["dashboard-work-sessions", "operations:capacity"], records: Object.values(state.dashboardWorkSessions).filter(record => record.agencyId === agencyId) }),
+    dataset({ id: "core:calendar-commitments", domain: "operations", label: "Calendar commitments", description: "Dated tasks, calendar entries, daily command plans and lead meetings used to inspect ownership, deadlines and upcoming commitments.", href: "/portal/agency?station=calendar", sourceIds: ["core:calendar-commitments", "calendar", "operations:calendar", "metric:calendar-commitments-7d", "metric:calendar-unowned"], records: calendarCommitments }),
     dataset({ id: "external:website-enquiries", domain: "inbox", label: "Website enquiries", description: "Form, chatbot and support submissions with source, campaign, response and lifecycle timestamps.", href: "/portal/agency/inbox?view=forms", sourceIds: ["core:inbox", "website-enquiries", "inbox:enquiries", "sales:enquiries"], records: enquiryResult.status === "fulfilled" ? enquiryResult.value : undefined, unavailableReason: !canInspectPublicEnquiries ? "Public enquiry rows belong to the canonical AquaOasis owner workspace." : enquiryResult.status === "rejected" ? safeError(enquiryResult.reason) : undefined }),
+    dataset({ id: "external:response-time-clocks", domain: "sales", label: "Lead response clocks", description: "Exact enquiry receipt, first-response and waiting-time records used by speed-to-lead checks.", href: "/portal/agency/inbox?view=forms", sourceIds: ["external:response-time-clocks", "metric:speed-to-lead", "metric:speed-to-lead-breach", "sales:response-clocks"], records: enquiryResult.status === "fulfilled" ? responseClocks : undefined, unavailableReason: !canInspectPublicEnquiries ? "Public enquiry rows belong to the canonical AquaOasis owner workspace." : enquiryResult.status === "rejected" ? safeError(enquiryResult.reason) : undefined }),
     dataset({ id: "external:social-connections", domain: "inbox", label: "Social inbox connections", description: "Connected Meta channel status, scopes, webhooks and sync health. Access credentials are never exposed.", href: "/portal/agency/inbox?view=social", sourceIds: ["social-inbox", "inbox:connections"], records: inbox?.connections, unavailableReason: inboxResult.status === "rejected" ? safeError(inboxResult.reason) : undefined }),
     dataset({ id: "external:social-conversations", domain: "inbox", label: "Social conversations", description: "Conversation state, identity, attribution, timing and response evidence.", href: "/portal/agency/inbox?view=social", sourceIds: ["social-conversations", "inbox:conversations"], records: inbox?.conversations.map(({ messages: _messages, ...conversation }) => conversation), unavailableReason: inboxResult.status === "rejected" ? safeError(inboxResult.reason) : undefined }),
     dataset({ id: "external:social-messages", domain: "inbox", label: "Social messages", description: "Inbound, outbound and internal message records used by response and continuity checks.", href: "/portal/agency/inbox?view=social", sourceIds: ["social-messages", "inbox:messages"], records: inbox?.conversations.flatMap(conversation => conversation.messages), unavailableReason: inboxResult.status === "rejected" ? safeError(inboxResult.reason) : undefined }),
@@ -280,7 +315,7 @@ function hrefForDomain(domain: AdvisorDomain): string {
   if (domain === "sales" || domain === "clients") return "/portal/clients?view=journey";
   if (domain === "marketing") return "/portal/agency/marketing";
   if (domain === "delivery") return "/portal/agency/fulfilment";
-  if (domain === "development") return "/portal/agency/development";
+  if (domain === "development") return "/portal/agency/fulfilment?view=technical";
   if (domain === "inbox") return "/portal/agency/inbox";
   return "/portal/agency";
 }

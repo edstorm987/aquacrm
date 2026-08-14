@@ -1,28 +1,50 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth";
 import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/lib/server/businessIssueRadar";
 import { recordRadarSweep } from "@/lib/server/radarMemory";
 import { runAgencySyntheticProbes } from "@/lib/server/radarSyntheticProbes";
 import { recordRadarEvidence } from "@/lib/server/radarEvidenceVault";
 import { getAgencyWorkspaceSettings, updateAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { reconcileAgencyTasksWithRadar } from "@/server/tasks";
 import type { RadarPolicyConfiguration } from "@/server/types";
 
-export async function GET() {
+async function runFullRadarScan() {
   try {
     await ensureHydrated();
     const session = await requireRole(["agency-owner", "agency-manager"]);
     await runAgencySyntheticProbes(session.agencyId, { force: true });
     const radar = await buildBusinessIssueRadar(session.agencyId);
+    reconcileAgencyTasksWithRadar(session.agencyId, radar);
     const memory = recordRadarSweep(session.agencyId, radar);
     recordRadarEvidence(session.agencyId, radar);
     invalidateBusinessIssueRadarCache(session.agencyId);
     await flushPendingWrites();
     return NextResponse.json({ ok: true, radar: { ...radar, memory } });
   } catch (error) {
-    return authErrorResponse(error);
+    if (error instanceof AuthError) return authErrorResponse(error);
+    console.error("[radar] full scan failed:", error);
+    return NextResponse.json({ ok: false, error: "The Radar scan ran, but fresh evidence could not be saved. Retry in a moment." }, { status: 503 });
   }
+}
+
+export async function GET() {
+  try {
+    await ensureHydrated();
+    const session = await requireRole(["agency-owner", "agency-manager"]);
+    invalidateBusinessIssueRadarCache(session.agencyId);
+    const radar = await buildBusinessIssueRadar(session.agencyId);
+    return NextResponse.json({ ok: true, radar });
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    console.error("[radar] snapshot refresh failed:", error);
+    return NextResponse.json({ ok: false, error: "The live Radar picture could not refresh." }, { status: 500 });
+  }
+}
+
+export async function POST() {
+  return runFullRadarScan();
 }
 
 export async function PATCH(request: Request) {
@@ -56,6 +78,8 @@ export async function PATCH(request: Request) {
     await flushPendingWrites();
     return NextResponse.json({ ok: true, radar });
   } catch (error) {
-    return authErrorResponse(error);
+    if (error instanceof AuthError) return authErrorResponse(error);
+    console.error("[radar] policy update failed:", error);
+    return NextResponse.json({ ok: false, error: "The Radar policy could not save." }, { status: 500 });
   }
 }

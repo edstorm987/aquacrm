@@ -6,6 +6,7 @@ type ResendEmailInput = {
   subject: string;
   text: string;
   html: string;
+  attachments?: Array<{ filename: string; content: string; contentType?: string }>;
   idempotencyKey?: string;
 };
 
@@ -42,6 +43,11 @@ export async function sendResendEmail(input: ResendEmailInput): Promise<ResendEm
         subject: input.subject,
         text: input.text,
         html: input.html,
+        attachments: input.attachments?.map(attachment => ({
+          filename: attachment.filename,
+          content: attachment.content,
+          content_type: attachment.contentType,
+        })),
       }),
       cache: "no-store",
     });

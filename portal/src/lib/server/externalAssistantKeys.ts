@@ -10,6 +10,8 @@ import type {
 } from "@/server/types";
 
 export const EXTERNAL_ASSISTANT_PERMISSIONS = [
+  "advisor:read",
+  "actions:propose",
   "context:read",
   "records:read",
   "search:read",

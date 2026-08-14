@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Development opens on an operational dashboard before the project workspace", () => {
+test("Technical delivery opens on an operational dashboard before the project workspace", () => {
   const page = read("src/app/portal/agency/development/page.tsx");
   const dashboard = read("src/app/portal/agency/development/_DevelopmentDashboard.tsx");
   const nav = read("src/app/portal/agency/development/_DevelopmentNav.tsx");
@@ -14,17 +14,17 @@ test("Development opens on an operational dashboard before the project workspace
   assert.match(page, /initialStatus=\{initialStatus\}/);
   assert.match(page, /<DevelopmentDashboard/);
   assert.match(page, /<DevelopmentPortfolio initialProjects=\{projects\} initialStatus=\{initialStatus\} \/>/);
-  assert.match(dashboard, /Development dashboard/);
-  assert.match(dashboard, /Open development workspace/);
+  assert.match(dashboard, /Fulfilment · Technical delivery/);
+  assert.match(dashboard, /Open project workspace/);
   assert.match(dashboard, /Build pipeline/);
-  assert.match(dashboard, /view=workspace&status=\$\{stage\.status\}/);
+  assert.match(dashboard, /view=technical&technical=projects&status=\$\{stage\.status\}/);
   assert.match(dashboard, /Attention queue/);
   assert.match(dashboard, /Signals today/);
-  assert.match(dashboard, /Development library/);
-  assert.match(nav, /label: "Dashboard"/);
+  assert.match(dashboard, /Technical delivery library/);
+  assert.match(nav, /label: "Technical overview"/);
   assert.match(nav, /label: "Projects"/);
   assert.match(nav, /label: "Website"/);
-  assert.match(portfolio, /Back to dashboard/);
+  assert.match(portfolio, /Back to Fulfilment/);
 });
 
 test("Development dashboard uses live portfolio, monitoring, workflow, resource and SOP counts", () => {

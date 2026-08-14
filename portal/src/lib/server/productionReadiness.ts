@@ -97,6 +97,7 @@ export function inspectProductionReadiness(
   const vercelReady = managedProviders.has("vercel") || has(env, "VERCEL_TOKEN");
   const assistantReady = managedProviders.has("openai") || has(env, "OPENAI_API_KEY");
   const assistantApiReady = (context.activeExternalAssistantKeyCount ?? 0) > 0
+    || (has(env, "AQUACRM_ASSISTANT_API_TOKEN") && has(env, "AQUACRM_ASSISTANT_AGENCY_ID"))
     || (has(env, "MILESYMEDIA_ASSISTANT_API_TOKEN") && has(env, "MILESYMEDIA_ASSISTANT_AGENCY_ID"));
   const billingConfigured = context.billingConfiguredClientCount ?? 0;
   const activeClients = context.activeClientCount ?? 0;
@@ -215,7 +216,7 @@ export function inspectProductionReadiness(
       action: assistantApiReady ? "Manage keys and permissions from Settings." : "Generate a private key from Settings, then connect your assistant.",
       required: false,
       group: "intelligence",
-      envKeys: ["MILESYMEDIA_ASSISTANT_API_TOKEN", "MILESYMEDIA_ASSISTANT_AGENCY_ID"],
+      envKeys: ["AQUACRM_ASSISTANT_API_TOKEN", "AQUACRM_ASSISTANT_AGENCY_ID"],
     },
     {
       id: "monitoring",

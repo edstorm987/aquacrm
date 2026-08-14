@@ -26,9 +26,10 @@ interface Props {
   currentPath: string;
   mobile?: boolean;
   extra?: ReactNode;
+  navAlignment?: "center" | "start";
 }
 
-export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extra }: Props) {
+export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extra, navAlignment = "center" }: Props) {
   // Pluck the "settings" panel out of the main nav and pass its items
   // to the footer's expandable Settings — single source of truth, no
   // duplicate Settings entries elsewhere in the sidebar.
@@ -41,6 +42,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
       aria-label="Primary navigation"
       data-collapsed="false"
       data-sidebar-mobile={mobile ? "true" : "false"}
+      data-sidebar-align={navAlignment}
       suppressHydrationWarning
       className={[
         "mm-private-sidebar shrink-0 bg-white/60 p-4 text-sm",

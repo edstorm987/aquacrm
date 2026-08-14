@@ -47,12 +47,12 @@ describe("agency products", () => {
   it("seeds the reusable catalogue once and supports custom product lifecycle", async () => {
     const { agency } = await fresh();
     const seeded = products.ensureDefaultAgencyProducts(agency.id);
-    assert.equal(seeded.length, 10);
+    assert.equal(seeded.length, 11);
     assert.deepEqual(
       seeded.filter(product => product.category === "Lead magnets").map(product => product.name).sort(),
       ["Business OS", "Digital health check"],
     );
-    assert.equal(products.ensureDefaultAgencyProducts(agency.id).length, 10);
+    assert.equal(products.ensureDefaultAgencyProducts(agency.id).length, 11);
     assert.equal(seeded.find(product => product.name === "Website")?.portalTemplateKey, "website");
 
     const custom = products.createAgencyProduct(agency.id, {
@@ -83,7 +83,7 @@ describe("agency products", () => {
       sopIds: ["sop_shoot"],
       sopCategories: ["Photography"],
     }, "tester");
-    assert.equal(products.listAgencyProducts(agency.id).length, 11);
+    assert.equal(products.listAgencyProducts(agency.id).length, 12);
     assert.equal(custom.priceCents, 75_000);
     assert.equal(custom.contractTitle, "Launch photography agreement");
     assert.match(custom.contractBody ?? "", /delivery and payment/);
@@ -100,8 +100,8 @@ describe("agency products", () => {
 
     const archived = products.updateAgencyProduct(agency.id, custom.id, { active: false }, "tester");
     assert.equal(archived?.active, false);
-    assert.equal(products.listAgencyProducts(agency.id).length, 10);
-    assert.equal(products.listAgencyProducts(agency.id, true).length, 11);
+    assert.equal(products.listAgencyProducts(agency.id).length, 11);
+    assert.equal(products.listAgencyProducts(agency.id, true).length, 12);
 
     const website = seeded.find(product => product.name === "Website")!;
     const photography = seeded.find(product => product.name === "Photography")!;

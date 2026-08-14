@@ -81,7 +81,7 @@ export function buildRadarTelemetrySnapshot(
     properties.push(propertySnapshot({
       id: "agency-website",
       label: agencyWebsite.name,
-      href: "/portal/agency/development/website",
+      href: "/portal/agency/fulfilment/technical/website",
       publicUrl: agencyWebsite.productionUrl,
       expectedLive: agencyWebsite.status === "live" || Boolean(clean(agencyWebsite.productionUrl)),
       tagDeclared: Boolean(agencyWebsite.telemetrySiteKey),

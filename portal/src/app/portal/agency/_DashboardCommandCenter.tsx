@@ -1,27 +1,33 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlarmClock,
   Activity,
   AlertTriangle,
+  Anchor,
+  ArrowLeft,
   ArrowUpRight,
+  BarChart3,
   Bot,
-  Building2,
   CalendarDays,
   Check,
   CheckCircle2,
-  ClipboardCheck,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
   Clock3,
+  Compass,
   Crosshair,
   Database,
   EyeOff,
   Gauge,
   History,
   Info,
-  ListTodo,
   LoaderCircle,
   NotebookPen,
   Play,
@@ -45,9 +51,19 @@ import {
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
 import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedActions";
 import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus, RadarEvidenceInspectionIndex, RadarRuleLens } from "@/lib/businessRadar";
-import type { AgencyTask, AgencyTaskPriority, DashboardDayPlan, DashboardWeekPlan, DashboardWorkSession } from "@/server/types";
+import type { CommandIntelligenceSnapshot } from "@/lib/commandIntelligence";
+import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, CommandCalendarEntry, CommandCalendarExternalEvent, CommandCalendarSource, CompanyProfile, DashboardDayPlan, DashboardWeekPlan, DashboardWeeklyEvidenceSnapshot, DashboardWorkSession } from "@/server/types";
+import { ClockOutReviewDialog, type ClockOutReviewDraft } from "./_ClockOutReviewDialog";
+import { CommandCentreKpiTrajectory } from "./_CommandCentreKpiTrajectory";
+import { BattleTableWorkspace, type BattleTablePayload, type BattleTableSection } from "./_BattleTableWorkspace";
+import { CommandIntelligenceWorkspace, type IntelligenceView } from "./_CommandIntelligenceWorkspace";
 import { RadarPolicyPanel } from "./_RadarPolicyPanel";
 import { RadarInspectionWorkspace, type RadarInspectionTab } from "./radar/RadarInspectionWorkspace";
+import { CommandStationNav, type CommandStationAttention, type CommandStationMode } from "./_CommandStationNav";
+import { DayCommandSensorPanel } from "./_DayCommandSensorPanel";
+import { DayBriefingPanel, type DayTaskGenerationSummary } from "./_DayBriefingPanel";
+import { DayKpiIntelligencePanel } from "./_DayKpiIntelligencePanel";
+import { WeeklyReviewWorkspace, weeklyReviewDraftFromPlan } from "./_WeeklyReviewWorkspace";
 
 export type DashboardSignal = {
   id: string;
@@ -89,10 +105,15 @@ type RadarInspectorTarget = {
   status: RadarCheckStatus | "all" | "attention" | "applicable" | "assured" | "firing" | "live";
   scope: RadarCheckScope | "all" | "sentinel";
   lens: RadarRuleLens | "all";
+  sourceId: string;
+  datasetId: string;
   version: number;
 };
 
 type OpenRadarInspector = (target?: Partial<Omit<RadarInspectorTarget, "version">>) => void;
+
+type CommandWorkspaceMode = "radar" | "workspace" | "inspector" | "day" | "calendar" | "actions" | "advisor" | "intelligence" | "battle";
+type CommandSurfaceMode = CommandStationMode | "intelligence" | "radar";
 
 type RadarMetricHelp = {
   label: string;
@@ -102,29 +123,58 @@ type RadarMetricHelp = {
 export function DashboardCommandCenter({
   planning,
   tasks,
+  calendarEntries,
+  externalCalendarEvents,
+  externalCalendarSources,
   signals,
   businessRadar,
   radarEvidence,
   recommendedActions,
   advisorConfigured,
   counts,
+  intelligenceSnapshot,
+  executiveWorkspace,
+  calendarWorkspace,
+  actionsWorkspace,
+  advisorWorkspace,
+  battleTablePayload,
 }: {
   planning: DashboardPlanningPayload;
   tasks: AgencyTask[];
+  calendarEntries: CommandCalendarEntry[];
+  externalCalendarEvents: CommandCalendarExternalEvent[];
+  externalCalendarSources: CommandCalendarSource[];
   signals: DashboardSignal[];
   businessRadar: BusinessIssueRadar;
   radarEvidence: RadarEvidenceInspectionIndex;
   recommendedActions: AdvisorActionSuggestion[];
   advisorConfigured: boolean;
   counts: { activeClients: number; leads: number; delivery: number; products: number };
+  intelligenceSnapshot: CommandIntelligenceSnapshot;
+  executiveWorkspace: React.ReactNode;
+  calendarWorkspace: React.ReactNode;
+  actionsWorkspace: React.ReactNode;
+  advisorWorkspace: React.ReactNode;
+  battleTablePayload: BattleTablePayload;
 }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isDayCommandRoute = pathname === "/portal/agency/command-center";
+  const requestedStationValue = searchParams.get("station");
+  const requestedClockOutReview = searchParams.get("review") === "clock-out";
+  const requestedStation = commandStationMode(requestedStationValue);
+  const requestedDayCalendar = requestedStationValue === "calendar";
+  const requestedIntelligenceView = intelligenceView(searchParams.get("view"));
+  const requestedKpiIds = searchParams.get("kpi")?.split(",").map(value => value.trim()).filter(Boolean) ?? [];
+  const requestedScopeId = searchParams.get("scope")?.trim() || "ecosystem";
+  const requestedBattleSection = battleTableSection(searchParams.get("battle"));
+  const initialStation: CommandSurfaceMode = isDayCommandRoute ? "day" : pathname.startsWith("/portal/agency/radar") ? "radar" : requestedStation ?? "day";
+  const initialRadarTarget = radarTargetFromSearchParams(searchParams);
   const actualToday = planning.today;
   const [selectedDate, setSelectedDate] = useState(actualToday);
+  const [planningWeekStart, setPlanningWeekStart] = useState(planning.weekStart);
   const [plan, setPlan] = useState<DayDraft>(draftFromPlan(planning.dayPlan));
-  const [weekPlan, setWeekPlan] = useState({
-    outcome: planning.weekPlan?.outcome ?? "",
-    reviewNotes: planning.weekPlan?.reviewNotes ?? "",
-  });
+  const [weekPlan, setWeekPlan] = useState(weeklyReviewDraftFromPlan(planning.weekPlan));
   const [weekPlans, setWeekPlans] = useState(planning.weekPlans);
   const [sessions, setSessions] = useState(planning.sessions);
   const [activeSession, setActiveSession] = useState(planning.activeSession);
@@ -133,10 +183,16 @@ export function DashboardCommandCenter({
   const [weekDirty, setWeekDirty] = useState(false);
   const [savingDay, setSavingDay] = useState(false);
   const [savingWeek, setSavingWeek] = useState(false);
+  const [dateBusy, setDateBusy] = useState(false);
+  const [weekExpanded, setWeekExpanded] = useState(false);
   const [clockBusy, setClockBusy] = useState(false);
+  const [clockOutReviewOpen, setClockOutReviewOpen] = useState(false);
+  const [clockOutReviewError, setClockOutReviewError] = useState("");
   const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
   const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [advisorBusy, setAdvisorBusy] = useState(false);
+  const [taskGenerationBusy, setTaskGenerationBusy] = useState(false);
+  const [taskGenerationSummary, setTaskGenerationSummary] = useState<DayTaskGenerationSummary | null>(null);
   const [advisorError, setAdvisorError] = useState("");
   const [advisorSuggestions, setAdvisorSuggestions] = useState<AdvisorActionSuggestion[]>([]);
   const [reviewedAt, setReviewedAt] = useState<number | null>(null);
@@ -149,11 +205,15 @@ export function DashboardCommandCenter({
   const [statusMessage, setStatusMessage] = useState("");
   const [operationError, setOperationError] = useState("");
   const [now, setNow] = useState(Date.now());
-  const [dashboardMode, setDashboardMode] = useState<"radar" | "inspector" | "day">(businessRadar.summary.critical ? "radar" : "day");
+  const [activeStation, setActiveStation] = useState<CommandSurfaceMode>(initialStation);
+  const [intelligenceEntry, setIntelligenceEntry] = useState<{ view: IntelligenceView; kpiIds: string[]; scopeId: string; commercialFocus: { metricId?: string; recordId?: string; sourceId?: string; stageId?: string }; version: number }>({ view: requestedIntelligenceView, kpiIds: requestedKpiIds, scopeId: requestedScopeId, commercialFocus: commercialFocus(searchParams), version: 0 });
+  const [dashboardMode, setDashboardMode] = useState<CommandWorkspaceMode>(requestedDayCalendar ? "calendar" : initialStation === "day" ? "day" : initialStation === "battle" ? "battle" : initialStation === "intelligence" ? "intelligence" : pathname.startsWith("/portal/agency/radar") ? "inspector" : initialStation === "radar" ? "workspace" : "radar");
   const [radarSnapshot, setRadarSnapshot] = useState(businessRadar);
-  const [inspectorTarget, setInspectorTarget] = useState<RadarInspectorTarget>({ tab: "records", query: "", domain: "all", status: "all", scope: "all", lens: "all", version: 0 });
+  const [inspectorTarget, setInspectorTarget] = useState<RadarInspectorTarget>({ ...initialRadarTarget, version: 0 });
+  const workspaceBodyRef = useRef<HTMLDivElement>(null);
+  const clockOutReviewRequestHandledRef = useRef(false);
 
-  function openInspector(target: Partial<Omit<RadarInspectorTarget, "version">> = {}) {
+  const openInspector = useCallback((target: Partial<Omit<RadarInspectorTarget, "version">> = {}) => {
     setInspectorTarget(current => ({
       tab: target.tab ?? "records",
       query: target.query ?? "",
@@ -161,10 +221,27 @@ export function DashboardCommandCenter({
       status: target.status ?? "all",
       scope: target.scope ?? "all",
       lens: target.lens ?? "all",
+      sourceId: target.sourceId ?? "",
+      datasetId: target.datasetId ?? "",
       version: current.version + 1,
     }));
+    setActiveStation("radar");
     setDashboardMode("inspector");
-  }
+  }, []);
+
+  const applyRadarUpdate = useCallback((nextRadar: BusinessIssueRadar) => {
+    setRadarSnapshot(nextRadar);
+    void (async () => {
+      try {
+        const response = await fetch("/api/portal/tasks", { cache: "no-store" });
+        const result = await response.json().catch(() => null) as { ok?: boolean; tasks?: AgencyTask[]; error?: string } | null;
+        if (!response.ok || !result?.ok || !result.tasks) throw new Error(result?.error || "Task reconciliation could not reload.");
+        setTaskRows(result.tasks);
+      } catch (error) {
+        setOperationError(error instanceof Error ? error.message : "Radar refreshed, but its tasks could not reload.");
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!activeSession) return;
@@ -172,6 +249,86 @@ export function DashboardCommandCenter({
     return () => window.clearInterval(timer);
   }, [activeSession]);
 
+  useEffect(() => {
+    function updateSmartSession(event: Event) {
+      const next = (event as CustomEvent<DashboardPlanningPayload>).detail;
+      if (!next) return;
+      setActiveSession(next.activeSession);
+      if (selectedDate === actualToday) setSessions(next.sessions);
+      setNow(Date.now());
+    }
+    window.addEventListener("aqua-work-session:planning", updateSmartSession);
+    return () => window.removeEventListener("aqua-work-session:planning", updateSmartSession);
+  }, [actualToday, selectedDate]);
+
+  useEffect(() => {
+    function openClockOutReview() {
+      if (!activeSession) return;
+      setClockOutReviewError("");
+      setClockOutReviewOpen(true);
+    }
+    window.addEventListener("aqua-work-session:clock-out-review", openClockOutReview);
+    if (requestedClockOutReview && activeSession && !clockOutReviewRequestHandledRef.current) {
+      clockOutReviewRequestHandledRef.current = true;
+      openClockOutReview();
+      const url = new URL(window.location.href);
+      url.searchParams.delete("review");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    return () => window.removeEventListener("aqua-work-session:clock-out-review", openClockOutReview);
+  }, [activeSession, requestedClockOutReview]);
+
+  useEffect(() => {
+    setWeekExpanded(window.localStorage.getItem("aqua-command-week-expanded") === "true");
+  }, []);
+
+  useEffect(() => {
+    function inspectFromCommandDeck(event: Event) {
+      const target = (event as CustomEvent<Partial<Omit<RadarInspectorTarget, "version">>>).detail;
+      openInspector(target ?? {});
+    }
+    window.addEventListener("aqua-radar-inspector:open", inspectFromCommandDeck);
+    return () => window.removeEventListener("aqua-radar-inspector:open", inspectFromCommandDeck);
+  }, [openInspector]);
+
+  useEffect(() => {
+    workspaceBodyRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeStation, dashboardMode]);
+
+  useEffect(() => {
+    if (searchParams.get("station") !== "intelligence") return;
+    const view = intelligenceView(searchParams.get("view"));
+    const kpiIds = searchParams.get("kpi")?.split(",").map(value => value.trim()).filter(Boolean) ?? [];
+    const scopeId = searchParams.get("scope")?.trim() || "ecosystem";
+    setActiveStation("intelligence");
+    setDashboardMode("intelligence");
+    setIntelligenceEntry(current => ({ view, kpiIds, scopeId, commercialFocus: commercialFocus(searchParams), version: current.version + 1 }));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("station") !== "radar-inspector") return;
+    const target = radarTargetFromSearchParams(searchParams);
+    setInspectorTarget(current => ({ ...target, version: current.version + 1 }));
+    setActiveStation("radar");
+    setDashboardMode("inspector");
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("station") !== "calendar") return;
+    setActiveStation("day");
+    setDashboardMode("calendar");
+  }, [searchParams]);
+
+  const isToday = selectedDate === actualToday;
+  const isFuture = selectedDate > actualToday;
+  const selectedDayTasks = useMemo(
+    () => taskRows.filter(task => taskTouchesDate(task, selectedDate)),
+    [selectedDate, taskRows],
+  );
+  const completedOnSelectedDay = useMemo(
+    () => taskRows.filter(task => timestampFallsOnDate(task.completedAt, selectedDate)),
+    [selectedDate, taskRows],
+  );
   const openTasks = taskRows.filter(task => task.status !== "done");
   const deterministicRecommendedActions = useMemo(() => buildBusinessRecommendedActions({
     radar: radarSnapshot,
@@ -218,46 +375,119 @@ export function DashboardCommandCenter({
       .slice(0, 8);
   }, [now, openTasks, radarSnapshot.incidents, signals]);
 
+  const dayStrictList = useMemo<StrictItem[]>(() => {
+    if (isToday) return strictList;
+    return selectedDayTasks
+      .map(task => ({
+        id: `task:${task.id}`,
+        title: task.title,
+        detail: task.notes || taskTimingDetail(task),
+        href: task.sourceHref || "/portal/agency/actions",
+        kind: timestampFallsOnDate(task.completedAt, selectedDate)
+          ? "Completed"
+          : task.status === "done"
+            ? "Completed later"
+            : task.status === "in-progress"
+              ? "In progress"
+              : "Scheduled task",
+        priority: task.priority === "urgent" ? "urgent" as const : task.priority === "high" ? "high" as const : "normal" as const,
+        dueAt: task.dueAt,
+        taskId: task.id,
+        status: task.status,
+      }))
+      .sort((a, b) => {
+        const completedRank = Number(a.status === "done") - Number(b.status === "done");
+        const activeRank = Number(b.status === "in-progress") - Number(a.status === "in-progress");
+        return completedRank || activeRank || priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
+      })
+      .slice(0, 8);
+  }, [isToday, selectedDate, selectedDayTasks, strictList]);
+
   const selectedSessions = sessions.filter(session => session.date === selectedDate);
-  const loggedHours = selectedSessions.reduce((total, session) => total + sessionHours(session, now), 0);
-  const loggedWeekHours = sessions.reduce((total, session) => total + sessionHours(session, now), 0);
-  const dates = weekDates(planning.weekStart);
+  const loggedHours = selectedSessions.reduce((total, session) => total + accountableSessionHours(session), 0);
+  const loggedWeekHours = sessions.reduce((total, session) => total + accountableSessionHours(session), 0);
+  const selectedAquaHours = selectedSessions.reduce((total, session) => total + (session.aquaActiveMs ?? 0) / 3_600_000, 0);
+  const selectedExternalHours = selectedSessions.reduce((total, session) => total + (session.externalWorkMs ?? 0) / 3_600_000, 0);
+  const selectedBreakHours = selectedSessions.reduce((total, session) => total + (session.breakMs ?? 0) / 3_600_000, 0);
+  const selectedUnconfirmedHours = selectedSessions.reduce((total, session) => total + (session.unconfirmedIdleMs ?? 0) / 3_600_000, 0);
+  const selectedEvidenceMinutes = (selectedAquaHours + selectedExternalHours + selectedUnconfirmedHours) * 60;
+  const selectedEvidenceConfidence = selectedEvidenceMinutes ? Math.round((selectedAquaHours + selectedExternalHours) * 60 / selectedEvidenceMinutes * 100) : 100;
+  const selectedRouteSwitches = selectedSessions.reduce((total, session) => total + (session.routeSwitches ?? 0), 0);
+  const selectedProductiveHours = selectedAquaHours + selectedExternalHours;
+  const focusFragmentationWatch = selectedProductiveHours >= 0.5 && selectedRouteSwitches / selectedProductiveHours >= 18;
+  const dates = weekDates(planningWeekStart);
   const effectivePlans = dates.map(date => date === selectedDate
     ? { date, ...plan }
     : { date, ...draftFromPlan(weekPlans.find(item => item.date === date) ?? null) });
-  const upcomingCalendar = [
-    ...openTasks.flatMap(task => {
-      const at = task.dueAt ?? task.startAt;
+  const selectedDaySchedule = [
+    ...selectedDayTasks.flatMap(task => {
+      const at = taskMomentForDate(task, selectedDate);
       return at ? [{
         id: `task:${task.id}`,
         title: task.title,
-        kind: task.status === "in-progress" ? "In progress" : "Task",
+        kind: timestampFallsOnDate(task.completedAt, selectedDate) ? "Completed" : task.status === "in-progress" ? "In progress" : "Task",
         at,
-        href: "/portal/agency/actions",
+        href: task.sourceHref || "/portal/agency/actions",
         priority: task.priority === "urgent" ? "urgent" as const : task.priority === "high" ? "high" as const : "normal" as const,
       }] : [];
     }),
-    ...effectivePlans.filter(item => item.focus.trim()).map(item => ({
-      id: `plan:${item.date}`,
-      title: item.focus,
+    ...calendarEntries.flatMap(entry => {
+      const at = calendarEntryMomentForDate(entry, selectedDate);
+      return at && entry.status !== "cancelled" ? [{
+        id: `calendar:${entry.id}`,
+        title: entry.title,
+        kind: entry.type.replaceAll("-", " "),
+        at,
+        href: "/portal/agency?station=calendar",
+        priority: entry.type === "reminder" || entry.type === "target" ? "high" as const : "normal" as const,
+      }] : [];
+    }),
+    ...externalCalendarEvents.flatMap(event => {
+      const at = externalCalendarMomentForDate(event, selectedDate);
+      const source = externalCalendarSources.find(item => item.id === event.sourceId);
+      return at ? [{
+        id: `external-calendar:${event.id}`,
+        title: event.title,
+        kind: `${source?.name ?? "Google Calendar"}${event.allDay ? " · all day" : ""}`,
+        at,
+        href: event.htmlLink || "/portal/agency?station=calendar",
+        priority: "normal" as const,
+      }] : [];
+    }),
+    ...(plan.focus.trim() ? [{
+      id: `plan:${selectedDate}`,
+      title: plan.focus,
       kind: "Day outcome",
-      at: new Date(`${item.date}T12:00:00`).getTime(),
+      at: new Date(`${selectedDate}T12:00:00`).getTime(),
       href: "/portal/agency",
       priority: "normal" as const,
-    })),
+    }] : []),
   ]
-    .filter(item => item.at >= new Date(`${actualToday}T00:00:00`).getTime())
     .sort((a, b) => a.at - b.at || priorityRank(a.priority) - priorityRank(b.priority))
-    .slice(0, 6);
+    .slice(0, 8);
   const plannedWeekHours = effectivePlans.reduce((total, item) => total + item.plannedHours, 0);
   const targetWeekRevenue = effectivePlans.reduce((total, item) => total + item.targetRevenuePounds, 0);
   const projectedCompletion = plan.plannedHours ? Math.min(100, Math.round((loggedHours / plan.plannedHours) * 100)) : 0;
   const workedDays = new Set(sessions.filter(session => session.endedAt).map(session => session.date)).size;
   const projectedWeekHours = workedDays ? (loggedWeekHours / workedDays) * 5 : loggedWeekHours;
   const weekPace = plannedWeekHours ? Math.round((loggedWeekHours / plannedWeekHours) * 100) : 0;
-  const completedThisWeek = taskRows.filter(task => task.completedAt && task.completedAt >= new Date(`${planning.weekStart}T00:00:00`).getTime()).length;
-  const isToday = selectedDate === actualToday;
-  const isFuture = selectedDate > actualToday;
+  const completedThisWeek = taskRows.filter(task => task.completedAt && task.completedAt >= new Date(`${planningWeekStart}T00:00:00`).getTime()).length;
+  const weekTaskRows = taskRows.filter(task => dates.some(date => taskTouchesDate(task, date)));
+  const weekUnconfirmedHours = sessions.reduce((total, session) => total + (session.unconfirmedIdleMs ?? 0) / 3_600_000, 0);
+  const weekEvidenceSnapshot: DashboardWeeklyEvidenceSnapshot = {
+    plannedHours: plannedWeekHours,
+    confirmedHours: loggedWeekHours,
+    unconfirmedHours: weekUnconfirmedHours,
+    completedTasks: weekTaskRows.filter(task => task.status === "done").length,
+    openTasks: weekTaskRows.filter(task => task.status !== "done").length,
+    revenueTargetPounds: targetWeekRevenue,
+    dayReviewsCompleted: new Set(sessions.filter(session => Boolean(session.clockOutReview)).map(session => session.date)).size,
+    capturedAt: now,
+  };
+  const directRadarFeed = [...radarSnapshot.incidents]
+    .sort((left, right) => radarSeverityRank(left.severity) - radarSeverityRank(right.severity) || right.detectedAt - left.detectedAt)
+    .slice(0, 4);
+  const radarTasksBySource = new Map(taskRows.filter(task => (task.origin ?? "manual") === "radar" && task.sourceId).map(task => [task.sourceId!, task]));
 
   function updatePlan(patch: Partial<DayDraft>) {
     setPlan(current => ({ ...current, ...patch }));
@@ -290,35 +520,73 @@ export function DashboardCommandCenter({
   }
 
   async function selectDay(date: string) {
-    if (date === selectedDate || savingDay) return;
-    let availablePlans = weekPlans;
-    if (dayDirty) {
-      const saved = await saveDay(false);
-      if (!saved) return;
-      availablePlans = saved.weekPlans;
-    }
-    setSelectedDate(date);
-    setPlan(draftFromPlan(availablePlans.find(item => item.date === date) ?? null));
-    setDayDirty(false);
-    setStatusMessage("");
+    if (!validIsoDate(date) || date === selectedDate || savingDay || dateBusy) return;
+    setDateBusy(true);
     setOperationError("");
+    try {
+      if (dayDirty) {
+        const saved = await saveDay(false);
+        if (!saved) return;
+      }
+      const next = await loadDashboardPlanning(date);
+      setSelectedDate(date);
+      setPlanningWeekStart(next.weekStart);
+      setWeekPlans(next.weekPlans);
+      setSessions(next.sessions);
+      setActiveSession(date === actualToday ? next.activeSession : activeSession);
+      setWeekPlan(weeklyReviewDraftFromPlan(next.weekPlan));
+      setPlan(draftFromPlan(next.dayPlan));
+      setDayDirty(false);
+      setWeekDirty(false);
+      setStatusMessage("");
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : "That planning date could not load.");
+    } finally {
+      setDateBusy(false);
+    }
   }
 
-  async function saveWeek() {
+  function moveDay(offset: number) {
+    void selectDay(offsetIsoDate(selectedDate, offset));
+  }
+
+  function toggleWeekCommand() {
+    setWeekExpanded(current => {
+      const next = !current;
+      window.localStorage.setItem("aqua-command-week-expanded", String(next));
+      return next;
+    });
+  }
+
+  async function saveWeek(reviewStatus: "draft" | "complete" = weekPlan.reviewStatus) {
     setSavingWeek(true);
     setOperationError("");
     try {
       const next = await dashboardRequest({
         action: "save-week",
         date: selectedDate,
-        weekStart: planning.weekStart,
+        weekStart: planningWeekStart,
         weekOutcome: weekPlan.outcome,
         weekReviewNotes: weekPlan.reviewNotes,
+        weekWins: weekPlan.wins,
+        weekMisses: weekPlan.misses,
+        weekLessons: weekPlan.lessons,
+        weekDecisions: weekPlan.decisions,
+        weekRisks: weekPlan.risks,
+        weekStartDoing: weekPlan.startDoing,
+        weekStopDoing: weekPlan.stopDoing,
+        weekContinueDoing: weekPlan.continueDoing,
+        weekNextPriorities: weekPlan.nextWeekPriorities,
+        weekExecutionScore: weekPlan.executionScore,
+        weekEnergyScore: weekPlan.energyScore,
+        weekConfidenceScore: weekPlan.confidenceScore,
+        weekReviewStatus: reviewStatus,
+        weekEvidenceSnapshot,
       });
       applyPlanning(next);
-      setWeekPlan({ outcome: next.weekPlan?.outcome ?? "", reviewNotes: next.weekPlan?.reviewNotes ?? "" });
+      setWeekPlan(weeklyReviewDraftFromPlan(next.weekPlan));
       setWeekDirty(false);
-      setStatusMessage("Week direction saved.");
+      setStatusMessage(reviewStatus === "complete" ? "Weekly review completed and retained." : "Weekly review draft saved.");
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : "The week plan could not save.");
     } finally {
@@ -326,25 +594,41 @@ export function DashboardCommandCenter({
     }
   }
 
-  async function clock(action: "clock-in" | "clock-out") {
-    if (!isToday) return;
+  async function clock(action: "clock-in" | "clock-out", clockOutReview?: ClockOutReviewDraft): Promise<boolean> {
+    if (!isToday) return false;
     setClockBusy(true);
     setOperationError("");
+    if (action === "clock-out") setClockOutReviewError("");
     try {
       if (action === "clock-in" && dayDirty) await saveDay(false);
       const next = await dashboardRequest({
         action,
         date: actualToday,
         focus: plan.focus,
-        notes: action === "clock-out" ? plan.doneNotes : undefined,
+        currentPath: window.location.pathname,
+        clockOutReview: action === "clock-out" ? clockOutReview : undefined,
       });
       applyPlanning(next);
-      setStatusMessage(action === "clock-in" ? "Clocked in." : "Clocked out and hours recorded.");
+      setStatusMessage(action === "clock-in" ? "Clocked in." : "Clocked out and close-of-watch review recorded.");
+      return true;
     } catch (error) {
-      setOperationError(error instanceof Error ? error.message : "The time clock could not update.");
+      const message = error instanceof Error ? error.message : "The time clock could not update.";
+      if (action === "clock-out") setClockOutReviewError(message);
+      else setOperationError(message);
+      return false;
     } finally {
       setClockBusy(false);
     }
+  }
+
+  function requestClockOut() {
+    setClockOutReviewError("");
+    setClockOutReviewOpen(true);
+  }
+
+  async function completeClockOut(review: ClockOutReviewDraft) {
+    const completed = await clock("clock-out", review);
+    if (completed) setClockOutReviewOpen(false);
   }
 
   async function logManualTime() {
@@ -384,8 +668,8 @@ export function DashboardCommandCenter({
     }
   }
 
-  async function createTask(input: { title: string; notes?: string; priority: AgencyTaskPriority; dueAt?: number }, sourceId: string) {
-    setTaskBusyId(sourceId);
+  async function createTask(input: { title: string; notes?: string; priority: AgencyTaskPriority; startAt?: number; dueAt?: number; origin?: AgencyTaskOrigin; sourceId?: string; sourceHref?: string; evidence?: string[]; evidenceSourceIds?: string[]; expectedOutcome?: string; reconciliationSourceIds?: string[] }, busyId: string) {
+    setTaskBusyId(busyId);
     setOperationError("");
     try {
       const response = await fetch("/api/portal/tasks", {
@@ -395,7 +679,7 @@ export function DashboardCommandCenter({
       });
       const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; task?: AgencyTask } | null;
       if (!response.ok || !result?.ok || !result.task) throw new Error(result?.error || "The task could not be created.");
-      setTaskRows(current => [...current, result.task!]);
+      setTaskRows(current => current.some(task => task.id === result.task!.id) ? current.map(task => task.id === result.task!.id ? result.task! : task) : [...current, result.task!]);
       setStatusMessage(`Added “${result.task.title}” to the strict queue.`);
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : "The task could not be created.");
@@ -410,6 +694,9 @@ export function DashboardCommandCenter({
       notes: `${item.detail}\n\nCreated from the main dashboard priority queue.`,
       priority: item.priority,
       dueAt: item.dueAt,
+      origin: "crm",
+      sourceId: item.id,
+      sourceHref: item.href,
     }, item.id);
   }
 
@@ -418,13 +705,22 @@ export function DashboardCommandCenter({
       title: issue.title,
       notes: `${issue.detail}\n\nRadar evidence:\n${issue.evidence.map(item => `- ${item}`).join("\n")}`,
       priority: issue.severity === "critical" ? "urgent" : "high",
+      startAt: new Date(`${selectedDate}T09:00:00`).getTime(),
+      dueAt: new Date(`${selectedDate}T17:00:00`).getTime(),
+      origin: "radar",
+      sourceId: issue.id,
+      sourceHref: issue.href,
+      evidence: issue.evidence,
+      evidenceSourceIds: issue.sourceIds,
+      expectedOutcome: `Radar no longer detects “${issue.title}” in the latest sweep.`,
+      reconciliationSourceIds: [issue.id, ...issue.sourceIds],
     }, `radar:${issue.id}`);
   }
 
   async function addQuickTask() {
     const title = quickTask.trim();
     if (!title) return;
-    await createTask({ title, priority: quickPriority, dueAt: new Date(`${selectedDate}T17:00:00`).getTime() }, "quick");
+    await createTask({ title, priority: quickPriority, dueAt: new Date(`${selectedDate}T17:00:00`).getTime(), origin: "manual" }, "quick");
     setQuickTask("");
   }
 
@@ -485,6 +781,7 @@ export function DashboardCommandCenter({
       if (!response.ok || !result?.ok) throw new Error(result?.error || "Aqua Advisor could not create a briefing.");
       setAdvisorSuggestions(result.suggestions ?? []);
       setReviewedAt(result.generatedAt ?? Date.now());
+      setStatusMessage("Daily executive briefing generated.");
     } catch (error) {
       setAdvisorError(error instanceof Error ? error.message : "Aqua Advisor could not create a briefing.");
     } finally {
@@ -492,145 +789,232 @@ export function DashboardCommandCenter({
     }
   }
 
-  async function addAdvisorTask(item: AdvisorActionSuggestion) {
+  async function generateTasksFromRadar() {
+    setTaskGenerationBusy(true);
+    setOperationError("");
+    try {
+      const beforeIds = new Set(taskRows.map(task => task.id));
+      const response = await fetch("/api/portal/advisor/radar", { method: "POST", cache: "no-store" });
+      const result = await response.json().catch(() => null) as { ok?: boolean; radar?: BusinessIssueRadar; error?: string } | null;
+      if (!response.ok || !result?.ok || !result.radar) throw new Error(result?.error || "The Radar task scan could not complete.");
+      setRadarSnapshot(result.radar);
+      const tasksResponse = await fetch("/api/portal/tasks", { cache: "no-store" });
+      const tasksResult = await tasksResponse.json().catch(() => null) as { ok?: boolean; tasks?: AgencyTask[]; error?: string } | null;
+      if (!tasksResponse.ok || !tasksResult?.ok || !tasksResult.tasks) throw new Error(tasksResult?.error || "Radar scanned successfully, but reconciled tasks could not reload.");
+      setTaskRows(tasksResult.tasks);
+      const newTasks = tasksResult.tasks.filter(task => !beforeIds.has(task.id)).length;
+      const activeRadarTasks = tasksResult.tasks.filter(task => task.status !== "done" && (task.origin ?? "manual") === "radar").length;
+      const contacts = result.radar.summary.critical + result.radar.summary.warning;
+      setTaskGenerationSummary({ generatedAt: Date.now(), newTasks, activeRadarTasks, contacts });
+      setStatusMessage(`Radar task scan complete: ${newTasks} new and ${activeRadarTasks} active Radar tasks.`);
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : "The Radar task scan could not complete.");
+    } finally {
+      setTaskGenerationBusy(false);
+    }
+  }
+
+  async function acceptAdvisorAction(action: AdvisorActionSuggestion) {
     await createTask({
-      title: item.title,
-      notes: `${item.detail}\n\nEvidence reviewed by Aqua Advisor: ${item.evidence}`,
-      priority: item.priority,
-      dueAt: item.dueAt,
-    }, item.id);
-    setAdvisorSuggestions(current => current.filter(suggestion => suggestion.id !== item.id));
+      title: action.title,
+      notes: action.detail,
+      priority: action.priority === "low" ? "normal" : action.priority,
+      dueAt: action.dueAt,
+      origin: "advisor",
+      sourceId: action.id,
+      sourceHref: action.href,
+      evidence: action.evidence ? [action.evidence] : [],
+      evidenceSourceIds: action.sourceAlertIds,
+      reconciliationSourceIds: action.sourceAlertIds,
+      expectedOutcome: action.detail,
+    }, action.id);
   }
 
   function applyPlanning(next: DashboardPlanningPayload) {
+    setPlanningWeekStart(next.weekStart);
     setSessions(next.sessions);
     setActiveSession(next.activeSession);
     setWeekPlans(next.weekPlans);
-    setWeekPlan({ outcome: next.weekPlan?.outcome ?? "", reviewNotes: next.weekPlan?.reviewNotes ?? "" });
+    setWeekPlan(weeklyReviewDraftFromPlan(next.weekPlan));
     setNow(Date.now());
+    window.dispatchEvent(new CustomEvent("aqua-work-session:updated", { detail: next }));
   }
 
+  function selectWorkspaceMode(mode: Exclude<CommandWorkspaceMode, "inspector">) {
+    setDashboardMode(mode);
+  }
+
+  async function returnToToday() {
+    setActiveStation("day");
+    setDashboardMode("day");
+    if (!isToday) await selectDay(actualToday);
+    window.requestAnimationFrame(() => workspaceBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
+  }
+
+  function selectCommandStation(mode: CommandStationMode) {
+    setActiveStation(mode);
+    if (mode === "day") setDashboardMode("day");
+    if (mode === "executive") setDashboardMode("radar");
+    if (mode === "battle") setDashboardMode("battle");
+  }
+
+  function openIntelligence(kpiIds: string[] = [], scopeId = "ecosystem") {
+    setIntelligenceEntry(current => ({ view: "compare", kpiIds, scopeId, commercialFocus: {}, version: current.version + 1 }));
+    setActiveStation("intelligence");
+    setDashboardMode("intelligence");
+  }
+
+  function openIntelligenceOverview() {
+    setIntelligenceEntry(current => ({ view: "overview", kpiIds: [], scopeId: "ecosystem", commercialFocus: {}, version: current.version + 1 }));
+    setActiveStation("intelligence");
+    setDashboardMode("intelligence");
+  }
+
+  function openRadarWorkspace() {
+    setActiveStation("radar");
+    setDashboardMode("workspace");
+  }
+
+  function returnToCommandCentre() {
+    setActiveStation("executive");
+    setDashboardMode("radar");
+  }
+
+  const dayAttentionItems = dayStrictList.filter(item => item.status !== "done");
+  const dayAttention: CommandStationAttention = {
+    count: dayAttentionItems.length,
+    tone: dayAttentionItems.some(item => item.priority === "urgent") ? "critical" : dayAttentionItems.some(item => item.priority === "high") ? "warning" : dayAttentionItems.length ? "info" : "clear",
+    label: dayAttentionItems.length ? `${dayAttentionItems.length} live priorities require today’s attention` : "No live priorities are waiting in Day Command",
+  };
+  const executiveAttention: CommandStationAttention = {
+    count: radarSnapshot.summary.critical + radarSnapshot.summary.warning,
+    tone: radarSnapshot.summary.critical ? "critical" : radarSnapshot.summary.warning ? "warning" : "clear",
+    label: radarSnapshot.summary.critical
+      ? `${radarSnapshot.summary.critical} critical and ${radarSnapshot.summary.warning} warning Radar incidents`
+      : radarSnapshot.summary.warning
+        ? `${radarSnapshot.summary.warning} warning Radar incidents`
+        : "Radar has no critical or warning incidents",
+  };
+  const battleAttention = battleTableAttention(battleTablePayload);
+  const stationAttention: Record<CommandStationMode, CommandStationAttention> = { day: dayAttention, executive: executiveAttention, battle: battleAttention };
+
   return (
-    <section className="space-y-4" aria-label="Command center">
-      <div className="overflow-hidden rounded-lg border border-[#2d4c44] bg-[#10241f] text-white shadow-sm" aria-label="Command deck">
-        <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-emerald-200/35 bg-white/[0.06]" aria-hidden="true">
-              <span className="absolute inset-x-1/2 top-0 h-full w-px bg-emerald-100/15" />
-              <span className="absolute inset-y-1/2 left-0 h-px w-full bg-emerald-100/15" />
-              <span className="absolute inset-2 rounded-full border border-emerald-100/15" />
-              <Radar className="relative text-emerald-200" size={22} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200/70">Command deck</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-lg">All stations on one bridge</h2>
-              <p className="mt-1 text-xs leading-5 text-white/55">Radar findings automatically join your strict priority queue.</p>
-            </div>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-emerald-100/[0.07] px-3 py-1.5 text-xs font-semibold text-emerald-100">
-            <RadioTower size={14} /> Radar online
-          </span>
+    <div className="grid gap-5">
+      {clockOutReviewOpen && activeSession ? <ClockOutReviewDialog
+        key={activeSession.id}
+        session={activeSession}
+        initialOutcome={plan.doneNotes}
+        initialOpenWork={dayStrictList.filter(item => item.status !== "done").slice(0, 5).map(item => item.title).join("\n")}
+        initialNextPriority={dayStrictList.find(item => item.status !== "done")?.title ?? ""}
+        completedTaskCount={completedOnSelectedDay.length}
+        busy={clockBusy}
+        error={clockOutReviewError}
+        onCancel={() => { if (!clockBusy) setClockOutReviewOpen(false); }}
+        onConfirm={review => void completeClockOut(review)}
+      /> : null}
+      <CommandStationNav attention={stationAttention} activeMode={activeStation === "day" ? "day" : activeStation === "battle" ? "battle" : "executive"} onSelect={selectCommandStation} />
+      {activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{executiveWorkspace}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceSnapshot} onOpen={openIntelligence} /></div> : activeStation === "battle" ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceSnapshot} onOpenIntelligence={openIntelligence} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
+      <header className="mm-command-workspace-header flex min-h-14 shrink-0 items-center gap-3 border-b border-[#62e8ff]/25 bg-[#020b11] px-3 text-white shadow-[0_8px_24px_rgba(0,20,28,.16)] sm:px-5">
+        <span className="mm-command-workspace-emblem grid size-8 shrink-0 place-items-center border border-[#62e8ff]/35 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><Compass size={16} /></span>
+        <div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/55">Aqua command network · Integrated station</p><p className="truncate text-sm font-semibold">{activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "Command Centre · KPI Intelligence" : "Command Centre · Radar Workspace"}</p></div>
+        <div className="ml-auto flex items-center gap-2">
+          {activeStation === "day" ? <button type="button" onClick={() => void returnToToday()} disabled={dateBusy || (dashboardMode === "day" && isToday)} title="Return to today’s Day Command" className="inline-flex min-h-8 items-center gap-1.5 border border-[#e5c479]/20 bg-[#e5c479]/[0.05] px-2.5 text-[8px] font-semibold uppercase text-[#e5c479] hover:bg-[#e5c479]/[0.1] hover:text-white disabled:cursor-default disabled:opacity-35"><CalendarDays size={12} /><span className="hidden sm:inline">Back to today</span><span className="sm:hidden">Today</span></button> : null}
+          {activeStation === "intelligence" || activeStation === "radar" ? <Link role="button" href="/portal/agency" replace onClick={returnToCommandCentre} className="inline-flex min-h-8 items-center gap-1.5 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.055] px-2.5 text-[8px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1] hover:text-white"><ArrowLeft size={12} /><span className="hidden sm:inline">Back to Command Centre</span><span className="sm:hidden">Command</span></Link> : null}
+          <span className="hidden items-center gap-2 border border-[#68f5d0]/20 bg-[#68f5d0]/[0.05] px-2.5 py-1.5 text-[8px] font-semibold uppercase text-[#68f5d0] sm:inline-flex"><span className="size-1.5 animate-pulse bg-current shadow-[0_0_7px_currentColor]" /> Station active</span>
         </div>
-
-        <nav className="grid grid-cols-2 border-t border-white/10 sm:grid-cols-5" aria-label="Command center stations">
-          <button type="button" aria-pressed={dashboardMode === "radar"} onClick={() => setDashboardMode("radar")} className={`group flex min-h-[72px] items-center gap-3 border-b border-r border-white/10 px-4 text-left transition sm:border-b-0 ${dashboardMode === "radar" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
-            <Radar size={18} className={dashboardMode === "radar" ? "text-emerald-700" : "text-emerald-200"} />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Active radar</span>
-              <span className={`mt-0.5 block text-[11px] ${dashboardMode === "radar" ? "text-black/48" : "text-white/42"}`}>{radarSnapshot.summary.critical + radarSnapshot.summary.warning} alerts on watch</span>
-            </span>
-          </button>
-          <button type="button" aria-pressed={dashboardMode === "inspector"} onClick={() => openInspector()} className={`group flex min-h-[72px] items-center gap-3 border-b border-r border-white/10 px-4 text-left transition sm:border-b-0 ${dashboardMode === "inspector" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
-            <Database size={18} className={dashboardMode === "inspector" ? "text-emerald-700" : "text-emerald-200"} />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Data inspector</span>
-              <span className={`mt-0.5 block text-[11px] ${dashboardMode === "inspector" ? "text-black/48" : "text-white/42"}`}>Records, evidence and raw values</span>
-            </span>
-          </button>
-          <button type="button" aria-pressed={dashboardMode === "day"} onClick={() => setDashboardMode("day")} className={`group flex min-h-[72px] items-center gap-3 border-b border-white/10 px-4 text-left transition sm:border-b-0 sm:border-r ${dashboardMode === "day" ? "bg-white text-[#10241f]" : "text-white/72 hover:bg-white/[0.06] hover:text-white"}`}>
-            <ListTodo size={18} className={dashboardMode === "day" ? "text-emerald-700" : "text-emerald-200"} />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Day command</span>
-              <span className={`mt-0.5 block text-[11px] ${dashboardMode === "day" ? "text-black/48" : "text-white/42"}`}>{strictList.length} priorities queued</span>
-            </span>
-          </button>
-          <Link href="/portal/agency/actions" className="flex min-h-[72px] items-center gap-3 border-r border-white/10 px-4 text-left text-white/72 transition hover:bg-white/[0.06] hover:text-white">
-            <ClipboardCheck size={18} className="text-amber-200" />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Actions</span>
-              <span className="mt-0.5 block text-[11px] text-white/42">{openTasks.length} open across the business</span>
-            </span>
-          </Link>
-          <Link href="/portal/agency/company" className="flex min-h-[72px] items-center gap-3 px-4 text-left text-white/72 transition hover:bg-white/[0.06] hover:text-white">
-            <Building2 size={18} className="text-sky-200" />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Company</span>
-              <span className="mt-0.5 block text-[11px] text-white/42">{counts.activeClients} clients · {counts.products} offers</span>
-            </span>
-          </Link>
-        </nav>
-      </div>
-
-      <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="command-recommendations-heading">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 px-4 py-4 sm:px-5">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><Target size={18} /></span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-brand">Command recommendations</p><span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Shared with Advisor</span></div>
-              <h2 id="command-recommendations-heading" className="mt-1 text-lg font-semibold text-black/85">Top {topRecommendedActions.length || 5} actions from live data</h2>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-black/48">Radar ranks incidents, alerts, blind spots, targets, evidence readiness, and open work. Aqua Advisor receives this same action set and visibility envelope, so it cannot mistake missing data for a healthy business.</p>
-              <p className="mt-1 text-[10px] text-black/32">Updated {formatDateTime(radarSnapshot.generatedAt)} · suggestions only · every task requires approval</p>
-            </div>
-          </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-            <button type="button" onClick={() => void requestAdvisorBriefing()} disabled={advisorBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50">{advisorBusy ? <LoaderCircle size={14} className="animate-spin" /> : advisorConfigured ? <Bot size={14} /> : <RefreshCw size={14} />}{advisorConfigured ? "Advisor review" : "Refresh Radar"}</button>
-            <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]"><Bot size={14} /> Open Advisor</button>
-          </div>
-        </header>
-        {advisorError ? <p role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700 sm:px-5">{advisorError}</p> : null}
-        <ol className="divide-y divide-black/[0.07]">
-          {topRecommendedActions.map((item, index) => (
-            <li key={item.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-start sm:px-5">
-              <span className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${item.priority === "urgent" ? "bg-red-700 text-white" : item.priority === "high" ? "bg-amber-100 text-amber-800" : "bg-black/[0.05] text-black/55"}`}>{index + 1}</span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-black/82">{item.title}</p><span className="rounded-full bg-black/[0.045] px-2 py-0.5 text-[10px] font-medium capitalize text-black/48">{item.category}</span><span className={`text-[10px] font-semibold uppercase ${item.confidence === "high" ? "text-emerald-700" : item.confidence === "medium" ? "text-amber-700" : "text-black/38"}`}>{item.confidence} confidence</span></div>
-                <p className="mt-1 text-xs leading-5 text-black/48">{item.detail}</p>
-                <p className="mt-1 line-clamp-1 text-[10px] leading-4 text-black/32">Evidence: {item.evidence || "Open the linked source to inspect the supporting records."}</p>
-              </div>
-              <div className="flex gap-1 sm:justify-end">
-                <Link href={item.href} title="Open evidence" aria-label={`Open evidence for ${item.title}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/52 hover:bg-black/[0.03] hover:text-black/75"><ArrowUpRight size={14} /></Link>
-                <button type="button" onClick={() => void addAdvisorTask(item)} disabled={taskBusyId === item.id} title="Approve and add to Actions" aria-label={`Approve ${item.title} and add to Actions`} className="grid size-9 place-items-center rounded-md bg-brand text-white disabled:opacity-50">{taskBusyId === item.id ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={14} />}</button>
-              </div>
-            </li>
-          ))}
-          {!topRecommendedActions.length ? <li className="px-5 py-8 text-center"><ShieldCheck className="mx-auto text-emerald-600" size={22} /><p className="mt-2 text-sm font-semibold text-black/68">No defensible action is being forced</p><p className="mt-1 text-xs text-black/42">Radar will add a recommendation when evidence shows a gap, risk, or missed target.</p></li> : null}
-        </ol>
-      </section>
-
-      {dashboardMode === "inspector" ? (
-        <RadarInspectionWorkspace key={inspectorTarget.version} initialRadar={radarSnapshot} initialEvidence={radarEvidence} initialTab={inspectorTarget.tab} initialQuery={inspectorTarget.query} initialDomain={inspectorTarget.domain} initialStatus={inspectorTarget.status} initialScope={inspectorTarget.scope} initialLens={inspectorTarget.lens} embedded />
-      ) : dashboardMode === "radar" ? (
+      </header>
+      {activeStation === "radar" ? <nav aria-label="Radar workspace views" className="mm-omega-workspace-nav grid shrink-0 grid-flow-col auto-cols-[minmax(10.5rem,1fr)] overflow-x-auto border-b border-[#62e8ff]/20 bg-[#031018] lg:grid-flow-row lg:grid-cols-4">
+          <RadarWorkspaceButton active={dashboardMode === "radar"} icon={<RadioTower size={15} />} label="Live Radar feed" detail={`${radarSnapshot.summary.critical + radarSnapshot.summary.warning} contacts`} onClick={() => selectWorkspaceMode("radar")} />
+          <RadarWorkspaceButton active={dashboardMode === "workspace"} icon={<ScanSearch size={15} />} label="Radar systems" detail={`${radarSnapshot.summary.totalChecks.toLocaleString()} checks`} onClick={() => selectWorkspaceMode("workspace")} />
+          <RadarWorkspaceButton active={dashboardMode === "inspector"} tone="aqua" icon={<Gauge size={15} />} label="KPIs & evidence" detail={`${radarSnapshot.adaptive.confidencePercent}% confidence`} onClick={() => openInspector({ tab: "kpis" })} />
+          <RadarWorkspaceButton active={dashboardMode === "advisor"} tone="gold" icon={<Bot size={15} />} label="Aqua Advisor" detail={advisorConfigured ? "Briefing ready" : "Setup required"} onClick={() => selectWorkspaceMode("advisor")} />
+      </nav> : null}
+      <div ref={workspaceBodyRef} className="mm-command-workspace-body min-h-0 flex-1 p-3 sm:p-5">
+      {activeStation === "intelligence" ? (
+        <div className="-m-3 sm:-m-5"><CommandIntelligenceWorkspace key={intelligenceEntry.version} snapshot={intelligenceSnapshot} initialView={intelligenceEntry.view} initialKpiIds={intelligenceEntry.kpiIds} initialScopeId={intelligenceEntry.scopeId} initialCommercialFocus={intelligenceEntry.commercialFocus} /></div>
+      ) : dashboardMode === "calendar" ? (
+        <div className="mm-omega-actions-workspace mm-command-calendar-workspace">{calendarWorkspace}</div>
+      ) : dashboardMode === "inspector" ? (
+        <RadarInspectionWorkspace key={inspectorTarget.version} initialRadar={radarSnapshot} initialEvidence={radarEvidence} initialTab={inspectorTarget.tab} initialQuery={inspectorTarget.query} initialDomain={inspectorTarget.domain} initialStatus={inspectorTarget.status} initialScope={inspectorTarget.scope} initialLens={inspectorTarget.lens} initialSourceId={inspectorTarget.sourceId} initialDatasetId={inspectorTarget.datasetId} embedded />
+      ) : dashboardMode === "workspace" ? (
         <BusinessRadarDashboard
+          variant="workspace"
           radar={radarSnapshot}
-          onRadarChange={setRadarSnapshot}
+          onRadarChange={applyRadarUpdate}
           onCreateTask={addRadarTask}
           taskBusyId={taskBusyId}
           advisorConfigured={advisorConfigured}
           onOpenInspector={openInspector}
+          onOpenExecutive={() => setDashboardMode("radar")}
         />
+      ) : dashboardMode === "radar" ? (
+        <BusinessRadarDashboard
+          variant="executive"
+          radar={radarSnapshot}
+          onRadarChange={applyRadarUpdate}
+          onCreateTask={addRadarTask}
+          taskBusyId={taskBusyId}
+          advisorConfigured={advisorConfigured}
+          onOpenInspector={openInspector}
+          commandRail={(
+            <section id="executive-radar-feed" className="mm-executive-day-command scroll-mt-20 border-b border-white/10" aria-label="Integrated Radar feed and priority queue">
+              <div className="grid xl:grid-cols-[minmax(460px,1.25fr)_minmax(360px,.85fr)]">
+                <div className="mm-direct-radar-feed min-w-0 border-b border-white/10 px-4 py-4 sm:px-6 xl:border-b-0 xl:border-r">
+                  <div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2.5"><span className="relative grid size-8 shrink-0 place-items-center border border-[#62e8ff]/25 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><RadioTower size={14} /><span className="absolute -right-0.5 -top-0.5 size-1.5 animate-pulse bg-[#68f5d0] shadow-[0_0_6px_#68f5d0]" /></span><div className="min-w-0"><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Direct Radar feed</p><h3 className="mt-1 text-sm font-semibold text-white">What the business radar noticed</h3></div></div><span className="shrink-0 text-[9px] font-semibold uppercase text-[#68f5d0]">{radarSnapshot.incidents.length} live</span></div>
+                  <div className="mt-3 divide-y divide-white/10 border-y border-white/10">
+                    {directRadarFeed.map(issue => {
+                      const acceptedTask = radarTasksBySource.get(issue.id);
+                      const taskActive = acceptedTask && acceptedTask.status !== "done";
+                      return <article key={issue.id} className="py-3">
+                        <div className="flex items-start gap-2.5"><span className={`mt-0.5 grid size-6 shrink-0 place-items-center text-[9px] font-bold ${issue.severity === "critical" ? "bg-red-500/20 text-red-200" : issue.severity === "warning" ? "bg-amber-300/15 text-amber-200" : "bg-sky-300/15 text-sky-200"}`}>{issue.severity === "critical" ? "!" : issue.severity === "warning" ? "△" : "·"}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className={`text-[8px] font-bold uppercase ${issue.severity === "critical" ? "text-red-200" : issue.severity === "warning" ? "text-amber-200" : "text-sky-200"}`}>{issue.severity}</span><span className="text-[8px] font-semibold uppercase text-white/32">{domainLabel(issue.domain)} · {issue.findingCount} findings · {formatRadarAge(issue.detectedAt)}</span>{acceptedTask ? <span className="border border-[#68f5d0]/18 bg-[#68f5d0]/[0.06] px-1.5 py-0.5 text-[8px] font-semibold uppercase text-[#7dd3c4]">{taskActive ? acceptedTask.reconciliation?.status ?? "Queued" : "Completed"}</span> : null}</div><strong className="mt-1 block text-xs leading-5 text-white/82">{issue.title}</strong><p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-white/38">{issue.detail}</p></div></div>
+                        <div className="mt-2 flex justify-end gap-1.5"><button type="button" onClick={() => openInspector({ tab: "incidents", query: issue.id, domain: issue.domain })} className="inline-flex min-h-7 items-center gap-1 border border-white/10 px-2 text-[9px] font-semibold text-white/48 hover:bg-white/[0.06] hover:text-white"><Database size={11} /> Inspect</button>{!acceptedTask ? <button type="button" onClick={() => void addRadarTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} className="inline-flex min-h-7 items-center gap-1 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.07] px-2 text-[9px] font-semibold text-[#8ef1ff] disabled:opacity-40">{taskBusyId === `radar:${issue.id}` ? <LoaderCircle size={11} className="animate-spin" /> : <Plus size={11} />} Accept for today</button> : taskActive ? <button type="button" onClick={() => void completeTask(acceptedTask.id)} disabled={taskBusyId === acceptedTask.id} className="inline-flex min-h-7 items-center gap-1 border border-[#68f5d0]/22 bg-[#68f5d0]/[0.06] px-2 text-[9px] font-semibold text-[#91f4dc] disabled:opacity-40">{taskBusyId === acceptedTask.id ? <LoaderCircle size={11} className="animate-spin" /> : <Check size={11} />} Mark complete</button> : null}</div>
+                      </article>;
+                    })}
+                    {!directRadarFeed.length ? <div className="py-8 text-center"><ShieldCheck className="mx-auto text-[#68f5d0]" size={20} /><p className="mt-2 text-xs font-semibold text-white/70">No live Radar notices</p><p className="mt-1 text-[10px] text-white/35">The next sweep will populate this feed automatically.</p></div> : null}
+                  </div>
+                </div>
+
+                <div className="min-w-0 px-4 py-4 sm:px-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Radar-directed work</p><h3 className="mt-1 text-sm font-semibold text-white">Strict priority queue</h3></div><Link href="/portal/agency/actions" className="inline-flex min-h-8 shrink-0 items-center gap-1 border border-white/12 px-2.5 text-[10px] font-semibold text-white/55 hover:bg-white/[0.06] hover:text-white">All actions <ArrowUpRight size={12} /></Link></div>
+                  <form onSubmit={event => { event.preventDefault(); void addQuickTask(); }} className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_90px_36px]">
+                    <input value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder="Capture the next concrete action" className="min-h-9 border border-white/12 bg-[#07161b] px-3 text-xs text-white outline-none placeholder:text-white/25 focus:border-[#62e8ff]/45" />
+                    <select aria-label="New command task priority" value={quickPriority} onChange={event => setQuickPriority(event.target.value as AgencyTaskPriority)} className="min-h-9 border border-white/12 bg-[#07161b] px-2 text-xs text-white"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>
+                    <button disabled={!quickTask.trim() || taskBusyId === "quick"} title="Add command task" className="grid size-9 place-items-center border border-[#62e8ff]/25 bg-[#62e8ff]/[0.07] text-[#8ef1ff] disabled:opacity-30">{taskBusyId === "quick" ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={14} />}</button>
+                  </form>
+                  <ol className="mt-3 divide-y divide-white/10 border-y border-white/10">
+                    {strictList.slice(0, 3).map((item, index) => <li key={item.id} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 py-2.5"><span className={`grid size-6 place-items-center text-[9px] font-semibold ${item.priority === "urgent" ? "bg-red-500/20 text-red-200" : item.priority === "high" ? "bg-amber-300/15 text-amber-200" : "bg-white/[0.06] text-white/50"}`}>{index + 1}</span><span className="min-w-0"><strong className="block truncate text-xs text-white/80">{item.title}</strong><span className="block truncate text-[10px] text-white/35">{item.kind}</span></span>{item.taskId ? <button type="button" onClick={() => void completeTask(item.taskId!)} title={`Complete ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-[#7dd3c4] hover:bg-white/[0.06]"><Check size={13} /></button> : <button type="button" onClick={() => void addStrictTodo(item)} title={`Accept ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-white/45 hover:bg-white/[0.06] hover:text-white"><Plus size={13} /></button>}</li>)}
+                    {!strictList.length ? <li className="py-5 text-center text-xs text-white/38">No queued priorities. The command plot is clear.</li> : null}
+                  </ol>
+                </div>
+              </div>
+              {(statusMessage || operationError) ? <div role={operationError ? "alert" : "status"} aria-live="polite" className={`border-t px-4 py-2.5 text-xs sm:px-6 ${operationError ? "border-red-300/20 bg-red-400/10 text-red-100" : "border-[#68f5d0]/20 bg-[#68f5d0]/[0.06] text-[#91f4dc]"}`}>{operationError || statusMessage}</div> : null}
+            </section>
+          )}
+        />
+      ) : dashboardMode === "advisor" ? (
+        <div className="mm-command-advisor-workspace">{advisorWorkspace}</div>
+      ) : dashboardMode === "actions" ? (
+        <div className="mm-omega-actions-workspace">{actionsWorkspace}</div>
       ) : (
-      <>
+      <div className="mm-day-command-workspace grid gap-4">
       <div className="mm-surface-card overflow-hidden rounded-lg border border-black/10">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 px-4 py-4 sm:px-5">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-brand">Daily command</p>
-            <h2 className="mt-1 text-xl font-semibold text-black/85">{formatLongDate(selectedDate)}</h2>
-            <p className="mt-1 text-sm text-black/48">{isToday ? "Today" : isFuture ? "Planned day" : "Daily record"} · {strictList.length} priorities queued · {completedThisWeek} completed this week</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => moveDay(-1)} disabled={dateBusy} title="Previous day" aria-label="View previous day" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/55 hover:bg-black/[0.03] disabled:opacity-40"><ChevronLeft size={16} /></button>
+              <h2 className="min-w-0 text-xl font-semibold text-black/85">{formatLongDate(selectedDate)}</h2>
+              <button type="button" onClick={() => moveDay(1)} disabled={dateBusy} title="Next day" aria-label="View next day" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/55 hover:bg-black/[0.03] disabled:opacity-40"><ChevronRight size={16} /></button>
+              <label className="relative inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-2.5 text-xs font-semibold text-black/55 hover:bg-black/[0.03]"><CalendarDays size={14} /><span className="sr-only">Choose planning date</span><input type="date" aria-label="Choose planning date" value={selectedDate} onChange={event => void selectDay(event.target.value)} disabled={dateBusy} className="w-[7.4rem] bg-transparent text-xs tabular-nums outline-none disabled:opacity-40" /></label>
+              {!isToday ? <button type="button" onClick={() => void selectDay(actualToday)} disabled={dateBusy} className="inline-flex min-h-9 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-brand hover:bg-black/[0.03] disabled:opacity-40">Today</button> : null}
+              {dateBusy ? <LoaderCircle size={15} className="animate-spin text-brand" aria-label="Loading planning date" /> : null}
+            </div>
+            <p className="mt-1 text-sm text-black/48">{isToday ? `Today · live command · ${dayStrictList.length} live priorities` : `${isFuture ? "Future plan · complete day workspace" : "Historical review · complete day record"} · ${dayStrictList.filter(item => item.status !== "done").length} open · ${completedOnSelectedDay.length} completed this day`}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void clock(activeSession ? "clock-out" : "clock-in")} disabled={clockBusy || !isToday} title={isToday ? undefined : "Clocking is available on today"} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35 ${activeSession ? "bg-red-700 hover:bg-red-800" : "bg-black hover:bg-black/85"}`}>
-              {clockBusy ? <LoaderCircle size={16} className="animate-spin" /> : activeSession ? <Square size={15} /> : <Play size={15} />}
-              {activeSession ? `Clock out · ${formatElapsed(now - activeSession.startedAt)}` : "Clock in"}
+            <button type="button" onClick={() => activeSession ? requestClockOut() : void clock("clock-in")} disabled={clockBusy || !isToday} title={isToday ? activeSession ? "Review the day before clocking out" : undefined : "Clocking is available on today"} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35 ${activeSession ? "bg-red-700 hover:bg-red-800" : "bg-black hover:bg-black/85"}`}>
+              {clockBusy ? <LoaderCircle size={16} className="animate-spin" /> : !isToday ? <History size={15} /> : activeSession ? <Square size={15} /> : <Play size={15} />}
+              {!isToday ? "Clocking · today only" : activeSession ? `Clock out · ${formatElapsed(now - activeSession.startedAt)}` : "Clock in"}
             </button>
             <button type="button" onClick={() => void saveDay()} disabled={savingDay || !dayDirty} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03] disabled:opacity-40">
               {savingDay ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
@@ -652,9 +1036,15 @@ export function DashboardCommandCenter({
             One outcome that makes this day count
             <input value={plan.focus} onChange={event => updatePlan({ focus: event.target.value })} placeholder="Name the result, not the activity" className="min-h-12 rounded-md border border-black/10 bg-white px-3 text-base font-semibold normal-case tracking-normal text-black/82 outline-none focus:border-brand" />
           </label>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:max-w-sm">
-            <NumberField label="Planned hours" value={plan.plannedHours} step={0.25} max={24} onChange={value => updatePlan({ plannedHours: value })} />
-            <NumberField label="Revenue target GBP" value={plan.targetRevenuePounds} step={50} max={1_000_000} onChange={value => updatePlan({ targetRevenuePounds: value })} />
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+            <div className="grid w-full grid-cols-2 gap-2 sm:max-w-sm">
+              <NumberField label="Planned hours" value={plan.plannedHours} step={0.25} max={24} onChange={value => updatePlan({ plannedHours: value })} />
+              <NumberField label="Revenue target GBP" value={plan.targetRevenuePounds} step={50} max={1_000_000} onChange={value => updatePlan({ targetRevenuePounds: value })} />
+            </div>
+            {isToday ? <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
+              <button type="button" onClick={() => void requestAdvisorBriefing()} disabled={advisorBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#62e8ff]/22 bg-[#62e8ff]/[0.065] px-3 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.12] disabled:opacity-40">{advisorBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Bot size={14} />}Generate briefing</button>
+              <button type="button" onClick={() => void generateTasksFromRadar()} disabled={taskGenerationBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#e5c479]/20 bg-[#e5c479]/[0.055] px-3 text-xs font-semibold text-[#e5c479] hover:bg-[#e5c479]/[0.1] disabled:opacity-40">{taskGenerationBusy ? <LoaderCircle size={14} className="animate-spin" /> : <ScanSearch size={14} />}Generate tasks</button>
+            </div> : <div className="border border-black/10 bg-black/[0.025] px-3 py-2 text-xs leading-5 text-black/48"><strong className="block text-black/68">{isFuture ? "Planning mode" : "Review mode"}</strong>Live Advisor generation returns on Today. This view is locked to {formatLongDate(selectedDate)}.</div>}
           </div>
         </div>
       </div>
@@ -665,17 +1055,19 @@ export function DashboardCommandCenter({
         </div>
       ) : null}
 
+      {!isToday ? <div className="flex items-start gap-3 border border-[#62e8ff]/20 bg-[#62e8ff]/[0.045] px-4 py-3 text-xs leading-5 text-[#9defff]"><History size={16} className="mt-0.5 shrink-0" /><p><strong>{formatLongDate(selectedDate)} is loaded across the whole workspace.</strong> Tasks, completion history, schedule, hours, plan and evidence below belong to this date. KPI and Radar instruments are labelled current because they remain live business telemetry.</p></div> : null}
+
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
         <div className="grid gap-4">
           <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="strict-work-heading">
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand">Do in this order</p>
-                <h3 id="strict-work-heading" className="mt-1 text-lg font-semibold text-black/85">Strict work queue</h3>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand">{isToday ? "Do in this order" : isFuture ? "Planned for this day" : "Daily execution record"}</p>
+                <h3 id="strict-work-heading" className="mt-1 text-lg font-semibold text-black/85">{isToday ? "Strict work queue" : isFuture ? "Day work queue" : "Work and outcomes"}</h3>
               </div>
-              <Link href="/portal/agency/actions" className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">All actions <ArrowUpRight size={13} /></Link>
+              <button type="button" onClick={() => selectWorkspaceMode("actions")} className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">All actions <ArrowUpRight size={13} /></button>
             </div>
-            <form onSubmit={event => { event.preventDefault(); void addQuickTask(); }} className="grid gap-2 border-b border-black/10 bg-black/[0.018] p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:px-5">
+            {!isFuture && !isToday ? <div className="border-b border-black/10 bg-black/[0.018] px-4 py-3 text-xs text-black/45 sm:px-5">Historical ledger: use Plan and evidence to add retrospective notes without creating an overdue task.</div> : <form onSubmit={event => { event.preventDefault(); void addQuickTask(); }} className="grid gap-2 border-b border-black/10 bg-black/[0.018] p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:px-5">
               <input value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder="Capture the next concrete action" className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm outline-none focus:border-brand" />
               <select aria-label="New task priority" value={quickPriority} onChange={event => setQuickPriority(event.target.value as AgencyTaskPriority)} className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm">
                 <option value="normal">Normal</option>
@@ -685,21 +1077,23 @@ export function DashboardCommandCenter({
               <button disabled={!quickTask.trim() || taskBusyId === "quick"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:opacity-40">
                 {taskBusyId === "quick" ? <LoaderCircle size={15} className="animate-spin" /> : <Plus size={15} />} Add
               </button>
-            </form>
+            </form>}
             <ol className="divide-y divide-black/[0.07]">
-              {strictList.map((item, index) => (
+              {dayStrictList.map((item, index) => (
                 <li key={item.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-start sm:px-5">
                   <span className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${item.priority === "urgent" ? "bg-red-700 text-white" : item.priority === "high" ? "bg-amber-100 text-amber-800" : "bg-black/[0.05] text-black/55"}`}>{index + 1}</span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-black/82">{item.title}</p>
                       <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-black/45">{item.kind}</span>
-                      {item.dueAt && item.dueAt < now ? <span className="text-[10px] font-semibold uppercase text-red-700">Overdue</span> : null}
+                      {item.status === "done" ? <span className="text-[10px] font-semibold uppercase text-emerald-700">Completed</span> : item.dueAt && item.dueAt < now ? <span className="text-[10px] font-semibold uppercase text-red-700">Overdue</span> : null}
                     </div>
                     <p className="mt-1 text-xs leading-5 text-black/48">{item.detail}</p>
                   </div>
                   <div className="flex gap-1 sm:justify-end">
-                    {item.taskId ? (
+                    {item.taskId && item.status === "done" ? (
+                      <span className="grid size-9 place-items-center rounded-md border border-emerald-100 bg-emerald-50 text-emerald-700" title="Completed"><CheckCircle2 size={15} /></span>
+                    ) : item.taskId ? (
                       <button type="button" onClick={() => void completeTask(item.taskId!)} disabled={taskBusyId === item.taskId} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-emerald-700 hover:bg-emerald-50" title="Complete task" aria-label={`Complete ${item.title}`}>
                         {taskBusyId === item.taskId ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={15} />}
                       </button>
@@ -712,7 +1106,7 @@ export function DashboardCommandCenter({
                   </div>
                 </li>
               ))}
-              {!strictList.length ? <li className="px-5 py-10 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={24} /><p className="mt-2 text-sm font-semibold text-black/70">Queue clear</p><p className="mt-1 text-xs text-black/42">Capture the next growth or delivery move above.</p></li> : null}
+              {!dayStrictList.length ? <li className="px-5 py-10 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={24} /><p className="mt-2 text-sm font-semibold text-black/70">{isToday ? "Queue clear" : isFuture ? "Nothing planned yet" : "No task history for this day"}</p><p className="mt-1 text-xs text-black/42">{isToday ? "Capture the next growth or delivery move above." : isFuture ? "Add a dated task or define the day outcome." : "The plan, hours and evidence records remain available for review."}</p></li> : null}
             </ol>
           </section>
 
@@ -736,6 +1130,7 @@ export function DashboardCommandCenter({
               </label>
             </div>
           </section>
+          <DayKpiIntelligencePanel intelligence={intelligenceSnapshot} onOpen={openIntelligence} />
         </div>
 
         <div className="grid gap-4">
@@ -743,12 +1138,12 @@ export function DashboardCommandCenter({
             <div className="flex items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
               <div className="flex items-center gap-3">
                 <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><CalendarDays size={18} /></span>
-                <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Schedule</p><h3 id="dashboard-calendar-heading" className="mt-1 text-lg font-semibold text-black/85">Coming up</h3></div>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Schedule · {shortDate(selectedDate)}</p><h3 id="dashboard-calendar-heading" className="mt-1 text-lg font-semibold text-black/85">{isToday ? "Today’s agenda" : isFuture ? "Planned schedule" : "Day timeline"}</h3></div>
               </div>
-              <Link href="/portal/agency/calendar" className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/10 bg-white px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03]">Calendar <ArrowUpRight size={13} /></Link>
+              <button type="button" onClick={() => selectWorkspaceMode("calendar")} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-2.5 text-xs font-semibold text-black/58 hover:bg-black/[0.03]"><CalendarDays size={13} />Calendar</button>
             </div>
             <div className="divide-y divide-black/[0.07]">
-              {upcomingCalendar.map(item => (
+              {selectedDaySchedule.map(item => (
                 <Link key={item.id} href={item.href} className="mm-interactive-row group grid grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5">
                   <time dateTime={new Date(item.at).toISOString()} className="rounded-md bg-black/[0.035] px-2 py-1.5 text-center">
                     <span className="block text-[9px] font-semibold uppercase text-black/38">{calendarMonth(item.at)}</span>
@@ -758,13 +1153,24 @@ export function DashboardCommandCenter({
                   <ArrowUpRight size={14} className="text-black/25 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-black/55" />
                 </Link>
               ))}
-              {!upcomingCalendar.length ? <div className="px-5 py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/58">Nothing dated yet</p><p className="mt-1 text-xs leading-5 text-black/40">Add dates to tasks or plan a daily outcome.</p></div> : null}
+              {!selectedDaySchedule.length ? <div className="px-5 py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/58">Nothing scheduled for this date</p><p className="mt-1 text-xs leading-5 text-black/40">Add a dated task or plan a daily outcome.</p></div> : null}
             </div>
           </section>
 
           <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="timesheet-heading">
-            <div className="flex items-center gap-3 border-b border-black/10 px-4 py-4 sm:px-5"><span className="mm-area-icon grid size-10 place-items-center rounded-md"><Clock3 size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Employee record</p><h3 id="timesheet-heading" className="mt-1 text-lg font-semibold text-black/85">Timesheet · {formatHours(loggedHours)}h</h3></div></div>
-            {activeSession && isToday ? <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:px-5"><p className="font-semibold">Working · {formatElapsed(now - activeSession.startedAt)}</p><p className="mt-1 text-xs text-emerald-800/70">{activeSession.focus || plan.focus || "General work"}</p></div> : null}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
+              <div className="flex items-center gap-3"><span className="mm-area-icon grid size-10 place-items-center rounded-md"><Clock3 size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Employee record · accountable time</p><h3 id="timesheet-heading" className="mt-1 text-lg font-semibold text-black/85">Timesheet · {formatHours(loggedHours)}h confirmed</h3></div></div>
+              {activeSession && isToday ? <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-work-session:check-in"))} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]"><Activity size={14} />Update activity</button> : null}
+            </div>
+            {activeSession && isToday ? <div className={`border-b px-4 py-3 text-sm sm:px-5 ${activeSession.needsActivityConfirmation ? "border-red-200 bg-red-50 text-red-900" : activeSession.currentMode === "break" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">{workModeLabel(activeSession.currentMode)} · {formatElapsed(now - activeSession.startedAt)} clocked in</p><p className="mt-1 text-xs opacity-70">{activeSession.focus || plan.focus || "General work"}</p></div><span className="rounded-sm border border-current/15 bg-white/45 px-2 py-1 text-[10px] font-bold uppercase">{activeSession.needsActivityConfirmation ? "Check-in required" : activeSession.nextCheckInAt ? `Check-in ${formatClockTime(activeSession.nextCheckInAt)}` : "Evidence live"}</span></div></div> : null}
+            <div className="grid gap-px border-b border-black/10 bg-black/10 sm:grid-cols-5">
+              <AccountabilityMetric label="Aqua active" value={`${formatHours(selectedAquaHours)}h`} tone="aqua" />
+              <AccountabilityMetric label="External work" value={`${formatHours(selectedExternalHours)}h`} tone="external" />
+              <AccountabilityMetric label="Break" value={`${formatHours(selectedBreakHours)}h`} tone="break" />
+              <AccountabilityMetric label="Unconfirmed" value={`${formatHours(selectedUnconfirmedHours)}h`} tone={selectedUnconfirmedHours ? "attention" : "neutral"} />
+              <AccountabilityMetric label="Evidence confidence" value={`${selectedEvidenceConfidence}%`} tone={selectedEvidenceConfidence >= 90 ? "aqua" : selectedEvidenceConfidence >= 70 ? "break" : "attention"} />
+            </div>
+            {selectedSessions.some(session => Object.keys(session.routeActiveMs ?? {}).length) ? <div className="flex flex-wrap items-center gap-2 border-b border-black/10 px-4 py-3 text-[10px] text-black/45 sm:px-5"><span className="font-semibold uppercase text-black/35">Aqua workspace time</span>{topSessionRoutes(selectedSessions).map(route => <span key={route.path} className="rounded-sm bg-black/[0.04] px-2 py-1"><strong className="text-black/65">{routeLabel(route.path)}</strong> · {formatCompactDuration(route.activeMs)}</span>)}<span className={`rounded-sm px-2 py-1 ${focusFragmentationWatch ? "bg-amber-100 font-semibold text-amber-800" : "bg-black/[0.04]"}`}>{focusFragmentationWatch ? "Focus watch" : "Workspace moves"} · {selectedRouteSwitches}</span></div> : null}
             <div className="grid gap-2 border-b border-black/10 p-4 sm:grid-cols-2 sm:p-5">
               <NumberField label="Manual hours" value={manualHours} step={0.25} max={24} onChange={setManualHours} />
               <label className="grid gap-1.5 text-xs font-medium text-black/55">Work area<input value={manualFocus} onChange={event => setManualFocus(event.target.value)} placeholder={plan.focus || "What did you work on?"} className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm" /></label>
@@ -776,7 +1182,7 @@ export function DashboardCommandCenter({
             <div className="divide-y divide-black/[0.07]">
               {selectedSessions.map(session => (
                 <div key={session.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 py-3 sm:px-5">
-                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-black/75">{session.focus || "General work"}</p><p className="mt-1 text-xs text-black/42">{formatTimeRange(session)} · {formatHours(sessionHours(session, now))}h</p>{session.notes ? <p className="mt-1 text-xs leading-5 text-black/48">{session.notes}</p> : null}</div>
+                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-black/75">{session.focus || "General work"}</p><p className="mt-1 text-xs text-black/42">{formatTimeRange(session)} · {formatHours(accountableSessionHours(session))}h confirmed · {formatHours(sessionHours(session, now))}h elapsed</p><div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-black/38"><span>Aqua {formatHours((session.aquaActiveMs ?? 0) / 3_600_000)}h</span><span>External {formatHours((session.externalWorkMs ?? 0) / 3_600_000)}h</span>{(session.breakMs ?? 0) > 0 ? <span>Break {formatHours((session.breakMs ?? 0) / 3_600_000)}h</span> : null}{(session.unconfirmedIdleMs ?? 0) > 0 ? <span className="font-semibold text-red-700">Unconfirmed {formatHours((session.unconfirmedIdleMs ?? 0) / 3_600_000)}h</span> : null}{session.clockOutReview ? <span className="font-semibold text-brand">Day score {session.clockOutReview.dayScore}/5</span> : null}</div>{session.notes ? <p className="mt-1 text-xs leading-5 text-black/48">{session.notes}</p> : null}{session.clockOutReview ? <div className="mt-2 grid gap-1 border-l-2 border-brand/25 pl-2 text-[10px] leading-4 text-black/42"><p><strong className="text-black/60">Handover:</strong> {session.clockOutReview.nothingOpen ? "Nothing left open." : session.clockOutReview.openWork}</p><p><strong className="text-black/60">Next:</strong> {session.clockOutReview.nextPriority}</p></div> : null}</div>
                   {session.endedAt ? <button type="button" onClick={() => void removeSession(session.id)} disabled={sessionBusyId === session.id} title="Remove time entry" aria-label={`Remove ${session.focus || "time"} entry`} className="grid size-8 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700">{sessionBusyId === session.id ? <LoaderCircle size={14} className="animate-spin" /> : <Trash2 size={14} />}</button> : null}
                 </div>
               ))}
@@ -784,40 +1190,43 @@ export function DashboardCommandCenter({
             </div>
           </section>
 
-          <section className="mm-surface-card rounded-lg border border-black/10 p-4 sm:p-5" aria-labelledby="advisor-briefing-heading">
-            <div className="flex items-start gap-3"><span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><Bot size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Aqua Advisor</p><h3 id="advisor-briefing-heading" className="mt-1 text-lg font-semibold text-black/85">Executive briefing</h3><p className="mt-1 text-sm text-black/48">{counts.activeClients} clients · {counts.leads} leads · {counts.delivery} delivery items · {counts.products} products</p></div></div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => void requestAdvisorBriefing()} disabled={advisorBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-black/35">{advisorBusy ? <LoaderCircle size={15} className="animate-spin" /> : advisorConfigured ? <Bot size={15} /> : <RefreshCw size={15} />}{advisorConfigured ? "Re-rank top 5" : "Refresh Radar"}</button>
-              <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/68 hover:bg-black/[0.03]">Open Advisor <ArrowUpRight size={14} /></button>
-            </div>
-            {reviewedAt ? <p className="mt-2 text-xs text-black/38">Reviewed {formatDateTime(reviewedAt)}</p> : null}
-            {advisorError ? <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{advisorError}</p> : null}
-            <div className="mt-3 border-y border-black/[0.07] py-3">
-              <p className="text-sm font-semibold text-black/72">{topRecommendedActions.length} grounded recommendations are active</p>
-              <p className="mt-1 text-xs leading-5 text-black/42">The Advisor receives the same ordered actions and Radar visibility limits shown above. {advisorConfigured ? "Its review may add context, but cannot hide mandatory evidence-backed work." : "Radar ranking remains available without an AI connection."}</p>
-            </div>
-          </section>
+          {advisorError ? <p role="alert" className="border border-red-300/20 bg-red-400/[0.05] px-3 py-2 text-xs text-red-200">{advisorError}</p> : null}
+          {isToday ? <DayBriefingPanel
+            radar={radarSnapshot}
+            recommendations={topRecommendedActions}
+            counts={counts}
+            reviewedAt={reviewedAt}
+            advisorConfigured={advisorConfigured}
+            advisorBusy={advisorBusy}
+            taskSummary={taskGenerationSummary}
+            taskBusyId={taskBusyId}
+            onGenerate={() => void requestAdvisorBriefing()}
+            onAccept={action => void acceptAdvisorAction(action)}
+            onOpenAdvisor={() => window.dispatchEvent(new Event("aqua-advisor:open"))}
+          /> : <DayDateRecordPanel date={selectedDate} future={isFuture} plan={plan} loggedHours={loggedHours} tasks={selectedDayTasks} completedTasks={completedOnSelectedDay} />}
+          <DayCommandSensorPanel radar={radarSnapshot} intelligence={intelligenceSnapshot} onOpenRadar={() => setActiveStation("executive")} onOpenIntelligence={openIntelligence} />
         </div>
       </div>
 
       <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="week-plan-heading">
-        <div className="grid gap-5 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex items-start gap-3"><span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><CalendarDays size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Week command</p><h3 id="week-plan-heading" className="mt-1 text-lg font-semibold text-black/85">Week of {shortDate(planning.weekStart)}</h3></div></div>
-              <button type="button" onClick={() => void saveWeek()} disabled={savingWeek || !weekDirty} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/68 disabled:opacity-40">{savingWeek ? <LoaderCircle size={14} className="animate-spin" /> : <Save size={14} />}Save week</button>
-            </div>
-            <label className="mt-4 grid gap-1.5 text-sm font-medium text-black/70">Weekly outcome<input value={weekPlan.outcome} onChange={event => { setWeekPlan(current => ({ ...current, outcome: event.target.value })); setWeekDirty(true); }} placeholder="The result this week must produce" className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold outline-none focus:border-brand" /></label>
-            <label className="mt-3 grid gap-1.5 text-sm font-medium text-black/70">Weekly review<textarea value={weekPlan.reviewNotes} onChange={event => { setWeekPlan(current => ({ ...current, reviewNotes: event.target.value })); setWeekDirty(true); }} rows={3} placeholder="Wins, misses, lessons, and what changes next week" className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-brand" /></label>
-          </div>
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-black/10 bg-black/10">
-            <WeekMetric label="Planned" value={`${formatHours(plannedWeekHours)}h`} />
-            <WeekMetric label="Logged" value={`${formatHours(loggedWeekHours)}h`} />
-            <WeekMetric label="Current pace" value={`${weekPace}%`} />
-            <WeekMetric label="Projected" value={`${formatHours(projectedWeekHours)}h`} />
-            <WeekMetric label="Revenue target" value={money(targetWeekRevenue)} />
-            <WeekMetric label="Capacity" value={plannedWeekHours > 40 ? "Over 40h" : `${formatHours(Math.max(0, 40 - plannedWeekHours))}h free`} />
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5">
+          <button type="button" onClick={toggleWeekCommand} aria-expanded={weekExpanded} aria-controls="week-command-content" className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><CalendarDays size={18} /></span>
+            <span className="min-w-0"><span className="block text-xs font-semibold uppercase tracking-wide text-brand">Week command</span><span id="week-plan-heading" className="mt-1 block truncate text-lg font-semibold text-black/85">Week of {shortDate(planningWeekStart)}</span></span>
+            <span className="ml-auto grid size-8 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/45">{weekExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>
+          </button>
+          {!weekExpanded ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-black/45"><span><strong className="text-black/70">{formatHours(plannedWeekHours)}h</strong> planned</span><span><strong className="text-black/70">{formatHours(loggedWeekHours)}h</strong> logged</span><span><strong className="text-black/70">{weekPace}%</strong> pace</span>{weekDirty ? <span className="font-semibold text-amber-700">Unsaved</span> : null}</div> : null}
+        </div>
+        {weekExpanded ? <div id="week-command-content" className="border-t border-black/10">
+        <div className="p-4 sm:p-5">
+          <WeeklyReviewWorkspace
+            draft={weekPlan}
+            evidence={weekEvidenceSnapshot}
+            dirty={weekDirty}
+            saving={savingWeek}
+            onChange={patch => { setWeekPlan(current => ({ ...current, ...patch, reviewStatus: patch.reviewStatus ?? "draft" })); setWeekDirty(true); }}
+            onSave={reviewStatus => void saveWeek(reviewStatus)}
+          />
         </div>
         <div className="grid gap-px border-t border-black/10 bg-black/10 sm:grid-cols-2 lg:grid-cols-7">
           {dates.map(date => {
@@ -832,11 +1241,91 @@ export function DashboardCommandCenter({
             </button>;
           })}
         </div>
+        </div> : null}
       </section>
-      </>
+      </div>
       )}
-    </section>
+      </div>
+    </section>}
+    </div>
   );
+}
+
+function CommandInstrumentDock({ alertCount, checkCount, onOpenIntelligence, onOpenRadar }: {
+  alertCount: number;
+  checkCount: number;
+  onOpenIntelligence: () => void;
+  onOpenRadar: () => void;
+}) {
+  return <nav aria-label="Command Centre instruments" className="grid border-x border-[#62e8ff]/30 bg-[#020b11] sm:grid-cols-2">
+    <CommandInstrumentButton icon={<BarChart3 size={16} />} eyebrow="Integrated instrument · INT-20" label="Open KPI Intelligence" detail="Twenty KPIs, comparisons, campaigns and audiences" tone="aqua" onClick={onOpenIntelligence} />
+    <CommandInstrumentButton icon={<ScanSearch size={16} />} eyebrow="Integrated instrument · RADAR OPS" label="Open Radar Workspace" detail={`${checkCount.toLocaleString()} checks · ${alertCount} contacts · evidence, sources and policy`} tone="cyan" onClick={onOpenRadar} />
+  </nav>;
+}
+
+function CommandInstrumentButton({ icon, eyebrow, label, detail, tone, onClick }: { icon: React.ReactNode; eyebrow: string; label: string; detail: string; tone: "aqua" | "cyan"; onClick: () => void }) {
+  const toneClass = tone === "aqua" ? "border-[#68f5d0]/24 bg-[#68f5d0]/[0.055] text-[#68f5d0]" : "border-[#62e8ff]/24 bg-[#62e8ff]/[0.055] text-[#62e8ff]";
+  return <button type="button" onClick={onClick} className="group flex min-h-[68px] items-center gap-3 border-b border-r border-[#62e8ff]/12 px-4 text-left text-white hover:bg-[#62e8ff]/[0.055] sm:px-5"><span className={`grid size-9 shrink-0 place-items-center border ${toneClass}`}>{icon}</span><span className="min-w-0"><span className="block text-[8px] font-semibold uppercase text-[#76dff1]/55">{eyebrow}</span><strong className="mt-0.5 block text-sm text-white/82">{label}</strong><span className="mt-0.5 block text-[9px] text-white/30">{detail}</span></span><ArrowUpRight size={12} className="ml-auto shrink-0 text-white/22 group-hover:text-[#68f5d0]" /></button>;
+}
+
+function RadarWorkspaceButton({
+  active,
+  icon,
+  label,
+  detail,
+  tone = "cyan",
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  detail: string;
+  tone?: "cyan" | "aqua" | "gold";
+  onClick: () => void;
+}) {
+  return <button type="button" aria-pressed={active} data-active={active} data-tone={tone} onClick={onClick} className="mm-omega-workspace-button grid min-h-[4.25rem] grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 border-r border-[#62e8ff]/15 px-3 text-left">
+    <span className="mm-omega-workspace-button__icon grid size-8 place-items-center border border-current/25">{icon}</span>
+    <span className="min-w-0"><strong className="block truncate text-[11px] font-semibold text-white/82">{label}</strong><span className="mt-0.5 block truncate text-[8px] font-semibold uppercase text-white/32">{detail}</span></span>
+  </button>;
+}
+
+function DayDateRecordPanel({ date, future, plan, loggedHours, tasks, completedTasks }: {
+  date: string;
+  future: boolean;
+  plan: DayDraft;
+  loggedHours: number;
+  tasks: AgencyTask[];
+  completedTasks: AgencyTask[];
+}) {
+  const openCount = tasks.filter(task => task.status !== "done").length;
+  const evidenceLines = plan.doneNotes.split("\n").filter(line => line.trim()).length;
+  const completion = tasks.length ? Math.round(completedTasks.length / tasks.length * 100) : 0;
+
+  return <section className="overflow-hidden border border-[#62e8ff]/22 bg-[#020b11] text-white" aria-labelledby="day-date-record-heading">
+    <header className="flex items-start gap-2.5 border-b border-[#62e8ff]/14 bg-[#031018] px-4 py-3">
+      <span className="grid size-9 shrink-0 place-items-center border border-[#e5c479]/22 bg-[#e5c479]/[0.055] text-[#e5c479]">{future ? <CalendarDays size={16} /> : <History size={16} />}</span>
+      <div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#e5c479]/62">{future ? "FORWARD WATCH · DAY PLAN" : "CAPTAIN’S LOG · DAY REVIEW"}</p><h3 id="day-date-record-heading" className="mt-0.5 text-sm font-semibold text-white/84">{future ? "Planning brief" : "Daily review"} · {shortDate(date)}</h3><p className="mt-0.5 text-[9px] text-white/30">{future ? "The complete working plan that will load on this date." : "The retained work, hours and evidence for this date."}</p></div>
+    </header>
+    <div className="grid grid-cols-2 border-b border-[#62e8ff]/12 sm:grid-cols-4">
+      <DayRecordMetric label="Planned" value={`${formatHours(plan.plannedHours)}h`} />
+      <DayRecordMetric label={future ? "Open work" : "Logged"} value={future ? String(openCount) : `${formatHours(loggedHours)}h`} />
+      <DayRecordMetric label={future ? "Revenue target" : "Completed"} value={future ? money(plan.targetRevenuePounds) : String(completedTasks.length)} />
+      <DayRecordMetric label={future ? "Evidence ready" : "Execution"} value={future ? String(evidenceLines) : `${completion}%`} />
+    </div>
+    <div className="px-4 py-4">
+      <p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">Primary outcome</p>
+      <p className="mt-1.5 text-sm font-semibold leading-6 text-white/76">{plan.focus.trim() || (future ? "No outcome has been committed yet." : "No outcome was recorded for this day.")}</p>
+      <div className="mt-3 grid gap-3 border-t border-[#62e8ff]/10 pt-3 sm:grid-cols-2">
+        <div><p className="text-[7px] font-semibold uppercase text-white/24">Ordered plan</p><p className="mt-1 whitespace-pre-line text-[9px] leading-4 text-white/38">{plan.planNotes.trim() || "No ordered plan recorded."}</p></div>
+        <div><p className="text-[7px] font-semibold uppercase text-white/24">{future ? "Prepared evidence" : "Done evidence"}</p><p className="mt-1 whitespace-pre-line text-[9px] leading-4 text-white/38">{plan.doneNotes.trim() || "No evidence recorded."}</p></div>
+      </div>
+    </div>
+    <footer className="border-t border-[#62e8ff]/9 px-4 py-2 text-[7px] uppercase text-white/18">Date-scoped record · {tasks.length} linked tasks · live Radar intentionally excluded from this archive</footer>
+  </section>;
+}
+
+function DayRecordMetric({ label, value }: { label: string; value: string }) {
+  return <div className="border-b border-r border-[#62e8ff]/9 px-3 py-2.5"><p className="text-[7px] font-semibold uppercase text-white/22">{label}</p><strong className="mt-1 block text-sm tabular-nums text-[#8ef1ff]">{value}</strong></div>;
 }
 
 const RADAR_DOMAINS: AdvisorDomain[] = [
@@ -870,19 +1359,25 @@ const RADAR_NODE_POSITIONS = [
 ];
 
 function BusinessRadarDashboard({
+  variant,
   radar,
   onRadarChange,
   onCreateTask,
   taskBusyId,
   advisorConfigured,
   onOpenInspector,
+  onOpenExecutive,
+  commandRail,
 }: {
+  variant: "executive" | "workspace";
   radar: BusinessIssueRadar;
   onRadarChange: (radar: BusinessIssueRadar) => void;
   onCreateTask: (issue: BusinessRadarIssue) => Promise<void>;
   taskBusyId: string | null;
   advisorConfigured: boolean;
   onOpenInspector: OpenRadarInspector;
+  onOpenExecutive?: () => void;
+  commandRail?: React.ReactNode;
 }) {
   const [activeDomain, setActiveDomain] = useState<AdvisorDomain | "all">("all");
   const [feedMode, setFeedMode] = useState<"signals" | "checks">("signals");
@@ -934,7 +1429,10 @@ function BusinessRadarDashboard({
     if (showBusy) setScanBusy(true);
     setScanError("");
     try {
-      const response = await fetch("/api/portal/advisor/radar", { cache: "no-store" });
+      const response = await fetch("/api/portal/advisor/radar", {
+        method: showBusy ? "POST" : "GET",
+        cache: "no-store",
+      });
       const result = await response.json().catch(() => null) as { ok?: boolean; radar?: BusinessIssueRadar; error?: string } | null;
       if (!response.ok || !result?.ok || !result.radar) throw new Error(result?.error || "The radar sweep could not complete.");
       onRadarChange(result.radar);
@@ -950,9 +1448,163 @@ function BusinessRadarDashboard({
     return () => window.clearInterval(timer);
   }, [refreshRadar]);
 
+  if (variant === "executive") {
+    const executiveIssues = [...visibleIssues].sort((a, b) => radarSeverityRank(a.severity) - radarSeverityRank(b.severity)).slice(0, 3);
+    const selectedSummary = activeDomain === "all" ? null : domainSummaries.find(item => item.domain === activeDomain);
+
+    return (
+      <div id="executive-radar" className="mm-executive-command-system grid scroll-mt-24 gap-4" data-testid="executive-radar">
+        <section className="relative overflow-hidden rounded-lg border border-[#46645a] bg-[#0d1716] text-white shadow-[0_16px_38px_rgba(0,0,0,0.14)]" aria-labelledby="executive-radar-heading">
+          <div className="pointer-events-none absolute inset-0 opacity-30" aria-hidden="true" style={{ backgroundImage: "linear-gradient(rgba(125,211,196,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(125,211,196,.055) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+          <div className="relative flex min-h-7 items-center justify-between gap-3 border-b border-[#b89a63]/25 bg-[#111d1b] px-4 text-[9px] font-semibold uppercase text-[#d8bd83]/80 sm:px-6" aria-label="Bridge status">
+            <span className="inline-flex items-center gap-2"><Anchor size={11} /> Aqua command vessel · bridge online</span>
+            <span className="hidden tabular-nums sm:inline">Bearing 000° · Watch condition {radar.summary.critical ? "Red" : radar.summary.warning ? "Amber" : "Green"}</span>
+          </div>
+          <header id="executive-operations" className="relative flex scroll-mt-20 flex-wrap items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
+            <div className="flex min-w-0 items-stretch gap-3">
+              <span className="relative grid size-14 shrink-0 place-items-center rounded-full border border-[#d8bd83]/45 bg-[#091210] text-[#e4ca93] shadow-[inset_0_0_0_4px_rgba(216,189,131,.06)]" aria-hidden="true">
+                <span className="absolute left-1/2 top-0.5 -translate-x-1/2 text-[7px] font-bold text-[#d8bd83]/75">N</span>
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[7px] font-bold text-[#d8bd83]/45">S</span>
+                <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[7px] font-bold text-[#d8bd83]/45">W</span>
+                <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[7px] font-bold text-[#d8bd83]/45">E</span>
+                <Compass size={20} />
+                <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-pulse rounded-full border-2 border-[#0d1716] bg-[#74d7c4]" />
+              </span>
+              <div className="min-w-0 border-l-2 border-[#d8bd83]/50 pl-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <p className="text-[9px] font-semibold uppercase text-[#d8bd83]/65">PPI-01 · North-up · Executive deck</p>
+                  <span className="hidden h-px w-8 bg-[#d8bd83]/25 sm:block" />
+                  <span className="text-[9px] font-semibold uppercase text-[#7dd3c4]/70">Surface picture live</span>
+                </div>
+                <p className="mt-1 text-sm font-semibold uppercase text-[#7dd3c4]">Executive bridge radar</p>
+                <h2 id="executive-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">{attentionCount ? `${attentionCount} contacts on the command plot` : "All sectors report clear"}</h2>
+                <p className="mt-1 text-xs leading-5 text-white/50">Last sweep {formatRadarAge(radar.generatedAt)} · {radar.summary.critical} hostile · {radar.summary.warning} caution · next sweep in under one minute</p>
+              </div>
+            </div>
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto lg:grid-cols-[142px_repeat(4,auto)]">
+              <div className="relative min-h-12 border border-[#d8bd83]/30 bg-[#121c19] px-3 py-2 shadow-[inset_0_0_0_1px_rgba(216,189,131,.04)]" aria-label={`Current watch ${radar.adaptive.operatingStage}`}>
+                <span className="absolute left-1 top-1 size-1 rounded-full bg-[#d8bd83]/35" aria-hidden="true" />
+                <span className="absolute right-1 top-1 size-1 rounded-full bg-[#d8bd83]/35" aria-hidden="true" />
+                <div className="flex items-center justify-between gap-2 text-[8px] font-semibold uppercase text-[#d8bd83]/60"><span>Current watch</span><span>PPI live</span></div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2"><span className="relative size-2.5 rounded-full bg-[#74d7c4] shadow-[0_0_9px_rgba(116,215,196,.75)]"><span className="absolute inset-0 animate-ping rounded-full bg-[#74d7c4]/40" /></span><strong className="text-xs uppercase text-[#e4ca93]">{radar.adaptive.operatingStage}</strong></span>
+                  <span className="text-[8px] font-semibold uppercase text-white/38">Manned</span>
+                </div>
+              </div>
+              <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} title="Run radar sweep" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
+                <RefreshCw size={15} className={scanBusy ? "animate-spin" : ""} /> {scanBusy ? "Sweeping" : "Sweep"}
+              </button>
+              <button type="button" onClick={() => onOpenInspector()} title="Inspect Radar evidence" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
+                <Database size={15} /> Data
+              </button>
+              <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} title="Configure Radar policy" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
+                <Settings2 size={15} /> Policy
+              </button>
+              <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} title="Open Aqua Advisor" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#e8dcc2] px-3 text-sm font-semibold text-[#17211e] hover:bg-[#f2e8d3]">
+                <Bot size={15} /> Advisor
+              </button>
+            </div>
+          </header>
+
+          {scanError ? <div role="alert" className="border-b border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-100 sm:px-6">{scanError}</div> : null}
+
+          {commandRail}
+
+          <div className="relative grid grid-cols-2 border-b border-white/10 lg:grid-cols-4" aria-label="Executive outcomes">
+            <RadarMetric icon={<Gauge size={14} />} label="Hull health" value={`${radar.adaptive.healthScore}/100`} tone={radar.adaptive.healthScore < 40 ? "critical" : radar.adaptive.healthScore < 70 ? "warning" : "healthy"} detail="Overall business outcome score: 70% company health and 30% current incident health. Critical incidents subtract 18 points, warnings 7, and watch findings 2 before the blend is applied." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "kpis", status: "attention" })} />
+            <RadarMetric icon={<ShieldCheck size={14} />} label="Plot confidence" value={`${radar.adaptive.confidencePercent}%`} tone={radar.adaptive.confidencePercent < 40 ? "critical" : radar.adaptive.confidencePercent < 70 ? "warning" : "healthy"} detail="How trustworthy the assessment is: 55% connected-source confidence and 45% check confidence. Learning checks contribute partial confidence; blind checks contribute none." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "sources" })} />
+            <RadarMetric icon={<Target size={14} />} label="Readiness" value={`${radar.adaptive.readinessPercent}%`} tone={radar.adaptive.readinessPercent < 40 ? "critical" : radar.adaptive.readinessPercent < 70 ? "warning" : "healthy"} detail="Average readiness across every Radar domain. It combines required connections with the evidence needed for dependable decisions." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "sources" })} />
+            <RadarMetric icon={<AlertTriangle size={14} />} label="Contacts" value={attentionCount} tone={radar.summary.critical ? "critical" : radar.summary.warning ? "warning" : "healthy"} detail="Command-level incidents that are critical or outside warning guardrails. Related detector findings are grouped so one problem creates one useful contact." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "incidents", status: "attention" })} />
+          </div>
+
+          {metricHelp ? (
+            <div role="status" aria-live="polite" className="flex items-start gap-3 border-b border-emerald-200/15 bg-emerald-200/[0.07] px-4 py-3 sm:px-6">
+              <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-emerald-200/10 text-emerald-200"><Info size={14} aria-hidden="true" /></span>
+              <div className="min-w-0 flex-1"><p className="text-xs font-semibold text-white">How {metricHelp.label.toLowerCase()} works</p><p className="mt-1 max-w-4xl text-xs leading-5 text-white/60">{metricHelp.detail}</p></div>
+              <button type="button" onClick={() => setMetricHelp(null)} aria-label="Close metric explanation" title="Close explanation" className="grid size-7 shrink-0 place-items-center rounded-md text-white/35 transition hover:bg-white/10 hover:text-white"><X size={14} aria-hidden="true" /></button>
+            </div>
+          ) : null}
+
+          <div className="relative grid lg:grid-cols-[minmax(340px,.94fr)_minmax(0,1.06fr)]">
+            <div className="border-b border-white/10 bg-[#0a1413]/60 p-4 sm:p-6 lg:border-b-0 lg:border-r">
+              <div className="flex items-center justify-between gap-3">
+                <div><p className="text-[10px] font-semibold uppercase text-[#d8bd83]/70">Primary plotting indicator</p><p className="mt-1 text-sm font-semibold text-white">{activeDomain === "all" ? "All operational sectors" : `${domainLabel(activeDomain)} sector`}</p></div>
+                <select value={activeDomain} onChange={event => setActiveDomain(event.target.value as AdvisorDomain | "all")} aria-label="Executive radar domain" className="min-h-9 rounded-md border border-white/15 bg-[#1a211d] px-2.5 text-xs font-semibold text-white outline-none">
+                  <option value="all">All domains</option>
+                  {RADAR_DOMAINS.map(domain => <option key={domain} value={domain}>{domainLabel(domain)}</option>)}
+                </select>
+              </div>
+
+              <div className="relative mx-auto mt-5 aspect-square w-full max-w-[390px]" aria-label="Executive business radar">
+                <div className="absolute inset-[4%] rounded-full border-2 border-[#7dd3c4]/28 bg-[#07110f] shadow-[inset_0_0_48px_rgba(45,212,191,.06),0_0_24px_rgba(45,212,191,.05)]" />
+                <div className="absolute inset-[15%] rounded-full border border-[#7dd3c4]/18" />
+                <div className="absolute inset-[29%] rounded-full border border-[#7dd3c4]/15" />
+                <div className="absolute inset-[43%] rounded-full border border-[#7dd3c4]/12" />
+                <div className="absolute inset-x-[4%] top-1/2 h-px bg-[#7dd3c4]/14" />
+                <div className="absolute inset-y-[4%] left-1/2 w-px bg-[#7dd3c4]/14" />
+                <div className="absolute left-[17%] top-[17%] h-[66%] w-px origin-center rotate-45 bg-[#7dd3c4]/8" />
+                <div className="absolute right-[17%] top-[17%] h-[66%] w-px origin-center -rotate-45 bg-[#7dd3c4]/8" />
+                <span className="absolute left-1/2 top-0 -translate-x-1/2 text-[9px] font-bold text-[#d8bd83]">N · 000</span>
+                <span className="absolute right-0 top-1/2 -translate-y-1/2 text-[9px] font-bold text-[#d8bd83]">E · 090</span>
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] font-bold text-[#d8bd83]">S · 180</span>
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-[9px] font-bold text-[#d8bd83]">W · 270</span>
+                <div className="absolute bottom-1/2 left-1/2 h-[45%] w-px origin-bottom animate-spin bg-[#7dd3c4]/65 [animation-duration:7s]">
+                  <span className="absolute -left-1 -top-1 size-2 rounded-full bg-[#8ce7d6] shadow-[0_0_16px_rgba(125,211,196,.95)]" />
+                </div>
+                <button type="button" onClick={() => onOpenInspector({ tab: attentionCount ? "incidents" : "checks", domain: activeDomain, status: attentionCount ? "attention" : "all" })} aria-label={`Inspect ${activeDomain === "all" ? "whole business" : domainLabel(activeDomain)} Radar picture`} className="absolute left-1/2 top-1/2 grid size-24 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-emerald-200/20 bg-[#151c18] text-center shadow-[0_0_30px_rgba(52,211,153,.08)] hover:border-emerald-200/40">
+                  <span><strong className="block text-2xl tabular-nums text-white">{activeDomain === "all" ? attentionCount : selectedSummary?.issues ?? 0}</strong><span className="text-[9px] font-semibold uppercase text-[#7dd3c4]/70">{activeDomain === "all" ? "contacts held" : "sector contacts"}</span></span>
+                </button>
+                {domainSummaries.map(item => (
+                  <button key={item.domain} type="button" onClick={() => setActiveDomain(current => current === item.domain ? "all" : item.domain)} aria-label={`${domainLabel(item.domain)}: ${item.issues} signals, ${item.blind} blind checks`} title={`${domainLabel(item.domain)} · ${item.checks} checks · ${item.firing} firing · ${item.blind} blind`} className={`absolute z-10 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition hover:scale-110 ${activeDomain === item.domain ? "border-white bg-white text-[#111714]" : radarNodeClass(item.status)}`} style={item.position}>
+                    <span className="size-2 rounded-full bg-current" />
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 grid grid-cols-4 divide-x divide-white/10 border-y border-white/10 py-2 text-center text-[9px] font-semibold uppercase text-white/42">
+                <span><strong className="block text-sm tabular-nums text-red-300">{radar.summary.critical}</strong>Hostile</span>
+                <span><strong className="block text-sm tabular-nums text-amber-200">{radar.summary.warning}</strong>Caution</span>
+                <span><strong className="block text-sm tabular-nums text-sky-200">{radar.summary.watch}</strong>Watch</span>
+                <span><strong className="block text-sm tabular-nums text-[#7dd3c4]">{coveragePercent}%</strong>Scope</span>
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <div><p className="text-[10px] font-semibold uppercase text-[#d8bd83]/70">Officer of the watch</p><h3 className="mt-1 text-base font-semibold text-white">{activeDomain === "all" ? "Priority contact board" : `${domainLabel(activeDomain)} contact board`}</h3></div>
+                <button type="button" onClick={() => onOpenInspector({ tab: "incidents", domain: activeDomain, status: "attention" })} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/15 px-3 text-xs font-semibold text-white/65 hover:bg-white/10 hover:text-white">Inspect all <ArrowUpRight size={13} /></button>
+              </div>
+              <div className="divide-y divide-white/10">
+                {executiveIssues.map(issue => (
+                  <button key={issue.id} type="button" onClick={() => onOpenInspector({ tab: "incidents", query: issue.id, domain: issue.domain })} className="group grid w-full gap-3 px-4 py-4 text-left hover:bg-white/[0.04] sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${radarSeverityClass(issue.severity)}`}>{issue.severity}</span><span className="text-[10px] font-semibold uppercase text-white/38">{domainLabel(issue.domain)}</span></span>
+                      <strong className="mt-2 block text-sm leading-5 text-white">{issue.title}</strong>
+                      <span className="mt-1 block line-clamp-2 text-xs leading-5 text-white/48">{issue.detail}</span>
+                    </span>
+                    <span className="flex items-center gap-2 self-start text-[10px] font-semibold text-white/38"><span>{issue.issueIds.length} issues · {issue.checkIds.length} checks</span><ArrowUpRight size={13} className="text-white/25 transition group-hover:text-emerald-200" /></span>
+                  </button>
+                ))}
+                {!executiveIssues.length ? <div className="px-6 py-12 text-center"><ShieldCheck className="mx-auto text-emerald-300" size={24} /><p className="mt-3 text-sm font-semibold text-white">No current contacts in this scope</p><p className="mt-1 text-xs text-white/42">Coverage and learning state remain visible below.</p></div> : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 border-t border-white/10 lg:grid-cols-4" aria-label="Radar observability">
+            <RadarMetric icon={<ScanSearch size={14} />} label="Checks live" value={radar.adaptive.liveChecks.toLocaleString()} tone="healthy" detail="Applicable checks with enough observable evidence to evaluate now. Learning, blind, and policy-inactive checks are excluded." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "checks", status: "live" })} />
+            <RadarMetric icon={<EyeOff size={14} />} label="Blind" value={radar.summary.blindChecks.toLocaleString()} tone={radar.summary.blindChecks ? "warning" : "healthy"} detail="Applicable checks that cannot prove an outcome because their source, measurement, or required evidence is unavailable." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "checks", status: "blind" })} />
+            <RadarMetric icon={<History size={14} />} label="Learning" value={radar.adaptive.learningChecks.toLocaleString()} tone="watch" detail="Connected checks accumulating the sample size, history span, or comparison baseline required by policy." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "checks", status: "learning" })} />
+            <RadarMetric icon={<ShieldCheck size={14} />} label="Coverage" value={`${coveragePercent}%`} tone={coveragePercent < 70 ? "warning" : "healthy"} detail="The share of applicable checks that are currently observable. Open this card to find exactly which checks are blind." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "checks", status: "applicable" })} />
+          </div>
+        </section>
+        {policyOpen ? <RadarPolicyPanel key={radar.adaptive.policy.updatedAt} radar={radar} onSaved={onRadarChange} onClose={() => setPolicyOpen(false)} /> : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-4" data-testid="active-business-radar">
-      <section className="overflow-hidden rounded-lg border border-[#29352f] bg-[#111513] text-white shadow-[0_18px_44px_rgba(0,0,0,0.14)]" aria-labelledby="business-radar-heading">
+    <div className="mm-radar-operations-workspace grid gap-4" data-testid="radar-operations-workspace">
+      <section className="mm-radar-operations-console overflow-hidden rounded-lg border border-[#29352f] bg-[#111513] text-white shadow-[0_18px_44px_rgba(0,0,0,0.14)]" aria-labelledby="business-radar-heading">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex min-w-0 items-start gap-3">
             <span className="relative mt-0.5 grid size-10 shrink-0 place-items-center rounded-md border border-emerald-300/20 bg-emerald-300/10 text-emerald-300">
@@ -964,13 +1616,16 @@ function BusinessRadarDashboard({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">Active business radar</p>
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold capitalize text-emerald-200">{radar.adaptive.operatingStage}</span>
               </div>
-              <h2 id="business-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">{attentionCount ? `${attentionCount} incident${attentionCount === 1 ? "" : "s"} need command attention` : radar.adaptive.confidencePercent < 70 ? "No urgent incidents; evidence is still calibrating" : "No urgent business incidents detected"}</h2>
-              <p className="mt-1 text-xs text-white/50">{radar.summary.applicableChecks.toLocaleString()} applicable checks · {radar.adaptive.learningChecks.toLocaleString()} learning · {radar.adaptive.inactiveChecks.toLocaleString()} inactive · {radar.adaptive.alwaysOnChecks.toLocaleString()} protected · {radar.summary.correlatedRisks} compound risks · last sweep {formatRadarAge(radar.generatedAt)} · automatic rescan every minute</p>
+              <h2 id="business-radar-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">Radar operations workspace</h2>
+              <p className="mt-1 text-xs text-white/50">{attentionCount} command incidents · {radar.summary.applicableChecks.toLocaleString()} applicable checks · {radar.adaptive.learningChecks.toLocaleString()} learning · {radar.adaptive.inactiveChecks.toLocaleString()} inactive · {radar.adaptive.alwaysOnChecks.toLocaleString()} protected · {radar.summary.correlatedRisks} compound risks · last sweep {formatRadarAge(radar.generatedAt)} · automatic rescan every minute</p>
             </div>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <button type="button" onClick={onOpenExecutive} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
+              <Radar size={15} /> Executive view
+            </button>
             <button type="button" onClick={() => onOpenInspector()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
-              <Database size={15} /> Inspect source data
+              <Database size={15} /> Data inspector
             </button>
             <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
               <Settings2 size={15} /> Policy
@@ -1143,7 +1798,7 @@ function BusinessRadarDashboard({
 
       {policyOpen ? <RadarPolicyPanel key={radar.adaptive.policy.updatedAt} radar={radar} onSaved={onRadarChange} onClose={() => setPolicyOpen(false)} /> : null}
 
-      <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="radar-coverage-heading">
+      <section className="mm-radar-coverage-matrix mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="radar-coverage-heading">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
           <div className="flex items-center gap-3"><span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><ShieldCheck size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Never-blind matrix</p><h3 id="radar-coverage-heading" className="mt-1 text-lg font-semibold text-black/85">Check coverage by business area</h3></div></div>
           <div className="text-right"><p className="text-lg font-semibold tabular-nums text-black/80">{coveragePercent}%</p><p className="text-[10px] font-semibold uppercase text-black/35">observable · {radar.summary.assurancePercent}% assured</p></div>
@@ -1333,6 +1988,13 @@ async function dashboardRequest(body: Record<string, unknown>): Promise<Dashboar
   return result.planning;
 }
 
+async function loadDashboardPlanning(date: string): Promise<DashboardPlanningPayload> {
+  const response = await fetch(`/api/portal/dashboard-planning?date=${encodeURIComponent(date)}`, { cache: "no-store" });
+  const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; planning?: DashboardPlanningPayload } | null;
+  if (!response.ok || !result?.ok || !result.planning) throw new Error(result?.error || "Dashboard planning date could not load.");
+  return result.planning;
+}
+
 function draftFromPlan(plan: DashboardDayPlan | null): DayDraft {
   return {
     focus: plan?.focus ?? "",
@@ -1353,6 +2015,11 @@ function NumberField({ label, value, step, max, onChange }: { label: string; val
 
 function WeekMetric({ label, value }: { label: string; value: string }) {
   return <div className="bg-white px-3 py-3"><p className="text-[10px] font-semibold uppercase text-black/35">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-black/75">{value}</p></div>;
+}
+
+function AccountabilityMetric({ label, value, tone }: { label: string; value: string; tone: "aqua" | "external" | "break" | "attention" | "neutral" }) {
+  const toneClass = tone === "aqua" ? "text-emerald-800" : tone === "external" ? "text-sky-800" : tone === "break" ? "text-amber-800" : tone === "attention" ? "text-red-800" : "text-black/70";
+  return <div className="bg-white px-3 py-3"><p className="text-[9px] font-semibold uppercase text-black/35">{label}</p><p className={`mt-1 text-sm font-semibold tabular-nums ${toneClass}`}>{value}</p></div>;
 }
 
 function mergeRecommendedActions(
@@ -1433,6 +2100,12 @@ function radarNodeClass(status: "critical" | "warning" | "watch" | "blind" | "in
   return "border-emerald-300/25 bg-emerald-400/10 text-emerald-200";
 }
 
+function radarSeverityRank(severity: BusinessRadarIssue["severity"]): number {
+  if (severity === "critical") return 0;
+  if (severity === "warning") return 1;
+  return 2;
+}
+
 function radarSeverityClass(severity: BusinessRadarIssue["severity"]): string {
   if (severity === "critical") return "bg-red-400/15 text-red-200";
   if (severity === "warning") return "bg-amber-400/15 text-amber-200";
@@ -1474,12 +2147,102 @@ function coverageStatusLabel(status: AdvisorCoverageSource["status"]): string {
   return "Disconnected";
 }
 
+function intelligenceView(value: string | null): IntelligenceView {
+  if (value === "lifecycle" || value === "campaigns" || value === "audiences" || value === "kpis" || value === "compare") return value;
+  return "overview";
+}
+
+function commercialFocus(searchParams: Pick<URLSearchParams, "get">) {
+  return {
+    metricId: searchParams.get("metric")?.trim() || undefined,
+    recordId: searchParams.get("record")?.trim() || undefined,
+    sourceId: searchParams.get("source")?.trim() || undefined,
+    stageId: searchParams.get("stage")?.trim() || undefined,
+  };
+}
+
 function overdueRank(item: StrictItem, now: number) {
   return item.dueAt && item.dueAt < now ? -1 : 0;
 }
 
+function timestampFallsOnDate(value: number | undefined, date: string): boolean {
+  if (!value) return false;
+  const start = new Date(`${date}T00:00:00`).getTime();
+  const end = new Date(`${date}T23:59:59.999`).getTime();
+  return value >= start && value <= end;
+}
+
+function taskTouchesDate(task: AgencyTask, date: string): boolean {
+  return timestampFallsOnDate(task.startAt, date)
+    || timestampFallsOnDate(task.dueAt, date)
+    || timestampFallsOnDate(task.completedAt, date);
+}
+
+function taskMomentForDate(task: AgencyTask, date: string): number | undefined {
+  if (timestampFallsOnDate(task.startAt, date)) return task.startAt;
+  if (timestampFallsOnDate(task.dueAt, date)) return task.dueAt;
+  if (timestampFallsOnDate(task.completedAt, date)) return task.completedAt;
+  return undefined;
+}
+
+function calendarEntryMomentForDate(entry: CommandCalendarEntry, date: string): number | undefined {
+  const dayStart = new Date(`${date}T00:00:00`).getTime();
+  const dayEnd = new Date(`${date}T23:59:59.999`).getTime();
+  const entryEnd = entry.endsAt ?? entry.startsAt;
+  if (entry.startsAt > dayEnd || entryEnd < dayStart) return undefined;
+  return Math.max(dayStart + 12 * 60 * 60 * 1000, entry.startsAt);
+}
+
+function externalCalendarMomentForDate(event: CommandCalendarExternalEvent, date: string): number | undefined {
+  const dayStart = new Date(`${date}T00:00:00`).getTime();
+  const dayEnd = new Date(`${date}T23:59:59.999`).getTime();
+  const eventEnd = event.endsAt ?? event.startsAt;
+  if (event.startsAt > dayEnd || eventEnd < dayStart) return undefined;
+  return event.allDay ? dayStart + 12 * 60 * 60 * 1_000 : Math.max(dayStart, event.startsAt);
+}
+
+function taskTimingDetail(task: AgencyTask): string {
+  if (task.completedAt) return `Completed ${formatDateTime(task.completedAt)}.`;
+  if (task.dueAt) return `Due ${formatDateTime(task.dueAt)}.`;
+  if (task.startAt) return `Starts ${formatDateTime(task.startAt)}.`;
+  return "Dated action.";
+}
+
 function sessionHours(session: DashboardWorkSession, now = Date.now()): number {
   return Math.max(0, (session.endedAt ?? now) - session.startedAt) / 3_600_000;
+}
+
+function accountableSessionHours(session: DashboardWorkSession): number {
+  if (session.aquaActiveMs === undefined && session.externalWorkMs === undefined) return sessionHours(session);
+  return Math.max(0, (session.aquaActiveMs ?? 0) + (session.externalWorkMs ?? 0)) / 3_600_000;
+}
+
+function workModeLabel(mode?: DashboardWorkSession["currentMode"]): string {
+  if (mode === "aqua") return "Active in Aqua";
+  if (mode === "external") return "Working elsewhere";
+  if (mode === "break") return "Break in progress";
+  return "Activity unconfirmed";
+}
+
+function formatClockTime(value: number): string {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function topSessionRoutes(sessions: DashboardWorkSession[]): Array<{ path: string; activeMs: number }> {
+  const totals = new Map<string, number>();
+  for (const session of sessions) for (const [path, activeMs] of Object.entries(session.routeActiveMs ?? {})) totals.set(path, (totals.get(path) ?? 0) + activeMs);
+  return [...totals.entries()].map(([path, activeMs]) => ({ path, activeMs })).sort((left, right) => right.activeMs - left.activeMs).slice(0, 4);
+}
+
+function routeLabel(path: string): string {
+  if (path === "/portal/agency") return "Day Command";
+  const segment = path.split("/").filter(Boolean).pop() ?? "Aqua";
+  return segment.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+function formatCompactDuration(milliseconds: number): string {
+  const minutes = Math.max(0, Math.round(milliseconds / 60_000));
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
 }
 
 function formatHours(value: number): string {
@@ -1503,6 +2266,106 @@ function formatDateTime(value: number): string {
 
 function calendarDay(value: number): string {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit" }).format(new Date(value));
+}
+
+function commandStationMode(value: string | null): CommandSurfaceMode | null {
+  if (value === "calendar") return "day";
+  if (value === "omega") return "executive";
+  if (value === "radar-inspector") return "radar";
+  return value && ["executive", "day", "battle", "intelligence", "radar"].includes(value)
+    ? value as CommandSurfaceMode
+    : null;
+}
+
+function battleTableAttention(payload: BattleTablePayload): CommandStationAttention {
+  const target = payload.initial.monthlyRevenueTargetCents;
+  const revenueProgress = target > 0 ? payload.actuals.monthRevenueCents / target * 100 : null;
+  const criticalSignals = [
+    payload.healthScore < 40,
+    revenueProgress !== null && revenueProgress < 50,
+    payload.actuals.overdueTasks > 0,
+    capitalCriticalAttention(payload.initial) > 0,
+  ].filter(Boolean).length;
+  const warningSignals = [
+    payload.healthScore >= 40 && payload.healthScore < 70,
+    revenueProgress !== null && revenueProgress >= 50 && revenueProgress < 80,
+    payload.actuals.clientsNeedingAttention > 0,
+    payload.initial.objectives.some(objective => objective.status === "at-risk"),
+    payload.totalSources > 0 && payload.connectedSources / payload.totalSources < 0.9,
+    capitalWarningAttention(payload.initial) > 0,
+  ].filter(Boolean).length;
+  const count = criticalSignals + warningSignals;
+  return {
+    count,
+    tone: criticalSignals ? "critical" : warningSignals ? "warning" : "clear",
+    label: count
+      ? `${criticalSignals} critical and ${warningSignals} strategic exceptions across targets, tasks, clients, capital, objectives and readiness`
+      : "Strategy, targets and executive readiness are holding",
+  };
+}
+
+function capitalCriticalAttention(company: CompanyProfile): number {
+  const active = company.capital.shareholders.filter(item => item.status === "active");
+  const issuedByClass = new globalThis.Map<string, number>();
+  active.forEach(item => issuedByClass.set(item.shareClassId, (issuedByClass.get(item.shareClassId) ?? 0) + item.shares));
+  return company.capital.shareClasses.filter(item => (issuedByClass.get(item.id) ?? 0) > item.authorisedShares).length
+    + company.capital.dividends.filter(item => item.status !== "cancelled" && item.paymentDueAt && item.paymentDueAt < Date.now() && item.paidCents < item.declaredCents).length;
+}
+
+function capitalWarningAttention(company: CompanyProfile): number {
+  return Number(!company.capital.shareholders.some(item => item.status === "active"))
+    + company.capital.investments.filter(item => item.status === "active" && (!item.valuedAt || Date.now() - item.valuedAt > 90 * 86_400_000)).length
+    + company.capital.transactions.filter(item => (item.status === "approved" || item.status === "completed") && !item.approvalId).length
+    + company.capital.dividends.filter(item => item.status !== "draft" && item.status !== "cancelled" && !item.approvalId).length
+    + company.capital.decisions.filter(item => item.status === "draft").length;
+}
+
+function battleTableSection(value: string | null): BattleTableSection {
+  return value && ["overview", "intelligence", "strategy", "projections", "objectives", "capacity", "plans", "capital", "reviews", "systems"].includes(value)
+    ? value as BattleTableSection
+    : "overview";
+}
+
+function radarTargetFromSearchParams(searchParams: Pick<URLSearchParams, "get">): Omit<RadarInspectorTarget, "version"> {
+  const tab = radarInspectionTab(searchParams.get("view"));
+  const domain = radarDomain(searchParams.get("domain"));
+  const status = radarStatus(searchParams.get("status"));
+  const scope = radarScope(searchParams.get("scope"));
+  const lens = radarLens(searchParams.get("lens"));
+  return {
+    tab,
+    query: cleanRadarParam(searchParams.get("query")),
+    domain,
+    status,
+    scope,
+    lens,
+    sourceId: cleanRadarParam(searchParams.get("source")),
+    datasetId: cleanRadarParam(searchParams.get("dataset")),
+  };
+}
+
+function radarInspectionTab(value: string | null): RadarInspectionTab {
+  return value && ["kpis", "checks", "evidence", "records", "sources", "incidents", "raw"].includes(value) ? value as RadarInspectionTab : "records";
+}
+
+function radarDomain(value: string | null): AdvisorDomain | "all" {
+  return value && ["company", "sales", "inbox", "clients", "finance", "delivery", "marketing", "operations", "compliance", "development", "team", "systems"].includes(value) ? value as AdvisorDomain : "all";
+}
+
+function radarStatus(value: string | null): RadarInspectorTarget["status"] {
+  return value && ["all", "attention", "applicable", "assured", "firing", "live", "pass", "critical", "warning", "watch", "blind", "learning", "inactive"].includes(value) ? value as RadarInspectorTarget["status"] : "all";
+}
+
+function radarScope(value: string | null): RadarInspectorTarget["scope"] {
+  return value && ["all", "sentinel", "kpi", "source", "property", "synthetic", "history", "watchdog"].includes(value) ? value as RadarInspectorTarget["scope"] : "all";
+}
+
+function radarLens(value: string | null): RadarInspectorTarget["lens"] {
+  return value && ["all", "connection", "freshness", "threshold", "trend", "anomaly", "integrity", "continuity", "baseline", "confidence", "forecast", "volatility", "resilience"].includes(value) ? value as RadarInspectorTarget["lens"] : "all";
+}
+
+function cleanRadarParam(value: string | null): string {
+  return typeof value === "string" ? value.trim().slice(0, 240) : "";
 }
 
 function calendarMonth(value: number): string {
@@ -1532,6 +2395,16 @@ function localIsoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function offsetIsoDate(value: string, offset: number): string {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + offset);
+  return localIsoDate(date);
+}
+
+function validIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T12:00:00`).getTime());
 }
 
 function weekday(value: string): string {

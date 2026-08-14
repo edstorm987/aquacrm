@@ -71,7 +71,7 @@ describe("agency portals workspace", () => {
     const workspace = read("src", "app", "portal", "agency", "portals", "_PortalsWorkspace.tsx");
 
     assert.ok(workspace.includes("/client-preview/${portal.id}"));
-    assert.ok(workspace.includes("/portal/clients/${portal.id}?tab=fulfilment"));
+    assert.ok(workspace.includes("/portal/clients/${portal.id}?tab=portal"));
     assert.ok(workspace.includes("/portal/agency/portals/editor?scope=client&clientId=${portal.id}"));
     assert.ok(workspace.includes("Create portal"));
   });

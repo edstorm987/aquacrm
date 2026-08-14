@@ -65,7 +65,7 @@ const manifest: AquaPlugin = {
   pages: [
     { path: "", component: () => import("./src/pages/OutboxPage") },
     { path: "outbox", component: () => import("./src/pages/OutboxPage") },
-    { path: "settings", component: () => import("./src/pages/SettingsPage") },
+    { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...AGENCY_ADMINS] },
     { path: "logs", component: () => import("./src/pages/LogsPage") },
   ],
 

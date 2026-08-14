@@ -25,6 +25,7 @@ import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { addSidebarAttention } from "@/lib/server/sidebarAttention";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
+import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
 
 export default async function AgencyLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -34,6 +35,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   } catch {
     redirect("/portal");
   }
+  if (session.role === "agency-staff") redirect("/portal/team");
 
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
@@ -71,7 +73,9 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   });
   const operationalAlerts = await listOperationalAlerts(agency.id);
   const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
-  const panels = addSidebarAttention(basePanels, alertViews.filter(alert => alert.attention));
+  const panels = addSidebarAttention(basePanels, alertViews.filter(alert =>
+    alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")
+  ));
 
   // Best-effort current path for "active" highlighting. Falls back to ""
   // when the header isn't present (some preview environments).
@@ -121,6 +125,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             publicShowcase={session.publicShowcase}
             privacyTerms={privacyTerms}
             notifications={<NotificationCentreButton />}
+            radarControl={advisorEnabled ? <RadarQuickLookControl agencyId={session.agencyId} /> : null}
             advisorControl={advisorEnabled ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} />
             ) : null}

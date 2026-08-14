@@ -110,6 +110,7 @@ export async function POST(request: Request) {
         consentCaptured: true,
         publicBrand: brand.name,
         enquiryChannel: channel,
+        enquiryClassification: "sales",
         propertyId,
         pagePath,
       },
@@ -121,6 +122,9 @@ export async function POST(request: Request) {
       source,
       leadId: result.lead.id,
       leadCreated: true,
+      enquiryClassification: "sales",
+      enquiryClassificationAt: new Date().toISOString(),
+      enquiryClassificationBy: session.userId,
       leadLinkedAt: new Date().toISOString(),
       leadLinkedBy: session.userId,
     };

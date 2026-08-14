@@ -15,6 +15,31 @@ test("the first record initializes a new remote collection", () => {
   }]);
 });
 
+test("high-volume Radar writes compact within one agency branch", () => {
+  const unchangedAgency = { issues: { retained: { severity: "watch" } } };
+  const before = {
+    radarMemory: {
+      "agency-a": { issues: {} },
+      "agency-b": unchangedAgency,
+    },
+  };
+  const after = {
+    radarMemory: {
+      "agency-a": {
+        issues: Object.fromEntries(Array.from({ length: 100 }, (_, index) => [
+          `issue-${index}`,
+          { id: `issue-${index}`, severity: index % 2 ? "warning" : "critical" },
+        ])),
+      },
+      "agency-b": unchangedAgency,
+    },
+  };
+
+  const operations = diffStorageValue(before, after);
+  assert.deepEqual(operations.map(operation => operation.path), [["radarMemory", "agency-a", "issues"]]);
+  assert.deepEqual(applyStoragePatch(before, operations), after);
+});
+
 test("remote portal storage flushes writes and refreshes warm-process state", async () => {
   const originalFetch = globalThis.fetch;
   const originalBackend = process.env.PORTAL_BACKEND;

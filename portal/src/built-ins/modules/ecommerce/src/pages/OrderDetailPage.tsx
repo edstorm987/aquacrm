@@ -12,5 +12,6 @@ export default async function OrderDetailPage(props: PluginPageProps) {
   const order = await c.orders.getOrder(id);
   if (!order) return <p>Order not found.</p>;
   if (props.clientId && order.clientId !== props.clientId) return <p>Order not found.</p>;
-  return <OrderDetail order={order} apiBase={API_BASE} />;
+  const receiptHref = `/portal/clients/${encodeURIComponent(props.clientId ?? order.clientId)}/ecommerce/orders/${encodeURIComponent(order.id)}/receipt`;
+  return <OrderDetail order={order} apiBase={API_BASE} receiptHref={receiptHref} />;
 }

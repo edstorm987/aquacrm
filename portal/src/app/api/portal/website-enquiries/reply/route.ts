@@ -22,13 +22,14 @@ type EnquiryRow = {
 
 type StoredReply = {
   id: string;
+  channel: "email";
   subject: string;
   message: string;
   recipient: string;
   sentAt: number;
   sentBy: string;
   status: "sent" | "failed";
-  via: "resend" | "unconfigured";
+  via: "resend" | "smtp" | "unconfigured";
   error?: string;
 };
 
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
 
     const reply: StoredReply = {
       id: replyId,
+      channel: "email",
       subject,
       message,
       recipient,

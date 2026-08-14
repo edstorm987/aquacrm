@@ -41,9 +41,11 @@ test("open tasks are removed and evidence gaps fill the command list", () => {
   assert.equal(new Set(actions.map(action => action.title)).size, actions.length);
 });
 
-test("Command Center and Advisor share one always-visible, approval-only top five", () => {
+test("Actions and Advisor share one always-visible, approval-only top five", () => {
   const dashboard = readFileSync("src/app/portal/agency/_DashboardCommandCenter.tsx", "utf8");
   const page = readFileSync("src/app/portal/agency/page.tsx", "utf8");
+  const actionsPage = readFileSync("src/app/portal/agency/actions/_ActionsPage.tsx", "utf8");
+  const actions = readFileSync("src/app/portal/agency/actions/_ActionsWorkspace.tsx", "utf8");
   const context = readFileSync("src/lib/server/advisorContext.ts", "utf8");
   const skillContext = readFileSync("src/lib/server/advisorSkillContext.ts", "utf8");
   const route = readFileSync("src/app/api/assistant/route.ts", "utf8");
@@ -51,10 +53,14 @@ test("Command Center and Advisor share one always-visible, approval-only top fiv
 
   assert.match(page, /buildBusinessRecommendedActions/);
   assert.match(page, /recommendedActions=/);
-  assert.match(dashboard, /Top \{topRecommendedActions\.length \|\| 5\} actions from live data/);
-  assert.match(dashboard, /Shared with Advisor/);
-  assert.match(dashboard, /suggestions only · every task requires approval/);
-  assert.match(dashboard, /Approve \$\{item\.title\} and add to Actions/);
+  assert.match(actionsPage, /buildBusinessRecommendedActions/);
+  assert.match(actionsPage, /commandRecommendations=/);
+  assert.match(actions, /Top \{recommendations\.length \|\| 5\} actions from live data/);
+  assert.match(actions, /Shared with Advisor/);
+  assert.match(actions, /suggestions only · every task requires approval/);
+  assert.match(actions, /Accept \$\{item\.title\} as a Radar task/);
+  assert.match(actions, /origin: "radar"/);
+  assert.doesNotMatch(dashboard, /command-recommendations-heading/);
   assert.match(context, /recommendedActions/);
   assert.match(skillContext, /command: \{/);
   assert.match(skillContext, /visibility: \{/);
@@ -63,7 +69,7 @@ test("Command Center and Advisor share one always-visible, approval-only top fiv
   assert.doesNotMatch(route, /if \(!isAssistantConfigured\(session\.agencyId\)\) \{[\s\S]{0,400}suggest-actions/);
   assert.match(advisor, /if \(!apiKey\) return guaranteedRadarActions/);
   assert.match(advisor, /Return at most five recommendations/);
-  assert.doesNotMatch(dashboard, /createAgencyTask/);
+  assert.doesNotMatch(actions, /createAgencyTask/);
 });
 
 function recommendationRadar(incidents: BusinessIssueRadar["incidents"]): BusinessIssueRadar {

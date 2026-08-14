@@ -15,8 +15,11 @@ import { makePluginStorage } from "./pluginStorage";
 
 export interface CompanyHealthActuals {
   monthRevenueCents: number;
+  previousMonthRevenueCents: number;
+  monthlyRevenueGrowthPercent: number | null;
   mrrCents: number;
   currency: string;
+  financeConnected: boolean;
   activeClients: number;
   clientsNeedingAttention: number;
   leadCount: number;
@@ -24,6 +27,11 @@ export interface CompanyHealthActuals {
   completedSalesCalls: number;
   openTasks: number;
   overdueTasks: number;
+}
+
+export interface CompanyRevenueGrowthPoint {
+  at: number;
+  value: number;
 }
 
 export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.now()) {
@@ -50,8 +58,11 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
   const profile = getCompanyProfile(agencyId, null);
   const actuals: CompanyHealthActuals = {
     monthRevenueCents: 0,
+    previousMonthRevenueCents: 0,
+    monthlyRevenueGrowthPercent: null,
     mrrCents: 0,
     currency: "gbp",
+    financeConnected: false,
     activeClients: activeClients.length,
     clientsNeedingAttention,
     leadCount: 0,
@@ -60,6 +71,7 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
     openTasks: openTasks.length,
     overdueTasks: openTasks.filter(task => Boolean(task.dueAt && task.dueAt < now)).length,
   };
+  let revenueGrowthHistory: CompanyRevenueGrowthPoint[] = [];
 
   const financeInstall = getInstall({ agencyId }, "agency-finance");
   if (financeInstall?.enabled) {
@@ -71,9 +83,22 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
         install: financeInstall,
       });
       const snapshot = await finance.pnl.founderSnapshot(now);
-      actuals.monthRevenueCents = snapshot.trailingMonths.at(-1)?.revenueCents ?? 0;
+      const currentMonth = snapshot.trailingMonths.at(-1);
+      const previousMonth = snapshot.trailingMonths.at(-2);
+      actuals.monthRevenueCents = currentMonth?.revenueCents ?? 0;
+      actuals.previousMonthRevenueCents = previousMonth?.revenueCents ?? 0;
+      actuals.monthlyRevenueGrowthPercent = revenueGrowthPercent(actuals.monthRevenueCents, actuals.previousMonthRevenueCents);
       actuals.mrrCents = snapshot.mrrCents;
       actuals.currency = snapshot.currency;
+      actuals.financeConnected = true;
+      revenueGrowthHistory = snapshot.trailingMonths.flatMap((month, index, months) => {
+        if (index === 0) return [];
+        const value = revenueGrowthPercent(month.revenueCents, months[index - 1]?.revenueCents ?? 0);
+        return value === null ? [] : [{
+          at: Date.UTC(month.year, month.month - 1, 1),
+          value,
+        }];
+      });
     } catch {
       // The health view remains usable while finance is being connected.
     }
@@ -127,9 +152,15 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
     generatedAt: new Date(now).toISOString(),
     profile,
     actuals,
+    revenueGrowthHistory,
     health,
     revenueGapCents,
     dealsNeeded,
     estimatedCallsNeeded,
   };
+}
+
+function revenueGrowthPercent(currentRevenueCents: number, previousRevenueCents: number): number | null {
+  if (previousRevenueCents <= 0) return null;
+  return Math.round((currentRevenueCents - previousRevenueCents) / previousRevenueCents * 1_000) / 10;
 }
