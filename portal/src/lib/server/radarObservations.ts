@@ -10,6 +10,7 @@ import type { OperationalAlert } from "@/lib/server/operationalAlerts";
 import type { RadarTelemetrySnapshot } from "@/lib/server/radarTelemetry";
 import type { buildCompanyHealthSnapshot } from "@/lib/server/companyHealthSnapshot";
 import type { LegalDocument, PortalState, ServerUser, AgencyTask, Client } from "@/server/types";
+import { buildHiringCapacityAnalysis, buildHiringCapacitySignals } from "@/lib/hiringCapacity";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -67,10 +68,28 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   const leadInstall = installs.find(item => item.pluginId === "leads-pipeline");
   const financeAlerts = operationalAlerts.filter(alert => alert.category === "money" || alert.category === "compliance");
   const deliveryAlerts = operationalAlerts.filter(alert => alert.category === "client" || alert.category === "development" || alert.category === "outage");
+  const peopleEmployees = Object.values(state.peopleEmployees).filter(employee => employee.agencyId === agencyId && employee.status !== "alumni");
   const profile = company?.profile;
   const capacityAvailable = profile ? profile.capacity.weeklyAvailableHours * (1 - profile.capacity.adminBufferPercent / 100) : 0;
   const capacityDemand = profile ? activeClients.length * profile.capacity.deliveryHoursPerActiveClient + company.actuals.meetingsThisMonth * profile.capacity.salesHoursPerCall : 0;
   const capacityPercent = capacityAvailable > 0 ? Math.round(capacityDemand / capacityAvailable * 100) : 0;
+  const hiringCapacity = profile && company ? buildHiringCapacityAnalysis({
+    capacity: profile.capacity,
+    actuals: {
+      monthlyRevenueTargetCents: profile.monthlyRevenueTargetCents,
+      monthRevenueCents: company.actuals.monthRevenueCents,
+      averageDealValueCents: profile.averageDealValueCents,
+      salesCallCloseRatePercent: profile.salesCallCloseRatePercent,
+      activeClients: company.actuals.activeClients,
+      clientsNeedingAttention: company.actuals.clientsNeedingAttention,
+      leadCount: company.actuals.leadCount,
+      meetingsThisMonth: company.actuals.meetingsThisMonth,
+      productCount: Object.values(state.agencyProducts).filter(product => product.agencyId === agencyId).length,
+      legalCount: legalDocuments.length,
+      financeConnected: company.actuals.financeConnected,
+    },
+    signals: buildHiringCapacitySignals({ tasks, people: peopleEmployees, now }),
+  }) : null;
   const latestActivityAt = newest(activity.map(entry => entry.ts));
   const linkedEnquiries = current30dEnquiries.filter(enquiry => enquiry.leadId || enquiry.leadLinkedAt);
   const inboxThreads = inbox?.conversations ?? [];
@@ -266,7 +285,6 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("development", "telemetry-integrity", percentMetric(telemetry.totals.properties ? Math.round(telemetry.properties.filter(property => property.events.every(event => Number.isFinite(event.occurredAt) && Boolean(event.type))).length / telemetry.totals.properties * 100) : null, 100, "Properties with structurally valid retained events.", "/portal/agency/fulfilment/technical/performance", "development:integrity", telemetry.totals.properties > 0, telemetry.totals.latestEventAt));
 
   const taskOwners = new Set(openTasks.map(task => task.assigneeUserId).filter(Boolean));
-  const peopleEmployees = Object.values(state.peopleEmployees).filter(employee => employee.agencyId === agencyId && employee.status !== "alumni");
   const activePeopleEmployees = peopleEmployees.filter(employee => employee.status === "active" || employee.status === "leave");
   const peopleApplications = Object.values(state.peopleApplications).filter(application => application.agencyId === agencyId);
   const peopleLeave = Object.values(state.peopleLeaveRequests).filter(request => request.agencyId === agencyId);
@@ -283,6 +301,10 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("team", "capacity-plan", metric(profile?.capacity.weeklyAvailableHours ?? null, null, profile ? "healthy" : "unknown", profile ? `${profile.capacity.weeklyAvailableHours}h` : "Not set", "Weekly hours configured", "/portal/agency?station=battle", "team:capacity", Boolean(profile), "Weekly available capacity plan.", profile?.updatedAt ?? now));
   add("team", "capacity-pressure", metric(capacityPercent, null, capacityPercent >= (profile?.capacity.hiringTriggerPercent ?? 85) ? "warning" : "healthy", `${capacityPercent}%`, `Below ${profile?.capacity.hiringTriggerPercent ?? 85}%`, "/portal/agency?station=battle", "team:capacity", Boolean(profile), "Estimated capacity utilisation.", profile?.updatedAt ?? now, activeClients.length, undefined, "lower"));
   add("team", "hiring-trigger", metric(capacityPercent, null, capacityPercent >= (profile?.capacity.hiringTriggerPercent ?? 85) ? "warning" : "healthy", `${capacityPercent}%`, `Hiring review at ${profile?.capacity.hiringTriggerPercent ?? 85}%`, "/portal/agency?station=battle", "team:hiring", Boolean(profile), "Capacity against configured hiring trigger.", profile?.updatedAt ?? now, activeClients.length, undefined, "lower"));
+  for (const area of hiringCapacity?.areas ?? []) {
+    const status: BusinessSignalStatus = area.state === "hire-now" ? "critical" : area.state === "prepare" ? "warning" : area.state === "watch" ? "watch" : "healthy";
+    add("team", `capacity-${area.id}`, metric(area.utilisationPercent, null, status, `${area.utilisationPercent}%`, `At or below ${area.targetUtilisationPercent}%`, "/portal/agency?station=battle&battle=capacity", `team:capacity:${area.id}`, true, `${area.label}: ${area.demandHours}h demand, ${area.availableHours}h available, ${area.gapHours}h above the area guardrail. Recommended role: ${area.roleTitle}.`, profile?.updatedAt ?? now, area.peopleCount + Math.round(area.openTaskHours), area.utilisationPercent, "lower"));
+  }
   add("team", "people-payments", zeroTargetMetric(alertCount(/people-payments/), "People payments requiring action.", "/portal/agency/agency-finance/operations", "team:payments", Boolean(financeInstall), newest(financeAlerts.map(alert => alert.occurredAt)), 1, 3));
   add("team", "objective-ownership", percentMetric(profile?.objectives.length ? Math.round(profile.plans.filter(plan => plan.owner).length / Math.max(1, profile.plans.length) * 100) : null, 90, "Plans with an accountable owner.", "/portal/agency?station=battle", "team:objectives", Boolean(profile), profile?.updatedAt));
   add("team", "role-integrity", percentMetric(team.length ? Math.round(team.filter(user => user.role && user.agencyIds.includes(agencyId)).length / team.length * 100) : null, 100, "Users with an agency role and membership.", "/portal/account/permissions", "team:roles", true, newest(team.map(user => user.updatedAt))));

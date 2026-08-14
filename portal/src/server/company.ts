@@ -2,7 +2,8 @@ import "server-only";
 
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
-import type { CompanyCapacityPlan, CompanyCapitalPlan, CompanyCapitalTransaction, CompanyDividendDistribution, CompanyGovernanceDecision, CompanyInvestmentHolding, CompanyObjective, CompanyPlan, CompanyProfile, CompanyProjectionPlan, CompanyQuarterlyReview, CompanyShareClass, CompanyShareholder } from "./types";
+import { defaultCapacityAreas } from "@/lib/hiringCapacity";
+import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyCapacityPlan, CompanyCapitalPlan, CompanyCapitalTransaction, CompanyDividendDistribution, CompanyGovernanceDecision, CompanyInvestmentHolding, CompanyObjective, CompanyPlan, CompanyProfile, CompanyProjectionPlan, CompanyQuarterlyReview, CompanyShareClass, CompanyShareholder } from "./types";
 
 const profileKey = (agencyId: string, companyId?: string | null) => companyId ? `${agencyId}:${companyId}` : agencyId;
 
@@ -22,6 +23,7 @@ const defaults = (agencyId: string, companyId?: string | null): CompanyProfile =
     salesHoursPerCall: 1,
     adminBufferPercent: 20,
     hiringTriggerPercent: 85,
+    areas: defaultCapacityAreas(),
     notes: "",
   },
   projection: {
@@ -57,7 +59,15 @@ const defaults = (agencyId: string, companyId?: string | null): CompanyProfile =
 
 export function getCompanyProfile(agencyId: string, companyId?: string | null): CompanyProfile {
   const key = profileKey(agencyId, companyId);
-  return { ...defaults(agencyId, companyId), ...getState().companyProfiles[key], agencyId, companyId: companyId || undefined };
+  const fallback = defaults(agencyId, companyId);
+  const stored = getState().companyProfiles[key];
+  return {
+    ...fallback,
+    ...stored,
+    capacity: cleanCapacity(stored?.capacity ?? fallback.capacity, fallback.capacity),
+    agencyId,
+    companyId: companyId || undefined,
+  };
 }
 
 export function updateCompanyProfile(
@@ -293,8 +303,36 @@ function cleanCapacity(value: unknown, fallback: CompanyCapacityPlan): CompanyCa
     salesHoursPerCall: cleanNumber(item.salesHoursPerCall, fallback.salesHoursPerCall, 0, 24),
     adminBufferPercent: cleanNumber(item.adminBufferPercent, fallback.adminBufferPercent, 0, 80),
     hiringTriggerPercent: cleanNumber(item.hiringTriggerPercent, fallback.hiringTriggerPercent, 1, 100),
+    areas: cleanCapacityAreas(item.areas, fallback.areas),
     notes: cleanText(item.notes, 2_000) || undefined,
   };
+}
+
+function cleanCapacityAreas(value: unknown, fallback: CompanyCapacityAreaPlan[]): CompanyCapacityAreaPlan[] {
+  const allowedIds: CompanyCapacityAreaId[] = ["growth", "sales", "client-success", "delivery", "operations", "finance", "systems"];
+  const engagements: CompanyCapacityAreaPlan["preferredEngagement"][] = ["full-time", "part-time", "contractor", "freelancer", "automation"];
+  const statuses: CompanyCapacityAreaPlan["hiringStatus"][] = ["monitoring", "approved", "recruiting", "filled", "paused"];
+  const source = Array.isArray(value) ? value : [];
+  const byId = new Map<CompanyCapacityAreaId, Partial<CompanyCapacityAreaPlan>>();
+  for (const raw of source) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<CompanyCapacityAreaPlan>;
+    if (allowedIds.includes(item.id as CompanyCapacityAreaId)) byId.set(item.id as CompanyCapacityAreaId, item);
+  }
+  return fallback.map(area => {
+    const item = byId.get(area.id) ?? {};
+    return {
+      id: area.id,
+      allocationPercent: cleanNumber(item.allocationPercent, area.allocationPercent, 0, 100),
+      demandAdjustmentHours: cleanNumber(item.demandAdjustmentHours, area.demandAdjustmentHours, -200, 500),
+      targetUtilisationPercent: cleanNumber(item.targetUtilisationPercent, area.targetUtilisationPercent, 20, 100),
+      roleTitle: cleanText(item.roleTitle, 160) || area.roleTitle,
+      preferredEngagement: engagements.includes(item.preferredEngagement as CompanyCapacityAreaPlan["preferredEngagement"]) ? item.preferredEngagement as CompanyCapacityAreaPlan["preferredEngagement"] : area.preferredEngagement,
+      hourlyCostCents: cleanNumber(item.hourlyCostCents, area.hourlyCostCents, 0, 1_000_000),
+      hiringStatus: statuses.includes(item.hiringStatus as CompanyCapacityAreaPlan["hiringStatus"]) ? item.hiringStatus as CompanyCapacityAreaPlan["hiringStatus"] : area.hiringStatus,
+      notes: cleanText(item.notes, 2_000) || undefined,
+    };
+  });
 }
 
 function cleanText(value: unknown, max: number): string {

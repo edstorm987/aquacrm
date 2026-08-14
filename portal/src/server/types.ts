@@ -1452,6 +1452,21 @@ export interface CompanyCapacityPlan {
   salesHoursPerCall: number;
   adminBufferPercent: number;
   hiringTriggerPercent: number;
+  areas: CompanyCapacityAreaPlan[];
+  notes?: string;
+}
+
+export type CompanyCapacityAreaId = "growth" | "sales" | "client-success" | "delivery" | "operations" | "finance" | "systems";
+
+export interface CompanyCapacityAreaPlan {
+  id: CompanyCapacityAreaId;
+  allocationPercent: number;
+  demandAdjustmentHours: number;
+  targetUtilisationPercent: number;
+  roleTitle: string;
+  preferredEngagement: "full-time" | "part-time" | "contractor" | "freelancer" | "automation";
+  hourlyCostCents: number;
+  hiringStatus: "monitoring" | "approved" | "recruiting" | "filled" | "paused";
   notes?: string;
 }
 

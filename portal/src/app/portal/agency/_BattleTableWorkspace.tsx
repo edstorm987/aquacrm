@@ -17,6 +17,7 @@ import {
   Gauge,
   Landmark,
   Layers3,
+  LoaderCircle,
   Map,
   Package,
   PlugZap,
@@ -28,11 +29,14 @@ import {
   Telescope,
   Trash2,
   TrendingUp,
+  UserPlus,
   UsersRound,
+  Zap,
 } from "lucide-react";
 
 import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/commandIntelligence";
-import type { CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyEvidenceSnapshot } from "@/server/types";
+import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, HIRING_CAPACITY_AREA_META, type HiringCapacityAreaAnalysis, type HiringCapacitySignals } from "@/lib/hiringCapacity";
+import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyEvidenceSnapshot } from "@/server/types";
 import { applyIntelligenceScope, KpiComparisonWorkspace } from "./_CommandIntelligenceWorkspace";
 import { CapitalOwnershipWorkspace } from "./_CapitalOwnershipWorkspace";
 import { QuarterlyStrategyReview } from "./_QuarterlyStrategyReview";
@@ -67,6 +71,7 @@ export type BattleTablePayload = {
   connectedSources: number;
   totalSources: number;
   canEdit: boolean;
+  capacitySignals: HiringCapacitySignals;
   scopes?: BattleTableScopePayload[];
 };
 
@@ -83,6 +88,7 @@ export type BattleTableScopePayload = {
   productCount: number;
   legalCount: number;
   coverage: string[];
+  capacitySignals: HiringCapacitySignals;
 };
 
 const sections: Array<{ id: BattleTableSection; label: string; icon: React.ReactNode }> = [
@@ -106,7 +112,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
   const scopedIntelligence = useMemo(() => applyIntelligenceScope(intelligence, intelligenceScope), [intelligence, intelligenceScope]);
   const [profiles, setProfiles] = useState<Record<string, CompanyProfile>>(() => Object.fromEntries(scopes.map(scope => [scope.id, scope.initial])));
   const company = profiles[selectedScope.id] ?? selectedScope.initial;
-  const activePayload: BattleTablePayload = { ...payload, companyName: selectedScope.label, initial: company, actuals: selectedScope.actuals, healthScore: selectedScope.healthScore, staffCount: selectedScope.staffCount, productCount: selectedScope.productCount, legalCount: selectedScope.legalCount };
+  const activePayload: BattleTablePayload = { ...payload, companyName: selectedScope.label, initial: company, actuals: selectedScope.actuals, healthScore: selectedScope.healthScore, staffCount: selectedScope.staffCount, productCount: selectedScope.productCount, legalCount: selectedScope.legalCount, capacitySignals: selectedScope.capacitySignals };
   const [section, setSection] = useState<BattleTableSection>(initialSection);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -182,7 +188,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
       {section === "strategy" ? <StrategyEditor key={`${selectedScope.id}:strategy`} company={company} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
       {section === "projections" ? <ProjectionWorkspace key={`${selectedScope.id}:projections`} payload={activePayload} company={company} calculations={calculations} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
       {section === "objectives" ? <ObjectivesWorkspace key={`${selectedScope.id}:objectives`} company={company} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
-      {section === "capacity" ? <CapacityWorkspace key={`${selectedScope.id}:capacity`} company={company} calculations={calculations} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
+      {section === "capacity" ? <CapacityWorkspace key={`${selectedScope.id}:capacity`} payload={activePayload} company={company} calculations={calculations} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
       {section === "plans" ? <PlansWorkspace key={`${selectedScope.id}:plans`} company={company} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
       {section === "capital" ? <CapitalOwnershipWorkspace key={`${selectedScope.id}:capital`} company={company} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
       {section === "reviews" ? <ReviewsWorkspace key={`${selectedScope.id}:reviews`} payload={activePayload} calculations={calculations} company={company} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
@@ -196,14 +202,16 @@ function StrategicOverview({ payload, company, calculations, onSelect }: { paylo
   const atRiskObjectives = activeObjectives.filter(item => item.status === "at-risk");
   const activePlans = company.plans.filter(item => item.status === "active" || item.status === "planned");
   const capitalExceptions = capitalAttentionCount(company);
+  const hiring = hiringAnalysis(payload, company);
   return <div className="grid min-w-0 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.72fr)]">
     <div className="min-w-0 border-b border-[#d7b56d]/16 xl:border-b-0 xl:border-r">
-      <div className="grid grid-cols-2 border-b border-[#d7b56d]/16 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 border-b border-[#d7b56d]/16 sm:grid-cols-3 lg:grid-cols-6">
         <BattleMetric label="Strategic health" value={`${payload.healthScore} pts`} detail={`Of 100 weighted points · ${payload.healthScore < 40 ? "recovery required" : payload.healthScore < 70 ? "watch position" : "plan holding"}`} tone={payload.healthScore < 40 ? "critical" : payload.healthScore < 70 ? "warning" : "clear"} />
         <BattleMetric label="Revenue position" value={`${calculations.revenueProgress}%`} detail={`${money(payload.actuals.monthRevenueCents, payload.actuals.currency)} / ${money(company.monthlyRevenueTargetCents, payload.actuals.currency)}`} tone={calculations.revenueProgress < 50 ? "critical" : calculations.revenueProgress < 80 ? "warning" : "clear"} />
         <BattleMetric label="Objective readiness" value={`${calculations.objectiveProgress}%`} detail={`Mean progress across ${company.objectives.length} objective${company.objectives.length === 1 ? "" : "s"} · ${atRiskObjectives.length} at risk`} tone={atRiskObjectives.length ? "warning" : "clear"} />
         <BattleMetric label="Capacity load" value={`${calculations.capacity.utilisationPercent}%`} detail={`${calculations.capacity.requiredHours}h required / ${company.capacity.weeklyAvailableHours}h available · ${calculations.capacity.headroomHours}h headroom`} tone={calculations.capacity.utilisationPercent >= company.capacity.hiringTriggerPercent ? "critical" : calculations.capacity.utilisationPercent >= 70 ? "warning" : "clear"} />
         <BattleMetric label="Target gap" value={money(calculations.revenueGapCents, payload.actuals.currency)} detail={`${calculations.dealsNeeded} deals / ${calculations.callsNeeded} calls`} tone={calculations.revenueGapCents ? "warning" : "clear"} />
+        <button type="button" onClick={() => onSelect("capacity")} className="border-b border-r border-[#d7b56d]/12 bg-[#071116]/76 px-4 py-4 text-left hover:bg-[#d7b56d]/[0.05]"><p className={`text-[9px] font-semibold uppercase ${hiring.hireNowCount ? "text-red-300" : hiring.prepareCount ? "text-amber-200" : "text-[#68f5d0]"}`}>Hiring signal</p><strong className="mt-2 block text-2xl tabular-nums">{hiring.hireNowCount ? `${hiring.hireNowCount} now` : hiring.prepareCount ? `${hiring.prepareCount} prepare` : "Hold"}</strong><span className="mt-1 block text-[10px] leading-4 text-white/35">{hiring.primary ? `${hiring.primary.label} · ${hiring.primary.gapHours}h gap · ${hiring.primary.roleTitle}` : "No area has crossed its guardrail"}</span></button>
       </div>
 
       <section className="p-4 sm:p-6" aria-label="Executive projection plot">
@@ -325,13 +333,83 @@ function ObjectivesWorkspace({ company, canEdit, saving, onSave }: WorkspaceProp
   </BattleSection>;
 }
 
-function CapacityWorkspace({ company, calculations, canEdit, saving, onSave }: WorkspaceProps & { calculations: StrategicCalculations }) {
+function CapacityWorkspace({ payload, company, calculations, canEdit, saving, onSave }: WorkspaceProps & { payload: BattleTablePayload; calculations: StrategicCalculations }) {
   const [draft, setDraft] = useState(company);
+  const [taskBusy, setTaskBusy] = useState("");
+  const [accepted, setAccepted] = useState<string[]>([]);
+  const [taskError, setTaskError] = useState("");
   const capacity = strategicCalculations(draft, calculations.actuals).capacity;
-  return <BattleSection eyebrow="Force capacity" title="Can the business deliver the strategy?" detail="Translate active clients and required sales activity into weekly load before adding commitments.">
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div><div className="grid grid-cols-2 border border-[#d7b56d]/18 md:grid-cols-4"><PlotReadout label="Available" value={`${draft.capacity.weeklyAvailableHours}h`} detail="Weekly capacity" /><PlotReadout label="Required" value={`${capacity.requiredHours}h`} detail="Delivery, sales and admin" /><PlotReadout label="Headroom" value={`${capacity.headroomHours}h`} detail={capacity.headroomHours >= 0 ? "Capacity available" : "Over capacity"} tone={capacity.headroomHours >= 0 ? "aqua" : "critical"} /><PlotReadout label="Utilisation" value={`${capacity.utilisationPercent}%`} detail={`${draft.capacity.hiringTriggerPercent}% hiring trigger`} tone={capacity.utilisationPercent >= draft.capacity.hiringTriggerPercent ? "critical" : "gold"} /></div><div className="mt-5 border border-white/10 bg-[#071116]/74 p-5"><div className="h-4 overflow-hidden bg-white/[0.06]"><div className={`h-full transition-all ${capacity.utilisationPercent >= draft.capacity.hiringTriggerPercent ? "bg-red-400" : "bg-[#62e8ff]"}`} style={{ width: `${Math.min(100, capacity.utilisationPercent)}%` }} /></div><div className="mt-5 divide-y divide-white/10 text-xs"><CapacityRow label="Client delivery" detail={`${calculations.actuals.activeClients} clients x ${draft.capacity.deliveryHoursPerActiveClient}h`} value={`${capacity.deliveryHours}h`} /><CapacityRow label="Sales activity" detail={`${calculations.callsNeeded} calls/month x ${draft.capacity.salesHoursPerCall}h`} value={`${capacity.salesHours}h`} /><CapacityRow label="Admin reserve" detail={`${draft.capacity.adminBufferPercent}% operating buffer`} value={`${capacity.bufferHours}h`} /></div></div></div>
-      <div className="border border-[#d7b56d]/18 bg-[#071116]/82 p-4"><h3 className="text-sm font-semibold">Capacity assumptions</h3><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1"><BattleNumber label="Weekly available hours" value={draft.capacity.weeklyAvailableHours} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, weeklyAvailableHours: value } }))} disabled={!canEdit} /><BattleNumber label="Delivery hours per client" value={draft.capacity.deliveryHoursPerActiveClient} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, deliveryHoursPerActiveClient: value } }))} disabled={!canEdit} /><BattleNumber label="Sales hours per call" value={draft.capacity.salesHoursPerCall} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, salesHoursPerCall: value } }))} disabled={!canEdit} /><BattleNumber label="Admin buffer" suffix="%" value={draft.capacity.adminBufferPercent} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, adminBufferPercent: value } }))} disabled={!canEdit} /><BattleNumber label="Hiring trigger" suffix="%" value={draft.capacity.hiringTriggerPercent} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, hiringTriggerPercent: value } }))} disabled={!canEdit} /><BattleField label="Capacity notes"><textarea disabled={!canEdit} value={draft.capacity.notes ?? ""} onChange={event => setDraft(item => ({ ...item, capacity: { ...item.capacity, notes: event.target.value } }))} className={battleTextarea} /></BattleField></div>{canEdit ? <SaveButton saving={saving} label="Save capacity model" onClick={() => void onSave(draft, "Capacity model saved.")} /> : null}</div>
+  const hiring = hiringAnalysis(payload, draft);
+  const recommendations = hiring.ranked.filter(area => area.state !== "balanced");
+
+  function updateArea(id: CompanyCapacityAreaId, patch: Partial<CompanyCapacityAreaPlan>) {
+    setDraft(current => ({ ...current, capacity: { ...current.capacity, areas: current.capacity.areas.map(area => area.id === id ? { ...area, ...patch } : area) } }));
+  }
+
+  async function acceptRecommendation(area: HiringCapacityAreaAnalysis) {
+    setTaskBusy(area.id);
+    setTaskError("");
+    try {
+      const response = await fetch("/api/portal/tasks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: `Hiring decision: ${area.roleTitle}`,
+          notes: `${area.label} is operating at ${area.utilisationPercent}% against a ${area.targetUtilisationPercent}% guardrail. Assess ${area.preferredEngagement} capacity of about ${area.recommendedWeeklyHours}h/week.`,
+          priority: area.state === "hire-now" ? "urgent" : "high",
+          origin: "radar",
+          sourceId: `hiring-capacity:${company.companyId ?? "ecosystem"}:${area.id}`,
+          sourceHref: `/portal/agency?station=battle&battle=capacity${company.companyId ? `&scope=company:${company.companyId}` : ""}`,
+          evidence: area.evidence,
+          evidenceSourceIds: [`team:capacity:${area.id}`, "company:capacity", "team:hiring"],
+          expectedOutcome: `Approve, reject, automate, contract or recruit the ${area.roleTitle} capacity decision with an owner, budget and start date.`,
+          dueAt: Date.now() + (area.state === "hire-now" ? 2 : 7) * 86_400_000,
+        }),
+      });
+      const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || !result?.ok) throw new Error(result?.error || "The hiring action could not be created.");
+      setAccepted(current => [...current, area.id]);
+    } catch (cause) {
+      setTaskError(cause instanceof Error ? cause.message : "The hiring action could not be created.");
+    } finally {
+      setTaskBusy("");
+    }
+  }
+
+  return <BattleSection eyebrow="Force capacity" title="Can the business deliver the strategy?" detail="Area-level capacity turns workload, team hours, pipeline demand and targets into ranked hiring decisions. The model shows its evidence and assumptions; it never treats a suggested hire as approved work until you accept it.">
+    <div className="grid grid-cols-2 border border-[#d7b56d]/18 lg:grid-cols-6">
+      <PlotReadout label="Available" value={`${draft.capacity.weeklyAvailableHours}h`} detail="Authoritative weekly capacity" />
+      <PlotReadout label="Required" value={`${capacity.requiredHours}h`} detail="Delivery, sales and admin" />
+      <PlotReadout label="Area gaps" value={`${hiring.totalGapHours}h`} detail="Above area guardrails" tone={hiring.totalGapHours ? "critical" : "aqua"} />
+      <PlotReadout label="Hire now" value={String(hiring.hireNowCount)} detail="High-impact constraints" tone={hiring.hireNowCount ? "critical" : "aqua"} />
+      <PlotReadout label="Prepare" value={String(hiring.prepareCount)} detail="Build a hiring bench" tone={hiring.prepareCount ? "gold" : "aqua"} />
+      <PlotReadout label="Capacity value" value={money(hiring.estimatedMonthlyCapacityValueCents, payload.actuals.currency)} detail={`${money(hiring.estimatedMonthlyCostCents, payload.actuals.currency)} modelled monthly cost`} tone="gold" />
+    </div>
+
+    <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0">
+        <section className="border border-white/10 bg-[#071116]/74">
+          <header className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 p-4"><div><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Hiring intelligence · ranked by constraint and impact</p><h3 className="mt-1 text-base font-semibold">Where the next unit of capacity matters most</h3></div><span className="border border-[#d7b56d]/20 px-2.5 py-1.5 text-[8px] font-semibold uppercase text-[#e4c783]">{payload.companyName}</span></header>
+          {taskError ? <p role="alert" className="border-b border-red-300/20 bg-red-400/[0.08] px-4 py-3 text-xs text-red-200">{taskError}</p> : null}
+          <div className="divide-y divide-white/10">
+            {recommendations.slice(0, 5).map((area, index) => <HiringRecommendationRow key={area.id} area={area} rank={index + 1} currency={payload.actuals.currency} busy={taskBusy === area.id} accepted={accepted.includes(area.id)} onAccept={() => void acceptRecommendation(area)} />)}
+            {!recommendations.length ? <div className="px-5 py-10 text-center"><CheckCircle2 className="mx-auto text-[#68f5d0]" size={24} /><p className="mt-3 text-sm font-semibold">No hiring guardrail is currently crossed</p><p className="mx-auto mt-1 max-w-xl text-xs leading-5 text-white/38">Keep the area allocations current. Radar will promote a recommendation when demand, backlog or utilisation changes.</p></div> : null}
+          </div>
+        </section>
+
+        <section className="mt-5 border border-white/10 bg-[#071116]/74">
+          <header className="border-b border-white/10 p-4"><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Area capacity map</p><h3 className="mt-1 text-base font-semibold">Every operating area on one decision surface</h3></header>
+          <div className="grid md:grid-cols-2 2xl:grid-cols-3">{hiring.areas.map(area => <CapacityAreaCard key={area.id} area={area} />)}</div>
+        </section>
+      </div>
+
+      <div className="h-fit border border-[#d7b56d]/18 bg-[#071116]/82 p-4">
+        <h3 className="text-sm font-semibold">Capacity assumptions</h3>
+        <p className="mt-1 text-[10px] leading-4 text-white/35">People hours are used where recorded. Remaining shared hours follow the allocation percentages below.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1"><BattleNumber label="Weekly available hours" value={draft.capacity.weeklyAvailableHours} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, weeklyAvailableHours: value } }))} disabled={!canEdit} /><BattleNumber label="Delivery hours per client" value={draft.capacity.deliveryHoursPerActiveClient} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, deliveryHoursPerActiveClient: value } }))} disabled={!canEdit} /><BattleNumber label="Sales hours per call" value={draft.capacity.salesHoursPerCall} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, salesHoursPerCall: value } }))} disabled={!canEdit} /><BattleNumber label="Admin buffer" suffix="%" value={draft.capacity.adminBufferPercent} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, adminBufferPercent: value } }))} disabled={!canEdit} /><BattleNumber label="Overall hiring trigger" suffix="%" value={draft.capacity.hiringTriggerPercent} onChange={value => setDraft(item => ({ ...item, capacity: { ...item.capacity, hiringTriggerPercent: value } }))} disabled={!canEdit} /><BattleField label="Capacity notes"><textarea disabled={!canEdit} value={draft.capacity.notes ?? ""} onChange={event => setDraft(item => ({ ...item, capacity: { ...item.capacity, notes: event.target.value } }))} className={battleTextarea} /></BattleField></div>
+        <div className="mt-5 border-t border-[#d7b56d]/15 pt-4"><div className="flex items-center justify-between gap-3"><p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Area controls</p><span className={`text-[9px] font-semibold uppercase ${draft.capacity.areas.reduce((sum, area) => sum + area.allocationPercent, 0) === 100 ? "text-[#68f5d0]" : "text-[#ffd45c]"}`}>{draft.capacity.areas.reduce((sum, area) => sum + area.allocationPercent, 0)}% configured · normalised automatically</span></div><div className="mt-3 space-y-2">{draft.capacity.areas.map(area => <details key={area.id} className="border border-white/10 bg-black/10"><summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 text-xs font-semibold"><span>{HIRING_CAPACITY_AREA_META.find(item => item.id === area.id)?.label}</span><span className="text-[9px] text-[#62e8ff]">{area.allocationPercent}% · {area.targetUtilisationPercent}% guardrail</span></summary><div className="grid gap-3 border-t border-white/10 p-3"><div className="grid grid-cols-2 gap-3"><BattleNumber label="Capacity allocation" suffix="%" value={area.allocationPercent} onChange={value => updateArea(area.id, { allocationPercent: value })} disabled={!canEdit} /><BattleNumber label="Area guardrail" suffix="%" value={area.targetUtilisationPercent} onChange={value => updateArea(area.id, { targetUtilisationPercent: value })} disabled={!canEdit} /><BattleNumber label="Demand adjustment" suffix="h" value={area.demandAdjustmentHours} onChange={value => updateArea(area.id, { demandAdjustmentHours: value })} disabled={!canEdit} /><BattleNumber label="Hourly cost" prefix={currencySymbol(payload.actuals.currency)} value={area.hourlyCostCents / 100} onChange={value => updateArea(area.id, { hourlyCostCents: Math.max(0, Math.round(value * 100)) })} disabled={!canEdit} /></div><BattleText label="Recommended role" value={area.roleTitle} onChange={roleTitle => updateArea(area.id, { roleTitle })} disabled={!canEdit} /><label className={battleLabel}>Engagement<select value={area.preferredEngagement} disabled={!canEdit} onChange={event => updateArea(area.id, { preferredEngagement: event.target.value as CompanyCapacityAreaPlan["preferredEngagement"] })} className={battleControl}><option value="full-time">Full time</option><option value="part-time">Part time</option><option value="contractor">Contractor</option><option value="freelancer">Freelancer</option><option value="automation">Automation</option></select></label><label className={battleLabel}>Hiring state<select value={area.hiringStatus} disabled={!canEdit} onChange={event => updateArea(area.id, { hiringStatus: event.target.value as CompanyCapacityAreaPlan["hiringStatus"] })} className={battleControl}><option value="monitoring">Monitoring</option><option value="approved">Approved</option><option value="recruiting">Recruiting</option><option value="filled">Filled</option><option value="paused">Paused</option></select></label></div></details>)}</div></div>
+        {canEdit ? <SaveButton saving={saving} label="Save capacity and hiring model" onClick={() => void onSave(draft, "Capacity and hiring model saved.")} /> : null}
+      </div>
     </div>
   </BattleSection>;
 }
@@ -420,6 +498,26 @@ function strategicCalculations(company: CompanyProfile, actuals: BattleTableActu
   };
 }
 
+function hiringAnalysis(payload: BattleTablePayload, company: CompanyProfile) {
+  return buildHiringCapacityAnalysis({
+    capacity: company.capacity,
+    actuals: {
+      monthlyRevenueTargetCents: company.monthlyRevenueTargetCents,
+      monthRevenueCents: payload.actuals.monthRevenueCents,
+      averageDealValueCents: company.averageDealValueCents,
+      salesCallCloseRatePercent: company.salesCallCloseRatePercent,
+      activeClients: payload.actuals.activeClients,
+      clientsNeedingAttention: payload.actuals.clientsNeedingAttention,
+      leadCount: payload.actuals.leadCount,
+      meetingsThisMonth: payload.actuals.meetingsThisMonth,
+      productCount: payload.productCount,
+      legalCount: payload.legalCount,
+      financeConnected: payload.actuals.financeConnected,
+    },
+    signals: payload.capacitySignals,
+  });
+}
+
 function ProjectionChart({ calculations, currency, large = false }: { calculations: StrategicCalculations; currency: string; large?: boolean }) {
   const width = 900;
   const height = large ? 320 : 250;
@@ -458,11 +556,52 @@ function ObjectiveReadout({ item }: { item: CompanyObjective }) { const progress
 function StatusChip({ status }: { status: CompanyObjective["status"] }) { return <span className={`px-2 py-0.5 text-[8px] font-semibold uppercase ${status === "at-risk" ? "bg-amber-300/10 text-amber-200" : status === "complete" ? "bg-emerald-300/10 text-emerald-200" : "bg-sky-300/10 text-sky-200"}`}>{status.replace("-", " ")}</span>; }
 function DoctrineRow({ label, ready }: { label: string; ready: boolean }) { return <div className="flex items-center justify-between py-3"><dt className="text-white/45">{label}</dt><dd className={ready ? "text-[#68f5d0]" : "text-amber-200"}>{ready ? <CheckCircle2 size={15} /> : <CircleAlert size={15} />}</dd></div>; }
 function CapacityRow({ label, detail, value }: { label: string; detail: string; value: string }) { return <div className="grid gap-1 py-3 sm:grid-cols-[140px_1fr_70px]"><strong className="text-white/70">{label}</strong><span className="text-white/35">{detail}</span><span className="text-right font-semibold text-[#f1dba9]">{value}</span></div>; }
+function HiringRecommendationRow({ area, rank, currency, busy, accepted, onAccept }: { area: HiringCapacityAreaAnalysis; rank: number; currency: string; busy: boolean; accepted: boolean; onAccept: () => void }) {
+  const tone = hiringTone(area.state);
+  return <article className="grid gap-4 p-4 lg:grid-cols-[42px_minmax(0,1fr)_minmax(210px,.48fr)] lg:items-start">
+    <span className={`grid size-10 place-items-center border text-xs font-semibold ${tone.box}`}>{String(rank).padStart(2, "0")}</span>
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2"><span className={`px-2 py-1 text-[8px] font-semibold uppercase ${tone.badge}`}>{hiringStateLabel(area.state)}</span><span className="text-[8px] font-semibold uppercase text-white/30">{area.confidence} confidence · score {area.impactScore}</span></div>
+      <h4 className="mt-2 text-sm font-semibold text-white/84">{area.roleTitle}</h4>
+      <p className="mt-1 text-xs leading-5 text-white/42">{area.label} needs approximately {area.recommendedWeeklyHours}h/week of {area.preferredEngagement.replace("-", " ")} capacity. The current model shows a {area.gapHours}h weekly gap.</p>
+      <details className="mt-3"><summary className="cursor-pointer text-[9px] font-semibold uppercase text-[#62e8ff]">Inspect evidence</summary><ul className="mt-2 space-y-1 border-l border-[#62e8ff]/18 pl-3 text-[10px] leading-4 text-white/38">{area.evidence.map(item => <li key={item}>{item}</li>)}</ul></details>
+    </div>
+    <div className="grid grid-cols-2 border border-white/10">
+      <HiringReadout label="Utilisation" value={`${area.utilisationPercent}%`} detail={`${area.targetUtilisationPercent}% guardrail`} tone={area.state === "hire-now" ? "critical" : "gold"} />
+      <HiringReadout label="Weekly gap" value={`${area.gapHours}h`} detail={`${area.demandHours}h demand`} tone={area.gapHours ? "critical" : "aqua"} />
+      <HiringReadout label="Modelled cost" value={money(area.estimatedMonthlyCostCents, currency)} detail="Per month" />
+      <HiringReadout label="Capacity value" value={money(area.estimatedMonthlyCapacityValueCents, currency)} detail={area.roiMultiple === null ? "No cost baseline" : `${area.roiMultiple}x gross capacity value`} tone="gold" />
+      <button type="button" disabled={busy || accepted} onClick={onAccept} className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 border-t border-[#68f5d0]/18 bg-[#68f5d0]/[0.055] px-3 text-[9px] font-semibold uppercase text-[#68f5d0] hover:bg-[#68f5d0]/[0.1] disabled:cursor-not-allowed disabled:opacity-55">{busy ? <LoaderCircle size={13} className="animate-spin" /> : accepted ? <Check size={13} /> : <Plus size={13} />}{accepted ? "Added to Actions" : "Accept hiring action"}</button>
+      <Link href="/portal/agency/people?view=candidates" className="col-span-2 inline-flex min-h-9 items-center justify-center gap-2 border-t border-white/10 text-[9px] font-semibold uppercase text-[#e4c783] hover:bg-[#d7b56d]/[0.06]"><UserPlus size={13} /> Open recruitment</Link>
+    </div>
+  </article>;
+}
+
+function CapacityAreaCard({ area }: { area: HiringCapacityAreaAnalysis }) {
+  const tone = hiringTone(area.state);
+  return <article className="border-b border-r border-white/10 p-4">
+    <div className="flex items-start justify-between gap-3"><div><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">{area.id.replace("-", " ")}</p><h4 className="mt-1 text-sm font-semibold">{area.label}</h4></div><span className={`px-2 py-1 text-[8px] font-semibold uppercase ${tone.badge}`}>{hiringStateLabel(area.state)}</span></div>
+    <div className="mt-4 flex items-end justify-between gap-3"><div><strong className={`text-2xl tabular-nums ${tone.text}`}>{area.utilisationPercent}%</strong><p className="mt-1 text-[9px] text-white/32">{area.demandHours}h demand / {area.availableHours}h capacity</p></div><Zap size={16} className={tone.text} /></div>
+    <div className="mt-3 h-1.5 overflow-hidden bg-white/[0.06]"><div className={`h-full ${tone.bar}`} style={{ width: `${Math.min(100, area.utilisationPercent)}%` }} /></div>
+    <div className="mt-4 grid grid-cols-3 gap-px bg-white/10 text-center"><MiniCapacity label="Gap" value={`${area.gapHours}h`} /><MiniCapacity label="People" value={String(area.peopleCount)} /><MiniCapacity label="Tasks" value={`${area.openTaskHours}h`} /></div>
+    <p className="mt-3 truncate text-[10px] text-white/38" title={area.roleTitle}>{area.roleTitle}</p>
+  </article>;
+}
+
+function HiringReadout({ label, value, detail, tone = "aqua" }: { label: string; value: string; detail: string; tone?: "aqua" | "gold" | "critical" }) { return <div className="border-b border-r border-white/10 p-2.5"><p className="text-[7px] font-semibold uppercase text-white/28">{label}</p><strong className={`mt-1 block text-xs ${tone === "critical" ? "text-red-300" : tone === "gold" ? "text-[#f1dba9]" : "text-[#62e8ff]"}`}>{value}</strong><span className="mt-0.5 block text-[7px] leading-3 text-white/25">{detail}</span></div>; }
+function MiniCapacity({ label, value }: { label: string; value: string }) { return <div className="bg-[#071116] px-2 py-2"><span className="block text-[7px] font-semibold uppercase text-white/25">{label}</span><strong className="mt-0.5 block text-[10px] text-white/65">{value}</strong></div>; }
+function hiringStateLabel(state: HiringCapacityAreaAnalysis["state"]): string { return state === "hire-now" ? "Hire now" : state === "prepare" ? "Prepare" : state === "watch" ? "Watch" : "Balanced"; }
+function hiringTone(state: HiringCapacityAreaAnalysis["state"]) {
+  if (state === "hire-now") return { text: "text-red-300", bar: "bg-red-400", badge: "bg-red-400/10 text-red-200", box: "border-red-300/24 bg-red-400/[0.07] text-red-200" };
+  if (state === "prepare") return { text: "text-amber-200", bar: "bg-amber-300", badge: "bg-amber-300/10 text-amber-200", box: "border-amber-300/24 bg-amber-300/[0.07] text-amber-200" };
+  if (state === "watch") return { text: "text-sky-200", bar: "bg-sky-300", badge: "bg-sky-300/10 text-sky-200", box: "border-sky-300/24 bg-sky-300/[0.07] text-sky-200" };
+  return { text: "text-[#68f5d0]", bar: "bg-[#68f5d0]", badge: "bg-[#68f5d0]/10 text-[#68f5d0]", box: "border-[#68f5d0]/24 bg-[#68f5d0]/[0.07] text-[#68f5d0]" };
+}
 function ReviewBlock({ label, value }: { label: string; value: string }) { return <div><h3 className="text-[9px] font-semibold uppercase text-[#e4c783]/55">{label}</h3><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-white/45">{value || "Nothing recorded."}</p></div>; }
 function EmptyBattle({ title, detail }: { title: string; detail: string }) { return <div className="border border-dashed border-white/12 p-8 text-center lg:col-span-2"><Target size={22} className="mx-auto text-white/20" /><strong className="mt-3 block text-sm text-white/50">{title}</strong><p className="mt-1 text-xs text-white/28">{detail}</p></div>; }
 function SaveButton({ saving, label, onClick }: { saving: boolean; label: string; onClick: () => void }) { return <div className="mt-4 flex justify-end"><button type="button" disabled={saving} onClick={onClick} className={battlePrimaryButton}>{saving ? <span className="size-3 animate-spin rounded-full border border-current border-t-transparent" /> : <Save size={14} />}{saving ? "Saving" : label}</button></div>; }
 function BattleField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) { return <label className={battleLabel}>{label}{hint ? <span className="font-normal normal-case leading-4 text-white/30">{hint}</span> : null}{children}</label>; }
-function BattleText({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className={battleLabel}>{label}<input value={value} onChange={event => onChange(event.target.value)} className={battleControl} /></label>; }
+function BattleText({ label, value, onChange, disabled }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) { return <label className={battleLabel}>{label}<input value={value} disabled={disabled} onChange={event => onChange(event.target.value)} className={battleControl} /></label>; }
 function BattleNumber({ label, value, onChange, prefix, suffix, disabled }: { label: string; value: number; onChange: (value: number) => void; prefix?: string; suffix?: string; disabled?: boolean }) { return <label className={battleLabel}>{label}<span className="relative">{prefix ? <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35">{prefix}</span> : null}<input type="number" value={Number.isFinite(value) ? value : 0} disabled={disabled} onChange={event => onChange(Number(event.target.value))} className={`${battleControl} ${prefix ? "pl-7" : ""} ${suffix ? "pr-14" : ""}`} />{suffix ? <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/35">{suffix}</span> : null}</span></label>; }
 function Legend({ colour, label }: { colour: string; label: string }) { return <span className="inline-flex items-center gap-2 text-white/45"><span className="h-0.5 w-5" style={{ backgroundColor: colour }} />{label}</span>; }
 
@@ -508,5 +647,6 @@ function fallbackBattleScope(payload: BattleTablePayload): BattleTableScopePaylo
     productCount: payload.productCount,
     legalCount: payload.legalCount,
     coverage: ["finance", "clients", "pipeline", "tasks", "people", "products"],
+    capacitySignals: payload.capacitySignals ?? emptyHiringCapacitySignals(),
   };
 }

@@ -52,6 +52,8 @@ import type { CompanyHealthActuals } from "@/lib/server/companyHealthSnapshot";
 import type { BrandPortfolioRow } from "@/lib/brandPortfolio";
 import type { BattleTableScopePayload } from "./_BattleTableWorkspace";
 import { BrandPortfolioInstrument } from "./_BrandPortfolioInstrument";
+import { buildHiringCapacitySignals } from "@/lib/hiringCapacity";
+import { listPeopleEmployees } from "@/server/people";
 
 export default async function AgencyHome() {
   await ensureHydrated();
@@ -135,6 +137,8 @@ export default async function AgencyHome() {
   const advisorConfigured = isAssistantConfigured(agency.id);
   const assistantContext = buildAssistantBusinessContext(agency.id);
   const staffUsers = listUsersForAgency(agency.id).filter(user => user.role.startsWith("agency-"));
+  const peopleEmployees = listPeopleEmployees(agency.id);
+  const aggregateCapacitySignals = buildHiringCapacitySignals({ tasks, people: peopleEmployees, now: recommendationTime });
   const legalDocuments = listLegalDocuments(agency.id);
   const battleTableScopes = buildBattleTableScopes({
     aggregate: {
@@ -145,8 +149,11 @@ export default async function AgencyHome() {
       staffCount: staffUsers.length,
       productCount: products.length,
       legalCount: legalDocuments.length,
+      capacitySignals: aggregateCapacitySignals,
     },
     rows: brandPortfolio.rows,
+    staffUsers,
+    peopleEmployees,
     financeConnected: brandPortfolio.financeConnected,
     legalDocuments,
     now: recommendationTime,
@@ -353,6 +360,7 @@ export default async function AgencyHome() {
           connectedSources: businessRadar.summary.connectedSources,
           totalSources: businessRadar.summary.totalSources,
           canEdit: session.role === "agency-owner" || session.role === "agency-manager",
+          capacitySignals: aggregateCapacitySignals,
           scopes: battleTableScopes,
         }}
         executiveWorkspace={executiveWorkspace}
@@ -549,8 +557,10 @@ function heroIncidentTone(severity: "critical" | "warning" | "watch"): string {
 }
 
 function buildBattleTableScopes(input: {
-  aggregate: { companyName: string; initial: ReturnType<typeof getCompanyProfile>; actuals: CompanyHealthActuals; healthScore: number; staffCount: number; productCount: number; legalCount: number };
+  aggregate: { companyName: string; initial: ReturnType<typeof getCompanyProfile>; actuals: CompanyHealthActuals; healthScore: number; staffCount: number; productCount: number; legalCount: number; capacitySignals: ReturnType<typeof buildHiringCapacitySignals> };
   rows: BrandPortfolioRow[];
+  staffUsers: ReturnType<typeof listUsersForAgency>;
+  peopleEmployees: ReturnType<typeof listPeopleEmployees>;
   financeConnected: boolean;
   legalDocuments: ReturnType<typeof listLegalDocuments>;
   now: number;
@@ -567,6 +577,7 @@ function buildBattleTableScopes(input: {
     staffCount: input.aggregate.staffCount,
     productCount: input.aggregate.productCount,
     legalCount: input.aggregate.legalCount,
+    capacitySignals: input.aggregate.capacitySignals,
     coverage: ["all finance", "all clients", "all leads", "all tasks", "all people", "all offers"],
   };
   const date = new Date(input.now);
@@ -604,6 +615,8 @@ function buildBattleTableScopes(input: {
       openTasks: 0,
       overdueTasks: 0,
     });
+    const companyUserIds = new Set(input.staffUsers.filter(user => user.companyIds?.includes(row.id)).map(user => user.id));
+    const scopedPeople = input.peopleEmployees.filter(employee => Boolean(employee.userId && companyUserIds.has(employee.userId)));
     return {
       id: `company:${row.id}`,
       companyId: row.id,
@@ -616,6 +629,7 @@ function buildBattleTableScopes(input: {
       staffCount: row.staffCount,
       productCount: row.productCount,
       legalCount: input.legalDocuments.filter(document => document.companyIds?.includes(row.id)).length,
+      capacitySignals: buildHiringCapacitySignals({ people: scopedPeople, now: input.now }),
       coverage: ["allocated finance", "allocated clients", "allocated leads", "allocated people", "allocated offers", "shared tasks excluded"],
     };
   });

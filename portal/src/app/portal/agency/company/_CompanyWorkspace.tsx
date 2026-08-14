@@ -623,6 +623,7 @@ function CapacityEditor({ company, onSave }: { company: CompanyProfile; onSave: 
               salesHoursPerCall: Math.max(0, Number(sales || 0)),
               adminBufferPercent: Math.max(0, Number(buffer || 0)),
               hiringTriggerPercent: Math.max(1, Number(trigger || 0)),
+              areas: company.capacity.areas,
               notes,
             },
           });

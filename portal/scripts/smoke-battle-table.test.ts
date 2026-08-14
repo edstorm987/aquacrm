@@ -77,6 +77,38 @@ test("Battle Table keeps parent and trading-brand projections independent", asyn
   assert.notEqual(company.getCompanyProfile(agency.id, null).projection.targetMonthlyGrowthPercent, 22);
 });
 
+test("Battle Table retains bounded area hiring assumptions for existing and new profiles", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Hiring Capacity Test", slug: "hiring-capacity-test" });
+  const initial = company.getCompanyProfile(agency.id);
+  assert.equal(initial.capacity.areas.length, 7);
+
+  const updated = company.updateCompanyProfile(agency.id, {
+    capacity: {
+      ...initial.capacity,
+      areas: initial.capacity.areas.map(area => area.id === "delivery" ? {
+        ...area,
+        allocationPercent: 140,
+        demandAdjustmentHours: 900,
+        targetUtilisationPercent: 5,
+        roleTitle: "Senior delivery lead",
+        preferredEngagement: "full-time",
+        hourlyCostCents: 999_999_999,
+        hiringStatus: "approved",
+      } : area),
+    },
+  }, "executive_test");
+
+  const delivery = updated.capacity.areas.find(area => area.id === "delivery");
+  assert.equal(delivery?.allocationPercent, 100);
+  assert.equal(delivery?.demandAdjustmentHours, 500);
+  assert.equal(delivery?.targetUtilisationPercent, 20);
+  assert.equal(delivery?.hourlyCostCents, 1_000_000);
+  assert.equal(delivery?.roleTitle, "Senior delivery lead");
+  assert.equal(delivery?.hiringStatus, "approved");
+  assert.equal(company.getCompanyProfile(agency.id).capacity.areas.length, 7);
+});
+
 test("Battle Table retains a complete evidence-backed quarterly strategy cycle", async () => {
   await storage.reset();
   const agency = tenants.createAgency({ name: "Quarterly Review Test", slug: "quarterly-review-test" });
@@ -176,7 +208,7 @@ test("Battle Table is the third command station and owns every executive control
   for (const station of ["Strategic plot", "KPI intelligence", "Direction", "Projections", "Objectives", "Capacity", "Plans", "Capital & ownership", "Reviews", "Executive systems"]) {
     assert.match(table, new RegExp(station));
   }
-  for (const workingControl of ["Revenue trajectory and target corridor", "Run scenarios", "Objective command", "Capacity assumptions", "Every supporting system remains one move away"]) {
+  for (const workingControl of ["Revenue trajectory and target corridor", "Run scenarios", "Objective command", "Capacity assumptions", "Hiring intelligence", "Where the next unit of capacity matters most", "Accept hiring action", "Area capacity map", "Every supporting system remains one move away"]) {
     assert.match(table, new RegExp(workingControl));
   }
   assert.match(table, /QuarterlyStrategyReview/);

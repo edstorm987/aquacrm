@@ -209,6 +209,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
     company.objectives.map(item => `${item.title} ${item.metric}`).join(" "),
     company.plans.map(item => `${item.title} ${item.notes ?? ""}`).join(" "),
     company.reviews.map(item => `${item.period} ${item.wins} ${item.lessons} ${item.decisions} ${item.nextPriorities}`).join(" "),
+    company.capacity.areas.map(item => `${item.id} ${item.roleTitle} ${item.preferredEngagement} ${item.hiringStatus} ${item.allocationPercent}% ${item.targetUtilisationPercent}% ${item.notes ?? ""}`).join(" "),
     company.capital.shareClasses.map(item => `${item.name} ${item.notes ?? ""}`).join(" "),
     company.capital.shareholders.map(item => `${item.name} ${item.kind} ${item.notes ?? ""}`).join(" "),
     company.capital.transactions.map(item => `${item.title} ${item.kind} ${item.counterparty ?? ""} ${item.reference ?? ""} ${item.notes ?? ""}`).join(" "),
@@ -218,6 +219,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
   ] : []);
 
   if (company) {
+    for (const area of company.capacity.areas) push(candidates, { id: `hiring-capacity:${area.id}`, category: "Executive", title: `${area.roleTitle} capacity`, subtitle: `${readable(area.id)} · ${area.allocationPercent}% allocation · ${area.targetUtilisationPercent}% guardrail · ${readable(area.hiringStatus)}`, href: "/portal/agency?station=battle&battle=capacity" }, [area.preferredEngagement, area.notes, "hiring recommendation capacity headcount recruitment scaling bottleneck"]);
     for (const shareholder of company.capital.shareholders) push(candidates, { id: `shareholder:${shareholder.id}`, category: "Executive", title: shareholder.name, subtitle: `${readable(shareholder.kind)} · ${shareholder.shares} shares · ${readable(shareholder.status)}`, href: "/portal/agency?station=battle&battle=capital" }, [shareholder.notes]);
     for (const investment of company.capital.investments) push(candidates, { id: `investment:${investment.id}`, category: "Executive", title: investment.name, subtitle: `${readable(investment.kind)} · ${readable(investment.status)} · ${investment.currency}`, href: "/portal/agency?station=battle&battle=capital" }, [investment.platform, investment.reference, investment.notes]);
     for (const dividend of company.capital.dividends) push(candidates, { id: `dividend:${dividend.id}`, category: "Executive", title: dividend.title, subtitle: `${dividend.period} · ${readable(dividend.status)} · ${dividend.currency}`, href: "/portal/agency?station=battle&battle=capital" }, [dividend.reference, dividend.notes]);
