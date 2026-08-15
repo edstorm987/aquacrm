@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Check, CheckCheck, ChevronRight, Clock3, RotateCcw, Sparkles, X } from "lucide-react";
+import { Bell, Check, CheckCheck, ChevronRight, Clock3, RotateCcw, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
+import { formatUkDate } from "@/lib/formatDateTime";
 import type { OperationalAlertView } from "@/lib/operationalAttention";
 import {
   LATEST_RELEASE,
@@ -18,6 +19,7 @@ type CentreView = "attention" | "parked" | "read";
 export function NotificationCentreButton() {
   const attention = useNotificationAttention();
   const alerts = attention?.alerts ?? [];
+  const attentionWindow = attention?.attentionWindow;
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<CentreView>("attention");
   const [updateUnread, setUpdateUnread] = useState(false);
@@ -49,11 +51,13 @@ export function NotificationCentreButton() {
   }, [open]);
 
   const groups = useMemo(() => ({
-    attention: alerts.filter(alert => alert.attention),
+    attention: attentionWindow?.focus ?? alerts.filter(alert => alert.attention),
     parked: alerts.filter(alert => alert.state === "parked"),
     read: alerts.filter(alert => alert.state === "read"),
-  }), [alerts]);
+  }), [alerts, attentionWindow]);
   const visible = groups[view];
+  const attentionTotal = attentionWindow?.total ?? groups.attention.length;
+  const reserveCount = attentionWindow?.reserveCount ?? 0;
   const unread = groups.attention.length + (updateUnread ? 1 : 0);
   const display = unread > 99 ? "99+" : String(unread);
 
@@ -67,7 +71,7 @@ export function NotificationCentreButton() {
     <div ref={rootRef} className="mm-has-attention-badge relative overflow-visible">
       <button
         type="button"
-        aria-label={`Notifications, ${unread} unread`}
+        aria-label={`Notifications, ${groups.attention.length} in focus${reserveCount ? ` and ${reserveCount} safely held in reserve` : ""}${updateUnread ? ", plus one product update" : ""}`}
         aria-expanded={open}
         aria-haspopup="dialog"
         title="Notifications"
@@ -90,17 +94,19 @@ export function NotificationCentreButton() {
         >
           <header className="flex items-center justify-between border-b border-black/10 px-4 py-3">
             <div>
-              <h2 className="text-sm font-semibold text-black/85">Notifications</h2>
-              <p className="mt-0.5 text-[11px] text-black/45">Every signal keeps its destination and explanation.</p>
+              <h2 className="text-sm font-semibold text-black/85">{attentionWindow?.protected ? "Attention shield" : "Notifications"}</h2>
+              <p className="mt-0.5 text-[11px] text-black/45">{attentionWindow?.protected ? `${groups.attention.length} in focus · ${reserveCount} safely held · nothing discarded.` : "Every signal keeps its destination and explanation."}</p>
             </div>
             {unread === 0 ? <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700"><Check size={12} />Up to date</span> : null}
           </header>
 
           <nav aria-label="Notification views" className="grid grid-cols-3 border-b border-black/10 px-3 pt-2">
-            <CentreTab active={view === "attention"} label="Attention" count={groups.attention.length} onClick={() => setView("attention")} />
+            <CentreTab active={view === "attention"} label="Attention" count={attentionTotal} onClick={() => setView("attention")} />
             <CentreTab active={view === "parked"} label="Parked" count={groups.parked.length} onClick={() => setView("parked")} />
             <CentreTab active={view === "read"} label="Read" count={groups.read.length} onClick={() => setView("read")} />
           </nav>
+
+          {view === "attention" && attentionWindow?.protected ? <AttentionShieldSummary window={attentionWindow} onNavigate={() => setOpen(false)} /> : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-black/[0.07]">
             {visible.map(alert => (
@@ -140,6 +146,16 @@ export function NotificationCentreButton() {
 
 function CentreTab({ active, label, count, onClick }: { active: boolean; label: string; count: number; onClick: () => void }) {
   return <button type="button" onClick={onClick} className={`relative min-h-9 text-xs font-semibold ${active ? "text-black/80" : "text-black/40 hover:text-black/65"}`}>{label} <span className="ml-1 tabular-nums">{count}</span>{active ? <span className="mm-notification-tab-indicator absolute inset-x-2 bottom-0 h-0.5 bg-black" /> : null}</button>;
+}
+
+function AttentionShieldSummary({ window, onNavigate }: { window: NonNullable<ReturnType<typeof useNotificationAttention>>["attentionWindow"]; onNavigate: () => void }) {
+  return <section className="mm-attention-shield-summary border-b border-emerald-200/70 bg-emerald-50/55 px-4 py-3" aria-label="Attention overload protection">
+    <div className="flex items-start gap-3">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-emerald-100 text-emerald-800"><ShieldCheck size={15} /></span>
+      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-xs font-semibold text-emerald-950">Overload protection is active</strong><span className="text-[9px] font-semibold uppercase text-emerald-800">{window.level}</span></div><p className="mt-1 text-[11px] leading-4 text-emerald-950/58">Work through this five-item window. As an item is resolved, parked or dismissed, the next highest-priority signal promotes automatically.</p></div>
+    </div>
+    {window.reserveDestinations.length ? <div className="mt-3 flex flex-wrap gap-1.5">{window.reserveDestinations.map(group => <Link key={group.key} href={group.href} onClick={onNavigate} title={`Open ${group.label}: ${group.count} held ${group.count === 1 ? "item" : "items"}`} className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-emerald-900/10 bg-white/75 px-2 text-[10px] font-semibold text-emerald-950/62 hover:bg-white"><span>{group.label}</span><span className="tabular-nums text-emerald-800">{group.count}</span></Link>)}</div> : null}
+  </section>;
 }
 
 function NotificationRow({
@@ -207,9 +223,9 @@ function EmptyNotifications({ view }: { view: CentreView }) {
 }
 
 function formatOccurredAt(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatReturnTime(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return formatUkDate(value, { weekday: "short", hour: "2-digit", minute: "2-digit" });
 }

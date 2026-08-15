@@ -1,4 +1,5 @@
 import type { ClientContract } from "@/lib/clientContracts";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export type AquaHealthState = "strong" | "watch" | "risk" | "learning";
 
@@ -118,7 +119,7 @@ function relationshipFactor(lastContactedAt: number | undefined, now: number): A
   const days = Math.max(0, Math.floor((now - lastContactedAt) / DAY));
   const score = days <= 7 ? 100 : days <= 14 ? 80 : days <= 30 ? 45 : 10;
   return scored(base, score, days === 0 ? "Client contact was recorded today." : `Last client contact was ${days} day${days === 1 ? "" : "s"} ago.`, [
-    new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(lastContactedAt),
+    formatUkDate(lastContactedAt, { day: "numeric", month: "short", year: "numeric" }),
   ]);
 }
 

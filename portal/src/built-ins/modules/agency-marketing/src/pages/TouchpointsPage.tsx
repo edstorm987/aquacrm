@@ -1,4 +1,5 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
+import { formatUkDate } from "../lib/safeDate";
 import { containerFor } from "../server/foundationAdapter";
 
 export default async function TouchpointsPage(props: PluginPageProps) {
@@ -38,7 +39,7 @@ export default async function TouchpointsPage(props: PluginPageProps) {
           )}
           {items.map(t => (
             <tr key={t.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-              <td style={{ padding: 6, fontSize: 13 }}>{new Date(t.at).toISOString().slice(0, 16).replace("T", " ")}</td>
+              <td style={{ padding: 6, fontSize: 13 }}>{formatUkDate(t.at, { dateStyle: "short", timeStyle: "short" })}</td>
               <td style={{ padding: 6, fontFamily: "monospace", fontSize: 12 }}>{t.leadId}</td>
               <td style={{ padding: 6 }}>{t.type}</td>
               <td style={{ padding: 6 }}>{t.channel}</td>

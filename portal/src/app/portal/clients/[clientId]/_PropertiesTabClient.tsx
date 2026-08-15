@@ -2,6 +2,7 @@
 
 import { Check, FolderGit2, Globe2, LoaderCircle, LockKeyhole, Pencil, Plus, Sparkles, Trash2, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
 export type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived";
@@ -101,14 +102,14 @@ function externalUrl(url?: string): string | undefined {
 }
 
 function formatUpdatedAt(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(timestamp, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "UTC",
-  }).format(new Date(timestamp));
+  });
 }
 
 const CONTROL_CLASS = "rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black/80 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15";

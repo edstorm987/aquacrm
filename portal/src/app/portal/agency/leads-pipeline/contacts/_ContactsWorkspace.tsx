@@ -10,6 +10,7 @@ import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { FileSpreadsheet, Plus, SlidersHorizontal, Tags, Trash2, Upload } from "lucide-react";
 import { CommercialPackModal } from "./_CommercialPackModal";
 import { formatElapsed } from "@/lib/leadTiming";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 type CustomFieldType = "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox";
 type CustomFieldValue = string | string[] | boolean;
@@ -1047,7 +1048,7 @@ function PersonCard({
       ) : null}
       {row.lastContactedAt && (
         <p className="mt-3 text-[11px] font-medium text-black/45">
-          Last contacted {new Date(row.lastContactedAt).toLocaleString()}
+          Last contacted {formatUkDate(row.lastContactedAt, { dateStyle: "medium", timeStyle: "short" })}
         </p>
       )}
       {journeyStartedAt ? (
@@ -1072,7 +1073,7 @@ function PersonCard({
       )}
       {row.nextMeetingAt && (
         <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Meeting booked: <strong>{new Date(row.nextMeetingAt).toLocaleString()}</strong>
+          Meeting booked: <strong>{formatUkDate(row.nextMeetingAt, { dateStyle: "medium", timeStyle: "short" })}</strong>
           {row.meetingNotes ? <div className="mt-1 text-amber-900/75">{row.meetingNotes}</div> : null}
         </div>
       )}

@@ -18,6 +18,7 @@
 // block — host pages always inject the renderer in production.
 
 import { useEffect, useMemo, useState } from "react";
+import { formatUkDate } from "../../lib/safeDate";
 import type { BlockRenderProps } from "../blockRegistry";
 import type { Block } from "../../types/block";
 
@@ -71,7 +72,7 @@ export default function BlogPostBlock({ block }: BlockRenderProps) {
   if (!post) return <div data-block-type="blog-post" style={{ padding: 24, color: "#94a3b8" }}>Loading…</div>;
 
   const date = post.publishedAt
-    ? new Date(post.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+    ? formatUkDate(post.publishedAt, { year: "numeric", month: "short", day: "numeric" })
     : "";
 
   const renderTree = typeof window !== "undefined" ? window.__aquaRenderBlocks : undefined;

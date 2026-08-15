@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import type { CustomerSummary } from "../../lib/admin/customers";
 import { formatPrice } from "../../lib/admin/orders";
+import { formatUkDate } from "../../lib/safeDate";
 
 export interface CustomersListProps {
   customers: CustomerSummary[];
@@ -52,7 +53,7 @@ export function CustomersList({ customers }: CustomersListProps) {
               <td>{c.name ?? "—"}</td>
               <td>{c.totalOrders}</td>
               <td>{formatPrice(c.totalSpent, "gbp")}</td>
-              <td>{c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleDateString() : "—"}</td>
+              <td>{c.lastOrderAt ? formatUkDate(c.lastOrderAt, { dateStyle: "medium" }) : "—"}</td>
             </tr>
           ))}
           {filtered.length === 0 && (

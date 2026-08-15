@@ -28,6 +28,7 @@ import {
   type ClientMarketingApproval,
   type ClientMarketingService,
 } from "@/lib/clientMarketingService";
+import { formatUkDate, localDateTimeInputValue } from "@/lib/formatDateTime";
 
 type View = "overview" | "content" | "campaigns" | "profiles";
 type Editor = { kind: "settings" | "profile" | "content" | "campaign"; id?: string } | null;
@@ -228,7 +229,7 @@ function Select({ label, name, value, options }: { label: string; name: string; 
 function approvalLabel(value: ClientMarketingApproval): string { return value.replaceAll("-", " "); }
 function money(cents: number, currency: ClientMarketingService["currency"]): string { return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase(), maximumFractionDigits: 0 }).format(cents / 100); }
 function percent(value: number): string { return new Intl.NumberFormat("en-GB", { style: "percent", maximumFractionDigits: 1 }).format(value); }
-function dateTime(value: number): string { return new Date(value).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
-function dateTimeInput(value?: number): string { if (!value) return ""; const date = new Date(value - new Date(value).getTimezoneOffset() * 60_000); return date.toISOString().slice(0, 16); }
+function dateTime(value: number): string { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+function dateTimeInput(value?: number): string { return localDateTimeInputValue(value); }
 function dateInputToTs(value: FormDataEntryValue | null): number | undefined { const ts = value ? new Date(String(value)).getTime() : NaN; return Number.isFinite(ts) ? ts : undefined; }
 function poundsToCents(value: FormDataEntryValue | null): number { const amount = Number(value || 0); return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0; }

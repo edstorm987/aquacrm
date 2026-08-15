@@ -29,6 +29,7 @@ import { getInstall } from "@/server/pluginInstalls";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export interface GlobalSearchResult {
   id: string;
@@ -169,7 +170,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
           "Scouting",
           prospect.niche,
           readable(prospect.qualificationState),
-          prospect.nextContactAt ? `Recontact ${new Date(prospect.nextContactAt).toLocaleDateString("en-GB")}` : "",
+          prospect.nextContactAt ? `Recontact ${formatUkDate(prospect.nextContactAt, { dateStyle: "medium" })}` : "",
         ].filter(Boolean).join(" · "),
         href: "/portal/agency/pipelines/leads#scouting",
         timestamp: prospect.updatedAt,
@@ -192,6 +193,8 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
         prospect.tags.join(" "),
         prospect.notes.map(note => note.body).join(" "),
         prospect.outreachAttempts.map(attempt => `${attempt.channel} ${attempt.outcome} ${attempt.note ?? ""} ${attempt.followUpReason ?? ""}`).join(" "),
+        prospect.followUps.map(followUp => `${followUp.channel ?? ""} ${followUp.status} ${followUp.reason} ${followUp.resolutionNote ?? ""}`).join(" "),
+        prospect.inspectionChecks.join(" "),
       ], { matchLabel: latestAttempt ? `Scouting dossier · last ${readable(latestAttempt.outcome)}` : "Scouting dossier", timestamp: prospect.updatedAt });
     }
   }
@@ -334,7 +337,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
       id: task.id,
       category: "Task",
       title: task.title,
-      subtitle: [readable(task.status), task.priority, task.dueAt ? `Due ${new Date(task.dueAt).toLocaleDateString("en-GB")}` : ""].filter(Boolean).join(" · "),
+      subtitle: [readable(task.status), task.priority, task.dueAt ? `Due ${formatUkDate(task.dueAt, { dateStyle: "medium" })}` : ""].filter(Boolean).join(" · "),
       href: `/portal/agency/actions?task=${encodeURIComponent(task.id)}`,
     }, [task.notes, task.recurrence]);
   }
@@ -353,7 +356,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
       id: `external-calendar:${event.id}`,
       category: "Meeting",
       title: event.title,
-      subtitle: [source?.name, connection?.accountEmail, event.allDay ? "All day" : new Date(event.startsAt).toLocaleString("en-GB"), event.location].filter(Boolean).join(" · "),
+      subtitle: [source?.name, connection?.accountEmail, event.allDay ? "All day" : formatUkDate(event.startsAt, { dateStyle: "medium", timeStyle: "short" }), event.location].filter(Boolean).join(" · "),
       href: event.htmlLink || "/portal/agency?station=calendar",
       timestamp: event.startsAt,
     }, [event.notes, event.location, event.organizerEmail, source?.description, source?.timeZone, connection?.accountName, connection?.accountEmail], { matchLabel: "Connected Google Calendar", timestamp: event.sourceUpdatedAt ?? event.updatedAt });
@@ -451,7 +454,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
       id: `training:${training.id}`,
       category: "Staff",
       title: training.title,
-      subtitle: [employee?.name, readable(training.status), training.dueAt ? `Due ${new Date(training.dueAt).toLocaleDateString("en-GB")}` : ""].filter(Boolean).join(" · "),
+      subtitle: [employee?.name, readable(training.status), training.dueAt ? `Due ${formatUkDate(training.dueAt, { dateStyle: "medium" })}` : ""].filter(Boolean).join(" · "),
       href: "/portal/agency/people?view=development",
       timestamp: training.updatedAt,
     }, [training.description, training.resourceUrl, training.evidence], { matchLabel: "Training record", timestamp: training.updatedAt });

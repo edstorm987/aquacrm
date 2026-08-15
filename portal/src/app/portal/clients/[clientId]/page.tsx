@@ -10,7 +10,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth";
 import { ALL_ROLES, isAgencyRole, type ClientStage } from "@/server/types";
@@ -30,7 +30,7 @@ import { FilesTabClient, type FileCategory } from "./_FilesTabClient";
 import { FinanceTabClient } from "./_FinanceTabClient";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
 import { listContractTemplates } from "@/server/contractTemplates";
-import { listAgencyProducts } from "@/server/agencyProducts";
+import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { PropertiesTabClient, type ClientProperty } from "./_PropertiesTabClient";
 import { ClientSystemsWorkspace } from "./_ClientSystemsWorkspace";
 import { FulfilmentPortalPreview, type CustomerPortalMode } from "./_FulfilmentPortalPreview";
@@ -51,9 +51,11 @@ import { WebsiteBuilderLauncher } from "./_WebsiteBuilderLauncher";
 import { OverviewTabs } from "./_OverviewTabs";
 import { ClientSpineOverview } from "./_ClientSpineOverview";
 import { ClientDeliveryOverview } from "./_ClientDeliveryOverview";
+import { ClientServiceAssignment } from "./_ClientServiceAssignment";
 import { ClientNotesWorkspace } from "./_ClientNotesWorkspace";
 import { calculateClientAquaHealth } from "@/lib/clientAquaHealth";
 import { cleanPortalProducts } from "@/lib/portalProducts";
+import { clientServiceCapabilities, inheritedClientServiceKeys } from "@/lib/clientServiceWorkspace";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
 import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
 import { listClientMilestones } from "@/server/clientMilestones";
@@ -61,6 +63,7 @@ import { getInstall } from "@/server/pluginInstalls";
 import { clientWorkspaceHref, resolveClientWorkspaceTab } from "@/lib/clientWorkspace";
 import { Boxes, Globe2, MonitorCog } from "lucide-react";
 import { cleanClientMarketingService } from "@/lib/clientMarketingService";
+import { formatUkDate, formatUkDateTime, timestampFromValue } from "@/lib/formatDateTime";
 import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
 import {
   AQUA_PHASE_ORDER,
@@ -102,23 +105,19 @@ function customPortalExists(slug: string): boolean {
 }
 
 function formatRelative(ts: number): string {
-  const delta = Date.now() - ts;
+  const timestamp = timestampFromValue(ts);
+  if (timestamp === undefined) return "Date needs review";
+  const delta = Date.now() - timestamp;
   if (delta < 60_000) return "just now";
   if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m ago`;
   if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)}h ago`;
   if (delta < 7 * 86_400_000) return `${Math.round(delta / 86_400_000)}d ago`;
-  return new Date(ts).toLocaleDateString();
+  return formatUkDate(timestamp, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatMeeting(ts: number | undefined): string | undefined {
   if (!ts) return undefined;
-  return new Date(ts).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatUkDateTime(ts);
 }
 
 export default async function ClientHome({
@@ -139,6 +138,7 @@ export default async function ClientHome({
   const tab: TabId = resolveClientWorkspaceTab(rawTabInput);
   const rawSystemView = Array.isArray(sp.systemView) ? sp.systemView[0] : sp.systemView;
   const systemView = rawSystemView === "properties" || rawSystemView === "website" ? rawSystemView : "monitoring";
+  const rawProductId = Array.isArray(sp.product) ? sp.product[0] : sp.product;
 
   const installs = listInstalledFor({ agencyId: client.agencyId, clientId: client.id });
   const installedIds = new Set(installs.map(i => i.pluginId));
@@ -237,6 +237,7 @@ export default async function ClientHome({
   };
   const planLabel = meta.planTier ? PLAN_LABELS[meta.planTier] : null;
   const servicePlanLabel = meta.portalServicePlan?.trim() || planLabel;
+  const agencyProducts = ensureDefaultAgencyProducts(session.agencyId);
   const portalProviderName = client.companyId
     ? getTradingCompany(session.agencyId, client.companyId)?.name ?? "AquaOasis-Web"
     : "AquaOasis-Web";
@@ -249,7 +250,7 @@ export default async function ClientHome({
   const contractTemplates: ClientContractTemplate[] = tab === "finance"
     ? [
         ...listContractTemplates(session.agencyId),
-        ...listAgencyProducts(session.agencyId)
+        ...agencyProducts
           .filter(product => Boolean(product.contractBody?.trim()))
           .map(product => ({
             id: `product:${product.id}`,
@@ -278,12 +279,32 @@ export default async function ClientHome({
     contracts: customerPortalData.contracts,
   });
   const selectedProducts = cleanPortalProducts(meta.portalProducts);
+  const agencyProductById = new Map(agencyProducts.map(product => [product.id, product]));
+  const serviceCapabilities = clientServiceCapabilities(
+    selectedProducts,
+    inheritedClientServiceKeys(selectedProducts, agencyProducts),
+  );
+  const visibleTabs: TabId[] = [
+    "overview",
+    "relationship",
+    "delivery",
+    ...(serviceCapabilities.marketing ? ["marketing" as const] : []),
+    ...(serviceCapabilities.systems ? ["systems" as const] : []),
+    "finance",
+    "communications",
+    ...(serviceCapabilities.hasServices ? ["files" as const, "portal" as const] : []),
+    "notes",
+  ];
+  if (!visibleTabs.includes(tab)) redirect(clientWorkspaceHref(client.id, "delivery"));
   const workspacesByProduct = new Map(clientProductWorkspaces(client).map(workspace => [workspace.productId, workspace]));
   const deliveryProducts = selectedProducts.map(product => {
     const workspace = workspacesByProduct.get(product.id);
     return {
       id: product.id,
       name: product.name,
+      description: product.description,
+      deliverables: product.deliverables,
+      accentColor: product.accentColor,
       stage: workspace?.stage ? workspace.stage.replaceAll("-", " ") : meta.portalMode?.replaceAll("-", " ") || "onboarding",
       progress: workspace ? portalWorkspaceProgress(workspace) : 0,
     };
@@ -395,7 +416,22 @@ export default async function ClientHome({
         )}
       </header>
 
-      <OverviewTabs clientId={client.id} active={tab} />
+      <OverviewTabs clientId={client.id} active={tab} visibleTabs={visibleTabs} />
+
+      {(!selectedProducts.length || tab === "delivery") ? <ClientServiceAssignment
+        clientId={client.id}
+        clientName={client.name}
+        initialProducts={selectedProducts}
+        canManage={isAgencyRole(session.role)}
+        options={agencyProducts.map(product => ({
+          id: product.id,
+          name: product.name,
+          category: product.category,
+          description: product.description,
+          kind: product.kind,
+          includedProductNames: product.includedProductIds.map(id => agencyProductById.get(id)?.name).filter((name): name is string => Boolean(name)),
+        }))}
+      /> : null}
 
       {(() => {
         const pack = meta.commercialPack;
@@ -535,15 +571,9 @@ export default async function ClientHome({
           <div className="rounded-xl border border-black/10 bg-white p-4">
             <h2 className="text-sm font-medium uppercase tracking-wide text-black/55">Quick actions</h2>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className="rounded-md bg-brand px-3 py-2 text-xs font-medium text-white shadow hover:opacity-90">
-                Edit website
-              </Link>
-              <Link href={clientWorkspaceHref(client.id, "portal")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
-                {meta.portalBuiltAt ? "Portal preview" : "Create client portal"}
-              </Link>
-              <Link href={clientWorkspaceHref(client.id, "systems")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">
-                + Add system
-              </Link>
+              {serviceCapabilities.keys.includes("website") ? <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className="rounded-md bg-brand px-3 py-2 text-xs font-medium text-white shadow hover:opacity-90">Edit website</Link> : null}
+              {serviceCapabilities.hasServices ? <Link href={clientWorkspaceHref(client.id, "portal")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">{meta.portalBuiltAt ? "Portal preview" : "Create client portal"}</Link> : <Link href={`${clientWorkspaceHref(client.id, "delivery")}#service-assignment`} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white">Assign services</Link>}
+              {serviceCapabilities.systems ? <Link href={clientWorkspaceHref(client.id, "systems")} className="rounded-md border border-black/15 px-3 py-2 text-xs hover:bg-black/5">Open systems</Link> : null}
               {meta.whatsappLink && (
                 <a
                   href={meta.whatsappLink}
@@ -587,11 +617,12 @@ export default async function ClientHome({
 
       {tab === "delivery" && (
         <div className="grid gap-7">
-          <ClientDeliveryOverview
+          {selectedProducts.length ? <><ClientDeliveryOverview
             clientId={client.id}
             products={deliveryProducts}
             milestones={clientMilestones.map(item => ({ id: item.id, title: item.title, status: item.status, targetAt: item.targetAt }))}
             portalReady={Boolean(meta.portalBuiltAt)}
+            selectedProductId={rawProductId}
           />
           <KanbanTabClient clientId={client.id} clientName={client.name} />
           {(() => {
@@ -602,7 +633,7 @@ export default async function ClientHome({
               throw err;
             }
             return <ClientSopsTab families={familiesForStage(client.stage)} phaseLabel={phaseLabel(client.stage)} />;
-          })()}
+          })()}</> : null}
         </div>
       )}
 

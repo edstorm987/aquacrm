@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Eye, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
 import { PERFORMANCE_MODE_EVENT, PERFORMANCE_MODE_STORAGE_KEY, performanceModeEnabled, setPerformanceMode } from "@/lib/chrome/performanceMode";
+import { useNotificationAttention } from "./NotificationAttentionProvider";
 import { ColorModeToggle } from "./ColorModeToggle";
 import { QuickNoteWindow } from "./QuickNoteWindow";
 
@@ -44,12 +45,16 @@ function accountDisplayName(name: string | undefined, email: string): string {
 }
 
 export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "AquaCRM account" }: Props) {
+  const attention = useNotificationAttention();
   const display = accountDisplayName(name, email);
   const firstName = display.split(/\s+/)[0] || "Account";
   const [open, setOpen] = useState(false);
   const [quickNoteOpen, setQuickNoteOpen] = useState(false);
   const [performanceMode, setPerformanceModeState] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const attentionLevel = attention?.attentionWindow.level;
+  const showFocusProtection = role.startsWith("agency-") && (attentionLevel === "elevated" || attentionLevel === "overload");
+  const focusProtectionEnabled = attention?.focusProtectionEnabled ?? true;
 
   useEffect(() => {
     const sync = () => setPerformanceModeState(performanceModeEnabled());
@@ -150,6 +155,31 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
                 <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={performanceMode} />
               </span>
             </button>
+            {showFocusProtection ? (
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={focusProtectionEnabled}
+                onClick={() => attention?.setFocusProtectionEnabled(!focusProtectionEnabled)}
+                className="mm-focus-protection-toggle flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
+              >
+                <ShieldCheck size={16} className={attentionLevel === "overload" ? "text-[#B54848]" : "text-[#A66B19]"} aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2 font-medium">
+                    Focus protection
+                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-semibold uppercase ${attentionLevel === "overload" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{attentionLevel}</span>
+                  </span>
+                  <span className="mt-0.5 block text-[10px] leading-4 text-[#776D60]">
+                    {focusProtectionEnabled
+                      ? `Prioritising 5 of ${attention?.attentionWindow.total ?? 0} signals`
+                      : `Full picture showing ${attention?.attentionWindow.total ?? 0} signals`}
+                  </span>
+                </span>
+                <span aria-hidden="true" data-enabled={focusProtectionEnabled} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
+                  <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={focusProtectionEnabled} />
+                </span>
+              </button>
+            ) : null}
             <Link
               href={role === "end-customer" ? "/portal/customer/account" : "/portal/account"}
               role="menuitem"

@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Sidebar } from "@/components/chrome/Sidebar";
+import { Sidebar, type SidebarVariant } from "@/components/chrome/Sidebar";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import { usePathname } from "next/navigation";
@@ -19,9 +19,10 @@ interface Props {
   panels: NavPanel[];
   tenantLabel: string;
   currentPath: string;
+  sidebarVariant?: SidebarVariant;
 }
 
-export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
+export function MobileNav({ panels, tenantLabel, currentPath, sidebarVariant = "standard" }: Props) {
   const [open, setOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
@@ -71,6 +72,7 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
+            data-sidebar-variant={sidebarVariant}
             className="mm-drawer-panel-left absolute left-0 top-0 h-full w-[min(22rem,88vw)] overflow-hidden bg-white shadow-xl"
             onClick={e => e.stopPropagation()}
           >
@@ -84,7 +86,7 @@ export function MobileNav({ panels, tenantLabel, currentPath }: Props) {
                 <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </button>
-            <Sidebar panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} mobile />
+            <Sidebar panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} mobile variant={sidebarVariant} />
           </div>
         </div>,
         document.body,

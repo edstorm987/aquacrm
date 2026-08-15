@@ -5,6 +5,7 @@ import { ensureHydrated } from "@/server/storage";
 import { getClient } from "@/server/tenants";
 import { verifyAquaEmbedToken } from "@/lib/server/aquaEmbedToken";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ export default async function AquaAccountEmbed({
                 <div key={invoice.id} className="flex items-center justify-between gap-4 py-3 text-sm">
                   <div>
                     <p className="font-medium">{invoice.number}</p>
-                    <p className="text-xs text-[#71807e]">{new Date(invoice.issuedAt).toLocaleDateString("en-GB")}</p>
+                    <p className="text-xs text-[#71807e]">{formatUkDate(invoice.issuedAt, { dateStyle: "medium" })}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">{money(invoice.totalCents, invoice.currency)}</p>

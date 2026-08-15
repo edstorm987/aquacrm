@@ -8,6 +8,7 @@ import type { Client } from "../lib/tenancy";
 import type { BudgetPot, Expense, ExpenseAttachment, ExpenseCategory, ExpenseStatus } from "../lib/domain";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { FinanceNav } from "./FinanceNav";
+import { dateInputValue, formatUkDate } from "../lib/safeDate";
 
 export interface ExpensesListProps {
   expenses: Expense[];
@@ -140,7 +141,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
         STATUS_LABEL[expense.status],
         expense.currency,
         (expense.amountCents / 100).toFixed(2),
-        new Date(expense.incurredAt).toLocaleDateString("en-GB"),
+        formatUkDate(expense.incurredAt, { dateStyle: "medium" }),
         expense.attachments?.map(file => file.name).join(" "),
         Object.values(expense.customFields ?? {}).flat().join(" "),
       ].filter(Boolean).join(" ").toLowerCase();
@@ -215,7 +216,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   function downloadCsv() {
     const headers = ["Date", "Supplier", "Description", "Reason", "Category", "Budget pot", "Client", "Gross", "Tax", "Net", "Business use %", "Payment method", "Reference", "Evidence", "Status", "Currency", ...customFields.map(field => field.label)];
     const rows = filtered.map(expense => [
-      new Date(expense.incurredAt).toISOString().slice(0, 10),
+      dateInputValue(expense.incurredAt),
       expense.vendor,
       expense.description,
       expense.reason,
@@ -436,7 +437,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-black/85">{expense.vendor || expense.description || "Expense"}</p>
-                  <p className="mt-1 text-xs text-black/45">{new Date(expense.incurredAt).toLocaleDateString("en-GB")} · {catNameById.get(expense.categoryId) ?? "Uncategorised"}{expense.budgetPotId ? ` · ${budgetNameById.get(expense.budgetPotId) ?? "Budget pot"}` : ""}</p>
+                  <p className="mt-1 text-xs text-black/45">{formatUkDate(expense.incurredAt, { dateStyle: "medium" })} · {catNameById.get(expense.categoryId) ?? "Uncategorised"}{expense.budgetPotId ? ` · ${budgetNameById.get(expense.budgetPotId) ?? "Budget pot"}` : ""}</p>
                 </div>
                 <p className="shrink-0 font-mono text-sm font-semibold text-black/85">{money(expense.amountCents, expense.currency)}</p>
               </div>
@@ -472,12 +473,12 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
             <tbody>
               {filtered.map(expense => (
                 <tr key={expense.id} className="border-b border-black/[0.07] align-top hover:bg-black/[0.015]">
-                  <td className="px-2 py-3 text-black/55">{new Date(expense.incurredAt).toLocaleDateString("en-GB")}</td>
+                  <td className="px-2 py-3 text-black/55">{formatUkDate(expense.incurredAt, { dateStyle: "medium" })}</td>
                   <td className="px-2 py-3">
                     <p className="font-medium text-black/85">{expense.vendor || expense.description || "Expense"}</p>
                     {expense.vendor && expense.description ? <p className="mt-0.5 max-w-72 text-xs text-black/45">{expense.description}</p> : null}
                     {expense.reference ? <p className="mt-0.5 text-xs text-black/40">Ref: {expense.reference}</p> : null}
-                    {expense.recurrence ? <p className={`mt-1 text-xs font-medium ${expense.nextDueAt && expense.nextDueAt <= Date.now() + 30 * 86_400_000 ? "text-red-700" : "text-black/45"}`}>{expense.recurrence[0]!.toUpperCase() + expense.recurrence.slice(1)} · next {expense.nextDueAt ? new Date(expense.nextDueAt).toLocaleDateString("en-GB") : "date needed"}</p> : null}
+                    {expense.recurrence ? <p className={`mt-1 text-xs font-medium ${expense.nextDueAt && expense.nextDueAt <= Date.now() + 30 * 86_400_000 ? "text-red-700" : "text-black/45"}`}>{expense.recurrence[0]!.toUpperCase() + expense.recurrence.slice(1)} · next {expense.nextDueAt ? formatUkDate(expense.nextDueAt, { dateStyle: "medium" }) : "date needed"}</p> : null}
                   </td>
                   <td className="px-2 py-3 text-black/60">
                     {expense.clientId ? clientNameById.get(expense.clientId) ?? "Client" : "Overhead"}
@@ -539,7 +540,7 @@ function ExpenseDetail({ expense, category, client, budgetPot, customFields, onC
         <Detail label="Gross amount" value={money(expense.amountCents, expense.currency)} strong />
         <Detail label="Net amount" value={money(net, expense.currency)} />
         <Detail label="Tax recorded" value={money(expense.taxCents ?? 0, expense.currency)} />
-        <Detail label="Date" value={new Date(expense.incurredAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} />
+        <Detail label="Date" value={formatUkDate(expense.incurredAt, { day: "numeric", month: "long", year: "numeric" })} />
         <Detail label="Supplier" value={expense.vendor || "Not recorded"} />
         <Detail label="Description" value={expense.description || "Not recorded"} />
         <Detail label="Reason" value={expense.reason || "Not recorded"} />
@@ -553,7 +554,7 @@ function ExpenseDetail({ expense, category, client, budgetPot, customFields, onC
         <Detail label="Tax recoverable" value={expense.taxDeductible === false ? "No" : "Yes"} />
         <Detail label="Recharge to client" value={expense.billableToClient ? "Yes" : "No"} />
         {customFields.map(field => <Detail key={field.id} label={field.label} value={formatCustomValue(expense.customFields?.[field.id]) || "Not recorded"} />)}
-        <Detail label="Recurrence" value={expense.recurrence ? `${expense.recurrence}${expense.nextDueAt ? ` · next ${new Date(expense.nextDueAt).toLocaleDateString("en-GB")}` : ""}` : "One-off"} />
+        <Detail label="Recurrence" value={expense.recurrence ? `${expense.recurrence}${expense.nextDueAt ? ` · next ${formatUkDate(expense.nextDueAt, { dateStyle: "medium" })}` : ""}` : "One-off"} />
         <Detail label="Expense ID" value={expense.id} />
       </dl>
       {expense.attachments?.length ? <section className="mt-5"><h3 className="text-xs font-semibold uppercase tracking-wide text-black/45">Documents and receipts</h3><div className="mt-2 divide-y divide-black/10 border-y border-black/10">{expense.attachments.map(file => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-between gap-3 py-2 text-sm hover:bg-black/[0.02]"><span className="inline-flex min-w-0 items-center gap-2"><Paperclip size={15} className="shrink-0 text-black/40" /><span className="truncate font-medium text-black/75">{file.name}</span></span><span className="shrink-0 text-xs text-black/40">{fileSize(file.size)}</span></a>)}</div></section> : null}

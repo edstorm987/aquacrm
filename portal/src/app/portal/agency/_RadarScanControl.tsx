@@ -4,6 +4,8 @@ import { AlertTriangle, Check, LoaderCircle, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { formatUkDate } from "@/lib/formatDateTime";
+
 type RadarScanResponse = {
   ok?: boolean;
   error?: string;
@@ -69,11 +71,11 @@ export function RadarScanControl({ initialLastRunAt, criticalCount }: { initialL
 }
 
 function formatCompactDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(timestamp));
+  return formatUkDate(timestamp, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
 function formatFullDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "long" }).format(new Date(timestamp));
+  return formatUkDate(timestamp, { dateStyle: "medium", timeStyle: "long" });
 }
 
 function formatAge(timestamp: number, now: number): string {

@@ -131,13 +131,11 @@ export function FunnelsWorkspace({
   companies = [],
   projects = [],
   defaultCompanyIds = [],
-  bookingFirst = false,
 }: {
   assets: MarketingAsset[];
   companies?: FunnelCompanyOption[];
   projects?: FunnelProjectOption[];
   defaultCompanyIds?: string[];
-  bookingFirst?: boolean;
 }) {
   const router = useRouter();
   const [records, setRecords] = useState(assets);
@@ -175,16 +173,17 @@ export function FunnelsWorkspace({
     ? Math.round((totalConversions / records.reduce((sum, asset) => sum + asset.leads, 0)) * 100)
     : 0;
 
-  function startNew() {
-    const steps = bookingFirst ? bookingSteps() : DEFAULT_STEPS.map(step => ({ ...step, id: createId("step") }));
+  function startNew(mode: "standard" | "booking" = "standard") {
+    const booking = mode === "booking";
+    const steps = booking ? bookingSteps() : DEFAULT_STEPS.map(step => ({ ...step, id: createId("step") }));
     setDraft({
       ...EMPTY_DRAFT,
       companyIds: [...defaultCompanyIds],
-      name: bookingFirst ? "Niche discovery call" : "",
-      objective: bookingFirst ? "Turn a qualified visitor into a confirmed meeting." : "",
-      primaryGoal: bookingFirst ? "Book a qualified meeting" : "",
-      primaryCta: bookingFirst ? "Choose a time" : "Get started",
-      conversionEvent: bookingFirst ? "meeting_booked" : "funnel_complete",
+      name: booking ? "Niche discovery call" : "",
+      objective: booking ? "Turn a qualified visitor into a confirmed meeting." : "",
+      primaryGoal: booking ? "Book a qualified meeting" : "",
+      primaryCta: booking ? "Choose a time" : "Get started",
+      conversionEvent: booking ? "meeting_booked" : "funnel_complete",
       steps,
     });
     setActiveStepId("");
@@ -345,11 +344,14 @@ export function FunnelsWorkspace({
     <section className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">{bookingFirst ? "Journey · Booking experience" : "Conversion journeys"}</p>
-          <h2 className="mt-1 text-2xl font-semibold text-black/88">{bookingFirst ? "Booking funnels" : "Funnels"}</h2>
-          <p className="mt-2 text-sm leading-6 text-black/52">{bookingFirst ? "Create a niche-specific route that earns trust, qualifies the visitor and carries them into a confirmed meeting without exposing a generic scheduler." : "Build the route, inspect every breakpoint, connect the repository and track the action that turns attention into a lead, meeting or sale."}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Marketing · Conversion journeys</p>
+          <h2 className="mt-1 text-2xl font-semibold text-black/88">Funnels &amp; booking</h2>
+          <p className="mt-2 text-sm leading-6 text-black/52">Build campaign funnels or a niche-specific booking route that earns trust, qualifies the visitor and carries them into a lead, meeting or sale.</p>
         </div>
-        <button type="button" onClick={startNew} className={primary}><Plus size={16} />New funnel</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => startNew("standard")} className={secondary}><Plus size={16} />New funnel</button>
+          <button type="button" onClick={() => startNew("booking")} className={primary}><CalendarClock size={16} />New booking funnel</button>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 border-y border-black/10 lg:grid-cols-4">
@@ -365,7 +367,7 @@ export function FunnelsWorkspace({
         <aside className="border-b border-black/10 bg-[#f7f8f7] lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between border-b border-black/10 px-4 py-3">
             <div><p className="text-xs font-semibold text-black/72">Your funnels</p><p className="mt-0.5 text-[11px] text-black/40">{records.length} saved</p></div>
-            <button type="button" onClick={startNew} aria-label="Create funnel" title="Create funnel" className={iconButton}><Plus size={15} /></button>
+            <button type="button" onClick={() => startNew("standard")} aria-label="Create funnel" title="Create funnel" className={iconButton}><Plus size={15} /></button>
           </div>
           <div className="flex gap-2 overflow-x-auto p-2 lg:block lg:max-h-[660px] lg:space-y-1 lg:overflow-y-auto">
             {records.map(asset => {
@@ -391,7 +393,7 @@ export function FunnelsWorkspace({
               <span className="mx-auto grid size-12 place-items-center rounded-md bg-brand/10 text-brand"><Workflow size={22} /></span>
               <h3 className="mt-4 text-lg font-semibold text-black/80">Build the first conversion route</h3>
               <p className="mt-2 text-sm leading-6 text-black/48">Start simple. One page is enough, or add steps and pages as the journey becomes clearer.</p>
-              <button type="button" onClick={startNew} className={`${primary} mt-5`}><Plus size={16} />New funnel</button>
+              <div className="mt-5 flex flex-wrap justify-center gap-2"><button type="button" onClick={() => startNew("standard")} className={secondary}><Plus size={16} />New funnel</button><button type="button" onClick={() => startNew("booking")} className={primary}><CalendarClock size={16} />Booking funnel</button></div>
             </div>
           </div>
         ) : (

@@ -7,6 +7,7 @@ import type {
 } from "@/lib/businessRadar";
 import type { RadarTelemetryProperty, RadarTelemetrySnapshot } from "@/lib/server/radarTelemetry";
 import type { RadarSyntheticProbeResult } from "@/server/types";
+import { isoDateTimeValue } from "@/lib/formatDateTime";
 
 const MINUTE = 60_000;
 const DAY = 86_400_000;
@@ -76,7 +77,7 @@ function canaryIssues(property: RadarTelemetryProperty, probe: RadarSyntheticPro
   if (probe.durationMs > 3_000) issues.push(issue(property, probe.durationMs > 8_000 ? "critical" : "warning", "development", `${property.label} is slow from the canary`, "End-to-end response time crossed the active monitoring guardrail.", [`Response ${probe.durationMs}ms`, "Warning 3000ms"], probe.checkedAt));
   if (safeProtocol(probe.finalUrl || property.publicUrl) !== "https:") issues.push(issue(property, "critical", "development", `${property.label} is not protected by HTTPS`, "The final public destination is using unencrypted HTTP.", [probe.finalUrl || property.publicUrl, `Redirects ${probe.redirectCount}`], probe.checkedAt));
   if (probe.tlsValid === false) issues.push(issue(property, "critical", "development", `${property.label} TLS validation failed`, "The certificate chain, hostname, or validity window could not be trusted by the independent canary.", [probe.finalUrl || probe.url, "TLS valid no"], probe.checkedAt));
-  else if (probe.tlsDaysRemaining !== undefined && probe.tlsDaysRemaining < 30) issues.push(issue(property, probe.tlsDaysRemaining < 7 ? "critical" : "warning", "compliance", `${property.label} certificate expires soon`, "Renew the public certificate before visitors or integrations lose trust.", [`${probe.tlsDaysRemaining} days remaining`, probe.tlsExpiresAt ? new Date(probe.tlsExpiresAt).toISOString() : "Expiry unavailable"], probe.checkedAt));
+  else if (probe.tlsDaysRemaining !== undefined && probe.tlsDaysRemaining < 30) issues.push(issue(property, probe.tlsDaysRemaining < 7 ? "critical" : "warning", "compliance", `${property.label} certificate expires soon`, "Renew the public certificate before visitors or integrations lose trust.", [`${probe.tlsDaysRemaining} days remaining`, probe.tlsExpiresAt ? isoDateTimeValue(probe.tlsExpiresAt) ?? "Expiry needs review" : "Expiry unavailable"], probe.checkedAt));
   if (probe.contentType && !probe.contentType.includes("text/html")) issues.push(issue(property, "critical", "development", `${property.label} is not serving HTML`, "The monitored public entry point returned an unexpected document type.", [probe.contentType, `${probe.htmlBytes ?? 0} bytes inspected`], probe.checkedAt));
   if (!probe.tagDetected) issues.push(issue(property, property.tagDeclared || property.lastSeenAt ? "warning" : "watch", "marketing", `${property.label} Aqua Tag marker is missing`, "The independent page inspection could not find an Aqua-compatible telemetry marker. Confirm deployment and consent behaviour.", ["Marker not found", property.lastSeenAt ? "Passive events exist" : "No passive events"], probe.checkedAt));
   const securityCount = Object.values(probe.securityHeaders).filter(Boolean).length;

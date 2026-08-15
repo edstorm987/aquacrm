@@ -19,6 +19,7 @@ import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
 import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { Sparkles } from "lucide-react";
+import type { SidebarVariant } from "@/components/chrome/Sidebar";
 
 interface Props {
   title: string;
@@ -36,6 +37,7 @@ interface Props {
   panels?: NavPanel[];
   tenantLabel?: string;
   currentPath?: string;
+  sidebarVariant?: SidebarVariant;
   /** Sandboxed demo session — show "Back to website" exit. */
   isDemo?: boolean;
   showcaseMode?: boolean;
@@ -50,7 +52,7 @@ interface Props {
   searchRecordsEnabled?: boolean;
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, isDemo, showcaseMode, publicShowcase, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, showcaseMode, publicShowcase, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
@@ -58,7 +60,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
     <header className="mm-portal-topbar relative z-40 flex min-h-14 shrink-0 items-center justify-between gap-1.5 border-b border-black/10 bg-white/40 px-3 py-2 backdrop-blur-xl sm:gap-2 sm:px-4 md:px-6">
       <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-3">
         {panels && tenantLabel && currentPath && (
-          <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} />
+          <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} sidebarVariant={sidebarVariant} />
         )}
         <TopbarBackButton />
         <div className="mm-private-chrome hidden min-w-0 sm:block">

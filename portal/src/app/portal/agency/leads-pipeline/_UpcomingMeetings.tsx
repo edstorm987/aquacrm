@@ -1,3 +1,5 @@
+import { formatUkDateTime, isoDateTimeValue, timestampFromValue } from "@/lib/formatDateTime";
+
 export interface UpcomingMeeting {
   id: string;
   kind: "lead" | "contact";
@@ -26,7 +28,7 @@ export function UpcomingMeetings({
   onOpenCommercial?: (meeting: UpcomingMeeting) => void;
 }) {
   const upcoming = meetings
-    .filter(item => item.meetingAt)
+    .filter(item => timestampFromValue(item.meetingAt) !== undefined)
     .sort((a, b) => a.meetingAt - b.meetingAt)
     .slice(0, 5);
 
@@ -64,7 +66,7 @@ export function UpcomingMeetings({
                   </div>
                   <p className="mt-1 truncate text-xs text-black/50">{item.company ? `${item.company} · ` : ""}{item.email}</p>
                 </div>
-                <time className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900" dateTime={new Date(item.meetingAt).toISOString()}>
+                <time className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900" dateTime={isoDateTimeValue(item.meetingAt)}>
                   {formatUkDateTime(item.meetingAt)}
                 </time>
               </div>
@@ -109,4 +111,3 @@ export function UpcomingMeetings({
     </section>
   );
 }
-import { formatUkDateTime } from "@/lib/formatDateTime";

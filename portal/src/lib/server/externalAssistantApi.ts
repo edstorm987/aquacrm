@@ -11,6 +11,7 @@ import {
 import { logActivity } from "@/server/activity";
 import { flushPendingWrites, getState } from "@/server/storage";
 import type { ExternalAssistantApiPermission, PortalState } from "@/server/types";
+import { isoDateTimeValue } from "@/lib/formatDateTime";
 
 const SECRET_KEY = /(password|secret|token|api[-_]?key|cookie|authorization|credential|hash|nonce)/i;
 const STORED_FILE_KEY = /(avatar|base64|fileContent|contentBase64|dataUrl)/i;
@@ -407,8 +408,8 @@ export function recordsToCsv(records: ExternalAssistantRecord[]): string {
     item.id,
     item.title,
     item.status ?? "",
-    item.createdAt ? new Date(item.createdAt).toISOString() : "",
-    item.updatedAt ? new Date(item.updatedAt).toISOString() : "",
+    item.createdAt ? isoDateTimeValue(item.createdAt) ?? "" : "",
+    item.updatedAt ? isoDateTimeValue(item.updatedAt) ?? "" : "",
     JSON.stringify(item.data),
   ]);
   return [headings, ...rows].map(row => row.map(csvCell).join(",")).join("\n");

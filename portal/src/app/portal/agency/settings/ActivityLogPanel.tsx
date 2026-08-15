@@ -2,6 +2,7 @@
 
 import { ChevronDown, Download, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { formatUkDateTime, isoDateTimeValue } from "@/lib/formatDateTime";
 
 interface ActivityEntry {
   id: string;
@@ -148,7 +149,7 @@ function ActivityRow({ entry, clientName }: { entry: ActivityEntry; clientName?:
   return (
     <article className="py-4">
       <button type="button" onClick={() => hasMetadata && setOpen(value => !value)} className="grid w-full gap-2 text-left md:grid-cols-[150px_minmax(0,1fr)_180px_20px] md:items-start">
-        <time className="text-xs tabular-nums text-black/40" dateTime={new Date(entry.ts).toISOString()}>{formatTime(entry.ts)}</time>
+        <time className="text-xs tabular-nums text-black/40" dateTime={isoDateTimeValue(entry.ts)}>{formatTime(entry.ts)}</time>
         <span>
           <span className="block text-sm font-medium text-black/80">{entry.message}</span>
           <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-black/45">
@@ -180,13 +181,7 @@ function friendly(value: string): string {
 }
 
 function formatTime(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
+  return formatUkDateTime(value);
 }
 
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/80 outline-none focus:border-black/35";

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
 import { ContractsPanel } from "./_ContractsPanel";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 interface Invoice {
   id: string;
@@ -65,12 +66,12 @@ function fmtMoney(cents: number, currency: string): string {
 }
 
 function fmtDate(ts: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(ts, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(ts));
+  });
 }
 
 function defaultDueDate(): string {
@@ -392,7 +393,7 @@ export function FinanceTabClient({
               <div key={expense.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                 <div>
                   <p className="font-medium text-black/80">{expense.vendor || expense.description || "Client cost"}</p>
-                  <p className="mt-0.5 text-xs text-black/45">{new Date(expense.incurredAt).toLocaleDateString("en-GB")} · {expense.status === "reimbursed" ? "Paid" : "Needs review"}</p>
+                  <p className="mt-0.5 text-xs text-black/45">{formatUkDate(expense.incurredAt, { day: "numeric", month: "short", year: "numeric" })} · {expense.status === "reimbursed" ? "Paid" : "Needs review"}</p>
                 </div>
                 <span className="font-mono font-semibold text-black/75">{fmtMoney(expense.amountCents, expense.currency)}</span>
               </div>

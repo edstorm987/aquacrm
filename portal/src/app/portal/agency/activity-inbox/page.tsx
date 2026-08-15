@@ -3,9 +3,10 @@ import { ensureHydrated } from "@/server/storage";
 import { listActivity } from "@/server/activity";
 import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
+import { formatUkDateTime, isoDateTimeValue } from "@/lib/formatDateTime";
 
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleString();
+  return formatUkDateTime(ts);
 }
 
 export default async function ActivityInboxPage() {
@@ -42,7 +43,7 @@ export default async function ActivityInboxPage() {
                       {activityCategory(entry.category)} · {activityAction(entry.action)}{entry.actorEmail ? ` · ${entry.actorEmail}` : ""}
                     </p>
                   </div>
-                  <time className="shrink-0 text-xs text-black/45" dateTime={new Date(entry.ts).toISOString()}>
+                  <time className="shrink-0 text-xs text-black/45" dateTime={isoDateTimeValue(entry.ts)}>
                     {formatTime(entry.ts)}
                   </time>
                 </div>

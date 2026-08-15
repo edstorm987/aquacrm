@@ -39,6 +39,7 @@ import type {
   CommandKpi,
   CommandKpiStatus,
 } from "@/lib/commandIntelligence";
+import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 import { CommercialIntelligenceWorkspace } from "./_CommercialIntelligenceWorkspace";
 
 export type IntelligenceView = "overview" | "lifecycle" | "campaigns" | "audiences" | "kpis" | "compare";
@@ -838,12 +839,12 @@ function campaignStatusDot(status: string): string { if (["active", "sending"].i
 function polarPoint(cx: number, cy: number, radius: number, index: number, count: number) { const angle = -Math.PI / 2 + index / count * Math.PI * 2; return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius }; }
 function average(values: number[]): number { return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0; }
 function money(cents: number, currency: string): string { return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase(), maximumFractionDigits: 0 }).format(cents / 100); }
-function formatShortTime(value: number): string { return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value)); }
-function formatDateTime(value: number): string { return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
+function formatShortTime(value: number): string { return formatUkDate(value, { hour: "2-digit", minute: "2-digit", hour12: false }); }
+function formatDateTime(value: number): string { return formatUkDate(value, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function formatAge(value: number): string { const elapsed = Math.max(0, Date.now() - value); if (elapsed < 60_000) return "just now"; if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`; if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`; return `${Math.floor(elapsed / 86_400_000)}d ago`; }
 function statusSort(status: CommandKpiStatus): number { return status === "critical" ? 0 : status === "warning" ? 1 : status === "blind" ? 2 : status === "learning" ? 3 : 4; }
 function domainLabel(domain: AdvisorDomain): string { return domain === "inbox" ? "Inbox" : domain.charAt(0).toUpperCase() + domain.slice(1); }
-function dateInput(value: number): string { return new Date(value).toISOString().slice(0, 10); }
+function dateInput(value: number): string { return dateInputValue(value); }
 function startOfInputDay(value: string, fallback: number): number { const parsed = new Date(`${value}T00:00:00`).getTime(); return Number.isFinite(parsed) ? parsed : fallback; }
 function endOfInputDay(value: string, fallback: number): number { const parsed = new Date(`${value}T23:59:59.999`).getTime(); return Number.isFinite(parsed) ? parsed : fallback; }
 function comparisonDuration(start: number, end: number): string { const days = Math.max(0, (end - start) / 86_400_000); return days < 1 ? `${Math.max(1, Math.round(days * 24))} hours` : `${roundNumber(days, days < 7 ? 1 : 0)} days`; }
@@ -857,7 +858,7 @@ function comparisonRangeLabel(range: ComparisonRange, mode: ComparisonMode): str
   return range;
 }
 function compactNumber(value: number): string { return new Intl.NumberFormat("en-GB", { notation: Math.abs(value) >= 10_000 ? "compact" : "standard", maximumFractionDigits: Math.abs(value) < 10 ? 1 : 0 }).format(value); }
-function chartTimeLabel(value: number, span: number): string { return span <= 2 * 86_400_000 ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" }).format(new Date(value)); }
+function chartTimeLabel(value: number, span: number): string { return span <= 2 * 86_400_000 ? formatUkDate(value, { hour: "2-digit", minute: "2-digit" }) : formatUkDate(value, { day: "2-digit", month: "short" }); }
 function formatKpiValue(value: number, kpi: CommandKpi, currency: string): string { if (kpi.format === "currency") return money(value, currency); if (kpi.format === "percent") return `${roundNumber(value, 1)}%`; if (kpi.format === "score") return `${roundNumber(value, 0)}/100`; if (kpi.format === "duration") return value < 60_000 ? `${Math.round(value / 1_000)}s` : value < 3_600_000 ? `${Math.round(value / 60_000)}m` : `${roundNumber(value / 3_600_000, 1)}h`; return compactNumber(value); }
 function planningDisplayValue(value: number, kpi: CommandKpi): number { return kpi.format === "currency" ? roundNumber(value / 100, 2) : roundNumber(value, 2); }
 function planningStoredValue(value: number, kpi: CommandKpi): number { return kpi.format === "currency" ? Math.round(value * 100) : value; }

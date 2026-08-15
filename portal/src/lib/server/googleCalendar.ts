@@ -193,18 +193,21 @@ export async function createGoogleCalendarEvent(input: {
   const title = cleanText(input.title, 300);
   if (!title) throw new Error("Event title required.");
   if (!Number.isFinite(input.startsAt) || input.startsAt <= 0) throw new Error("Event start required.");
+  const endAt = Number.isFinite(input.endsAt) && input.endsAt! > input.startsAt
+    ? input.endsAt!
+    : input.startsAt + 60 * 60 * 1_000;
   const payload = input.allDay
     ? {
         summary: title,
         description: cleanText(input.notes, 6_000) || undefined,
         start: { date: localDate(input.startsAt) },
-        end: { date: localDate((input.endsAt && input.endsAt >= input.startsAt ? input.endsAt : input.startsAt) + 86_400_000) },
+        end: { date: localDate((Number.isFinite(input.endsAt) && input.endsAt! >= input.startsAt ? input.endsAt! : input.startsAt) + 86_400_000) },
       }
     : {
         summary: title,
         description: cleanText(input.notes, 6_000) || undefined,
         start: { dateTime: new Date(input.startsAt).toISOString() },
-        end: { dateTime: new Date(input.endsAt && input.endsAt > input.startsAt ? input.endsAt : input.startsAt + 60 * 60 * 1_000).toISOString() },
+        end: { dateTime: new Date(endAt).toISOString() },
       };
   const url = new URL(`${GOOGLE_CALENDAR}/calendars/${encodeURIComponent(source.providerCalendarId)}/events`);
   const response = await (input.fetchImpl ?? fetch)(url, {

@@ -7,6 +7,7 @@ import { AlertTriangle, Banknote, CircleGauge, Landmark, Pencil, PiggyBank, Plus
 import type { BudgetPot, BudgetPotPeriod, BudgetPotPurpose, BudgetPotStatus, Currency } from "../lib/domain";
 import type { BudgetPotSnapshot, BudgetPotSignal } from "../lib/budgetHealth";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
+import { dateInputValue } from "../lib/safeDate";
 import { FinanceNav } from "./FinanceNav";
 
 interface CompanyOption { id: string; name: string }
@@ -217,7 +218,7 @@ function Progress({ label, value, width, tone }: { label: string; value: string;
 function money(cents: number, currency: Currency) { return formatMoney(cents, currency); }
 function poundsToCents(value: FormDataEntryValue | null) { const number = Number(value ?? 0); return Number.isFinite(number) ? Math.max(0, Math.round(number * 100)) : 0; }
 function dateValue(value: FormDataEntryValue | null) { const text = String(value ?? ""); return text ? Date.parse(`${text}T12:00:00`) : undefined; }
-function dateInput(value?: number) { return value ? new Date(value).toISOString().slice(0, 10) : ""; }
+function dateInput(value?: number) { return dateInputValue(value); }
 function healthLabel(score: number, hasBaseline: boolean): { label: string; tone: "good" | "watch" | "bad" } { if (!hasBaseline) return { label: "Awaiting a financial baseline", tone: "watch" }; return score >= 85 ? { label: "Strong and controlled", tone: "good" } : score >= 70 ? { label: "Healthy with room to improve", tone: "good" } : score >= 45 ? { label: "Watch the pressure points", tone: "watch" } : { label: "Action needed", tone: "bad" }; }
 function healthMessage(position: FinancePosition) { if (!position.hasFinancialBaseline) return "Record income, paid costs or a funded pot before treating the health score as a decision signal."; if (position.recordedBalanceCents < 0) return "Recorded spending exceeds recorded income. Protect cash and review costs before adding new commitments."; if (position.overspentPots > 0) return `${position.overspentPots} pot${position.overspentPots === 1 ? " is" : "s are"} over its funding or planned ceiling. Reallocate or reduce commitments.`; if (position.unallocatedCents < 0) return "Your funded pots exceed the balance available after the tax reserve. Some funding is not backed by recorded cash."; if (position.runwayMonths !== null && position.runwayMonths < 4) return `Recorded reserves cover about ${position.runwayMonths.toFixed(1)} months of average costs. Keep expansion commitments measured.`; return "Recorded cash, reserves and active allocations are currently within their guardrails."; }
 function signalStyle(signal: BudgetPotSignal) { const styles = { healthy: ["Within plan", "bg-emerald-50 text-emerald-700"], watch: ["Near limit", "bg-amber-50 text-amber-800"], unfunded: ["Not funded", "bg-amber-50 text-amber-800"], overspent: ["Over limit", "bg-red-50 text-red-700"], closed: ["Closed", "bg-black/5 text-black/50"] } as const; const [label, className] = styles[signal]; return { label, className }; }

@@ -18,6 +18,7 @@ import { listAgencyProducts } from "@/server/agencyProducts";
 import { clientMatchesContact, clientMatchesLead } from "../lib/clientMatch";
 import { getState, mutate } from "@/server/storage";
 import { parseXlsxToDelimitedText } from "../server/csv";
+import { isoDateTimeValue } from "../lib/safeDate";
 import { parseCsv } from "../server/csv";
 import type { PortalState } from "@/server/types";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
@@ -40,16 +41,20 @@ import type {
   MeetingAttemptOutcome,
   MeetingMode,
   MeetingStatus,
+  ProspectInspectionCheck,
   ProspectOutreachChannel,
   ProspectOutreachOutcome,
   RecordProspectOutreachInput,
+  ResolveProspectFollowUpInput,
   SalesPresentation,
+  ScheduleProspectFollowUpInput,
   SaveCommercialPackInput,
   UpdateContactPatch,
   UpdateCampaignPatch,
   UpdateLeadPatch,
   UpdateProspectPatch,
 } from "../lib/domain";
+import { REQUIRED_PROSPECT_INSPECTION_CHECKS } from "../server/prospects";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -139,6 +144,76 @@ export async function prospectsHandler(req: Request, ctx: PluginCtx): Promise<Re
   return json({ ok: false, error: "method_not_allowed" }, 405);
 }
 
+export async function importProspectsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const uploaded = await readUploadedSheet(req);
+  if (uploaded instanceof Response) return uploaded;
+  const parsed = parseCsv(uploaded.text);
+  if (!parsed.rows.length) return badRequest("The scouting sheet contains no data rows.");
+  if (parsed.rows.length > 500) return badRequest("Import up to 500 scouting prospects at a time.");
+  const defaultSourceValue = uploaded.form?.get("defaultSource");
+  const defaultSource = typeof defaultSourceValue === "string" && defaultSourceValue.trim()
+    ? defaultSourceValue.trim()
+    : "google-maps";
+  const service = buildContainer(ctx).prospects;
+  const existing = await service.list();
+  const fingerprints = new Set(existing.flatMap(prospectFingerprints));
+  const imported: string[] = [];
+  const skipped: Array<{ rowNumber: number; reason: string }> = [];
+
+  for (const row of parsed.rows) {
+    const input: CreateProspectInput = {
+      company: row.company,
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      website: row.website,
+      address: row.address,
+      googleMapsUrl: row.googleMapsUrl,
+      niche: row.niche,
+      tags: row.tags,
+      source: row.source || defaultSource,
+      researchNotes: row.notes,
+      qualificationState: row.notes ? "researching" : "unreviewed",
+    };
+    if (!input.company && !input.name && !input.website) {
+      skipped.push({ rowNumber: row.rowNumber, reason: "Missing business name, person, or website." });
+      continue;
+    }
+    const rowFingerprints = prospectFingerprints(input);
+    if (rowFingerprints.some(key => fingerprints.has(key))) {
+      skipped.push({ rowNumber: row.rowNumber, reason: "Duplicate of an existing scouting dossier." });
+      continue;
+    }
+    try {
+      const prospect = await service.create(input, ctx.actor);
+      imported.push(prospect.id);
+      rowFingerprints.forEach(key => fingerprints.add(key));
+    } catch (error) {
+      skipped.push({ rowNumber: row.rowNumber, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return json({
+    ok: true,
+    filename: uploaded.filename,
+    imported: imported.length,
+    skipped,
+    unrecognisedHeaders: parsed.unrecognisedHeaders,
+  });
+}
+
+function prospectFingerprints(prospect: Pick<CreateProspectInput, "company" | "name" | "email" | "phone" | "website" | "address" | "googleMapsUrl">): string[] {
+  const normalized = (value?: string) => value?.trim().toLowerCase().replace(/\/$/, "");
+  return [
+    prospect.email ? `email:${normalized(prospect.email)}` : "",
+    prospect.phone ? `phone:${prospect.phone.replace(/[^0-9+]/g, "")}` : "",
+    prospect.website ? `website:${normalized(prospect.website)}` : "",
+    prospect.googleMapsUrl ? `maps:${normalized(prospect.googleMapsUrl)}` : "",
+    prospect.company && prospect.address ? `place:${normalized(prospect.company)}:${normalized(prospect.address)}` : "",
+    !prospect.company && prospect.name && prospect.address ? `person:${normalized(prospect.name)}:${normalized(prospect.address)}` : "",
+  ].filter(Boolean);
+}
+
 export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const body = await safeJson<{ id: string }>(req);
@@ -150,11 +225,16 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
     return unprocessable("Add an email address or phone number before qualifying this prospect as a lead.");
   }
   if (prospect.doNotContact) return unprocessable("Remove the do-not-contact hold before qualifying this prospect.");
+  const missingInspection = REQUIRED_PROSPECT_INSPECTION_CHECKS.filter(check => !prospect.inspectionChecks.includes(check));
+  if (!prospect.inspectedAt || missingInspection.length) {
+    return unprocessable("Complete the business, contact-route, and opportunity inspection before qualifying this prospect.");
+  }
   const outreachHistory = prospect.outreachAttempts.map(attempt => {
-    const followUp = attempt.followUpAt ? ` · follow-up ${new Date(attempt.followUpAt).toISOString()}` : "";
-    return `${new Date(attempt.at).toISOString()} · ${attempt.channel} · ${attempt.outcome}${followUp}${attempt.note ? ` · ${attempt.note}` : ""}`;
+    const followUp = attempt.followUpAt ? ` · follow-up ${isoDateTimeValue(attempt.followUpAt) ?? "date needs review"}` : "";
+    return `${isoDateTimeValue(attempt.at) ?? "date needs review"} · ${attempt.channel} · ${attempt.outcome}${followUp}${attempt.note ? ` · ${attempt.note}` : ""}`;
   }).join("\n");
-  const fieldNotes = prospect.notes.map(note => `${new Date(note.at).toISOString()} · ${note.body}`).join("\n");
+  const fieldNotes = prospect.notes.map(note => `${isoDateTimeValue(note.at) ?? "date needs review"} · ${note.body}`).join("\n");
+  const followUpHistory = prospect.followUps.map(item => `${isoDateTimeValue(item.dueAt) ?? "date needs review"} · ${item.status} · ${item.channel ?? "any channel"} · ${item.reason}${item.resolutionNote ? ` · ${item.resolutionNote}` : ""}`).join("\n");
   const scoutingNotes = [
     prospect.opportunity ? `Why we could help: ${prospect.opportunity}` : "",
     prospect.researchNotes ? `Scouting research: ${prospect.researchNotes}` : "",
@@ -163,6 +243,7 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
     prospect.address ? `Address: ${prospect.address}` : "",
     prospect.website ? `Website: ${prospect.website}` : "",
     outreachHistory ? `Cold outreach history:\n${outreachHistory}` : "",
+    followUpHistory ? `Follow-up history:\n${followUpHistory}` : "",
     fieldNotes ? `Scouting notes:\n${fieldNotes}` : "",
   ].filter(Boolean).join("\n\n");
   try {
@@ -194,9 +275,11 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
         ...(prospect.linkedinUrl ? { "scouting-linkedin": prospect.linkedinUrl } : {}),
         ...(prospect.fitScore !== undefined ? { "scouting-fit-score": String(prospect.fitScore) } : {}),
         "scouting-qualification-state": prospect.qualificationState,
+        "scouting-inspection-checks": prospect.inspectionChecks.join(","),
+        ...(isoDateTimeValue(prospect.inspectedAt) ? { "scouting-inspected-at": isoDateTimeValue(prospect.inspectedAt)! } : {}),
         ...(prospect.preferredChannel ? { "scouting-preferred-channel": prospect.preferredChannel } : {}),
-        ...(prospect.lastContactedAt ? { "scouting-last-contacted-at": new Date(prospect.lastContactedAt).toISOString() } : {}),
-        ...(prospect.nextContactAt ? { "scouting-next-contact-at": new Date(prospect.nextContactAt).toISOString() } : {}),
+        ...(isoDateTimeValue(prospect.lastContactedAt) ? { "scouting-last-contacted-at": isoDateTimeValue(prospect.lastContactedAt)! } : {}),
+        ...(isoDateTimeValue(prospect.nextContactAt) ? { "scouting-next-contact-at": isoDateTimeValue(prospect.nextContactAt)! } : {}),
         ...(prospect.nextContactReason ? { "scouting-next-contact-reason": prospect.nextContactReason } : {}),
         "scouting-outreach-attempts": String(prospect.outreachAttempts.length),
       },
@@ -232,6 +315,40 @@ export async function prospectNotesHandler(req: Request, ctx: PluginCtx): Promis
   try {
     const prospect = await buildContainer(ctx).prospects.addNote(body.id, body.body, ctx.actor);
     return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function prospectInspectionHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const body = await safeJson<{ id: string; checks: ProspectInspectionCheck[] }>(req);
+  if (!body?.id || !Array.isArray(body.checks)) return badRequest("id and checks required.");
+  try {
+    const prospect = await buildContainer(ctx).prospects.saveInspection(body.id, body.checks, ctx.actor);
+    return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function prospectFollowUpsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const body = await safeJson<({ id: string } & ScheduleProspectFollowUpInput) | ({ id: string } & ResolveProspectFollowUpInput)>(req);
+  if (!body?.id) return badRequest("id required.");
+  try {
+    if (req.method === "POST") {
+      const schedule = body as { id: string } & ScheduleProspectFollowUpInput;
+      if (!PROSPECT_OUTREACH_CHANNELS.has(schedule.channel as ProspectOutreachChannel)) return badRequest("valid channel required.");
+      const prospect = await buildContainer(ctx).prospects.scheduleFollowUp(schedule.id, schedule, ctx.actor);
+      return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+    }
+    if (req.method === "PATCH") {
+      const resolution = body as { id: string } & ResolveProspectFollowUpInput;
+      if (!resolution.followUpId || !["completed", "skipped"].includes(resolution.status)) return badRequest("valid follow-up resolution required.");
+      const prospect = await buildContainer(ctx).prospects.resolveFollowUp(resolution.id, resolution, ctx.actor);
+      return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+    }
+    return json({ ok: false, error: "method_not_allowed" }, 405);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }

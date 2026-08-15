@@ -30,6 +30,7 @@ import type {
 } from "@/server/types";
 import type { AdvisorRadarDigest, BusinessRadarIssue } from "@/lib/businessRadar";
 import { formatElapsed } from "@/lib/leadTiming";
+import { formatUkDate } from "@/lib/formatDateTime";
 import type { AdvisorSkill, AdvisorSkillRecipe, AdvisorSkillSafety } from "@/lib/advisorSkills";
 
 interface Coverage {
@@ -861,9 +862,9 @@ function CoverageItem({ value, label }: { value: number; label: string }) {
 }
 
 function formatTime(value: number) {
-  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(value);
+  return formatUkDate(value, { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDate(value: number) {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(value);
+  return formatUkDate(value, { day: "numeric", month: "short" });
 }

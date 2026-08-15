@@ -8,6 +8,7 @@ import { AlertTriangle, Bell, Bot, Check, CheckCheck, CircleCheck, Clock3, Exter
 import type { OperationalAlertView } from "@/lib/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import { formatElapsed, LEAD_WAIT_THRESHOLDS } from "@/lib/leadTiming";
+import { formatUkDate } from "@/lib/formatDateTime";
 import type { InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
 import type { OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
 import { SocialInboxWorkspace } from "./_SocialInboxWorkspace";
@@ -609,6 +610,6 @@ function classificationRouteDescription(classification: WebsiteEnquiryClassifica
   return "This is retained as a relationship contact and kept outside the sales Journey.";
 }
 function enquiryWaitTone(elapsedMs: number): "blue" | "amber" | "red" { return elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseCriticalMs ? "red" : elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseWarningMs ? "amber" : "blue"; }
-function formatDate(value: number) { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
+function formatDate(value: number) { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function sourceLocation(item: WebsiteEnquiry) { return `${item.siteHost ?? item.siteName}${item.pagePath === "/" ? "" : item.pagePath}`; }
 function filterRows<T>(rows: T[], query: string, text: (row: T) => string): T[] { const q = query.trim().toLowerCase(); return q ? rows.filter(row => text(row).toLowerCase().includes(q)) : rows; }

@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Clock3, FileCheck2, LockKeyhole, Mail, Sparkles } fro
 import { getPeopleApplicationByToken } from "@/server/people";
 import { ensureHydrated } from "@/server/storage";
 import type { PeopleApplicationStage } from "@/server/types";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function ApplicationStatusPage({ params }: { params: Promis
             <div>
               <p className="text-xs font-semibold uppercase text-[#a9d8cb]">Private member progress</p>
               <h1 className="mt-2 text-3xl font-semibold">Hello, {application.name.split(" ")[0]}.</h1>
-              <p className="mt-2 text-sm text-white/65">{application.roleInterest} · submitted {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(application.submittedAt)}</p>
+              <p className="mt-2 text-sm text-white/65">{application.roleInterest} · submitted {formatUkDate(application.submittedAt, { dateStyle: "medium" })}</p>
             </div>
             <span className={`inline-flex w-fit items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold ${closed ? "border-white/20 bg-white/10" : "border-[#8fc6b6]/30 bg-[#8fc6b6]/10 text-[#c8eee3]"}`}>
               {closed ? <FileCheck2 size={15} /> : <Sparkles size={15} />} {LABELS[application.stage]}
@@ -62,14 +63,14 @@ export default async function ApplicationStatusPage({ params }: { params: Promis
                 {[...application.stageHistory].reverse().map((entry, index) => (
                   <li key={`${entry.at}-${index}`} className="flex gap-3">
                     <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[#edf5f1] text-[#153a32]"><Clock3 size={14} /></span>
-                    <div><p className="text-sm font-semibold">{LABELS[entry.stage]}</p><p className="mt-0.5 text-xs text-black/45">{new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(entry.at)}</p>{entry.note ? <p className="mt-2 text-sm leading-6 text-black/55">{entry.note}</p> : null}</div>
+                    <div><p className="text-sm font-semibold">{LABELS[entry.stage]}</p><p className="mt-0.5 text-xs text-black/45">{formatUkDate(entry.at, { dateStyle: "medium", timeStyle: "short" })}</p>{entry.note ? <p className="mt-2 text-sm leading-6 text-black/55">{entry.note}</p> : null}</div>
                   </li>
                 ))}
               </ol>
             </div>
             <dl className="rounded-md border border-black/10 bg-[#f7f7f3] p-4 text-sm">
               <dt className="text-xs font-semibold uppercase text-black/40">Application</dt><dd className="mt-1 font-medium">{application.id}</dd>
-              <dt className="mt-4 text-xs font-semibold uppercase text-black/40">Last updated</dt><dd className="mt-1 font-medium">{new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(application.updatedAt)}</dd>
+              <dt className="mt-4 text-xs font-semibold uppercase text-black/40">Last updated</dt><dd className="mt-1 font-medium">{formatUkDate(application.updatedAt, { dateStyle: "medium", timeStyle: "short" })}</dd>
               <dt className="mt-4 text-xs font-semibold uppercase text-black/40">CV retained</dt><dd className="mt-1 truncate font-medium">{application.cv.fileName}</dd>
             </dl>
           </div>

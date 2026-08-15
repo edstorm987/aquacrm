@@ -7,6 +7,7 @@
 // Pure string builders — XML/text only, no foundation imports.
 
 import type { EditorPage } from "../types/editorPage";
+import { dateInputValue } from "../lib/safeDate";
 
 export interface SitemapPage {
   slug: string;
@@ -40,7 +41,7 @@ export function buildSitemapXml(pages: SitemapPage[], baseUrl: string): string {
   );
   const entries = visible.map(p => {
     const lastmod = p.updatedAt
-      ? `\n    <lastmod>${new Date(p.updatedAt).toISOString().slice(0, 10)}</lastmod>`
+      ? `\n    <lastmod>${dateInputValue(p.updatedAt)}</lastmod>`
       : "";
     return `  <url>
     <loc>${escapeXml(urlForPage(baseUrl, p.slug))}</loc>${lastmod}

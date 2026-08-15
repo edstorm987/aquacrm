@@ -30,6 +30,9 @@ import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
 import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
 import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { cleanPortalProducts } from "@/lib/portalProducts";
+import { clientServiceCapabilities, inheritedClientServiceKeys } from "@/lib/clientServiceWorkspace";
+import { listAgencyProducts } from "@/server/agencyProducts";
 
 export default async function ClientLayout({
   children,
@@ -52,6 +55,12 @@ export default async function ClientLayout({
 
   const client = getClientForAgency(session.agencyId, clientId);
   if (!client) notFound();
+  const assignedServices = cleanPortalProducts(client.metadata?.portalProducts);
+  const serviceCatalogue = listAgencyProducts(session.agencyId);
+  const serviceCapabilities = clientServiceCapabilities(
+    assignedServices,
+    inheritedClientServiceKeys(assignedServices, serviceCatalogue),
+  );
 
   // Always-present workspace nav so the per-client sidebar isn't a
   // "No tools enabled" empty state when nothing is installed yet.
@@ -59,6 +68,21 @@ export default async function ClientLayout({
   // (i.e. always populated). Provides at-minimum an escape hatch +
   // overview tabs as nav links.
   const overviewBase = `/portal/clients/${client.id}`;
+  const deliveryItems: import("@/lib/chrome/sidebarLayout").NavPanel["items"] = serviceCapabilities.hasServices
+    ? [
+        { id: "client-delivery", label: "Delivery overview", href: clientWorkspaceHref(client.id, "delivery"), order: 10 },
+        ...assignedServices.map((product, index) => ({
+          id: `client-service-${product.catalogKey ?? "custom"}-${product.id}`,
+          label: product.name,
+          href: clientWorkspaceHref(client.id, "delivery", { product: product.id }),
+          order: 20 + index,
+        })),
+        ...(serviceCapabilities.marketing ? [{ id: "client-marketing", label: "Social and paid media", href: clientWorkspaceHref(client.id, "marketing"), order: 50 }] : []),
+        ...(serviceCapabilities.systems ? [{ id: "client-systems", label: "Systems and development", href: clientWorkspaceHref(client.id, "systems"), order: 60 }] : []),
+        { id: "client-files", label: "Files and assets", href: clientWorkspaceHref(client.id, "files"), order: 70 },
+        { id: "client-portal", label: "Client portal", href: clientWorkspaceHref(client.id, "portal"), order: 80 },
+      ]
+    : [{ id: "client-assign-services", label: "Assign services", href: `${clientWorkspaceHref(client.id, "delivery")}#service-assignment`, order: 10 }];
   const workspacePanel: import("@/lib/chrome/sidebarLayout").NavPanel = {
     id: "main",
     label: "Workspace",
@@ -76,19 +100,13 @@ export default async function ClientLayout({
       id: "fulfillment",
       label: "Delivery",
       order: 30,
-      items: [
-        { id: "client-delivery", label: "Delivery workspace", href: clientWorkspaceHref(client.id, "delivery"), order: 10 },
-        { id: "client-marketing", label: "Social and paid media", href: clientWorkspaceHref(client.id, "marketing"), order: 20 },
-        { id: "client-files", label: "Files and assets", href: clientWorkspaceHref(client.id, "files"), order: 30 },
-        { id: "client-portal", label: "Client portal", href: clientWorkspaceHref(client.id, "portal"), order: 40 },
-      ],
+      items: deliveryItems,
     },
     {
       id: "ops",
       label: "Operations",
       order: 50,
       items: [
-        { id: "client-systems", label: "Systems and development", href: clientWorkspaceHref(client.id, "systems"), order: 10 },
         { id: "client-finance", label: "Finance", href: clientWorkspaceHref(client.id, "finance"), order: 20 },
         { id: "client-notes", label: "Internal notes", href: clientWorkspaceHref(client.id, "notes"), order: 30 },
       ],
@@ -181,7 +199,7 @@ export default async function ClientLayout({
       <ThemeInjector brand={client.brand} scope="client" />
       <NotificationAttentionProvider initialAlerts={alertViews}>
       <div className="mm-portal-root flex h-dvh overflow-hidden">
-        <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} navAlignment="start" />
+        <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} navAlignment="start" variant="client" />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             title={client.name}
@@ -193,6 +211,7 @@ export default async function ClientLayout({
             panels={panels}
             tenantLabel={client.name}
             currentPath={currentPath}
+            sidebarVariant="client"
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
             privacyTerms={[

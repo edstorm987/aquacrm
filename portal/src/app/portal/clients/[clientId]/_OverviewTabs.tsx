@@ -37,10 +37,11 @@ const TAB_ICONS: Record<TabId, LucideIcon> = {
   notes: StickyNote,
 };
 
-export function OverviewTabs({ clientId, active }: { clientId: string; active: TabId }) {
+export function OverviewTabs({ clientId, active, visibleTabs }: { clientId: string; active: TabId; visibleTabs?: TabId[] }) {
+  const visible = visibleTabs ? new Set(visibleTabs) : null;
   return (
     <nav aria-label="Client sections" className="flex flex-wrap gap-1 border-b border-black/10">
-      {TABS.map(tab => {
+      {TABS.filter(tab => !visible || visible.has(tab.id)).map(tab => {
         const isActive = tab.id === active;
         const href = clientWorkspaceHref(clientId, tab.id);
         const Icon = TAB_ICONS[tab.id];

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import type { ServerOrder } from "../../server/orders";
 import { dashboardStats, filterOrders, formatPrice } from "../../lib/admin/orders";
+import { formatUkDate, isoDateTimeValue } from "../../lib/safeDate";
 
 export interface OrdersListProps {
   orders: ServerOrder[];
@@ -34,7 +35,7 @@ export function OrdersList({ orders }: OrdersListProps) {
         order.status,
         (order.amountTotal / 100).toFixed(2),
         order.currency.toUpperCase(),
-        new Date(order.createdAt).toISOString(),
+        isoDateTimeValue(order.createdAt) ?? "Date needs review",
         [order.trackingCarrier, order.trackingNumber].filter(Boolean).join(" "),
       ]),
     ];
@@ -95,7 +96,7 @@ export function OrdersList({ orders }: OrdersListProps) {
               <td className="py-3 text-black/60">{o.customerName ?? o.customerEmail ?? "—"}</td>
               <td className="py-3"><span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-black/60">{o.status}</span></td>
               <td className="py-3 text-right font-mono font-semibold">{formatPrice(o.amountTotal, o.currency)}</td>
-              <td className="py-3 text-right text-black/50">{new Date(o.createdAt).toLocaleString("en-GB")}</td>
+              <td className="py-3 text-right text-black/50">{formatUkDate(o.createdAt, { dateStyle: "medium", timeStyle: "short" })}</td>
             </tr>
           ))}
           {filtered.length === 0 && (

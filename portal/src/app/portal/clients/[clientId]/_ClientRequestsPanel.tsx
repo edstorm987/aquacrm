@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ClientRequest, ClientRequestType } from "@/app/api/tenants/client-requests/route";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 const TYPE_LABELS: Record<ClientRequestType, string> = {
   suggestion: "Suggestion",
@@ -15,14 +16,14 @@ const TYPE_LABELS: Record<ClientRequestType, string> = {
 const TYPES = Object.keys(TYPE_LABELS) as ClientRequestType[];
 
 function formatRequestDate(ts: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(ts, {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "UTC",
-  }).format(new Date(ts));
+  });
 }
 
 export function ClientRequestsPanel({

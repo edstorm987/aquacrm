@@ -4,6 +4,7 @@
 
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { dateInputValue } from "../lib/safeDate";
 
 export default async function MyProfilePage(props: PluginPageProps) {
   if (!props.clientId) return <p>client-CRM requires a client scope.</p>;
@@ -23,7 +24,7 @@ export default async function MyProfilePage(props: PluginPageProps) {
         <div><dt>Email</dt><dd>{contact.email}</dd></div>
         {contact.phone && <div><dt>Phone</dt><dd>{contact.phone}</dd></div>}
         <div><dt>Status</dt><dd>{contact.status}</dd></div>
-        <div><dt>Member since</dt><dd>{new Date(contact.firstSeenAt).toISOString().slice(0, 10)}</dd></div>
+        <div><dt>Member since</dt><dd>{dateInputValue(contact.firstSeenAt) || "Date needs review"}</dd></div>
       </dl>
       <p className="crm-meta">Tags + segments are managed by the agency. Contact support to update preferences.</p>
     </section>

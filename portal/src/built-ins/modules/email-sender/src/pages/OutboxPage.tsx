@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { isoDateTimeValue } from "../lib/safeDate";
 
 export default async function OutboxPage(props: PluginPageProps) {
   const c = containerFor({
@@ -39,7 +40,7 @@ export default async function OutboxPage(props: PluginPageProps) {
                 <td>{m.subject}</td>
                 <td className={`email-sender-status email-sender-status--${m.status}`}>{m.status}</td>
                 <td>{m.triggeredByPlugin}</td>
-                <td>{m.sentAt ? new Date(m.sentAt).toISOString() : "—"}</td>
+                <td>{m.sentAt ? isoDateTimeValue(m.sentAt) ?? "Date needs review" : "—"}</td>
               </tr>
             ))}
           </tbody>

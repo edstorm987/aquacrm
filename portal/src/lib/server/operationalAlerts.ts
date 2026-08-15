@@ -18,6 +18,7 @@ import { listExternalAssistantActionProposals } from "@/lib/server/externalAssis
 import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
 import { cleanClientMarketingService } from "@/lib/clientMarketingService";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
 
@@ -69,7 +70,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         severity: document.status === "action-required" ? "critical" : "warning",
         category: "compliance",
         title: `Compliance reminder: ${document.title}`,
-        detail: document.expiresAt ? `Review before ${new Date(document.expiresAt).toLocaleDateString("en-GB")}.` : "This document needs review or action.",
+        detail: document.expiresAt ? `Review before ${formatUkDate(document.expiresAt, { day: "numeric", month: "short", year: "numeric" })}.` : "This document needs review or action.",
         href,
         occurredAt: document.reminderAt,
       });
@@ -79,7 +80,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         severity: "notice",
         category: "compliance",
         title: `${document.title} is due soon`,
-        detail: `Expires or becomes due on ${new Date(document.expiresAt).toLocaleDateString("en-GB")}.`,
+        detail: `Expires or becomes due on ${formatUkDate(document.expiresAt, { day: "numeric", month: "short", year: "numeric" })}.`,
         href,
         occurredAt: document.expiresAt,
       });
@@ -126,7 +127,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         ...baseAlert,
         severity: task.priority === "urgent" ? "warning" : "notice",
         title: `Open action: ${task.title}`,
-        detail: `${owner ? `${owner} owns this action.` : "This action is unassigned. "}${task.dueAt ? `Due ${new Date(task.dueAt).toLocaleDateString("en-GB")}.` : "No deadline is recorded."}`,
+        detail: `${owner ? `${owner} owns this action.` : "This action is unassigned. "}${task.dueAt ? `Due ${formatUkDate(task.dueAt, { day: "numeric", month: "short", year: "numeric" })}.` : "No deadline is recorded."}`,
         occurredAt: task.updatedAt,
       });
     }

@@ -59,6 +59,7 @@ import type {
   CustomAIRecord,
   CustomAIStatus,
 } from "@/server/types";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 type WorkspaceTab = "flows" | "runs" | "ais";
 type BuilderNodeData = AutomationNodeConfig & { kind: AutomationNodeKind; [key: string]: unknown };
@@ -748,12 +749,12 @@ function RunStatus({ status }: { status: AutomationRun["status"] }) {
 }
 
 function duration(run: AutomationRun): string {
-  if (run.status === "waiting" && run.waitUntil) return `until ${new Date(run.waitUntil).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  if (run.status === "waiting" && run.waitUntil) return `until ${formatUkDate(run.waitUntil, { hour: "2-digit", minute: "2-digit" })}`;
   const milliseconds = (run.finishedAt ?? run.updatedAt) - run.createdAt;
   return milliseconds < 1_000 ? `${milliseconds} ms` : `${Math.round(milliseconds / 1_000)} sec`;
 }
 
-function formatDate(value: number): string { return new Date(value).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); }
+function formatDate(value: number): string { return formatUkDate(value, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); }
 
 function CustomAIRegistry({ records, team, canEdit, edit, remove }: { records: CustomAIRecord[]; team: TeamMember[]; canEdit: boolean; edit: (record: CustomAIRecord) => void; remove: (record: CustomAIRecord) => void }) {
   return <section className="mx-auto mt-5 max-w-[1680px]"><div className="flex items-end justify-between border-b border-black/10 pb-3"><div><h2 className="font-semibold">Custom AI registry</h2><p className="mt-1 text-sm text-slate-500">Record external assistants, their ownership, capabilities and working links.</p></div><span className="rounded bg-slate-200 px-2 py-1 text-[11px] font-bold uppercase text-slate-600">Registry only</span></div><div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{records.map(record => <article key={record.id} className="rounded-md border border-black/10 bg-white p-4"><div className="flex items-start justify-between gap-3"><span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-[#087f8c]"><Bot size={18} /></span><span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${record.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>{record.status}</span></div><h3 className="mt-3 font-semibold">{record.name}</h3><p className="mt-1 line-clamp-2 min-h-10 text-sm text-slate-500">{record.purpose || "No purpose recorded yet."}</p><div className="mt-3 flex min-h-6 flex-wrap gap-1">{record.capabilities.slice(0, 4).map(item => <span key={item} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">{item}</span>)}</div><p className="mt-4 text-xs text-slate-500">Owner: {team.find(member => member.id === record.ownerUserId)?.name || "Unassigned"}</p><div className="mt-4 flex flex-wrap gap-1.5 border-t border-black/10 pt-3"><a href={record.workspaceUrl} target="_blank" rel="noreferrer" className="tool-button">Open AI <ExternalLink size={13} /></a>{record.docsUrl ? <a href={record.docsUrl} target="_blank" rel="noreferrer" className="tool-button">Docs <ExternalLink size={13} /></a> : null}{canEdit ? <><button type="button" onClick={() => edit(record)} className="tool-button ml-auto">Edit</button><button type="button" onClick={() => remove(record)} className="icon-button text-red-700" title="Remove from registry"><Trash2 size={14} /></button></> : null}</div></article>)}{!records.length ? <div className="col-span-full py-20 text-center"><Bot className="mx-auto text-slate-300" size={30} /><h3 className="mt-3 font-semibold">No custom AIs recorded</h3><p className="mt-1 text-sm text-slate-500">Keep links and ownership clear as you create them.</p></div> : null}</div></section>;

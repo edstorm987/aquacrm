@@ -2,6 +2,7 @@
 
 import { Check, CreditCard, ExternalLink, FilePenLine, Landmark, Mail, Plus, ReceiptText, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 
 type Party = {
   kind: "lead" | "contact";
@@ -110,7 +111,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
       setServiceLevel(value.serviceLevel);
       setLines(value.lineItems);
       setTaxRate(value.subtotalCents ? String(Math.round(value.taxCents / value.subtotalCents * 10000) / 100) : "0");
-      setDueAt(new Date(value.dueAt).toISOString().slice(0, 10));
+      setDueAt(dateInputValue(value.dueAt));
       setCadence(value.billingCadence);
       setInstallments(String(value.installmentCount ?? 2));
       setAgreementTitle(value.agreementTitle);
@@ -317,7 +318,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
               <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Record bank, cash or other payment</p>
               <div className="mt-3 grid gap-2"><input className={control} type="number" min="0.01" step="0.01" placeholder={`Amount (£) · balance ${gbp(balance)}`} value={paymentAmount} onChange={event => setPaymentAmount(event.target.value)} /><select className={control} value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}><option value="bank-transfer">Bank transfer</option><option value="cash">Cash</option><option value="stripe">Stripe</option><option value="other">Other</option></select><input className={control} placeholder="Reference or receipt number" value={paymentReference} onChange={event => setPaymentReference(event.target.value)} /><button type="button" onClick={() => void recordPayment()} disabled={busy === "payment" || Number(paymentAmount) <= 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium disabled:opacity-40"><Landmark size={16} /> {busy === "payment" ? "Recording..." : "Record payment"}</button></div>
             </div>
-            {pack?.payments.length ? <div className="mt-6 border-t border-black/10 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment trail</p><ul className="mt-3 space-y-2">{pack.payments.map(payment => <li key={payment.id} className="flex justify-between gap-3 text-xs"><span className="capitalize text-black/55">{payment.method.replace("-", " ")} · {new Date(payment.paidAt).toLocaleDateString("en-GB")}</span><strong>{gbp(payment.amountCents)}</strong></li>)}</ul></div> : null}
+            {pack?.payments.length ? <div className="mt-6 border-t border-black/10 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment trail</p><ul className="mt-3 space-y-2">{pack.payments.map(payment => <li key={payment.id} className="flex justify-between gap-3 text-xs"><span className="capitalize text-black/55">{payment.method.replace("-", " ")} · {formatUkDate(payment.paidAt, { dateStyle: "medium" })}</span><strong>{gbp(payment.amountCents)}</strong></li>)}</ul></div> : null}
             {notice ? <p className="mt-5 border-l-2 border-emerald-600 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p> : null}
             {error ? <p role="alert" className="mt-5 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
           </aside>

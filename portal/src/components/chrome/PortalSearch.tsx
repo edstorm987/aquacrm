@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
+import { dateFromValue, formatUkDate, isoDateTimeValue } from "@/lib/formatDateTime";
+
 export interface PortalSearchItem {
   label: string;
   href: string;
@@ -389,7 +391,7 @@ function SearchResultRow({ result, query, optionIndex, active, onActive, onChoos
         {result.excerpt ? <span className="mt-1 line-clamp-2 block text-xs leading-5 text-black/48">{highlightText(result.excerpt, query)}</span> : result.subtitle ? <span className="mt-1 block truncate text-xs text-black/45">{highlightText(result.subtitle, query)}</span> : null}
         <span className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-black/35">
           {result.matchedOn ? <span>{result.matchedOn}</span> : null}
-          {result.timestamp ? <time dateTime={new Date(result.timestamp).toISOString()}>{formatResultTime(result.timestamp)}</time> : null}
+          {result.timestamp ? <time dateTime={isoDateTimeValue(result.timestamp)}>{formatResultTime(result.timestamp)}</time> : null}
         </span>
       </span>
       <ArrowUpRight size={14} className="mt-2 shrink-0 text-black/20 transition group-hover:text-black/45" aria-hidden="true" />
@@ -418,10 +420,11 @@ function highlightText(value: string, query: string): ReactNode {
 }
 
 function formatResultTime(timestamp: number): string {
-  const date = new Date(timestamp);
+  const date = dateFromValue(timestamp);
+  if (!date) return "Date needs review";
   const now = new Date();
-  if (date.toDateString() === now.toDateString()) return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: date.getFullYear() === now.getFullYear() ? undefined : "numeric" });
+  if (date.toDateString() === now.toDateString()) return formatUkDate(date, { hour: "2-digit", minute: "2-digit" });
+  return formatUkDate(date, { day: "numeric", month: "short", year: date.getFullYear() === now.getFullYear() ? undefined : "numeric" });
 }
 
 function resultIcon(category: string) {

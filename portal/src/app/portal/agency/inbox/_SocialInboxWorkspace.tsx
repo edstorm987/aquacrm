@@ -26,6 +26,7 @@ import {
 
 import type { InboxConversationThread, InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
 import { formatElapsed } from "@/lib/leadTiming";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 type Queue = "all" | "unread" | "waiting" | "mine" | "closed";
 
@@ -255,8 +256,8 @@ function QueueButton({ active, label, count, onClick }: { active: boolean; label
 }
 
 function initials(value: string): string { return value.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase() || "?"; }
-function shortDate(value: number): string { return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-function longDate(value: number): string { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
+function shortDate(value: number): string { return formatUkDate(value, { hour: "2-digit", minute: "2-digit" }); }
+function longDate(value: number): string { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function formatRemaining(value: number): string { const ms = Math.max(0, value - Date.now()); const hours = Math.floor(ms / 3_600_000); const minutes = Math.floor((ms % 3_600_000) / 60_000); return hours ? `${hours}h ${minutes}m` : `${minutes}m`; }
 function messageTypeLabel(value?: string): string { return value ? `${value[0]?.toUpperCase()}${value.slice(1)} message` : "No message preview"; }
 function messageError(value?: string): string { if (value === "meta_reply_window_closed") return "Meta's reply window has closed. Continue from the native inbox if Meta permits it."; if (value === "inbox_connection_not_ready" || value === "meta_not_configured") return "This sending profile is not ready yet. Check Channels and inject the Meta values."; return value?.replaceAll("_", " ") || "The inbox action could not be completed."; }

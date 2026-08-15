@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { describeActivityChip } from "@/lib/chrome/activityCategoryStyle";
+import { formatUkDate, timestampFromValue } from "@/lib/formatDateTime";
 
 interface InboxEntry {
   id: string;
@@ -18,12 +19,14 @@ interface InboxEntry {
 }
 
 function formatRelative(ts: number): string {
-  const delta = Date.now() - ts;
+  const timestamp = timestampFromValue(ts);
+  if (timestamp === undefined) return "Date needs review";
+  const delta = Date.now() - timestamp;
   if (delta < 60_000) return "just now";
   if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m ago`;
   if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)}h ago`;
   if (delta < 7 * 86_400_000) return `${Math.round(delta / 86_400_000)}d ago`;
-  return new Date(ts).toLocaleDateString();
+  return formatUkDate(timestamp, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function AgencyActivityFeed() {

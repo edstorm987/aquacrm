@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChecklistViewItem } from "../server";
+import { formatUkDate } from "../lib/safeDate";
 
 export interface ChecklistTaskProps {
   task: ChecklistViewItem;
@@ -31,7 +32,7 @@ export function ChecklistTask(props: ChecklistTaskProps) {
         <span className="fulfillment-task-label">{task.label}</span>
         {task.done && task.doneAt && (
           <span className="fulfillment-task-meta">
-            {new Date(task.doneAt).toLocaleDateString()}
+            {formatUkDate(task.doneAt, { dateStyle: "medium" })}
           </span>
         )}
       </label>

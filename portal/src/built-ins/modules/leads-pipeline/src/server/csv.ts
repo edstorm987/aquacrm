@@ -27,6 +27,10 @@ export interface ParsedRow {
   tags?: string[];
   source?: string;
   notes?: string;
+  website?: string;
+  address?: string;
+  googleMapsUrl?: string;
+  niche?: string;
   raw: string[];                   // raw cells, for error reporting
 }
 
@@ -129,6 +133,10 @@ export function parseCsv(text: string): ParseCsvResult {
     if ("company" in headerVariants) row.company = cells[headerVariants.company!]?.trim();
     if ("source" in headerVariants) row.source = cells[headerVariants.source!]?.trim();
     if ("notes" in headerVariants) row.notes = cells[headerVariants.notes!]?.trim();
+    if ("website" in headerVariants) row.website = cells[headerVariants.website!]?.trim();
+    if ("address" in headerVariants) row.address = cells[headerVariants.address!]?.trim();
+    if ("googleMapsUrl" in headerVariants) row.googleMapsUrl = cells[headerVariants.googleMapsUrl!]?.trim();
+    if ("niche" in headerVariants) row.niche = cells[headerVariants.niche!]?.trim();
     if ("tags" in headerVariants) {
       const raw = cells[headerVariants.tags!] ?? "";
       row.tags = raw.split(/[,;|]/).map(t => t.trim()).filter(Boolean);

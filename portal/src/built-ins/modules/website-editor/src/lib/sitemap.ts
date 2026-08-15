@@ -17,6 +17,7 @@
 import type { EditorPage, EditorPagePrivacy } from "../types/editorPage";
 import type { LocalePageMap } from "./i18n";
 import { localizedUrl } from "./i18n";
+import { isoDateTimeValue } from "./safeDate";
 
 // ─── Inputs ───────────────────────────────────────────────────────────
 
@@ -96,8 +97,8 @@ function clampPriority(n: number): string {
   return v.toFixed(1);
 }
 
-function isoDay(ts: number): string {
-  return new Date(ts).toISOString().slice(0, 10);
+function isoDay(ts: number): string | undefined {
+  return isoDateTimeValue(ts)?.slice(0, 10);
 }
 
 // Sitemap-flavour hreflang alternates. Note this uses
@@ -136,7 +137,8 @@ export function buildSitemap(
     const loc = joinUrl(opts.baseUrl, p.slug);
     const priority = p.priority ?? (p.isHomepage ? homepagePriority : defaultPriority);
     const changefreq = p.changefreq ?? defaultChangefreq;
-    const lastmod = p.publishedAt ? `\n    <lastmod>${isoDay(p.publishedAt)}</lastmod>` : "";
+    const publishedDay = p.publishedAt ? isoDay(p.publishedAt) : undefined;
+    const lastmod = publishedDay ? `\n    <lastmod>${publishedDay}</lastmod>` : "";
     const alternates = buildSitemapHreflang(p.slug, p, opts.baseUrl);
     return `  <url>
     <loc>${escapeXml(loc)}</loc>${lastmod}

@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { formatUkDateTime } from "@/lib/formatDateTime";
+import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/formatDateTime";
 
 export type JourneyMeetingKind = "lead" | "contact";
 export type JourneyMeetingMode = "google-meet" | "phone" | "in-person" | "other";
@@ -118,7 +118,17 @@ export function JourneyMeetingsWorkspace({
 
   const brandOptions = useMemo(() => [...new Set(records.map(person => person.brandName).filter((value): value is string => Boolean(value)))].sort(), [records]);
   const serviceOptions = useMemo(() => [...new Set(records.flatMap(person => person.serviceNames))].sort(), [records]);
-  const meetings = useMemo(() => records.filter(person => person.nextMeetingAt), [records]);
+  const meetings = useMemo(() => records.flatMap(person => {
+    const nextMeetingAt = timestampFromValue(person.nextMeetingAt);
+    if (nextMeetingAt === undefined) return [];
+    return [{
+      ...person,
+      nextMeetingAt,
+      meetingConfirmedAt: timestampFromValue(person.meetingConfirmedAt),
+      meetingReminderAt: timestampFromValue(person.meetingReminderAt),
+      meetingReminderSentAt: timestampFromValue(person.meetingReminderSentAt),
+    }];
+  }), [records]);
   const stats = useMemo(() => meetingStats(meetings, referenceNow), [meetings, referenceNow]);
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -373,13 +383,13 @@ function personToDraft(person: JourneyMeetingPerson): MeetingDraft {
   return {
     isNew: false,
     personKey: meetingKey(person),
-    date: person.nextMeetingAt ? toDateTimeLocal(person.nextMeetingAt) : defaultMeetingDate(),
+    date: person.nextMeetingAt ? localDateTimeInputValue(person.nextMeetingAt) : defaultMeetingDate(),
     mode: person.meetingMode ?? "google-meet",
     status: meetingState(person),
     link: person.meetingLink ?? "",
     location: person.meetingLocation ?? "",
     confirmed: Boolean(person.meetingConfirmedAt || person.meetingStatus === "confirmed"),
-    reminderAt: person.meetingReminderAt ? toDateTimeLocal(person.meetingReminderAt) : "",
+    reminderAt: localDateTimeInputValue(person.meetingReminderAt),
     notes: person.meetingNotes ?? "",
     recordingUrl: person.callRecordingUrl ?? "",
     sessionNotes: person.sessionNotes ?? "",
@@ -429,7 +439,7 @@ function quickOutcomeLabel(value: JourneyMeetingAttemptOutcome) { return value =
 function modeLabel(value?: JourneyMeetingMode) { return value ? statusLabel(value) : "Meeting format not set"; }
 function startOfToday(stamp: number) { const date = new Date(stamp); date.setHours(0, 0, 0, 0); return date.getTime(); }
 function defaultMeetingDate() { const date = new Date(Date.now() + 86_400_000); date.setHours(10, 0, 0, 0); return toDateTimeLocal(date.getTime()); }
-function toDateTimeLocal(stamp: number) { const date = new Date(stamp); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000); return local.toISOString().slice(0, 16); }
+function toDateTimeLocal(stamp: number) { return localDateTimeInputValue(stamp); }
 
 const inputClass = "min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm text-black/72 outline-none focus:border-black/35";
 const detailAction = "inline-flex min-h-9 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03] disabled:opacity-40";

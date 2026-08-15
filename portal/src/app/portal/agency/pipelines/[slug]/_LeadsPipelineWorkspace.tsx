@@ -7,7 +7,7 @@ import Link from "next/link";
 import { BarChart3, Binoculars, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, MoreHorizontal, Plus, Presentation, Search, TimerReset, Trash2, X } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
 import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
-import { formatUkDateTime } from "@/lib/formatDateTime";
+import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/formatDateTime";
 import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/leadTiming";
 import { BoardSwitcher } from "./_PipelineBoard";
 import { ScoutingCommand, type ScoutingProspectView } from "./_ScoutingCommand";
@@ -361,7 +361,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
     .slice(0, 5);
   const upcomingMeetings = useMemo(() => {
     return scopedLeads
-      .filter(lead => typeof lead.nextMeetingAt === "number")
+      .filter(lead => timestampFromValue(lead.nextMeetingAt) !== undefined)
       .map(lead => ({
         id: lead.id,
         kind: "lead" as const,
@@ -369,7 +369,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
         email: lead.email,
         phone: lead.phone,
         company: lead.company,
-        meetingAt: lead.nextMeetingAt!,
+        meetingAt: timestampFromValue(lead.nextMeetingAt)!,
         meetingLink: lead.meetingLink,
         notes: lead.meetingNotes,
         mode: lead.meetingMode,
@@ -444,7 +444,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       fitScore: prospect.fitScore === undefined ? "" : String(prospect.fitScore),
       preferredChannel: prospect.preferredChannel ?? "",
       doNotContact: Boolean(prospect.doNotContact),
-      nextContactAt: prospect.nextContactAt ? toDateTimeLocal(prospect.nextContactAt) : "",
+      nextContactAt: localDateTimeInputValue(prospect.nextContactAt),
       nextContactReason: prospect.nextContactReason ?? "",
     } : EMPTY_PROSPECT);
     setShowProspectForm(true);
@@ -456,16 +456,20 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
     setError(null);
     setSuccess(null);
     try {
+      const { nextContactAt, nextContactReason, ...dossierForm } = prospectForm;
       const suffix = editingProspect ? `?id=${encodeURIComponent(editingProspect.id)}` : "";
       const res = await fetch(`/api/portal/leads-pipeline/prospects${suffix}`, {
         method: editingProspect ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ...prospectForm,
+          ...dossierForm,
           tags: splitTags(prospectForm.tags),
           fitScore: prospectForm.fitScore.trim() ? Number(prospectForm.fitScore) : undefined,
           preferredChannel: prospectForm.preferredChannel || undefined,
-          nextContactAt: prospectForm.nextContactAt ? new Date(prospectForm.nextContactAt).getTime() : null,
+          ...(!editingProspect ? {
+            nextContactAt: nextContactAt ? new Date(nextContactAt).getTime() : null,
+            nextContactReason,
+          } : {}),
         }),
       });
       const data = await res.json() as { ok: boolean; error?: string };
@@ -1228,8 +1232,12 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                 <textarea value={prospectForm.researchNotes} onChange={event => setProspectForm(current => ({ ...current, researchNotes: event.target.value }))} rows={3} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm" placeholder="Website, Google profile, reviews, competitors, decision maker, useful context..." />
               </label>
               <Field label="Next research step" value={prospectForm.nextStep} onChange={nextStep => setProspectForm(current => ({ ...current, nextStep }))} placeholder="Find owner email, check website, revisit..." />
-              <Field label="Recontact at" value={prospectForm.nextContactAt} onChange={nextContactAt => setProspectForm(current => ({ ...current, nextContactAt }))} type="datetime-local" />
-              <Field label="Recontact reason" value={prospectForm.nextContactReason} onChange={nextContactReason => setProspectForm(current => ({ ...current, nextContactReason }))} placeholder="Asked me to call after the bank holiday" />
+              {!editingProspect ? <>
+                <Field label="First recontact at" value={prospectForm.nextContactAt} onChange={nextContactAt => setProspectForm(current => ({ ...current, nextContactAt }))} type="datetime-local" />
+                <Field label="First recontact reason" value={prospectForm.nextContactReason} onChange={nextContactReason => setProspectForm(current => ({ ...current, nextContactReason }))} placeholder="Asked me to call after the bank holiday" />
+              </> : <div className="rounded-md border border-[#16877f]/20 bg-[#e9f5f2] px-3 py-3 text-xs leading-5 text-[#166a64] sm:col-span-2">
+                Follow-ups are managed from the dossier so the complete schedule and resolution history stay intact.
+              </div>}
               <label className="flex min-h-11 items-center gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/65">
                 <input type="checkbox" checked={prospectForm.doNotContact} onChange={event => setProspectForm(current => ({ ...current, doNotContact: event.target.checked }))} className="size-4 accent-red-700" />
                 Do not contact
@@ -1827,14 +1835,14 @@ function DetailsEditor({
     budgetRange: budgetRange ?? "",
     designFeedback: designFeedback ?? "",
     supportNotes: supportNotes ?? "",
-    meetingDate: meetingAt ? toDateTimeLocal(meetingAt) : "",
+    meetingDate: localDateTimeInputValue(meetingAt),
     meetingLink: meetingLink ?? "",
     meetingNotes: meetingNotes ?? "",
     meetingMode: meetingMode ?? "google-meet" as MeetingMode,
     meetingLocation: meetingLocation ?? "",
     meetingStatus: meetingStatus ?? "scheduled" as MeetingStatus,
     meetingConfirmed: Boolean(meetingConfirmedAt),
-    reminderAt: meetingReminderAt ? toDateTimeLocal(meetingReminderAt) : "",
+    reminderAt: localDateTimeInputValue(meetingReminderAt),
     attemptChannel: "call" as AttemptChannel,
     attemptOutcome: "" as AttemptOutcome | "",
     attemptNotes: "",
@@ -2383,12 +2391,6 @@ function matchesQuery(lead: LeadView, query: string): boolean {
     lead.serviceNames.join(" "),
     lead.tags.join(" "),
   ].some(value => (value ?? "").toLowerCase().includes(q));
-}
-
-function toDateTimeLocal(stamp: number): string {
-  const d = new Date(stamp);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function isGoogleMeetUrl(value: string): boolean {

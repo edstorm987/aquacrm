@@ -3,6 +3,7 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { formatPrice } from "../lib/admin/orders";
+import { formatUkDate } from "../lib/safeDate";
 
 export default async function OrderReceiptPage(props: PluginPageProps) {
   const id = props.segments[0];
@@ -18,7 +19,7 @@ export default async function OrderReceiptPage(props: PluginPageProps) {
     <article className="ecom-receipt">
       <header>
         <h1>Receipt — {order.id}</h1>
-        <p>{new Date(order.paidAt ?? order.createdAt).toLocaleString()}</p>
+        <p>{formatUkDate(order.paidAt ?? order.createdAt, { dateStyle: "medium", timeStyle: "short" })}</p>
       </header>
       <section>
         <h2>Customer</h2>

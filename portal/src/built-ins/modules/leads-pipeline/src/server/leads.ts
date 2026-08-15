@@ -9,6 +9,7 @@
 
 import { canonEmail, makeId } from "../lib/ids";
 import { now } from "../lib/time";
+import { isoDateTimeValue } from "../lib/safeDate";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type {
   AudienceFilter,
@@ -441,7 +442,7 @@ export class LeadService {
         journeyEvent("meeting-scheduled", now(), {
           actorUserId: actor,
           scheduledFor: meetingAt,
-          note: `Meeting scheduled for ${new Date(meetingAt).toISOString()}.`,
+          note: `Meeting scheduled for ${isoDateTimeValue(meetingAt) ?? "a date that needs review"}.`,
         }),
       ],
     };

@@ -9,6 +9,7 @@ import {
   Boxes,
   Building2,
   CalendarDays,
+  Camera,
   Circle,
   ClipboardCheck,
   Code2,
@@ -17,7 +18,9 @@ import {
   FolderKanban,
   Gauge,
   Gift,
+  Globe2,
   HandCoins,
+  HeartPulse,
   House,
   Images,
   Inbox,
@@ -26,8 +29,11 @@ import {
   MonitorCog,
   NotebookPen,
   Package,
+  PackagePlus,
+  Palette,
   PanelTop,
   PanelsTopLeft,
+  MapPin,
   Radar,
   ReceiptText,
   Settings,
@@ -81,6 +87,7 @@ const NAV_ICONS: Record<string, typeof Circle> = {
   "client-notes": NotebookPen,
   "client-systems": MonitorCog,
   "client-settings": Settings,
+  "client-assign-services": PackagePlus,
   customer: Users,
   people: UsersRound,
   "my-day": Gauge,
@@ -116,6 +123,17 @@ const NAV_TONES: Record<string, string> = {
   performance: "blue",
   marketing: "pink",
   "client-marketing": "pink",
+  "client-overview": "sky",
+  "client-relationship": "violet",
+  "client-delivery": "teal",
+  "client-communications": "sky",
+  "client-finance": "emerald",
+  "client-files": "amber",
+  "client-portal": "cyan",
+  "client-notes": "amber",
+  "client-systems": "blue",
+  "client-settings": "slate",
+  "client-assign-services": "amber",
   finance: "emerald",
   "agency-finance": "emerald",
   "sop-library": "slate",
@@ -130,6 +148,44 @@ const NAV_TONES: Record<string, string> = {
   settings: "slate",
   "agency-settings": "slate",
 };
+
+const CLIENT_SERVICE_ICONS: Array<[string, typeof Circle]> = [
+  ["client-service-brand-identity-", Palette],
+  ["client-service-google-profile-", MapPin],
+  ["client-service-custom-software-", Code2],
+  ["client-service-ongoing-care-", HeartPulse],
+  ["client-service-business-os-", Building2],
+  ["client-service-health-check-", Gauge],
+  ["client-service-social-ads-", Megaphone],
+  ["client-service-photography-", Camera],
+  ["client-service-automation-", Workflow],
+  ["client-service-website-", Globe2],
+  ["client-service-content-", FileText],
+  ["client-service-custom-", Package],
+];
+
+const CLIENT_SERVICE_TONES: Array<[string, string]> = [
+  ["client-service-brand-identity-", "violet"],
+  ["client-service-google-profile-", "emerald"],
+  ["client-service-custom-software-", "indigo"],
+  ["client-service-ongoing-care-", "teal"],
+  ["client-service-business-os-", "violet"],
+  ["client-service-health-check-", "lime"],
+  ["client-service-social-ads-", "pink"],
+  ["client-service-photography-", "amber"],
+  ["client-service-automation-", "cyan"],
+  ["client-service-website-", "blue"],
+  ["client-service-content-", "sky"],
+  ["client-service-custom-", "slate"],
+];
+
+function navIcon(id: string): typeof Circle {
+  return NAV_ICONS[id] ?? CLIENT_SERVICE_ICONS.find(([prefix]) => id.startsWith(prefix))?.[1] ?? Circle;
+}
+
+function navTone(id: string): string {
+  return NAV_TONES[id] ?? CLIENT_SERVICE_TONES.find(([prefix]) => id.startsWith(prefix))?.[1] ?? "slate";
+}
 
 export function SidebarNavLink({
   id,
@@ -168,22 +224,24 @@ export function SidebarNavLink({
         || pathname.startsWith("/portal/agency/portals")
         || pathname.startsWith("/portal/agency/pipelines/fulfilment")
       : pathname === href || pathname.startsWith(`${href}/`);
-  const Icon = NAV_ICONS[id] ?? Circle;
+  const Icon = navIcon(id);
   const attentionContext = useNotificationAttention();
   const liveAttention = useAttentionMatches({ navId: id, hrefs: [href] });
+  const reserveAttention = useAttentionMatches({ navId: id, hrefs: [href], pool: "reserve" });
   const unresolvedAttention = useUnresolvedAttentionMatches({ navId: id });
   const visibleAttention = [...new Map([...liveAttention, ...unresolvedAttention].map(alert => [alert.id, alert])).values()];
   const resolvedAttentionCount = attentionContext ? visibleAttention.length : attentionCount;
-  const hoverTitle = visibleAttention.length ? `${label}\n${attentionTitle(visibleAttention)}` : label;
+  const reserveNote = reserveAttention.length ? `\nAttention shield: ${reserveAttention.length} related ${reserveAttention.length === 1 ? "item is" : "items are"} safely held in reserve.` : "";
+  const hoverTitle = visibleAttention.length ? `${label}\n${attentionTitle(visibleAttention)}${reserveNote}` : label;
 
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      aria-label={resolvedAttentionCount > 0 ? `${label}, ${resolvedAttentionCount} notification${resolvedAttentionCount === 1 ? "" : "s"} need attention` : undefined}
+      aria-label={resolvedAttentionCount > 0 ? `${label}, ${resolvedAttentionCount} notification${resolvedAttentionCount === 1 ? "" : "s"} in focus${reserveAttention.length ? ` and ${reserveAttention.length} held in reserve` : ""}` : undefined}
       title={hoverTitle}
       data-sidebar-nav-link
-      data-nav-tone={NAV_TONES[id] ?? "slate"}
+      data-nav-tone={navTone(id)}
       className={[
         "mm-sidebar-link flex min-h-10 items-center gap-2 rounded-md px-2 py-2",
         active ? "is-active font-medium" : "text-black/80",

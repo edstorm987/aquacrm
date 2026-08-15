@@ -40,6 +40,7 @@ import type {
   ExperiencePackage,
   ExperiencePackageAudience,
 } from "@/server/types";
+import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 
 type ClientOption = { id: string; name: string; companyId?: string; stageLabel: string; source: string; health: "healthy" | "attention"; healthNotes: string[] };
 type StaffOption = { id: string; name: string; email: string; companyIds: string[] };
@@ -439,7 +440,7 @@ function PlanRow({ record, onStatus, onToggleStep, onEdit, onDelete }: { record:
             {!record.fulfilmentSteps.length ? <p className="text-xs text-black/35">No checklist yet.</p> : null}
           </div>
         </div>
-        <div><p className="text-[10px] font-semibold uppercase text-black/35">When</p><p className="mt-1 text-sm font-medium text-black/65">{record.dueAt ? new Date(record.dueAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "No date"}</p><p className="mt-2 text-xs text-black/38">{record.bookingReference || deliveryLabel(record.deliveryMethod)}</p></div>
+        <div><p className="text-[10px] font-semibold uppercase text-black/35">When</p><p className="mt-1 text-sm font-medium text-black/65">{record.dueAt ? formatUkDate(record.dueAt, { day: "numeric", month: "short", year: "numeric" }) : "No date"}</p><p className="mt-2 text-xs text-black/38">{record.bookingReference || deliveryLabel(record.deliveryMethod)}</p></div>
         <div><p className="text-[10px] font-semibold uppercase text-black/35">Budget / actual</p><p className="mt-1 text-sm font-medium text-black/65">{money(record.budgetCents ?? 0, record.currency)} / {record.costCents == null ? "Not logged" : money(record.costCents, record.currency)}</p><select aria-label={`${record.title} status`} value={record.status} onChange={event => onStatus(event.target.value as ClientDelightStatus)} className="mt-2 min-h-9 w-full rounded-md border border-black/15 bg-white px-2 text-xs font-medium"><StatusOptions /></select></div>
         <div className="flex justify-end gap-1">
           {record.trackingUrl ? <a href={record.trackingUrl} target="_blank" rel="noreferrer" title="Open booking or tracking" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.03]"><ExternalLink size={14} /></a> : null}
@@ -698,7 +699,7 @@ function toPlanDraft(record: ClientDelightRecord): PlanDraft { return { id: reco
 function planFromPackage(item: ExperiencePackage, audience?: ExperienceAudience, recipient?: StaffOption): PlanDraft { return { ...emptyPlan(item.currency), packageId: item.id, audience: audience ?? (item.audience === "staff" ? "staff" : "client"), recipientUserId: recipient?.id ?? "", recipientName: recipient?.name ?? "", companyId: recipient?.companyIds[0] ?? item.companyIds[0] ?? "", title: item.name, occasion: inferOccasion(item.category), deliveryMethod: item.deliveryMethod, dueAt: item.leadTimeDays == null ? "" : dateInput(Date.now() + item.leadTimeDays * 86_400_000), budget: item.priceCents == null ? "" : (item.priceCents / 100).toFixed(2), supplier: item.supplier ?? "", trackingUrl: item.bookingUrl ?? "", includedItems: [...item.includedItems], fulfilmentSteps: item.fulfilmentSteps.map((label, index) => ({ id: `draft_step_${index}`, label, completed: false })) }; }
 function inferOccasion(category: string): ClientDelightOccasion { const value = category.toLowerCase(); if (value.includes("welcome")) return "welcome"; if (value.includes("trip") || value.includes("retreat") || value.includes("travel")) return "trip"; if (value.includes("event") || value.includes("dinner")) return "event"; if (value.includes("milestone") || value.includes("recognition") || value.includes("reward")) return "milestone"; return "other"; }
 function splitLines(value: string) { return value.split(/\r?\n/).map(item => item.trim()).filter(Boolean); }
-function dateInput(value: number) { return new Date(value).toISOString().slice(0, 10); }
+function dateInput(value: number) { return dateInputValue(value); }
 function occasionLabel(value: ClientDelightOccasion) { return OCCASIONS.find(item => item.value === value)?.label ?? value; }
 function statusLabel(value: ClientDelightStatus) { return value === "ordered" ? "Booked / ordered" : value === "sent" ? "Ready / sent" : value.charAt(0).toUpperCase() + value.slice(1); }
 function audienceLabel(value: ExperienceAudience) { return value === "client" ? "Client" : value === "staff" ? "Staff" : value === "partner" ? "Partner" : "Personal"; }

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { dateFromValue, formatUkDate } from "@/lib/formatDateTime";
 import type { NotepadFolder, NotepadNote, NotepadNoteStatus } from "@/server/types";
 
 type NotebookView = "all" | "pinned" | "archived" | "trashed" | `folder:${string}`;
@@ -579,7 +580,9 @@ function formatRelative(timestamp: number): string {
   if (difference < 3_600_000) return `${Math.floor(difference / 60_000)}m ago`;
   if (difference < 86_400_000) return `${Math.floor(difference / 3_600_000)}h ago`;
   if (difference < 604_800_000) return `${Math.floor(difference / 86_400_000)}d ago`;
-  return new Date(timestamp).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: new Date(timestamp).getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  const date = dateFromValue(timestamp);
+  if (!date) return "Date needs review";
+  return formatUkDate(date, { day: "numeric", month: "short", year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 }
 
 function message(error: unknown): string {

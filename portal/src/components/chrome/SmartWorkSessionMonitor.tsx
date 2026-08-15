@@ -49,8 +49,17 @@ export function SmartWorkSessionMonitor({ userName }: { userName?: string }) {
   const lastInteractionRef = useRef(Date.now());
   const requestBusyRef = useRef(false);
   const lastDesktopPingRef = useRef("");
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const acceptPlanning = useCallback((planning: PlanningPayload, broadcast = true) => {
+    if (!mountedRef.current) return;
     sessionRef.current = planning.activeSession;
     setSession(planning.activeSession);
     setNow(Date.now());

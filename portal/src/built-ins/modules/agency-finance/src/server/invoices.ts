@@ -20,6 +20,7 @@ import type {
   UpdateInvoicePatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort, TenantPort } from "./ports";
+import { dateInputValue } from "../lib/safeDate";
 
 const INV_INDEX_KEY = "invoices/index";
 const TEMPLATE_KEY = "invoices/template";
@@ -310,7 +311,7 @@ export class InvoiceService {
   ${template.letterheadDataUrl ? `<img class="letterhead" src="${escapeHtml(template.letterheadDataUrl)}" alt="">` : ""}
   <div class="invoice-content">
   <header><div><span class="eyebrow">${escapeHtml(template.documentTitle)}</span><h1>${invoice.number}</h1></div><div class="from"><strong>${escapeHtml(agency?.name ?? "Agency")}</strong>${template.businessDetails ? `<p>${escapeHtml(template.businessDetails).replace(/\n/g, "<br>")}</p>` : ""}</div></header>
-  <section class="meta"><div><span>Bill to</span><strong>${escapeHtml(client?.name ?? invoice.clientId)}</strong></div><div><span>Issued</span><strong>${new Date(invoice.issuedAt).toISOString().slice(0, 10)}</strong></div><div><span>Due</span><strong>${new Date(invoice.dueAt).toISOString().slice(0, 10)}</strong></div></section>
+  <section class="meta"><div><span>Bill to</span><strong>${escapeHtml(client?.name ?? invoice.clientId)}</strong></div><div><span>Issued</span><strong>${dateInputValue(invoice.issuedAt)}</strong></div><div><span>Due</span><strong>${dateInputValue(invoice.dueAt)}</strong></div></section>
   <table><thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
   <div class="summary">
     <p><span>Subtotal</span><span>${fmt(invoice.subtotalCents)} ${invoice.currency.toUpperCase()}</span></p>

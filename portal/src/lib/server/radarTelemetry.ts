@@ -3,6 +3,7 @@ import "server-only";
 import type { BusinessRadarIssue } from "@/lib/businessRadar";
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import type { AgencyWebsiteProject, AgencyWebsiteTelemetryEvent, Client, RadarSyntheticProbeResult } from "@/server/types";
+import { formatUkDate, isoDateTimeValue } from "@/lib/formatDateTime";
 
 const DAY = 86_400_000;
 
@@ -206,7 +207,7 @@ function issuesForProperty(property: RadarTelemetryProperty, now: number): Busin
     issues.push(issue(property, "watch", "development", `Aqua Tag has never reported for ${property.label}`, "This live property has no telemetry event. Installation, consent, deployment, or property mapping may be incomplete.", ["No event timestamp", `Tag declared: ${property.tagDeclared ? "yes" : "no"}`], now));
   } else if (property.expectedLive && property.lastSeenAt && now - property.lastSeenAt > 2 * DAY) {
     const ageDays = Math.floor((now - property.lastSeenAt) / DAY);
-    issues.push(issue(property, ageDays >= 7 ? "critical" : "warning", "development", `${property.label} monitoring has gone quiet`, `No telemetry has arrived for ${ageDays} days. Check the Aqua Tag, consent state, production release, and server availability.`, [`Last event ${new Date(property.lastSeenAt).toISOString()}`, `${property.events.length} retained events`], property.lastSeenAt));
+    issues.push(issue(property, ageDays >= 7 ? "critical" : "warning", "development", `${property.label} monitoring has gone quiet`, `No telemetry has arrived for ${ageDays} days. Check the Aqua Tag, consent state, production release, and server availability.`, [`Last event ${isoDateTimeValue(property.lastSeenAt) ?? "date needs review"}`, `${property.events.length} retained events`], property.lastSeenAt));
   }
   if (property.errors24h) {
     const latest = property.events.filter(event => event.type === "error").sort((left, right) => right.occurredAt - left.occurredAt)[0];
@@ -231,7 +232,7 @@ function issuesForProperty(property: RadarTelemetryProperty, now: number): Busin
       severity: "watch",
       domain: "marketing",
       title: `${property.label} received ${clean(form.formName) || "a form submission"}`,
-      detail: `${clean(form.path) || "/"} submitted at ${new Date(form.occurredAt).toLocaleString("en-GB")}. Confirm attribution, lead linkage, notification delivery, and response ownership.`,
+      detail: `${clean(form.path) || "/"} submitted at ${formatUkDate(form.occurredAt, { dateStyle: "medium", timeStyle: "short" })}. Confirm attribution, lead linkage, notification delivery, and response ownership.`,
       evidence: [form.sessionId ? `Session ${form.sessionId}` : "Session not recorded", form.referrer ? `Referrer ${form.referrer}` : "Direct or unknown referrer"],
       href: property.href,
       detectedAt: form.occurredAt,

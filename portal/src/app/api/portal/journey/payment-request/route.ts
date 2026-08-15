@@ -10,6 +10,7 @@ import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export async function POST(request: Request) {
   try {
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     const origin = new URL(request.url).origin;
     const portalUrl = `${origin}/login?brand=aquacrm&next=${encodeURIComponent("/portal/customer")}`;
     const amount = money(invoice.totalCents, invoice.currency);
-    const due = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(invoice.dueAt);
+    const due = formatUkDate(invoice.dueAt, { day: "numeric", month: "long", year: "numeric" });
     const paymentUrl = metadata?.stripeLink?.trim() || portalUrl;
     const result = await sendTransactionalEmail({
       agencyId: session.agencyId,

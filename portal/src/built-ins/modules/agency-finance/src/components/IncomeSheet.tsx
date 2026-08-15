@@ -7,6 +7,7 @@ import type { Currency, IncomeEntry, Invoice, Payment, PaymentMethod } from "../
 import type { Client } from "../lib/tenancy";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
 import { FinanceNav } from "./FinanceNav";
+import { dateInputValue, formatUkDate } from "../lib/safeDate";
 
 type IncomeRow = {
   id: string;
@@ -107,7 +108,7 @@ export function IncomeSheet({ payments, otherIncome, invoices, clients, apiBase 
   function exportCsv() {
     const header = ["Date", "Source", "Client", "Invoice", "Category", "Method", "Amount", "Currency", "Reference", "Description", "Notes", "Payment ID"];
     const data = filtered.map(row => [
-      new Date(row.paidAt).toISOString().slice(0, 10), row.title ?? "Invoice payment", row.clientName, row.invoiceNumber,
+      dateInputValue(row.paidAt), row.title ?? "Invoice payment", row.clientName, row.invoiceNumber,
       row.category, row.method, (row.amountCents / 100).toFixed(2), row.currency.toUpperCase(), row.externalRef,
       row.description, row.notes, row.paymentId,
     ]);
@@ -216,7 +217,7 @@ function formatTotals(totals: Array<[string, number]>) {
   if (!totals.length) return money(0, "gbp");
   return totals.map(([currency, cents]) => money(cents, currency)).join(" / ");
 }
-function date(value: number) { return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
+function date(value: number) { return formatUkDate(value, { day: "numeric", month: "short", year: "numeric" }); }
 function label(value: string) { return value.replaceAll("-", " ").replace(/\b\w/g, char => char.toUpperCase()); }
 function csvCell(value: unknown) { return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`; }
 function downloadCsv(name: string, rows: unknown[][]) { const blob = new Blob([rows.map(row => row.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `${name}-${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(url); }

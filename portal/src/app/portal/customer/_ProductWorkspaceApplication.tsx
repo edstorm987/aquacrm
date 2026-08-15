@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { formatUkDate } from "@/lib/formatDateTime";
 import type { PortalProductSelection, PortalProductMode } from "@/lib/portalProducts";
 import type { PortalProductModulePage } from "@/lib/portalProductModules";
 import {
@@ -47,7 +48,7 @@ const OUTPUT_STATUSES: PortalWorkspaceOutputStatus[] = ["planned", "in-progress"
 
 function formatDate(timestamp?: number): string {
   if (!timestamp) return "Not yet";
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(timestamp);
+  return formatUkDate(timestamp, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function statusLabel(value: string): string {

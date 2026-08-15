@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import type { HistoryState, Snapshot } from "../../lib/editorHistory";
+import { formatUkDate } from "../../lib/safeDate";
 
 interface HandleLike {
   state: HistoryState;
@@ -27,7 +28,7 @@ interface Props {
 }
 
 function fmtTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return formatUkDate(ts, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 export default function HistoryToolbar({ history, renderThumb }: Props) {

@@ -9,6 +9,7 @@ import type { Client } from "../lib/tenancy";
 import { SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { InvoiceTemplateEditor } from "./InvoiceTemplateEditor";
 import { FinanceNav } from "./FinanceNav";
+import { dateInputValue, formatUkDate } from "../lib/safeDate";
 
 export interface InvoicesListProps {
   invoices: Invoice[];
@@ -49,8 +50,8 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
       ...filtered.map(invoice => [
         invoice.number,
         clientNames.get(invoice.clientId) ?? invoice.clientId,
-        new Date(invoice.issuedAt).toISOString().slice(0, 10),
-        new Date(invoice.dueAt).toISOString().slice(0, 10),
+        dateInputValue(invoice.issuedAt),
+        dateInputValue(invoice.dueAt),
         (invoice.subtotalCents / 100).toFixed(2),
         (invoice.taxCents / 100).toFixed(2),
         (invoice.totalCents / 100).toFixed(2),
@@ -133,7 +134,7 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
             <tr key={i.id} className="border-b border-black/[0.07]">
                 <td className="py-3 font-medium text-black/80"><Link className="underline decoration-black/20 underline-offset-2 hover:decoration-black" href={`/portal/agency/agency-finance/invoices/${i.id}`}>{i.number}</Link></td>
                 <td className="py-3 text-black/60">{clientNames.get(i.clientId) ?? i.clientId}</td>
-                <td className="py-3 text-black/55">{new Date(i.issuedAt).toLocaleDateString("en-GB")} · {new Date(i.dueAt).toLocaleDateString("en-GB")}</td>
+                <td className="py-3 text-black/55">{formatUkDate(i.issuedAt, { dateStyle: "medium" })} · {formatUkDate(i.dueAt, { dateStyle: "medium" })}</td>
                 <td className="py-3 text-right font-mono font-semibold">{new Intl.NumberFormat("en-GB", { style: "currency", currency: i.currency.toUpperCase() }).format(i.totalCents / 100)}</td>
                 <td className="py-3"><span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-black/60">{STATUS_LABEL[i.status]}</span></td>
                 <td className="py-3 text-right">

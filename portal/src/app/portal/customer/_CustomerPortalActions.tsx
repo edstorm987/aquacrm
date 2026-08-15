@@ -7,18 +7,19 @@ import type { ClientRequest, ClientRequestType } from "@/app/api/tenants/client-
 import type { ClientContract } from "@/lib/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
+import { formatUkDate } from "@/lib/formatDateTime";
 import type { CustomerPortalMode } from "./_portalData";
 import type { CustomerProperty } from "./_portalData";
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/12 bg-white px-3 text-sm text-[#292621] outline-none transition placeholder:text-black/30 focus:border-[var(--portal-accent)] focus:ring-2 focus:ring-black/10";
 
 function formatShortDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(timestamp, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(timestamp));
+  });
 }
 
 const STAGE_RESPONSE: Record<CustomerPortalMode, {

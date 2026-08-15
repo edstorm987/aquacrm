@@ -27,9 +27,12 @@ interface Props {
   mobile?: boolean;
   extra?: ReactNode;
   navAlignment?: "center" | "start";
+  variant?: SidebarVariant;
 }
 
-export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extra, navAlignment = "center" }: Props) {
+export type SidebarVariant = "standard" | "client";
+
+export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extra, navAlignment = "center", variant = "standard" }: Props) {
   // Pluck the "settings" panel out of the main nav and pass its items
   // to the footer's expandable Settings — single source of truth, no
   // duplicate Settings entries elsewhere in the sidebar.
@@ -43,6 +46,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
       data-collapsed="false"
       data-sidebar-mobile={mobile ? "true" : "false"}
       data-sidebar-align={navAlignment}
+      data-sidebar-variant={variant}
       suppressHydrationWarning
       className={[
         "mm-private-sidebar shrink-0 bg-white/60 p-4 text-sm",
@@ -61,7 +65,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             {(tenantLabel.trim().charAt(0) || "M").toUpperCase()}
           </span>
           <span className="min-w-0">
-            <span className="block text-[10px] font-medium uppercase tracking-wide text-black/45">Internal workspace</span>
+            <span className="block text-[10px] font-medium uppercase tracking-wide text-black/45">{variant === "client" ? "Client workspace" : "Internal workspace"}</span>
             <span className="block truncate text-sm font-semibold text-black/90">{tenantLabel}</span>
           </span>
         </div>

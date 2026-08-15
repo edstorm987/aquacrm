@@ -23,6 +23,7 @@ import { RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES } from "@/lib/radarRuleCatal
 import { buildPropertySentinelChecks, buildRadarWatchdogChecks, buildSourceSentinelChecks } from "@/lib/radarSentinels";
 import { buildSyntheticCanaryChecks, buildSyntheticCanaryIssues } from "@/lib/radarSyntheticChecks";
 import { formatElapsed } from "@/lib/leadTiming";
+import { isoDateTimeValue } from "@/lib/formatDateTime";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
@@ -261,7 +262,7 @@ export async function buildBusinessIssueRadar(
       domain: "systems",
       title: "Business records may be stale",
       detail: `No workspace activity has been recorded for ${formatElapsed(now - lastWorkspaceActivity)}. Advisor conclusions may miss work completed elsewhere.`,
-      evidence: [`Last recorded activity ${new Date(lastWorkspaceActivity).toISOString()}`, `Freshness guardrail ${settings.advisor.staleDataHours} hours`],
+      evidence: [`Last recorded activity ${isoDateTimeValue(lastWorkspaceActivity) ?? "date needs review"}`, `Freshness guardrail ${settings.advisor.staleDataHours} hours`],
       href: "/portal/agency/settings#logs",
       detectedAt: now,
       sourceIds: ["activity-log"],
@@ -659,7 +660,7 @@ function issueFromOperationalAlert(alert: OperationalAlert): BusinessRadarIssue 
     domain: domainForAlert(alert.category),
     title: alert.title,
     detail: alert.detail,
-    evidence: [alert.clientName, readable(alert.category), new Date(alert.occurredAt).toISOString()].filter(Boolean) as string[],
+    evidence: [alert.clientName, readable(alert.category), isoDateTimeValue(alert.occurredAt) ?? "date needs review"].filter(Boolean) as string[],
     href: alert.href,
     detectedAt: alert.occurredAt,
     sourceIds: [alert.id],

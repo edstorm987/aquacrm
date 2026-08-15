@@ -8,6 +8,7 @@ import { CalendarClock, File as FileIcon, Mail, MessageCircle, Mic, MicOff, Pape
 import type { CommunicationSenderIdentity, OutboundCommunicationChannel, OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
 import type { WebsiteEnquiry, WebsiteEnquiryCall, WebsiteEnquiryReply } from "@/lib/server/websiteEnquiries";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 type MessageChannel = Exclude<OutboundCommunicationChannel, "call">;
 type CallOutcome = NonNullable<WebsiteEnquiryCall["outcome"]>;
@@ -410,7 +411,7 @@ function sortInteractions(replies: WebsiteEnquiryReply[], calls: WebsiteEnquiryC
 }
 
 function formatDate(value: number) {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDuration(seconds: number): string {

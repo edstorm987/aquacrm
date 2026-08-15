@@ -48,6 +48,7 @@ import type {
   RadarSourceDatasetInspection,
   RadarSourceDatasetSummary,
 } from "@/lib/businessRadar";
+import { formatUkDate, isoDateTimeValue } from "@/lib/formatDateTime";
 
 export type RadarInspectionTab = "kpis" | "checks" | "evidence" | "records" | "sources" | "incidents" | "raw";
 type InspectionTab = RadarInspectionTab;
@@ -285,7 +286,7 @@ export function RadarInspectionWorkspace({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `aquacrm-radar-snapshot-${new Date(radar.generatedAt).toISOString().replaceAll(":", "-")}.json`;
+    anchor.download = `aquacrm-radar-snapshot-${(isoDateTimeValue(radar.generatedAt) ?? "date-needs-review").replaceAll(":", "-")}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -1002,6 +1003,6 @@ function severityClass(severity: "critical" | "warning" | "watch") { return seve
 function domainLabel(domain: AdvisorDomain): string { return readable(domain); }
 function readable(value: string): string { return value.replace(/[-_:]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase()); }
 function formatNumber(value: number): string { return value.toLocaleString("en-GB", { maximumFractionDigits: 3 }); }
-function formatDate(value: number): string { return new Date(value).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "medium" }); }
-function formatShortDate(value: number): string { return new Date(value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }); }
+function formatDate(value: number): string { return formatUkDate(value, { dateStyle: "medium", timeStyle: "medium" }); }
+function formatShortDate(value: number): string { return formatUkDate(value, { hour: "2-digit", minute: "2-digit" }); }
 function formatDuration(value: number): string { const day = 86_400_000; const hour = 3_600_000; const minute = 60_000; return value >= day ? `${(value / day).toFixed(1)} days` : value >= hour ? `${(value / hour).toFixed(1)} hours` : value >= minute ? `${Math.round(value / minute)} minutes` : `${Math.round(value / 1_000)} seconds`; }

@@ -4,6 +4,7 @@
 
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { isoDateTimeValue } from "../lib/safeDate";
 
 export default async function SettingsPage(props: PluginPageProps) {
   const { staff, departments, leave } = containerFor({
@@ -36,7 +37,7 @@ export default async function SettingsPage(props: PluginPageProps) {
       <dl className="hr-settings-grid">
         <div><dt>Plugin id</dt><dd>{props.install.pluginId}</dd></div>
         <div><dt>Enabled</dt><dd>{props.install.enabled ? "Yes" : "No"}</dd></div>
-        <div><dt>Installed at</dt><dd>{new Date(props.install.installedAt).toISOString()}</dd></div>
+        <div><dt>Installed at</dt><dd>{isoDateTimeValue(props.install.installedAt) ?? "Date needs review"}</dd></div>
       </dl>
     </section>
   );

@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/server/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated } from "@/server/storage";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export default async function OrdersPage() {
   await ensureHydrated();
@@ -37,7 +38,7 @@ export default async function OrdersPage() {
                 <div>
                   <p className="font-mono text-xs text-black/40">{order.id}</p>
                   <h2 className="mt-1 text-lg font-semibold text-black/85">{order.items.map(item => item.name).join(", ") || "Order"}</h2>
-                  <p className="mt-1 text-sm text-black/50">{new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(order.createdAt)}</p>
+                  <p className="mt-1 text-sm text-black/50">{formatUkDate(order.createdAt, { dateStyle: "medium", timeStyle: "short" })}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-semibold text-black/90">{formatPrice(order.amountTotal, order.currency)}</p>

@@ -19,6 +19,7 @@ import {
   buildExternalAssistantSetupPrompt,
   externalAssistantSetupFilename,
 } from "@/lib/externalAssistantSetup";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 interface ApiKeySummary {
   id: string;
@@ -549,5 +550,5 @@ function ConnectionValue({ label, value, onCopy, copied, link = false }: {
 }
 
 function formatDate(value: number) {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(value);
+  return formatUkDate(value, { day: "numeric", month: "short", year: "numeric" });
 }

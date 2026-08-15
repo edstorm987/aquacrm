@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { findCommercialProposal } from "@/lib/server/commercialProposal";
 import { ProposalActions } from "./_ProposalActions";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 function money(cents: number, currency: string) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
@@ -22,7 +23,7 @@ export default async function ProposalPage({ params }: { params: Promise<{ token
         </header>
         <section className="grid gap-6 py-8 sm:grid-cols-2">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Prepared for</p><p className="mt-2 font-semibold">{pack.recipientName ?? pack.recipientEmail}</p><p className="text-sm text-black/50">{pack.recipientEmail}</p></div>
-          <div className="sm:text-right"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment due</p><p className="mt-2 font-semibold">{new Date(pack.dueAt).toLocaleDateString("en-GB", { dateStyle: "long" })}</p></div>
+          <div className="sm:text-right"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment due</p><p className="mt-2 font-semibold">{formatUkDate(pack.dueAt, { dateStyle: "long" })}</p></div>
         </section>
         <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-sm"><thead className="border-b border-black/15 text-left text-[11px] uppercase tracking-wide text-black/45"><tr><th className="py-3">Description</th><th className="py-3 text-right">Qty</th><th className="py-3 text-right">Unit</th><th className="py-3 text-right">Total</th></tr></thead><tbody>{pack.lineItems.map((item, index) => <tr key={`${item.description}-${index}`} className="border-b border-black/[0.07]"><td className="py-4 pr-4 font-medium">{item.description}</td><td className="py-4 text-right text-black/55">{item.quantity}</td><td className="py-4 text-right">{money(item.unitCents, pack.currency)}</td><td className="py-4 text-right font-semibold">{money(item.quantity * item.unitCents, pack.currency)}</td></tr>)}</tbody></table></div>
         <dl className="ml-auto mt-7 max-w-sm divide-y divide-black/10 text-sm"><div className="flex justify-between py-3"><dt>Subtotal</dt><dd>{money(pack.subtotalCents, pack.currency)}</dd></div><div className="flex justify-between py-3"><dt>Tax</dt><dd>{money(pack.taxCents, pack.currency)}</dd></div><div className="flex justify-between border-b-2 border-black py-3 text-lg font-semibold"><dt>Total</dt><dd>{money(pack.totalCents, pack.currency)}</dd></div></dl>

@@ -22,6 +22,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS } from "@/lib/clientPortalDesign";
+import { formatUkDate } from "@/lib/formatDateTime";
 import type {
   ClientPortalDesignDocument,
   ClientPortalDesignVersion,
@@ -663,7 +664,7 @@ function Inspector({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold text-white/78">{version.label || (version.source === "autosave" ? "Draft save" : "Saved version")}</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-white/32">{version.source} · {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(version.createdAt)}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-white/32">{version.source} · {formatUkDate(version.createdAt, { dateStyle: "medium", timeStyle: "short" })}</p>
               </div>
               {version.id === record.publishedVersionId ? <span className="rounded-full bg-emerald-400/12 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-emerald-300">Live</span> : null}
             </div>

@@ -8,8 +8,9 @@
 // active variant for that role via the existing
 // `/portal-variants/active` endpoint.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VariantRow } from "./PortalVariantSwitcher";
+import { formatUkDate } from "../../lib/safeDate";
 
 interface Props {
   siteId: string;
@@ -34,27 +35,37 @@ const ROLE_COLOR: Record<VariantRow["role"], string> = {
 };
 
 function fmtDate(ts: number): string {
-  return new Date(ts).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return formatUkDate(ts, { year: "numeric", month: "short", day: "numeric" });
 }
 
 export default function PortalVariantGallery({ siteId, onClose, onEdit, onPreview, fetchImpl }: Props) {
   const [variants, setVariants] = useState<VariantRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const mountedRef = useRef(false);
 
-  const f = fetchImpl ?? fetch;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
-  function load(): void {
-    f(`/api/portal/website-editor/portal-variants/all?siteId=${encodeURIComponent(siteId)}`)
+  useEffect(() => {
+    let cancelled = false;
+    const request = fetchImpl ?? fetch;
+    request(`/api/portal/website-editor/portal-variants/all?siteId=${encodeURIComponent(siteId)}`)
       .then(r => r.json() as Promise<{ ok: boolean; variants?: VariantRow[]; error?: string }>)
       .then(data => {
+        if (cancelled) return;
         if (!data.ok) { setError(data.error ?? "request failed"); return; }
         setVariants(data.variants ?? []);
       })
-      .catch(e => setError(e instanceof Error ? e.message : String(e)));
-  }
+      .catch(e => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => { cancelled = true; };
+  }, [fetchImpl, siteId]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
+  const f = fetchImpl ?? fetch;
 
   async function makeLive(v: VariantRow): Promise<void> {
     setBusy(v.pageId);
@@ -65,12 +76,15 @@ export default function PortalVariantGallery({ siteId, onClose, onEdit, onPrevie
         body: JSON.stringify({ siteId, role: v.role, pageId: v.pageId }),
       });
       const data = await res.json() as { ok: boolean; error?: string };
+      if (!mountedRef.current) return;
       if (!data.ok) { setError(data.error ?? "could not flip"); return; }
-      load();
+      setVariants(current => current?.map(item => item.role === v.role
+        ? { ...item, isActive: item.pageId === v.pageId }
+        : item) ?? current);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (mountedRef.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(null);
+      if (mountedRef.current) setBusy(null);
     }
   }
 

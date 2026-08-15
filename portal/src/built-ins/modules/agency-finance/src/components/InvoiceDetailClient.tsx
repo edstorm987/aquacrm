@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Download, FilePenLine, Plus, Printer, Trash2, X } from "lucide-react";
 import type { Invoice, InvoiceTemplate } from "../lib/domain";
+import { dateInputValue, formatUkDate } from "../lib/safeDate";
 
 const API_BASE = "/api/portal/agency-finance";
 const control = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black outline-none focus:border-black/35";
@@ -15,12 +16,12 @@ function money(cents: number, currency: string): string {
 }
 
 function date(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(value, {
     day: "numeric",
     month: "long",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(value));
+  });
 }
 
 export function InvoiceDetailClient({
@@ -37,7 +38,7 @@ export function InvoiceDetailClient({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dueAt, setDueAt] = useState(new Date(invoice.dueAt).toISOString().slice(0, 10));
+  const [dueAt, setDueAt] = useState(dateInputValue(invoice.dueAt));
   const [taxAmount, setTaxAmount] = useState((invoice.taxCents / 100).toFixed(2));
   const [notes, setNotes] = useState(invoice.notes ?? "");
   const [items, setItems] = useState(invoice.lineItems.map(item => ({

@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { formatUkDate } from "../../lib/safeDate";
 
 interface Service {
   id: string;
@@ -282,7 +283,7 @@ export default function BookingWidgetBlock({ block }: BlockRenderProps) {
         {step === "details" && pickedService && pickedSlot && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <p style={{ fontSize: 13, opacity: 0.75 }}>
-              {pickedService.name} on {new Date(pickedSlot.startMs).toLocaleString()}
+              {pickedService.name} on {formatUkDate(pickedSlot.startMs, { dateStyle: "medium", timeStyle: "short" })}
             </p>
             <input type="text" placeholder="Your name" value={details.name}
               onChange={e => setDetails({ ...details, name: e.target.value })} required style={inputStyle} />

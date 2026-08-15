@@ -7,6 +7,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { phaseLabel } from "@/server/phases";
 import { ClientStatusActions } from "./_ClientStatusActions";
 import { ClientDomainSettings } from "./_ClientDomainSettings";
+import { formatUkDateTime } from "@/lib/formatDateTime";
 
 export default async function ClientSettingsPage({
   params,
@@ -74,7 +75,7 @@ export default async function ClientSettingsPage({
           <Detail label="Client ID" value={client.id} />
           <Detail label="Slug" value={client.slug} />
           <Detail label="Status" value={client.status === "suspended" ? "Paused" : client.status} />
-          <Detail label="Updated" value={new Date(client.updatedAt).toLocaleString("en-GB")} />
+          <Detail label="Updated" value={formatUkDateTime(client.updatedAt)} />
         </dl>
       </section>
 

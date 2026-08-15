@@ -3,6 +3,7 @@
 import { Link2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "misc";
 
@@ -31,14 +32,14 @@ const CATEGORY_META: Record<FileCategory, { label: string; emoji: string }> = {
 const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "misc"];
 
 function formatFileDate(ts: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(ts, {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "UTC",
-  }).format(new Date(ts));
+  });
 }
 
 export function FilesTabClient({

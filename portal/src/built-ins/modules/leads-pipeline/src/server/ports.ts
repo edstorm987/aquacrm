@@ -61,6 +61,9 @@ export interface ActivityLogPort {
 export type LeadsEventName =
   | "leads.prospect.created"
   | "leads.prospect.updated"
+  | "leads.prospect.inspection-saved"
+  | "leads.prospect.follow-up-scheduled"
+  | "leads.prospect.follow-up-resolved"
   | "leads.lead.created"
   | "leads.lead.updated"
   | "leads.lead.archived"

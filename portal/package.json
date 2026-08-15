@@ -66,6 +66,7 @@
     "smoke:client-journey": "tsx --test scripts/smoke-client-journey.test.ts",
     "smoke:stage-jump": "tsx --test scripts/smoke-stage-jump.test.ts",
     "smoke:client-delivery-package": "tsx --test scripts/smoke-client-delivery-package.test.ts",
+    "smoke:client-service-workspace": "tsx --test scripts/smoke-client-service-workspace.test.ts",
     "smoke:client-project-provisioning": "tsx --test scripts/smoke-client-project-provisioning.test.ts",
     "smoke:public-contact": "tsx --test scripts/smoke-public-contact.test.ts",
     "smoke:perf-easy-wins": "tsx --test scripts/smoke-perf-easy-wins.test.ts",

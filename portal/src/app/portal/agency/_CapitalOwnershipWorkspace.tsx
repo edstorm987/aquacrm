@@ -28,6 +28,7 @@ import type {
   CompanyShareClass,
   CompanyShareholder,
 } from "@/server/types";
+import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 
 type CapitalView = "overview" | "ownership" | "ledger" | "investments" | "dividends" | "governance";
 type CapitalCommit = (capital: CompanyCapitalPlan, success: string) => Promise<boolean>;
@@ -309,10 +310,10 @@ function cents(value: number) { return Math.max(0, Math.round((Number(value) || 
 function percent(value: number, total: number) { return total ? Math.round(value / total * 10_000) / 100 : 0; }
 function formatNumber(value: number) { return new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 }).format(value); }
 function readable(value: string) { return value.replace(/-/g, " ").replace(/\b\w/g, match => match.toUpperCase()); }
-function dateInput(value?: number) { return value ? new Date(value).toISOString().slice(0, 10) : ""; }
+function dateInput(value?: number) { return dateInputValue(value); }
 function timestamp(value: string) { const parsed = Date.parse(`${value}T12:00:00`); return Number.isFinite(parsed) ? parsed : Date.now(); }
 function optionalTimestamp(value: string) { return value ? timestamp(value) : undefined; }
-function shortDate(value: number) { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(value); }
+function shortDate(value: number) { return formatUkDate(value, { day: "numeric", month: "short", year: "numeric" }); }
 
 const labelClass = "grid min-w-0 gap-1 text-[8px] font-semibold uppercase text-white/38";
 const controlClass = "min-h-10 w-full min-w-0 border border-white/10 bg-[#030a0e] px-3 text-xs normal-case text-white outline-none focus:border-[#d7b56d]/50";

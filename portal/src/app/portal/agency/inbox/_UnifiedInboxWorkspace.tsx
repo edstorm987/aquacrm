@@ -32,6 +32,7 @@ import {
 
 import type { InboxConversationThread, InboxSnapshot } from "@/lib/inbox/types";
 import { formatElapsed } from "@/lib/leadTiming";
+import { formatUkDate } from "@/lib/formatDateTime";
 import type { OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
@@ -434,6 +435,6 @@ function ProfileDetail({ label, value }: { label: string; value: string }) {
 }
 
 function initials(value: string) { return value.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase() || "?"; }
-function shortDate(value: number) { return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-function longDate(value: number) { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
+function shortDate(value: number) { return formatUkDate(value, { hour: "2-digit", minute: "2-digit" }); }
+function longDate(value: number) { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function formatRemaining(value: number) { const milliseconds = Math.max(0, value - Date.now()); const hours = Math.floor(milliseconds / 3_600_000); const minutes = Math.floor((milliseconds % 3_600_000) / 60_000); return hours ? `${hours}h ${minutes}m` : `${minutes}m`; }

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSessionFromRequest } from "@/lib/server/auth";
 import { queryActivity, redactActivityValue } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
+import { isoDateTimeValue } from "@/lib/formatDateTime";
 
 const ALLOWED_ROLES = new Set(["agency-owner", "agency-manager"]);
 
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
     }).entries;
     const headings = ["time", "category", "action", "message", "client_id", "actor", "metadata"];
     const rows = complete.map(entry => [
-      new Date(entry.ts).toISOString(),
+      isoDateTimeValue(entry.ts) ?? "",
       entry.category,
       entry.action,
       entry.message,

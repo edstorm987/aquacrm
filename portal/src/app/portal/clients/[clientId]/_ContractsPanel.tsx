@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/35 focus:ring-2 focus:ring-black/5";
 
@@ -54,12 +55,12 @@ const EMPTY_CONTRACT: ContractDraft = {
 const EMPTY_TEMPLATE: TemplateDraft = { title: "", summary: "", body: "" };
 
 function formatShortDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(timestamp, {
     day: "2-digit",
     month: "short",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(timestamp));
+  });
 }
 
 function EditorModal({ children, title, onClose }: { children: React.ReactNode; title: string; onClose: () => void }) {

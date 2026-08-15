@@ -24,6 +24,7 @@ import type {
   PayeeType,
 } from "../lib/domain";
 import { SUPPORTED_CURRENCIES, formatMoney } from "../lib/currencies";
+import { dateInputValue, formatUkDate } from "../lib/safeDate";
 import { compensationCostProjection, compensationPaymentTotal } from "../lib/workforceCosts";
 import { FinanceNav } from "./FinanceNav";
 
@@ -230,8 +231,8 @@ function ModalActions({ busy, onClose }: { busy: boolean; onClose: () => void })
 function StatusPill({ value }: { value: string }) { const danger = ["overdue", "action-required", "cancelled"].includes(value); const good = ["active", "paid", "completed", "healthy"].includes(value); return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${danger ? "bg-red-50 text-red-700" : good ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{value.replaceAll("-", " ")}</span>; }
 function effectiveObligationStatus(item: FinanceObligation, now: number): string { if (["completed", "waived", "archived"].includes(item.status)) return item.status; if (item.nextDueAt && item.nextDueAt < now) return "overdue"; if (item.nextDueAt && item.nextDueAt <= now + 60 * DAY) return "due-soon"; return item.status; }
 function money(cents: number, currency: Currency) { return formatMoney(cents, currency); }
-function dateLabel(value: number) { return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
-function dateInput(value?: number) { return value ? new Date(value).toISOString().slice(0, 10) : ""; }
+function dateLabel(value: number) { return formatUkDate(value, { day: "numeric", month: "short", year: "numeric" }); }
+function dateInput(value?: number) { return dateInputValue(value); }
 function dateNumber(value: FormDataEntryValue | null) { const text = String(value ?? ""); return text ? Date.parse(`${text}T12:00:00`) : null; }
 function toCents(value: FormDataEntryValue | null) { const amount = Number(value ?? 0); return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0; }
 function amountInput(value?: number) { return value === undefined ? "" : (value / 100).toFixed(2); }

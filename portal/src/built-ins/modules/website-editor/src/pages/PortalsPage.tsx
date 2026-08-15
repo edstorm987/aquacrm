@@ -18,6 +18,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { EditorPage } from "../types/editorPage";
 import type { PortalRole } from "../lib/portalRole";
 import { listSites, getActiveSite, type Site } from "../lib/sites";
+import { formatUkDate } from "../lib/safeDate";
 import {
   listPortalVariants, setActivePortalVariant, createPage, deletePage, onPagesChange,
 } from "../lib/editorPages";
@@ -377,7 +378,7 @@ function AdminPortalsInner() {
                 </div>
                 <p className="text-[11px] text-brand-cream/55 font-mono truncate">{v.slug}</p>
                 <p className="text-[10px] text-brand-cream/40 mt-0.5">
-                  {v.blocks.length} block{v.blocks.length === 1 ? "" : "s"} · updated {new Date(v.updatedAt).toLocaleDateString()}
+                  {v.blocks.length} block{v.blocks.length === 1 ? "" : "s"} · updated {formatUkDate(v.updatedAt, { dateStyle: "medium" })}
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">

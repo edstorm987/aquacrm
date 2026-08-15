@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { dateInputValue } from "../lib/safeDate";
 
 export default async function ContactDetailPage(props: PluginPageProps) {
   if (!props.clientId) return <p>client-CRM requires a client scope.</p>;
@@ -19,9 +20,9 @@ export default async function ContactDetailPage(props: PluginPageProps) {
         <div><dt>Email</dt><dd>{contact.email}</dd></div>
         {contact.phone && <div><dt>Phone</dt><dd>{contact.phone}</dd></div>}
         <div><dt>Source</dt><dd>{contact.source}</dd></div>
-        <div><dt>First seen</dt><dd>{new Date(contact.firstSeenAt).toISOString().slice(0, 10)}</dd></div>
+        <div><dt>First seen</dt><dd>{dateInputValue(contact.firstSeenAt) || "Date needs review"}</dd></div>
         {contact.lastSeenAt && (
-          <div><dt>Last seen</dt><dd>{new Date(contact.lastSeenAt).toISOString().slice(0, 10)}</dd></div>
+          <div><dt>Last seen</dt><dd>{dateInputValue(contact.lastSeenAt) || "Date needs review"}</dd></div>
         )}
       </dl>
       {contact.tags.length > 0 && (
@@ -34,7 +35,7 @@ export default async function ContactDetailPage(props: PluginPageProps) {
             <article>
               <header>
                 <span className={`crm-pill crm-pill-${a.kind}`}>{a.kind}</span>
-                <time>{new Date(a.occurredAt).toISOString().slice(0, 10)}</time>
+                <time>{dateInputValue(a.occurredAt) || "Date needs review"}</time>
               </header>
               <p>{a.summary}</p>
             </article>

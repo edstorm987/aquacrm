@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { formatPrice } from "../../lib/admin/orders";
 import type { OrderStatus, ServerOrder } from "../../server/orders";
+import { formatUkDate } from "../../lib/safeDate";
 
 export interface OrderDetailProps {
   order: ServerOrder;
@@ -77,7 +78,7 @@ export function OrderDetail({ order, apiBase, receiptHref }: OrderDetailProps) {
             <h1 className="text-2xl font-semibold text-black/90">{order.id}</h1>
             <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-black/60">{order.status}</span>
           </div>
-          <p className="mt-1 text-sm text-black/50">{formatPrice(order.amountTotal, order.currency)} · {new Date(order.createdAt).toLocaleString("en-GB")}</p>
+          <p className="mt-1 text-sm text-black/50">{formatPrice(order.amountTotal, order.currency)} · {formatUkDate(order.createdAt, { dateStyle: "medium", timeStyle: "short" })}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {receiptHref ? <a href={receiptHref} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]"><ReceiptText size={16} /> Receipt</a> : null}

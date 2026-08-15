@@ -4,6 +4,16 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { ProspectService } from "../src/built-ins/modules/leads-pipeline/src/server/prospects";
+import { parseCsv } from "../src/built-ins/modules/leads-pipeline/src/server/csv";
+
+test("maps and scraper exports map into scouting fields", () => {
+  const parsed = parseCsv("title,full_address,website,phone,category,google maps url,notes\nNorth Street Electrics,4 High Street York,https://north.example,01904123456,Electrician,https://maps.google.com/example,Profile needs work");
+  assert.equal(parsed.rows[0]?.company, "North Street Electrics");
+  assert.equal(parsed.rows[0]?.address, "4 High Street York");
+  assert.equal(parsed.rows[0]?.website, "https://north.example");
+  assert.equal(parsed.rows[0]?.niche, "Electrician");
+  assert.equal(parsed.rows[0]?.googleMapsUrl, "https://maps.google.com/example");
+});
 
 test("scouting accepts incomplete observations and preserves research", async () => {
   const data = new Map<string, unknown>();
@@ -47,8 +57,14 @@ test("scouting accepts incomplete observations and preserves research", async ()
   assert.equal(prospect.email, undefined);
   assert.deepEqual(prospect.tags, ["local", "high-fit"]);
   assert.equal(prospect.fitScore, 82);
+  assert.deepEqual(prospect.inspectionChecks, []);
+  assert.deepEqual(prospect.followUps, []);
   assert.deepEqual(prospect.outreachAttempts, []);
   assert.equal((await service.list())[0]?.niche, "Electrician");
+  await assert.rejects(() => service.recordOutreach(prospect.id, {
+    channel: "call",
+    outcome: "attempted",
+  }, "user_ed"), /required scouting inspection/);
 
   const researched = await service.update(prospect.id, {
     email: "HELLO@NORTHSTREET.EXAMPLE",
@@ -56,6 +72,45 @@ test("scouting accepts incomplete observations and preserves research", async ()
   }, "user_ed");
   assert.equal(researched?.email, "hello@northstreet.example");
   assert.equal(researched?.researchNotes, "Google profile is incomplete.");
+  const inspected = await service.saveInspection(prospect.id, [
+    "business-verified",
+    "contact-route-verified",
+    "opportunity-confirmed",
+    "decision-maker-identified",
+  ], "user_ed");
+  assert.equal(inspected?.qualificationState, "ready");
+  assert.ok(inspected?.inspectedAt);
+
+  const firstFollowUpAt = Date.now() + 86_400_000;
+  const secondFollowUpAt = Date.now() + 2 * 86_400_000;
+  const firstFollowUp = await service.scheduleFollowUp(prospect.id, {
+    dueAt: firstFollowUpAt,
+    reason: "Make the first call",
+    channel: "call",
+  }, "user_ed");
+  const firstFollowUpId = firstFollowUp?.followUps.find(item => item.status === "scheduled")?.id;
+  assert.ok(firstFollowUpId);
+  const secondFollowUp = await service.scheduleFollowUp(prospect.id, {
+    dueAt: secondFollowUpAt,
+    reason: "Send the researched follow-up",
+    channel: "email",
+  }, "user_ed");
+  assert.equal(secondFollowUp?.nextContactAt, firstFollowUpAt);
+  assert.equal(secondFollowUp?.followUps.filter(item => item.status === "scheduled").length, 2);
+
+  const resolvedFirst = await service.resolveFollowUp(prospect.id, {
+    followUpId: firstFollowUpId!,
+    status: "completed",
+  }, "user_ed");
+  assert.equal(resolvedFirst?.nextContactAt, secondFollowUpAt);
+  const secondFollowUpId = resolvedFirst?.followUps.find(item => item.status === "scheduled")?.id;
+  assert.ok(secondFollowUpId);
+  const resolvedSecond = await service.resolveFollowUp(prospect.id, {
+    followUpId: secondFollowUpId!,
+    status: "skipped",
+  }, "user_ed");
+  assert.equal(resolvedSecond?.nextContactAt, undefined);
+
   const followUpAt = Date.now() + 3 * 86_400_000;
   const contacted = await service.recordOutreach(prospect.id, {
     channel: "call",
@@ -73,12 +128,22 @@ test("scouting accepts incomplete observations and preserves research", async ()
   assert.deepEqual(activity.map(item => item.action), [
     "leads.prospect.created",
     "leads.prospect.updated",
+    "leads.prospect.inspection-saved",
+    "leads.prospect.follow-up-scheduled",
+    "leads.prospect.follow-up-scheduled",
+    "leads.prospect.follow-up-resolved",
+    "leads.prospect.follow-up-resolved",
     "leads.prospect.outreach-recorded",
     "leads.prospect.note-added",
   ]);
   assert.deepEqual(events, [
     "leads.prospect.created",
     "leads.prospect.updated",
+    "leads.prospect.inspection-saved",
+    "leads.prospect.follow-up-scheduled",
+    "leads.prospect.follow-up-scheduled",
+    "leads.prospect.follow-up-resolved",
+    "leads.prospect.follow-up-resolved",
     "leads.prospect.outreach-recorded",
     "leads.prospect.note-added",
   ]);
@@ -100,7 +165,10 @@ test("sales and client surfaces keep scouting and niche connected", () => {
   assert.match(board, /Google Maps listing/);
   assert.match(scouting, /Cold scouting command/);
   assert.match(scouting, /Record an outreach attempt/);
-  assert.match(scouting, /Recontact/);
+  assert.match(scouting, /Follow-up control/);
+  assert.match(scouting, /Cold outreach flow/);
+  assert.match(scouting, /Inspect before outreach/);
+  assert.match(scouting, /Import scouting list/);
   assert.match(scouting, /Qualify to Journey/);
   assert.match(clients, /Filter clients by niche/);
   assert.match(conversion, /Add an email address or phone number before qualifying/);

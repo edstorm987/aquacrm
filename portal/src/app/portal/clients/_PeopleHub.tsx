@@ -10,6 +10,7 @@ import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiryClassification";
+import { formatUkDateTime } from "@/lib/formatDateTime";
 
 export type ContactRole = "lead" | "customer" | "account" | "vendor" | "employee" | "other";
 
@@ -572,7 +573,7 @@ function ContactScratchpad({ contact, onClose, onSaved }: { contact: HubContact;
         </label>
         <div className="mt-4 rounded-md bg-black/[0.025] p-3 text-xs leading-5 text-black/50">
           <p><strong className="font-semibold text-black/65">Trace:</strong> {contact.recordKind === "lead" ? "Lead / enquiry intake" : contact.promotedFromLeadId ? `Promoted from lead ${contact.promotedFromLeadId}` : "Manual or imported contact"}</p>
-          {contact.nextMeetingAt ? <p><strong className="font-semibold text-black/65">Meeting:</strong> {new Date(contact.nextMeetingAt).toLocaleString()}</p> : null}
+          {contact.nextMeetingAt ? <p><strong className="font-semibold text-black/65">Meeting:</strong> {formatUkDateTime(contact.nextMeetingAt)}</p> : null}
         </div>
         {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
         <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/15 px-4 text-sm">Cancel</button><button disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><Save size={15} />{busy ? "Saving..." : "Save notes"}</button></div>

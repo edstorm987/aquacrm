@@ -15,6 +15,7 @@ import { portalWorkspaceData } from "../portals/_portalWorkspaceData";
 import { listSops } from "@/server/sops";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
+import { formatUkDate } from "@/lib/formatDateTime";
 import DevelopmentPage from "../development/page";
 import {
   FulfilmentWorkspace,
@@ -249,5 +250,5 @@ function titleCase(value: string): string {
 }
 
 function formatDate(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(value);
+  return formatUkDate(value, { day: "numeric", month: "short" });
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { Client, ClientStage, PhaseDefinition } from "../lib/tenancy";
+import { formatUkDate } from "../lib/safeDate";
 
 export interface ClientCardData {
   client: Client;
@@ -93,7 +94,7 @@ export function ClientList(props: ClientListProps) {
                   </div>
                   {card.lastActivityAt && (
                     <p className="fulfillment-client-last-activity">
-                      Last activity {new Date(card.lastActivityAt).toLocaleDateString()}
+                      Last activity {formatUkDate(card.lastActivityAt, { dateStyle: "medium" })}
                     </p>
                   )}
                 </a>

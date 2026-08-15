@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { formatUkDate } from "../../lib/safeDate";
 
 interface AffiliateSummary {
   status: string;
@@ -142,7 +143,7 @@ export default function AffiliatePayoutMeterBlock({ block, editorMode }: BlockRe
       </div>
       {summary.nextPayoutAt && (
         <p style={{ fontSize: 12, opacity: 0.55, margin: 0 }}>
-          Next payout: {new Date(summary.nextPayoutAt).toLocaleDateString()}
+          Next payout: {formatUkDate(summary.nextPayoutAt, { dateStyle: "medium" })}
         </p>
       )}
       {summary.totalReferred !== undefined && (

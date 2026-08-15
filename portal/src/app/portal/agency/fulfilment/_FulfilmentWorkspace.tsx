@@ -13,6 +13,7 @@ import {
   Megaphone,
   MonitorCog,
   PackageCheck,
+  PanelLeftOpen,
   PanelsTopLeft,
   Settings2,
   Sparkles,
@@ -23,6 +24,7 @@ import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspac
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
+import { clientWorkspaceHref } from "@/lib/clientWorkspace";
 
 export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "products" | "clients" | "portals";
 
@@ -96,7 +98,7 @@ const VIEW_ITEMS: Array<{ id: FulfilmentView; label: string; icon: typeof Gauge 
   { id: "services", label: "Service workspaces", icon: Layers3 },
   { id: "technical", label: "Technical delivery", icon: Code2 },
   { id: "products", label: "Product editor", icon: PackageCheck },
-  { id: "clients", label: "Client delivery", icon: UsersRound },
+  { id: "clients", label: "Client workspaces", icon: UsersRound },
   { id: "portals", label: "Portals", icon: PanelsTopLeft },
 ];
 
@@ -158,6 +160,9 @@ export function FulfilmentWorkspace({
             </p>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+            <Link href="/portal/agency/fulfilment?view=clients" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]">
+              <PanelLeftOpen size={15} /> Client workspaces
+            </Link>
             <Link href="/portal/agency/actions" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]">
               <CheckCircle2 size={15} /> Delivery tasks
             </Link>
@@ -295,6 +300,28 @@ function Overview({
       </section>
 
       <section className="border-t border-black/10 pt-6">
+        <SectionHeading
+          eyebrow="Internal client access"
+          title="Open a client workspace"
+          detail="Move from the fulfilment control room into the complete internal client record, including its assigned services, milestones, files, portal and delivery tools."
+          action={{ label: "View every client workspace", href: "/portal/agency/fulfilment?view=clients" }}
+        />
+        <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {clients.slice(0, 6).map(client => (
+            <Link key={client.id} href={clientWorkspaceHref(client.id, "delivery")} className="mm-interactive-row flex min-h-20 items-center gap-3 rounded-md border border-black/[0.09] bg-white p-3 hover:bg-black/[0.02]">
+              <span className="mm-area-icon grid size-9 shrink-0 place-items-center rounded-md"><PanelLeftOpen size={17} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-black/72">{client.name}</span>
+                <span className="mt-0.5 block truncate text-xs text-black/42">{client.products.length ? `${client.products.length} service workspace${client.products.length === 1 ? "" : "s"} · ${client.progress}% complete` : "Assign the first service"}</span>
+              </span>
+              <ArrowRight size={15} className="shrink-0 text-black/30" />
+            </Link>
+          ))}
+          {!clients.length ? <p className="py-6 text-sm text-black/45">No active client workspaces are available yet.</p> : null}
+        </div>
+      </section>
+
+      <section className="border-t border-black/10 pt-6">
         <SectionHeading eyebrow="Connected workspaces" title="Delivery toolkit" detail="Specialist tools stay focused while Fulfilment remains the control room." />
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <ToolkitLink href="/portal/agency/fulfilment?view=portals" title="Client portals" detail="Preview, edit and launch the shared experience." icon={<PanelsTopLeft size={17} />} />
@@ -380,7 +407,7 @@ function ProductWorkspaceCard({ product }: { product: FulfilmentProductRecord })
         </div>
 
         <div className="mt-3 flex min-h-6 flex-wrap gap-x-3 gap-y-1 text-xs text-black/45">
-          {product.clientNames.slice(0, 3).map(client => <Link key={client.id} href={`/portal/clients/${client.id}?tab=delivery`} className="hover:text-brand hover:underline">{client.name}</Link>)}
+          {product.clientNames.slice(0, 3).map(client => <Link key={client.id} href={clientWorkspaceHref(client.id, "delivery", { product: product.id })} className="inline-flex items-center gap-1 hover:text-brand hover:underline"><PanelLeftOpen size={11} />{client.name}</Link>)}
           {!product.clientNames.length ? <span>No client assignments yet</span> : null}
           {product.clientNames.length > 3 ? <span>+{product.clientNames.length - 3} more</span> : null}
         </div>
@@ -397,17 +424,17 @@ function ProductWorkspaceCard({ product }: { product: FulfilmentProductRecord })
 function ClientDelivery({ clients }: { clients: FulfilmentClientRecord[] }) {
   return (
     <div className="pt-6">
-      <SectionHeading eyebrow="Delivery register" title="Clients and everything being delivered" detail="A client can carry several product workspaces. Each remains bespoke while progress rolls up into one relationship." />
+      <SectionHeading eyebrow="Internal client access" title="Client workspaces" detail="Open the complete internal workspace for any client, then move between their relationship, delivery services, files, finance, notes and portal from the dedicated sidebar." />
       <div className="mt-4 divide-y divide-black/[0.08] border-y border-black/10">
         {clients.map(client => (
-          <article key={client.id} className="grid gap-4 py-5 lg:grid-cols-[minmax(180px,.65fr)_minmax(300px,1.45fr)_minmax(180px,.55fr)_auto] lg:items-center">
+          <article key={client.id} className="grid gap-4 py-5 lg:grid-cols-[minmax(180px,.65fr)_minmax(300px,1.45fr)_minmax(180px,.55fr)_minmax(190px,auto)] lg:items-center">
             <div className="min-w-0">
-              <Link href={`/portal/clients/${client.id}?tab=delivery`} className="truncate text-sm font-semibold text-black/82 hover:underline">{client.name}</Link>
+              <Link href={clientWorkspaceHref(client.id, "delivery")} className="truncate text-sm font-semibold text-black/82 hover:underline">{client.name}</Link>
               <p className="mt-1 truncate text-xs text-black/42">{client.ownerEmail || "No primary email"} · {client.stageLabel}</p>
             </div>
             <div className="flex min-w-0 flex-wrap gap-1.5">
               {client.products.map(product => (
-                <Link key={product.id} href={`/portal/clients/${client.id}?tab=delivery`} title={`${product.stageLabel} · ${product.progress}% complete`} className="inline-flex max-w-full items-center gap-2 rounded-md border border-black/[0.08] bg-white px-2.5 py-1.5 text-xs text-black/58">
+                <Link key={product.id} href={clientWorkspaceHref(client.id, "delivery", { product: product.id })} title={`Open ${product.name} in ${client.name}'s workspace · ${product.stageLabel} · ${product.progress}% complete`} className="inline-flex max-w-full items-center gap-2 rounded-md border border-black/[0.08] bg-white px-2.5 py-1.5 text-xs text-black/58 hover:border-brand/25 hover:bg-brand/[0.035]">
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: product.accentColor }} />
                   <span className="truncate font-medium">{product.name}</span>
                   <span className="tabular-nums text-black/35">{product.progress}%</span>
@@ -422,7 +449,7 @@ function ClientDelivery({ clients }: { clients: FulfilmentClientRecord[] }) {
             </div>
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${client.portalReady ? "bg-emerald-50 text-emerald-700" : client.portalRequired ? "bg-amber-50 text-amber-700" : "bg-black/5 text-black/45"}`}>{client.portalReady ? "Portal ready" : client.portalRequired ? "Portal needed" : "Portal optional"}</span>
-              <Link href={`/portal/clients/${client.id}?tab=delivery`} aria-label={`Open ${client.name} delivery`} title="Open client delivery" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.04]"><ArrowRight size={15} /></Link>
+              <Link href={clientWorkspaceHref(client.id, "delivery")} aria-label={`Open ${client.name} internal workspace`} title="Open internal client workspace" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><PanelLeftOpen size={15} /> Open workspace</Link>
             </div>
           </article>
         ))}

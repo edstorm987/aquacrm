@@ -3,6 +3,7 @@
 import { Download, Eye, FileUp, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { LegalDocument, LegalDocumentCategory, LegalDocumentStatus } from "@/server/types";
+import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 
 const categories: Array<{ id: LegalDocumentCategory; label: string }> = [
   { id: "contract", label: "Contracts" },
@@ -103,8 +104,8 @@ function Row({ label, value }: { label: string; value: string }) { return <div c
 function Metric({ label, value, tone }: { label: string; value: number; tone?: "bad" | "warn" }) { return <div className="py-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-1 text-2xl font-semibold ${tone === "bad" ? "text-red-700" : tone === "warn" ? "text-amber-700" : "text-black/85"}`}>{value}</dd></div>; }
 function Status({ value }: { value: LegalDocumentStatus }) { const style = value === "action-required" || value === "expired" ? "bg-red-50 text-red-700" : value === "active" ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.05] text-black/50"; return <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${style}`}>{value.replace("-", " ")}</span>; }
 function effectiveStatus(document: LegalDocument, now: number): LegalDocumentStatus { return document.status !== "archived" && document.expiresAt && document.expiresAt < now ? "expired" : document.status; }
-function deadline(document: LegalDocument, now: number) { const value = document.reminderAt ?? document.expiresAt; if (!value) return <span className="text-black/35">None set</span>; const days = Math.ceil((value - now) / DAY); return <span className={days < 0 ? "font-medium text-red-700" : days <= 45 ? "font-medium text-amber-700" : "text-black/55"}>{new Date(value).toLocaleDateString("en-GB")} · {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d`}</span>; }
+function deadline(document: LegalDocument, now: number) { const value = document.reminderAt ?? document.expiresAt; if (!value) return <span className="text-black/35">None set</span>; const days = Math.ceil((value - now) / DAY); return <span className={days < 0 ? "font-medium text-red-700" : days <= 45 ? "font-medium text-amber-700" : "text-black/55"}>{formatUkDate(value, { dateStyle: "medium" })} · {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d`}</span>; }
 function categoryLabel(value: LegalDocumentCategory) { return categories.find(category => category.id === value)?.label ?? value; }
-function displayDate(value?: number) { return value ? new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "Not set"; }
-function dateValue(value?: number) { return value ? new Date(value).toISOString().slice(0, 10) : ""; }
+function displayDate(value?: number) { return value ? formatUkDate(value, { day: "numeric", month: "long", year: "numeric" }) : "Not set"; }
+function dateValue(value?: number) { return dateInputValue(value); }
 function fileSize(bytes: number) { return bytes < 1_048_576 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1_048_576).toFixed(1)} MB`; }

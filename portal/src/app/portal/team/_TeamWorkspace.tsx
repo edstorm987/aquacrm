@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import type { DashboardPlanningSnapshot } from "@/server/dashboardPlanning";
+import { formatUkDate, timestampFromValue } from "@/lib/formatDateTime";
 import type {
   AgencyTask,
   NotepadFolder,
@@ -160,9 +161,9 @@ function Definition({ label, value, inverse = false }: { label: string; value: s
 function InputField(props: { name: string; label: string; type?: string; required?: boolean }) { return <label className="block text-xs font-semibold text-black/45"><span className="mb-1.5 block">{props.label}</span><input name={props.name} type={props.type} required={props.required} className="min-h-10 w-full rounded-md border border-black/15 px-3 text-sm font-normal text-black" /></label>; }
 function SelectField({ name, label, options }: { name: string; label: string; options: string[] }) { return <label className="block text-xs font-semibold text-black/45"><span className="mb-1.5 block">{label}</span><select name={name} className="min-h-10 w-full rounded-md border border-black/15 px-3 text-sm font-normal capitalize text-black">{options.map(option => <option key={option} value={option}>{words(option)}</option>)}</select></label>; }
 function EmptyState({ icon: Icon, title, detail }: { icon: typeof NotebookPen; title: string; detail: string }) { return <div className="grid min-h-64 place-items-center text-center"><div><Icon className="mx-auto text-black/25" size={24} /><p className="mt-3 font-semibold">{title}</p><p className="mx-auto mt-1 max-w-md text-sm text-black/45">{detail}</p></div></div>; }
-function isoDay(value: number) { const date = new Date(value); const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, "0"); const day = String(date.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; }
-function formatLongDay(date: string) { return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00`)); }
-function formatDate(value: number) { return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(value); }
-function time(value: number) { return new Intl.DateTimeFormat("en-GB", { timeStyle: "short" }).format(value); }
+function isoDay(value: number) { const date = new Date(timestampFromValue(value) ?? Date.now()); const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, "0"); const day = String(date.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; }
+function formatLongDay(date: string) { return formatUkDate(`${date}T12:00:00`, { weekday: "long", day: "numeric", month: "long" }); }
+function formatDate(value: number) { return formatUkDate(value, { dateStyle: "medium" }); }
+function time(value: number) { return formatUkDate(value, { timeStyle: "short" }); }
 function words(value: string) { return value.replaceAll("-", " "); }
 function money(value: number, currency: string) { return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(value / 100); }

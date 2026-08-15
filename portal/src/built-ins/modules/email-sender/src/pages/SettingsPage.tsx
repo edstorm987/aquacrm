@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { isoDateTimeValue } from "../lib/safeDate";
 
 export default async function SettingsPage(props: PluginPageProps) {
   const c = containerFor({
@@ -23,7 +24,7 @@ export default async function SettingsPage(props: PluginPageProps) {
         <div><dt>Status</dt><dd>{provider.status}</dd></div>
         <div><dt>API key</dt><dd>{provider.apiKeyMasked || "(none — set to enable real send)"}</dd></div>
         <div><dt>Webhook secret</dt><dd>{provider.webhookSecret ? "configured" : "(none — provider events will be rejected)"}</dd></div>
-        <div><dt>Last tested</dt><dd>{provider.testedAt ? new Date(provider.testedAt).toISOString() : "—"}</dd></div>
+        <div><dt>Last tested</dt><dd>{provider.testedAt ? isoDateTimeValue(provider.testedAt) ?? "Date needs review" : "—"}</dd></div>
       </dl>
 
       <h2>Sender identities</h2>
@@ -41,7 +42,7 @@ export default async function SettingsPage(props: PluginPageProps) {
                 <td>{i.email}</td>
                 <td>{i.status}</td>
                 <td>{i.isDefault ? "yes" : "—"}</td>
-                <td>{i.verifiedAt ? new Date(i.verifiedAt).toISOString() : "—"}</td>
+                <td>{i.verifiedAt ? isoDateTimeValue(i.verifiedAt) ?? "Date needs review" : "—"}</td>
               </tr>
             ))}
           </tbody>

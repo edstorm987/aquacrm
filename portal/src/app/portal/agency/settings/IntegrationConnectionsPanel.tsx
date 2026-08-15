@@ -29,6 +29,7 @@ import {
   type IntegrationProvider,
 } from "@/lib/integrations/catalog";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 interface Props {
   clients: Array<{ id: string; name: string }>;
@@ -408,7 +409,7 @@ async function apiRequest(method: "GET" | "POST", body?: Record<string, unknown>
 }
 
 function formatDate(value: number) {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(value);
+  return formatUkDate(value, { dateStyle: "medium", timeStyle: "short" });
 }
 
 const controlClass = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/80 outline-none focus:border-black/40";

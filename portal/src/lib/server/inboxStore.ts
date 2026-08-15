@@ -14,6 +14,7 @@ import type {
   InboxMessage,
   InboxSnapshot,
 } from "@/lib/inbox/types";
+import { isoDateTimeValue } from "@/lib/formatDateTime";
 
 export interface PrivateInboxConnection extends InboxChannelConnection {
   encryptedAccessToken: string;
@@ -115,7 +116,7 @@ function toMs(value: unknown): number | undefined {
 }
 
 function toIso(value?: number): string | null {
-  return value ? new Date(value).toISOString() : null;
+  return value ? isoDateTimeValue(value) ?? null : null;
 }
 
 function connectionFromRow(row: Record<string, unknown>): PrivateInboxConnection {

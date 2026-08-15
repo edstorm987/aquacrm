@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckSquare, FilePenLine, Mail, Megaphone, PoundSterling, Send } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
+import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 import {
   CampaignCreativeStudio,
   campaignAssetUrl,
@@ -576,7 +577,7 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
                 <span>{campaign.attributedClients ?? 0} clients</span>
                 {campaign.customerProfileIds?.length ? <span>{campaign.customerProfileIds.length} customer profile{campaign.customerProfileIds.length === 1 ? "" : "s"}</span> : null}
                 {campaign.attributedRevenueCents ? <span>{formatMoney(campaign.attributedRevenueCents)} revenue</span> : null}
-                {campaign.sentAt && <span>Sent {new Date(campaign.sentAt).toLocaleDateString()}</span>}
+                {campaign.sentAt && <span>Sent {formatUkDate(campaign.sentAt, { dateStyle: "medium" })}</span>}
                 {campaign.steps?.length ? <span>{campaign.steps.filter(step => step.status === "done").length}/{campaign.steps.length} steps done</span> : null}
               </div>
               {campaign.steps?.length ? <CampaignStepSummary steps={campaign.steps} /> : null}
@@ -1147,7 +1148,7 @@ function dateToMs(value: string): number | undefined {
 }
 
 function msToDate(value?: number): string {
-  return value ? new Date(value).toISOString().slice(0, 10) : "";
+  return dateInputValue(value);
 }
 
 function textToHtml(value: string): string {

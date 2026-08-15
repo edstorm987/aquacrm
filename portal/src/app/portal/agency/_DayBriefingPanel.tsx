@@ -4,6 +4,7 @@ import { ArrowUpRight, Bot, CheckCircle2, LoaderCircle, Plus, Radar, RefreshCw, 
 
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
 import type { BusinessIssueRadar } from "@/lib/businessRadar";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export type DayTaskGenerationSummary = {
   generatedAt: number;
@@ -77,9 +78,9 @@ function OperatingCount({ label, value }: { label: string; value: number }) {
 }
 
 function shortDate(value: number): string {
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return formatUkDate(value, { day: "numeric", month: "short" });
 }
 
 function shortTime(value: number): string {
-  return new Date(value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return formatUkDate(value, { hour: "2-digit", minute: "2-digit" });
 }

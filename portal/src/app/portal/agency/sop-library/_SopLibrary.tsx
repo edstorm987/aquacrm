@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import type { SopDocument } from "@/server/types";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 type EditorDraft = {
   id?: string;
@@ -683,7 +684,7 @@ function splitTags(value: string) {
 }
 
 function formatDate(value: number) {
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatUkDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatBytes(value?: number) {

@@ -49,9 +49,17 @@ import {
 } from "lucide-react";
 
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
+import {
+  ATTENTION_PROTECTION_EVENT,
+  ATTENTION_PROTECTION_STORAGE_KEY,
+  attentionProtectionEnabled,
+  buildProtectedAttentionWindow,
+  setAttentionProtectionEnabled,
+} from "@/lib/attentionProtection";
 import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedActions";
 import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus, RadarEvidenceInspectionIndex, RadarRuleLens } from "@/lib/businessRadar";
 import type { CommandIntelligenceSnapshot } from "@/lib/commandIntelligence";
+import { formatUkDate, isoDateTimeValue, timestampFromValue } from "@/lib/formatDateTime";
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, CommandCalendarEntry, CommandCalendarExternalEvent, CommandCalendarSource, CompanyProfile, DashboardDayPlan, DashboardWeekPlan, DashboardWeeklyEvidenceSnapshot, DashboardWorkSession } from "@/server/types";
 import { ClockOutReviewDialog, type ClockOutReviewDraft } from "./_ClockOutReviewDialog";
 import { CommandCentreKpiTrajectory } from "./_CommandCentreKpiTrajectory";
@@ -185,6 +193,7 @@ export function DashboardCommandCenter({
   const [savingWeek, setSavingWeek] = useState(false);
   const [dateBusy, setDateBusy] = useState(false);
   const [weekExpanded, setWeekExpanded] = useState(false);
+  const [attentionProtection, setAttentionProtectionState] = useState(true);
   const [clockBusy, setClockBusy] = useState(false);
   const [clockOutReviewOpen, setClockOutReviewOpen] = useState(false);
   const [clockOutReviewError, setClockOutReviewError] = useState("");
@@ -283,6 +292,24 @@ export function DashboardCommandCenter({
   }, []);
 
   useEffect(() => {
+    const sync = () => setAttentionProtectionState(attentionProtectionEnabled());
+    const syncCustom = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled?: boolean }>).detail;
+      setAttentionProtectionState(typeof detail?.enabled === "boolean" ? detail.enabled : attentionProtectionEnabled());
+    };
+    const syncStorage = (event: StorageEvent) => {
+      if (event.key === ATTENTION_PROTECTION_STORAGE_KEY) sync();
+    };
+    sync();
+    window.addEventListener(ATTENTION_PROTECTION_EVENT, syncCustom);
+    window.addEventListener("storage", syncStorage);
+    return () => {
+      window.removeEventListener(ATTENTION_PROTECTION_EVENT, syncCustom);
+      window.removeEventListener("storage", syncStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     function inspectFromCommandDeck(event: Event) {
       const target = (event as CustomEvent<Partial<Omit<RadarInspectorTarget, "version">>>).detail;
       openInspector(target ?? {});
@@ -343,7 +370,7 @@ export function DashboardCommandCenter({
     deterministicRecommendedActions,
     openTasks.map(task => task.title),
   ), [advisorSuggestions, deterministicRecommendedActions, serverRecommendedActions, openTasks]);
-  const strictList = useMemo<StrictItem[]>(() => {
+  const strictPool = useMemo<StrictItem[]>(() => {
     const taskTitles = new Set(openTasks.map(task => task.title.trim().toLowerCase()));
     const taskSignals: StrictItem[] = openTasks.map(task => ({
       id: `task:${task.id}`,
@@ -367,17 +394,21 @@ export function DashboardCommandCenter({
         priority: issue.severity === "critical" ? "urgent" : "high",
       }));
     const businessSignals: StrictItem[] = [...radarSignals, ...signals].filter(signal => !taskTitles.has(signal.title.trim().toLowerCase()));
-    return [...taskSignals, ...businessSignals]
-      .sort((a, b) => {
+    return [...taskSignals, ...businessSignals].sort((a, b) => {
         const activeRank = (a.status === "in-progress" ? -1 : 0) - (b.status === "in-progress" ? -1 : 0);
         return activeRank || priorityRank(a.priority) - priorityRank(b.priority) || overdueRank(a, now) - overdueRank(b, now) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
-      })
-      .slice(0, 8);
+      });
   }, [now, openTasks, radarSnapshot.incidents, signals]);
+  const strictWindow = useMemo(() => buildProtectedAttentionWindow(strictPool, {
+    groupKey: item => item.taskId ? "task" : item.kind,
+    urgencyRank: item => priorityRank(item.priority),
+    enabled: attentionProtection,
+  }), [attentionProtection, strictPool]);
+  const strictList = strictWindow.focus;
 
   const dayStrictList = useMemo<StrictItem[]>(() => {
     if (isToday) return strictList;
-    return selectedDayTasks
+    const ranked = selectedDayTasks
       .map(task => ({
         id: `task:${task.id}`,
         title: task.title,
@@ -399,9 +430,9 @@ export function DashboardCommandCenter({
         const completedRank = Number(a.status === "done") - Number(b.status === "done");
         const activeRank = Number(b.status === "in-progress") - Number(a.status === "in-progress");
         return completedRank || activeRank || priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
-      })
-      .slice(0, 8);
-  }, [isToday, selectedDate, selectedDayTasks, strictList]);
+      });
+    return attentionProtection ? ranked.slice(0, 5) : ranked;
+  }, [attentionProtection, isToday, selectedDate, selectedDayTasks, strictList]);
 
   const selectedSessions = sessions.filter(session => session.date === selectedDate);
   const loggedHours = selectedSessions.reduce((total, session) => total + accountableSessionHours(session), 0);
@@ -484,9 +515,10 @@ export function DashboardCommandCenter({
     dayReviewsCompleted: new Set(sessions.filter(session => Boolean(session.clockOutReview)).map(session => session.date)).size,
     capturedAt: now,
   };
-  const directRadarFeed = [...radarSnapshot.incidents]
-    .sort((left, right) => radarSeverityRank(left.severity) - radarSeverityRank(right.severity) || right.detectedAt - left.detectedAt)
-    .slice(0, 4);
+  const rankedRadarFeed = [...radarSnapshot.incidents]
+    .sort((left, right) => radarSeverityRank(left.severity) - radarSeverityRank(right.severity) || right.detectedAt - left.detectedAt);
+  const directRadarFeed = attentionProtection ? rankedRadarFeed.slice(0, 4) : rankedRadarFeed;
+  const commandPriorityFeed = attentionProtection ? strictList.slice(0, 3) : strictList;
   const radarTasksBySource = new Map(taskRows.filter(task => (task.origin ?? "manual") === "radar" && task.sourceId).map(task => [task.sourceId!, task]));
 
   function updatePlan(patch: Partial<DayDraft>) {
@@ -884,7 +916,9 @@ export function DashboardCommandCenter({
   const dayAttention: CommandStationAttention = {
     count: dayAttentionItems.length,
     tone: dayAttentionItems.some(item => item.priority === "urgent") ? "critical" : dayAttentionItems.some(item => item.priority === "high") ? "warning" : dayAttentionItems.length ? "info" : "clear",
-    label: dayAttentionItems.length ? `${dayAttentionItems.length} live priorities require today’s attention` : "No live priorities are waiting in Day Command",
+    label: dayAttentionItems.length
+      ? `${dayAttentionItems.length} live priorities in focus${isToday && strictWindow.reserveCount ? ` · ${strictWindow.reserveCount} safely held in reserve` : ""}`
+      : "No live priorities are waiting in Day Command",
   };
   const executiveAttention: CommandStationAttention = {
     count: radarSnapshot.summary.critical + radarSnapshot.summary.warning,
@@ -912,7 +946,16 @@ export function DashboardCommandCenter({
         onCancel={() => { if (!clockBusy) setClockOutReviewOpen(false); }}
         onConfirm={review => void completeClockOut(review)}
       /> : null}
-      <CommandStationNav attention={stationAttention} activeMode={activeStation === "day" ? "day" : activeStation === "battle" ? "battle" : "executive"} onSelect={selectCommandStation} />
+      <CommandStationNav
+        attention={stationAttention}
+        activeMode={activeStation === "day" ? "day" : activeStation === "battle" ? "battle" : "executive"}
+        attentionProtection={attentionProtection}
+        onAttentionProtectionChange={enabled => {
+          setAttentionProtectionState(enabled);
+          setAttentionProtectionEnabled(enabled);
+        }}
+        onSelect={selectCommandStation}
+      />
       {activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{executiveWorkspace}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceSnapshot} onOpen={openIntelligence} /></div> : activeStation === "battle" ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceSnapshot} onOpenIntelligence={openIntelligence} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
       <header className="mm-command-workspace-header flex min-h-14 shrink-0 items-center gap-3 border-b border-[#62e8ff]/25 bg-[#020b11] px-3 text-white shadow-[0_8px_24px_rgba(0,20,28,.16)] sm:px-5">
         <span className="mm-command-workspace-emblem grid size-8 shrink-0 place-items-center border border-[#62e8ff]/35 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><Compass size={16} /></span>
@@ -975,14 +1018,14 @@ export function DashboardCommandCenter({
                 </div>
 
                 <div className="min-w-0 px-4 py-4 sm:px-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Radar-directed work</p><h3 className="mt-1 text-sm font-semibold text-white">Strict priority queue</h3></div><Link href="/portal/agency/actions" className="inline-flex min-h-8 shrink-0 items-center gap-1 border border-white/12 px-2.5 text-[10px] font-semibold text-white/55 hover:bg-white/[0.06] hover:text-white">All actions <ArrowUpRight size={12} /></Link></div>
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Radar-directed work</p><h3 className="mt-1 text-sm font-semibold text-white">Strict priority queue</h3>{strictWindow.protected ? <p className="mt-1 text-[9px] text-[#68f5d0]/62">Attention shield · {strictWindow.focus.length} in focus · {strictWindow.reserveCount} safely queued</p> : null}</div><Link href="/portal/agency/actions" className="inline-flex min-h-8 shrink-0 items-center gap-1 border border-white/12 px-2.5 text-[10px] font-semibold text-white/55 hover:bg-white/[0.06] hover:text-white">All actions <ArrowUpRight size={12} /></Link></div>
                   <form onSubmit={event => { event.preventDefault(); void addQuickTask(); }} className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_90px_36px]">
                     <input value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder="Capture the next concrete action" className="min-h-9 border border-white/12 bg-[#07161b] px-3 text-xs text-white outline-none placeholder:text-white/25 focus:border-[#62e8ff]/45" />
                     <select aria-label="New command task priority" value={quickPriority} onChange={event => setQuickPriority(event.target.value as AgencyTaskPriority)} className="min-h-9 border border-white/12 bg-[#07161b] px-2 text-xs text-white"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>
                     <button disabled={!quickTask.trim() || taskBusyId === "quick"} title="Add command task" className="grid size-9 place-items-center border border-[#62e8ff]/25 bg-[#62e8ff]/[0.07] text-[#8ef1ff] disabled:opacity-30">{taskBusyId === "quick" ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={14} />}</button>
                   </form>
                   <ol className="mt-3 divide-y divide-white/10 border-y border-white/10">
-                    {strictList.slice(0, 3).map((item, index) => <li key={item.id} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 py-2.5"><span className={`grid size-6 place-items-center text-[9px] font-semibold ${item.priority === "urgent" ? "bg-red-500/20 text-red-200" : item.priority === "high" ? "bg-amber-300/15 text-amber-200" : "bg-white/[0.06] text-white/50"}`}>{index + 1}</span><span className="min-w-0"><strong className="block truncate text-xs text-white/80">{item.title}</strong><span className="block truncate text-[10px] text-white/35">{item.kind}</span></span>{item.taskId ? <button type="button" onClick={() => void completeTask(item.taskId!)} title={`Complete ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-[#7dd3c4] hover:bg-white/[0.06]"><Check size={13} /></button> : <button type="button" onClick={() => void addStrictTodo(item)} title={`Accept ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-white/45 hover:bg-white/[0.06] hover:text-white"><Plus size={13} /></button>}</li>)}
+                    {commandPriorityFeed.map((item, index) => <li key={item.id} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 py-2.5"><span className={`grid size-6 place-items-center text-[9px] font-semibold ${item.priority === "urgent" ? "bg-red-500/20 text-red-200" : item.priority === "high" ? "bg-amber-300/15 text-amber-200" : "bg-white/[0.06] text-white/50"}`}>{index + 1}</span><span className="min-w-0"><strong className="block truncate text-xs text-white/80">{item.title}</strong><span className="block truncate text-[10px] text-white/35">{item.kind}</span></span>{item.taskId ? <button type="button" onClick={() => void completeTask(item.taskId!)} title={`Complete ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-[#7dd3c4] hover:bg-white/[0.06]"><Check size={13} /></button> : <button type="button" onClick={() => void addStrictTodo(item)} title={`Accept ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-white/45 hover:bg-white/[0.06] hover:text-white"><Plus size={13} /></button>}</li>)}
                     {!strictList.length ? <li className="py-5 text-center text-xs text-white/38">No queued priorities. The command plot is clear.</li> : null}
                   </ol>
                 </div>
@@ -1145,7 +1188,7 @@ export function DashboardCommandCenter({
             <div className="divide-y divide-black/[0.07]">
               {selectedDaySchedule.map(item => (
                 <Link key={item.id} href={item.href} className="mm-interactive-row group grid grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:px-5">
-                  <time dateTime={new Date(item.at).toISOString()} className="rounded-md bg-black/[0.035] px-2 py-1.5 text-center">
+                  <time dateTime={isoDateTimeValue(item.at)} className="rounded-md bg-black/[0.035] px-2 py-1.5 text-center">
                     <span className="block text-[9px] font-semibold uppercase text-black/38">{calendarMonth(item.at)}</span>
                     <strong className="mt-0.5 block text-sm tabular-nums text-black/75">{calendarDay(item.at)}</strong>
                   </time>
@@ -1865,7 +1908,7 @@ function RadarMemoryTimeline({ memory, onInspect }: { memory: BusinessIssueRadar
     <div className="min-w-0">
       <button type="button" onClick={() => onInspect({ tab: "evidence" })} aria-label="Inspect assurance memory" className="group flex w-full items-center justify-between gap-3 pr-12 text-left sm:pr-0"><span className="text-[10px] font-semibold uppercase text-white/35">Assurance memory</span><span className="inline-flex items-center gap-1.5 text-right text-[10px] leading-4 tabular-nums text-white/35">{signedInteger(memory.assuranceDelta)} assurance · {signedInteger(memory.firingDelta)} alarms · {signedInteger(memory.blindDelta)} blind <ArrowUpRight size={11} className="shrink-0 transition group-hover:text-emerald-200" /></span></button>
       <button type="button" onClick={() => onInspect({ tab: "evidence" })} className="mt-3 flex h-12 w-full items-end gap-1 text-left" aria-label="Inspect Radar assurance history">
-        {points.map((point, index) => <span key={`${point.at}:${index}`} className={`min-w-1 flex-1 rounded-sm ${point.blindChecks ? "bg-red-400" : point.criticalIssues ? "bg-amber-300" : "bg-emerald-300"}`} style={{ height: `${Math.max(8, point.assurancePercent)}%` }} title={`${new Date(point.at).toLocaleString("en-GB")}: ${point.assurancePercent}% assured, ${point.firingChecks} alarms, ${point.blindChecks} blind`} />)}
+        {points.map((point, index) => <span key={`${point.at}:${index}`} className={`min-w-1 flex-1 rounded-sm ${point.blindChecks ? "bg-red-400" : point.criticalIssues ? "bg-amber-300" : "bg-emerald-300"}`} style={{ height: `${Math.max(8, point.assurancePercent)}%` }} title={`${formatUkDate(point.at, { dateStyle: "medium", timeStyle: "short" })}: ${point.assurancePercent}% assured, ${point.firingChecks} alarms, ${point.blindChecks} blind`} />)}
         {!points.length ? <span className="text-xs text-white/35">The first recorded sweep will establish this timeline.</span> : null}
       </button>
     </div>
@@ -2067,7 +2110,9 @@ function domainLabel(domain: AdvisorDomain): string {
 }
 
 function formatRadarAge(timestamp: number): string {
-  const elapsed = Math.max(0, Date.now() - timestamp);
+  const validTimestamp = timestampFromValue(timestamp);
+  if (validTimestamp === undefined) return "date needs review";
+  const elapsed = Math.max(0, Date.now() - validTimestamp);
   if (elapsed < 60_000) return "just now";
   if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
   if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
@@ -2225,7 +2270,7 @@ function workModeLabel(mode?: DashboardWorkSession["currentMode"]): string {
 }
 
 function formatClockTime(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return formatUkDate(value, { hour: "2-digit", minute: "2-digit" });
 }
 
 function topSessionRoutes(sessions: DashboardWorkSession[]): Array<{ path: string; activeMs: number }> {
@@ -2257,15 +2302,15 @@ function formatElapsed(milliseconds: number): string {
 }
 
 function formatLongDate(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${value}T12:00:00`));
+  return formatUkDate(`${value}T12:00:00`, { weekday: "long", day: "numeric", month: "long" });
 }
 
 function formatDateTime(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return formatUkDate(value, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function calendarDay(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit" }).format(new Date(value));
+  return formatUkDate(value, { day: "2-digit" }, "--");
 }
 
 function commandStationMode(value: string | null): CommandSurfaceMode | null {
@@ -2369,16 +2414,16 @@ function cleanRadarParam(value: string | null): string {
 }
 
 function calendarMonth(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { month: "short" }).format(new Date(value));
+  return formatUkDate(value, { month: "short" }, "Review");
 }
 
 function calendarWeekday(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(new Date(value));
+  return formatUkDate(value, { weekday: "long" });
 }
 
 function formatTimeRange(session: DashboardWorkSession): string {
-  const format = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
-  return session.endedAt ? `${format.format(session.startedAt)}–${format.format(session.endedAt)}` : `${format.format(session.startedAt)}–now`;
+  const start = formatUkDate(session.startedAt, { hour: "2-digit", minute: "2-digit" });
+  return session.endedAt ? `${start}–${formatUkDate(session.endedAt, { hour: "2-digit", minute: "2-digit" })}` : `${start}–now`;
 }
 
 function weekDates(weekStart: string): string[] {
@@ -2408,15 +2453,15 @@ function validIsoDate(value: string): boolean {
 }
 
 function weekday(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(new Date(`${value}T12:00:00`)).slice(0, 3);
+  return formatUkDate(`${value}T12:00:00`, { weekday: "short" }).slice(0, 3);
 }
 
 function weekdayLong(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(new Date(`${value}T12:00:00`));
+  return formatUkDate(`${value}T12:00:00`, { weekday: "long" });
 }
 
 function shortDate(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
+  return formatUkDate(`${value}T12:00:00`, { day: "numeric", month: "short" });
 }
 
 function money(value: number): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Clock3, Map, Radar, RadioTower } from "lucide-react";
+import { AlertTriangle, Clock3, Eye, Map, Radar, RadioTower, ShieldCheck } from "lucide-react";
 
 export type CommandStationMode = "executive" | "day" | "battle";
 export type CommandStationAttention = {
@@ -12,20 +12,41 @@ export type CommandStationAttention = {
 export function CommandStationNav({
   attention,
   activeMode,
+  attentionProtection,
+  onAttentionProtectionChange,
   onSelect,
 }: {
   attention: Record<CommandStationMode, CommandStationAttention>;
   activeMode: CommandStationMode;
+  attentionProtection: boolean;
+  onAttentionProtectionChange: (enabled: boolean) => void;
   onSelect: (mode: CommandStationMode) => void;
 }) {
   const radarAttention = attention.executive;
   const radarAlarm = radarAttention.tone === "critical" || radarAttention.tone === "warning";
   return <div className="mm-command-station-nav aqua-hud-panel relative overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#031018] text-white shadow-[0_12px_34px_rgba(0,35,48,.16)]" aria-label="Command Centre controls">
     <div aria-label="Radar findings automatically join your strict priority queue" className="relative flex min-h-9 items-center justify-between gap-3 border-b border-[#62e8ff]/20 bg-[#020b11] px-4 text-[9px] font-semibold uppercase text-[#7edff3]/70 sm:px-5">
-      <span className="inline-flex items-center gap-2"><span className="size-1.5 bg-[#62e8ff] shadow-[0_0_8px_#62e8ff]" /> Command Centre · Business watch, personal command and Radar in one system</span>
-      <span className={`inline-flex shrink-0 items-center gap-2 ${radarAttention.tone === "critical" ? "text-red-300" : radarAttention.tone === "warning" ? "text-amber-300" : "text-[#68f5d0]"}`} title={radarAttention.label}>
-        {radarAlarm ? <AlertTriangle size={11} className={radarAttention.tone === "critical" ? "animate-pulse motion-reduce:animate-none" : ""} /> : <RadioTower size={11} />}
-        <span className="hidden sm:inline">{radarAttention.tone === "critical" ? `Red alert · ${radarAttention.count}` : radarAttention.tone === "warning" ? `Watch · ${radarAttention.count}` : "Radar online"}</span>
+      <span className="inline-flex min-w-0 items-center gap-2"><span className="size-1.5 shrink-0 bg-[#62e8ff] shadow-[0_0_8px_#62e8ff]" /><span className="truncate">Command Centre · Business watch, personal command and Radar in one system</span></span>
+      <span className="inline-flex shrink-0 items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={attentionProtection}
+          aria-label={`Focus protection ${attentionProtection ? "on" : "off"}. ${attentionProtection ? "Show the full business picture" : "Return to the protected focus window"}.`}
+          title={attentionProtection ? "Focus protection is on. Switch off to show every alert and priority." : "Full picture is on. Switch on to show the highest-priority focus window."}
+          onClick={() => onAttentionProtectionChange(!attentionProtection)}
+          className={`inline-flex min-h-7 items-center gap-2 border px-2 transition ${attentionProtection ? "border-[#68f5d0]/25 bg-[#68f5d0]/[0.07] text-[#8df5dc]" : "border-[#e5c479]/28 bg-[#e5c479]/[0.08] text-[#f2d997]"}`}
+        >
+          {attentionProtection ? <ShieldCheck size={11} /> : <Eye size={11} />}
+          <span className="hidden lg:inline">{attentionProtection ? "Focus protection" : "Full picture"}</span>
+          <span aria-hidden="true" className={`relative h-3.5 w-7 border border-current/35 ${attentionProtection ? "bg-[#68f5d0]/20" : "bg-[#e5c479]/20"}`}>
+            <span className={`absolute top-0.5 size-2.5 bg-current transition-transform ${attentionProtection ? "translate-x-3.5" : "translate-x-0.5"}`} />
+          </span>
+        </button>
+        <span className={`inline-flex items-center gap-2 ${radarAttention.tone === "critical" ? "text-red-300" : radarAttention.tone === "warning" ? "text-amber-300" : "text-[#68f5d0]"}`} title={radarAttention.label}>
+          {radarAlarm ? <AlertTriangle size={11} className={radarAttention.tone === "critical" ? "animate-pulse motion-reduce:animate-none" : ""} /> : <RadioTower size={11} />}
+          <span className="hidden sm:inline">{radarAttention.tone === "critical" ? `Red alert · ${radarAttention.count}` : radarAttention.tone === "warning" ? `Watch · ${radarAttention.count}` : "Radar online"}</span>
+        </span>
       </span>
     </div>
     <nav className="relative grid grid-cols-1 bg-[#041119]/96 sm:grid-cols-3" aria-label="Executive command controls">

@@ -10,11 +10,22 @@ import {
   type OperationalAlertCategory,
   type OperationalAlertView,
 } from "@/lib/operationalAttention";
+import {
+  ATTENTION_PROTECTION_EVENT,
+  ATTENTION_PROTECTION_STORAGE_KEY,
+  attentionProtectionEnabled,
+  buildOperationalAttentionWindow,
+  setAttentionProtectionEnabled,
+  type OperationalAttentionWindow,
+} from "@/lib/attentionProtection";
 
 interface AttentionContextValue {
   alerts: OperationalAlertView[];
+  attentionWindow: OperationalAttentionWindow;
+  focusProtectionEnabled: boolean;
   busyAlertId: string | null;
   error: string;
+  setFocusProtectionEnabled: (enabled: boolean) => void;
   refreshAlerts: () => Promise<boolean>;
   updateAlert: (alertId: string, action: OperationalAlertAction, parkedUntil?: number) => Promise<boolean>;
 }
@@ -23,10 +34,38 @@ const AttentionContext = createContext<AttentionContextValue | null>(null);
 
 export function NotificationAttentionProvider({ initialAlerts, children }: { initialAlerts: OperationalAlertView[]; children: ReactNode }) {
   const [alerts, setAlerts] = useState(initialAlerts);
+  const [focusProtectionEnabled, setFocusProtectionState] = useState(true);
   const [busyAlertId, setBusyAlertId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const attentionWindow = useMemo(
+    () => buildOperationalAttentionWindow(alerts, { enabled: focusProtectionEnabled }),
+    [alerts, focusProtectionEnabled],
+  );
 
   useEffect(() => setAlerts(initialAlerts), [initialAlerts]);
+
+  useEffect(() => {
+    const sync = () => setFocusProtectionState(attentionProtectionEnabled());
+    const syncCustom = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled?: boolean }>).detail;
+      setFocusProtectionState(typeof detail?.enabled === "boolean" ? detail.enabled : attentionProtectionEnabled());
+    };
+    const syncStorage = (event: StorageEvent) => {
+      if (event.key === ATTENTION_PROTECTION_STORAGE_KEY) sync();
+    };
+    sync();
+    window.addEventListener(ATTENTION_PROTECTION_EVENT, syncCustom);
+    window.addEventListener("storage", syncStorage);
+    return () => {
+      window.removeEventListener(ATTENTION_PROTECTION_EVENT, syncCustom);
+      window.removeEventListener("storage", syncStorage);
+    };
+  }, []);
+
+  const setFocusProtectionEnabled = useCallback((enabled: boolean) => {
+    setFocusProtectionState(enabled);
+    setAttentionProtectionEnabled(enabled);
+  }, []);
 
   const refreshAlerts = useCallback(async (): Promise<boolean> => {
     const response = await fetch("/api/portal/notifications", { method: "GET", cache: "no-store" }).catch(() => null);
@@ -86,7 +125,16 @@ export function NotificationAttentionProvider({ initialAlerts, children }: { ini
     }
   }
 
-  const value = useMemo(() => ({ alerts, busyAlertId, error, refreshAlerts, updateAlert }), [alerts, busyAlertId, error, refreshAlerts]);
+  const value = useMemo(() => ({
+    alerts,
+    attentionWindow,
+    focusProtectionEnabled,
+    busyAlertId,
+    error,
+    setFocusProtectionEnabled,
+    refreshAlerts,
+    updateAlert,
+  }), [alerts, attentionWindow, focusProtectionEnabled, busyAlertId, error, setFocusProtectionEnabled, refreshAlerts]);
   return <AttentionContext.Provider value={value}>{children}</AttentionContext.Provider>;
 }
 
@@ -100,16 +148,22 @@ export function useAttentionMatches({
   categories = [],
   navId,
   all = false,
+  pool = "focus",
 }: {
   hrefs?: string[];
   prefixHrefs?: string[];
   categories?: OperationalAlertCategory[];
   navId?: string;
   all?: boolean;
+  pool?: "focus" | "reserve" | "all";
 }): OperationalAlertView[] {
   const context = useNotificationAttention();
   return useMemo(() => {
-    const live = context?.alerts.filter(alert => alert.attention) ?? [];
+    const live = !context ? [] : pool === "focus"
+      ? context.attentionWindow.focus
+      : pool === "reserve"
+        ? context.attentionWindow.reserve
+        : [...context.attentionWindow.focus, ...context.attentionWindow.reserve];
     if (all) return live;
     return live.filter(alert => {
       if (navId && destinationForOperationalAlert(alert) === navId) return true;
@@ -118,14 +172,14 @@ export function useAttentionMatches({
       return hrefs.some(href => operationalAlertMatchesHref(alert, href))
         || prefixHrefs.some(href => operationalAlertMatchesHrefPrefix(alert, href));
     });
-  }, [all, categories, context?.alerts, hrefs, navId, prefixHrefs]);
+  }, [all, categories, context, hrefs, navId, pool, prefixHrefs]);
 }
 
 export function useUnresolvedAttentionMatches({ navId }: { navId: string }): OperationalAlertView[] {
   const context = useNotificationAttention();
   return useMemo(() => {
     if (!context) return [];
-    return context.alerts.filter(alert =>
+    return context.attentionWindow.focus.filter(alert =>
       alert.persistentUntilResolved
       && alert.state !== "parked"
       && destinationForOperationalAlert(alert) === navId

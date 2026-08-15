@@ -26,6 +26,7 @@ import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
+import { formatUkDate } from "@/lib/formatDateTime";
 import { assistantModel, isAssistantConfigured } from "@/lib/server/openaiAssistant";
 import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardCommandCenter";
 import { CommandDeckPopup, type CommandDeckInspectorTarget, type CommandDeckPopupRow } from "./_CommandDeckPopup";
@@ -481,7 +482,7 @@ function heroRadarSectorTone(status: DynamicRadarStatus): string {
 }
 
 function formatHudTimestamp(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(timestamp));
+  return formatUkDate(timestamp, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 type InstrumentTone = "critical" | "warning" | "clear";

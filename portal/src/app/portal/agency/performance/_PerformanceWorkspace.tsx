@@ -8,6 +8,7 @@ import type { PerformanceAnalytics } from "@/lib/performanceAnalytics";
 import type { MonthlyPerformanceReport } from "@/lib/performanceReports";
 import { ExperimentsPanel } from "./_ExperimentsPanel";
 import { AquaTagDashboard } from "./_AquaTagDashboard";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 export interface PerformanceProduct {
   id: string;
@@ -528,5 +529,5 @@ function Empty({ title, detail }: { title: string; detail: string }) { return <d
 function money(cents: number) { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(cents / 100); }
 function dueLabel(targetAt: number) { const days = Math.ceil((targetAt - Date.now()) / 86_400_000); return days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Due today" : `${days}d remaining`; }
 function relativeTime(value: number) { const minutes = Math.max(0, Math.floor((Date.now() - value) / 60_000)); return minutes < 1 ? "Just now" : minutes < 60 ? `${minutes}m ago` : minutes < 1_440 ? `${Math.floor(minutes / 60)}h ago` : `${Math.floor(minutes / 1_440)}d ago`; }
-function shortDate(value?: string) { return value ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`)) : ""; }
+function shortDate(value?: string) { return value ? formatUkDate(`${value}T12:00:00`, { day: "numeric", month: "short" }) : ""; }
 function metricLabel(value: NonNullable<ClientMilestone["metric"]>) { return value === "pageviews" ? "views" : value === "search-clicks" ? "search clicks" : value; }

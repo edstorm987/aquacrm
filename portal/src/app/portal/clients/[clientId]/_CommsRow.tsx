@@ -6,6 +6,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { formatUkDate, formatUkDateTime } from "@/lib/formatDateTime";
 
 interface InitialState {
   whatsappLink: string;
@@ -15,14 +16,14 @@ interface InitialState {
 
 function formatContactDate(ts: number): string {
   if (!ts) return "never";
-  return new Intl.DateTimeFormat("en-GB", {
+  return formatUkDate(ts, {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "UTC",
-  }).format(new Date(ts));
+  });
 }
 
 export function CommsRow({
@@ -119,7 +120,7 @@ export function CommsRow({
         </span>
       )}
       <span
-        title={lastTs ? new Date(lastTs).toLocaleString() : ""}
+        title={lastTs ? formatUkDateTime(lastTs) : ""}
         className={[
           "inline-flex items-center gap-1 rounded-full px-2 py-0.5",
           stale ? "bg-amber-100 text-amber-900" : "text-black/55",

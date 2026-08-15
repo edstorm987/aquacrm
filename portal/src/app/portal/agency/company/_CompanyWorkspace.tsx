@@ -10,6 +10,7 @@ import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import { CompanyConnectionsWorkspace } from "./_CompanyConnectionsWorkspace";
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
+import { formatUkDate } from "@/lib/formatDateTime";
 
 interface Actuals {
   monthRevenueCents: number;
@@ -672,7 +673,7 @@ function PlanBoard({ plans, onDelete }: { plans: CompanyPlan[]; onDelete?: (id: 
 
 function ReviewList({ reviews }: { reviews: CompanyQuarterlyReview[] }) {
   if (!reviews.length) return <Empty text="Your first quarterly review will create the decision history." />;
-  return <div className="divide-y divide-black/10 border-y border-black/10">{reviews.map(review => <details key={review.id} className="group"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 py-3"><div><p className="font-medium text-black/75">{review.period}</p><p className="text-xs text-black/40">Updated {new Date(review.updatedAt).toLocaleDateString("en-GB")}</p></div><ChevronRight size={16} className="text-black/35 transition group-open:rotate-90" /></summary><div className="grid gap-5 pb-5 sm:grid-cols-2"><ReviewText label="Wins" value={review.wins} /><ReviewText label="Lessons" value={review.lessons} /><ReviewText label="Decisions" value={review.decisions} /><ReviewText label="Next priorities" value={review.nextPriorities} /></div></details>)}</div>;
+  return <div className="divide-y divide-black/10 border-y border-black/10">{reviews.map(review => <details key={review.id} className="group"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 py-3"><div><p className="font-medium text-black/75">{review.period}</p><p className="text-xs text-black/40">Updated {formatUkDate(review.updatedAt, { dateStyle: "medium" })}</p></div><ChevronRight size={16} className="text-black/35 transition group-open:rotate-90" /></summary><div className="grid gap-5 pb-5 sm:grid-cols-2"><ReviewText label="Wins" value={review.wins} /><ReviewText label="Lessons" value={review.lessons} /><ReviewText label="Decisions" value={review.decisions} /><ReviewText label="Next priorities" value={review.nextPriorities} /></div></details>)}</div>;
 }
 
 function ObjectiveDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (item: CompanyObjective) => void }) {

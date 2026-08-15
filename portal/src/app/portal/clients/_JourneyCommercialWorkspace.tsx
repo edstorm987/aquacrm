@@ -9,7 +9,6 @@ import {
   FileSignature,
   GitBranch,
   HeartHandshake,
-  PanelsTopLeft,
   Search,
   ShieldCheck,
   WalletCards,
@@ -39,12 +38,11 @@ export interface JourneyCommercialClient {
   aquaHealth: ClientAquaHealth;
 }
 
-type JourneyDesk = "pipeline" | "meetings" | "booking-funnels" | "payments" | "contracts" | "aqua-health";
+type JourneyDesk = "pipeline" | "meetings" | "payments" | "contracts" | "aqua-health";
 
 const DESKS: Array<{ id: JourneyDesk; label: string; detail: string; icon: typeof GitBranch }> = [
   { id: "pipeline", label: "Pipeline", detail: "Enquiries to clients", icon: GitBranch },
   { id: "meetings", label: "Meetings", detail: "Book, run and close", icon: CalendarClock },
-  { id: "booking-funnels", label: "Booking funnels", detail: "Niche conversion routes", icon: PanelsTopLeft },
   { id: "payments", label: "Payments", detail: "Request and reconcile", icon: WalletCards },
   { id: "contracts", label: "Contracts", detail: "Draft, send and accept", icon: FileSignature },
   { id: "aqua-health", label: "Aqua Health", detail: "Commercial relationship", icon: HeartHandshake },
@@ -52,7 +50,6 @@ const DESKS: Array<{ id: JourneyDesk; label: string; detail: string; icon: typeo
 
 export function JourneyCommercialWorkspace({
   pipeline,
-  bookingFunnels,
   meetingPeople,
   referenceNow,
   clients,
@@ -60,7 +57,6 @@ export function JourneyCommercialWorkspace({
   canViewFinance,
 }: {
   pipeline: ReactNode;
-  bookingFunnels: ReactNode;
   meetingPeople: JourneyMeetingPerson[];
   referenceNow: number;
   clients: JourneyCommercialClient[];
@@ -85,7 +81,7 @@ export function JourneyCommercialWorkspace({
 
   return (
     <section className="min-w-0" data-testid="journey-commercial-workspace">
-      <nav aria-label="Journey workspaces" className="grid gap-px overflow-hidden rounded-lg border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <nav aria-label="Journey workspaces" className="grid gap-px overflow-hidden rounded-lg border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {DESKS.map(item => {
           const Icon = item.icon;
           const active = item.id === desk;
@@ -99,9 +95,8 @@ export function JourneyCommercialWorkspace({
 
       {desk === "pipeline" ? <div className="mt-5 min-w-0">{pipeline}</div> : null}
       {desk === "meetings" ? <div className="mt-7 min-w-0"><JourneyMeetingsWorkspace people={meetingPeople} referenceNow={referenceNow} /></div> : null}
-      {desk === "booking-funnels" ? <div className="mt-7 min-w-0">{bookingFunnels}</div> : null}
 
-      {desk !== "pipeline" && desk !== "meetings" && desk !== "booking-funnels" ? <>
+      {desk !== "pipeline" && desk !== "meetings" ? <>
         <header className="mt-7 flex flex-col gap-4 border-b border-black/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">Journey · {DESKS.find(item => item.id === desk)?.label}</p>

@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { dateInputValue } from "../lib/safeDate";
 
 export default async function ActivityPage(props: PluginPageProps) {
   if (!props.clientId) return <p>client-CRM requires a client scope.</p>;
@@ -21,7 +22,7 @@ export default async function ActivityPage(props: PluginPageProps) {
                 <header>
                   <span className={`crm-pill crm-pill-${a.kind}`}>{a.kind}</span>
                   <strong>{contact?.name ?? contact?.email ?? a.contactId}</strong>
-                  <time>{new Date(a.occurredAt).toISOString().slice(0, 10)}</time>
+                  <time>{dateInputValue(a.occurredAt) || "Date needs review"}</time>
                 </header>
                 <p>{a.summary}</p>
               </article>

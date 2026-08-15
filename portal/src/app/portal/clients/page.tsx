@@ -38,12 +38,6 @@ import type { ClientContract, ClientContractTemplate } from "@/lib/clientContrac
 import { calculateClientAquaHealth } from "@/lib/clientAquaHealth";
 import { JourneyCommercialWorkspace, type JourneyCommercialClient } from "./_JourneyCommercialWorkspace";
 import type { JourneyMeetingPerson } from "./_JourneyMeetingsWorkspace";
-import { FunnelsWorkspace } from "@/app/portal/agency/marketing/_FunnelsWorkspace";
-import type { MarketingAsset } from "@/built-ins/modules/agency-marketing/src/lib/domain";
-import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
-import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/firstPartyDevelopmentProjects";
-
-const MARKETING_ASSETS_KEY = "milesymedia/channel-assets/v1";
 
 interface JourneyClientMetadata {
   leadId?: string;
@@ -311,17 +305,6 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       }),
     };
   });
-  let marketingInstall = getInstall({ agencyId: agency.id }, "agency-marketing");
-  if (!marketingInstall) {
-    const result = await installPlugin("agency-marketing", { scope: { agencyId: agency.id }, installedBy: session.userId });
-    if (result.ok) marketingInstall = result.install;
-  } else if (!marketingInstall.enabled) {
-    await setPluginEnabled({ agencyId: agency.id }, "agency-marketing", true);
-    marketingInstall = getInstall({ agencyId: agency.id }, "agency-marketing");
-  }
-  const bookingFunnelAssets = marketingInstall
-    ? ((await makePluginStorage(marketingInstall.id).get<MarketingAsset[]>(MARKETING_ASSETS_KEY)) ?? []).filter(asset => asset.kind === "funnel")
-    : [];
   const basePanels = buildSidebar({
     role: session.role,
     scope: "agency",
@@ -396,20 +379,6 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                   pipeline={<LeadsPipelineWorkspaceServer agencyId={agency.id} userId={session.userId} />}
                   meetingPeople={journeyMeetingPeople}
                   referenceNow={Date.now()}
-                  bookingFunnels={<FunnelsWorkspace
-                    assets={bookingFunnelAssets}
-                    bookingFirst
-                    companies={serviceBrands.map(company => ({ id: company.id, name: company.name, slug: company.slug, colour: company.brand.primaryColor }))}
-                    projects={FIRST_PARTY_DEVELOPMENT_PROJECTS.map(project => ({
-                      id: project.id,
-                      name: project.name,
-                      brand: project.brand,
-                      previewUrl: project.previewUrl,
-                      publicUrl: project.publicUrl,
-                      repositoryUrl: project.repositoryUrl,
-                      sourcePath: project.sourcePath,
-                    }))}
-                  />}
                   clients={journeyClients}
                   contractTemplates={contractTemplates}
                   canViewFinance={canViewFinance}

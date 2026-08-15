@@ -4,6 +4,7 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { customerOrders, summariseCustomers } from "../lib/admin/customers";
 import { formatPrice } from "../lib/admin/orders";
+import { formatUkDate } from "../lib/safeDate";
 
 export default async function CustomerDetailPage(props: PluginPageProps) {
   const email = props.segments[0] ? decodeURIComponent(props.segments[0]) : null;
@@ -31,7 +32,7 @@ export default async function CustomerDetailPage(props: PluginPageProps) {
             {" — "}
             <span className={`ecom-status ecom-status-${o.status}`}>{o.status}</span>
             {" — "}
-            {new Date(o.createdAt).toLocaleDateString()}
+            {formatUkDate(o.createdAt, { dateStyle: "medium" })}
           </li>
         ))}
       </ul>

@@ -146,6 +146,13 @@ export type ProspectOutreachOutcome =
   | "not-fit"
   | "wrong-contact"
   | "meeting-booked";
+export type ProspectInspectionCheck =
+  | "business-verified"
+  | "contact-route-verified"
+  | "opportunity-confirmed"
+  | "decision-maker-identified"
+  | "timing-understood";
+export type ProspectFollowUpStatus = "scheduled" | "completed" | "skipped";
 
 export interface ProspectOutreachAttempt {
   id: string;
@@ -163,6 +170,18 @@ export interface ProspectNote {
   at: number;
   actorUserId?: string;
   body: string;
+}
+
+export interface ProspectFollowUp {
+  id: string;
+  createdAt: number;
+  createdBy?: string;
+  dueAt: number;
+  reason: string;
+  channel?: ProspectOutreachChannel;
+  status: ProspectFollowUpStatus;
+  resolvedAt?: number;
+  resolutionNote?: string;
 }
 
 export interface Prospect {
@@ -192,6 +211,9 @@ export interface Prospect {
   nextContactAt?: number;
   nextContactReason?: string;
   lastContactedAt?: number;
+  inspectionChecks: ProspectInspectionCheck[];
+  inspectedAt?: number;
+  followUps: ProspectFollowUp[];
   outreachAttempts: ProspectOutreachAttempt[];
   notes: ProspectNote[];
   status: ProspectStatus;
@@ -224,6 +246,8 @@ export interface CreateProspectInput {
   doNotContact?: boolean;
   nextContactAt?: number;
   nextContactReason?: string;
+  inspectionChecks?: ProspectInspectionCheck[];
+  inspectedAt?: number;
 }
 
 export interface UpdateProspectPatch {
@@ -250,6 +274,8 @@ export interface UpdateProspectPatch {
   doNotContact?: boolean;
   nextContactAt?: number | null;
   nextContactReason?: string;
+  inspectionChecks?: ProspectInspectionCheck[];
+  inspectedAt?: number | null;
   status?: ProspectStatus;
   qualifiedLeadId?: string;
 }
@@ -261,6 +287,18 @@ export interface RecordProspectOutreachInput {
   contactedAt?: number;
   followUpAt?: number;
   followUpReason?: string;
+}
+
+export interface ScheduleProspectFollowUpInput {
+  dueAt: number;
+  reason: string;
+  channel?: ProspectOutreachChannel;
+}
+
+export interface ResolveProspectFollowUpInput {
+  followUpId: string;
+  status: Exclude<ProspectFollowUpStatus, "scheduled">;
+  resolutionNote?: string;
 }
 
 // ─── Lead ─────────────────────────────────────────────────────────────────
@@ -704,7 +742,7 @@ export interface CsvImportResult {
 // Column header → lead field. The CSV parser walks the first row,
 // lowercases each cell, and looks each up in this map. New variants
 // land in this single table and the parser picks them up automatically.
-export const CSV_COLUMN_VARIANTS: Record<string, "email" | "name" | "phone" | "company" | "tags" | "source" | "notes"> = {
+export const CSV_COLUMN_VARIANTS: Record<string, "email" | "name" | "phone" | "company" | "tags" | "source" | "notes" | "website" | "address" | "googleMapsUrl" | "niche"> = {
   // email
   "email": "email",
   "e-mail": "email",
@@ -726,6 +764,8 @@ export const CSV_COLUMN_VARIANTS: Record<string, "email" | "name" | "phone" | "c
   "organisation": "company",
   "organization": "company",
   "business": "company",
+  "title": "company",
+  "business name": "company",
   // tags
   "tags": "tags",
   "labels": "tags",
@@ -735,4 +775,19 @@ export const CSV_COLUMN_VARIANTS: Record<string, "email" | "name" | "phone" | "c
   "notes": "notes",
   "note": "notes",
   "comments": "notes",
+  // scouting context
+  "website": "website",
+  "url": "website",
+  "site": "website",
+  "address": "address",
+  "full address": "address",
+  "full_address": "address",
+  "street address": "address",
+  "google maps": "googleMapsUrl",
+  "google maps url": "googleMapsUrl",
+  "maps url": "googleMapsUrl",
+  "place url": "googleMapsUrl",
+  "niche": "niche",
+  "category": "niche",
+  "business category": "niche",
 };

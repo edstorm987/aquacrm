@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { dateInputValue } from "../lib/safeDate";
 
 export default async function LeadsPage(props: PluginPageProps) {
   const c = containerFor({ agencyId: props.agencyId, storage: props.storage, install: props.install });
@@ -19,7 +20,7 @@ export default async function LeadsPage(props: PluginPageProps) {
               {l.phone && <p className="marketing-meta">{l.phone}</p>}
               <p className="marketing-meta">Source: {l.source}</p>
               {l.lastContactedAt && (
-                <p className="marketing-meta">Last contacted {new Date(l.lastContactedAt).toISOString().slice(0, 10)}</p>
+                <p className="marketing-meta">Last contacted {dateInputValue(l.lastContactedAt) || "Date needs review"}</p>
               )}
             </article>
           </li>

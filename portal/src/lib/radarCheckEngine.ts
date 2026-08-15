@@ -13,6 +13,7 @@ import {
   RADAR_SIGNAL_FAMILIES,
   type BusinessRadarRuleDefinition,
 } from "@/lib/radarRuleCatalog";
+import { isoDateTimeValue } from "@/lib/formatDateTime";
 
 export interface RadarObservation {
   domain: AdvisorDomain;
@@ -152,7 +153,7 @@ function evaluateLens(
       return {
         status: observation.current === null ? "watch" : "pass",
         detail: observation.current === null ? `${observation.detail} No source timestamp is available yet.` : `${observation.detail} The current snapshot was measured during this sweep.`,
-        evidence: [`Measured ${new Date(observation.measuredAt).toISOString()}`, `Expected ${observation.target}`],
+        evidence: [`Measured ${isoDateTimeValue(observation.measuredAt) ?? "date needs review"}`, `Expected ${observation.target}`],
       };
     }
     const age = Math.max(0, now - observation.lastSeenAt);

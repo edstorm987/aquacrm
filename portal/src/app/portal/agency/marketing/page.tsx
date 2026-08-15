@@ -483,7 +483,7 @@ function MarketingOverviewDashboard({
   const channelRows = ([
     ["social", "Social media", (asset: MarketingAsset) => asset.kind === "social"],
     ["website", "Websites", (asset: MarketingAsset) => asset.kind === "website"],
-    ["funnels", "Funnels", (asset: MarketingAsset) => asset.kind === "funnel"],
+    ["funnels", "Funnels & booking", (asset: MarketingAsset) => asset.kind === "funnel"],
     ["google-ads", "Google Ads", (asset: MarketingAsset) => asset.kind === "google-ads"],
     ["google-business", "Google Business Profile", (asset: MarketingAsset) => asset.kind === "reputation" && asset.platform === "Google Business Profile"],
     ["reputation", "Reputation", (asset: MarketingAsset) => asset.kind === "reputation"],
@@ -798,7 +798,7 @@ function MarketingWorkspaceNavigation({ view, brandScope }: { view: MarketingVie
       <MarketingTab href={marketingHref("customer-profiles", brandScope)} active={view === "customer-profiles"} icon={UserRoundSearch}>Customer profiles</MarketingTab>
       <MarketingTab href={marketingHref("social", brandScope)} active={view === "social"} icon={RadioTower}>Social media</MarketingTab>
       <MarketingTab href={marketingHref("website", brandScope)} active={view === "website"} icon={Globe2}>Websites</MarketingTab>
-      <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"} icon={Workflow}>Funnels</MarketingTab>
+      <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"} icon={Workflow}>Funnels &amp; booking</MarketingTab>
       <MarketingTab href={marketingHref("google-ads", brandScope)} active={view === "google-ads"} icon={Target}>Google Ads</MarketingTab>
       <MarketingTab href={marketingHref("google-business", brandScope)} active={view === "google-business"} icon={MapPin}>Google Business Profile</MarketingTab>
       <MarketingTab href={marketingHref("reputation", brandScope)} active={view === "reputation"} icon={Star}>Reputation</MarketingTab>

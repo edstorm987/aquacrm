@@ -1,3 +1,5 @@
+import { dateInputValue } from "@/lib/formatDateTime";
+
 export interface PerformanceEvent {
   type: string;
   occurredAt: number;
@@ -136,7 +138,7 @@ function metrics(events: PerformanceEvent[]): PerformanceMetricSet {
 function dailySeries(events: PerformanceEvent[], days: number, now: number) {
   return Array.from({ length: days }, (_, index) => {
     const date = new Date(now - (days - index - 1) * DAY).toISOString().slice(0, 10);
-    const rows = events.filter(event => new Date(event.occurredAt).toISOString().slice(0, 10) === date);
+    const rows = events.filter(event => dateInputValue(event.occurredAt) === date);
     return {
       date,
       views: rows.filter(event => event.type === "pageview").length,

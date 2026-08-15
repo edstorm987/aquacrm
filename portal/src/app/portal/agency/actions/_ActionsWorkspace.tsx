@@ -5,6 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarCheck2, CalendarDays, CalendarRange, Check, CheckCircle2, ChevronLeft, ChevronRight, CirclePause, Clock3, Cloud, CloudOff, ExternalLink, Flag, Inbox, Info, Layers3, List, LoaderCircle, NotebookPen, Pencil, Plus, Radar, RefreshCw, Repeat2, Save, Settings2, ShieldCheck, Sparkles, Target, Trash2, UserRound, Workflow, X } from "lucide-react";
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
+import {
+  buildProtectedAttentionWindow,
+  type ProtectedAttentionWindow,
+} from "@/lib/attentionProtection";
+import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, ExternalAssistantActionProposal, SopDocument } from "@/server/types";
 import { useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
 
@@ -106,6 +111,11 @@ export function ActionsWorkspace({
     advisorReviewedAt,
     sort,
   }), [advisorReviewedAt, advisorSuggestions, crmIntake, externalProposals, liveRecommendations, openTasks, recommendationsGeneratedAt, showDone, sort, tasks]);
+  const unifiedWindow = useMemo(() => buildProtectedAttentionWindow(unifiedItems, {
+    groupKey: item => item.source,
+    urgencyRank: item => priorityRank(item.priority),
+    enabled: attention?.focusProtectionEnabled ?? true,
+  }), [attention?.focusProtectionEnabled, unifiedItems]);
 
   const refreshExternalProposals = useCallback(async () => {
     const response = await fetch("/api/portal/external-ai/proposals", { method: "GET", cache: "no-store" }).catch(() => null);
@@ -299,7 +309,7 @@ export function ActionsWorkspace({
     {acceptanceError ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{acceptanceError}</p> : null}
 
     {view === "list" ? source === "all" ? <UnifiedActionQueue
-      items={unifiedItems}
+      window={unifiedWindow}
       team={team}
       sops={sops}
       editing={editing}
@@ -316,6 +326,7 @@ export function ActionsWorkspace({
       onProposalDecision={decideExternalProposal}
       onAdvisorReview={requestAdvisorReview}
       onDismissAdvisor={id => setAdvisorSuggestions(current => current.filter(item => item.id !== id))}
+      onOpenSource={setSource}
     /> : <>
       {source === "radar" ? <CommandRecommendations recommendations={liveRecommendations} generatedAt={recommendationsGeneratedAt} addingId={addingSuggestionId} onAdd={suggestion => acceptSuggestion(suggestion, "radar")} /> : null}
       {source === "advisor" ? <ExternalAiProposalInbox proposals={externalProposals} team={team} busyId={proposalBusyId} onDecision={decideExternalProposal} /> : null}
@@ -360,7 +371,7 @@ function ActionSourceFilters({ source, counts, onChange }: { source: ActionSourc
 }
 
 function UnifiedActionQueue({
-  items,
+  window,
   team,
   sops,
   editing,
@@ -377,8 +388,9 @@ function UnifiedActionQueue({
   onProposalDecision,
   onAdvisorReview,
   onDismissAdvisor,
+  onOpenSource,
 }: {
-  items: UnifiedActionItem[];
+  window: ProtectedAttentionWindow<UnifiedActionItem>;
   team: TeamMember[];
   sops: SopDocument[];
   editing: string | null;
@@ -395,24 +407,33 @@ function UnifiedActionQueue({
   onProposalDecision: (proposal: ExternalAssistantActionProposal, decision: "accept" | "park" | "reject", options?: { assigneeUserId?: string; dueAt?: number }) => void;
   onAdvisorReview: () => void;
   onDismissAdvisor: (id: string) => void;
+  onOpenSource: (source: ActionSource) => void;
 }) {
   return <section aria-labelledby="unified-actions-heading" className="grid gap-3">
     <header className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 pb-3">
       <div>
         <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-brand">Unified priority queue</p><span title="Committed tasks and approval candidates are ranked together. Source icons show where each item came from." className="inline-flex items-center gap-1 rounded-full bg-black/[0.045] px-2 py-0.5 text-[10px] font-medium text-black/48"><Info size={10} />System ranked</span></div>
-        <h2 id="unified-actions-heading" className="mt-1 text-lg font-semibold text-black/82">Everything that needs a decision or action</h2>
-        <p className="mt-1 text-xs text-black/45">Urgency, deadline and recency determine the order. Use the source filters for a deeper Radar, Advisor, Manual or CRM view.</p>
+        <h2 id="unified-actions-heading" className="mt-1 text-lg font-semibold text-black/82">{window.protected ? "Your protected attention window" : "Everything that needs a decision or action"}</h2>
+        <p className="mt-1 text-xs text-black/45">{window.protected ? `${window.focus.length} highest-priority items are visible. ${window.reserveCount} remain safely retained and will promote as the focus clears.` : "Urgency, deadline and recency determine the order. Use the source filters for a deeper Radar, Advisor, Manual or CRM view."}</p>
       </div>
       {advisorConfigured ? <button type="button" onClick={onAdvisorReview} disabled={advisorBusy} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/60 hover:bg-black/[0.03] disabled:opacity-50">{advisorBusy ? <LoaderCircle size={13} className="animate-spin" /> : <Sparkles size={13} />}{advisorBusy ? "Reviewing..." : "Refresh Advisor"}</button> : <Link href="/portal/agency/company?view=connections&integration=openai" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/60">Configure Advisor <ArrowUpRight size={13} /></Link>}
     </header>
+    {window.protected ? <ActionReserveSummary window={window} onOpenSource={onOpenSource} /> : null}
     {advisorError ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{advisorError}</p> : null}
-    {items.map(item => {
+    {window.focus.map(item => {
       if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} sops={sops} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
       if (item.type === "suggestion") return <UnifiedSuggestionCard key={item.id} suggestion={item.suggestion} source={item.source} busy={addingId === item.id} onAccept={() => onAcceptSuggestion(item.suggestion, item.source)} onDismiss={item.source === "advisor" ? () => onDismissAdvisor(item.id) : undefined} />;
       if (item.type === "proposal") return <ExternalProposalRow key={item.id} proposal={item.proposal} team={team} busy={proposalBusyId === item.id} onDecision={onProposalDecision} unified />;
       return <UnifiedCrmCard key={item.id} action={item.action} busy={addingId === item.id} onAccept={() => onAcceptCrm(item.action)} />;
     })}
-    {!items.length ? <div className="rounded-lg border border-dashed border-black/12 bg-white py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">The unified queue is clear</h2><p className="mt-1 text-xs text-black/42">New tasks and approval candidates will be ranked here automatically.</p></div> : null}
+    {!window.focus.length ? <div className="rounded-lg border border-dashed border-black/12 bg-white py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">The unified queue is clear</h2><p className="mt-1 text-xs text-black/42">New tasks and approval candidates will be ranked here automatically.</p></div> : null}
+  </section>;
+}
+
+function ActionReserveSummary({ window, onOpenSource }: { window: ProtectedAttentionWindow<UnifiedActionItem>; onOpenSource: (source: ActionSource) => void }) {
+  return <section className="rounded-lg border border-emerald-200/80 bg-emerald-50/60 p-4" aria-label="Action overload protection">
+    <div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-md bg-emerald-100 text-emerald-800"><ShieldCheck size={16} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Attention shield · {window.level}</p><h3 className="mt-0.5 text-sm font-semibold text-emerald-950">Process five, not everything</h3></div><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-emerald-800 shadow-sm">{window.reserveCount} safely queued</span></div><p className="mt-1 text-xs leading-5 text-emerald-950/58">Nothing has been deleted or deprioritised out of existence. Clear the focus window and the system promotes the next best item automatically.</p></div></div>
+    <div className="mt-3 flex flex-wrap gap-2">{window.reserveGroups.map(group => <button key={group.key} type="button" onClick={() => onOpenSource(group.key as ActionSource)} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-emerald-900/10 bg-white px-2.5 text-xs font-semibold text-emerald-950/65 hover:border-emerald-900/20">{group.key === "radar" ? <Radar size={12} /> : group.key === "advisor" ? <Bot size={12} /> : group.key === "crm" ? <Workflow size={12} /> : <UserRound size={12} />}<span>{sourceLabel(group.key as Exclude<ActionSource, "all">)}</span><span className="tabular-nums text-emerald-700">{group.count}</span></button>)}</div>
   </section>;
 }
 
@@ -420,7 +441,7 @@ function UnifiedSuggestionCard({ suggestion, source, busy, onAccept, onDismiss }
   return <article className={`mm-surface-card mm-hover-lift rounded-lg border bg-white transition ${suggestion.priority === "urgent" ? "border-red-200" : "border-black/10"}`}>
     <div className="grid min-h-20 gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-4">
       <span className={`grid size-9 place-items-center rounded-md ${source === "radar" ? "bg-teal-50 text-teal-700" : "bg-violet-50 text-violet-700"}`}>{source === "radar" ? <Radar size={16} /> : <Bot size={16} />}</span>
-      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{suggestion.title}</strong><SourceBadge origin={source} /><Priority value={suggestion.priority} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{suggestion.detail}</p><p className="mt-1 line-clamp-2 text-[10px] leading-4 text-black/35"><strong className="font-semibold text-black/50">Evidence:</strong> {suggestion.evidence || "Open the linked source to inspect the supporting records."} · Due {new Date(suggestion.dueAt).toLocaleDateString("en-GB")}</p></div>
+      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{suggestion.title}</strong><SourceBadge origin={source} /><Priority value={suggestion.priority} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{suggestion.detail}</p><p className="mt-1 line-clamp-2 text-[10px] leading-4 text-black/35"><strong className="font-semibold text-black/50">Evidence:</strong> {suggestion.evidence || "Open the linked source to inspect the supporting records."} · Due {formatUkDate(suggestion.dueAt, { day: "numeric", month: "short" })}</p></div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end"><Link href={suggestion.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/52 hover:text-black">Evidence <ArrowUpRight size={13} /></Link>{onDismiss ? <button type="button" onClick={onDismiss} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/42 hover:text-black"><X size={13} />Dismiss</button> : null}<button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept"}</button></div>
     </div>
   </article>;
@@ -430,7 +451,7 @@ function UnifiedCrmCard({ action, busy, onAccept }: { action: GeneratedAction; b
   return <article className={`mm-surface-card mm-hover-lift rounded-lg border bg-white transition ${action.priority === "urgent" ? "border-red-200" : "border-black/10"}`}>
     <div className="grid min-h-20 gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-4">
       <span className="grid size-9 place-items-center rounded-md bg-sky-50 text-sky-700"><Workflow size={16} /></span>
-      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><SourceBadge origin="crm" /><Pill>{action.kind}</Pill><Priority value={action.priority} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{action.detail}{action.dueAt ? ` · Due ${new Date(action.dueAt).toLocaleDateString("en-GB")}` : ""}</p></div>
+      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><SourceBadge origin="crm" /><Pill>{action.kind}</Pill><Priority value={action.priority} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{action.detail}{action.dueAt ? ` · Due ${formatUkDate(action.dueAt, { day: "numeric", month: "short" })}` : ""}</p></div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end"><Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/52 hover:text-black">Source <ArrowUpRight size={13} /></Link><button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept"}</button></div>
     </div>
   </article>;
@@ -538,7 +559,7 @@ function AdvisorPanel({ configured, suggestions, busy, reviewedAt, error, adding
         <div>
           <h2 id="advisor-actions-heading" className="text-sm font-semibold text-black/85">Aqua Advisor</h2>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-black/50">Reviews live company health, alerts and open work, then proposes the most useful next actions. You decide what becomes a task.</p>
-          {reviewedAt ? <p className="mt-1 text-[10px] text-black/35">Last reviewed {new Date(reviewedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</p> : null}
+          {reviewedAt ? <p className="mt-1 text-[10px] text-black/35">Last reviewed {formatUkDate(reviewedAt, { dateStyle: "medium", timeStyle: "short" })}</p> : null}
         </div>
       </div>
       {configured ? <button type="button" onClick={onReview} disabled={busy} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white disabled:opacity-55 sm:w-auto">{busy ? <LoaderCircle className="animate-spin" size={15} /> : <Sparkles size={15} />}{busy ? "Reviewing business..." : reviewedAt ? "Review again" : "Find smart actions"}</button> : <Link href="/portal/agency/company?view=connections&integration=openai" className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white sm:w-auto">Configure advisor <ArrowUpRight size={14} /></Link>}
@@ -556,7 +577,7 @@ function AdvisorPanel({ configured, suggestions, busy, reviewedAt, error, adding
           </div>
           <h3 className="mt-2 text-sm font-semibold text-black/82">{suggestion.title}</h3>
           <p className="mt-1 text-xs leading-5 text-black/52">{suggestion.detail}</p>
-          <p className="mt-2 text-[11px] leading-5 text-black/42"><strong className="font-semibold text-black/58">Why:</strong> {suggestion.evidence} · Due {new Date(suggestion.dueAt).toLocaleDateString("en-GB")}</p>
+          <p className="mt-2 text-[11px] leading-5 text-black/42"><strong className="font-semibold text-black/58">Why:</strong> {suggestion.evidence} · Due {formatUkDate(suggestion.dueAt, { day: "numeric", month: "short" })}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <Link href={suggestion.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/52 hover:text-black">Open evidence <ArrowUpRight size={13} /></Link>
@@ -612,7 +633,7 @@ function TaskEditor({ task, team, sops, onPatch, onDelete }: { task: AgencyTask;
 }
 
 function GeneratedCard({ action, busy, onAccept }: { action: GeneratedAction; busy: boolean; onAccept: () => void }) {
-  return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"><span className={`grid size-9 place-items-center rounded-md ${action.priority === "urgent" ? "bg-red-50 text-red-600" : action.priority === "high" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}><Workflow size={15} /></span><div className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><Pill>{action.kind}</Pill><Priority value={action.priority} /></span><p className="mt-1 text-xs leading-5 text-black/45">{action.detail}{action.dueAt ? ` · ${new Date(action.dueAt).toLocaleDateString("en-GB")}` : ""}</p></div><div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto sm:justify-end"><Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link><button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept task"}</button></div></article>;
+  return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"><span className={`grid size-9 place-items-center rounded-md ${action.priority === "urgent" ? "bg-red-50 text-red-600" : action.priority === "high" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}><Workflow size={15} /></span><div className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><Pill>{action.kind}</Pill><Priority value={action.priority} /></span><p className="mt-1 text-xs leading-5 text-black/45">{action.detail}{action.dueAt ? ` · ${formatUkDate(action.dueAt, { dateStyle: "medium" })}` : ""}</p></div><div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto sm:justify-end"><Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link><button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept task"}</button></div></article>;
 }
 
 function CalendarView({ month, tasks, actions, entries, integration, team, onNavigate, onToday, onTaskCreated, onTaskUpdated, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
@@ -794,7 +815,7 @@ function CalendarMetric({ label, value }: { label: string; value: number }) { re
 
 function entryDetail(entry: CommandCalendarEntry) { const timing = entry.allDay ? "All day" : entry.endsAt ? `${calendarTime(entry.startsAt)}–${calendarTime(entry.endsAt)}` : calendarTime(entry.startsAt); if ((entry.type === "goal" || entry.type === "target") && entry.targetValue !== undefined) return `${timing} · ${entry.currentValue ?? 0}/${entry.targetValue}${entry.targetUnit ? ` ${entry.targetUnit}` : ""}`; return timing; }
 function dateKey(value: number | Date) { const date = value instanceof Date ? value : new Date(value); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000); return local.toISOString().slice(0, 10); }
-function calendarTime(value?: number, includeDate = false) { if (!value) return "Time not set"; return new Intl.DateTimeFormat("en-GB", includeDate ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
+function calendarTime(value?: number, includeDate = false) { if (!value) return "Time not set"; return formatUkDate(value, includeDate ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" }); }
 function relativeTime(value: number) { const seconds = Math.max(0, Math.round((Date.now() - value) / 1_000)); if (seconds < 60) return "just now"; if (seconds < 3_600) return `${Math.floor(seconds / 60)}m ago`; if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}h ago`; return `${Math.floor(seconds / 86_400)}d ago`; }
 
 function TaskModal({ team, sops, onClose, onCreated }: { team: TeamMember[]; sops: SopDocument[]; onClose: () => void; onCreated: (task: AgencyTask) => void }) {
@@ -839,11 +860,11 @@ function Select({ label, value, onChange, options }: { label: string; value: str
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="grid gap-1 text-[10px] font-medium text-black/45">{label}<input type="date" value={value} onChange={event => onChange(event.target.value)} className="min-h-10 min-w-0 rounded-md border border-black/15 bg-white px-1 text-xs" /></label>; }
 function startOfDay(value: number) { const date = new Date(value); date.setHours(0,0,0,0); return date.getTime(); }
 function toTimestamp(value: string, end = false): number | undefined { if (!value) return undefined; const date = new Date(`${value}T${end ? "23:59:59" : "00:00:00"}`); return Number.isFinite(date.getTime()) ? date.getTime() : undefined; }
-function dateInput(value?: number) { return value ? new Date(value).toISOString().slice(0,10) : ""; }
+function dateInput(value?: number) { return dateInputValue(value); }
 function dateTimeInput(value?: number) { if (!value) return ""; const date = new Date(value); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000); return local.toISOString().slice(0,16); }
 function toDateTimeTimestamp(value: string): number | undefined { if (!value) return undefined; const time = new Date(value).getTime(); return Number.isFinite(time) ? time : undefined; }
-function formatDateTime(value: number) { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-function dateRange(start?: number, due?: number) { if (start && due && !sameDay(start,due)) return `${new Date(start).toLocaleDateString("en-GB",{day:"numeric",month:"short"})} – ${new Date(due).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`; const value = due ?? start; return value ? new Date(value).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}) : "No date"; }
+function formatDateTime(value: number) { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+function dateRange(start?: number, due?: number) { if (start && due && !sameDay(start,due)) return `${formatUkDate(start, { day: "numeric", month: "short" })} – ${formatUkDate(due, { day: "numeric", month: "short" })}`; const value = due ?? start; return value ? formatUkDate(value, { day: "numeric", month: "short", year: "numeric" }) : "No date"; }
 function startOfMonth(date: Date) { return new Date(date.getFullYear(), date.getMonth(), 1); }
 function addMonths(date: Date, amount: number) { return new Date(date.getFullYear(), date.getMonth() + amount, 1); }
 function sameDay(a: number, b: number) { const x = new Date(a), y = new Date(b); return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate(); }

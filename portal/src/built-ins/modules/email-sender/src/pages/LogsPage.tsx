@@ -1,5 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { isoDateTimeValue } from "../lib/safeDate";
 
 export default async function LogsPage(props: PluginPageProps) {
   const c = containerFor({
@@ -29,7 +30,7 @@ export default async function LogsPage(props: PluginPageProps) {
           <tbody>
             {recent.map(m => (
               <tr key={m.id}>
-                <td>{m.updatedAt ? new Date(m.updatedAt).toISOString() : "—"}</td>
+                <td>{m.updatedAt ? isoDateTimeValue(m.updatedAt) ?? "Date needs review" : "—"}</td>
                 <td>{m.to.join(", ")}</td>
                 <td>{m.subject}</td>
                 <td className={`email-sender-status email-sender-status--${m.status}`}>{m.status}</td>

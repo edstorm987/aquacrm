@@ -4,6 +4,7 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
 import { buildBudgetPotSnapshots } from "../lib/budgetHealth";
+import { formatUkDate } from "../lib/safeDate";
 import { listAgencyCampaignBudgetRecords } from "@/lib/server/financeBudgetCampaigns";
 
 function money(cents: number, currency = "gbp"): string {
@@ -211,7 +212,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
           <div className="divide-y divide-black/10">
             {recent.map(item => (
               <div key={`${item.amountCents}-${item.id}`} className="mm-interactive-row flex items-center justify-between gap-4 px-4 py-3 text-sm sm:px-5">
-                <div className="min-w-0"><p className="truncate font-medium text-black/80">{item.label}</p><p className="mt-0.5 text-xs text-black/45">{item.detail} · {new Date(item.at).toLocaleDateString("en-GB")}</p></div>
+                <div className="min-w-0"><p className="truncate font-medium text-black/80">{item.label}</p><p className="mt-0.5 text-xs text-black/45">{item.detail} · {formatUkDate(item.at, { day: "numeric", month: "short", year: "numeric" })}</p></div>
                 <span className={`shrink-0 font-mono font-semibold ${item.amountCents < 0 ? "text-black/65" : "text-emerald-800"}`}>{item.amountCents < 0 ? "−" : "+"}{money(Math.abs(item.amountCents), currency)}</span>
               </div>
             ))}
