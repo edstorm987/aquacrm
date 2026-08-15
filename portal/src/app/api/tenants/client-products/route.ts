@@ -7,11 +7,13 @@ import { logActivity } from "@/server/activity";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
+import { getTradingCompany } from "@/server/tradingCompanies";
 import { AGENCY_ROLES } from "@/server/types";
 
 interface Body {
   clientId?: unknown;
   productIds?: unknown;
+  companyId?: unknown;
 }
 
 function cleanId(value: unknown): string {
@@ -50,9 +52,23 @@ export async function POST(request: Request) {
     }
 
     const products = requestedIds.map(id => portalProductSelectionFromAgencyProduct(productById.get(id)!));
+    const hasCompanyAssignment = Object.prototype.hasOwnProperty.call(body, "companyId");
+    if (hasCompanyAssignment && body?.companyId !== null && typeof body?.companyId !== "string") {
+      return NextResponse.json({ ok: false, error: "companyId must be a company id or null" }, { status: 400 });
+    }
+    const requestedCompanyId = cleanId(body?.companyId);
+    const effectiveCompanyId = hasCompanyAssignment ? requestedCompanyId : client.companyId ?? "";
+    const company = effectiveCompanyId ? getTradingCompany(session.agencyId, effectiveCompanyId) : null;
+    if (effectiveCompanyId && !company) {
+      return NextResponse.json({ ok: false, error: "The selected company is no longer available." }, { status: 409 });
+    }
+    if (company?.status === "archived" && company.id !== client.companyId) {
+      return NextResponse.json({ ok: false, error: "Archived companies cannot take new client assignments." }, { status: 409 });
+    }
     const mode = portalMode(client.metadata?.portalMode);
     const workspaces = reconcileClientProductWorkspaces(client, products, mode);
     const updated = updateClient(session.agencyId, client.id, {
+      companyId: hasCompanyAssignment ? requestedCompanyId || null : undefined,
       metadata: {
         portalProducts: products,
         portalProductWorkspaces: workspaces,
@@ -69,13 +85,13 @@ export async function POST(request: Request) {
       category: "fulfillment",
       action: "client.services_assigned",
       message: products.length
-        ? `Assigned ${products.map(product => product.name).join(", ")} to ${client.name}.`
-        : `Removed all service assignments from ${client.name}.`,
-      metadata: { productIds: requestedIds, productNames: products.map(product => product.name) },
+        ? `Assigned ${products.map(product => product.name).join(", ")} to ${client.name} under ${company?.name ?? "AquaOasis-Web"}.`
+        : `Updated ${client.name} under ${company?.name ?? "AquaOasis-Web"} with no service assignments.`,
+      metadata: { productIds: requestedIds, productNames: products.map(product => product.name), companyId: effectiveCompanyId || null, companyName: company?.name ?? "AquaOasis-Web" },
     });
     await flushPendingWrites();
 
-    return NextResponse.json({ ok: true, products });
+    return NextResponse.json({ ok: true, products, company: company ? { id: company.id, name: company.name } : null });
   } catch (error) {
     return authErrorResponse(error);
   }

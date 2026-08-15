@@ -42,7 +42,8 @@ import { assertSopsAccess, familiesForStage, SopsAccessError } from "@/lib/serve
 import { RequirePermission } from "@/lib/server/RequirePermission";
 import { OnboardingDashboardPanel, type OnboardingPhase } from "./_OnboardingDashboardPanel";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
-import { getTradingCompany } from "@/server/tradingCompanies";
+import { listTradingCompanies } from "@/server/tradingCompanies";
+import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/githubProjectPublisher";
 import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/vercelProjectDeployer";
 import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
@@ -238,9 +239,8 @@ export default async function ClientHome({
   const planLabel = meta.planTier ? PLAN_LABELS[meta.planTier] : null;
   const servicePlanLabel = meta.portalServicePlan?.trim() || planLabel;
   const agencyProducts = ensureDefaultAgencyProducts(session.agencyId);
-  const portalProviderName = client.companyId
-    ? getTradingCompany(session.agencyId, client.companyId)?.name ?? "AquaOasis-Web"
-    : "AquaOasis-Web";
+  const tradingCompanies = listTradingCompanies(session.agencyId, true);
+  const portalProviderName = resolveClientPortalProvider(client).name;
   const customerPortalData = await loadCustomerPortalData(
     client,
     meta.portalContactName ?? client.name,
@@ -365,6 +365,7 @@ export default async function ClientHome({
               <span className="text-[11px] text-black/55">Plan: <span className="font-medium text-black/75">{servicePlanLabel}</span></span>
             )}
             <span className="text-[11px] text-black/55">Source: <span className="font-medium text-black/75">{meta.leadSource?.replace(/[-_]+/g, " ") || "Not recorded"}</span></span>
+            <span className="text-[11px] text-black/55">Company: <span className="font-medium text-black/75">{portalProviderName}</span></span>
             {meta.lockInPaid && (
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800">
                 Deposit paid
@@ -422,7 +423,9 @@ export default async function ClientHome({
         clientId={client.id}
         clientName={client.name}
         initialProducts={selectedProducts}
+        initialCompanyId={client.companyId}
         canManage={isAgencyRole(session.role)}
+        companies={tradingCompanies.map(company => ({ id: company.id, name: company.name, status: company.status }))}
         options={agencyProducts.map(product => ({
           id: product.id,
           name: product.name,

@@ -19,6 +19,7 @@ type Companies = typeof import("../src/server/tradingCompanies");
 type Products = typeof import("../src/server/agencyProducts");
 type CompanyProfiles = typeof import("../src/server/company");
 type Legal = typeof import("../src/server/legalDocuments");
+type PortalProviders = typeof import("../src/lib/server/clientPortalProvider");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -26,6 +27,7 @@ let companies: Companies;
 let products: Products;
 let profiles: CompanyProfiles;
 let legal: Legal;
+let portalProviders: PortalProviders;
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -35,7 +37,23 @@ before(async () => {
   products = await import("../src/server/agencyProducts");
   profiles = await import("../src/server/company");
   legal = await import("../src/server/legalDocuments");
+  portalProviders = await import("../src/lib/server/clientPortalProvider");
   await storage.ensureHydrated();
+});
+
+test("assigned company becomes the client portal provider identity", () => {
+  const agency = tenants.createAgency({ name: "AquaOasis-Web Portal", slug: "aqua-client-provider-smoke" });
+  const company = companies.createTradingCompany(agency.id, { name: "North Star Studio" }, "user_ed");
+  const client = tenants.createClient(agency.id, { name: "Provider Test", companyId: company.id });
+
+  assert.deepEqual(portalProviders.resolveClientPortalProvider(client), {
+    company,
+    name: "North Star Studio",
+    mark: "N",
+  });
+
+  const unassigned = tenants.updateClient(agency.id, client.id, { companyId: null });
+  assert.equal(unassigned && portalProviders.resolveClientPortalProvider(unassigned).name, "AquaOasis-Web");
 });
 
 test("AquaOasis-Web owns separately attributed service brands", () => {

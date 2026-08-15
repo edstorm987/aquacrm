@@ -12,10 +12,22 @@ import { CustomerPortalChrome } from "./_CustomerPortalChrome";
 import { customerPortalModeLabel, loadCustomerPortalData } from "./_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
 import { getAuthBrand } from "@/lib/authBrand";
+import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
   const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
+  try {
+    await ensureHydrated();
+    const session = await requireRole("end-customer");
+    const client = session.clientId ? getClientForAgency(session.agencyId, session.clientId) : null;
+    if (client) {
+      const provider = resolveClientPortalProvider(client, authBrand);
+      return { title: `${provider.name} client portal` };
+    }
+  } catch {
+    // The layout owns authentication and redirect behaviour; metadata stays neutral here.
+  }
   return {
     title: `${authBrand.name} client portal`,
   };
@@ -52,7 +64,8 @@ export default async function CustomerLayout({ children }: { children: ReactNode
   const user = getUserById(session.userId);
   const cookieStore = await cookies();
   const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
-  const portalData = await loadCustomerPortalData(client, user?.name ?? client.name, authBrand.name);
+  const provider = resolveClientPortalProvider(client, authBrand);
+  const portalData = await loadCustomerPortalData(client, user?.name ?? client.name, provider.name);
 
   return (
     <>
@@ -68,8 +81,8 @@ export default async function CustomerLayout({ children }: { children: ReactNode
         accentColor={portalData.accentColor}
         projectLabel={portalProjectLabel(portalData.products)}
         products={portalData.products}
-        providerName={authBrand.name}
-        providerMark={authBrand.mark}
+        providerName={provider.name}
+        providerMark={provider.mark}
       >
         <ErrorBoundary label="client portal">{children}</ErrorBoundary>
       </CustomerPortalChrome>

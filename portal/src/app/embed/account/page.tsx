@@ -6,6 +6,7 @@ import { getClient } from "@/server/tenants";
 import { verifyAquaEmbedToken } from "@/lib/server/aquaEmbedToken";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
 import { formatUkDate } from "@/lib/formatDateTime";
+import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,8 @@ export default async function AquaAccountEmbed({
     return <ErrorState message="The linked Aqua client record is no longer available." />;
   }
 
-  const data = await loadCustomerPortalData(client, client.name, "AquaCRM");
+  const providerName = resolveClientPortalProvider(client, { name: "AquaCRM", mark: "A" }).name;
+  const data = await loadCustomerPortalData(client, client.name, providerName);
   const openInvoices = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
   const paidInvoices = data.invoices.filter(invoice => invoice.status === "paid");
 
@@ -73,7 +75,7 @@ export default async function AquaAccountEmbed({
           <div>
             <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-[#0f7774]">
               <ShieldCheck size={15} aria-hidden="true" />
-              Secure Aqua account
+              Secure {providerName} account
             </span>
             <h1 className="mt-2 text-3xl font-semibold">{client.name}</h1>
             <p className="mt-1 text-sm text-[#637270]">Plans, billing and your service relationship in one place.</p>

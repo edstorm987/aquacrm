@@ -65,6 +65,7 @@ import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { listClientMilestones } from "@/server/clientMilestones";
 import { getAuthBrand } from "@/lib/authBrand";
+import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 import { formatPortalCopy } from "@/lib/clientPortalDesign";
 import { formatUkDate } from "@/lib/formatDateTime";
 
@@ -162,7 +163,8 @@ async function context() {
   if (!client) notFound();
   const fallbackName = (session.email.split("@")[0] || "there").replace(/[._-]+/g, " ");
   const cookieStore = await cookies();
-  const providerName = getAuthBrand(cookieStore.get("aqua_public_brand")?.value).name;
+  const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
+  const providerName = resolveClientPortalProvider(client, authBrand).name;
   return {
     session,
     client,

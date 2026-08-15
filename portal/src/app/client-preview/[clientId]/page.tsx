@@ -9,7 +9,7 @@ import { CustomerPortalChrome } from "@/app/portal/customer/_CustomerPortalChrom
 import { CustomerPortalContent, type CustomerPortalSection } from "@/app/portal/customer/_CustomerPortalViews";
 import { customerPortalModeLabel, loadCustomerPortalData, portalMode, type CustomerPortalMode } from "@/app/portal/customer/_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
-import { getTradingCompany } from "@/server/tradingCompanies";
+import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 
 export default async function ClientPreviewPage({
   params,
@@ -52,8 +52,8 @@ export default async function ClientPreviewPage({
   if (!client) notFound();
 
   const user = getUserById(session.userId);
-  const provider = client.companyId ? getTradingCompany(agencyId, client.companyId) : null;
-  const providerName = provider?.name ?? "AquaOasis-Web";
+  const provider = resolveClientPortalProvider(client);
+  const providerName = provider.name;
   const loadedData = await loadCustomerPortalData(client, client.name, providerName, {
     scope,
     templateId,
@@ -98,7 +98,7 @@ export default async function ClientPreviewPage({
         activePreviewProductId={requestedProductId}
         activePreviewModuleId={requestedModuleId}
         providerName={providerName}
-        providerMark={providerName.charAt(0).toUpperCase()}
+        providerMark={provider.mark}
       >
         <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} productId={requestedProductId} moduleId={requestedModuleId} providerName={providerName} workspaceRole={manage ? "agency" : "preview"} />
       </CustomerPortalChrome>
