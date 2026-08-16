@@ -16,6 +16,7 @@ const TYPE_LABELS: Record<ClientRequestType, string> = {
 const TYPES = Object.keys(TYPE_LABELS) as ClientRequestType[];
 
 function formatRequestDate(ts: number): string {
+  if (!Number.isFinite(ts) || ts <= 0) return "Date needs review";
   return formatUkDate(ts, {
     day: "numeric",
     month: "short",
@@ -29,9 +30,11 @@ function formatRequestDate(ts: number): string {
 export function ClientRequestsPanel({
   clientId,
   initialRequests,
+  providerName,
 }: {
   clientId: string;
   initialRequests: ClientRequest[];
+  providerName: string;
 }) {
   const router = useRouter();
   const [requests, setRequests] = useState(initialRequests);
@@ -139,7 +142,7 @@ export function ClientRequestsPanel({
           value={message}
           onChange={e => setMessage(e.target.value)}
           rows={2}
-          placeholder="What should Milesymedia know?"
+          placeholder={`What should ${providerName} know?`}
           className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm"
         />
         <input
@@ -189,7 +192,7 @@ export function ClientRequestsPanel({
                     <div key={reply.id} className="rounded-md bg-white px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[11px] font-semibold text-black/65">
-                          {reply.from === "milesymedia" ? "Milesymedia" : "Customer"}
+                          {reply.from === "milesymedia" ? providerName : "Customer"}
                         </span>
                         <span className="text-[10px] text-black/35">{formatRequestDate(reply.createdAt)}</span>
                       </div>

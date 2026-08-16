@@ -11,10 +11,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth";
 import { ALL_ROLES, isAgencyRole, type ClientStage } from "@/server/types";
-import { getClientForAgency } from "@/server/tenants";
+import { getAgency, getClientForAgency, listClients } from "@/server/tenants";
+import { clientRelationshipId, listClientRelationshipWorkspaces } from "@/server/clientRelationships";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { listActivity } from "@/server/activity";
 import { phaseLabel, listPhasesForAgency } from "@/server/phases";
@@ -41,7 +42,7 @@ import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
 import { assertSopsAccess, familiesForStage, SopsAccessError } from "@/lib/server/sopsAccess";
 import { RequirePermission } from "@/lib/server/RequirePermission";
 import { OnboardingDashboardPanel, type OnboardingPhase } from "./_OnboardingDashboardPanel";
-import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
+import { customerVisibleInvoices, loadCustomerPortalData } from "@/app/portal/customer/_portalData";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/githubProjectPublisher";
@@ -49,22 +50,51 @@ import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/verce
 import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
 import { ClientContactsPanel } from "./_ClientContactsPanel";
 import { WebsiteBuilderLauncher } from "./_WebsiteBuilderLauncher";
-import { OverviewTabs } from "./_OverviewTabs";
 import { ClientSpineOverview } from "./_ClientSpineOverview";
 import { ClientDeliveryOverview } from "./_ClientDeliveryOverview";
 import { ClientServiceAssignment } from "./_ClientServiceAssignment";
+import { ClientWorkspaceHeader } from "./_ClientWorkspaceHeader";
+import { ClientWorkspaceSwitcher } from "./_ClientWorkspaceSwitcher";
 import { ClientNotesWorkspace } from "./_ClientNotesWorkspace";
+import { ClientRecordWorkspace, type ClientRecordMessage } from "./_ClientRecordWorkspace";
 import { calculateClientAquaHealth } from "@/lib/clientAquaHealth";
-import { cleanPortalProducts } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { clientServiceCapabilities, inheritedClientServiceKeys } from "@/lib/clientServiceWorkspace";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
 import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
 import { listClientMilestones } from "@/server/clientMilestones";
 import { getInstall } from "@/server/pluginInstalls";
+import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
+import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { clientWorkspaceHref, resolveClientWorkspaceTab } from "@/lib/clientWorkspace";
 import { Boxes, Globe2, MonitorCog } from "lucide-react";
 import { cleanClientMarketingService } from "@/lib/clientMarketingService";
 import { formatUkDate, formatUkDateTime, timestampFromValue } from "@/lib/formatDateTime";
+import { cleanClientRecordEntries } from "@/lib/clientRelationshipRecord";
+import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities } from "@/lib/server/websiteEnquiries";
+import { normaliseIdentityEmail, normaliseIdentityPhone } from "@/lib/server/identityResolution";
+import { listAgencyTasks } from "@/server/tasks";
+import { canUsePeopleStation, listPeopleEmployees } from "@/server/people";
+import { getUserById } from "@/server/users";
+import { cleanClientOperationsBrief } from "@/lib/clientOperations";
+import { cleanClientRequests } from "@/lib/clientRequests";
+import {
+  clientContractLedgerEvent,
+  clientInvoiceLedgerEvent,
+  clientMilestoneLedgerEvent,
+  clientPaymentPlanLedgerEvent,
+  queryClientRecordLedger,
+  synchroniseClientRecordLedger,
+  type ClientRecordLedgerEventInput,
+} from "@/lib/server/clientRecordLedger";
+import {
+  cleanClientPaymentPlans,
+  paymentPlanPaid,
+  paymentPlanTotal,
+  reconcileClientPaymentPlan,
+} from "@/lib/clientPaymentPlans";
+import type { ClientOperationOwnerOption } from "./_ClientOperationsControl";
 import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
 import {
   AQUA_PHASE_ORDER,
@@ -144,6 +174,13 @@ export default async function ClientHome({
   const installs = listInstalledFor({ agencyId: client.agencyId, clientId: client.id });
   const installedIds = new Set(installs.map(i => i.pluginId));
   const recentActivity = listActivity({ agencyId: client.agencyId, clientId: client.id, limit: 8 });
+  const canManageOperations = isAgencyRole(session.role)
+    && (session.role !== "agency-staff" || canUsePeopleStation(session.agencyId, session.userId, "actions", true));
+  const acceptedOperationSourceIds = canManageOperations
+    ? listAgencyTasks(session.agencyId)
+      .filter(task => task.status !== "done" && task.sourceId?.startsWith(`client:${client.id}:operation:`))
+      .map(task => task.sourceId!)
+    : [];
 
   const phases = listPhasesForAgency(client.agencyId);
   const currentPhase = phases.find(p => p.stage === client.stage);
@@ -151,6 +188,8 @@ export default async function ClientHome({
     planTier?: "foundational" | "expansion" | "mastery";
     whatsappLink?: string;
     clientEmail?: string;
+    phone?: string;
+    contactPhone?: string;
     leadSource?: string;
     lastContactedAt?: number;
     stripeLink?: string;
@@ -230,6 +269,9 @@ export default async function ClientHome({
     clientEntityType?: ClientEntityType;
     linkedContacts?: unknown;
     clientMarketingService?: unknown;
+    clientRecordEntries?: unknown;
+    clientOperations?: unknown;
+    clientPaymentPlans?: unknown;
   };
   const PLAN_LABELS: Record<NonNullable<typeof meta.planTier>, string> = {
     foundational: "Foundational Flow",
@@ -240,7 +282,21 @@ export default async function ClientHome({
   const servicePlanLabel = meta.portalServicePlan?.trim() || planLabel;
   const agencyProducts = ensureDefaultAgencyProducts(session.agencyId);
   const tradingCompanies = listTradingCompanies(session.agencyId, true);
-  const portalProviderName = resolveClientPortalProvider(client).name;
+  const agencyName = getAgency(session.agencyId)?.name?.trim() || "AquaOasis-Web";
+  const portalProviderName = resolveClientPortalProvider(client, { name: agencyName, mark: agencyName.charAt(0) }).name;
+  const canManageRelationship = isAgencyRole(session.role);
+  const relationshipWorkspaces = canManageRelationship
+    ? listClientRelationshipWorkspaces(session.agencyId, client.id)
+    : [client];
+  const relationshipWorkspaceIds = new Set(relationshipWorkspaces.map(item => item.id));
+  const availableRelationshipClients = canManageRelationship
+    ? listClients(session.agencyId).filter(item => !relationshipWorkspaceIds.has(item.id))
+    : [];
+  const availableRelationshipCounts = availableRelationshipClients.reduce((counts, workspace) => {
+    const relationshipId = clientRelationshipId(workspace);
+    counts.set(relationshipId, (counts.get(relationshipId) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
   const customerPortalData = await loadCustomerPortalData(
     client,
     meta.portalContactName ?? client.name,
@@ -270,16 +326,68 @@ export default async function ClientHome({
   const live = isLivePhase(client.stage);
   const portalMaterialized = live && customPortalExists(client.slug);
   const liveRecommended = LIVE_RECOMMENDED_PLUGINS;
+  const now = Date.now();
+  const financeInstall = getInstall({ agencyId: session.agencyId }, "agency-finance");
+  const financeConnected = Boolean(financeInstall?.enabled);
   const aquaHealth = calculateClientAquaHealth({
-    financeConnected: Boolean(getInstall({ agencyId: session.agencyId }, "agency-finance")?.enabled),
+    financeConnected,
     invoices: customerPortalData.invoices,
     lastContactedAt: meta.lastContactedAt,
     requestsObserved: Array.isArray(meta.clientRequests),
     requests: customerPortalData.requests,
     contracts: customerPortalData.contracts,
   });
-  const selectedProducts = cleanPortalProducts(meta.portalProducts);
+  const relationshipFinance = tab === "overview" && relationshipWorkspaces.length > 1 && financeInstall?.enabled
+    ? containerFor({ agencyId: session.agencyId, storage: makePluginStorage(financeInstall.id), install: financeInstall })
+    : null;
+  const relationshipWorkspaceSignals = new Map(await Promise.all(relationshipWorkspaces.map(async workspace => {
+    const workspaceMeta = workspace.metadata ?? {};
+    const workspaceRequests = workspace.id === client.id
+      ? customerPortalData.requests
+      : cleanClientRequests(workspaceMeta.clientRequests);
+    const workspaceContracts = workspace.id === client.id
+      ? customerPortalData.contracts
+      : Array.isArray(workspaceMeta.contracts) ? workspaceMeta.contracts as ClientContract[] : [];
+    const workspaceInvoices = workspace.id === client.id
+      ? customerPortalData.invoices
+      : relationshipFinance
+        ? await relationshipFinance.invoices.list({ clientId: workspace.id }).then(customerVisibleInvoices).catch(() => [])
+        : [];
+    const health = workspace.id === client.id
+      ? aquaHealth
+      : calculateClientAquaHealth({
+        now,
+        financeConnected,
+        invoices: workspaceInvoices,
+        lastContactedAt: typeof workspaceMeta.lastContactedAt === "number" ? workspaceMeta.lastContactedAt : undefined,
+        requestsObserved: Array.isArray(workspaceMeta.clientRequests),
+        requests: workspaceRequests,
+        contracts: workspaceContracts,
+      });
+    const outstandingCents = workspaceInvoices
+      .filter(invoice => invoice.status === "sent" || invoice.status === "overdue")
+      .reduce((sum, invoice) => sum + invoice.totalCents, 0);
+    const portalAccessEmail = [workspaceMeta.portalLoginEmail, workspaceMeta.clientEmail, workspace.ownerEmail]
+      .find(value => typeof value === "string" && Boolean(value.trim()));
+    const portalAccessState = typeof workspaceMeta.portalBuiltAt !== "number"
+      ? "not-prepared" as const
+      : !portalAccessEmail
+        ? "missing" as const
+        : typeof workspaceMeta.portalAccessSentAt === "number"
+          ? "sent" as const
+          : "ready" as const;
+    return [workspace.id, {
+      healthScore: health.score,
+      healthState: health.state,
+      healthConfidence: health.confidence,
+      outstandingCents,
+      currency: workspaceInvoices[0]?.currency || "gbp",
+      portalAccessState,
+    }] as const;
+  })));
   const agencyProductById = new Map(agencyProducts.map(product => [product.id, product]));
+  const productAssignment = resolvePortalProductAssignment(meta, agencyProducts);
+  const selectedProducts = productAssignment.products;
   const serviceCapabilities = clientServiceCapabilities(
     selectedProducts,
     inheritedClientServiceKeys(selectedProducts, agencyProducts),
@@ -295,6 +403,18 @@ export default async function ClientHome({
     ...(serviceCapabilities.hasServices ? ["files" as const, "portal" as const] : []),
     "notes",
   ];
+  const tabLabel: Record<TabId, string> = {
+    overview: "Overview",
+    relationship: "Relationship health & journey",
+    delivery: "Delivery",
+    marketing: "Social & paid media",
+    systems: "Systems & performance",
+    finance: "Contracts & payments",
+    communications: "Messages & support",
+    files: "Files & assets",
+    portal: "Client portal",
+    notes: "Client record",
+  };
   if (!visibleTabs.includes(tab)) redirect(clientWorkspaceHref(client.id, "delivery"));
   const workspacesByProduct = new Map(clientProductWorkspaces(client).map(workspace => [workspace.productId, workspace]));
   const deliveryProducts = selectedProducts.map(product => {
@@ -314,148 +434,391 @@ export default async function ClientHome({
     ? Math.round(deliveryProducts.reduce((total, product) => total + product.progress, 0) / deliveryProducts.length)
     : null;
   const openMilestones = clientMilestones.filter(item => item.status !== "complete");
-  const now = Date.now();
   const propertyRecords = Array.isArray(meta.properties) ? meta.properties : [];
+  const recordFiles = (Array.isArray(meta.files) ? meta.files : []) as Array<{
+    id: string;
+    name: string;
+    url: string;
+    category: string;
+    uploadedBy?: string;
+    uploadedAt: number;
+    recordEntryId?: string;
+    customerVisible?: boolean;
+  }>;
+  const clientRecordEntries = cleanClientRecordEntries(meta.clientRecordEntries);
+  const linkedInbox = tab === "notes"
+    ? await listInboxSnapshot(session.agencyId).catch(() => ({ connections: [], conversations: [], generatedAt: Date.now() }))
+    : { connections: [], conversations: [], generatedAt: Date.now() };
+  const websiteEnquiriesRaw = tab === "notes" ? await listWebsiteEnquiries(500).catch(() => []) : [];
+  const websiteEnquiries = websiteEnquiriesRaw.length
+    ? await synchroniseWebsiteEnquiryIdentities(session.agencyId, websiteEnquiriesRaw).catch(() => websiteEnquiriesRaw)
+    : websiteEnquiriesRaw;
+  const websiteEnquiryWindowReached = websiteEnquiries.length === 500;
+  const customerEmails = new Set([meta.portalLoginEmail, meta.clientEmail, client.ownerEmail]
+    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    .map(value => value.trim().toLowerCase()));
+  const customerPhones = new Set([meta.phone, meta.contactPhone]
+    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    .map(value => normaliseIdentityPhone(value).replace(/\D/g, ""))
+    .filter(Boolean));
+  const safeClientRequests = cleanClientRequests(meta.clientRequests);
+  const matchedEnquiries = websiteEnquiries.filter(enquiry =>
+    enquiry.clientId === client.id
+    || Boolean(enquiry.email && customerEmails.has(normaliseIdentityEmail(enquiry.email)))
+    || Boolean(enquiry.phone && customerPhones.has(normaliseIdentityPhone(enquiry.phone).replace(/\D/g, ""))));
+  const requestMessages: ClientRecordMessage[] = safeClientRequests.flatMap(request => {
+    const initialDirection = customerEmails.has(request.submittedBy.trim().toLowerCase()) ? "inbound" as const : "outbound" as const;
+    return [
+      {
+        id: request.id,
+        title: request.topic || request.type.replaceAll("-", " "),
+        body: request.message,
+        occurredAt: request.submittedAt,
+        channel: "Client portal",
+        direction: initialDirection,
+        status: request.status,
+        href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`client:${request.id}`)}`,
+      },
+      ...(request.replies ?? []).map(reply => ({
+        id: reply.id,
+        title: `Reply · ${request.topic || request.type.replaceAll("-", " ")}`,
+        body: reply.message,
+        occurredAt: reply.createdAt,
+        channel: "Client portal",
+        direction: reply.from === "customer" ? "inbound" as const : "outbound" as const,
+        status: request.status,
+        href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`client:${request.id}`)}`,
+      })),
+    ];
+  });
+  const socialMessages: ClientRecordMessage[] = linkedInbox.conversations
+    .filter(conversation => conversation.identity.clientId === client.id)
+    .flatMap(conversation => conversation.messages
+      .filter(message => message.direction !== "internal")
+      .map(message => ({
+        id: message.id,
+        title: `${conversation.connection.channel === "instagram" ? "Instagram" : "Facebook"} message`,
+        body: message.text?.trim() || (message.attachments.length ? `${message.attachments.length} attachment${message.attachments.length === 1 ? "" : "s"}` : "Message"),
+        occurredAt: message.sentAt,
+        channel: conversation.connection.displayName,
+        direction: message.direction === "inbound" ? "inbound" as const : "outbound" as const,
+        status: message.status,
+        href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`social:${conversation.id}`)}`,
+      })));
+  const enquiryMessages: ClientRecordMessage[] = matchedEnquiries.flatMap(enquiry => [
+    ...(enquiry.message ? [{
+      id: enquiry.id,
+      title: enquiry.topic || "Website enquiry",
+      body: enquiry.message,
+      occurredAt: enquiry.submittedAt,
+      channel: enquiry.siteName,
+      direction: "inbound" as const,
+      status: enquiry.status,
+      href: `/portal/agency/inbox?view=all&form=${encodeURIComponent(enquiry.id)}`,
+    }] : []),
+    ...enquiry.replies.map(reply => ({
+      id: reply.id,
+      title: `${reply.channel.toUpperCase()} reply`,
+      body: reply.message,
+      occurredAt: reply.sentAt,
+      channel: reply.senderLabel || reply.channel,
+      direction: "outbound" as const,
+      status: reply.status,
+      href: `/portal/agency/inbox?view=all&form=${encodeURIComponent(enquiry.id)}`,
+    })),
+    ...enquiry.calls.map(call => ({
+      id: call.id,
+      title: `Call · ${call.outcome?.replaceAll("-", " ") || call.status}`,
+      body: call.notes?.trim() || `${call.durationSeconds ?? 0} seconds recorded`,
+      occurredAt: call.startedAt,
+      channel: call.senderLabel,
+      direction: "outbound" as const,
+      status: call.status,
+      href: call.recording?.url || `/portal/agency/inbox?view=all&form=${encodeURIComponent(enquiry.id)}`,
+    })),
+  ]);
+  const clientRecordMessages = [...requestMessages, ...socialMessages, ...enquiryMessages].sort((left, right) => right.occurredAt - left.occurredAt);
+  const recordActivitySource = tab === "notes"
+    ? listActivity({ agencyId: client.agencyId, clientId: client.id, limit: 501 })
+    : [];
+  const recordActivityWindowReached = recordActivitySource.length === 501;
+  const recordActivityCandidates = recordActivitySource
+      .filter(item => !item.action.startsWith("client_file.")
+        && !item.action.startsWith("client_request.")
+        && !item.action.startsWith("client_record.")
+        && !item.action.startsWith("contract.")
+        && !item.action.startsWith("invoice.")
+        && !item.action.startsWith("client_payment_plan.")
+        && !item.action.startsWith("milestone."));
+  const recordActivity = recordActivityCandidates
+    .slice(0, 500)
+    .map(item => ({ id: item.id, message: item.message, category: item.category, occurredAt: item.ts }));
+  const clientRecordCoverageWarnings = [
+    websiteEnquiryWindowReached ? "This refresh inspected the newest 500 website enquiries. Previously indexed matches remain retained; use global search for older enquiries not yet imported into this ledger." : null,
+    recordActivityWindowReached ? "This refresh inspected the newest 500 relevant activity events. Previously indexed activity remains retained in the ledger and the full audit log remains available." : null,
+  ].filter((warning): warning is string => Boolean(warning));
+  const commercialPack = meta.commercialPack;
+  const issuedInvoices = customerPortalData.invoices;
+  const clientPaymentPlans = cleanClientPaymentPlans(meta.clientPaymentPlans)
+    .map(plan => reconcileClientPaymentPlan(plan, issuedInvoices));
+  const activePaymentPlans = clientPaymentPlans.filter(plan => plan.status === "active");
+  const commercialMilestones = activePaymentPlans.flatMap(plan => plan.milestones);
+  const overduePaymentMilestones = commercialMilestones.filter(milestone =>
+    milestone.status === "planned" && milestone.dueAt < Date.now(),
+  );
+  const nextPaymentMilestone = commercialMilestones
+    .filter(milestone => milestone.status === "planned" && milestone.dueAt >= Date.now())
+    .sort((left, right) => left.dueAt - right.dueAt)[0];
+  const outstandingInvoiceCents = issuedInvoices
+    .filter(invoice => invoice.status === "sent" || invoice.status === "overdue")
+    .reduce((sum, invoice) => sum + invoice.totalCents, 0);
+  const acceptedAgreement = customerPortalData.contracts.some(contract => contract.status === "accepted")
+    || Boolean(commercialPack?.signedDocumentDataUrl);
+  const commercialGaps = [
+    issuedInvoices.length === 0 ? "Issued invoice missing" : null,
+    !acceptedAgreement ? "Accepted agreement missing" : null,
+    outstandingInvoiceCents > 0
+      ? `Payment outstanding (${new Intl.NumberFormat("en-GB", { style: "currency", currency: issuedInvoices[0]?.currency?.toUpperCase() || "GBP" }).format(outstandingInvoiceCents / 100)})`
+      : null,
+    overduePaymentMilestones.length
+      ? `${overduePaymentMilestones.length} payment milestone${overduePaymentMilestones.length === 1 ? " overdue" : "s overdue"}`
+      : null,
+  ].filter((gap): gap is string => Boolean(gap));
+  const clientOperations = cleanClientOperationsBrief(meta.clientOperations);
+  const operationOwners: ClientOperationOwnerOption[] = canManageOperations
+    ? listPeopleEmployees(session.agencyId)
+      .filter(employee => employee.status !== "alumni" && employee.status !== "suspended")
+      .map(employee => ({ id: employee.id, name: employee.name, email: employee.email, title: employee.title }))
+    : [];
+  if (canManageOperations && !operationOwners.some(owner => owner.email.toLowerCase() === session.email.toLowerCase())) {
+    const currentUser = getUserById(session.userId);
+    operationOwners.unshift({
+      id: `user:${session.userId}`,
+      name: currentUser?.name?.trim() || session.email,
+      email: currentUser?.email || session.email,
+      title: session.role === "agency-owner" ? "Agency owner" : "Agency operator",
+    });
+  }
+  const clientRecordCanonicalEvents: ClientRecordLedgerEventInput[] = tab === "notes"
+    ? [
+        ...customerPortalData.contracts.map(contract => clientContractLedgerEvent(client.id, contract)),
+        ...issuedInvoices.map(invoice => clientInvoiceLedgerEvent(client.id, invoice)),
+        ...clientPaymentPlans.map(plan => clientPaymentPlanLedgerEvent(client.id, plan, now)),
+        ...clientMilestones.map(milestone => clientMilestoneLedgerEvent(client.id, milestone, now)),
+      ].sort((left, right) => right.occurredAt - left.occurredAt)
+    : [];
+  const clientRecordLedgerEvents: ClientRecordLedgerEventInput[] = tab === "notes"
+    ? [
+        ...clientRecordEntries.map(entry => ({
+          sourceType: "record-entry" as const,
+          sourceId: entry.id,
+          group: entry.kind === "call" || entry.kind === "meeting" ? "calls" as const : entry.kind === "update" ? "activity" as const : "notes" as const,
+          title: entry.title,
+          body: entry.body,
+          occurredAt: entry.occurredAt,
+          eyebrow: `${entry.kind.replaceAll("-", " ")}${entry.channel ? ` · ${entry.channel}` : ""}`,
+          visibility: entry.visibility,
+          href: entry.url,
+        })),
+        ...clientRecordMessages.map(message => ({
+          sourceType: "message" as const,
+          sourceId: `${message.href ?? message.channel}:${message.id}`,
+          group: "messages" as const,
+          title: message.title,
+          body: message.body,
+          occurredAt: message.occurredAt,
+          eyebrow: `${message.channel} · ${message.direction === "inbound" ? client.name : portalProviderName}${message.status ? ` · ${message.status}` : ""}`,
+          visibility: "inherent" as const,
+          href: message.href,
+        })),
+        ...recordFiles.map(file => ({
+          sourceType: "file" as const,
+          sourceId: file.id,
+          group: "files" as const,
+          title: file.name,
+          body: `${file.category.replaceAll("-", " ")}${file.uploadedBy ? ` · ${file.uploadedBy}` : ""}`,
+          occurredAt: file.uploadedAt,
+          eyebrow: file.category === "recording" ? "Call recording" : "File",
+          visibility: file.customerVisible === true ? "client" as const : "internal" as const,
+          href: file.url,
+          parentSourceId: file.recordEntryId,
+        })),
+        ...recordActivity.map(item => ({
+          sourceType: "activity" as const,
+          sourceId: item.id,
+          group: "activity" as const,
+          title: item.message,
+          occurredAt: item.occurredAt,
+          eyebrow: item.category.replaceAll("-", " "),
+          visibility: "internal" as const,
+        })),
+        ...clientRecordCanonicalEvents,
+      ]
+    : [];
+  if (tab === "notes") {
+    synchroniseClientRecordLedger({
+      agencyId: session.agencyId,
+      clientId: client.id,
+      events: clientRecordLedgerEvents,
+      completeSources: ["record-entry", "file", "contract", "invoice", "payment-plan", "delivery"],
+    });
+    await flushPendingWrites();
+  }
+  const initialClientRecordLedgerPage = queryClientRecordLedger({
+    agencyId: session.agencyId,
+    clientId: client.id,
+    limit: 25,
+  });
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-      <header className="flex flex-wrap items-center gap-4">
-        {client.brand.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={client.brand.logoUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
-        ) : (
-          <div
-            aria-hidden="true"
-            className="flex h-12 w-12 items-center justify-center rounded-lg text-base font-semibold text-white"
-            style={{ backgroundColor: client.brand.primaryColor }}
-          >
-            {client.name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join("") || "·"}
-          </div>
+    <div className="mm-client-workspace-page flex w-full flex-col gap-6">
+      <ClientWorkspaceHeader
+        clientId={client.id}
+        clientName={client.name}
+        logoUrl={client.brand.logoUrl}
+        primaryColor={client.brand.primaryColor}
+        providerName={portalProviderName}
+        stageLabel={phaseLabel(client.stage)}
+        sourceLabel={meta.leadSource?.replace(/[-_]+/g, " ") || "Not recorded"}
+        products={deliveryProducts.map(product => ({ id: product.id, name: product.name, accentColor: product.accentColor }))}
+        relationship={{
+          score: aquaHealth.score,
+          state: aquaHealth.state,
+          openRequests: customerPortalData.requests.filter(request => request.status === "open").length,
+        }}
+        delivery={{
+          progress: deliveryProgress,
+          openMilestones: openMilestones.length,
+          blockedMilestones: openMilestones.filter(item => item.status === "blocked").length,
+        }}
+        lastContactLabel={meta.lastContactedAt ? formatRelative(meta.lastContactedAt) : "Not recorded"}
+        portalReady={Boolean(meta.portalBuiltAt)}
+        contactRow={(
+          <CommsRow
+            clientId={client.id}
+            initial={{
+              whatsappLink: meta.whatsappLink ?? "",
+              clientEmail: meta.clientEmail ?? "",
+              lastContactedAt: meta.lastContactedAt ?? 0,
+            }}
+          />
         )}
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight text-black/90">{client.name}</h1>
-          <div className="mt-2">
-            <CommsRow
+        relationshipSwitcher={canManageRelationship ? (
+          <ClientWorkspaceSwitcher
+            currentClientId={client.id}
+            currentCompanyId={client.companyId}
+            canManage
+            workspaces={relationshipWorkspaces.map(workspace => ({
+              id: workspace.id,
+              name: workspace.name,
+              workspaceLabel: workspace.workspaceLabel,
+              providerName: resolveClientPortalProvider(workspace, { name: agencyName, mark: agencyName.charAt(0) }).name,
+              stageLabel: phaseLabel(workspace.stage),
+              portalReady: typeof workspace.metadata?.portalBuiltAt === "number",
+              current: workspace.id === client.id,
+            }))}
+            availableClients={availableRelationshipClients.map(workspace => ({
+              id: workspace.id,
+              name: workspace.name,
+              ownerEmail: workspace.ownerEmail,
+              workspaceLabel: workspace.workspaceLabel,
+              providerName: resolveClientPortalProvider(workspace, { name: agencyName, mark: agencyName.charAt(0) }).name,
+              relationshipWorkspaceCount: availableRelationshipCounts.get(clientRelationshipId(workspace)) ?? 1,
+            }))}
+            companies={tradingCompanies.map(company => ({ id: company.id, name: company.name, status: company.status }))}
+            products={agencyProducts.map(product => ({ id: product.id, name: product.name, category: product.category, active: product.active }))}
+            currentProductIds={productAssignment.selectedIds}
+          />
+        ) : undefined}
+        portalAction={live ? (
+          portalMaterialized ? (
+            <a href={`/clients/${client.slug}/`} target="_blank" rel="noreferrer" className="mm-client-context-button">
+              Open live experience ↗
+            </a>
+          ) : (
+            <BuildPortalWizard
               clientId={client.id}
-              initial={{
-                whatsappLink: meta.whatsappLink ?? "",
-                clientEmail: meta.clientEmail ?? "",
-                lastContactedAt: meta.lastContactedAt ?? 0,
-              }}
+              clientName={client.name}
+              slug={client.slug}
+              plugins={listPlugins().map<WizardPlugin>(plugin => {
+                const copy = toolCopy({ id: plugin.id, name: plugin.name ?? plugin.id, description: plugin.description });
+                return {
+                  id: plugin.id,
+                  name: copy.name,
+                  description: copy.description,
+                  installed: installedIds.has(plugin.id),
+                  recommended: liveRecommended.includes(plugin.id),
+                };
+              })}
             />
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-black/60">
-            <span
-              className="rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white"
-              style={{ backgroundColor: client.brand.primaryColor }}
-            >
-              {phaseLabel(client.stage)}
-            </span>
-            {live && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
-                Live
-              </span>
-            )}
-            <PhaseTransitionButton
-              clientId={client.id}
-              currentStage={client.stage}
-              isFounder={session.role === "agency-owner"}
-            />
-            {servicePlanLabel && (
-              <span className="text-[11px] text-black/55">Plan: <span className="font-medium text-black/75">{servicePlanLabel}</span></span>
-            )}
-            <span className="text-[11px] text-black/55">Source: <span className="font-medium text-black/75">{meta.leadSource?.replace(/[-_]+/g, " ") || "Not recorded"}</span></span>
-            <span className="text-[11px] text-black/55">Company: <span className="font-medium text-black/75">{portalProviderName}</span></span>
-            {meta.lockInPaid && (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800">
-                Deposit paid
-              </span>
-            )}
-            {client.websiteUrl && (
-              <a href={client.websiteUrl} target="_blank" rel="noreferrer" className="hover:underline">
-                {client.websiteUrl}
-              </a>
-            )}
-            <Link href={`/portal/clients/${client.id}/settings`} className="font-medium text-brand hover:underline">
-              {client.websiteUrl ? "Change domain" : "Add domain"}
-            </Link>
-          </div>
+          )
+        ) : undefined}
+      />
+
+      <div className="mm-client-view-heading">
+        <div>
+          <p>Client workspace</p>
+          <h2>{tabLabel[tab]}</h2>
         </div>
-        {live && (
-          <div className="flex shrink-0 items-center">
-            {portalMaterialized ? (
-              <a
-                href={`/clients/${client.slug}/`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100"
-              >
-                Open custom portal ↗
-              </a>
-            ) : (
-              <BuildPortalWizard
-                clientId={client.id}
-                clientName={client.name}
-                slug={client.slug}
-                plugins={listPlugins().map<WizardPlugin>(plugin => {
-                  const copy = toolCopy({
-                    id: plugin.id,
-                    name: plugin.name ?? plugin.id,
-                    description: plugin.description,
-                  });
-                  return {
-                    id: plugin.id,
-                    name: copy.name,
-                    description: copy.description,
-                    installed: installedIds.has(plugin.id),
-                    recommended: liveRecommended.includes(plugin.id),
-                  };
-                })}
-              />
-            )}
-          </div>
-        )}
-      </header>
+        <PhaseTransitionButton clientId={client.id} currentStage={client.stage} isFounder={session.role === "agency-owner"} />
+      </div>
 
-      <OverviewTabs clientId={client.id} active={tab} visibleTabs={visibleTabs} />
-
-      {(!selectedProducts.length || tab === "delivery") ? <ClientServiceAssignment
+      {tab === "delivery" ? <ClientServiceAssignment
         clientId={client.id}
         clientName={client.name}
         initialProducts={selectedProducts}
+        initialSelectedProductIds={productAssignment.selectedIds}
         initialCompanyId={client.companyId}
-        canManage={isAgencyRole(session.role)}
+        defaultProviderName={agencyName}
+        canManage={session.role === "agency-owner" || session.role === "agency-manager"}
         companies={tradingCompanies.map(company => ({ id: company.id, name: company.name, status: company.status }))}
-        options={agencyProducts.map(product => ({
+        options={agencyProducts.filter(product => product.active || productAssignment.selectedIds.includes(product.id)).map(product => ({
           id: product.id,
           name: product.name,
           category: product.category,
           description: product.description,
           kind: product.kind,
+          active: product.active,
           includedProductNames: product.includedProductIds.map(id => agencyProductById.get(id)?.name).filter((name): name is string => Boolean(name)),
         }))}
       /> : null}
 
-      {(() => {
-        const pack = meta.commercialPack;
-        const paidCents = pack?.payments?.reduce((sum, payment) => sum + payment.amountCents, 0) ?? 0;
-        const gaps = [
-          !pack?.invoiceNumber ? "Invoice missing" : null,
-          !pack || (pack.agreementStatus !== "accepted" && !pack.signedDocumentDataUrl) ? "Signed agreement missing" : null,
-          pack?.totalCents && paidCents < pack.totalCents ? `Payment outstanding (${new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format((pack.totalCents - paidCents) / 100)})` : null,
-        ].filter((gap): gap is string => Boolean(gap));
-        if (!gaps.length) return null;
-        return (
-          <section className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">
-            <div><strong>Commercial records need attention</strong><span className="ml-2">{gaps.join(" · ")}</span></div>
-            <Link href={`/portal/clients/${client.id}?tab=finance`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold ring-1 ring-red-200">Open finance</Link>
-          </section>
-        );
-      })()}
+      {commercialGaps.length && (tab === "overview" || tab === "finance" || tab === "notes") ? (
+        <section className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div><strong>Commercial records need attention</strong><span className="ml-2">{commercialGaps.join(" · ")}</span></div>
+          <Link href={`/portal/clients/${client.id}?tab=finance`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold ring-1 ring-red-200">Open finance</Link>
+        </section>
+      ) : null}
 
       {tab === "overview" && (
         <ClientSpineOverview
           clientId={client.id}
+          relatedWorkspaces={relationshipWorkspaces.map(workspace => {
+            const workspaceProducts = resolvePortalProductAssignment(workspace.metadata ?? {}, agencyProducts).products;
+            const workspaceOpenRequests = cleanClientRequests(workspace.metadata?.clientRequests).filter(request => request.status === "open").length;
+            const workspaceOpenMilestones = listClientMilestones(session.agencyId, workspace.id).filter(item => item.status !== "complete");
+            const workspaceSignals = relationshipWorkspaceSignals.get(workspace.id)!;
+            return {
+              id: workspace.id,
+              name: workspace.name,
+              label: workspace.workspaceLabel,
+              providerName: resolveClientPortalProvider(workspace, { name: agencyName, mark: agencyName.charAt(0) }).name,
+              stageLabel: phaseLabel(workspace.stage),
+              hasServices: workspaceProducts.length > 0,
+              serviceNames: workspaceProducts.map(product => product.name),
+              portalReady: typeof workspace.metadata?.portalBuiltAt === "number",
+              openRequests: workspaceOpenRequests,
+              blockedMilestones: workspaceOpenMilestones.filter(item => item.status === "blocked").length,
+              overdueMilestones: workspaceOpenMilestones.filter(item => item.status !== "blocked" && Boolean(item.targetAt && item.targetAt < now)).length,
+              aquaHealthScore: workspaceSignals.healthScore,
+              aquaHealthState: workspaceSignals.healthState,
+              aquaHealthConfidence: workspaceSignals.healthConfidence,
+              outstandingCents: workspaceSignals.outstandingCents,
+              currency: workspaceSignals.currency,
+              portalAccessState: workspaceSignals.portalAccessState,
+              current: workspace.id === client.id,
+            };
+          })}
           relationship={{
             score: aquaHealth.score,
             confidence: aquaHealth.confidence,
@@ -470,13 +833,32 @@ export default async function ClientHome({
             blockedMilestones: openMilestones.filter(item => item.status === "blocked").length,
             overdueMilestones: openMilestones.filter(item => item.status !== "blocked" && Boolean(item.targetAt && item.targetAt < now)).length,
           }}
-          systems={{
+          systems={serviceCapabilities.systems ? {
             properties: propertyRecords.length,
             tagsInstalled: propertyRecords.filter(property => property.tagStatus === "installed").length,
             tagsNeedingAttention: propertyRecords.filter(property => property.tagStatus === "missing" || property.tagStatus === "broken").length,
             websiteConnected: Boolean(client.websiteUrl),
-          }}
+          } : null}
+          hasServices={serviceCapabilities.hasServices}
           portalReady={Boolean(meta.portalBuiltAt)}
+          lastContactAt={meta.lastContactedAt}
+          commercialGaps={commercialGaps}
+          commercial={{
+            activePlans: activePaymentPlans.length,
+            totalPlans: clientPaymentPlans.length,
+            scheduledCents: activePaymentPlans.reduce((total, plan) => total + paymentPlanTotal(plan), 0),
+            paidCents: activePaymentPlans.reduce((total, plan) => total + paymentPlanPaid(plan), 0),
+            outstandingCents: outstandingInvoiceCents,
+            currency: activePaymentPlans[0]?.currency || issuedInvoices[0]?.currency || "gbp",
+            overdueMilestones: overduePaymentMilestones.length,
+            nextDueAt: nextPaymentMilestone?.dueAt,
+            acceptedContracts: customerPortalData.contracts.filter(contract => contract.status === "accepted").length,
+            issuedInvoices: issuedInvoices.length,
+          }}
+          operationsBrief={clientOperations}
+          operationOwners={operationOwners}
+          acceptedOperationSourceIds={acceptedOperationSourceIds}
+          canManageOperations={canManageOperations}
         />
       )}
 
@@ -619,7 +1001,7 @@ export default async function ClientHome({
       )}
 
       {tab === "delivery" && (
-        <div className="grid gap-7">
+        <div id="client-delivery-work" className="scroll-mt-24 grid gap-7">
           {selectedProducts.length ? <><ClientDeliveryOverview
             clientId={client.id}
             products={deliveryProducts}
@@ -654,6 +1036,7 @@ export default async function ClientHome({
         <FulfilmentPortalPreview
           clientId={client.id}
           clientName={client.name}
+          providerName={portalProviderName}
           initial={{
             mode: meta.portalMode,
             loginEmail: meta.portalLoginEmail ?? meta.clientEmail ?? client.ownerEmail ?? "",
@@ -661,7 +1044,7 @@ export default async function ClientHome({
             servicePlan: servicePlanLabel ?? "",
             planSummary: meta.portalPlanSummary ?? "",
             planIncludes: meta.portalPlanIncludes ?? [],
-            products: meta.portalProducts ?? [],
+            products: selectedProducts,
             experienceHeadline: meta.portalExperienceHeadline ?? "",
             billingCadence: meta.portalBillingCadence ?? "As agreed",
             welcomeNote: meta.portalWelcomeNote ?? "",
@@ -727,6 +1110,9 @@ export default async function ClientHome({
             recipientEmail={meta.portalLoginEmail ?? meta.clientEmail ?? client.ownerEmail}
             initialContracts={Array.isArray(meta.contracts) ? meta.contracts : []}
             initialContractTemplates={contractTemplates}
+            initialPaymentPlans={clientPaymentPlans}
+            initialCommercialFiles={customerPortalData.files.filter(file => file.category === "payment-plan" || file.category === "payment-proof")}
+            products={selectedProducts.map(product => ({ id: product.id, name: product.name }))}
             initial={{
               planTier: meta.planTier,
               servicePlan: servicePlanLabel ?? undefined,
@@ -743,7 +1129,7 @@ export default async function ClientHome({
             <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Relationship communications</p><h2 className="mt-2 text-2xl font-semibold text-black/88">Messages and requests</h2><p className="mt-1 text-sm text-black/55">Support history, customer requests, replies, and the handoff into the unified Master Inbox.</p></div>
             <Link href={`/portal/agency/inbox?view=all&thread=profile:${encodeURIComponent(client.id)}`} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white">Open unified inbox</Link>
           </header>
-          <ClientRequestsPanel clientId={client.id} initialRequests={meta.clientRequests ?? []} />
+          <ClientRequestsPanel clientId={client.id} initialRequests={safeClientRequests} providerName={portalProviderName} />
         </div>
       )}
 
@@ -755,21 +1141,34 @@ export default async function ClientHome({
             initialFiles={(((client.metadata ?? {}) as { files?: Array<{
               id: string; name: string; url: string;
               category: FileCategory; uploadedBy?: string; uploadedAt: number;
+              customerVisible?: boolean;
             }> }).files) ?? []}
           />
         </div>
       )}
 
       {tab === "notes" && (
-        <ClientNotesWorkspace
-          clientId={client.id}
-          initial={{
-            notes: meta.notes ?? meta.buyingJourney?.notes ?? "",
-            sessionNotes: meta.sessionNotes ?? meta.buyingJourney?.sessionNotes ?? "",
-            meetingNotes: meta.meetingNotes ?? "",
-            supportNotes: meta.supportNotes ?? "",
-          }}
-        />
+        <div className="grid gap-8">
+          <ClientRecordWorkspace
+            clientId={client.id}
+            initialPage={initialClientRecordLedgerPage}
+            coverageWarnings={clientRecordCoverageWarnings}
+            relatedWorkspaces={relationshipWorkspaces.map(workspace => ({
+              id: workspace.id,
+              name: workspace.name,
+              label: workspace.workspaceLabel,
+            }))}
+          />
+          <ClientNotesWorkspace
+            clientId={client.id}
+            initial={{
+              notes: meta.notes ?? meta.buyingJourney?.notes ?? "",
+              sessionNotes: meta.sessionNotes ?? meta.buyingJourney?.sessionNotes ?? "",
+              meetingNotes: meta.meetingNotes ?? "",
+              supportNotes: meta.supportNotes ?? "",
+            }}
+          />
+        </div>
       )}
     </div>
   );

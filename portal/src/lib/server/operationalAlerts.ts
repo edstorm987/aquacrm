@@ -19,6 +19,8 @@ import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
 import { cleanClientMarketingService } from "@/lib/clientMarketingService";
 import { formatUkDate } from "@/lib/formatDateTime";
+import { cleanClientPaymentPlans } from "@/lib/clientPaymentPlans";
+import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
 
 export type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
 
@@ -153,6 +155,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   }
 
   for (const client of clients) {
+    const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = client.metadata as {
       lastContactedAt?: number;
       clientRequests?: Array<{
@@ -173,6 +176,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       portalAccessPreparedAt?: number;
       portalAccessSentAt?: number;
       clientMarketingService?: unknown;
+      clientPaymentPlans?: unknown;
     } | undefined;
 
     if (notificationSettings.marketingAlerts && metadata?.clientMarketingService) {
@@ -185,7 +189,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           id: `client-marketing-approvals:${client.id}`,
           severity: "notice",
           category: "marketing",
-          title: `${client.name} has ${pending} marketing approval${pending === 1 ? "" : "s"} waiting`,
+          title: `${clientLabel} has ${pending} marketing approval${pending === 1 ? "" : "s"} waiting`,
           detail: "Open the exact content and campaign records awaiting a client decision.",
           href: marketingHref,
           occurredAt: marketing.updatedAt ?? client.updatedAt,
@@ -195,7 +199,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           id: `client-marketing-access:${client.id}`,
           severity: "warning",
           category: "marketing",
-          title: `${client.name} has ${attentionProfiles.length} social account access issue${attentionProfiles.length === 1 ? "" : "s"}`,
+          title: `${clientLabel} has ${attentionProfiles.length} social account access issue${attentionProfiles.length === 1 ? "" : "s"}`,
           detail: attentionProfiles.map(profile => `${profile.platform}: ${profile.handle}`).join(" · "),
           href: marketingHref,
           occurredAt: marketing.updatedAt ?? client.updatedAt,
@@ -205,7 +209,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
             id: `client-marketing-budget:${client.id}:${campaign.id}`,
             severity: "critical",
             category: "marketing",
-            title: `${client.name}: ${campaign.name} is over budget`,
+            title: `${clientLabel}: ${campaign.name} is over budget`,
             detail: `${money(campaign.spendCents)} spent against ${money(campaign.budgetCents)} allocated.`,
             href: marketingHref,
             occurredAt: campaign.updatedAt,
@@ -214,7 +218,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
             id: `client-marketing-no-leads:${client.id}:${campaign.id}`,
             severity: "warning",
             category: "marketing",
-            title: `${client.name}: ${campaign.name} needs a performance review`,
+            title: `${clientLabel}: ${campaign.name} needs a performance review`,
             detail: `${money(campaign.spendCents)} spent with zero attributed leads.`,
             href: marketingHref,
             occurredAt: campaign.updatedAt,
@@ -230,7 +234,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         id: `request:${client.id}:${request.id}`,
         severity: critical ? "critical" : request.priority === "normal" ? "notice" : "warning",
         category: "support",
-        title: `${requestLabel(request.type)} from ${client.name}`,
+        title: `${requestLabel(request.type)} from ${clientLabel}`,
         detail: `${request.siteLabel ? `${request.siteLabel} · ` : ""}${request.topic ? `${request.topic} · ` : ""}${request.message}`,
         href: `/portal/agency/inbox?view=support&thread=${encodeURIComponent(request.id)}`,
         clientName: client.name,
@@ -247,7 +251,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         id: `outage:${client.id}:${latest.id}`,
         severity: "critical",
         category: "outage",
-        title: `${client.name} reported ${recentErrors.length} production error${recentErrors.length === 1 ? "" : "s"}`,
+        title: `${clientLabel} reported ${recentErrors.length} production error${recentErrors.length === 1 ? "" : "s"}`,
         detail: latest.message || latest.path || "Open technical delivery monitoring to inspect the latest error.",
         href: `/portal/clients/${client.id}?tab=systems`,
         clientName: client.name,
@@ -262,12 +266,34 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         id: `invoice:${client.id}:${pack.invoiceNumber ?? "draft"}`,
         severity: "critical",
         category: "money",
-        title: `${client.name} has an overdue invoice`,
+        title: `${clientLabel} has an overdue invoice`,
         detail: `${pack.invoiceNumber ?? "Invoice"} was due ${formatRelativeDate(pack.dueAt, now)}.`,
         href: `/portal/clients/${client.id}?tab=finance`,
         clientName: client.name,
         occurredAt: pack.dueAt,
       });
+    }
+
+    if (notificationSettings.financeAlerts) {
+      for (const plan of cleanClientPaymentPlans(metadata?.clientPaymentPlans).filter(item => item.status === "active")) {
+        for (const milestone of plan.milestones.filter(item => item.status === "planned" && !item.invoiceId)) {
+          const daysUntilDue = (milestone.dueAt - now) / DAY;
+          if (daysUntilDue > 3) continue;
+          const overdue = daysUntilDue < 0;
+          alerts.push({
+            id: `payment-plan:${client.id}:${plan.id}:${milestone.id}`,
+            severity: overdue ? "critical" : "notice",
+            category: "money",
+            title: overdue
+              ? `${clientLabel}: payment milestone was not invoiced`
+              : `${clientLabel}: payment milestone is ready to issue`,
+            detail: `${milestone.title}${milestone.productName ? ` · ${milestone.productName}` : ""} is due ${formatUkDate(milestone.dueAt, { day: "numeric", month: "short", year: "numeric" })}. Open the exact schedule to create its Finance invoice.`,
+            href: `/portal/clients/${client.id}?tab=finance`,
+            clientName: client.name,
+            occurredAt: milestone.dueAt,
+          });
+        }
+      }
     }
 
     for (const contract of notificationSettings.contractAlerts ? metadata?.contracts ?? [] : []) {
@@ -277,7 +303,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         id: `contract-awaiting:${client.id}:${contract.id}`,
         severity: "warning",
         category: "contract",
-        title: `${client.name} has a contract awaiting acceptance`,
+        title: `${clientLabel} has a contract awaiting acceptance`,
         detail: `${contract.title} was sent ${formatRelativeDate(waitingSince, now)}. Follow up or record the signed agreement.`,
         href: `/portal/clients/${client.id}?tab=finance`,
         clientName: client.name,
@@ -291,7 +317,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         id: `portal-access:${client.id}`,
         severity: "notice",
         category: "client",
-        title: `${client.name}'s portal access is ready to review`,
+        title: `${clientLabel}'s portal access is ready to review`,
         detail: `Access has been prepared for ${OPERATIONAL_ALERT_THRESHOLDS.portalAccessDays} days or more but has not been sent.`,
         href: `/portal/clients/${client.id}?tab=portal`,
         clientName: client.name,
@@ -304,7 +330,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         id: `contact:${client.id}`,
         severity: "warning",
         category: "client",
-        title: `Check in with ${client.name}`,
+        title: `Check in with ${clientLabel}`,
         detail: metadata?.lastContactedAt ? `No contact has been recorded for more than ${OPERATIONAL_ALERT_THRESHOLDS.clientContactDays} days.` : "No client contact has been recorded yet.",
         href: `/portal/clients/${client.id}`,
         clientName: client.name,

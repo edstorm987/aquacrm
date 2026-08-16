@@ -92,6 +92,19 @@ describe("Sidebar wires the toggle (R035)", () => {
     assert.ok(mobileNav.includes("right-5 top-6"));
     assert.ok(!sidebar.includes('"hidden xl:flex border-r'));
   });
+
+  it("keeps internal client workspaces expanded with every navigation section visible", () => {
+    const sidebar = readFileSync(SIDEBAR, "utf8");
+    const toggle = readFileSync(TOGGLE, "utf8");
+    const styles = readFileSync(CSS, "utf8");
+
+    assert.ok(sidebar.includes('data-sidebar-lock={variant === "client" ? "expanded" : undefined}'));
+    assert.ok(sidebar.includes('className="mm-sidebar-panel mm-sidebar-panel-expanded"'));
+    assert.ok(sidebar.includes('mobile || variant === "client" ? "overflow-y-auto overscroll-contain pr-1"'));
+    assert.ok(toggle.includes('aside?.dataset.sidebarLock === "expanded"'));
+    assert.ok(styles.includes(':not([data-sidebar-lock="expanded"])'));
+    assert.ok(styles.includes('[data-sidebar-variant="client"] [data-sidebar-collapse-toggle]'));
+  });
 });
 
 describe("Root layout hydration (R035)", () => {

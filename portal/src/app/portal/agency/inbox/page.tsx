@@ -1,18 +1,22 @@
 import { requireRole } from "@/lib/server/auth";
 import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
-import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
+import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities } from "@/lib/server/websiteEnquiries";
 import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/websiteEnquiries";
 import { listActivity } from "@/server/activity";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { listInboxSnapshot } from "@/lib/server/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/metaMessaging";
 import { outboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
+import { synchroniseInboxIdentityResolutions } from "@/lib/server/inboxService";
+import { clearIdentityResolutionReviews } from "@/lib/server/identityResolution";
 
 import { MasterInbox } from "./_MasterInbox";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
+import { cleanClientRequests } from "@/lib/clientRequests";
+import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
 
 type RequestRecord = {
   id: string;
@@ -53,14 +57,14 @@ export default async function AgencyInboxPage() {
   const [liveAlerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
     listOperationalAlerts(session.agencyId),
     Promise.resolve(listActivity({ agencyId: session.agencyId, limit: 150 })),
-    listWebsiteEnquiries().then(
+    (session.isDemo ? Promise.resolve([]) : listWebsiteEnquiries()).then(
       submissions => ({ submissions, error: null as string | null }),
       cause => ({
         submissions: [],
         error: cause instanceof Error ? cause.message : "Website enquiries could not be loaded.",
       }),
     ),
-    listInboxSnapshot(session.agencyId).then(
+    (session.isDemo ? Promise.resolve({ connections: [], conversations: [], generatedAt: Date.now() }) : listInboxSnapshot(session.agencyId)).then(
       snapshot => ({ snapshot, error: null as string | null }),
       cause => ({
         snapshot: { connections: [], conversations: [], generatedAt: Date.now() },
@@ -68,11 +72,20 @@ export default async function AgencyInboxPage() {
       }),
     ),
   ]);
+  if (session.isDemo) clearIdentityResolutionReviews(session.agencyId);
   const alerts = listOperationalAlertViews(session.agencyId, session.userId, liveAlerts).filter(alert => alert.attention);
+  const websiteForms = websiteFormsResult.error
+    ? websiteFormsResult.submissions
+    : await synchroniseWebsiteEnquiryIdentities(session.agencyId, websiteFormsResult.submissions).catch(() => websiteFormsResult.submissions);
+  const socialInbox = socialInboxResult.error
+    ? socialInboxResult.snapshot
+    : await synchroniseInboxIdentityResolutions(session.agencyId, socialInboxResult.snapshot).catch(() => socialInboxResult.snapshot);
+  await flushPendingWrites();
   const conversations = clients.flatMap(client => {
+    const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = client.metadata as { clientRequests?: RequestRecord[]; properties?: PropertyRecord[] } | undefined;
     const properties = Array.isArray(metadata?.properties) ? metadata.properties : [];
-    return (metadata?.clientRequests ?? []).map(request => {
+    return cleanClientRequests(metadata?.clientRequests).map(request => {
       const selectedProperty = request.propertyId
         ? properties.find(property => property.id === request.propertyId)
         : properties.find(property => property.status === "live") ?? properties[0];
@@ -80,7 +93,8 @@ export default async function AgencyInboxPage() {
       return {
         id: request.id,
         clientId: client.id,
-        clientName: client.name,
+        clientName: clientLabel,
+        buyerName: client.name,
         type: request.type,
         message: request.message,
         status: request.status,
@@ -112,17 +126,18 @@ export default async function AgencyInboxPage() {
   return <MasterInbox
     referenceNow={Date.now()}
     alerts={alerts}
-    websiteForms={websiteFormsResult.submissions}
+    websiteForms={websiteForms}
     websiteFormsError={websiteFormsResult.error}
     conversations={conversations}
-    socialInbox={socialInboxResult.snapshot}
+    socialInbox={socialInbox}
     socialInboxError={socialInboxResult.error}
     metaReadiness={metaInboxReadiness()}
     currentUserId={session.userId}
     communicationReadiness={outboundCommunicationReadiness(session.agencyId)}
     clientProfiles={clients.map(client => ({
       id: client.id,
-      name: client.name,
+      name: clientWorkspaceDisplayName(client),
+      buyerName: client.name,
       ownerEmail: client.ownerEmail || (typeof client.metadata?.clientEmail === "string" ? client.metadata.clientEmail : undefined),
       ownerPhone: typeof client.metadata?.phone === "string"
         ? client.metadata.phone

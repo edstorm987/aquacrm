@@ -1,8 +1,8 @@
 import "server-only";
 
-import { cleanPortalProducts } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { getClientForAgency, updateClient } from "./tenants";
-import { getAgencyProduct } from "./agencyProducts";
+import { getAgencyProduct, listAgencyProducts } from "./agencyProducts";
 import { ensureClientPortalInstance, ensureProductPortalTemplate } from "./clientPortalDesigns";
 import { reconcileClientProductWorkspaces } from "./productWorkspaces";
 
@@ -46,9 +46,9 @@ export async function setupClientStarterPortal(input: {
 
   const metadata = input.metadata ?? {};
   const builtAt = Date.now();
-  const portalProducts = cleanPortalProducts(client.metadata?.portalProducts);
-  const productId = portalProducts.length > 1
-    ? ""
+  const portalProducts = resolvePortalProductAssignment(client.metadata ?? {}, listAgencyProducts(input.agencyId, true)).products;
+  const productId = portalProducts.length === 1
+    ? portalProducts[0].id
     : typeof client.metadata?.agencyProductId === "string" ? client.metadata.agencyProductId : "";
   const product = productId ? getAgencyProduct(input.agencyId, productId) : null;
   const productTemplate = product && product.portalRequirement !== "none"

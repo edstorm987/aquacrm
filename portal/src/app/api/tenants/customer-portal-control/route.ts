@@ -5,9 +5,9 @@ import { isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import { deliverMagicLink, signMagicToken } from "@/lib/server/magicLink";
-import { cleanPortalProducts } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { ensureClientPortalInstance, ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
-import { getAgencyProduct } from "@/server/agencyProducts";
+import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 
 type PortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
@@ -29,7 +29,6 @@ interface Body {
   logoUrl?: unknown;
   accentColor?: unknown;
   billingUrl?: unknown;
-  products?: unknown;
   experienceHeadline?: unknown;
 }
 
@@ -135,7 +134,15 @@ export async function POST(req: NextRequest) {
   const portalSupportWhatsappUrl = cleanSupportUrl(body.supportWhatsappUrl);
   const portalLogoUrl = cleanSupportUrl(body.logoUrl);
   const portalAccentColor = cleanHexColor(body.accentColor) || "#8b6c33";
-  const portalProducts = cleanPortalProducts(body.products);
+  // Service assignment is owned by /api/tenants/client-products. Portal
+  // presentation saves must never mutate that commercial source of truth.
+  const existingAssignment = resolvePortalProductAssignment(client.metadata ?? {}, listAgencyProducts(agencyId, true));
+  const portalProducts = existingAssignment.products;
+  const incomingProductIds = existingAssignment.effectiveIds;
+  const portalSelectedProductIds = existingAssignment.selectedIds;
+  if (action === "build-portal" && portalProducts.length === 0) {
+    return NextResponse.json({ ok: false, error: "Assign at least one service before creating the client portal." }, { status: 409 });
+  }
   const portalProduct = portalProducts
     .map(product => getAgencyProduct(agencyId, product.id))
     .find(product => product?.portalRequirement !== "none")
@@ -180,6 +187,8 @@ export async function POST(req: NextRequest) {
       portalSupportWhatsappUrl,
       portalLogoUrl,
       portalAccentColor,
+      portalSelectedProductIds,
+      portalProductIds: incomingProductIds,
       portalProducts,
       portalProductWorkspaces,
       portalExperienceHeadline,

@@ -22,6 +22,11 @@ export function SidebarCollapseToggle() {
       const aside = document.querySelector<HTMLElement>(
         'aside[aria-label="Primary navigation"]'
       );
+      if (aside?.dataset.sidebarLock === "expanded") {
+        setCollapsed(false);
+        aside.setAttribute("data-collapsed", "false");
+        return;
+      }
       const fromStore = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
       setCollapsed(fromStore);
       if (aside) aside.setAttribute("data-collapsed", String(fromStore));
@@ -31,12 +36,13 @@ export function SidebarCollapseToggle() {
   }, []);
 
   function onToggle() {
+    const aside = document.querySelector<HTMLElement>(
+      'aside[aria-label="Primary navigation"]'
+    );
+    if (aside?.dataset.sidebarLock === "expanded") return;
     const next = !collapsed;
     setCollapsed(next);
     try {
-      const aside = document.querySelector<HTMLElement>(
-        'aside[aria-label="Primary navigation"]'
-      );
       if (aside) aside.setAttribute("data-collapsed", String(next));
       document.documentElement.setAttribute("data-sidebar-collapsed", String(next));
       window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");

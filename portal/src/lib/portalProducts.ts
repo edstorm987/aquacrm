@@ -256,7 +256,7 @@ export function cleanPortalProducts(value: unknown): PortalProductSelection[] {
       stageFocusOverrides: cleanStageFocus(raw.stageFocusOverrides),
       supportCta: cleanOptionalString(raw.supportCta, 80),
     }];
-  }).slice(0, 12);
+  }).slice(0, 48);
 }
 
 function cleanOptionalString(value: unknown, limit: number): string | undefined {

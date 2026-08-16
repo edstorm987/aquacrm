@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Check, CircleAlert, Clock3, FolderKanban, PackageCheck, PanelTop } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, CircleAlert, Clock3, FolderKanban, PackageCheck, PanelTop } from "lucide-react";
 import { clientWorkspaceHref } from "@/lib/clientWorkspace";
 import { formatUkDate } from "@/lib/formatDateTime";
 
@@ -74,6 +74,9 @@ export function ClientDeliveryOverview({ clientId, products, milestones, portalR
           <h3 className="mt-2 text-xl font-semibold text-black/84">{focusedProduct.name}</h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/52">{focusedProduct.description || `${focusedProduct.name} delivery, decisions and evidence in one client record.`}</p>
           <div className="mt-5 flex items-center gap-3"><span className="text-3xl font-semibold tabular-nums text-black/82">{focusedProduct.progress}%</span><div><p className="text-xs font-semibold text-black/65">Workspace progress</p><p className="mt-0.5 text-[11px] capitalize text-black/40">Current stage · {focusedProduct.stage}</p></div></div>
+          <a href={`/client-preview/${encodeURIComponent(clientId)}?manage=1&section=service&productId=${encodeURIComponent(focusedProduct.id)}`} target="_blank" rel="noreferrer" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white">
+            Manage {focusedProduct.name} workspace <ArrowUpRight size={13} />
+          </a>
         </div>
         <aside className="bg-white p-5">
           <p className="text-xs font-semibold text-black/72">Agreed outputs</p>

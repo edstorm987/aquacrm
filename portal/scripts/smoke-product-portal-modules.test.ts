@@ -155,7 +155,8 @@ describe("bespoke product portal modules", () => {
     assert.match(portalData, /customerPortalModeLabel/);
     assert.match(studio, /Preview product composition/);
     assert.match(studio, /previewProductIds/);
-    assert.match(setup, /portalProducts\.length > 1/);
+    assert.match(setup, /portalProducts\.length === 1/);
+    assert.match(setup, /resolvePortalProductAssignment/);
     assert.match(control, /portalProducts\.length === 1/);
   });
 });

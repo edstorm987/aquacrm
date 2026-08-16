@@ -8,6 +8,7 @@ import { listInstalledFor } from "@/server/pluginInstalls";
 import { ensureDefaultDevelopmentWorkflow, listDevelopmentWorkflows, listVisibleDevelopmentResources } from "@/server/developmentToolkit";
 import { listSops } from "@/server/sops";
 import { AGENCY_ROLES } from "@/server/types";
+import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clientWorkspace";
 import {
   DevelopmentPortfolio,
   type DevelopmentProjectKind,
@@ -90,6 +91,7 @@ export default async function DevelopmentPage({ searchParams }: { searchParams: 
   });
 
   for (const client of clients) {
+    const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = (client.metadata ?? {}) as ClientMetadata;
     const allTelemetry = metadata.telemetryEvents ?? [];
     const openRequests = (metadata.clientRequests ?? []).filter(item => item.status === "open").length;
@@ -119,13 +121,13 @@ export default async function DevelopmentPage({ searchParams }: { searchParams: 
         owner: "Client",
         clientId: client.id,
         builderReady,
-        clientName: client.name,
-        managementHref: `/portal/clients/${client.id}?tab=systems&systemView=properties`,
+        clientName: clientLabel,
+        managementHref: clientWorkspaceHref(client.id, "systems", { systemView: "properties" }),
         previewUrl: product.previewUrl,
         liveUrl: product.liveUrl,
         repoUrl: product.repoUrl,
         localPath: product.localPath,
-        folder: `Clients/${client.name}`,
+        folder: `Clients/${clientLabel}`,
         tags: [product.kind ?? "website", status, "client"],
         telemetryPropertyId: projectId,
         tagStatus: product.tagStatus,

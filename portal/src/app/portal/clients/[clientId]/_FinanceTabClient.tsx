@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
+import type { ClientPaymentPlan } from "@/lib/clientPaymentPlans";
 import { ContractsPanel } from "./_ContractsPanel";
+import { PaymentPlansPanel, type PaymentPlanEvidenceFile } from "./_PaymentPlansPanel";
 import { formatUkDate } from "@/lib/formatDateTime";
 
 interface Invoice {
@@ -85,6 +87,9 @@ export function FinanceTabClient({
   initial,
   initialContracts,
   initialContractTemplates,
+  initialPaymentPlans,
+  initialCommercialFiles,
+  products,
   clientName,
   recipientEmail,
   showContracts = true,
@@ -93,6 +98,9 @@ export function FinanceTabClient({
   initial: InitialState;
   initialContracts: ClientContract[];
   initialContractTemplates: ClientContractTemplate[];
+  initialPaymentPlans: ClientPaymentPlan[];
+  initialCommercialFiles: PaymentPlanEvidenceFile[];
+  products: Array<{ id: string; name: string }>;
   clientName?: string;
   recipientEmail?: string;
   showContracts?: boolean;
@@ -412,8 +420,19 @@ export function FinanceTabClient({
         initialTemplates={initialContractTemplates}
       /> : null}
 
+      <PaymentPlansPanel
+        clientId={clientId}
+        clientName={clientName}
+        recipientEmail={recipientEmail}
+        products={products}
+        initialPlans={initialPaymentPlans}
+        initialFiles={initialCommercialFiles}
+        invoices={invoices ?? []}
+        onInvoiceCreated={refresh}
+      />
+
       {/* Invoices */}
-      <section className="rounded-xl border border-black/10 bg-white">
+      <section id="client-invoices" className="scroll-mt-24 rounded-xl border border-black/10 bg-white">
         <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-black/10 p-3">
           <div>
             <h2 className="text-sm font-medium text-black/85">Payment requests & invoices</h2>
@@ -443,7 +462,7 @@ export function FinanceTabClient({
             <div className="mb-4">
               <p className="text-sm font-medium text-black/85">New invoice</p>
               <p className="mt-1 text-xs text-black/45">
-                Milesymedia generates the invoice number. Drafts remain private until sent.
+                The workspace generates the invoice number. Drafts remain private until sent.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

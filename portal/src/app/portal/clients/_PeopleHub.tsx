@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
-import { Building2, ClipboardPenLine, Columns3, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, UserRound, UsersRound, X, type LucideIcon } from "lucide-react";
+import { Building2, ClipboardPenLine, Columns3, Fingerprint, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, UserRound, UsersRound, X, type LucideIcon } from "lucide-react";
 
 import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
 import {
@@ -11,6 +11,8 @@ import {
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiryClassification";
 import { formatUkDateTime } from "@/lib/formatDateTime";
+import type { IdentityResolutionReview } from "@/server/types";
+import { IdentityReviewWorkspace } from "./_IdentityReviewWorkspace";
 
 export type ContactRole = "lead" | "customer" | "account" | "vendor" | "employee" | "other";
 
@@ -32,6 +34,9 @@ export interface HubClient {
   healthNotes: string[];
   brandId?: string;
   brandName?: string;
+  relationshipId?: string;
+  relationshipWorkspaceCount: number;
+  workspaceLabel?: string;
   serviceIds: string[];
   serviceNames: string[];
 }
@@ -61,7 +66,7 @@ export interface HubContact {
   serviceNames: string[];
 }
 
-type View = "all" | "clients" | "health" | "journey" | "contacts" | "staff";
+type View = "all" | "clients" | "health" | "journey" | "contacts" | "staff" | "identity";
 type JourneyMode = "list" | "kanban";
 
 const roleLabels: Record<ContactRole, string> = {
@@ -81,6 +86,7 @@ export function PeopleHub({
   brands,
   clientDefaults,
   journeyWorkspace,
+  identityReviews,
 }: {
   clients: HubClient[];
   contacts: HubContact[];
@@ -89,6 +95,7 @@ export function PeopleHub({
   brands: NewClientBrandOption[];
   clientDefaults: NewClientDefaults;
   journeyWorkspace: React.ReactNode;
+  identityReviews: IdentityResolutionReview[];
 }) {
   const [contactRows, setContactRows] = useState(contacts);
   const [view, setView] = useState<View>(initialView);
@@ -109,7 +116,7 @@ export function PeopleHub({
       .filter(client => clientStatus === "all" || client.status === clientStatus)
       .filter(client => !brandFilter || client.brandId === brandFilter)
       .filter(client => !serviceFilter || client.serviceIds.includes(serviceFilter))
-      .filter(client => !q || `${client.name} ${client.ownerEmail ?? ""} ${client.websiteUrl ?? ""} ${client.stageLabel} ${client.source} ${client.niche ?? ""} ${client.brandName ?? ""} ${client.serviceNames.join(" ")}`.toLowerCase().includes(q));
+      .filter(client => !q || `${client.name} ${client.workspaceLabel ?? ""} ${client.ownerEmail ?? ""} ${client.websiteUrl ?? ""} ${client.stageLabel} ${client.source} ${client.niche ?? ""} ${client.brandName ?? ""} ${client.serviceNames.join(" ")}`.toLowerCase().includes(q));
   }, [brandFilter, clientStatus, clients, niche, query, serviceFilter]);
 
   const availableNiches = useMemo(
@@ -154,12 +161,13 @@ export function PeopleHub({
           <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} icon={HeartPulse} attentionPrefixHref="/portal/clients" />
           <Tab active={view === "journey"} onClick={() => setView("journey")} label="Journey" count={journeyRows.length} icon={Route} attentionPrefixHref="/portal/agency/pipelines" />
           <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contactRows.length} icon={UserRound} />
+          <Tab active={view === "identity"} onClick={() => setView("identity")} label="Identity review" count={identityReviews.filter(review => review.status === "pending").length} icon={Fingerprint} />
           <Tab active={view === "staff"} onClick={() => setView("staff")} label="Staff" count={staffCount} icon={UsersRound} />
           <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={clients.length + contactRows.length} icon={List} />
         </div>
       </div>
 
-      {view !== "journey" ? <div className="flex flex-wrap items-center gap-2 border-b border-black/10 py-4">
+      {view !== "journey" && view !== "identity" ? <div className="flex flex-wrap items-center gap-2 border-b border-black/10 py-4">
         <label className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" size={16} />
           <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search people, notes, or tags" className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
@@ -226,6 +234,8 @@ export function PeopleHub({
 
       {view === "journey" ? <div className="mt-6 min-w-0">{journeyWorkspace}</div> : null}
 
+      {view === "identity" ? <IdentityReviewWorkspace initialReviews={identityReviews} clients={clients.map(client => ({ id: client.id, name: client.name, ownerEmail: client.ownerEmail, stage: client.stageLabel, relationshipId: client.relationshipId, workspaceLabel: client.workspaceLabel, providerName: client.brandName }))} /> : null}
+
       {view === "all" || view === "contacts" || view === "staff" ? (
         <PeopleSection title={view === "staff" ? "Staff" : "Contacts"} count={filteredContacts.length} hidden={view === "all" && filteredContacts.length === 0}>
           {filteredContacts.map(contact => <ContactRow key={`${contact.recordKind}:${contact.id}`} contact={contact} onReview={setReviewing} />)}
@@ -274,7 +284,7 @@ function ClientRow({ client }: { client: HubClient }) {
     <div className="mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5">
       <div className="grid size-10 place-items-center rounded-md text-xs font-semibold text-white" style={{ backgroundColor: client.primaryColor }}>{initials}</div>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p><Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}{client.brandName ? <Badge>{client.brandName}</Badge> : null}{client.serviceNames.slice(0, 2).map(service => <Badge key={service}>{service}</Badge>)}</div>
+        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p>{client.workspaceLabel ? <Badge>Project: {client.workspaceLabel}</Badge> : null}{client.relationshipWorkspaceCount > 1 ? <RelationshipBadge count={client.relationshipWorkspaceCount} /> : null}<Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}{client.brandName ? <Badge>{client.brandName}</Badge> : null}{client.serviceNames.slice(0, 2).map(service => <Badge key={service}>{service}</Badge>)}</div>
         <p className="mt-0.5 truncate text-xs text-black/45">{client.ownerEmail || "No account email"} · Source: {sourceLabel(client.source)}{client.websiteUrl ? ` · ${client.websiteUrl}` : ""}</p>
       </div>
       <Link href={`/portal/clients/${client.id}?tab=relationship`} className="col-start-2 w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03] sm:col-start-auto">Open</Link>
@@ -284,7 +294,7 @@ function ClientRow({ client }: { client: HubClient }) {
 
 function HealthRow({ client }: { client: HubClient }) {
   return <div className="mm-interactive-row grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] sm:items-center sm:px-5">
-    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/80">{client.name}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${client.health === "healthy" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{client.health === "healthy" ? "Healthy" : "Needs attention"}</span></div><p className="mt-1 text-xs text-black/45">Source: {sourceLabel(client.source)} · {client.stageLabel}</p></div>
+    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/80">{client.name}</p>{client.workspaceLabel ? <Badge>Project: {client.workspaceLabel}</Badge> : null}{client.relationshipWorkspaceCount > 1 ? <RelationshipBadge count={client.relationshipWorkspaceCount} /> : null}<span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${client.health === "healthy" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{client.health === "healthy" ? "Healthy" : "Needs attention"}</span></div><p className="mt-1 text-xs text-black/45">Source: {sourceLabel(client.source)} · {client.stageLabel}</p></div>
     <div className="text-xs leading-5 text-black/55">{client.healthNotes.length ? client.healthNotes.join(" · ") : "Details are complete and contact is current."}</div>
     <Link href={`/portal/clients/${client.id}?tab=relationship`} className="w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Review</Link>
   </div>;
@@ -292,6 +302,10 @@ function HealthRow({ client }: { client: HubClient }) {
 
 function PausedBadge() {
   return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">Paused</span>;
+}
+
+function RelationshipBadge({ count }: { count: number }) {
+  return <span title={`${count} isolated workspaces belong to this buyer relationship`} className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">Linked buyer · {count} workspaces</span>;
 }
 
 function sourceLabel(source: string): string {
@@ -316,7 +330,7 @@ function buildJourneyRows(clients: HubClient[], contacts: HubContact[]): Journey
     rows.push({
       id: `client:${client.id}`,
       title: client.name,
-      subtitle: [client.ownerEmail, client.websiteUrl].filter(Boolean).join(" · ") || "Client record",
+      subtitle: [client.workspaceLabel ? `Project: ${client.workspaceLabel}` : undefined, client.ownerEmail, client.websiteUrl].filter(Boolean).join(" · ") || "Client record",
       source: client.source,
       stage: client.stageLabel,
       status: "client",

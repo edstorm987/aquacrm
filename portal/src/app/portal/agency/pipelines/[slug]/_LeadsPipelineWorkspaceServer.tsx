@@ -1,6 +1,6 @@
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
-import { cleanPortalProducts } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { getInstall } from "@/server/pluginInstalls";
@@ -29,7 +29,8 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
   if (!install?.enabled) return <JourneyUnavailable detail="The Journey data module could not be enabled." />;
 
   ensureDefaultAgencyProducts(agencyId);
-  const products = listAgencyProducts(agencyId);
+  const productCatalogue = listAgencyProducts(agencyId, true);
+  const products = productCatalogue.filter(product => product.active);
   const brands = listTradingCompanies(agencyId).filter(company => company.status !== "archived");
   const storage = makePluginStorage(install.id);
   const container = leadsContainerFor({ agencyId, storage: storage as never });
@@ -104,7 +105,7 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
           return sameLead || sameEmail;
         });
         const clientMetadata = client?.metadata ?? {};
-        const services = cleanPortalProducts(clientMetadata.portalProducts ?? clientMetadata.products);
+        const services = resolvePortalProductAssignment(clientMetadata, productCatalogue).products;
         const customFields = lead.customFields as Record<string, unknown> | undefined;
         const explicitBrandId = typeof customFields?.brandId === "string"
           ? customFields.brandId

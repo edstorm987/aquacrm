@@ -290,7 +290,7 @@ export function ContractsPanel({
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-black/10 bg-white" data-testid="client-contracts-panel">
+    <section id="client-contracts" className="scroll-mt-24 overflow-hidden rounded-xl border border-black/10 bg-white" data-testid="client-contracts-panel">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 p-4">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-black/40">Client record</p>

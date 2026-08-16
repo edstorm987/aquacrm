@@ -3,18 +3,29 @@ import "server-only";
 import { listActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";
 import type { ActivityEntry, Client, ClientPortalDesignDocument } from "@/server/types";
-import { getClientPortalInstance, getClientPortalTemplate, resolveClientPortalDesign, type ClientPortalDesignScope } from "@/server/clientPortalDesigns";
-import { getAgencyProduct } from "@/server/agencyProducts";
+import { getClientPortalInstance, getClientPortalTemplate, productPortalTemplateRecordId, resolveClientPortalDesign, type ClientPortalDesignScope } from "@/server/clientPortalDesigns";
+import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
 import type { Invoice, InvoiceLineItem, InvoiceStatus } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import type { ClientRequest } from "@/app/api/tenants/client-requests/route";
+import { cleanClientRequests } from "@/lib/clientRequests";
 import type { ClientContract } from "@/lib/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
-import { cleanPortalProducts, portalProductSelectionFromAgencyProduct, type PortalProductSelection } from "@/lib/portalProducts";
+import { portalProductSelectionFromAgencyProduct, type PortalProductSelection } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle } from "@/lib/portalProductModules";
 import { cleanPortalProductWorkspaces, type PortalProductWorkspace } from "@/lib/portalProductWorkspaces";
+import { cleanClientRecordEntries, type ClientRecordEntryKind } from "@/lib/clientRelationshipRecord";
+import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
+import {
+  cleanClientPaymentPlans,
+  customerVisiblePaymentPlans,
+  reconcileClientPaymentPlan,
+  type ClientPaymentPlan,
+} from "@/lib/clientPaymentPlans";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -30,6 +41,7 @@ export interface CustomerFile {
   productId?: string;
   workspacePageId?: string;
   collectionId?: string;
+  recordEntryId?: string;
   customerVisible?: boolean;
 }
 
@@ -69,6 +81,27 @@ export interface CustomerRecordLink {
   kind: "recording" | "meeting" | "inspiration";
 }
 
+export interface CustomerRecordEntry {
+  id: string;
+  kind: ClientRecordEntryKind;
+  title: string;
+  body?: string;
+  occurredAt: number;
+  channel?: string;
+  url?: string;
+  attachments?: CustomerFile[];
+}
+
+export interface CustomerRecordMessage {
+  id: string;
+  conversationId: string;
+  channel: string;
+  from: "customer" | "provider";
+  body: string;
+  occurredAt: number;
+  status?: string;
+}
+
 export interface CustomerRecord {
   email?: string;
   phone?: string;
@@ -77,12 +110,16 @@ export interface CustomerRecord {
   nextMeetingAt?: number;
   notes: CustomerRecordNote[];
   links: CustomerRecordLink[];
+  entries: CustomerRecordEntry[];
+  messages: CustomerRecordMessage[];
 }
 
 export interface CustomerPortalData {
+  clientId: string;
   mode: CustomerPortalMode;
   presentation: ClientPortalDesignDocument;
   presentationProductId?: string;
+  productPresentations: Record<string, ClientPortalDesignDocument>;
   contactName: string;
   servicePlan: string;
   planSummary?: string;
@@ -106,6 +143,7 @@ export interface CustomerPortalData {
   brief: CustomerProjectBrief;
   approvals: ClientApproval[];
   invoices: CustomerInvoice[];
+  paymentPlans: ClientPaymentPlan[];
   record: CustomerRecord;
   support: {
     email?: string;
@@ -258,6 +296,8 @@ export async function loadCustomerPortalData(
     budgetRange?: string;
     designFeedback?: string;
     supportNotes?: string;
+    clientRecordEntries?: unknown;
+    clientPaymentPlans?: unknown;
     buyingJourney?: {
       source?: string;
       capturedAt?: number;
@@ -290,6 +330,11 @@ export async function loadCustomerPortalData(
   }
 
   const invoiceNumberById = new Map(invoices.map(invoice => [invoice.id, invoice.number]));
+  const reconciledPaymentPlans = cleanClientPaymentPlans(meta.clientPaymentPlans)
+    .map(plan => reconcileClientPaymentPlan(plan, invoices));
+  const safePaymentPlans = options.audience === "agency"
+    ? reconciledPaymentPlans
+    : customerVisiblePaymentPlans(reconciledPaymentPlans);
   const activity = listActivity({
     agencyId: client.agencyId,
     clientId: client.id,
@@ -303,14 +348,20 @@ export async function loadCustomerPortalData(
 
   const planKey = typeof meta.planTier === "string" ? meta.planTier : "";
   const customerEmails = new Set(
-    [meta.portalLoginEmail, client.ownerEmail]
+    [meta.portalLoginEmail, meta.clientEmail, client.ownerEmail]
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
       .map(value => value.trim().toLowerCase()),
   );
+  const customerPhones = new Set([meta.phone, meta.contactPhone]
+    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    .map(value => value.replace(/\D/g, ""))
+    .filter(Boolean));
   const actorLabel = (value?: string, customerFallback = "Customer") =>
     value && customerEmails.has(value.trim().toLowerCase()) ? "Customer" : value ? providerName : customerFallback;
   const safeFiles: CustomerFile[] = (Array.isArray(meta.files) ? meta.files : [])
-    .filter(file => options.audience === "agency" || file.customerVisible !== false)
+    .filter(file => options.audience === "agency"
+      || file.customerVisible === true
+      || Boolean(file.uploadedBy && customerEmails.has(file.uploadedBy.trim().toLowerCase())))
     .map(file => ({
     id: file.id,
     name: file.name,
@@ -323,6 +374,7 @@ export async function loadCustomerPortalData(
     productId: file.productId,
     workspacePageId: file.workspacePageId,
     collectionId: file.collectionId,
+    recordEntryId: file.recordEntryId,
     customerVisible: file.customerVisible,
   }));
   const safeProperties: CustomerProperty[] = (Array.isArray(meta.properties) ? meta.properties : []).map(property => ({
@@ -335,7 +387,7 @@ export async function loadCustomerPortalData(
     previewUrl: supportUrl(property.previewUrl),
     redirectTarget: supportUrl(property.redirectTarget),
   }));
-  const safeRequests: ClientRequest[] = (Array.isArray(meta.clientRequests) ? meta.clientRequests : []).map(request => ({
+  const safeRequests: ClientRequest[] = cleanClientRequests(meta.clientRequests).map(request => ({
     id: request.id,
     type: request.type,
     message: request.message,
@@ -364,6 +416,77 @@ export async function loadCustomerPortalData(
         }))
       : [],
   }));
+  const requestRecordMessages: CustomerRecordMessage[] = safeRequests.flatMap(request => [
+    {
+      id: request.id,
+      conversationId: request.id,
+      channel: "Client portal",
+      from: request.submittedBy === "Customer" ? "customer" as const : "provider" as const,
+      body: request.message,
+      occurredAt: request.submittedAt,
+      status: request.status,
+    },
+    ...(request.replies ?? []).map(reply => ({
+      id: reply.id,
+      conversationId: request.id,
+      channel: "Client portal",
+      from: reply.from === "customer" ? "customer" as const : "provider" as const,
+      body: reply.message,
+      occurredAt: reply.createdAt,
+      status: request.status,
+    })),
+  ]);
+  const [inboxSnapshot, websiteEnquiries] = await Promise.all([
+    listInboxSnapshot(client.agencyId).catch(() => ({ connections: [], conversations: [], generatedAt: Date.now() })),
+    listWebsiteEnquiries(500).catch(() => []),
+  ]);
+  const socialRecordMessages: CustomerRecordMessage[] = inboxSnapshot.conversations
+    .filter(conversation => conversation.identity.clientId === client.id)
+    .flatMap(conversation => conversation.messages
+      .filter(message => message.direction !== "internal")
+      .map(message => ({
+        id: message.id,
+        conversationId: conversation.id,
+        channel: conversation.connection.displayName,
+        from: message.direction === "inbound" ? "customer" as const : "provider" as const,
+        body: message.text?.trim() || (message.attachments.length ? `${message.attachments.length} attachment${message.attachments.length === 1 ? "" : "s"}` : "Message"),
+        occurredAt: message.sentAt,
+        status: message.status,
+      })));
+  const matchedEnquiries = websiteEnquiries.filter(enquiry =>
+    Boolean(enquiry.email && customerEmails.has(enquiry.email.trim().toLowerCase()))
+    || Boolean(enquiry.phone && customerPhones.has(enquiry.phone.replace(/\D/g, ""))));
+  const enquiryRecordMessages: CustomerRecordMessage[] = matchedEnquiries.flatMap(enquiry => [
+    ...(enquiry.message ? [{
+      id: enquiry.id,
+      conversationId: enquiry.id,
+      channel: enquiry.siteName,
+      from: "customer" as const,
+      body: enquiry.message,
+      occurredAt: enquiry.submittedAt,
+      status: enquiry.status,
+    }] : []),
+    ...enquiry.replies.map(reply => ({
+      id: reply.id,
+      conversationId: enquiry.id,
+      channel: reply.senderLabel || reply.channel,
+      from: "provider" as const,
+      body: reply.message,
+      occurredAt: reply.sentAt,
+      status: reply.status,
+    })),
+  ]);
+  const enquiryCallEntries: CustomerRecordEntry[] = matchedEnquiries.flatMap(enquiry => enquiry.calls.map(call => ({
+    id: call.id,
+    kind: "call" as const,
+    title: `Call · ${call.outcome?.replaceAll("-", " ") || call.status}`,
+    body: call.notes?.trim() || (call.durationSeconds ? `${call.durationSeconds} seconds` : undefined),
+    occurredAt: call.startedAt,
+    channel: call.senderLabel,
+    url: call.recording?.consentConfirmed ? call.recording.url : undefined,
+  })));
+  const recordMessages = [...requestRecordMessages, ...socialRecordMessages, ...enquiryRecordMessages]
+    .sort((left, right) => left.occurredAt - right.occurredAt);
   const safeContracts: ClientContract[] = (Array.isArray(meta.contracts) ? meta.contracts : []).map(contract => ({
     id: contract.id,
     title: contract.title,
@@ -441,15 +564,7 @@ export async function loadCustomerPortalData(
     && invoice.lineItems.some(item => /\b(deposit|lock[\s-]?in)\b/i.test(item.description)),
   );
   const noteCandidates: Array<[string, unknown]> = [
-    ["Session notes", meta.sessionNotes ?? meta.buyingJourney?.sessionNotes],
-    ["Meeting notes", meta.meetingNotes],
-    ["Additional notes", meta.notes ?? meta.buyingJourney?.notes],
-    ["Problems discussed", meta.potentialProblems ?? meta.buyingJourney?.potentialProblems],
-    ["Potential solutions", meta.potentialSolutions ?? meta.buyingJourney?.potentialSolutions],
-    ["Budget discussed", meta.budgetRange ?? meta.buyingJourney?.budgetRange],
-    ["Price points discussed", meta.pricePoints ?? meta.buyingJourney?.pricePoints],
-    ["Design feedback", meta.designFeedback],
-    ["Support notes", meta.supportNotes],
+    ["Additional project brief", sourceBrief.additionalNotes],
   ];
   const seenNotes = new Set<string>();
   const recordNotes: CustomerRecordNote[] = noteCandidates.flatMap(([label, value]) => {
@@ -459,6 +574,21 @@ export async function loadCustomerPortalData(
     seenNotes.add(clean);
     return [{ label, value: clean }];
   });
+  const recordEntries: CustomerRecordEntry[] = [
+    ...cleanClientRecordEntries(meta.clientRecordEntries)
+      .filter(entry => entry.visibility === "client")
+      .map(entry => ({
+      id: entry.id,
+      kind: entry.kind,
+      title: entry.title,
+      body: entry.body,
+      occurredAt: entry.occurredAt,
+      channel: entry.channel,
+      url: entry.url,
+      attachments: safeFiles.filter(file => file.recordEntryId === entry.id),
+      })),
+    ...enquiryCallEntries,
+  ].sort((left, right) => right.occurredAt - left.occurredAt);
   const linkCandidates: Array<[string, unknown, CustomerRecordLink["kind"]]> = [
     ["Discovery call recording", meta.callRecordingUrl ?? meta.buyingJourney?.callRecordingUrl, "recording"],
     ["Next meeting", meta.meetingLink ?? meta.buyingJourney?.meetingLink, "meeting"],
@@ -481,7 +611,7 @@ export async function loadCustomerPortalData(
     draft: options.draft,
     fallbackAccentColor: meta.portalAccentColor,
   });
-  const configuredProducts = cleanPortalProducts(meta.portalProducts);
+  const configuredProducts = resolvePortalProductAssignment(meta, listAgencyProducts(client.agencyId, true)).products;
   const previewTemplate = options.scope === "template" && options.templateId
     ? getClientPortalTemplate(client.agencyId, options.templateId)
     : null;
@@ -502,6 +632,11 @@ export async function loadCustomerPortalData(
   const presentationInstance = options.scope === "template" ? null : getClientPortalInstance(client.agencyId, client.id);
   const presentationTemplate = previewTemplate
     ?? (presentationInstance ? getClientPortalTemplate(client.agencyId, presentationInstance.templateId) : null);
+  const productPresentations = Object.fromEntries(products.flatMap(product => {
+    if (presentationTemplate?.productId === product.id) return [[product.id, presentation]];
+    const productTemplate = getClientPortalTemplate(client.agencyId, productPortalTemplateRecordId(client.agencyId, product.id));
+    return productTemplate ? [[product.id, productTemplate.published]] : [];
+  }));
 
   const mode = portalMode(meta.portalMode);
   const workspaces = cleanPortalProductWorkspaces(meta.portalProductWorkspaces, products, mode).map(workspace => options.audience === "agency"
@@ -512,9 +647,11 @@ export async function loadCustomerPortalData(
       });
 
   return {
+    clientId: client.id,
     mode,
     presentation,
     presentationProductId: presentationTemplate?.productId,
+    productPresentations,
     contactName: meta.portalContactName?.trim() || fallbackName,
     servicePlan: meta.portalServicePlan?.trim() || PLAN_LABELS[planKey] || planKey || `${providerName} custom plan`,
     planSummary: meta.portalPlanSummary?.trim() || undefined,
@@ -543,6 +680,7 @@ export async function loadCustomerPortalData(
     brief: safeBrief,
     approvals: safeApprovals,
     invoices: safeInvoices,
+    paymentPlans: safePaymentPlans,
     record: {
       email: meta.portalLoginEmail?.trim() || meta.clientEmail?.trim() || client.ownerEmail?.trim() || undefined,
       phone: meta.phone?.trim() || meta.contactPhone?.trim() || undefined,
@@ -551,6 +689,8 @@ export async function loadCustomerPortalData(
       nextMeetingAt: typeof meta.nextMeetingAt === "number" ? meta.nextMeetingAt : meta.buyingJourney?.meetingAt,
       notes: recordNotes,
       links: recordLinks,
+      entries: recordEntries,
+      messages: recordMessages,
     },
     support: {
       email: meta.portalSupportEmail?.trim()

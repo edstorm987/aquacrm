@@ -3,6 +3,7 @@ import type { OperationalAlert } from "@/lib/operationalAttention";
 export interface AttentionThreadCandidate {
   key: string;
   name: string;
+  aliases?: string[];
   email?: string;
   clientId?: string;
   formId?: string;
@@ -34,17 +35,18 @@ export function resolveAttentionThreadKey(alert: OperationalAlert, candidates: A
 
   const clientName = normalise(alert.clientName ?? "");
   if (clientName) {
-    const conversation = candidates.find(candidate => normalise(candidate.name) === clientName && candidate.requestId);
+    const conversation = candidates.find(candidate => candidateNames(candidate).includes(clientName) && candidate.requestId);
     if (conversation) return conversation.key;
-    const identity = candidates.find(candidate => normalise(candidate.name) === clientName);
+    const identity = candidates.find(candidate => candidateNames(candidate).includes(clientName));
     if (identity) return identity.key;
   }
 
   const alertText = normalise(`${alert.title} ${alert.detail}`);
   const named = candidates
-    .filter(candidate => normalise(candidate.name).length >= 3 && alertText.includes(normalise(candidate.name)))
+    .flatMap(candidate => candidateNames(candidate).map(name => ({ candidate, name })))
+    .filter(item => item.name.length >= 3 && alertText.includes(item.name))
     .sort((left, right) => right.name.length - left.name.length)[0];
-  if (named) return named.key;
+  if (named) return named.candidate.key;
 
   const emailed = candidates.find(candidate => candidate.email && alertText.includes(normalise(candidate.email)));
   return emailed?.key ?? null;
@@ -60,4 +62,8 @@ function safeUrl(href: string): URL | null {
 
 function normalise(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function candidateNames(candidate: AttentionThreadCandidate): string[] {
+  return [...new Set([candidate.name, ...(candidate.aliases ?? [])].map(normalise).filter(Boolean))];
 }

@@ -4,6 +4,7 @@ import type { BusinessRadarIssue } from "@/lib/businessRadar";
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import type { AgencyWebsiteProject, AgencyWebsiteTelemetryEvent, Client, RadarSyntheticProbeResult } from "@/server/types";
 import { formatUkDate, isoDateTimeValue } from "@/lib/formatDateTime";
+import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
 
 const DAY = 86_400_000;
 
@@ -94,22 +95,23 @@ export function buildRadarTelemetrySnapshot(
   }
 
   for (const client of clients.filter(item => item.status === "active")) {
+    const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = client.metadata ?? {};
     const events = Array.isArray(metadata.telemetryEvents) ? metadata.telemetryEvents as ClientTelemetryEvent[] : [];
     const storedProperties = Array.isArray(metadata.properties) ? metadata.properties as StoredProperty[] : [];
     const clientProperties = storedProperties.length
       ? storedProperties
       : client.websiteUrl || events.length
-        ? [{ id: `client-${client.id}`, label: client.name, kind: "website", status: "live", liveUrl: client.websiteUrl }]
+        ? [{ id: `client-${client.id}`, label: "Website", kind: "website", status: "live", liveUrl: client.websiteUrl }]
         : [];
     for (const [index, property] of clientProperties.entries()) {
       const propertyId = clean(property.id) || `client-${client.id}-${index + 1}`;
       const propertyEvents = events.filter(event => eventMatchesProperty(event, propertyId, property));
       properties.push(propertySnapshot({
         id: `${client.id}:${propertyId}`,
-        label: clean(property.label) || `${client.name} ${clean(property.kind) || "property"}`,
+        label: `${clientLabel} · ${clean(property.label) || clean(property.kind) || "Property"}`,
         clientId: client.id,
-        clientName: client.name,
+        clientName: clientLabel,
         href: `/portal/clients/${client.id}?tab=systems`,
         publicUrl: clean(property.liveUrl) || clean(client.websiteUrl) || undefined,
         expectedLive: ["live", "active", "production", "published"].includes(clean(property.status).toLowerCase()) || Boolean(property.liveUrl),

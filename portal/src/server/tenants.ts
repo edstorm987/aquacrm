@@ -114,6 +114,8 @@ export function updateAgency(id: string, patch: UpdateAgencyPatch): Agency | nul
 export interface CreateClientInput {
   name: string;
   slug?: string;
+  relationshipId?: string;
+  workspaceLabel?: string;
   ownerEmail?: string;
   websiteUrl?: string;
   stage?: ClientStage;
@@ -135,6 +137,8 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
     saved = {
       id,
       agencyId,
+      relationshipId: input.relationshipId?.trim() || id,
+      workspaceLabel: input.workspaceLabel?.trim() || undefined,
       companyId: input.companyId,
       name: input.name,
       slug,
@@ -176,6 +180,8 @@ export function listClients(agencyId: string, options: { includeArchived?: boole
 
 export interface UpdateClientPatch {
   name?: string;
+  relationshipId?: string | null;
+  workspaceLabel?: string | null;
   ownerEmail?: string;
   websiteUrl?: string | null;
   brand?: Partial<BrandKit>;
@@ -209,6 +215,8 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
     if (patch.status === "active" && existing.status !== "active") metadata.reactivatedAt = now;
     saved = {
       ...existing,
+      relationshipId: patch.relationshipId === null ? undefined : patch.relationshipId?.trim() || existing.relationshipId,
+      workspaceLabel: patch.workspaceLabel === null ? undefined : patch.workspaceLabel?.trim() || existing.workspaceLabel,
       companyId: patch.companyId === null ? undefined : patch.companyId ?? existing.companyId,
       name: patch.name ?? existing.name,
       ownerEmail: patch.ownerEmail ?? existing.ownerEmail,

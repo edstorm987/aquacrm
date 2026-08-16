@@ -18,11 +18,13 @@ type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Designs = typeof import("../src/server/clientPortalDesigns");
 type AgencyProducts = typeof import("../src/server/agencyProducts");
+type PortalBuilder = typeof import("../src/lib/clientPortalBuilder");
 
 let storage: Storage;
 let tenants: Tenants;
 let designs: Designs;
 let agencyProducts: AgencyProducts;
+let portalBuilderTools: PortalBuilder;
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -30,6 +32,7 @@ before(async () => {
   tenants = await import("../src/server/tenants");
   designs = await import("../src/server/clientPortalDesigns");
   agencyProducts = await import("../src/server/agencyProducts");
+  portalBuilderTools = await import("../src/lib/clientPortalBuilder");
 });
 
 async function fresh() {
@@ -88,6 +91,242 @@ describe("client portal design versions", () => {
     assert.equal(designs.getClientPortalInstance(agency.id, client.id)?.draft.theme.accentColor, "#005f73");
     assert.equal(designs.getClientPortalInstance(agency.id, second.id)?.draft.theme.accentColor, secondInstance.draft.theme.accentColor);
     assert.equal(designs.getClientPortalTemplate(agency.id)?.draft.theme.accentColor, "#8b6c33");
+  });
+
+  it("versions custom portal code without exposing draft code to the live portal", async () => {
+    const { agency, client, actorUserId } = await fresh();
+    const instance = designs.ensureClientPortalInstance({ agencyId: agency.id, clientId: client.id, actorUserId });
+    const draft = structuredClone(instance.draft);
+    draft.customCode = {
+      enabled: true,
+      placement: "before-content",
+      title: "Client launch console",
+      scopedCss: ".mm-private-sidebar { width: 19rem; }",
+      html: '<section id="launch-console">Launch console</section>',
+      css: "#launch-console { padding: 24px; }",
+      javascript: 'document.querySelector("#launch-console")?.setAttribute("data-ready", "true");',
+      minHeight: 320,
+    };
+
+    const saved = designs.savePortalDesignDraft({ agencyId: agency.id, scope: "client", recordId: instance.id, document: draft, actorUserId });
+    assert.equal(saved?.draft.customCode?.title, "Client launch console");
+    assert.equal(saved?.published.customCode?.enabled, false);
+
+    const published = designs.publishPortalDesign({ agencyId: agency.id, scope: "client", recordId: instance.id, actorUserId, label: "Custom launch experience" });
+    assert.equal(published?.published.customCode?.placement, "before-content");
+    assert.equal(published?.published.customCode?.minHeight, 320);
+    assert.match(published?.published.customCode?.javascript ?? "", /data-ready/);
+  });
+
+  it("versions visual page composition, live data blocks, and custom pages without changing operational records", async () => {
+    const { agency, client, actorUserId } = await fresh();
+    const instance = designs.ensureClientPortalInstance({ agencyId: agency.id, clientId: client.id, actorUserId });
+    const draft = structuredClone(instance.draft);
+    assert.equal(draft.builder?.pages.home?.[0]?.type, "system-content");
+    draft.builder!.pages.home = [
+      {
+        id: "hero-launch",
+        type: "hero",
+        visible: true,
+        width: "full",
+        tone: "dark",
+        eyebrow: "Welcome {firstName}",
+        title: "Your launch room",
+        body: "Everything is connected here.",
+        actionLabel: "Open files",
+        actionHref: "/portal/customer/files",
+        items: [],
+      },
+      draft.builder!.pages.home![0],
+      {
+        id: "metrics-live",
+        type: "metrics",
+        visible: true,
+        visibilityRule: "always",
+        width: "full",
+        tone: "surface",
+        eyebrow: "Live data",
+        title: "Delivery pulse",
+        body: "",
+        actionLabel: "",
+        actionHref: "",
+        dataSource: "delivery",
+        items: [],
+      },
+      {
+        id: "product-hub-live",
+        type: "product-hub",
+        visible: true,
+        visibilityRule: "with-products",
+        width: "full",
+        tone: "surface",
+        eyebrow: "Your services",
+        title: "Connected workspaces",
+        body: "",
+        actionLabel: "",
+        actionHref: "",
+        items: [],
+      },
+      {
+        id: "custom-calculator",
+        type: "custom-extension",
+        visible: true,
+        visibilityRule: "multiple-products",
+        width: "half",
+        tone: "surface",
+        eyebrow: "",
+        title: "Programme calculator",
+        body: "",
+        actionLabel: "",
+        actionHref: "",
+        items: [],
+        extension: {
+          enabled: true,
+          placement: "after-content",
+          title: "Programme calculator",
+          scopedCss: "",
+          html: '<output id="product-count"></output>',
+          css: "output { display: block; padding: 24px; }",
+          javascript: 'document.querySelector("#product-count").textContent = window.AQUA_PORTAL.productIds;',
+          minHeight: 180,
+        },
+      },
+    ];
+    draft.builder!.customPages.push({
+      id: "page-welcome-pack",
+      slug: "welcome-pack",
+      label: "Welcome pack",
+      visible: true,
+      blocks: [{
+        id: "welcome-copy",
+        type: "rich-text",
+        visible: true,
+        visibilityRule: "always",
+        width: "full",
+        tone: "surface",
+        eyebrow: "Start here",
+        title: "Welcome to your portal",
+        body: "A bespoke introduction for {firstName}.",
+        actionLabel: "",
+        actionHref: "",
+        items: [],
+      }, {
+        id: "welcome-image",
+        type: "image",
+        visible: true,
+        visibilityRule: "always",
+        responsive: { hideOnMobile: false, hideOnDesktop: false, spacing: "spacious", alignment: "center" },
+        width: "half",
+        tone: "surface",
+        eyebrow: "",
+        title: "Welcome image",
+        body: "",
+        actionLabel: "",
+        actionHref: "",
+        items: [],
+        media: { url: "https://example.test/welcome.jpg", alt: "Welcome pack cover", caption: "Prepared for the client", aspect: "portrait", fit: "contain" },
+      }, {
+        id: "welcome-video",
+        type: "video",
+        visible: true,
+        visibilityRule: "single-product",
+        responsive: { hideOnMobile: true, hideOnDesktop: false, spacing: "comfortable", alignment: "left" },
+        width: "half",
+        tone: "dark",
+        eyebrow: "",
+        title: "Welcome film",
+        body: "",
+        actionLabel: "",
+        actionHref: "",
+        items: [],
+        media: { url: "https://youtu.be/abc123", alt: "Welcome film", caption: "Watch before kickoff", aspect: "landscape", fit: "cover" },
+      }, {
+        id: "welcome-request",
+        type: "request-form",
+        visible: true,
+        visibilityRule: "specific-products",
+        productIds: ["product-photography", "product-website"],
+        productMatch: "any",
+        width: "full",
+        tone: "surface",
+        eyebrow: "Ask the team",
+        title: "Send a launch request",
+        body: "This joins the real client record.",
+        actionLabel: "Send to launch team",
+        actionHref: "",
+        requestType: "design-feedback",
+        items: [],
+      }, {
+        id: "welcome-approval",
+        type: "approval-panel",
+        visible: true,
+        visibilityRule: "always",
+        width: "half",
+        tone: "dark",
+        eyebrow: "Decision",
+        title: "Approve the design",
+        body: "Record an unambiguous answer.",
+        actionLabel: "",
+        actionHref: "",
+        approvalType: "design",
+        items: [],
+      }, {
+        id: "welcome-upload",
+        type: "file-upload",
+        visible: true,
+        visibilityRule: "always",
+        width: "half",
+        tone: "surface",
+        eyebrow: "Context",
+        title: "Upload inspiration",
+        body: "Keep source material with the project.",
+        actionLabel: "Upload inspiration",
+        actionHref: "",
+        uploadCategory: "inspiration",
+        items: [],
+      }],
+    });
+
+    const saved = designs.savePortalDesignDraft({ agencyId: agency.id, scope: "client", recordId: instance.id, document: draft, actorUserId });
+    assert.deepEqual(saved?.draft.builder?.pages.home?.map(block => block.type), ["hero", "system-content", "metrics", "product-hub", "custom-extension"]);
+    assert.equal(saved?.draft.builder?.pages.home?.[2]?.dataSource, "delivery");
+    assert.equal(saved?.draft.builder?.pages.home?.[3]?.visibilityRule, "with-products");
+    assert.equal(saved?.draft.builder?.pages.home?.[4]?.extension?.minHeight, 180);
+    assert.match(saved?.draft.builder?.pages.home?.[4]?.extension?.javascript ?? "", /productIds/);
+    assert.equal(saved?.draft.builder?.customPages[0]?.slug, "welcome-pack");
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[0]?.responsive.spacing, "comfortable");
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[1]?.media?.aspect, "portrait");
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[1]?.responsive.alignment, "center");
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[2]?.responsive.hideOnMobile, true);
+    assert.deepEqual(saved?.draft.builder?.customPages[0]?.blocks.slice(-3).map(block => block.type), ["request-form", "approval-panel", "file-upload"]);
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[3]?.requestType, "design-feedback");
+    assert.deepEqual(saved?.draft.builder?.customPages[0]?.blocks[3]?.productIds, ["product-photography", "product-website"]);
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[3]?.productMatch, "any");
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[4]?.approvalType, "design");
+    assert.equal(saved?.draft.builder?.customPages[0]?.blocks[5]?.uploadCategory, "inspiration");
+    assert.equal(saved?.published.builder?.customPages.length, 0);
+    assert.equal(tenants.getClientForAgency(agency.id, client.id)?.metadata?.files?.[0]?.name, "Brief.pdf");
+
+    const published = designs.publishPortalDesign({ agencyId: agency.id, scope: "client", recordId: instance.id, actorUserId, label: "Portal builder launch" });
+    assert.equal(published?.published.builder?.customPages[0]?.label, "Welcome pack");
+    assert.equal(published?.published.builder?.customPages[0]?.blocks[3]?.actionLabel, "Send to launch team");
+    assert.equal(published?.published.builder?.pages.home?.[0]?.title, "Your launch room");
+    assert.equal(published?.published.builder?.pages.home?.[4]?.visibilityRule, "multiple-products");
+  });
+
+  it("targets composed blocks to any or every selected product without weakening empty targeting", () => {
+    const block = portalBuilderTools.createPortalBlock("request-form", "targeted-request");
+    block.visibilityRule = "specific-products";
+    block.productIds = ["product-photography", "product-website"];
+    block.productMatch = "any";
+
+    assert.equal(portalBuilderTools.portalBlockMatchesProducts(block, ["product-photography"]), true);
+    assert.equal(portalBuilderTools.portalBlockMatchesProducts(block, ["product-brand"]), false);
+    block.productMatch = "all";
+    assert.equal(portalBuilderTools.portalBlockMatchesProducts(block, ["product-photography"]), false);
+    assert.equal(portalBuilderTools.portalBlockMatchesProducts(block, ["product-photography", "product-website"]), true);
+    block.productIds = [];
+    assert.equal(portalBuilderTools.portalBlockMatchesProducts(block, ["product-photography", "product-website"]), false);
   });
 
   it("gives each portal-enabled product an independent Stunning Standard template", async () => {
@@ -186,23 +425,63 @@ describe("client portal design versions", () => {
     assert.equal(restored?.draft.pages.results.title, "Product-only results draft");
     assert.equal(restored?.published.pages.results.title, originalPublishedResultsTitle);
   });
+
+  it("keeps published product freshness separate from a refreshed draft", async () => {
+    const { agency, actorUserId } = await fresh();
+    const product = agencyProducts.createAgencyProduct(agency.id, {
+      name: "Website care",
+      portalRequirement: "required",
+      portalTemplateKey: "ongoing-care",
+    }, actorUserId);
+    const template = designs.ensureProductPortalTemplate(agency.id, product, actorUserId);
+    const publishedSourceAtCreation = template.productSourceUpdatedAt;
+
+    await new Promise(resolve => setTimeout(resolve, 2));
+    const changedProduct = agencyProducts.updateAgencyProduct(agency.id, product.id, {
+      portalHeadline: "Your current care and improvement programme.",
+    }, actorUserId);
+    assert.ok(changedProduct);
+    assert.ok(changedProduct.updatedAt > (publishedSourceAtCreation ?? 0));
+
+    const refreshed = designs.refreshProductPortalTemplateFromMaster({
+      agencyId: agency.id,
+      templateId: template.id,
+      actorUserId,
+    });
+    assert.equal(refreshed?.draftProductSourceUpdatedAt, changedProduct.updatedAt);
+    assert.equal(refreshed?.productSourceUpdatedAt, publishedSourceAtCreation);
+
+    const published = designs.publishPortalDesign({
+      agencyId: agency.id,
+      scope: "template",
+      recordId: template.id,
+      actorUserId,
+      label: "Publish current product copy",
+    });
+    assert.equal(published?.productSourceUpdatedAt, changedProduct.updatedAt);
+  });
 });
 
 describe("client portal studio surface", () => {
   it("edits the real preview with lifecycle, page, device, brand, and version controls", async () => {
-    const [studio, editorPage, preview, portalData, chrome, views, workspace, route, setup] = await Promise.all([
+    const [studio, editorPage, preview, portalData, chrome, extension, composition, interactions, builder, views, customerRoute, workspace, route, setup] = await Promise.all([
       readFile(new URL("../src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/portals/editor/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/client-preview/[clientId]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_portalData.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_CustomerPortalChrome.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/customer/_PortalCustomExtension.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/customer/_PortalPageComposition.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/customer/_PortalInteractionBlocks.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/lib/clientPortalBuilder.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_CustomerPortalViews.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/customer/[...rest]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/portals/_PortalsWorkspace.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/portal/client-portal-design/route.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/server/clientPortalSetup.ts", import.meta.url), "utf8"),
     ]);
 
-    for (const label of ["Portal studio", "Template", "Client", "Lifecycle stage", "Portal page", "Content", "Pages", "Brand", "Versions", "Save draft", "Publish"]) {
+    for (const label of ["Portal studio", "Template", "Client", "Lifecycle stage", "Portal page", "Builder", "Content", "Pages", "Brand", "Code", "Versions", "Visual composition", "Add a portal component", "Custom portal layer", "Portal CSS", "JavaScript", "Save draft", "Publish"]) {
       assert.match(studio, new RegExp(label));
     }
     assert.match(studio, /\/client-preview\/\$\{clientId\}/);
@@ -221,7 +500,51 @@ describe("client portal studio surface", () => {
     assert.match(preview, /portalScope/);
     assert.match(preview, /portalMode/);
     assert.match(portalData, /resolveClientPortalDesign/);
+    assert.match(portalData, /productPresentations/);
     assert.match(chrome, /presentation\.pages/);
+    assert.match(chrome, /PortalCustomExtension/);
+    assert.match(extension, /sandbox="allow-downloads allow-forms allow-popups allow-scripts"/);
+    assert.doesNotMatch(extension, /allow-same-origin/);
+    assert.match(extension, /connect-src 'none'/);
+    assert.match(extension, /window\.AQUA_PORTAL/);
+    assert.match(composition, /data-portal-page-builder/);
+    assert.match(composition, /data\.files/);
+    assert.match(composition, /data\.invoices/);
+    assert.match(composition, /data\.products/);
+    assert.match(composition, /ProductHub/);
+    assert.match(composition, /portalBlockMatchesProducts/);
+    assert.match(composition, /productIds/);
+    assert.match(composition, /MediaBlock/);
+    assert.match(composition, /videoEmbedUrl/);
+    assert.match(composition, /responsiveBlockClass/);
+    assert.match(composition, /Boolean\(previewHrefPrefix\)/);
+    assert.match(interactions, /\/api\/tenants\/client-requests/);
+    assert.match(interactions, /\/api\/tenants\/client-approvals/);
+    assert.match(interactions, /\/api\/tenants\/client-files\/upload/);
+    assert.match(interactions, /Available in the live client portal/);
+    assert.match(builder, /CLIENT_PORTAL_BLOCK_REGISTRY/);
+    assert.match(builder, /system-content/);
+    assert.match(builder, /product-hub/);
+    assert.match(builder, /custom-extension/);
+    assert.match(builder, /multiple-products/);
+    assert.match(builder, /specific-products/);
+    assert.match(builder, /productMatch/);
+    assert.match(builder, /landscape/);
+    assert.match(builder, /hideOnMobile/);
+    assert.match(builder, /request-form/);
+    assert.match(builder, /approval-panel/);
+    assert.match(builder, /file-upload/);
+    assert.match(studio, /For multi-product bundles/);
+    assert.match(studio, /For selected products/);
+    assert.match(studio, /Every selected product/);
+    assert.match(studio, /PortalExtensionBlockEditor/);
+    assert.match(studio, /PortalMediaBlockEditor/);
+    assert.match(studio, /Hide on mobile/);
+    assert.match(studio, /Request flow/);
+    assert.match(studio, /Decisions shown/);
+    assert.match(studio, /File category/);
+    assert.match(customerRoute, /section === "page"/);
+    assert.match(customerRoute, /customPageSlug/);
     assert.match(views, /data\.presentation\.stages/);
     assert.match(workspace, /Stunning Standard/);
     assert.match(workspace, /> View portal/);

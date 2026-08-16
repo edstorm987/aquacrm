@@ -1,11 +1,11 @@
 "use client";
 
-import { Link2, Upload } from "lucide-react";
+import { Eye, EyeOff, Link2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatUkDate } from "@/lib/formatDateTime";
 
-export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "misc";
+export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "payment-plan" | "payment-proof" | "proposal" | "legal" | "misc";
 
 interface ClientFileRef {
   id: string;
@@ -14,6 +14,7 @@ interface ClientFileRef {
   category: FileCategory;
   uploadedBy?: string;
   uploadedAt: number;
+  customerVisible?: boolean;
 }
 
 const CATEGORY_META: Record<FileCategory, { label: string; emoji: string }> = {
@@ -26,10 +27,14 @@ const CATEGORY_META: Record<FileCategory, { label: string; emoji: string }> = {
   deliverable: { label: "Deliverables",     emoji: "📦" },
   invoice:     { label: "Invoices",         emoji: "🧾" },
   contract:    { label: "Contracts",        emoji: "✍️" },
+  "payment-plan": { label: "Payment Plans", emoji: "📅" },
+  "payment-proof": { label: "Payment Evidence", emoji: "✅" },
+  proposal:    { label: "Proposals",        emoji: "📄" },
+  legal:       { label: "Legal & Compliance", emoji: "⚖️" },
   misc:        { label: "Misc",             emoji: "📎" },
 };
 
-const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "misc"];
+const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "payment-plan", "payment-proof", "proposal", "legal", "misc"];
 
 function formatFileDate(ts: number): string {
   return formatUkDate(ts, {
@@ -56,8 +61,8 @@ export function FilesTabClient({
   const [busy, setBusy] = useState(false);
   const [addMode, setAddMode] = useState<"upload" | "link">("upload");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [draft, setDraft] = useState<{ name: string; url: string; category: FileCategory }>({
-    name: "", url: "", category: "deliverable",
+  const [draft, setDraft] = useState<{ name: string; url: string; category: FileCategory; customerVisible: boolean }>({
+    name: "", url: "", category: "deliverable", customerVisible: false,
   });
 
   const counts = useMemo(() => {
@@ -71,6 +76,10 @@ export function FilesTabClient({
       deliverable: 0,
       invoice: 0,
       contract: 0,
+      "payment-plan": 0,
+      "payment-proof": 0,
+      proposal: 0,
+      legal: 0,
       misc: 0,
     };
     for (const f of files) c[f.category] = (c[f.category] ?? 0) + 1;
@@ -92,6 +101,7 @@ export function FilesTabClient({
         const form = new FormData();
         form.set("clientId", clientId);
         form.set("category", draft.category);
+        form.set("customerVisible", draft.customerVisible ? "true" : "false");
         form.set("file", uploadFile);
         res = await fetch("/api/tenants/client-files/upload", { method: "POST", body: form });
       } else {
@@ -108,7 +118,7 @@ export function FilesTabClient({
       }
       if (data.files) setFiles(data.files);
       setUploadFile(null);
-      setDraft({ name: "", url: "", category: draft.category });
+      setDraft({ name: "", url: "", category: draft.category, customerVisible: draft.customerVisible });
       router.refresh();
     } finally {
       setBusy(false);
@@ -128,6 +138,27 @@ export function FilesTabClient({
       const data = await res.json() as { ok: boolean; error?: string; files?: ClientFileRef[] };
       if (!data.ok) {
         setError(data.error ?? "Delete failed.");
+        return;
+      }
+      if (data.files) setFiles(data.files);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setVisibility(file: ClientFileRef, customerVisible: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tenants/client-files", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId, action: "visibility", fileId: file.id, customerVisible }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string; files?: ClientFileRef[] };
+      if (!data.ok) {
+        setError(data.error ?? "Visibility could not be changed.");
         return;
       }
       if (data.files) setFiles(data.files);
@@ -195,11 +226,11 @@ export function FilesTabClient({
           >
             {addMode === "upload" ? (
               <label className="grid gap-1 text-[11px] text-black/45">
-                PDF, document, image, video or text · up to 12 MB
+                PDF, Office file, image, audio, video, archive or text · up to 50 MB
                 <input
                   type="file"
                   onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.csv,.txt,.mp4"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.heic,.csv,.txt,.mp3,.m4a,.wav,.mp4,.mov,.zip"
                   disabled={busy}
                   className="min-h-10 cursor-pointer rounded-md border border-black/15 bg-white px-2 py-1 text-sm file:mr-3 file:rounded file:border-0 file:bg-black/[0.05] file:px-3 file:py-1 file:text-xs"
                 />
@@ -243,6 +274,10 @@ export function FilesTabClient({
               {addMode === "upload" ? <Upload size={14} aria-hidden="true" /> : <Link2 size={14} aria-hidden="true" />}
               {busy ? "Adding..." : addMode === "upload" ? "Upload" : "Add link"}
             </button>
+            <label className="flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs text-black/62 sm:col-span-3">
+              <input type="checkbox" checked={draft.customerVisible} onChange={event => setDraft(current => ({ ...current, customerVisible: event.target.checked }))} />
+              Share this item in the customer portal. Recordings default to shared when no choice is supplied through an integration.
+            </label>
           </form>
           {error && <p role="alert" className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{error}</p>}
         </div>
@@ -275,9 +310,21 @@ export function FilesTabClient({
                     </span>
                     <span>{f.uploadedBy ?? "—"}</span>
                     <span>· {formatFileDate(f.uploadedAt)}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-px ${f.customerVisible === true ? "bg-emerald-50 text-emerald-700" : "bg-black/5 text-black/48"}`}>
+                      {f.customerVisible === true ? <Eye size={10} /> : <EyeOff size={10} />}
+                      {f.customerVisible === true ? "Shared with client" : "Private"}
+                    </span>
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void setVisibility(f, f.customerVisible !== true)}
+                    disabled={busy}
+                    className="rounded-md border border-black/15 px-2 py-1 text-[11px] hover:bg-black/5 disabled:opacity-50"
+                  >
+                    {f.customerVisible === true ? "Make private" : "Share"}
+                  </button>
                   <a
                     href={f.url}
                     target="_blank"

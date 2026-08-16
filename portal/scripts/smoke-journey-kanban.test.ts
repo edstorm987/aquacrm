@@ -26,5 +26,5 @@ test("Clients, contacts and the live Journey workspace share brand and service s
   assert.match(workspace, /const timingRows = scopedLeads/);
   assert.match(workspace, /companyId: form\.brandId \|\| undefined/);
   assert.match(workspace, /serviceLines: form\.serviceId \? \[form\.serviceId\] : undefined/);
-  assert.match(server, /cleanPortalProducts\(clientMetadata\.portalProducts \?\? clientMetadata\.products\)/);
+  assert.match(server, /resolvePortalProductAssignment\(clientMetadata, productCatalogue\)\.products/);
 });

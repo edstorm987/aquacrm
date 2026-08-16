@@ -410,7 +410,7 @@ export function PropertiesTabClient({
             </div>
             <h3 className="mt-3 text-xl font-medium">Create the working site, not a placeholder.</h3>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-white/58">
-              Milesymedia will create an editable project folder, install the starter, connect the client portal and monitoring tag, then make the first Git commit.
+              The provisioning flow will create an editable project folder, install the starter, connect the client portal and monitoring tag, then make the first Git commit.
             </p>
           </div>
           <Field label="Project name" htmlFor="provision-project-name" dark>

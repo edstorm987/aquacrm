@@ -15,6 +15,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { notifyBrandEnquiry } from "@/lib/server/enquiryNotifications";
 import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/publicSites";
 import { triggerAutomations } from "@/server/automations";
+import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
+import { upsertClientRecordLedgerEvent } from "@/lib/server/clientRecordLedger";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
@@ -335,6 +337,34 @@ export async function POST(req: NextRequest) {
       leadId = result.lead.id;
     }
 
+    const identityInput = {
+      agencyId: agency.id,
+      sourceType: "website-enquiry" as const,
+      sourceId: captured.id,
+      sourceLabel: `${brandDefinition.name} · ${name}`,
+      sourceHref: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${captured.id}`)}`,
+      name,
+      email: hasEmail ? email : undefined,
+      phone: hasPhone ? phone : undefined,
+      company: name,
+      leadId,
+    };
+    const identityResolution = resolveContactIdentity(identityInput);
+    upsertIdentityResolutionReview(identityInput, identityResolution);
+    if (identityResolution.clientId) {
+      upsertClientRecordLedgerEvent(agency.id, identityResolution.clientId, {
+        sourceType: "enquiry",
+        sourceId: `website-enquiry:${captured.id}`,
+        group: "messages",
+        title: `${channel === "chatbot" ? "Chat" : channel === "support" ? "Support" : "Website"} enquiry from ${name}`,
+        body: message || `Submitted via ${brandDefinition.name}.`,
+        occurredAt: Date.parse(capturedAt),
+        eyebrow: `${publicSite?.siteName ?? brandDefinition.name} · inbound · open`,
+        visibility: "inherent",
+        href: identityInput.sourceHref,
+      });
+    }
+
     logActivity({
       agencyId: agency.id,
       actorEmail: hasEmail ? email : undefined,
@@ -361,6 +391,8 @@ export async function POST(req: NextRequest) {
         enquiryId: captured.id,
         leadCreated: Boolean(leadId),
         leadId,
+        clientId: identityResolution.clientId,
+        identityStatus: identityResolution.status,
       },
     });
 
@@ -407,6 +439,16 @@ export async function POST(req: NextRequest) {
         leadId: leadId ?? null,
         leadCreated: Boolean(leadId),
         leadLinkedAt: leadId ? new Date().toISOString() : null,
+        clientId: identityResolution.clientId ?? null,
+        clientLinkedAt: identityResolution.clientId ? new Date(identityResolution.resolvedAt).toISOString() : null,
+        identityResolution: {
+          status: identityResolution.status,
+          confidence: identityResolution.confidence,
+          explanation: identityResolution.explanation,
+          clientId: identityResolution.clientId ?? null,
+          clientName: identityResolution.clientName ?? null,
+          resolvedAt: new Date(identityResolution.resolvedAt).toISOString(),
+        },
       } })
       .eq("id", captured.id);
 

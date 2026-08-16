@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/server/auth";
 import { summarizeClientTelemetry, type ClientTelemetryEvent } from "@/lib/clientTelemetry";
-import { cleanPortalProducts } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
 import { containerFor } from "@/built-ins/modules/agency-finance/src/server/foundationAdapter";
@@ -15,6 +15,7 @@ import { buildPerformanceAnalytics, type PerformanceEvent } from "@/lib/performa
 import { cleanMonthlyPerformanceReports } from "@/lib/performanceReports";
 import { ensureAgencyWebsite, summarizeAgencyWebsite } from "@/server/agencyWebsite";
 import { listPerformanceExperiments } from "@/server/performanceExperiments";
+import { listAgencyProducts } from "@/server/agencyProducts";
 
 interface StoredProperty {
   id: string;
@@ -46,6 +47,7 @@ export default async function PerformancePage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const clients = listClients(session.agencyId).filter(client => client.status === "active");
+  const productCatalogue = listAgencyProducts(session.agencyId, true);
   const milestones = listClientMilestones(session.agencyId);
   const money = new Map<string, { revenueCents: number; costCents: number }>();
   let agencyRevenueCents = 0;
@@ -84,7 +86,7 @@ export default async function PerformancePage() {
     const searchConsoleEvents = Array.isArray(metadata.searchConsoleEvents) ? metadata.searchConsoleEvents as PerformanceEvent[] : [];
     const analyticsEvents: PerformanceEvent[] = [...telemetryEvents, ...searchConsoleEvents];
     const telemetry = summarizeClientTelemetry(telemetryEvents);
-    const products = cleanPortalProducts(metadata.portalProducts);
+    const products = resolvePortalProductAssignment(metadata, productCatalogue).products;
     const properties = Array.isArray(metadata.properties) ? metadata.properties as StoredProperty[] : [];
     const files = Array.isArray(metadata.files) ? metadata.files as StoredFile[] : [];
     const approvals = Array.isArray(metadata.portalApprovals) ? metadata.portalApprovals as StoredApproval[] : [];

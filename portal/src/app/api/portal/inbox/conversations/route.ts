@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireRole, authErrorResponse } from "@/lib/server/auth";
 import { listInboxSnapshot, updateInboxConversation, updateInboxIdentityLinks } from "@/lib/server/inboxStore";
-import { ensureHydrated } from "@/server/storage";
+import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
 
 export async function GET() {
   await ensureHydrated();
@@ -34,6 +36,38 @@ export async function PATCH(request: NextRequest) {
       const identity = await updateInboxIdentityLinks(session.agencyId, body.identityId, {
         leadId: clean(body.leadId), contactId: clean(body.contactId), clientId: clean(body.clientId),
       });
+      const identityInput = {
+        agencyId: session.agencyId,
+        sourceType: "social-inbox" as const,
+        sourceId: identity.id,
+        sourceLabel: identity.displayName,
+        sourceHref: "/portal/agency/inbox?view=all",
+        name: identity.displayName,
+        clientId: identity.clientId,
+        leadId: identity.leadId,
+        contactId: identity.contactId,
+      };
+      upsertIdentityResolutionReview(identityInput, resolveContactIdentity(identityInput));
+      if (identity.clientId) {
+        const snapshot = await listInboxSnapshot(session.agencyId);
+        for (const conversation of snapshot.conversations.filter(item => item.identity.id === identity.id)) {
+          for (const message of conversation.messages.filter(item => item.direction !== "internal")) {
+            upsertClientSocialMessageLedgerEvent(session.agencyId, identity.clientId, {
+              conversationId: conversation.id,
+              messageId: message.id,
+              channel: conversation.connection.channel,
+              accountName: conversation.connection.displayName,
+              participantName: identity.displayName,
+              text: message.text,
+              attachmentCount: message.attachments.length,
+              sentAt: message.sentAt,
+              direction: message.direction === "inbound" ? "inbound" : "outbound",
+              status: message.status,
+            });
+          }
+        }
+        await flushPendingWrites();
+      }
       return NextResponse.json({ ok: true, identity });
     }
     if (!body.conversationId) return NextResponse.json({ ok: false, error: "conversation_id_required" }, { status: 400 });

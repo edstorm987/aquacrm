@@ -30,6 +30,8 @@ import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { formatUkDate } from "@/lib/formatDateTime";
+import { cleanClientPaymentPlans, paymentPlanPaid, paymentPlanTotal } from "@/lib/clientPaymentPlans";
+import { clientRelationshipId } from "@/server/clientRelationships";
 
 export interface GlobalSearchResult {
   id: string;
@@ -152,6 +154,11 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
   const state = getState();
   const clients = listClients(agencyId, { includeArchived: true });
   const clientById = new Map(clients.map(client => [client.id, client]));
+  const relationshipWorkspaceCounts = clients.reduce((counts, client) => {
+    const relationshipId = clientRelationshipId(client);
+    counts.set(relationshipId, (counts.get(relationshipId) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
   const candidates: Candidate[] = [];
   const company = state.companyProfiles[agencyId] ? getCompanyProfile(agencyId) : undefined;
 
@@ -243,13 +250,16 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
     const metadata = client.metadata ?? {};
     const businessName = text(metadata.businessName);
     const contactName = text(metadata.contactName);
+    const workspaceLabel = client.workspaceLabel?.trim();
+    const relationshipWorkspaceCount = relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1;
+    const clientContext = workspaceLabel ? `${client.name} · ${workspaceLabel}` : client.name;
     push(candidates, {
       id: client.id,
       category: "Client",
       title: client.name,
-      subtitle: [businessName && businessName !== client.name ? businessName : "", client.ownerEmail, readable(client.stage)].filter(Boolean).join(" · "),
+      subtitle: [workspaceLabel ? `Project: ${workspaceLabel}` : "", relationshipWorkspaceCount > 1 ? `Linked buyer · ${relationshipWorkspaceCount} workspaces` : "", businessName && businessName !== client.name ? businessName : "", client.ownerEmail, readable(client.stage)].filter(Boolean).join(" · "),
       href: `/portal/clients/${client.id}`,
-    }, [client.slug, client.websiteUrl, text(metadata.leadSource), text(metadata.portalServicePlan), safeSerialise(metadata)]);
+    }, [client.slug, client.websiteUrl, workspaceLabel, client.relationshipId, text(metadata.leadSource), text(metadata.portalServicePlan), safeSerialise(metadata)]);
 
     const linkedContacts = Array.isArray(metadata.linkedContacts) ? metadata.linkedContacts : [];
     for (const value of linkedContacts) {
@@ -260,7 +270,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
         id: `${client.id}:${text(value.id) || name}`,
         category: "Contact",
         title: name,
-        subtitle: [text(value.role), client.name, text(value.email), text(value.phone)].filter(Boolean).join(" · "),
+        subtitle: [text(value.role), clientContext, text(value.email), text(value.phone)].filter(Boolean).join(" · "),
         href: `/portal/clients/${client.id}?tab=overview`,
       });
     }
@@ -269,12 +279,29 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
         id: `${client.id}:primary`,
         category: "Contact",
         title: contactName,
-        subtitle: [client.name, client.ownerEmail].filter(Boolean).join(" · "),
+        subtitle: [clientContext, client.ownerEmail].filter(Boolean).join(" · "),
         href: `/portal/clients/${client.id}?tab=overview`,
       });
     }
 
-    addNestedClientCandidates(candidates, client.id, client.name, metadata);
+    addNestedClientCandidates(candidates, client.id, clientContext, metadata);
+
+    for (const plan of cleanClientPaymentPlans(metadata.clientPaymentPlans)) {
+      push(candidates, {
+        id: `client-payment-plan:${client.id}:${plan.id}`,
+        category: "Invoice",
+        title: plan.title,
+        subtitle: [clientContext, "Payment plan", readable(plan.status), money(paymentPlanPaid(plan), plan.currency), "of", money(paymentPlanTotal(plan), plan.currency)].filter(Boolean).join(" · "),
+        href: `/portal/clients/${client.id}?tab=finance`,
+        timestamp: plan.updatedAt,
+      }, [
+        plan.summary,
+        plan.internalNotes,
+        plan.productIds.join(" "),
+        plan.milestones.map(milestone => `${milestone.title} ${milestone.description ?? ""} ${milestone.productName ?? ""} ${milestone.invoiceNumber ?? ""} ${milestone.status} ${milestone.dueAt}`).join(" "),
+        "payment schedule instalment installment commercial contract billing",
+      ], { matchLabel: "Client payment plan", timestamp: plan.updatedAt });
+    }
 
     const clientMarketing = cleanClientMarketingService(metadata.clientMarketingService);
     for (const profile of clientMarketing.profiles) {
@@ -282,7 +309,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
         id: `client-marketing-profile:${client.id}:${profile.id}`,
         category: "Campaign",
         title: `${profile.platform} · ${profile.handle}`,
-        subtitle: `${client.name} · Social profile · ${readable(profile.status)}`,
+        subtitle: `${clientContext} · Social profile · ${readable(profile.status)}`,
         href: `/portal/clients/${client.id}?tab=marketing`,
       }, [profile.owner, profile.url]);
     }
@@ -291,7 +318,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
         id: `client-marketing-content:${client.id}:${content.id}`,
         category: "Campaign",
         title: content.title,
-        subtitle: `${client.name} · ${content.platform} ${content.format} · ${readable(content.status)} · ${readable(content.approval)}`,
+        subtitle: `${clientContext} · ${content.platform} ${content.format} · ${readable(content.status)} · ${readable(content.approval)}`,
         href: `/portal/clients/${client.id}?tab=marketing`,
         timestamp: content.updatedAt,
       }, [content.notes, content.clientFeedback, content.publishedUrl]);
@@ -301,7 +328,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
         id: `client-marketing-campaign:${client.id}:${campaign.id}`,
         category: "Campaign",
         title: campaign.name,
-        subtitle: `${client.name} · ${campaign.platform} · ${readable(campaign.status)} · ${campaign.leads} leads · ${campaign.conversions} conversions`,
+        subtitle: `${clientContext} · ${campaign.platform} · ${readable(campaign.status)} · ${campaign.leads} leads · ${campaign.conversions} conversions`,
         href: `/portal/clients/${client.id}?tab=marketing`,
         timestamp: campaign.updatedAt,
       }, [campaign.objective, campaign.notes, campaign.clientFeedback]);
@@ -315,7 +342,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
       push(candidates, {
         id: `${client.id}:${text(value.id) || message}`,
         category: "Request",
-        title: `${readable(type)} · ${client.name}`,
+        title: `${readable(type)} · ${clientContext}`,
         subtitle: [readable(text(value.status) || "open"), message.slice(0, 100)].filter(Boolean).join(" · "),
         href: `/portal/clients/${client.id}?tab=overview`,
       }, [text(value.link), text(value.submittedBy)]);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
 import { createAgencyProduct, ensureDefaultAgencyProducts, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
+import { ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type AgencyProductKind, type AgencyProductPortalMode, type AgencyProductPortalRequirement, type AgencyProductPortalTemplateKey, type AgencyProductPricing } from "@/server/types";
 
@@ -99,7 +100,14 @@ export async function POST(request: Request) {
         ? updateAgencyProduct(session.agencyId, body.productId, input, session.userId)
         : null;
     if (!product) return NextResponse.json({ ok: false, error: "product not found" }, { status: 404 });
-    return NextResponse.json({ ok: true, product });
+    const portalTemplate = product.portalRequirement !== "none"
+      ? ensureProductPortalTemplate(session.agencyId, product, session.userId)
+      : null;
+    return NextResponse.json({ ok: true, product, portalTemplate: portalTemplate ? {
+      id: portalTemplate.id,
+      publishedVersionId: portalTemplate.publishedVersionId,
+      productSourceUpdatedAt: portalTemplate.productSourceUpdatedAt,
+    } : null });
   } catch (error) {
     return authErrorResponse(error);
   }

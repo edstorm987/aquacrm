@@ -35,6 +35,9 @@ export default async function CustomerPluginCatchAll({ params, searchParams }: R
   if (section === "service" && rest.length >= 2 && rest.length <= 3) {
     return <CustomerPortalView section="service" productId={rest[1]} moduleId={rest[2]} />;
   }
+  if (section === "page" && rest.length === 2) {
+    return <CustomerPortalView section="custom" customPageSlug={rest[1]} />;
+  }
   const fixedSections: CustomerPortalSection[] = ["project", "results", "files", "billing", "support", "resources", "details"];
   if (rest.length === 1 && fixedSections.includes(section as CustomerPortalSection)) {
     return <CustomerPortalView section={section as CustomerPortalSection} />;

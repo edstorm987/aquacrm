@@ -114,6 +114,7 @@ export function clientDeliveryPackageMetadata(input: {
       ? `${productNames.join(", ")} delivered through one clear AquaCRM workspace.`
       : "A tailored Milesymedia service delivered through one clear workspace.",
     portalPlanIncludes: planIncludes,
+    portalProductIds: products.map(product => product.id),
     portalProducts: products,
     portalBillingCadence: billingCadence,
     agreedProjectValue: projectValue || undefined,

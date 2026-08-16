@@ -351,7 +351,10 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
             <summary className="cursor-pointer text-sm font-semibold text-black/75">Products in this package</summary>
             <p className="mt-1 text-xs leading-5 text-black/45">Bundle existing products while keeping package pricing, contract, portal and welcome experience editable.</p>
             <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto rounded-md border border-black/10 p-3">
-              {products.filter(product => product.id !== form.id && product.kind !== "package").map(product => <label key={product.id} className="flex items-start gap-2 text-sm text-black/65"><input className="mt-1" type="checkbox" checked={form.includedProductIds.includes(product.id)} onChange={() => setForm(value => ({ ...value, includedProductIds: value.includedProductIds.includes(product.id) ? value.includedProductIds.filter(id => id !== product.id) : [...value.includedProductIds, product.id] }))} /><span><strong className="font-medium text-black/75">{product.name}</strong><span className="block text-[11px] text-black/40">{product.category}</span></span></label>)}
+              {products.filter(product => product.id !== form.id && product.kind !== "package" && (product.active || form.includedProductIds.includes(product.id))).map(product => {
+                const included = form.includedProductIds.includes(product.id);
+                return <label key={product.id} className={`flex items-start gap-2 text-sm text-black/65 ${!product.active && !included ? "opacity-45" : ""}`}><input className="mt-1" type="checkbox" checked={included} disabled={!product.active && !included} onChange={() => setForm(value => ({ ...value, includedProductIds: value.includedProductIds.includes(product.id) ? value.includedProductIds.filter(id => id !== product.id) : [...value.includedProductIds, product.id] }))} /><span><strong className="font-medium text-black/75">{product.name}</strong>{!product.active ? <span className="ml-2 text-[9px] font-semibold uppercase text-red-600">Archived</span> : null}<span className="block text-[11px] text-black/40">{product.category}</span></span></label>;
+              })}
             </div>
           </details> : null}
 

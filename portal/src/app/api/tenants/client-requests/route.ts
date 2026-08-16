@@ -9,6 +9,8 @@ import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/
 import { triggerAutomations } from "@/server/automations";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inboxMedia";
+import { cleanClientRequests } from "@/lib/clientRequests";
+import { synchroniseClientRequestLedgerEvents } from "@/lib/server/clientRecordLedger";
 
 export type ClientRequestType = "suggestion" | "design-feedback" | "support-ticket" | "cancel" | "move-provider";
 
@@ -64,6 +66,13 @@ function makeId(): string {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function clientEmailSet(client: { ownerEmail?: string; metadata?: Record<string, unknown> }): Set<string> {
+  const metadata = client.metadata ?? {};
+  return new Set([client.ownerEmail, metadata.portalLoginEmail, metadata.clientEmail]
+    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    .map(value => value.trim().toLowerCase()));
+}
+
 export async function POST(req: Request) {
   try {
     await ensureHydrated();
@@ -80,7 +89,7 @@ export async function POST(req: Request) {
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
     const meta = (client.metadata ?? {}) as { clientRequests?: ClientRequest[]; properties?: ClientProperty[] };
-    const requests: ClientRequest[] = Array.isArray(meta.clientRequests) ? [...meta.clientRequests] : [];
+    const requests = cleanClientRequests(meta.clientRequests);
     const properties = Array.isArray(meta.properties) ? meta.properties : [];
     const propertyId = body.propertyId?.trim();
     const property = propertyId ? properties.find(item => item.id === propertyId) : undefined;
@@ -107,6 +116,7 @@ export async function POST(req: Request) {
     requests.unshift(item);
     const updated = updateClient(session.agencyId, body.clientId, { metadata: { clientRequests: requests } });
     if (!updated) return NextResponse.json({ ok: false, error: "update failed" }, { status: 500 });
+    synchroniseClientRequestLedgerEvents(session.agencyId, client.id, item, clientEmailSet(client));
 
     logActivity({
       agencyId: session.agencyId,
@@ -183,7 +193,7 @@ export async function PATCH(req: Request) {
     if (attachments.some(attachment => verifyInboxMediaToken(attachment.token)?.agencyId !== session.agencyId)) return NextResponse.json({ ok: false, error: "An attachment is invalid." }, { status: 400 });
 
     const meta = (client.metadata ?? {}) as { clientRequests?: ClientRequest[] };
-    const requests = Array.isArray(meta.clientRequests) ? [...meta.clientRequests] : [];
+    const requests = cleanClientRequests(meta.clientRequests);
     const existing = requests.find(item => item.id === body.requestId);
     if (!existing) return NextResponse.json({ ok: false, error: "request not found" }, { status: 404 });
 
@@ -210,6 +220,7 @@ export async function PATCH(req: Request) {
     const next = requests.map(item => item.id === changed.id ? changed : item);
     const updated = updateClient(session.agencyId, client.id, { metadata: { clientRequests: next } });
     if (!updated) return NextResponse.json({ ok: false, error: "update failed" }, { status: 500 });
+    synchroniseClientRequestLedgerEvents(session.agencyId, client.id, changed, clientEmailSet(client));
 
     logActivity({
       agencyId: session.agencyId,
@@ -223,6 +234,8 @@ export async function PATCH(req: Request) {
         : `${session.email} marked ${client.name}'s ${existing.type.replaceAll("-", " ")} request ${nextStatus}.`,
       metadata: { requestId: existing.id, requestType: existing.type },
     });
+
+    await flushPendingWrites();
 
     return NextResponse.json({ ok: true, request: changed, requests: next });
   } catch (error) {

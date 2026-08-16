@@ -3,6 +3,7 @@ import "server-only";
 import type { AdvisorSkill } from "@/lib/advisorSkills";
 import { listClients } from "@/server/tenants";
 import { buildAdvisorContext } from "./advisorContext";
+import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
 
 export async function buildAdvisorSkillContext(
   agencyId: string,
@@ -44,7 +45,7 @@ export async function buildAdvisorSkillContext(
       commercialLifecycle: radar.commercial,
       clients: listClients(agencyId).slice(0, skill.maxRecords).map(client => ({
         id: client.id,
-        name: client.name,
+        name: clientWorkspaceDisplayName(client),
         stage: client.stage,
         status: client.status,
         updatedAt: client.updatedAt,

@@ -90,6 +90,10 @@ export interface ClientEndCustomerConfig {
 export interface Client {
   id: string;
   agencyId: string;
+  // A relationship can own several isolated client workspaces. Each
+  // workspace keeps its own products, delivery, finance and portal data.
+  relationshipId?: string;
+  workspaceLabel?: string;
   companyId?: string;
   name: string;
   slug: string;
@@ -320,6 +324,101 @@ export interface ActivityEntry {
   action: string;                // verb, e.g. "client.created"
   message: string;
   metadata?: Record<string, unknown>;
+}
+
+export type ClientRecordLedgerGroup = "messages" | "notes" | "calls" | "commercial" | "delivery" | "files" | "activity";
+export type ClientRecordLedgerVisibility = "internal" | "client" | "inherent" | "system";
+export type ClientRecordLedgerAttention = "critical" | "warning";
+export type ClientRecordLedgerSource = "record-entry" | "enquiry" | "message" | "call" | "file" | "activity" | "contract" | "invoice" | "payment-plan" | "delivery";
+
+export interface ClientRecordLedgerEvent {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  sourceType: ClientRecordLedgerSource;
+  sourceId: string;
+  group: ClientRecordLedgerGroup;
+  title: string;
+  body?: string;
+  occurredAt: number;
+  eyebrow: string;
+  visibility: ClientRecordLedgerVisibility;
+  href?: string;
+  attention?: ClientRecordLedgerAttention;
+  parentSourceId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ClientRecordLedgerPage {
+  events: ClientRecordLedgerEvent[];
+  nextCursor?: string;
+  hasMore: boolean;
+  total: number;
+  retainedTotal: number;
+  counts: Record<"all" | ClientRecordLedgerGroup, number>;
+  summary: {
+    shared: number;
+    canonical: number;
+    attention: number;
+    dateReview: number;
+  };
+}
+
+export type IdentityResolutionSource = "website-enquiry" | "social-inbox" | "lead" | "contact";
+export type IdentityResolutionStatus = "resolved" | "ambiguous" | "unmatched";
+export type IdentityReviewStatus = "pending" | "linked" | "auto-linked" | "parked" | "dismissed";
+
+export interface IdentityResolutionReason {
+  kind: "explicit" | "crm-id" | "email" | "phone" | "name" | "company" | "email-domain";
+  label: string;
+  detail: string;
+  weight: number;
+}
+
+export interface IdentityResolutionCandidate {
+  clientId: string;
+  clientName: string;
+  clientContactId?: string;
+  confidence: number;
+  reasons: IdentityResolutionReason[];
+}
+
+export interface IdentityResolutionResult {
+  status: IdentityResolutionStatus;
+  confidence: number;
+  clientId?: string;
+  clientName?: string;
+  clientContactId?: string;
+  leadId?: string;
+  contactId?: string;
+  candidates: IdentityResolutionCandidate[];
+  explanation: string;
+  resolvedAt: number;
+}
+
+export interface IdentityResolutionReview {
+  id: string;
+  agencyId: string;
+  sourceType: IdentityResolutionSource;
+  sourceId: string;
+  sourceLabel: string;
+  sourceHref?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  leadId?: string;
+  contactId?: string;
+  status: IdentityReviewStatus;
+  resolution: IdentityResolutionResult;
+  selectedClientId?: string;
+  decisionNote?: string;
+  parkedUntil?: number;
+  decidedBy?: string;
+  decidedAt?: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // Phases are seeded with 6 defaults but stored as data so each agency can
@@ -1298,6 +1397,111 @@ export interface ClientPortalPagePresentation {
   body: string;
 }
 
+export type ClientPortalExtensionPlacement = "before-content" | "after-content";
+
+export interface ClientPortalCustomCode {
+  enabled: boolean;
+  placement: ClientPortalExtensionPlacement;
+  title: string;
+  scopedCss: string;
+  html: string;
+  css: string;
+  javascript: string;
+  minHeight: number;
+}
+
+export type ClientPortalBlockType =
+  | "system-content"
+  | "hero"
+  | "rich-text"
+  | "callout"
+  | "image"
+  | "video"
+  | "metrics"
+  | "service-grid"
+  | "product-hub"
+  | "file-list"
+  | "activity"
+  | "request-form"
+  | "approval-panel"
+  | "file-upload"
+  | "link-list"
+  | "custom-extension"
+  | "divider";
+
+export type ClientPortalBlockWidth = "full" | "half";
+export type ClientPortalBlockTone = "surface" | "dark" | "accent" | "quiet";
+export type ClientPortalBlockDataSource = "portal-summary" | "delivery" | "billing" | "results";
+export type ClientPortalBlockVisibilityRule = "always" | "with-products" | "without-products" | "single-product" | "multiple-products" | "specific-products";
+export type ClientPortalProductMatch = "any" | "all";
+export type ClientPortalBlockSpacing = "none" | "compact" | "comfortable" | "spacious";
+export type ClientPortalBlockAlignment = "left" | "center";
+export type ClientPortalMediaAspect = "landscape" | "square" | "portrait";
+export type ClientPortalMediaFit = "cover" | "contain";
+export type ClientPortalRequestType = "choose" | "suggestion" | "design-feedback" | "support-ticket" | "cancel" | "move-provider";
+export type ClientPortalApprovalType = "all" | "design" | "launch";
+export type ClientPortalUploadCategory = "brief" | "recording" | "inspiration" | "design-feedback" | "misc";
+
+export interface ClientPortalBlockResponsive {
+  hideOnMobile: boolean;
+  hideOnDesktop: boolean;
+  spacing: ClientPortalBlockSpacing;
+  alignment: ClientPortalBlockAlignment;
+}
+
+export interface ClientPortalBlockMedia {
+  url: string;
+  alt: string;
+  caption: string;
+  aspect: ClientPortalMediaAspect;
+  fit: ClientPortalMediaFit;
+}
+
+export interface ClientPortalBlockItem {
+  id: string;
+  label: string;
+  detail: string;
+  href?: string;
+  imageUrl?: string;
+}
+
+export interface ClientPortalPageBlock {
+  id: string;
+  type: ClientPortalBlockType;
+  visible: boolean;
+  visibilityRule: ClientPortalBlockVisibilityRule;
+  productIds: string[];
+  productMatch: ClientPortalProductMatch;
+  responsive: ClientPortalBlockResponsive;
+  width: ClientPortalBlockWidth;
+  tone: ClientPortalBlockTone;
+  eyebrow: string;
+  title: string;
+  body: string;
+  actionLabel: string;
+  actionHref: string;
+  dataSource?: ClientPortalBlockDataSource;
+  requestType?: ClientPortalRequestType;
+  approvalType?: ClientPortalApprovalType;
+  uploadCategory?: ClientPortalUploadCategory;
+  items: ClientPortalBlockItem[];
+  media?: ClientPortalBlockMedia;
+  extension?: ClientPortalCustomCode;
+}
+
+export interface ClientPortalCustomPage {
+  id: string;
+  slug: string;
+  label: string;
+  visible: boolean;
+  blocks: ClientPortalPageBlock[];
+}
+
+export interface ClientPortalBuilderDocument {
+  pages: Partial<Record<ClientPortalSectionId, ClientPortalPageBlock[]>>;
+  customPages: ClientPortalCustomPage[];
+}
+
 export interface ClientPortalDesignDocument {
   schemaVersion: 1;
   theme: {
@@ -1325,6 +1529,8 @@ export interface ClientPortalDesignDocument {
     careBody: string;
     careButtonLabel: string;
   };
+  builder?: ClientPortalBuilderDocument;
+  customCode?: ClientPortalCustomCode;
 }
 
 export interface ClientPortalDesignVersion {
@@ -1345,6 +1551,8 @@ export interface ClientPortalTemplateRecord {
   baseTemplateId?: string;
   baseTemplateVersionId?: string;
   productLifecycleSeedVersion?: number;
+  draftProductSourceUpdatedAt?: number;
+  productSourceUpdatedAt?: number;
   draft: ClientPortalDesignDocument;
   published: ClientPortalDesignDocument;
   publishedVersionId: string;
@@ -2135,6 +2343,8 @@ export interface PortalState {
   pluginData: Record<string, Record<string, unknown>>; // installId → key → value
   phases: Record<string, PhaseDefinition>;
   activity: ActivityEntry[];
+  clientRecordLedger: Record<string, ClientRecordLedgerEvent>;
+  identityResolutionReviews: Record<string, IdentityResolutionReview>;
   // T1 R034 — multi-pipeline kanban model. Optional in parsed blobs
   // (legacy state lacks these fields); storage parser injects defaults.
   pipelines: Record<string, Pipeline>;

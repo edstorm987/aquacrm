@@ -12,6 +12,7 @@ import { logActivity } from "@/server/activity";
 import { flushPendingWrites, getState } from "@/server/storage";
 import type { ExternalAssistantApiPermission, PortalState } from "@/server/types";
 import { isoDateTimeValue } from "@/lib/formatDateTime";
+import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
 
 const SECRET_KEY = /(password|secret|token|api[-_]?key|cookie|authorization|credential|hash|nonce)/i;
 const STORED_FILE_KEY = /(avatar|base64|fileContent|contentBase64|dataUrl)/i;
@@ -222,7 +223,7 @@ export function listExternalAssistantRecords(
 
   switch (module) {
     case "clients":
-      return clients.map(client => record(module, client.id, client.name, client));
+      return clients.map(client => record(module, client.id, clientWorkspaceDisplayName(client), client));
     case "contacts":
       return clientContacts(clients);
     case "staff":
@@ -438,6 +439,7 @@ export function sanitizeExternalData(value: unknown, depth = 0, key = ""): unkno
 
 function clientContacts(clients: PortalState["clients"][string][]): ExternalAssistantRecord[] {
   return clients.flatMap(client => {
+    const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = client.metadata ?? {};
     const linked = Array.isArray(metadata.linkedContacts) ? metadata.linkedContacts : [];
     const contacts = linked
@@ -446,7 +448,7 @@ function clientContacts(clients: PortalState["clients"][string][]): ExternalAssi
         "contacts",
         String(contact.id || `${client.id}-contact-${index + 1}`),
         String(contact.name || contact.email || `Contact ${index + 1}`),
-        { ...contact, clientId: client.id, clientName: client.name },
+        { ...contact, clientId: client.id, clientName: clientLabel },
       ));
     const contactName = typeof metadata.contactName === "string" ? metadata.contactName : "";
     const primaryTitle = contactName || client.ownerEmail || "";
@@ -456,7 +458,7 @@ function clientContacts(clients: PortalState["clients"][string][]): ExternalAssi
     ))) {
       contacts.unshift(record("contacts", `${client.id}-primary`, primaryTitle, {
         clientId: client.id,
-        clientName: client.name,
+        clientName: clientLabel,
         name: contactName,
         email: client.ownerEmail,
         primary: true,

@@ -5,6 +5,13 @@ import { isWebsiteEnquiryClassification, type WebsiteEnquiryClassification } fro
 import { publicAquaSite, publicAquaSiteName, resolvePublicAquaSite } from "@/lib/publicSites";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
+import {
+  resolveContactIdentity,
+  upsertIdentityResolutionReview,
+  type IdentityResolutionInput,
+} from "@/lib/server/identityResolution";
+import { synchroniseClientRecordLedger } from "@/lib/server/clientRecordLedger";
+import type { IdentityResolutionResult, IdentityResolutionStatus } from "@/server/types";
 
 export type WebsiteEnquiryChannel = "form" | "chatbot" | "support";
 export type WebsiteEnquiryPriority = "urgent" | "high" | "normal";
@@ -80,6 +87,10 @@ export interface WebsiteEnquiry {
   submittedAt: number;
   leadId?: string;
   contactId?: string;
+  clientId?: string;
+  identityStatus?: IdentityResolutionStatus;
+  identityConfidence?: number;
+  identityExplanation?: string;
   leadLinkedAt?: number;
   reviewedAt?: number;
   resolvedAt?: number;
@@ -254,6 +265,118 @@ export async function recordWebsiteEnquiryResponse(enquiryId: string, respondedA
   return !updateError;
 }
 
+export async function synchroniseWebsiteEnquiryIdentities(
+  agencyId: string,
+  enquiries: WebsiteEnquiry[],
+): Promise<WebsiteEnquiry[]> {
+  const reconciled: WebsiteEnquiry[] = [];
+  for (const enquiry of enquiries) {
+    if (enquiry.classification === "spam") {
+      reconciled.push(enquiry);
+      continue;
+    }
+    const input: IdentityResolutionInput = {
+      agencyId,
+      sourceType: "website-enquiry",
+      sourceId: enquiry.id,
+      sourceLabel: `${enquiry.siteName} · ${enquiry.name}`,
+      sourceHref: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${enquiry.id}`)}`,
+      name: enquiry.name,
+      email: enquiry.email,
+      phone: enquiry.phone,
+      company: enquiry.name,
+      clientId: enquiry.clientId,
+      leadId: enquiry.leadId,
+      contactId: enquiry.contactId,
+    };
+    const resolution = resolveContactIdentity(input);
+    upsertIdentityResolutionReview(input, resolution);
+    const next: WebsiteEnquiry = {
+      ...enquiry,
+      clientId: resolution.clientId ?? enquiry.clientId,
+      identityStatus: resolution.status,
+      identityConfidence: resolution.confidence,
+      identityExplanation: resolution.explanation,
+    };
+    if (resolution.clientId) {
+      synchroniseWebsiteEnquiryLedgerEvents(agencyId, resolution.clientId, next);
+      if (enquiry.clientId !== resolution.clientId || enquiry.identityStatus !== resolution.status) {
+        await recordWebsiteEnquiryIdentityResolution(enquiry.id, resolution);
+      }
+    }
+    reconciled.push(next);
+  }
+  return reconciled;
+}
+
+export function synchroniseWebsiteEnquiryLedgerEvents(agencyId: string, clientId: string, enquiry: WebsiteEnquiry) {
+  const href = `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${enquiry.id}`)}`;
+  return synchroniseClientRecordLedger({
+    agencyId,
+    clientId,
+    events: [
+      {
+        sourceType: "enquiry",
+        sourceId: `website-enquiry:${enquiry.id}`,
+        group: "messages",
+        title: `${enquiry.channel === "chatbot" ? "Chat" : enquiry.channel === "support" ? "Support" : "Website"} enquiry from ${enquiry.name}`,
+        body: enquiry.message || `Submitted via ${enquiry.siteName}.`,
+        occurredAt: enquiry.submittedAt,
+        eyebrow: `${enquiry.siteName} · inbound · ${enquiry.status}`,
+        visibility: "inherent",
+        href,
+        attention: enquiry.priority === "urgent" ? "critical" : enquiry.priority === "high" ? "warning" : undefined,
+      },
+      ...enquiry.replies.map(reply => ({
+        sourceType: "message" as const,
+        sourceId: `website-enquiry:${enquiry.id}:reply:${reply.id}`,
+        group: "messages" as const,
+        title: `${reply.channel.toUpperCase()} reply to ${enquiry.name}`,
+        body: reply.message,
+        occurredAt: reply.sentAt,
+        eyebrow: `${reply.senderLabel || reply.sentBy} · outbound · ${reply.status}`,
+        visibility: "inherent" as const,
+        href,
+        parentSourceId: `website-enquiry:${enquiry.id}`,
+      })),
+      ...enquiry.calls.map(call => ({
+        sourceType: "call" as const,
+        sourceId: `website-enquiry:${enquiry.id}:call:${call.id}`,
+        group: "calls" as const,
+        title: `Call with ${enquiry.name}`,
+        body: [call.outcome ? `Outcome: ${call.outcome.replaceAll("-", " ")}.` : undefined, call.notes, call.recording ? `Recording: ${call.recording.fileName}` : undefined].filter(Boolean).join(" ") || "Call logged.",
+        occurredAt: call.startedAt,
+        eyebrow: `${call.senderLabel} · ${call.status}${call.durationSeconds ? ` · ${Math.ceil(call.durationSeconds / 60)} min` : ""}`,
+        visibility: "internal" as const,
+        href,
+        parentSourceId: `website-enquiry:${enquiry.id}`,
+      })),
+    ],
+  });
+}
+
+export async function recordWebsiteEnquiryIdentityResolution(enquiryId: string, resolution: IdentityResolutionResult): Promise<boolean> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.from("brand_enquiries").select("id, metadata").eq("id", enquiryId).maybeSingle();
+  if (error || !data) return false;
+  const current = data.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, unknown> : {};
+  const metadata = {
+    ...current,
+    clientId: resolution.clientId ?? null,
+    clientLinkedAt: resolution.clientId ? new Date(resolution.resolvedAt).toISOString() : null,
+    identityResolution: {
+      status: resolution.status,
+      confidence: resolution.confidence,
+      explanation: resolution.explanation,
+      clientId: resolution.clientId ?? null,
+      clientName: resolution.clientName ?? null,
+      resolvedAt: new Date(resolution.resolvedAt).toISOString(),
+    },
+  };
+  const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata }).eq("id", enquiryId);
+  return !updateError;
+}
+
 export function triageWebsiteEnquiry(channel: WebsiteEnquiryChannel, message?: string): Pick<WebsiteEnquiry, "priority" | "topic" | "suggestedAction"> {
   const text = message?.toLowerCase() ?? "";
   if (/\b(data breach|hacked|security incident|compromised|site down|website down|outage|server down)\b/.test(text)) {
@@ -313,6 +436,7 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       ? metadata.siteName
       : siteKey ? publicAquaSiteName(siteKey) ?? brandName : resolvedSite?.siteName ?? brandName;
     const triage = triageWebsiteEnquiry(channel, row.message || undefined);
+    const identity = storedIdentityResolution(metadata.identityResolution);
 
     return {
       id: row.id,
@@ -338,9 +462,13 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       message: row.message || undefined,
       sourceUrl: row.source_url || undefined,
       campaign: row.campaign || undefined,
-      submittedAt: Date.parse(row.created_at),
+      submittedAt: safeStamp(row.created_at),
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
       contactId: typeof metadata.contactId === "string" ? metadata.contactId : undefined,
+      clientId: typeof metadata.clientId === "string" ? metadata.clientId : identity.clientId,
+      identityStatus: identity.status,
+      identityConfidence: identity.confidence,
+      identityExplanation: identity.explanation,
       leadLinkedAt: metadataStamp(metadata, "leadLinkedAt"),
       reviewedAt: metadataStamp(metadata, "firstReviewedAt") ?? metadataStamp(metadata, "reviewedAt"),
       resolvedAt: metadataStamp(metadata, "lastResolvedAt") ?? metadataStamp(metadata, "resolvedAt"),
@@ -351,4 +479,26 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       notification,
     };
   });
+}
+
+function storedIdentityResolution(value: unknown): {
+  status?: IdentityResolutionStatus;
+  confidence?: number;
+  explanation?: string;
+  clientId?: string;
+} {
+  if (!value || typeof value !== "object") return {};
+  const raw = value as Record<string, unknown>;
+  const status = raw.status === "resolved" || raw.status === "ambiguous" || raw.status === "unmatched" ? raw.status : undefined;
+  return {
+    status,
+    confidence: typeof raw.confidence === "number" && Number.isFinite(raw.confidence) ? raw.confidence : undefined,
+    explanation: typeof raw.explanation === "string" ? raw.explanation : undefined,
+    clientId: typeof raw.clientId === "string" ? raw.clientId : undefined,
+  };
+}
+
+function safeStamp(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : Date.now();
 }

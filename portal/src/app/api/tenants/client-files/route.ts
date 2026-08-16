@@ -8,11 +8,14 @@ import { unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { del } from "@vercel/blob";
 import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
+import { cleanClientPaymentPlans } from "@/lib/clientPaymentPlans";
+import { cleanClientRecordEntries } from "@/lib/clientRelationshipRecord";
+import { removeClientRecordLedgerEvent, upsertClientFileLedgerEvent } from "@/lib/server/clientRecordLedger";
 
 export const runtime = "nodejs";
 
-export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "misc";
-const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "misc"];
+export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "payment-plan" | "payment-proof" | "proposal" | "legal" | "misc";
+const CATEGORIES: readonly FileCategory[] = ["brand", "brief", "recording", "inspiration", "design-feedback", "preview", "deliverable", "invoice", "contract", "payment-plan", "payment-proof", "proposal", "legal", "misc"];
 
 export interface ClientFileRef {
   id: string;
@@ -28,6 +31,7 @@ export interface ClientFileRef {
   productId?: string;
   workspacePageId?: string;
   collectionId?: string;
+  recordEntryId?: string;
   customerVisible?: boolean;
 }
 
@@ -42,6 +46,7 @@ interface AddBody {
     productId?: string;
     workspacePageId?: string;
     collectionId?: string;
+    recordEntryId?: string;
     customerVisible?: boolean;
   };
 }
@@ -50,7 +55,19 @@ interface DeleteBody {
   action: "delete";
   fileId: string;
 }
-type Body = AddBody | DeleteBody;
+interface VisibilityBody {
+  clientId: string;
+  action: "visibility";
+  fileId: string;
+  customerVisible: boolean;
+}
+interface CollectionBody {
+  clientId: string;
+  action: "collection";
+  fileId: string;
+  collectionId?: string;
+}
+type Body = AddBody | DeleteBody | VisibilityBody | CollectionBody;
 
 function makeId(): string {
   // Cryptographic randomness preferred; falls back to a timestamp+rand
@@ -95,7 +112,11 @@ export async function POST(req: Request) {
     if (!safeUrl) {
       return NextResponse.json({ ok: false, error: "file links must use http or https" }, { status: 400 });
     }
-    const customerCategories: readonly FileCategory[] = ["brief", "recording", "inspiration", "design-feedback", "misc"];
+    const recordEntryId = body.file.recordEntryId?.trim().slice(0, 160) || undefined;
+    if (recordEntryId && !cleanClientRecordEntries(client.metadata?.clientRecordEntries).some(entry => entry.id === recordEntryId)) {
+      return NextResponse.json({ ok: false, error: "client record entry not found" }, { status: 404 });
+    }
+    const customerCategories: readonly FileCategory[] = ["brief", "recording", "inspiration", "design-feedback", "payment-proof", "misc"];
     if (session.role === "end-customer" && !customerCategories.includes(body.file.category)) {
       return NextResponse.json({ ok: false, error: "customers cannot add this file type" }, { status: 403 });
     }
@@ -109,11 +130,15 @@ export async function POST(req: Request) {
       productId: body.file.productId?.trim().slice(0, 120) || undefined,
       workspacePageId: body.file.workspacePageId?.trim().slice(0, 120) || undefined,
       collectionId: body.file.collectionId?.trim().slice(0, 120) || undefined,
-      customerVisible: body.file.customerVisible,
+      recordEntryId,
+      customerVisible: session.role === "end-customer"
+        || body.file.customerVisible === true
+        || (body.file.customerVisible === undefined && body.file.category === "recording"),
     };
     files.unshift(ref);
     const updated = updateClient(session.agencyId, body.clientId, { metadata: { files } });
     if (!updated) return NextResponse.json({ ok: false, error: "update failed" }, { status: 500 });
+    const ledgerEvent = upsertClientFileLedgerEvent(session.agencyId, body.clientId, ref);
     logActivity({
       agencyId: session.agencyId,
       clientId: client.id,
@@ -122,10 +147,10 @@ export async function POST(req: Request) {
       category: "files",
       action: "client_file.link_added",
       message: `${session.email} shared “${ref.name}”.`,
-      metadata: { fileId: ref.id, category: ref.category, productId: ref.productId, collectionId: ref.collectionId },
+      metadata: { fileId: ref.id, category: ref.category, productId: ref.productId, collectionId: ref.collectionId, recordEntryId: ref.recordEntryId },
     });
     await flushPendingWrites();
-    return NextResponse.json({ ok: true, file: ref, files });
+    return NextResponse.json({ ok: true, file: ref, ledgerEvent, files });
   }
 
   if (body.action === "delete") {
@@ -152,6 +177,7 @@ export async function POST(req: Request) {
     }
     const updated = updateClient(session.agencyId, body.clientId, { metadata: { files: next } });
     if (!updated) return NextResponse.json({ ok: false, error: "update failed" }, { status: 500 });
+    removeClientRecordLedgerEvent(session.agencyId, body.clientId, "file", body.fileId);
     logActivity({
       agencyId: session.agencyId,
       clientId: client.id,
@@ -164,6 +190,63 @@ export async function POST(req: Request) {
     });
     await flushPendingWrites();
     return NextResponse.json({ ok: true, files: next });
+  }
+
+  if (body.action === "visibility") {
+    if (!AGENCY_ROLES.includes(session.role as (typeof AGENCY_ROLES)[number])) {
+      return NextResponse.json({ ok: false, error: "only agency staff can change client visibility" }, { status: 403 });
+    }
+    const target = files.find(file => file.id === body.fileId);
+    if (!target) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
+    const changed = { ...target, customerVisible: body.customerVisible === true };
+    const next = files.map(file => file.id === changed.id ? changed : file);
+    const updated = updateClient(session.agencyId, body.clientId, { metadata: { files: next } });
+    if (!updated) return NextResponse.json({ ok: false, error: "visibility could not be saved" }, { status: 500 });
+    const ledgerEvent = upsertClientFileLedgerEvent(session.agencyId, body.clientId, changed);
+    logActivity({
+      agencyId: session.agencyId,
+      clientId: client.id,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: "files",
+      action: changed.customerVisible ? "client_file.shared" : "client_file.made_private",
+      message: `${changed.customerVisible ? "Shared" : "Made private"} “${changed.name}”.`,
+      metadata: { fileId: changed.id, category: changed.category, customerVisible: changed.customerVisible },
+    });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, file: changed, ledgerEvent, files: next });
+  }
+
+  if (body.action === "collection") {
+    if (!AGENCY_ROLES.includes(session.role as (typeof AGENCY_ROLES)[number])) {
+      return NextResponse.json({ ok: false, error: "only agency staff can organise commercial evidence" }, { status: 403 });
+    }
+    const target = files.find(file => file.id === body.fileId);
+    if (!target) return NextResponse.json({ ok: false, error: "file not found" }, { status: 404 });
+    if (target.category !== "payment-plan" && target.category !== "payment-proof") {
+      return NextResponse.json({ ok: false, error: "only commercial evidence can be attached to a payment plan" }, { status: 409 });
+    }
+    const collectionId = body.collectionId?.trim().slice(0, 120) || undefined;
+    if (collectionId && !cleanClientPaymentPlans(client.metadata?.clientPaymentPlans).some(plan => plan.id === collectionId)) {
+      return NextResponse.json({ ok: false, error: "payment plan not found" }, { status: 404 });
+    }
+    const changed = { ...target, collectionId };
+    const next = files.map(file => file.id === changed.id ? changed : file);
+    const updated = updateClient(session.agencyId, body.clientId, { metadata: { files: next } });
+    if (!updated) return NextResponse.json({ ok: false, error: "document could not be reorganised" }, { status: 500 });
+    const ledgerEvent = upsertClientFileLedgerEvent(session.agencyId, body.clientId, changed);
+    logActivity({
+      agencyId: session.agencyId,
+      clientId: client.id,
+      actorUserId: session.userId,
+      actorEmail: session.email,
+      category: "files",
+      action: collectionId ? "client_file.attached" : "client_file.detached",
+      message: `${collectionId ? "Attached" : "Moved"} “${changed.name}” ${collectionId ? "to a payment plan" : "to the general commercial record"}.`,
+      metadata: { fileId: changed.id, category: changed.category, collectionId },
+    });
+    await flushPendingWrites();
+    return NextResponse.json({ ok: true, file: changed, ledgerEvent, files: next });
   }
 
   return NextResponse.json({ ok: false, error: "unknown action" }, { status: 400 });

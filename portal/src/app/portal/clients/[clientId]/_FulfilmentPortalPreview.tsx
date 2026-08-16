@@ -10,20 +10,16 @@ import {
   Mail,
   Monitor,
   PackagePlus,
-  Plus,
   Save,
   Send,
   Smartphone,
   Sparkles,
-  X,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ClientApproval, ClientApprovalType } from "@/app/api/tenants/client-approvals/route";
-import {
-  PORTAL_PRODUCT_CATALOG,
-  type PortalProductSelection,
-} from "@/lib/portalProducts";
+import type { PortalProductSelection } from "@/lib/portalProducts";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -74,10 +70,12 @@ const CONTROL = "min-h-11 w-full rounded-md border border-black/12 bg-white px-3
 export function FulfilmentPortalPreview({
   clientId,
   clientName,
+  providerName,
   initial,
 }: {
   clientId: string;
   clientName: string;
+  providerName: string;
   initial: CustomerPortalPreviewInitial;
 }) {
   const [mode, setMode] = useState<CustomerPortalMode>(initial.mode ?? "onboarding");
@@ -86,9 +84,8 @@ export function FulfilmentPortalPreview({
   const [servicePlan, setServicePlan] = useState(initial.servicePlan ?? "");
   const [planSummary, setPlanSummary] = useState(initial.planSummary ?? "");
   const [planIncludes, setPlanIncludes] = useState((initial.planIncludes ?? []).join("\n"));
-  const [products, setProducts] = useState<PortalProductSelection[]>(initial.products ?? []);
+  const products = initial.products ?? [];
   const [experienceHeadline, setExperienceHeadline] = useState(initial.experienceHeadline ?? "");
-  const [customProductName, setCustomProductName] = useState("");
   const [billingCadence, setBillingCadence] = useState(initial.billingCadence ?? "As agreed");
   const [welcomeNote, setWelcomeNote] = useState(initial.welcomeNote ?? "");
   const [supportEmail, setSupportEmail] = useState(initial.supportEmail ?? "");
@@ -222,24 +219,6 @@ export function FulfilmentPortalPreview({
     setMessage("Private one-time sign-in link copied.");
   }
 
-  function toggleProduct(product: PortalProductSelection) {
-    const selected = products.some(item => item.catalogKey === product.catalogKey);
-    edit(
-      setProducts,
-      selected
-        ? products.filter(item => item.catalogKey !== product.catalogKey)
-        : [...products, product],
-    );
-  }
-
-  function addCustomProduct() {
-    const name = customProductName.trim();
-    if (!name) return;
-    const id = `custom-${Date.now().toString(36)}`;
-    edit(setProducts, [...products, { id, name, description: "A tailored Milesymedia service.", deliverables: [] }]);
-    setCustomProductName("");
-  }
-
   async function requestApproval(type: ClientApprovalType) {
     setApprovalBusy(type);
     setMessage(null);
@@ -279,10 +258,19 @@ export function FulfilmentPortalPreview({
           <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[#87682f]">Fulfilment · Client portal</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-black/90">{clientName}</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-black/52">
-            Create the client&apos;s Milesymedia home, check the exact experience, and send access when it is ready.
+            Create the client&apos;s {providerName} home, check the exact experience, and send access when it is ready.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {portalBuiltAt ? (
+            <a
+              href={`/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(clientId)}&mode=${encodeURIComponent(mode)}&section=home`}
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-medium text-white"
+            >
+              <Sparkles size={15} aria-hidden="true" />
+              Open portal studio
+            </a>
+          ) : null}
           {portalBuiltAt ? (
             <a
               href={previewHref}
@@ -450,81 +438,27 @@ export function FulfilmentPortalPreview({
               <div>
                 <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Products & services</p>
                 <p className="mt-1 text-xs leading-5 text-black/48">
-                  The portal changes its language, actions and delivery journey around what this customer bought.
+                  This portal follows the canonical service assignment. Change services once and the internal workspace, delivery tools, portal modules, and reporting adapt together.
                 </p>
               </div>
-              <div className="grid gap-2">
-                {PORTAL_PRODUCT_CATALOG.map(product => {
-                  const selected = products.some(item => item.catalogKey === product.catalogKey);
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => toggleProduct(product)}
-                      aria-pressed={selected}
-                      className={[
-                        "flex items-start gap-3 rounded-md border p-3 text-left transition",
-                        selected ? "border-[#9b7a3e]/45 bg-[#f7f1e6]" : "border-black/10 bg-white hover:bg-black/[0.025]",
-                      ].join(" ")}
-                    >
-                      <span className={[
-                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border",
-                        selected ? "border-[#9b7a3e] bg-[#9b7a3e] text-white" : "border-black/15 text-transparent",
-                      ].join(" ")}>
-                        <Check size={12} aria-hidden="true" />
+              {products.length ? (
+                <div className="grid gap-2">
+                  {products.map(product => (
+                    <div key={product.id} className="flex items-start gap-3 rounded-md border border-black/10 bg-black/[0.018] p-3">
+                      <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-brand/10 text-brand"><PackagePlus size={13} aria-hidden="true" /></span>
+                      <span className="min-w-0">
+                        <strong className="block text-sm text-black/75">{product.name}</strong>
+                        <span className="mt-0.5 block text-[11px] leading-4 text-black/42">{product.description || "Configured delivery service."}</span>
                       </span>
-                      <span>
-                        <span className="block text-sm font-medium text-black/75">{product.name}</span>
-                        <span className="mt-0.5 block text-[11px] leading-4 text-black/42">{product.description}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <Field label="Add a custom product" htmlFor="portal-custom-product">
-                <div className="grid grid-cols-[1fr_44px] gap-2">
-                  <input
-                    id="portal-custom-product"
-                    value={customProductName}
-                    onChange={event => setCustomProductName(event.target.value)}
-                    onKeyDown={event => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addCustomProduct();
-                      }
-                    }}
-                    className={CONTROL}
-                    placeholder="e.g. Campaign launch"
-                  />
-                  <button
-                    type="button"
-                    onClick={addCustomProduct}
-                    disabled={!customProductName.trim()}
-                    aria-label="Add custom product"
-                    className="flex h-11 w-11 items-center justify-center rounded-md border border-black/12 bg-white text-black/65 disabled:opacity-40"
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                  </button>
-                </div>
-              </Field>
-              {products.some(product => !product.catalogKey) ? (
-                <div className="flex flex-wrap gap-2">
-                  {products.filter(product => !product.catalogKey).map(product => (
-                    <span key={product.id} className="inline-flex min-h-8 items-center gap-2 rounded-md bg-black/[0.045] px-3 text-xs text-black/60">
-                      <PackagePlus size={13} aria-hidden="true" />
-                      {product.name}
-                      <button
-                        type="button"
-                        onClick={() => edit(setProducts, products.filter(item => item.id !== product.id))}
-                        aria-label={`Remove ${product.name}`}
-                        className="text-black/35 hover:text-black"
-                      >
-                        <X size={13} aria-hidden="true" />
-                      </button>
-                    </span>
+                    </div>
                   ))}
                 </div>
-              ) : null}
+              ) : (
+                <p className="border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Assign at least one service before creating this portal.</p>
+              )}
+              <Link href={`/portal/clients/${encodeURIComponent(clientId)}?tab=delivery#service-assignment`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">
+                <PackagePlus size={14} aria-hidden="true" /> Manage canonical services
+              </Link>
               <Field label="Customer portal headline" htmlFor="portal-experience-headline">
                 <input
                   id="portal-experience-headline"
@@ -589,7 +523,7 @@ export function FulfilmentPortalPreview({
               <div>
                 <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Portal identity</p>
                 <p className="mt-1 text-xs leading-5 text-black/48">
-                  Add the client&apos;s logo and one restrained accent. Milesymedia keeps the layout polished.
+                  Add the client&apos;s logo and one restrained accent. {providerName} remains the delivering identity while the experience feels specific to this client.
                 </p>
               </div>
               <Field label="Client logo" htmlFor="portal-logo-url">
@@ -624,7 +558,7 @@ export function FulfilmentPortalPreview({
                 </p>
               </div>
               <Field label="Support email" htmlFor="portal-support-email">
-                <input id="portal-support-email" type="email" value={supportEmail} onChange={event => edit(setSupportEmail, event.target.value)} className={CONTROL} placeholder="support@milesymedia.co.uk" />
+                <input id="portal-support-email" type="email" value={supportEmail} onChange={event => edit(setSupportEmail, event.target.value)} className={CONTROL} placeholder="support@example.com" />
               </Field>
               <Field label="Support phone" htmlFor="portal-support-phone">
                 <input id="portal-support-phone" type="tel" value={supportPhone} onChange={event => edit(setSupportPhone, event.target.value)} className={CONTROL} placeholder="+44 0000 000000" />

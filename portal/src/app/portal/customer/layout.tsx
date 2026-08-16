@@ -13,6 +13,8 @@ import { customerPortalModeLabel, loadCustomerPortalData } from "./_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
 import { getAuthBrand } from "@/lib/authBrand";
 import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
+import { buildCustomerPortalAttention } from "@/lib/customerPortalAttention";
+import { listAccessibleClientPortals } from "@/server/clientRelationships";
 
 export async function generateMetadata(): Promise<Metadata> {
   const cookieStore = await cookies();
@@ -66,6 +68,7 @@ export default async function CustomerLayout({ children }: { children: ReactNode
   const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
   const provider = resolveClientPortalProvider(client, authBrand);
   const portalData = await loadCustomerPortalData(client, user?.name ?? client.name, provider.name);
+  const accessiblePortals = listAccessibleClientPortals(session.agencyId, client.id, session.email);
 
   return (
     <>
@@ -77,12 +80,25 @@ export default async function CustomerLayout({ children }: { children: ReactNode
         avatarUrl={user?.avatarUrl}
         modeLabel={customerPortalModeLabel(portalData)}
         presentation={portalData.presentation}
+        presentationProductId={portalData.presentationProductId}
+        productPresentations={portalData.productPresentations}
         logoUrl={portalData.logoUrl}
         accentColor={portalData.accentColor}
         projectLabel={portalProjectLabel(portalData.products)}
         products={portalData.products}
         providerName={provider.name}
         providerMark={provider.mark}
+        attention={buildCustomerPortalAttention(portalData)}
+        workspaces={accessiblePortals.map(workspace => {
+          const workspaceProvider = resolveClientPortalProvider(workspace, authBrand);
+          return {
+            id: workspace.id,
+            name: workspace.name,
+            label: workspace.workspaceLabel,
+            providerName: workspaceProvider.name,
+            current: workspace.id === client.id,
+          };
+        })}
       >
         <ErrorBoundary label="client portal">{children}</ErrorBoundary>
       </CustomerPortalChrome>

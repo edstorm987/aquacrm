@@ -6,6 +6,10 @@ import { AGENCY_ROLES, CLIENT_ROLES, isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import type { ClientContract, ClientContractRevision } from "@/lib/clientContracts";
+import {
+  removeClientRecordLedgerEvent,
+  upsertClientContractLedgerEvent,
+} from "@/lib/server/clientRecordLedger";
 import { sendTransactionalEmail, type TransactionalEmailResult } from "@/lib/server/transactionalEmail";
 
 type Action = "create" | "update" | "send" | "accept" | "decline" | "delete";
@@ -217,6 +221,13 @@ export async function POST(req: Request) {
 
   const updated = updateClient(session.agencyId, clientId, { metadata: { contracts } });
   if (!updated) return NextResponse.json({ ok: false, error: "agreement update failed" }, { status: 500 });
+  const changedContractId = action === "create" ? contracts[0]?.id : cleanText(body?.contractId, 120);
+  const changedContract = changedContractId ? contracts.find(contract => contract.id === changedContractId) : undefined;
+  if (action === "delete" && changedContractId) {
+    removeClientRecordLedgerEvent(session.agencyId, clientId, "contract", `contract:${changedContractId}`);
+  } else if (changedContract) {
+    upsertClientContractLedgerEvent(session.agencyId, clientId, changedContract);
+  }
 
   logActivity({
     agencyId: session.agencyId,
@@ -226,6 +237,7 @@ export async function POST(req: Request) {
     category: "finance",
     action: activityAction,
     message,
+    metadata: changedContractId ? { contractId: changedContractId } : undefined,
   });
 
   let delivery: TransactionalEmailResult | undefined;

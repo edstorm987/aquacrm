@@ -232,9 +232,10 @@ describe("Sales, pipelines, finance, inbox, and systems", () => {
     const workspace = read(join(PORTAL, "agency", "marketing", "_MarketingChannelsWorkspace.tsx"));
     const routes = read(join(BUILT_INS, "modules", "agency-marketing", "src", "api", "routes.ts"));
 
-    for (const label of ["Campaigns", "Social media", "Websites", "Funnels", "Google Ads", "Lead sources", "Automations"]) {
+    for (const label of ["Campaigns", "Social media", "Websites", "Google Ads", "Lead sources", "Automations"]) {
       assert.ok(page.includes(`>${label}<`), `${label} marketing view missing`);
     }
+    assert.ok(page.includes(">Funnels &amp; booking<"), "Funnels and booking marketing view missing");
     assert.ok(page.includes("Internal workspace"));
     assert.ok(page.includes("Marketing across the business"));
     assert.ok(page.includes("Brand scope"));

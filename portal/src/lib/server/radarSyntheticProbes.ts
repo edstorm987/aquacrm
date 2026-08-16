@@ -7,6 +7,7 @@ import { connect as connectTls } from "node:tls";
 import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/lib/radarSyntheticSafety";
 import { getState, mutate } from "@/server/storage";
 import type { Client, RadarSyntheticProbeResult } from "@/server/types";
+import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
 
 const PROBE_CADENCE_MS = 5 * 60_000;
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -151,11 +152,12 @@ async function probeRadarTarget(
 }
 
 function clientTargets(client: Client): RadarSyntheticTarget[] {
+  const clientLabel = clientWorkspaceDisplayName(client);
   const metadata = client.metadata ?? {};
   const stored = Array.isArray(metadata.properties) ? metadata.properties as StoredProperty[] : [];
   if (!stored.length) {
     return clean(client.websiteUrl)
-      ? [{ propertyId: `${client.id}:client-${client.id}`, label: client.name, url: clean(client.websiteUrl) }]
+      ? [{ propertyId: `${client.id}:client-${client.id}`, label: `${clientLabel} · Website`, url: clean(client.websiteUrl) }]
       : [];
   }
   return stored.flatMap((property, index) => {
@@ -165,7 +167,7 @@ function clientTargets(client: Client): RadarSyntheticTarget[] {
     const propertyId = clean(property.id) || `client-${client.id}-${index + 1}`;
     return [{
       propertyId: `${client.id}:${propertyId}`,
-      label: clean(property.label) || `${client.name} ${clean(property.kind) || "property"}`,
+      label: `${clientLabel} · ${clean(property.label) || clean(property.kind) || "Property"}`,
       url: liveUrl,
     }];
   });

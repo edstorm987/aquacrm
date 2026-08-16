@@ -14,6 +14,8 @@ import {
   FolderKanban,
   Home,
   IdCard,
+  Layers3,
+  LoaderCircle,
   Menu,
   PackageCheck,
   Route,
@@ -23,15 +25,18 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ProfileMenu } from "@/components/chrome/ProfileMenu";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { contrastRatio } from "@/lib/a11y/contrastValidator";
-import { formatPortalCopy } from "@/lib/clientPortalDesign";
+import { formatPortalCopy, portalCustomCode } from "@/lib/clientPortalDesign";
+import { portalBuilder } from "@/lib/clientPortalBuilder";
 import { portalProductModule, type PortalModuleIcon } from "@/lib/portalProductModules";
 import type { PortalProductSelection } from "@/lib/portalProducts";
 import type { ClientPortalDesignDocument } from "@/server/types";
+import type { CustomerPortalAttention, CustomerPortalAttentionItem } from "@/lib/customerPortalAttention";
+import { PortalCustomExtension } from "./_PortalCustomExtension";
 
 const NAV = [
   { href: "/portal/customer", section: "home", icon: Home },
@@ -67,6 +72,8 @@ function NavItems({
   products,
   activePreviewProductId,
   activePreviewModuleId,
+  activePreviewCustomPageSlug,
+  attention,
 }: {
   pathname: string;
   close?: () => void;
@@ -77,6 +84,8 @@ function NavItems({
   products: PortalProductSelection[];
   activePreviewProductId?: string;
   activePreviewModuleId?: string;
+  activePreviewCustomPageSlug?: string;
+  attention?: CustomerPortalAttention;
 }) {
   const coreNav = products.length
     ? NAV.filter(item => item.section === "home" || (products.length > 1 && item.section === "project"))
@@ -84,6 +93,7 @@ function NavItems({
   const sharedNav = products.length
     ? NAV.filter(item => item.section === "files" || item.section === "billing" || item.section === "support" || item.section === "details")
     : [];
+  const customPages = portalBuilder(presentation).customPages.filter(page => page.visible);
 
   function shellLinks(items: ReadonlyArray<typeof NAV[number]>) {
     return items.map(item => {
@@ -96,6 +106,7 @@ function NavItems({
           : pathname.startsWith(item.href);
       const Icon = item.icon;
       const href = previewHrefPrefix ? `${previewHrefPrefix}${item.section}` : item.href;
+      const attentionItem = attention?.sections[item.section];
       return (
         <Link
           key={href}
@@ -108,9 +119,10 @@ function NavItems({
           ].join(" ")}
         >
           <Icon size={16} strokeWidth={1.65} aria-hidden="true" />
-          <span>{item.section === "project" && page.label === "Project"
+          <span className="min-w-0 flex-1 truncate">{item.section === "project" && page.label === "Project"
             ? products.length > 1 ? "Programme" : projectLabel
             : formatPortalCopy(page.label, { projectLabel })}</span>
+          <PortalAttentionBadge item={attentionItem} />
         </Link>
       );
     });
@@ -136,13 +148,29 @@ function NavItems({
                 const active = previewHrefPrefix
                   ? activePreviewSection === "service" && activePreviewProductId === product.id && activePreviewModuleId === page.id
                   : pathname === href;
-                return <Link key={page.id} href={href} onClick={close} aria-current={active ? "page" : undefined} className={`group flex min-h-9 items-center gap-3 rounded-sm px-3 text-[13px] transition ${active ? "bg-[#f4efe6] text-[#151310]" : "text-white/55 hover:bg-white/[0.07] hover:text-white"}`}><Icon size={15} strokeWidth={1.6} aria-hidden="true" /><span className="truncate">{page.navLabel}</span></Link>;
+                return <Link key={page.id} href={href} onClick={close} aria-current={active ? "page" : undefined} className={`group flex min-h-9 items-center gap-3 rounded-sm px-3 text-[13px] transition ${active ? "bg-[#f4efe6] text-[#151310]" : "text-white/55 hover:bg-white/[0.07] hover:text-white"}`}><Icon size={15} strokeWidth={1.6} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{page.navLabel}</span><PortalAttentionBadge item={attention?.modules[product.id]?.[page.id]} /></Link>;
               })}
             </div>
           </div>
         );
       })}
       {sharedNav.length ? <div className="mt-4 border-t border-white/8 pt-4"><p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">Shared workspace</p><div className="grid gap-0.5">{shellLinks(sharedNav)}</div></div> : null}
+      {customPages.length ? (
+        <div className="mt-4 border-t border-white/8 pt-4">
+          <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">More for you</p>
+          <div className="grid gap-0.5">
+            {customPages.map(page => {
+              const href = previewHrefPrefix
+                ? `${previewHrefPrefix}custom&customPage=${encodeURIComponent(page.slug)}`
+                : `/portal/customer/page/${encodeURIComponent(page.slug)}`;
+              const active = previewHrefPrefix
+                ? activePreviewSection === "custom" && activePreviewCustomPageSlug === page.slug
+                : pathname === href;
+              return <Link key={page.id} href={href} onClick={close} aria-current={active ? "page" : undefined} className={`group flex min-h-10 items-center gap-3 rounded-sm px-3 text-sm transition ${active ? "bg-[#f4efe6] text-[#151310]" : "text-white/58 hover:bg-white/[0.07] hover:text-white"}`}><BookOpen size={16} strokeWidth={1.65} aria-hidden="true" /><span className="truncate">{page.label}</span></Link>;
+            })}
+          </div>
+        </div>
+      ) : null}
       {!previewHrefPrefix ? (
         <div className="mt-4 border-t border-white/8 pt-4">
           <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">Account activity</p>
@@ -162,6 +190,19 @@ function NavItems({
   );
 }
 
+function PortalAttentionBadge({ item }: { item?: CustomerPortalAttentionItem }) {
+  if (!item) return null;
+  return (
+    <span
+      title={item.label}
+      aria-label={item.label}
+      className="grid min-h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[#b83f49] px-1.5 text-[9px] font-bold tabular-nums text-white shadow-[0_0_0_2px_rgba(255,255,255,0.08)]"
+    >
+      {item.count > 99 ? "99+" : item.count}
+    </span>
+  );
+}
+
 export function CustomerPortalChrome({
   children,
   clientName,
@@ -170,6 +211,8 @@ export function CustomerPortalChrome({
   avatarUrl,
   modeLabel,
   presentation,
+  presentationProductId,
+  productPresentations = {},
   previewBackHref,
   previewHrefPrefix,
   activePreviewSection,
@@ -180,8 +223,11 @@ export function CustomerPortalChrome({
   products = [],
   activePreviewProductId,
   activePreviewModuleId,
+  activePreviewCustomPageSlug,
   providerName = "Milesymedia",
   providerMark = "M",
+  attention,
+  workspaces = [],
 }: {
   children: ReactNode;
   clientName: string;
@@ -190,6 +236,8 @@ export function CustomerPortalChrome({
   avatarUrl?: string;
   modeLabel: string;
   presentation: ClientPortalDesignDocument;
+  presentationProductId?: string;
+  productPresentations?: Record<string, ClientPortalDesignDocument>;
   previewBackHref?: string;
   previewHrefPrefix?: string;
   activePreviewSection?: string;
@@ -200,8 +248,11 @@ export function CustomerPortalChrome({
   products?: PortalProductSelection[];
   activePreviewProductId?: string;
   activePreviewModuleId?: string;
+  activePreviewCustomPageSlug?: string;
   providerName?: string;
   providerMark?: string;
+  attention?: CustomerPortalAttention;
+  workspaces?: CustomerPortalWorkspaceOption[];
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -220,6 +271,28 @@ export function CustomerPortalChrome({
     : products.length === 1
       ? portalProductModule(products[0]).label
       : presentation.chrome.serviceLabel;
+  const routeProductId = useMemo(() => {
+    const match = pathname.match(/\/portal\/customer\/service\/([^/]+)/);
+    if (!match?.[1]) return undefined;
+    try { return decodeURIComponent(match[1]); } catch { return match[1]; }
+  }, [pathname]);
+  const activeProductId = activePreviewProductId ?? routeProductId ?? (products.length === 1 ? products[0]?.id : undefined);
+  const shellCode = portalCustomCode(presentation);
+  const productPresentation = activeProductId && presentationProductId !== activeProductId
+    ? productPresentations[activeProductId]
+    : undefined;
+  const productCode = productPresentation ? portalCustomCode(productPresentation) : undefined;
+  const activeExtensions = [
+    shellCode.enabled ? { id: "client-shell", code: shellCode } : null,
+    productCode?.enabled ? { id: `product-${activeProductId}`, code: productCode } : null,
+  ].filter((item): item is { id: string; code: ReturnType<typeof portalCustomCode> } => Boolean(item));
+  const scopedCss = [shellCode.enabled ? shellCode.scopedCss : "", productCode?.enabled ? productCode.scopedCss : ""].filter(Boolean).join("\n");
+  const extensionContext = useMemo(() => ({
+    clientName,
+    providerName,
+    mode: modeLabel,
+    productId: activeProductId ?? "",
+  }), [activeProductId, clientName, modeLabel, providerName]);
 
   return (
     <div
@@ -233,6 +306,7 @@ export function CustomerPortalChrome({
         "--portal-hero": presentation.theme.heroColor,
       } as CSSProperties}
     >
+      {scopedCss ? <style>{`@scope (.mm-portal-root) {\n${scopedCss}\n}`}</style> : null}
       <aside className="mm-private-sidebar mm-customer-dark fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-white/8 bg-[var(--portal-dark)] px-5 py-6 text-white md:flex">
         <div className="flex min-h-14 items-center gap-3 border-b border-white/10 px-1 pb-6">
           <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/[0.04] text-[var(--portal-accent)]">
@@ -255,9 +329,10 @@ export function CustomerPortalChrome({
         <div className="px-2 py-7">
           <p className="truncate text-[10px] uppercase tracking-[0.16em] text-white/35">{presentation.chrome.preparedForLabel}</p>
           <p className="mt-2 truncate font-serif text-lg text-[#f7f2e9]">{clientName}</p>
+          {!isPreview && workspaces.length > 1 ? <CustomerWorkspaceSwitcher workspaces={workspaces} /> : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} projectLabel={projectLabel} presentation={presentation} products={products} /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><NavItems pathname={pathname} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} activePreviewCustomPageSlug={activePreviewCustomPageSlug} projectLabel={projectLabel} presentation={presentation} products={products} attention={attention} /></div>
 
         <div className="mt-auto border-t border-white/10 px-2 pt-5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>
@@ -265,6 +340,9 @@ export function CustomerPortalChrome({
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
             {modeLabel}
           </div>
+          <p className={`mt-2 text-[10px] leading-4 ${attention?.total ? "text-[#f0a1a8]" : "text-white/35"}`}>
+            {attention?.total ? `${attention.total} ${attention.total === 1 ? "item needs you" : "items need you"}` : "No decisions are waiting on you"}
+          </p>
         </div>
       </aside>
 
@@ -307,7 +385,8 @@ export function CustomerPortalChrome({
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} projectLabel={projectLabel} presentation={presentation} products={products} />
+              {!isPreview && workspaces.length > 1 ? <div className="mb-5 border-b border-white/10 px-1 pb-5"><CustomerWorkspaceSwitcher workspaces={workspaces} /></div> : null}
+              <NavItems pathname={pathname} close={() => setMobileOpen(false)} previewHrefPrefix={previewHrefPrefix} activePreviewSection={activePreviewSection} activePreviewProductId={activePreviewProductId} activePreviewModuleId={activePreviewModuleId} activePreviewCustomPageSlug={activePreviewCustomPageSlug} projectLabel={projectLabel} presentation={presentation} products={products} attention={attention} />
             </div>
             <div className="shrink-0 border-t border-white/10 px-3 pt-4">
               <p className="text-[10px] uppercase tracking-[0.14em] text-white/35">{presentation.chrome.currentStageLabel}</p>
@@ -315,6 +394,9 @@ export function CustomerPortalChrome({
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
                 {modeLabel}
               </div>
+              <p className={`mt-2 text-[10px] leading-4 ${attention?.total ? "text-[#f0a1a8]" : "text-white/35"}`}>
+                {attention?.total ? `${attention.total} ${attention.total === 1 ? "item needs you" : "items need you"}` : "No decisions are waiting on you"}
+              </p>
             </div>
           </aside>
         </div>
@@ -362,10 +444,65 @@ export function CustomerPortalChrome({
         </header>
         <main id="main-content" className="mm-private-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="mx-auto w-full max-w-[1360px] px-4 py-6 sm:px-7 sm:py-8 lg:px-12 lg:py-12">
+            {activeExtensions.filter(item => item.code.placement === "before-content").map(item => <PortalCustomExtension key={item.id} id={item.id} code={item.code} context={extensionContext} />)}
             {children}
+            {activeExtensions.filter(item => item.code.placement === "after-content").map(item => <PortalCustomExtension key={item.id} id={item.id} code={item.code} context={extensionContext} />)}
           </div>
         </main>
       </div>
+    </div>
+  );
+}
+
+export interface CustomerPortalWorkspaceOption {
+  id: string;
+  name: string;
+  label?: string;
+  providerName: string;
+  current?: boolean;
+}
+
+function CustomerWorkspaceSwitcher({ workspaces }: { workspaces: CustomerPortalWorkspaceOption[] }) {
+  const current = workspaces.find(item => item.current) ?? workspaces[0];
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function switchWorkspace(clientId: string) {
+    if (!clientId || clientId === current?.id) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/portal/customer/workspace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const data = await response.json() as { ok?: boolean; error?: string; redirect?: string };
+      if (!response.ok || !data.ok) throw new Error(data.error || "Portal could not be opened.");
+      window.location.assign(data.redirect || "/portal/customer");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Portal could not be opened.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4">
+      <label className="mb-1.5 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-white/35"><Layers3 size={12} /> Workspace</label>
+      <div className="relative">
+        <select
+          aria-label="Switch client workspace"
+          value={current?.id || ""}
+          disabled={busy}
+          onChange={event => void switchWorkspace(event.target.value)}
+          className="min-h-10 w-full appearance-none rounded-sm border border-white/12 bg-white/[0.055] px-3 pr-9 text-xs font-medium text-white outline-none transition focus:border-[var(--portal-accent)] disabled:opacity-60"
+        >
+          {workspaces.map(item => <option key={item.id} value={item.id} className="bg-[#12191f] text-white">{item.name}{item.label ? ` · ${item.label}` : ""} · {item.providerName}</option>)}
+        </select>
+        {busy ? <LoaderCircle size={14} className="absolute right-3 top-3 animate-spin text-[var(--portal-accent)]" /> : <Layers3 size={13} className="pointer-events-none absolute right-3 top-3 text-white/38" />}
+      </div>
+      {error ? <p role="alert" className="mt-2 text-[10px] leading-4 text-[#f0a1a8]">{error}</p> : null}
+      <p className="mt-2 text-[9px] leading-4 text-white/28">Each workspace keeps separate projects, files, billing and service history.</p>
     </div>
   );
 }

@@ -11,7 +11,8 @@ describe("Command Center sidebar interactions", () => {
       readFile(new URL("../src/components/chrome/SidebarCollapseToggle.tsx", import.meta.url), "utf8"),
     ]);
 
-    assert.match(navLink, /data-nav-tone=\{NAV_TONES\[id\]/);
+    assert.match(navLink, /data-nav-tone=\{navTone\(id\)\}/);
+    assert.match(navLink, /return NAV_TONES\[id\]/);
     assert.match(footer, /data-nav-tone="slate"/);
     assert.match(footer, /data-nav-tone="rose"/);
     assert.match(collapse, /data-nav-tone="slate"/);

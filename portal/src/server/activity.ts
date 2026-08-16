@@ -6,6 +6,7 @@ import "server-only";
 // evicted on append.
 
 import crypto from "crypto";
+import { appendActivityToClientRecordLedger } from "@/lib/server/clientRecordLedger";
 import { getState, mutate } from "./storage";
 import type { ActivityCategory, ActivityEntry } from "./types";
 
@@ -41,6 +42,7 @@ export function logActivity(input: LogActivityInput): ActivityEntry {
       state.activity.splice(0, state.activity.length - ACTIVITY_HARD_CAP);
     }
   });
+  appendActivityToClientRecordLedger(entry);
   return entry;
 }
 

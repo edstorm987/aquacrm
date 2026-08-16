@@ -2,17 +2,16 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("Journey exposes persistent meeting and booking-funnel desks", () => {
+test("Journey owns meetings while booking funnels remain in Marketing", () => {
   const workspace = readFileSync("src/app/portal/clients/_JourneyCommercialWorkspace.tsx", "utf8");
-  const page = readFileSync("src/app/portal/clients/page.tsx", "utf8");
+  const marketing = readFileSync("src/app/portal/agency/marketing/page.tsx", "utf8");
 
   assert.match(workspace, /id: "meetings", label: "Meetings"/);
-  assert.match(workspace, /id: "booking-funnels", label: "Booking funnels"/);
+  assert.doesNotMatch(workspace, /id: "booking-funnels"/);
   assert.match(workspace, /JourneyMeetingsWorkspace people=\{meetingPeople\}/);
-  assert.match(page, /bookingFirst/);
-  assert.match(page, /MARKETING_ASSETS_KEY/);
-  assert.match(page, /meetingStatus: contact\.meetingStatus/);
-  assert.match(page, /meetingAttempts: lead\.meetingAttempts/);
+  assert.match(marketing, /view === "funnels"/);
+  assert.match(marketing, /Funnels &amp; booking/);
+  assert.match(marketing, /_FunnelsWorkspace/);
 });
 
 test("meeting command can book, confirm, reschedule, close and retain evidence", () => {

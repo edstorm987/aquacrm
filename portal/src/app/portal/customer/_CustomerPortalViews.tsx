@@ -12,6 +12,7 @@ import {
   CreditCard,
   ExternalLink,
   File,
+  FileText,
   Files,
   FolderKanban,
   Mail,
@@ -67,10 +68,12 @@ import { listClientMilestones } from "@/server/clientMilestones";
 import { getAuthBrand } from "@/lib/authBrand";
 import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 import { formatPortalCopy } from "@/lib/clientPortalDesign";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { portalCustomPage } from "@/lib/clientPortalBuilder";
+import { formatUkDate, formatUkDateTime } from "@/lib/formatDateTime";
+import { PortalPageComposition } from "./_PortalPageComposition";
 
-export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service";
-type CustomerPortalShellSection = Exclude<CustomerPortalSection, "service">;
+export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service" | "custom";
+type CustomerPortalShellSection = Exclude<CustomerPortalSection, "service" | "custom">;
 const PORTAL_LIFECYCLE_MODES: CustomerPortalMode[] = ["onboarding", "designing", "developed-launch", "maintenance"];
 
 function customerHref(section: CustomerPortalShellSection, previewHrefPrefix?: string): string {
@@ -266,14 +269,15 @@ function InvoiceStatus({ status }: { status: string }) {
   return <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.08em] ${style}`}>{status}</span>;
 }
 
-export async function CustomerPortalView({ section, productId, moduleId }: { section: CustomerPortalSection; productId?: string; moduleId?: string }) {
+export async function CustomerPortalView({ section, productId, moduleId, customPageSlug }: { section: CustomerPortalSection; productId?: string; moduleId?: string; customPageSlug?: string }) {
   const { client, data, providerName } = await context();
   if (section === "service" && !data.products.some(product => product.id === productId)) notFound();
+  if (section === "custom" && !portalCustomPage(data.presentation, customPageSlug)) notFound();
   if (section === "home") {
     const handoff = data.properties.find(property => property.status === "redirected" && safeExternalUrl(property.redirectTarget));
     if (handoff?.redirectTarget) redirect(handoff.redirectTarget);
   }
-  return <CustomerPortalContent section={section} client={client} data={data} productId={productId} moduleId={moduleId} providerName={providerName} workspaceRole="customer" />;
+  return <CustomerPortalContent section={section} client={client} data={data} productId={productId} moduleId={moduleId} customPageSlug={customPageSlug} providerName={providerName} workspaceRole="customer" />;
 }
 
 export function CustomerPortalContent({
@@ -283,6 +287,7 @@ export function CustomerPortalContent({
   previewHrefPrefix,
   productId,
   moduleId,
+  customPageSlug,
   providerName = "Milesymedia",
   workspaceRole = "preview",
 }: {
@@ -292,6 +297,7 @@ export function CustomerPortalContent({
   previewHrefPrefix?: string;
   productId?: string;
   moduleId?: string;
+  customPageSlug?: string;
   providerName?: string;
   workspaceRole?: ProductWorkspaceRole;
 }) {
@@ -299,15 +305,18 @@ export function CustomerPortalContent({
     const product = data.products.find(item => item.id === productId) ?? data.products[0];
     return product ? <ProductModuleView clientId={client.id} product={product} moduleId={moduleId} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} workspaceRole={workspaceRole} /> : <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
   }
-  if (section === "project") return <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  if (section === "custom") return <PortalPageComposition customPageSlug={customPageSlug} data={data} providerName={providerName} previewHrefPrefix={previewHrefPrefix} />;
+  let content: React.ReactNode;
   const readOnly = Boolean(previewHrefPrefix);
-  if (section === "results") return <ResultsView client={client} data={data} providerName={providerName} />;
-  if (section === "files") return <FilesView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
-  if (section === "billing") return <BillingView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
-  if (section === "support") return <SupportView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
-  if (section === "resources") return <ResourcesView data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
-  if (section === "details") return <RecordView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
-  return <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  if (section === "project") content = <ProjectView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  else if (section === "results") content = <ResultsView client={client} data={data} providerName={providerName} />;
+  else if (section === "files") content = <FilesView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
+  else if (section === "billing") content = <BillingView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
+  else if (section === "support") content = <SupportView client={client} data={data} readOnly={readOnly} providerName={providerName} />;
+  else if (section === "resources") content = <ResourcesView data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  else if (section === "details") content = <RecordView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  else content = <HomeView client={client} data={data} previewHrefPrefix={previewHrefPrefix} providerName={providerName} />;
+  return <PortalPageComposition section={section} data={data} providerName={providerName} previewHrefPrefix={previewHrefPrefix}>{content}</PortalPageComposition>;
 }
 
 function ResultsView({ client, data, providerName }: { client: Client; data: CustomerPortalData; providerName: string }) {
@@ -527,6 +536,13 @@ function HomeView({
   const briefNeedsAttention = data.mode === "onboarding" && !data.brief.submittedAt;
   const configuredSupportCta = data.products.find(product => product.supportCta?.trim())?.supportCta?.trim();
   const primaryModule = primaryProduct ? portalProductModule(primaryProduct) : null;
+  const pendingDecisionCount = data.approvals.filter(approval => approval.status === "pending").length
+    + data.workspaces.flatMap(workspace => workspace.decisions).filter(decision => decision.status === "pending").length;
+  const latestMessage = data.record.messages.at(-1);
+  const openSupportCount = data.requests.filter(request => request.status !== "closed").length;
+  const decisionHref = pendingWorkspaceDecision && pendingWorkspaceProduct
+    ? productModuleHref(pendingWorkspaceProduct.id, pendingWorkspaceDecision.decision.pageId, previewHrefPrefix)
+    : customerHref("project", previewHrefPrefix);
   const nextAction = outstanding.length
     ? customerHref("billing", previewHrefPrefix)
     : pendingWorkspaceDecision && pendingWorkspaceProduct
@@ -605,6 +621,47 @@ function HomeView({
           </Link>
         </Surface>
       </div>
+
+      <Surface className="mt-5 overflow-hidden">
+        <div className="flex flex-col justify-between gap-3 border-b border-black/8 px-6 py-5 sm:flex-row sm:items-end sm:px-7">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-black/38">Your client desk</p>
+            <h2 className="mt-2 font-serif text-2xl">The context you need, kept together.</h2>
+          </div>
+          <p className="max-w-md text-xs leading-5 text-black/38">Meetings, decisions and conversations stay attached to the same client record.</p>
+        </div>
+        <div className="grid divide-y divide-black/8 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+          <PortalPulseItem
+            icon={<CalendarDays size={17} />}
+            label="Next meeting"
+            value={data.record.nextMeetingAt ? formatUkDateTime(data.record.nextMeetingAt) : "Nothing booked"}
+            detail={data.record.nextMeetingAt ? "Retained in your shared record" : "Arrange a time through support"}
+            href={customerHref("details", previewHrefPrefix)}
+          />
+          <PortalPulseItem
+            icon={<ClipboardCheck size={17} />}
+            label="Decisions"
+            value={pendingDecisionCount ? `${pendingDecisionCount} waiting for you` : "Nothing waiting"}
+            detail={pendingWorkspaceDecision?.decision.title || pendingApproval?.title || "You are caught up"}
+            href={decisionHref}
+            attention={pendingDecisionCount > 0}
+          />
+          <PortalPulseItem
+            icon={<MessageCircle size={17} />}
+            label="Conversation"
+            value={`${data.record.messages.length} linked ${data.record.messages.length === 1 ? "message" : "messages"}`}
+            detail={latestMessage?.body || "Messages sent through the portal will stay here"}
+            href={customerHref("details", previewHrefPrefix)}
+          />
+          <PortalPulseItem
+            icon={<CircleHelp size={17} />}
+            label="Support"
+            value={openSupportCount ? `${openSupportCount} open ${openSupportCount === 1 ? "request" : "requests"}` : "No open requests"}
+            detail={openSupportCount ? "Open the conversation for its latest status" : "The team is within reach"}
+            href={customerHref("support", previewHrefPrefix)}
+          />
+        </div>
+      </Surface>
 
       {data.products.length ? <ProductSystems data={data} providerName={providerName} previewHrefPrefix={previewHrefPrefix} /> : null}
 
@@ -685,8 +742,39 @@ function HomeMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 px-6 py-5">
       <p className="text-[10px] uppercase tracking-[0.14em] text-black/35">{label}</p>
-      <p className="mt-2 truncate text-sm font-medium">{value}</p>
+      <p className="mt-2 line-clamp-2 min-h-10 text-sm font-medium leading-5" title={value}>{value}</p>
     </div>
+  );
+}
+
+function PortalPulseItem({
+  icon,
+  label,
+  value,
+  detail,
+  href,
+  attention = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+  href: string;
+  attention?: boolean;
+}) {
+  return (
+    <Link href={href} className="group min-w-0 px-6 py-5 transition hover:bg-black/[0.025] sm:px-7">
+      <div className="flex items-center justify-between gap-3">
+        <span className={attention ? "text-[#b83f49]" : "text-[var(--portal-accent)]"}>{icon}</span>
+        <span className={`size-2 rounded-full ${attention ? "bg-[#b83f49] shadow-[0_0_0_4px_rgba(184,63,73,0.1)]" : "bg-black/10"}`} aria-hidden="true" />
+      </div>
+      <p className="mt-5 text-[9px] font-semibold uppercase tracking-[0.14em] text-black/35">{label}</p>
+      <p className="mt-2 truncate text-sm font-semibold text-black/72" title={value}>{value}</p>
+      <p className="mt-2 line-clamp-2 min-h-10 text-xs leading-5 text-black/42">{detail}</p>
+      <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--portal-accent)]">
+        Open <ArrowRight size={11} className="transition group-hover:translate-x-0.5" aria-hidden="true" />
+      </span>
+    </Link>
   );
 }
 
@@ -1059,6 +1147,58 @@ function CustomerFileRow({ file }: { file: CustomerFile }) {
   );
 }
 
+function CustomerPaymentPlans({ plans, files }: { plans: CustomerPortalData["paymentPlans"]; files: CustomerFile[] }) {
+  if (plans.length === 0) return null;
+  return (
+    <Surface className="mt-5 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-6 py-5">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Agreed payment schedule</p>
+          <h2 className="mt-2 font-serif text-2xl">Milestones and due dates</h2>
+        </div>
+        <CalendarDays size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
+      </div>
+      <div className="divide-y divide-black/10">
+        {plans.map(plan => {
+          const total = plan.milestones.reduce((sum, milestone) => sum + (milestone.status === "waived" ? 0 : milestone.amountCents), 0);
+          const paidAmount = plan.milestones.reduce((sum, milestone) => sum + (milestone.status === "paid" ? milestone.amountCents : 0), 0);
+          const progress = total > 0 ? Math.round((paidAmount / total) * 100) : 0;
+          const evidence = files.filter(file => file.collectionId === plan.id);
+          return (
+            <section key={plan.id} className="px-6 py-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-serif text-xl">{plan.title}</h3>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${plan.status === "completed" ? "bg-emerald-50 text-emerald-800" : "bg-blue-50 text-blue-800"}`}>{plan.status}</span>
+                  </div>
+                  {plan.summary ? <p className="mt-2 max-w-2xl text-sm leading-6 text-black/52">{plan.summary}</p> : null}
+                </div>
+                <div className="text-right"><p className="text-sm font-medium">{formatMoney(paidAmount, plan.currency)} paid</p><p className="mt-1 text-xs text-black/38">of {formatMoney(total, plan.currency)}</p></div>
+              </div>
+              <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-black/8" role="progressbar" aria-label={`${plan.title} payment progress`} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full bg-[var(--portal-accent)]" style={{ width: `${progress}%` }} /></div>
+              <ul className="mt-5 divide-y divide-black/8 border-y border-black/8">
+                {plan.milestones.map(milestone => (
+                  <li key={milestone.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_150px_130px_auto] sm:items-center">
+                    <div><p className="text-sm font-medium">{milestone.title}</p>{milestone.productName ? <p className="mt-1 text-xs text-black/40">{milestone.productName}</p> : null}</div>
+                    <p className="text-xs text-black/48">Due {formatDate(milestone.dueAt)}</p>
+                    <p className="text-sm font-medium sm:text-right">{formatMoney(milestone.amountCents, plan.currency)}</p>
+                    <div className="sm:text-right"><span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${milestone.status === "paid" ? "bg-emerald-50 text-emerald-800" : milestone.status === "invoiced" ? "bg-amber-50 text-amber-800" : "bg-black/5 text-black/48"}`}>{milestone.status === "planned" ? "Scheduled" : milestone.status}</span></div>
+                  </li>
+                ))}
+              </ul>
+              {evidence.length ? <div className="mt-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/38">Schedule documents</p>
+                <div className="mt-2 flex flex-wrap gap-2">{evidence.map(file => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:text-black"><FileText size={13} className="shrink-0 text-[var(--portal-accent)]" /><span className="truncate">{file.name}</span><ExternalLink size={11} className="shrink-0" /></a>)}</div>
+              </div> : null}
+            </section>
+          );
+        })}
+      </div>
+    </Surface>
+  );
+}
+
 function BillingView({ client, data, readOnly, providerName }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string }) {
   const paid = data.invoices.filter(invoice => invoice.status === "paid").reduce((sum, invoice) => sum + invoice.totalCents, 0);
   const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").reduce((sum, invoice) => sum + invoice.totalCents, 0);
@@ -1115,6 +1255,8 @@ function BillingView({ client, data, readOnly, providerName }: { client: Client;
           <p className="mt-2 text-xs text-white/45">{paid > 0 ? `${formatMoney(paid, currency)} paid to date` : "No paid invoices recorded yet"}</p>
         </Surface>
       </div>
+
+      <CustomerPaymentPlans plans={data.paymentPlans} files={data.files} />
 
       <Surface className="mt-5 overflow-hidden">
         <div className="flex items-center justify-between border-b border-black/10 px-6 py-5">
@@ -1338,6 +1480,7 @@ function RecordView({
   const recordingLinks = data.record.links.filter(link => link.kind === "recording");
   const meetingLinks = data.record.links.filter(link => link.kind === "meeting");
   const inspirationLinks = data.record.links.filter(link => link.kind === "inspiration");
+  const callEntryLinks = data.record.entries.filter(entry => (entry.kind === "call" || entry.kind === "meeting") && entry.url);
   const nonDraftContracts = data.contracts.filter(contract => contract.status !== "draft");
 
   return (
@@ -1376,18 +1519,27 @@ function RecordView({
         <Surface className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-black/10 px-6 py-5 sm:px-7">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Discovery & context</p>
-              <h2 className="mt-2 font-serif text-2xl">Notes we hold about your project.</h2>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Shared relationship record</p>
+              <h2 className="mt-2 font-serif text-2xl">Notes, decisions and summaries.</h2>
             </div>
             <NotebookText size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
           </div>
-          {data.record.notes.length === 0 ? (
+          {data.record.notes.length === 0 && data.record.entries.length === 0 ? (
             <div className="px-6 py-12 text-center sm:px-7">
-              <p className="font-serif text-xl">No additional notes are recorded.</p>
-              <p className="mt-2 text-sm text-black/45">Your submitted project brief remains available on the Project page.</p>
+              <p className="font-serif text-xl">No shared summaries are recorded.</p>
+              <p className="mt-2 text-sm text-black/45">Private agency notes never appear here. Approved summaries and decisions will be retained when they are shared with you.</p>
             </div>
           ) : (
             <dl className="grid sm:grid-cols-2">
+              {data.record.entries.map(entry => (
+                <div key={entry.id} className="border-b border-black/8 px-6 py-5 sm:px-7 sm:odd:border-r">
+                  <dt className="text-[10px] uppercase tracking-[0.14em] text-black/35">{entry.kind}{entry.channel ? ` · ${entry.channel}` : ""} · {formatDate(entry.occurredAt)}</dt>
+                  <dd className="mt-2 text-sm font-medium leading-6 text-black/72">{entry.title}</dd>
+                  {entry.body ? <dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-black/58">{entry.body}</dd> : null}
+                  {entry.url ? <a href={entry.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--portal-accent)]">Open attached record <ExternalLink size={11} /></a> : null}
+                  {entry.attachments?.length ? <dd className="mt-3 grid gap-2">{entry.attachments.map(file => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/62"><FileText size={13} className="shrink-0 text-[var(--portal-accent)]" /><span className="truncate">{file.name}</span><ExternalLink size={11} className="ml-auto shrink-0 text-black/30" /></a>)}</dd> : null}
+                </div>
+              ))}
               {data.record.notes.map((note, index) => (
                 <div
                   key={`${note.label}:${index}`}
@@ -1417,7 +1569,7 @@ function RecordView({
               </div>
             </div>
           ) : null}
-          {recordingLinks.length + recordingFiles.length + meetingLinks.length === 0 ? (
+          {recordingLinks.length + recordingFiles.length + meetingLinks.length + callEntryLinks.length === 0 ? (
             <p className="mt-5 text-sm leading-6 text-black/45">No call recordings or meeting links have been attached yet.</p>
           ) : (
             <ul className="mt-5 divide-y divide-black/8 border-y border-black/10">
@@ -1426,6 +1578,9 @@ function RecordView({
               ))}
               {recordingFiles.map(file => (
                 <RecordLinkRow key={file.id} label={file.name} url={file.url} action="Rewatch" />
+              ))}
+              {callEntryLinks.map(entry => (
+                <RecordLinkRow key={entry.id} label={entry.title} url={entry.url!} action={entry.kind === "call" ? "Rewatch" : "Open"} />
               ))}
               {meetingLinks.map(link => (
                 <RecordLinkRow key={link.url} label={link.label} url={link.url} action="Open" />
@@ -1456,6 +1611,30 @@ function RecordView({
           </Link>
         </Surface>
       </div>
+
+      <Surface className="mt-5 overflow-hidden">
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 px-6 py-5 sm:px-7">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Conversation history</p>
+            <h2 className="mt-2 font-serif text-2xl">Every linked message.</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-black/45">Portal support and linked social conversations remain attached to your record. Private team notes are excluded.</p>
+          </div>
+          <MessageSquareText size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
+        </div>
+        {data.record.messages.length === 0 ? (
+          <div className="px-6 py-12 text-center sm:px-7"><p className="font-serif text-xl">No linked messages yet.</p><p className="mt-2 text-sm text-black/45">Messages sent through Support will appear here automatically.</p></div>
+        ) : (
+          <ol className="divide-y divide-black/8">
+            {data.record.messages.map(message => (
+              <li key={`${message.conversationId}:${message.id}`} className="grid gap-3 px-6 py-5 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:px-7">
+                <div><p className="text-[10px] font-medium uppercase tracking-[0.12em] text-black/35">{message.channel}</p><p className="mt-1 text-xs text-black/42">{message.from === "customer" ? data.contactName : providerName}</p></div>
+                <p className="whitespace-pre-wrap text-sm leading-6 text-black/65">{message.body}</p>
+                <div className="text-left sm:text-right"><time className="block text-[10px] uppercase tracking-wide text-black/35">{formatDate(message.occurredAt)}</time>{message.status ? <span className="mt-1 inline-block text-[10px] text-black/32">{message.status}</span> : null}</div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Surface>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Surface className="overflow-hidden">

@@ -24,7 +24,7 @@ import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspac
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clientWorkspace";
 
 export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "products" | "clients" | "portals";
 
@@ -39,7 +39,7 @@ export interface FulfilmentProductRecord {
   deliverables: string[];
   workspacePages: string[];
   assignmentCount: number;
-  clientNames: Array<{ id: string; name: string }>;
+  clientNames: Array<{ id: string; name: string; workspaceLabel?: string; relationshipWorkspaceCount: number }>;
   group: ServiceGroupKey;
 }
 
@@ -55,6 +55,9 @@ export interface FulfilmentClientProductRecord {
 export interface FulfilmentClientRecord {
   id: string;
   name: string;
+  relationshipId: string;
+  relationshipWorkspaceCount: number;
+  workspaceLabel?: string;
   stageLabel: string;
   ownerEmail?: string;
   portalReady: boolean;
@@ -311,7 +314,7 @@ function Overview({
             <Link key={client.id} href={clientWorkspaceHref(client.id, "delivery")} className="mm-interactive-row flex min-h-20 items-center gap-3 rounded-md border border-black/[0.09] bg-white p-3 hover:bg-black/[0.02]">
               <span className="mm-area-icon grid size-9 shrink-0 place-items-center rounded-md"><PanelLeftOpen size={17} /></span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-black/72">{client.name}</span>
+                <span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-sm font-semibold text-black/72">{clientWorkspaceDisplayName(client)}</span>{client.relationshipWorkspaceCount > 1 ? <LinkedBuyerCount count={client.relationshipWorkspaceCount} /> : null}</span>
                 <span className="mt-0.5 block truncate text-xs text-black/42">{client.products.length ? `${client.products.length} service workspace${client.products.length === 1 ? "" : "s"} · ${client.progress}% complete` : "Assign the first service"}</span>
               </span>
               <ArrowRight size={15} className="shrink-0 text-black/30" />
@@ -407,7 +410,7 @@ function ProductWorkspaceCard({ product }: { product: FulfilmentProductRecord })
         </div>
 
         <div className="mt-3 flex min-h-6 flex-wrap gap-x-3 gap-y-1 text-xs text-black/45">
-          {product.clientNames.slice(0, 3).map(client => <Link key={client.id} href={clientWorkspaceHref(client.id, "delivery", { product: product.id })} className="inline-flex items-center gap-1 hover:text-brand hover:underline"><PanelLeftOpen size={11} />{client.name}</Link>)}
+          {product.clientNames.slice(0, 3).map(client => <Link key={client.id} href={clientWorkspaceHref(client.id, "delivery", { product: product.id })} title={client.relationshipWorkspaceCount > 1 ? `${client.relationshipWorkspaceCount} isolated workspaces for this buyer` : undefined} className="inline-flex items-center gap-1 hover:text-brand hover:underline"><PanelLeftOpen size={11} />{clientWorkspaceDisplayName(client)}</Link>)}
           {!product.clientNames.length ? <span>No client assignments yet</span> : null}
           {product.clientNames.length > 3 ? <span>+{product.clientNames.length - 3} more</span> : null}
         </div>
@@ -429,12 +432,12 @@ function ClientDelivery({ clients }: { clients: FulfilmentClientRecord[] }) {
         {clients.map(client => (
           <article key={client.id} className="grid gap-4 py-5 lg:grid-cols-[minmax(180px,.65fr)_minmax(300px,1.45fr)_minmax(180px,.55fr)_minmax(190px,auto)] lg:items-center">
             <div className="min-w-0">
-              <Link href={clientWorkspaceHref(client.id, "delivery")} className="truncate text-sm font-semibold text-black/82 hover:underline">{client.name}</Link>
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5"><Link href={clientWorkspaceHref(client.id, "delivery")} className="truncate text-sm font-semibold text-black/82 hover:underline">{clientWorkspaceDisplayName(client)}</Link>{client.relationshipWorkspaceCount > 1 ? <LinkedBuyerCount count={client.relationshipWorkspaceCount} /> : null}</div>
               <p className="mt-1 truncate text-xs text-black/42">{client.ownerEmail || "No primary email"} · {client.stageLabel}</p>
             </div>
             <div className="flex min-w-0 flex-wrap gap-1.5">
               {client.products.map(product => (
-                <Link key={product.id} href={clientWorkspaceHref(client.id, "delivery", { product: product.id })} title={`Open ${product.name} in ${client.name}'s workspace · ${product.stageLabel} · ${product.progress}% complete`} className="inline-flex max-w-full items-center gap-2 rounded-md border border-black/[0.08] bg-white px-2.5 py-1.5 text-xs text-black/58 hover:border-brand/25 hover:bg-brand/[0.035]">
+                <Link key={product.id} href={clientWorkspaceHref(client.id, "delivery", { product: product.id })} title={`Open ${product.name} in ${clientWorkspaceDisplayName(client)} · ${product.stageLabel} · ${product.progress}% complete`} className="inline-flex max-w-full items-center gap-2 rounded-md border border-black/[0.08] bg-white px-2.5 py-1.5 text-xs text-black/58 hover:border-brand/25 hover:bg-brand/[0.035]">
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: product.accentColor }} />
                   <span className="truncate font-medium">{product.name}</span>
                   <span className="tabular-nums text-black/35">{product.progress}%</span>
@@ -449,7 +452,7 @@ function ClientDelivery({ clients }: { clients: FulfilmentClientRecord[] }) {
             </div>
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${client.portalReady ? "bg-emerald-50 text-emerald-700" : client.portalRequired ? "bg-amber-50 text-amber-700" : "bg-black/5 text-black/45"}`}>{client.portalReady ? "Portal ready" : client.portalRequired ? "Portal needed" : "Portal optional"}</span>
-              <Link href={clientWorkspaceHref(client.id, "delivery")} aria-label={`Open ${client.name} internal workspace`} title="Open internal client workspace" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><PanelLeftOpen size={15} /> Open workspace</Link>
+              <Link href={clientWorkspaceHref(client.id, "delivery")} aria-label={`Open ${clientWorkspaceDisplayName(client)} internal workspace`} title="Open internal client workspace" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><PanelLeftOpen size={15} /> Open workspace</Link>
             </div>
           </article>
         ))}
@@ -457,6 +460,10 @@ function ClientDelivery({ clients }: { clients: FulfilmentClientRecord[] }) {
       </div>
     </div>
   );
+}
+
+function LinkedBuyerCount({ count }: { count: number }) {
+  return <span title={`${count} isolated project workspaces belong to this buyer relationship`} className="shrink-0 rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">{count} linked</span>;
 }
 
 function Metric({ label, value, detail, icon, tone }: { label: string; value: string | number; detail: string; icon: ReactNode; tone: "blue" | "violet" | "emerald" | "amber" }) {

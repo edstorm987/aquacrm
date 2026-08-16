@@ -208,6 +208,7 @@ export function SidebarNavLink({
   const targetHasQuery = Boolean(target?.search);
   const queryMatches = targetHasQuery && target
     ? [...target.searchParams.entries()].every(([key, value]) => searchParams.get(key) === value)
+      && !(id === "client-delivery" && searchParams.has("product"))
     : false;
   const clientOverviewAtRoot = id === "client-overview" && pathname === target?.pathname && !searchParams.has("tab");
   const active = targetHasQuery

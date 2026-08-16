@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
           state.pluginData = beforeCreate.pluginData;
           state.phases = beforeCreate.phases;
           state.activity = beforeCreate.activity;
+          state.clientRecordLedger = beforeCreate.clientRecordLedger;
           state.pipelines = beforeCreate.pipelines;
           state.pipelineCards = beforeCreate.pipelineCards;
         });

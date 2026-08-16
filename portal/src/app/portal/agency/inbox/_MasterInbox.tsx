@@ -26,6 +26,7 @@ type Conversation = {
   id: string;
   clientId: string;
   clientName: string;
+  buyerName: string;
   type: string;
   message: string;
   status: string;
@@ -102,8 +103,8 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   const attentionThreadCandidates = useMemo<AttentionThreadCandidate[]>(() => [
     ...websiteForms.map(item => ({ key: `website:${item.id}`, formId: item.id, name: item.name, email: item.email })),
     ...socialInbox.conversations.map(item => ({ key: `social:${item.id}`, name: item.identity.displayName })),
-    ...conversations.map(item => ({ key: `client:${item.id}`, requestId: item.id, clientId: item.clientId, name: item.clientName, email: item.ownerEmail })),
-    ...clientProfiles.map(item => ({ key: `profile:${item.id}`, clientId: item.id, name: item.name, email: item.ownerEmail })),
+    ...conversations.map(item => ({ key: `client:${item.id}`, requestId: item.id, clientId: item.clientId, name: item.clientName, aliases: [item.buyerName], email: item.ownerEmail })),
+    ...clientProfiles.map(item => ({ key: `profile:${item.id}`, clientId: item.id, name: item.name, aliases: item.buyerName ? [item.buyerName] : [], email: item.ownerEmail })),
   ], [clientProfiles, conversations, socialInbox.conversations, websiteForms]);
 
   function openAttentionContact(alert: OperationalAlertView) {
@@ -610,6 +611,6 @@ function classificationRouteDescription(classification: WebsiteEnquiryClassifica
   return "This is retained as a relationship contact and kept outside the sales Journey.";
 }
 function enquiryWaitTone(elapsedMs: number): "blue" | "amber" | "red" { return elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseCriticalMs ? "red" : elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseWarningMs ? "amber" : "blue"; }
-function formatDate(value: number) { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+function formatDate(value: number) { return Number.isFinite(value) && value > 0 ? formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Date needs review"; }
 function sourceLocation(item: WebsiteEnquiry) { return `${item.siteHost ?? item.siteName}${item.pagePath === "/" ? "" : item.pagePath}`; }
 function filterRows<T>(rows: T[], query: string, text: (row: T) => string): T[] { const q = query.trim().toLowerCase(); return q ? rows.filter(row => text(row).toLowerCase().includes(q)) : rows; }

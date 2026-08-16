@@ -118,8 +118,17 @@ export async function GET(req: Request) {
   if (!file?.storageProvider || !file.storageKey) {
     return NextResponse.json({ ok: false, error: "stored file not found" }, { status: 404 });
   }
-  if (session.role === "end-customer" && file.customerVisible === false) {
-    return NextResponse.json({ ok: false, error: "file not available" }, { status: 404 });
+  if (session.role === "end-customer") {
+    const metadata = client.metadata ?? {};
+    const customerEmails = new Set([
+      typeof metadata.portalLoginEmail === "string" ? metadata.portalLoginEmail : "",
+      typeof metadata.clientEmail === "string" ? metadata.clientEmail : "",
+      client.ownerEmail ?? "",
+    ].map(value => value.trim().toLowerCase()).filter(Boolean));
+    const uploadedByCustomer = Boolean(file.uploadedBy && customerEmails.has(file.uploadedBy.trim().toLowerCase()));
+    if (file.customerVisible !== true && !uploadedByCustomer) {
+      return NextResponse.json({ ok: false, error: "file not available" }, { status: 404 });
+    }
   }
   const collection = file.collectionId ? collectionForFile(client.metadata, file.collectionId) : undefined;
   if (session.role === "end-customer" && download && file.collectionId) {

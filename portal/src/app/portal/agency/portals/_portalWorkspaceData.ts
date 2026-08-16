@@ -5,6 +5,7 @@ import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agency
 import { ensureProductPortalTemplates } from "@/server/clientPortalDesigns";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import type { PortalTemplateProductRecord, PortalWorkspaceRecord } from "./_PortalsWorkspace";
 
 type PortalMode = PortalWorkspaceRecord["portalMode"];
@@ -36,6 +37,7 @@ export function portalWorkspaceData(agencyId: string, userId: string) {
 
   const portals: PortalWorkspaceRecord[] = clients.map(client => {
     const metadata = client.metadata ?? {};
+    const productAssignment = resolvePortalProductAssignment(metadata, agencyProducts);
     return {
       id: client.id,
       name: client.name,
@@ -51,6 +53,7 @@ export function portalWorkspaceData(agencyId: string, userId: string) {
       portalLoginEmail: stringValue(metadata.portalLoginEmail),
       portalMode: cleanMode(metadata.portalMode),
       portalServicePlan: stringValue(metadata.portalServicePlan),
+      productCount: productAssignment.products.length,
     };
   });
 

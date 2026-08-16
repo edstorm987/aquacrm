@@ -37,6 +37,20 @@ function buildLineItems(input: CreateInvoiceInput["lineItems"]): InvoiceLineItem
   }));
 }
 
+function invoiceActivityMetadata(invoice: Invoice): Record<string, unknown> {
+  return {
+    invoiceId: invoice.id,
+    number: invoice.number,
+    totalCents: invoice.totalCents,
+    currency: invoice.currency,
+    status: invoice.status,
+    issuedAt: invoice.issuedAt,
+    dueAt: invoice.dueAt,
+    paidAt: invoice.paidAt,
+    lineItemDescription: invoice.lineItems[0]?.description,
+  };
+}
+
 export class InvoiceService {
   constructor(
     private agencyId: AgencyId,
@@ -155,7 +169,7 @@ export class InvoiceService {
       category: "finance",
       action: "invoice.created",
       message: `Drafted invoice ${row.number} for ${client.name} (${(totalCents / 100).toFixed(2)} ${row.currency}).`,
-      metadata: { invoiceId: id, number: row.number, totalCents, currency: row.currency },
+      metadata: invoiceActivityMetadata(row),
     });
     this.events.emit({ agencyId: this.agencyId, clientId: input.clientId }, "invoice.created", {
       invoiceId: id, number: row.number, totalCents,
@@ -224,7 +238,7 @@ export class InvoiceService {
         category: "finance",
         action: "invoice.sent",
         message: `Sent invoice ${next.number} to client.`,
-        metadata: { invoiceId: id },
+        metadata: invoiceActivityMetadata(next),
       });
       this.events.emit({ agencyId: this.agencyId, clientId: existing.clientId }, "invoice.sent", { invoiceId: id });
     }
@@ -236,9 +250,19 @@ export class InvoiceService {
         category: "finance",
         action: "invoice.voided",
         message: `Voided invoice ${next.number}.`,
-        metadata: { invoiceId: id },
+        metadata: invoiceActivityMetadata(next),
       });
       this.events.emit({ agencyId: this.agencyId, clientId: existing.clientId }, "invoice.voided", { invoiceId: id });
+    } else if (changesFinancialContent || patch.status) {
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        clientId: existing.clientId,
+        actorUserId: actor,
+        category: "finance",
+        action: "invoice.updated",
+        message: `Updated invoice ${next.number}.`,
+        metadata: invoiceActivityMetadata(next),
+      });
     }
     return next;
   }
@@ -266,7 +290,7 @@ export class InvoiceService {
       category: "finance",
       action: "invoice.paid",
       message: `Recorded payment for invoice ${next.number} (${(next.totalCents / 100).toFixed(2)} ${next.currency}).`,
-      metadata: { invoiceId: id, totalCents: next.totalCents, paidVia: next.paidVia, externalRef: next.externalRef },
+      metadata: { ...invoiceActivityMetadata(next), paidVia: next.paidVia, externalRef: next.externalRef },
     });
     this.events.emit({ agencyId: this.agencyId, clientId: existing.clientId }, "invoice.paid", {
       invoiceId: id, totalCents: next.totalCents,
@@ -292,7 +316,7 @@ export class InvoiceService {
       category: "finance",
       action: "invoice.deleted",
       message: `Deleted draft invoice ${existing.number}.`,
-      metadata: { invoiceId: id },
+      metadata: invoiceActivityMetadata(existing),
     });
     return true;
   }

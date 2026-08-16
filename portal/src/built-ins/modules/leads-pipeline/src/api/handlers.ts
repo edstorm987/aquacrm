@@ -14,6 +14,7 @@ import {
   customerPortalProvisioningMetadata,
 } from "@/lib/server/customerPortalProvisioning";
 import { cleanPortalProducts, type PortalProductKey, type PortalProductSelection } from "@/lib/portalProducts";
+import { resolveAgencyProductAssignment } from "@/lib/productAssignments";
 import { listAgencyProducts } from "@/server/agencyProducts";
 import { clientMatchesContact, clientMatchesLead } from "../lib/clientMatch";
 import { getState, mutate } from "@/server/storage";
@@ -585,6 +586,7 @@ function restorePortalState(snapshot: PortalState): void {
     state.pluginData = snapshot.pluginData;
     state.phases = snapshot.phases;
     state.activity = snapshot.activity;
+    state.clientRecordLedger = snapshot.clientRecordLedger;
     state.pipelines = snapshot.pipelines;
     state.pipelineCards = snapshot.pipelineCards;
   });
@@ -684,8 +686,7 @@ function resolvedProductConversion(
   const allProducts = listAgencyProducts(agencyId);
   const selected = allProducts.find(product => product.id === conversion.productId);
   if (!selected) return null;
-  const includedIds = new Set([selected.id, ...(selected.includedProductIds ?? [])]);
-  const selectedProducts = allProducts.filter(product => includedIds.has(product.id));
+  const selectedProducts = resolveAgencyProductAssignment(allProducts, [selected.id]).effectiveProducts;
   const products: PortalProductSelection[] = selectedProducts.map(product => ({
     id: product.id,
     catalogKey: product.portalTemplateKey,
@@ -723,6 +724,7 @@ function resolvedProductConversion(
     createPortal,
     productConfiguration: {
       agencyProductId: selected.id,
+      portalSelectedProductIds: [selected.id],
       productKind: selected.kind,
       productCategory: selected.category,
       productPricing: selected.pricing,

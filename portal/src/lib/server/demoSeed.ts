@@ -440,6 +440,9 @@ export async function resetDemo(): Promise<ResetDemoResult> {
     const beforeAct = state.activity.length;
     state.activity = state.activity.filter(a => a.agencyId !== aId);
     removed.activityEntries = beforeAct - state.activity.length;
+    for (const [id, event] of Object.entries(state.clientRecordLedger)) {
+      if (event.agencyId === aId) delete state.clientRecordLedger[id];
+    }
 
     if (state.agencies[aId]) { delete state.agencies[aId]; removed.agency = 1; }
   });

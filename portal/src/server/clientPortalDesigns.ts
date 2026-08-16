@@ -90,6 +90,8 @@ export function ensureProductPortalTemplate(
     baseTemplateId: master.id,
     baseTemplateVersionId: master.publishedVersionId,
     productLifecycleSeedVersion: PRODUCT_LIFECYCLE_SEED_VERSION,
+    draftProductSourceUpdatedAt: product.updatedAt,
+    productSourceUpdatedAt: product.updatedAt,
     draft: clonePortalDesign(document),
     published: clonePortalDesign(document),
     publishedVersionId: initialVersion.id,
@@ -262,6 +264,9 @@ export function publishPortalDesign(input: {
     updatedBy: input.actorUserId,
     updatedAt: now,
     publishedAt: now,
+    ...(input.scope === "template" && "productId" in existing && existing.productId
+      ? { productSourceUpdatedAt: existing.draftProductSourceUpdatedAt ?? existing.productSourceUpdatedAt }
+      : {}),
   };
   writeRecord(input.scope, updated);
   return updated;
@@ -335,6 +340,7 @@ export function refreshProductPortalTemplateFromMaster(input: {
     ...template,
     baseTemplateId: master.id,
     baseTemplateVersionId: master.publishedVersionId,
+    draftProductSourceUpdatedAt: product.updatedAt,
     draft: productPortalDocument(master.published, product),
     versions: pruneVersions([previousDraft, ...template.versions]),
     updatedBy: input.actorUserId,
@@ -453,8 +459,14 @@ function upgradeProductPortalTemplate(
   actorUserId: string,
 ): ClientPortalTemplateRecord {
   if (existing.productLifecycleSeedVersion === PRODUCT_LIFECYCLE_SEED_VERSION) {
-    if (existing.name === name && existing.productId === product.id) return existing;
-    const renamed = { ...existing, name, productId: product.id };
+    const productSourceUpdatedAt = existing.productSourceUpdatedAt
+      ?? Math.min(product.updatedAt, existing.updatedAt);
+    const draftProductSourceUpdatedAt = existing.draftProductSourceUpdatedAt ?? productSourceUpdatedAt;
+    if (existing.name === name
+      && existing.productId === product.id
+      && existing.productSourceUpdatedAt === productSourceUpdatedAt
+      && existing.draftProductSourceUpdatedAt === draftProductSourceUpdatedAt) return existing;
+    const renamed = { ...existing, name, productId: product.id, productSourceUpdatedAt, draftProductSourceUpdatedAt };
     mutate(state => { state.clientPortalTemplates[existing.id] = renamed; });
     return renamed;
   }

@@ -512,6 +512,7 @@ export function resetShowcaseWorkspace(): void {
     for (const [id, item] of Object.entries(state.legalDocuments)) if (item.agencyId === agencyId) delete state.legalDocuments[id];
     for (const key of Object.keys(state.assistant ?? {})) if (key.startsWith(`${agencyId}|`)) delete state.assistant![key];
     state.activity = state.activity.filter(item => item.agencyId !== agencyId);
+    for (const [id, event] of Object.entries(state.clientRecordLedger)) if (event.agencyId === agencyId) delete state.clientRecordLedger[id];
     delete state.agencies[agencyId];
   });
 }
@@ -655,7 +656,17 @@ function successfulClientMetadata(input: SuccessfulClientMetadataInput): Record<
       { id: `${input.businessName}-handover`, name: "Project handover", category: "deliverable" },
     ],
     portalApprovals: [{ id: `${input.businessName}-approval`, status: "approved" }],
-    clientRequests: [{ id: `${input.businessName}-request`, status: "closed", type: "suggestion" }],
+    clientRequests: [{
+      id: `${input.businessName}-request`,
+      status: "closed",
+      type: "suggestion",
+      message: "The last client request was completed and recorded.",
+      submittedBy: `${input.contactName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+      submittedAt: input.now - 12 * DAY,
+      closedAt: input.now - 10 * DAY,
+      closedBy: "showcase@milesymedia.com",
+      replies: [],
+    }],
     linkedContacts: [{
       id: `${input.businessName}-primary`,
       name: input.contactName,

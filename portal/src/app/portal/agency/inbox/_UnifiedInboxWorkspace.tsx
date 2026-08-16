@@ -42,6 +42,7 @@ type ClientConversation = {
   id: string;
   clientId: string;
   clientName: string;
+  buyerName: string;
   type: string;
   message: string;
   status: string;
@@ -58,6 +59,7 @@ type ClientConversation = {
 export type UnifiedClientProfile = {
   id: string;
   name: string;
+  buyerName?: string;
   ownerEmail?: string;
   ownerPhone?: string;
   stage: string;
@@ -436,5 +438,5 @@ function ProfileDetail({ label, value }: { label: string; value: string }) {
 
 function initials(value: string) { return value.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase() || "?"; }
 function shortDate(value: number) { return formatUkDate(value, { hour: "2-digit", minute: "2-digit" }); }
-function longDate(value: number) { return formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+function longDate(value: number) { return Number.isFinite(value) && value > 0 ? formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Date needs review"; }
 function formatRemaining(value: number) { const milliseconds = Math.max(0, value - Date.now()); const hours = Math.floor(milliseconds / 3_600_000); const minutes = Math.floor((milliseconds % 3_600_000) / 60_000); return hours ? `${hours}h ${minutes}m` : `${minutes}m`; }

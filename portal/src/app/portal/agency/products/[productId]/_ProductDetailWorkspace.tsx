@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, CircleDollarSign, FileCheck2, MonitorCog, Package, Pencil, Sparkles, Workflow } from "lucide-react";
 import { useState } from "react";
 
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
 import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
 import { ProductEditor, linkedSopCount, portalLabel, priceLabel, toDraft } from "../_ProductsWorkspace";
+import { ProductRolloutCentre, type ProductRolloutClient } from "./_ProductRolloutCentre";
 
-export function ProductDetailWorkspace({ initialProduct, products, sops, companies }: { initialProduct: AgencyProduct; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[] }) {
+export function ProductDetailWorkspace({ initialProduct, products, sops, companies, rolloutClients, productTemplateNeedsRefresh }: { initialProduct: AgencyProduct; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; rolloutClients: ProductRolloutClient[]; productTemplateNeedsRefresh: boolean }) {
+  const router = useRouter();
   const [product, setProduct] = useState(initialProduct);
   const [editing, setEditing] = useState(false);
   const linkedSops = sops.filter(sop => product.sopIds.includes(sop.id) || Boolean(sop.category && product.sopCategories.includes(sop.category)));
@@ -76,6 +79,14 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
         <div className="mt-5"><Label>Welcome pack</Label>{product.welcomePackItems.length ? <ul className="mt-2 flex flex-wrap gap-2">{product.welcomePackItems.map(item => <li key={item} className="rounded-md bg-black/[0.04] px-3 py-1.5 text-xs text-black/60">{item}</li>)}</ul> : <Empty>No welcome items added.</Empty>}{product.welcomePackNotes ? <p className="mt-3 text-sm leading-6 text-black/55">{product.welcomePackNotes}</p> : null}</div>
       </Section>
 
+      <ProductRolloutCentre
+        productId={product.id}
+        productName={product.name}
+        portalEnabled={product.portalRequirement !== "none"}
+        productTemplateNeedsRefresh={productTemplateNeedsRefresh || product.updatedAt > initialProduct.updatedAt}
+        clients={rolloutClients}
+      />
+
       <Section icon={<FileCheck2 size={17} />} title="Contract" detail="The reusable agreement attached to this product.">
         <p className="font-semibold text-black/75">{product.contractTitle || "No contract title"}</p>
         {product.contractBody ? <div className="mt-3 max-h-96 overflow-y-auto whitespace-pre-wrap border-l-2 border-black/10 pl-4 text-sm leading-6 text-black/60">{product.contractBody}</div> : <Empty>No contract terms have been added.</Empty>}
@@ -86,7 +97,7 @@ export function ProductDetailWorkspace({ initialProduct, products, sops, compani
         <div className="mt-5"><Label>SOPs</Label>{linkedSops.length ? <div className="mt-2 divide-y divide-black/10 border-y border-black/10">{linkedSops.map(sop => <Link key={sop.id} href={`/portal/agency/sop-library?sop=${sop.id}`} className="flex items-center justify-between gap-3 py-3 text-sm text-black/65 hover:text-black"><span>{sop.title}</span><span className="text-xs text-black/35">{sop.category || sop.kind}</span></Link>)}</div> : <Empty>No SOPs or SOP categories linked.</Empty>}</div>
       </Section>
 
-      {editing ? <ProductEditor draft={toDraft(product)} products={products.map(item => item.id === product.id ? product : item)} sops={sops} companies={companies} onClose={() => setEditing(false)} onSaved={saved => { setProduct(saved); setEditing(false); }} /> : null}
+      {editing ? <ProductEditor draft={toDraft(product)} products={products.map(item => item.id === product.id ? product : item)} sops={sops} companies={companies} onClose={() => setEditing(false)} onSaved={saved => { setProduct(saved); setEditing(false); router.refresh(); }} /> : null}
     </div>
   );
 }

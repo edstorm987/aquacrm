@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { getClientForAgency } from "@/server/tenants";
+import { getAgency, getClientForAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { CustomerPortalChrome } from "@/app/portal/customer/_CustomerPortalChrome";
@@ -10,6 +10,7 @@ import { CustomerPortalContent, type CustomerPortalSection } from "@/app/portal/
 import { customerPortalModeLabel, loadCustomerPortalData, portalMode, type CustomerPortalMode } from "@/app/portal/customer/_portalData";
 import { portalProjectLabel } from "@/lib/portalProducts";
 import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
+import { buildCustomerPortalAttention } from "@/lib/customerPortalAttention";
 
 export default async function ClientPreviewPage({
   params,
@@ -34,6 +35,7 @@ export default async function ClientPreviewPage({
   const requestedSection = queryValue(query.section);
   const requestedProductId = queryValue(query.productId);
   const requestedModuleId = queryValue(query.module);
+  const requestedCustomPageSlug = queryValue(query.customPage);
   const requestedProductIds = (queryValue(query.productIds) || "")
     .split(",")
     .map(value => value.trim())
@@ -43,7 +45,7 @@ export default async function ClientPreviewPage({
   const scope = queryValue(query.portalScope) === "template" ? "template" : "client";
   const draft = queryValue(query.portalDraft) === "1";
   const templateId = queryValue(query.templateId);
-  const allowedSections = new Set<CustomerPortalSection>(["home", "project", "results", "files", "billing", "support", "resources", "details", "service"]);
+  const allowedSections = new Set<CustomerPortalSection>(["home", "project", "results", "files", "billing", "support", "resources", "details", "service", "custom"]);
   const section: CustomerPortalSection = allowedSections.has(requestedSection as CustomerPortalSection)
     ? requestedSection as CustomerPortalSection
     : "home";
@@ -52,14 +54,15 @@ export default async function ClientPreviewPage({
   if (!client) notFound();
 
   const user = getUserById(session.userId);
-  const provider = resolveClientPortalProvider(client);
+  const agencyName = getAgency(client.agencyId)?.name?.trim() || "AquaOasis-Web";
+  const provider = resolveClientPortalProvider(client, { name: agencyName, mark: agencyName.charAt(0) });
   const providerName = provider.name;
   const loadedData = await loadCustomerPortalData(client, client.name, providerName, {
     scope,
     templateId,
     productIds: requestedProductIds,
     draft,
-    audience: "agency",
+    audience: manage ? "agency" : "customer",
   });
   const validModes = new Set<CustomerPortalMode>(["onboarding", "designing", "developed-launch", "maintenance"]);
   const data = requestedMode && validModes.has(requestedMode as CustomerPortalMode)
@@ -87,6 +90,8 @@ export default async function ClientPreviewPage({
         avatarUrl={user?.avatarUrl}
         modeLabel={customerPortalModeLabel(data)}
         presentation={data.presentation}
+        presentationProductId={data.presentationProductId}
+        productPresentations={data.productPresentations}
         previewBackHref={embedded ? undefined : backHref}
         previewHrefPrefix={previewHrefPrefix}
         activePreviewSection={section}
@@ -97,10 +102,12 @@ export default async function ClientPreviewPage({
         products={data.products}
         activePreviewProductId={requestedProductId}
         activePreviewModuleId={requestedModuleId}
+        activePreviewCustomPageSlug={requestedCustomPageSlug}
         providerName={providerName}
         providerMark={provider.mark}
+        attention={buildCustomerPortalAttention(data)}
       >
-        <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} productId={requestedProductId} moduleId={requestedModuleId} providerName={providerName} workspaceRole={manage ? "agency" : "preview"} />
+        <CustomerPortalContent section={section} client={client} data={data} previewHrefPrefix={previewHrefPrefix} productId={requestedProductId} moduleId={requestedModuleId} customPageSlug={requestedCustomPageSlug} providerName={providerName} workspaceRole={manage ? "agency" : "preview"} />
       </CustomerPortalChrome>
     </>
   );

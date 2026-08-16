@@ -1,8 +1,10 @@
 import type {
+  ClientPortalCustomCode,
   ClientPortalDesignDocument,
   ClientPortalMode,
   ClientPortalSectionId,
 } from "@/server/types";
+import { defaultPortalBuilder, normalisePortalBuilder } from "@/lib/clientPortalBuilder";
 
 export const CLIENT_PORTAL_TEMPLATE_ID = "stunning-standard";
 export const CLIENT_PORTAL_TEMPLATE_NAME = "Stunning Standard";
@@ -24,6 +26,17 @@ export const CLIENT_PORTAL_SECTIONS: ClientPortalSectionId[] = [
   "resources",
   "details",
 ];
+
+export const EMPTY_CLIENT_PORTAL_CUSTOM_CODE: ClientPortalCustomCode = {
+  enabled: false,
+  placement: "after-content",
+  title: "Custom portal extension",
+  scopedCss: "",
+  html: "",
+  css: "",
+  javascript: "",
+  minHeight: 240,
+};
 
 export const STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument = {
   schemaVersion: 1,
@@ -125,11 +138,11 @@ export const STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument = {
       body: "Guides, handover notes, and useful material selected for your work will live here.",
     },
     details: {
-      label: "Your details",
+      label: "Your record",
       visible: true,
-      eyebrow: "Your details",
+      eyebrow: "Your complete record",
       title: "Everything we know, shared with you.",
-      body: "Your information, conversations, decisions, documents, and account history remain transparent and available throughout our work together.",
+      body: "Your approved notes, conversations, call recordings, decisions, documents, and account history remain transparent and available throughout our work together.",
     },
   },
   home: {
@@ -142,6 +155,8 @@ export const STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument = {
     careBody: "Questions, feedback, changes, or something urgent: send it through your support space and it stays attached to your project.",
     careButtonLabel: "Open support",
   },
+  builder: defaultPortalBuilder(CLIENT_PORTAL_SECTIONS),
+  customCode: { ...EMPTY_CLIENT_PORTAL_CUSTOM_CODE },
 };
 
 export function clonePortalDesign(document: ClientPortalDesignDocument = STUNNING_STANDARD_PORTAL): ClientPortalDesignDocument {
@@ -155,6 +170,8 @@ export function normalisePortalDesign(value: unknown, fallback: ClientPortalDesi
   const stages = objectValue(input.stages);
   const pages = objectValue(input.pages);
   const home = objectValue(input.home);
+  const builder = objectValue(input.builder);
+  const customCode = objectValue(input.customCode);
   const result = clonePortalDesign(fallback);
 
   result.theme = {
@@ -206,7 +223,27 @@ export function normalisePortalDesign(value: unknown, fallback: ClientPortalDesi
     careBody: cleanText(home.careBody, fallback.home.careBody, 700),
     careButtonLabel: cleanText(home.careButtonLabel, fallback.home.careButtonLabel, 80),
   };
+  result.builder = normalisePortalBuilder(builder, CLIENT_PORTAL_SECTIONS, fallback.builder);
+  result.customCode = {
+    enabled: typeof customCode.enabled === "boolean" ? customCode.enabled : fallback.customCode?.enabled ?? false,
+    placement: customCode.placement === "before-content" || customCode.placement === "after-content"
+      ? customCode.placement
+      : fallback.customCode?.placement ?? EMPTY_CLIENT_PORTAL_CUSTOM_CODE.placement,
+    title: cleanText(customCode.title, fallback.customCode?.title || EMPTY_CLIENT_PORTAL_CUSTOM_CODE.title, 100),
+    scopedCss: cleanCode(customCode.scopedCss, fallback.customCode?.scopedCss, 30_000),
+    html: cleanCode(customCode.html, fallback.customCode?.html, 40_000),
+    css: cleanCode(customCode.css, fallback.customCode?.css, 30_000),
+    javascript: cleanCode(customCode.javascript, fallback.customCode?.javascript, 40_000),
+    minHeight: cleanExtensionHeight(customCode.minHeight, fallback.customCode?.minHeight),
+  };
   return result;
+}
+
+export function portalCustomCode(document: ClientPortalDesignDocument): ClientPortalCustomCode {
+  return {
+    ...EMPTY_CLIENT_PORTAL_CUSTOM_CODE,
+    ...document.customCode,
+  };
 }
 
 export function formatPortalCopy(value: string, tokens: Record<string, string>): string {
@@ -219,6 +256,15 @@ function objectValue(value: unknown): Record<string, unknown> {
 
 function cleanText(value: unknown, fallback: string, max: number): string {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, max) : fallback;
+}
+
+function cleanCode(value: unknown, fallback: string | undefined, max: number): string {
+  return typeof value === "string" ? value.slice(0, max) : fallback ?? "";
+}
+
+function cleanExtensionHeight(value: unknown, fallback: number | undefined): number {
+  const height = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.min(1_200, Math.max(120, Math.round(height ?? EMPTY_CLIENT_PORTAL_CUSTOM_CODE.minHeight)));
 }
 
 function cleanColor(value: unknown, fallback: string): string {

@@ -11,7 +11,9 @@ import {
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES, type ClientStage } from "@/server/types";
-import { cleanPortalProducts, type PortalProductKey } from "@/lib/portalProducts";
+import type { PortalProductKey } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { listAgencyProducts } from "@/server/agencyProducts";
 import { PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
 
 export async function POST(req: Request) {
@@ -31,7 +33,7 @@ export async function POST(req: Request) {
       const productKey = body.productKey as PortalProductKey;
       const columns = PRODUCT_PIPELINE_COLUMNS[productKey];
       const column = columns?.find(item => item.id === body.columnId);
-      const assigned = cleanPortalProducts(client.metadata?.portalProducts)
+      const assigned = resolvePortalProductAssignment(client.metadata ?? {}, listAgencyProducts(session.agencyId, true)).products
         .some(product => product.catalogKey === productKey);
       if (!column || !assigned) {
         return NextResponse.json({ ok: false, error: "Product or delivery stage not found" }, { status: 404 });

@@ -92,9 +92,9 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           <Link
             href="/"
             aria-label="Back to the marketing site"
-            className="rounded-md border border-black/10 bg-white px-2 py-1 text-black/70 hover:bg-black/5"
+            className="inline-flex size-9 items-center justify-center gap-1.5 rounded-md border border-black/10 bg-white text-black/70 hover:bg-black/5 sm:size-auto sm:px-2 sm:py-1"
           >
-            <span aria-hidden>←</span> Back to website
+            <span aria-hidden>←</span><span className="hidden sm:inline">Back to website</span>
           </Link>
         ) : null}
         {publicShowcase ? (

@@ -43,6 +43,7 @@ import { buildCompanyHealthSnapshot } from "./companyHealthSnapshot";
 import { makePluginStorage } from "./pluginStorage";
 import { inspectRadarEvidenceSeries } from "./radarEvidenceVault";
 import { buildRadarTelemetrySnapshot, type RadarTelemetryProperty } from "./radarTelemetry";
+import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clientWorkspace";
 
 const DAY = 86_400_000;
 
@@ -413,10 +414,11 @@ function buildIntelligenceScopes(input: {
     return scope;
   });
   const clientScopes = input.clients.filter(client => client.status !== "archived").map(client => {
+    const clientLabel = clientWorkspaceDisplayName(client);
     const properties = input.properties.filter(property => property.clientId === client.id);
     const scope = scopeWithWebsiteReadings({
       id: `client:${client.id}`,
-      label: client.name,
+      label: clientLabel,
       kind: "client",
       detail: `${properties.length} monitored ${properties.length === 1 ? "property" : "properties"} plus this client's retained lifecycle state.`,
       href: `/portal/clients/${client.id}`,
@@ -498,11 +500,12 @@ function websiteScopeReadings(scopeId: string, label: string, properties: RadarT
 }
 
 function clientLifecycleReadings(client: Client, now: number): CommandScopedKpiReading[] {
+  const clientLabel = clientWorkspaceDisplayName(client);
   const active = client.status === "active" && client.stage !== "churned";
   const retention = client.stage === "churned" ? 0 : active ? 100 : null;
   return [
-    scopedReading("active-clients", active ? 1 : 0, active ? "1 active" : "Not active", active ? "healthy" : "warning", `${client.name}'s current relationship state.`, `/portal/clients/${client.id}`, `client:${client.id}:lifecycle`, client.updatedAt, 1, undefined, [{ at: client.updatedAt, value: active ? 1 : 0 }], [`Status ${client.status}`, `Stage ${client.stage}`], { baselineValue: 0, targetValue: 1, direction: "higher", cadence: "monthly", source: `${client.name} relationship state` }),
-    scopedReading("retention", retention, retention === null ? "Unknown" : `${retention}%`, retention === null ? "learning" : retention ? "healthy" : "critical", `${client.name}'s retained or churned lifecycle outcome.`, `/portal/clients/${client.id}?tab=health`, `client:${client.id}:lifecycle`, client.updatedAt, 1, undefined, retention === null ? [] : [{ at: now, value: retention }], [`Status ${client.status}`, `Stage ${client.stage}`], { baselineValue: 0, targetValue: 100, direction: "higher", cadence: "rolling", source: `${client.name} retention state` }),
+    scopedReading("active-clients", active ? 1 : 0, active ? "1 active" : "Not active", active ? "healthy" : "warning", `${clientLabel}'s current relationship state.`, clientWorkspaceHref(client.id, "overview"), `client:${client.id}:lifecycle`, client.updatedAt, 1, undefined, [{ at: client.updatedAt, value: active ? 1 : 0 }], [`Status ${client.status}`, `Stage ${client.stage}`], { baselineValue: 0, targetValue: 1, direction: "higher", cadence: "monthly", source: `${clientLabel} relationship state` }),
+    scopedReading("retention", retention, retention === null ? "Unknown" : `${retention}%`, retention === null ? "learning" : retention ? "healthy" : "critical", `${clientLabel}'s retained or churned lifecycle outcome.`, clientWorkspaceHref(client.id, "relationship"), `client:${client.id}:lifecycle`, client.updatedAt, 1, undefined, retention === null ? [] : [{ at: now, value: retention }], [`Status ${client.status}`, `Stage ${client.stage}`], { baselineValue: 0, targetValue: 100, direction: "higher", cadence: "rolling", source: `${clientLabel} retention state` }),
   ];
 }
 

@@ -8,10 +8,15 @@ export const CLIENT_WORKSPACE_TABS = [
   { id: "communications", label: "Communications" },
   { id: "files", label: "Files" },
   { id: "portal", label: "Portal" },
-  { id: "notes", label: "Notes" },
+  { id: "notes", label: "Record" },
 ] as const;
 
 export type ClientWorkspaceTabId = (typeof CLIENT_WORKSPACE_TABS)[number]["id"];
+
+export function clientWorkspaceDisplayName(client: { name: string; workspaceLabel?: string | null }): string {
+  const workspaceLabel = client.workspaceLabel?.trim();
+  return workspaceLabel ? `${client.name} · ${workspaceLabel}` : client.name;
+}
 
 const LEGACY_TAB_ALIASES: Record<string, ClientWorkspaceTabId> = {
   fulfilment: "delivery",

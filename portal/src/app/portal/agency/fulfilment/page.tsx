@@ -7,7 +7,8 @@ import { listClientMilestones } from "@/server/clientMilestones";
 import { phaseLabel } from "@/server/phases";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
 import { listClients } from "@/server/tenants";
-import { cleanPortalProducts, portalProductSelectionFromAgencyProduct, PORTAL_PRODUCT_CATALOG, type PortalProductKey } from "@/lib/portalProducts";
+import { portalProductSelectionFromAgencyProduct, PORTAL_PRODUCT_CATALOG, type PortalProductKey } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { portalProductModule } from "@/lib/portalProductModules";
 import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
 import { defaultProductPipelineStage, PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
@@ -16,6 +17,7 @@ import { listSops } from "@/server/sops";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { formatUkDate } from "@/lib/formatDateTime";
+import { clientRelationshipId } from "@/server/clientRelationships";
 import DevelopmentPage from "../development/page";
 import {
   FulfilmentWorkspace,
@@ -51,14 +53,20 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   ensureDefaultAgencyProducts(agencyId);
   const allAgencyProducts = listAgencyProducts(agencyId, true);
   const agencyProducts = allAgencyProducts.filter(product => product.active);
-  const clients = listClients(agencyId).filter(client => client.status === "active" && client.stage !== "churned");
+  const clientDirectory = listClients(agencyId);
+  const clients = clientDirectory.filter(client => client.status === "active" && client.stage !== "churned");
+  const relationshipWorkspaceCounts = clientDirectory.reduce((counts, client) => {
+    const relationshipId = clientRelationshipId(client);
+    counts.set(relationshipId, (counts.get(relationshipId) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
   const milestones = listClientMilestones(agencyId);
   const milestoneMap = groupMilestones(milestones);
-  const clientRecords = clients.map(client => clientRecord(client, agencyProducts, milestoneMap.get(client.id) ?? []));
-  const productRecords = agencyProducts.map(product => productRecord(product, clients));
+  const clientRecords = clients.map(client => clientRecord(client, agencyProducts, milestoneMap.get(client.id) ?? [], relationshipWorkspaceCounts));
+  const productRecords = agencyProducts.map(product => productRecord(product, clients, agencyProducts, relationshipWorkspaceCounts));
   const attention = attentionItems(clientRecords, milestoneMap);
   const flow = flowSummary(clientRecords);
-  const stageBoard = buildStageBoard(requested.product, clients, agencyProducts);
+  const stageBoard = buildStageBoard(requested.product, clients, agencyProducts, relationshipWorkspaceCounts);
   const { portals, products: portalProducts } = portalWorkspaceData(agencyId, session.userId);
   const settings = getAgencyWorkspaceSettings(agencyId);
 
@@ -97,8 +105,8 @@ function groupMilestones(milestones: ClientMilestone[]): Map<string, ClientMiles
   return grouped;
 }
 
-function clientRecord(client: Client, agencyProducts: AgencyProduct[], milestones: ClientMilestone[]): FulfilmentClientRecord {
-  const selections = cleanPortalProducts(client.metadata?.portalProducts);
+function clientRecord(client: Client, agencyProducts: AgencyProduct[], milestones: ClientMilestone[], relationshipWorkspaceCounts: Map<string, number>): FulfilmentClientRecord {
+  const selections = resolvePortalProductAssignment(client.metadata ?? {}, agencyProducts).products;
   const agencyProductById = new Map(agencyProducts.map(product => [product.id, product]));
   const agencyProductByTemplate = new Map(agencyProducts.flatMap(product => product.portalTemplateKey ? [[product.portalTemplateKey, product] as const] : []));
   const workspaces = new Map(clientProductWorkspaces(client).map(workspace => [workspace.productId, workspace]));
@@ -135,6 +143,9 @@ function clientRecord(client: Client, agencyProducts: AgencyProduct[], milestone
   return {
     id: client.id,
     name: client.name,
+    relationshipId: clientRelationshipId(client),
+    relationshipWorkspaceCount: relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1,
+    workspaceLabel: client.workspaceLabel,
     stageLabel: phaseLabel(client.stage),
     ownerEmail: client.ownerEmail,
     portalReady: typeof client.metadata?.portalBuiltAt === "number",
@@ -147,12 +158,17 @@ function clientRecord(client: Client, agencyProducts: AgencyProduct[], milestone
   };
 }
 
-function productRecord(product: AgencyProduct, clients: Client[]): FulfilmentProductRecord {
+function productRecord(product: AgencyProduct, clients: Client[], catalogue: AgencyProduct[], relationshipWorkspaceCounts: Map<string, number>): FulfilmentProductRecord {
   const clientNames = clients.flatMap(client => {
-    const assigned = cleanPortalProducts(client.metadata?.portalProducts).some(selection =>
+    const assigned = resolvePortalProductAssignment(client.metadata ?? {}, catalogue).products.some(selection =>
       selection.id === product.id || Boolean(product.portalTemplateKey && selection.catalogKey === product.portalTemplateKey)
     );
-    return assigned ? [{ id: client.id, name: client.name }] : [];
+    return assigned ? [{
+      id: client.id,
+      name: client.name,
+      workspaceLabel: client.workspaceLabel,
+      relationshipWorkspaceCount: relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1,
+    }] : [];
   });
   const selection = portalProductSelectionFromAgencyProduct(product);
   const module = portalProductModule(selection);
@@ -172,25 +188,32 @@ function productRecord(product: AgencyProduct, clients: Client[]): FulfilmentPro
   };
 }
 
-function buildStageBoard(requestedProduct: string | undefined, clients: Client[], products: AgencyProduct[]): FulfilmentStageBoard {
+function buildStageBoard(requestedProduct: string | undefined, clients: Client[], products: AgencyProduct[], relationshipWorkspaceCounts: Map<string, number>): FulfilmentStageBoard {
   const available = products.flatMap(product => product.portalTemplateKey ? [{ key: product.portalTemplateKey, label: product.name }] : []);
   const unique = Array.from(new Map(available.map(product => [product.key, product])).values());
   const selectedKey = unique.some(product => product.key === requestedProduct)
     ? requestedProduct as PortalProductKey
-    : unique.find(product => clients.some(client => cleanPortalProducts(client.metadata?.portalProducts).some(selection => selection.catalogKey === product.key)))?.key as PortalProductKey | undefined
+    : unique.find(product => clients.some(client => resolvePortalProductAssignment(client.metadata ?? {}, products).products.some(selection => selection.catalogKey === product.key)))?.key as PortalProductKey | undefined
       ?? unique[0]?.key as PortalProductKey | undefined
       ?? "website";
   const definition = PORTAL_PRODUCT_CATALOG.find(product => product.catalogKey === selectedKey) ?? PORTAL_PRODUCT_CATALOG[0]!;
   const columns = PRODUCT_PIPELINE_COLUMNS[definition.catalogKey];
   const cards = clients.flatMap(client => {
-    const assigned = cleanPortalProducts(client.metadata?.portalProducts).some(product => product.catalogKey === definition.catalogKey);
+    const assigned = resolvePortalProductAssignment(client.metadata ?? {}, products).products.some(product => product.catalogKey === definition.catalogKey);
     if (!assigned) return [];
     const stages = client.metadata?.productPipelineStages && typeof client.metadata.productPipelineStages === "object"
       ? client.metadata.productPipelineStages as Record<string, unknown>
       : {};
     const stored = typeof stages[definition.catalogKey] === "string" ? stages[definition.catalogKey] as string : "";
     const columnId = columns.some(column => column.id === stored) ? stored : defaultProductPipelineStage(definition.catalogKey, client.stage);
-    return [{ id: client.id, label: client.name, sub: definition.name, href: `/portal/clients/${client.id}?tab=delivery`, columnId }];
+    const linkedCount = relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1;
+    return [{
+      id: client.id,
+      label: client.workspaceLabel ? `${client.name} · ${client.workspaceLabel}` : client.name,
+      sub: linkedCount > 1 ? `${definition.name} · linked buyer (${linkedCount})` : definition.name,
+      href: `/portal/clients/${client.id}?tab=delivery`,
+      columnId,
+    }];
   });
   return { productKey: definition.catalogKey, productName: definition.name, products: unique, columns, cards };
 }
@@ -199,16 +222,17 @@ function attentionItems(clients: FulfilmentClientRecord[], milestoneMap: Map<str
   const now = Date.now();
   const items: FulfilmentAttentionItem[] = [];
   for (const client of clients) {
+    const clientLabel = client.workspaceLabel ? `${client.name} · ${client.workspaceLabel}` : client.name;
     const milestones = milestoneMap.get(client.id) ?? [];
     for (const milestone of milestones.filter(item => item.status === "blocked")) {
-      items.push({ id: `blocked:${milestone.id}`, title: `${client.name}: ${milestone.title}`, detail: milestone.description || "This milestone is blocked and needs an owner or decision.", href: `/portal/clients/${client.id}?tab=delivery`, level: "urgent", label: "Blocked" });
+      items.push({ id: `blocked:${milestone.id}`, title: `${clientLabel}: ${milestone.title}`, detail: milestone.description || "This milestone is blocked and needs an owner or decision.", href: `/portal/clients/${client.id}?tab=delivery`, level: "urgent", label: "Blocked" });
     }
     for (const milestone of milestones.filter(item => item.status !== "complete" && item.status !== "blocked" && item.targetAt && item.targetAt < now)) {
-      items.push({ id: `overdue:${milestone.id}`, title: `${client.name}: ${milestone.title}`, detail: `Target date passed ${formatDate(milestone.targetAt!)}. Move it, complete it, or reset the expectation.`, href: `/portal/clients/${client.id}?tab=delivery`, level: "urgent", label: "Overdue" });
+      items.push({ id: `overdue:${milestone.id}`, title: `${clientLabel}: ${milestone.title}`, detail: `Target date passed ${formatDate(milestone.targetAt!)}. Move it, complete it, or reset the expectation.`, href: `/portal/clients/${client.id}?tab=delivery`, level: "urgent", label: "Overdue" });
     }
-    if (!client.products.length) items.push({ id: `service:${client.id}`, title: `Assign a service to ${client.name}`, detail: "The client has no product workspace, delivery stages, or defined outputs yet.", href: `/portal/clients/${client.id}?tab=delivery`, level: "high", label: "Setup" });
-    if (client.portalRequired && !client.portalReady) items.push({ id: `portal:${client.id}`, title: `Create ${client.name}'s portal`, detail: "At least one assigned product requires a portal, but the shared client workspace is not ready.", href: `/portal/clients/${client.id}?tab=portal`, level: "high", label: "Portal" });
-    if (!client.ownerEmail) items.push({ id: `email:${client.id}`, title: `Add a primary contact for ${client.name}`, detail: "Delivery updates and portal access cannot be sent without a client email.", href: `/portal/clients/${client.id}?tab=relationship`, level: "normal", label: "Contact" });
+    if (!client.products.length) items.push({ id: `service:${client.id}`, title: `Assign a service to ${clientLabel}`, detail: "The client has no product workspace, delivery stages, or defined outputs yet.", href: `/portal/clients/${client.id}?tab=delivery`, level: "high", label: "Setup" });
+    if (client.portalRequired && !client.portalReady) items.push({ id: `portal:${client.id}`, title: `Create ${clientLabel}'s portal`, detail: "At least one assigned product requires a portal, but the shared client workspace is not ready.", href: `/portal/clients/${client.id}?tab=portal`, level: "high", label: "Portal" });
+    if (!client.ownerEmail) items.push({ id: `email:${client.id}`, title: `Add a primary contact for ${clientLabel}`, detail: "Delivery updates and portal access cannot be sent without a client email.", href: `/portal/clients/${client.id}?tab=relationship`, level: "normal", label: "Contact" });
   }
   const rank = { urgent: 0, high: 1, normal: 2 } as const;
   return items.sort((left, right) => rank[left.level] - rank[right.level] || left.title.localeCompare(right.title));

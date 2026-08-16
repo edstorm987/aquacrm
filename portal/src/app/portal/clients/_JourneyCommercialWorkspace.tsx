@@ -16,13 +16,18 @@ import {
 
 import type { ClientAquaHealth, AquaHealthState } from "@/lib/clientAquaHealth";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
+import type { ClientPaymentPlan } from "@/lib/clientPaymentPlans";
 import { ContractsPanel } from "./[clientId]/_ContractsPanel";
 import { FinanceTabClient } from "./[clientId]/_FinanceTabClient";
+import type { PaymentPlanEvidenceFile } from "./[clientId]/_PaymentPlansPanel";
 import { JourneyMeetingsWorkspace, type JourneyMeetingPerson } from "./_JourneyMeetingsWorkspace";
 
 export interface JourneyCommercialClient {
   id: string;
   name: string;
+  relationshipId: string;
+  relationshipWorkspaceCount: number;
+  workspaceLabel?: string;
   ownerEmail?: string;
   primaryColor: string;
   stageLabel: string;
@@ -35,6 +40,9 @@ export interface JourneyCommercialClient {
     stripeLink?: string;
   };
   contracts: ClientContract[];
+  paymentPlans: ClientPaymentPlan[];
+  commercialFiles: PaymentPlanEvidenceFile[];
+  products: Array<{ id: string; name: string }>;
   aquaHealth: ClientAquaHealth;
 }
 
@@ -75,7 +83,7 @@ export function JourneyCommercialWorkspace({
     const needle = query.trim().toLowerCase();
     return clients.filter(client => (!brand || client.brandName === brand)
       && (!service || client.serviceNames.includes(service))
-      && (!needle || `${client.name} ${client.ownerEmail ?? ""} ${client.brandName ?? ""} ${client.serviceNames.join(" ")}`.toLowerCase().includes(needle)));
+      && (!needle || `${client.name} ${client.workspaceLabel ?? ""} ${client.ownerEmail ?? ""} ${client.brandName ?? ""} ${client.serviceNames.join(" ")}`.toLowerCase().includes(needle)));
   }, [brand, clients, query, service]);
   const attention = clients.filter(client => client.aquaHealth.state === "risk" || client.aquaHealth.state === "watch").length;
 
@@ -129,6 +137,9 @@ export function JourneyCommercialWorkspace({
                   initial={selected.financeInitial}
                   initialContracts={selected.contracts}
                   initialContractTemplates={contractTemplates}
+                  initialPaymentPlans={selected.paymentPlans}
+                  initialCommercialFiles={selected.commercialFiles}
+                  products={selected.products}
                   showContracts={false}
                 /> : <PermissionMessage />
               ) : <ContractsPanel
@@ -156,19 +167,19 @@ function HealthSummary({ clients }: { clients: JourneyCommercialClient[] }) {
 
 function ClientRail({ clients, selectedClientId, onSelect }: { clients: JourneyCommercialClient[]; selectedClientId?: string; onSelect: (id: string) => void }) {
   return <aside className="min-w-0 border-r border-black/10 pr-4"><p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-black/40">Choose client · {clients.length}</p><div className="max-h-[720px] divide-y divide-black/[0.07] overflow-y-auto border-y border-black/10">
-    {clients.map(client => <button key={client.id} type="button" onClick={() => onSelect(client.id)} className={`flex w-full items-center gap-3 px-2 py-3 text-left ${selectedClientId === client.id ? "bg-black/[0.055]" : "hover:bg-black/[0.025]"}`}><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: client.primaryColor }} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-black/78">{client.name}</span><span className="mt-0.5 block truncate text-xs text-black/42">{client.brandName || "No brand"} · {client.stageLabel}</span></span><ArrowRight size={13} className="text-black/25" /></button>)}
+    {clients.map(client => <button key={client.id} type="button" onClick={() => onSelect(client.id)} className={`flex w-full items-center gap-3 px-2 py-3 text-left ${selectedClientId === client.id ? "bg-black/[0.055]" : "hover:bg-black/[0.025]"}`}><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: client.primaryColor }} /><span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1.5"><span className="truncate text-sm font-semibold text-black/78">{client.name}</span>{client.relationshipWorkspaceCount > 1 ? <span title={`${client.relationshipWorkspaceCount} isolated workspaces for this buyer`} className="shrink-0 rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700">{client.relationshipWorkspaceCount} linked</span> : null}</span><span className="mt-0.5 block truncate text-xs text-black/42">{client.workspaceLabel ? `${client.workspaceLabel} · ` : ""}{client.brandName || "No brand"} · {client.stageLabel}</span></span><ArrowRight size={13} className="text-black/25" /></button>)}
     {!clients.length ? <p className="px-2 py-6 text-sm text-black/45">No clients match these filters.</p> : null}
   </div></aside>;
 }
 
 function SelectedClientHeader({ client }: { client: JourneyCommercialClient }) {
-  return <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-black/10 pb-4"><div><div className="flex items-center gap-2"><span className="size-2.5 rounded-full" style={{ backgroundColor: client.primaryColor }} /><h3 className="text-base font-semibold text-black/82">{client.name}</h3></div><p className="mt-1 text-xs text-black/45">{client.ownerEmail || "Client email missing"} · {client.serviceNames.join(" · ") || "No service assigned"}</p></div><Link href={`/portal/clients/${client.id}?tab=relationship`} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Open relationship <ArrowRight size={13} /></Link></div>;
+  return <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-black/10 pb-4"><div><div className="flex flex-wrap items-center gap-2"><span className="size-2.5 rounded-full" style={{ backgroundColor: client.primaryColor }} /><h3 className="text-base font-semibold text-black/82">{client.name}</h3>{client.workspaceLabel ? <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-semibold text-black/55">Project: {client.workspaceLabel}</span> : null}{client.relationshipWorkspaceCount > 1 ? <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">Linked buyer · {client.relationshipWorkspaceCount}</span> : null}</div><p className="mt-1 text-xs text-black/45">{client.ownerEmail || "Client email missing"} · {client.serviceNames.join(" · ") || "No service assigned"}</p></div><Link href={`/portal/clients/${client.id}?tab=relationship`} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/15 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Open relationship <ArrowRight size={13} /></Link></div>;
 }
 
 function AquaHealthPortfolio({ clients, onSelect }: { clients: JourneyCommercialClient[]; onSelect: (client: JourneyCommercialClient) => void }) {
   return <div className="divide-y divide-black/[0.08] border-y border-black/10">
     {clients.map(client => <article key={client.id} className="grid gap-4 py-5 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center">
-      <button type="button" onClick={() => onSelect(client)} className="min-w-0 text-left"><div className="flex items-center gap-2"><HealthSignal state={client.aquaHealth.state} /><h3 className="truncate text-sm font-semibold text-black/82">{client.name}</h3></div><p className="mt-1 truncate text-xs text-black/42">{client.brandName || "No brand"} · {client.serviceNames.join(", ") || "No service"}</p></button>
+      <button type="button" onClick={() => onSelect(client)} className="min-w-0 text-left"><div className="flex items-center gap-2"><HealthSignal state={client.aquaHealth.state} /><h3 className="truncate text-sm font-semibold text-black/82">{client.name}</h3>{client.relationshipWorkspaceCount > 1 ? <span className="shrink-0 rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700">{client.relationshipWorkspaceCount} linked</span> : null}</div><p className="mt-1 truncate text-xs text-black/42">{client.workspaceLabel ? `${client.workspaceLabel} · ` : ""}{client.brandName || "No brand"} · {client.serviceNames.join(", ") || "No service"}</p></button>
       <div className="min-w-0"><div className="flex flex-wrap gap-2">{client.aquaHealth.factors.map(factor => <span key={factor.id} title={`${factor.detail} ${factor.evidence.join(" · ")}`} className={`rounded-full px-2 py-1 text-[10px] font-semibold ${stateClass(factor.state)}`}>{factor.label}: {factor.score === null ? "Learning" : factor.score}</span>)}</div><p className="mt-2 text-xs leading-5 text-black/50">{client.aquaHealth.summary}</p></div>
       <div className="flex items-center gap-4 lg:justify-end"><div className="text-right"><p className={`text-2xl font-semibold tabular-nums ${client.aquaHealth.state === "risk" ? "text-red-700" : "text-black/80"}`}>{client.aquaHealth.score ?? "—"}<span className="text-xs font-normal text-black/35">/100</span></p><p className="text-[10px] text-black/40">{client.aquaHealth.confidence}% evidence</p></div><Link href={`/portal/clients/${client.id}?tab=relationship`} title="Open relationship" className="grid size-9 place-items-center rounded-md border border-black/15 text-black/55"><ArrowRight size={14} /></Link></div>
     </article>)}

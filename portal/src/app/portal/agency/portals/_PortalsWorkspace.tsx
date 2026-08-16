@@ -9,6 +9,7 @@ import {
   LayoutPanelTop,
   MailCheck,
   MonitorCog,
+  PackagePlus,
   Search,
   Sparkles,
   UserRoundCheck,
@@ -31,6 +32,7 @@ export type PortalWorkspaceRecord = {
   portalLoginEmail?: string;
   portalMode: "onboarding" | "designing" | "developed-launch" | "maintenance";
   portalServicePlan?: string;
+  productCount: number;
 };
 
 export type PortalTemplateProductRecord = {
@@ -78,9 +80,9 @@ export function PortalsWorkspace({
   const [filter, setFilter] = useState<Filter>("all");
 
   const built = portals.filter(portal => portal.portalBuiltAt).length;
+  const ready = portals.filter(isReadyToInvite).length;
   const accessSent = portals.filter(portal => portal.portalAccessSentAt).length;
-  const live = portals.filter(portal => portal.portalBuiltAt && portal.portalMode === "maintenance").length;
-  const needsSetup = portals.length - built;
+  const needsSetup = portals.length - ready;
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -94,8 +96,8 @@ export function PortalsWorkspace({
         portal.stageLabel,
       ].some(value => value?.toLowerCase().includes(term));
       const matchesFilter = filter === "all"
-        || filter === "ready" && Boolean(portal.portalBuiltAt)
-        || filter === "needs-setup" && !portal.portalBuiltAt
+        || filter === "ready" && isReadyToInvite(portal)
+        || filter === "needs-setup" && !isReadyToInvite(portal)
         || filter === "access-sent" && Boolean(portal.portalAccessSentAt)
         || filter === "live" && portal.portalBuiltAt && portal.portalMode === "maintenance";
       return matchesTerm && matchesFilter;
@@ -141,9 +143,9 @@ export function PortalsWorkspace({
         <div className="pt-6">
           <section aria-label="Portal summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Summary label="Clients" value={portals.length} detail="All client records" icon={<UserRoundCheck size={17} />} tone="blue" />
-            <Summary label="Portals ready" value={built} detail={`${needsSetup} still optional`} icon={<CheckCircle2 size={17} />} tone="emerald" />
+            <Summary label="Created" value={built} detail={`${ready} ready to invite`} icon={<CheckCircle2 size={17} />} tone="emerald" />
             <Summary label="Access sent" value={accessSent} detail="Customer sign-in issued" icon={<MailCheck size={17} />} tone="violet" />
-            <Summary label="Live care" value={live} detail="Maintenance experience" icon={<Sparkles size={17} />} tone="amber" />
+            <Summary label="Needs setup" value={needsSetup} detail="Exact next step shown below" icon={<CircleDashed size={17} />} tone="amber" />
           </section>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -161,7 +163,7 @@ export function PortalsWorkspace({
               Show
               <select value={filter} onChange={event => setFilter(event.target.value as Filter)} className="min-h-11 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70 outline-none focus:border-brand/60">
                 <option value="all">All portals</option>
-                <option value="ready">Portal ready</option>
+                <option value="ready">Ready to invite</option>
                 <option value="needs-setup">Needs setup</option>
                 <option value="access-sent">Access sent</option>
                 <option value="live">Live care</option>
@@ -298,7 +300,30 @@ function Summary({ label, value, detail, icon, tone }: { label: string; value: n
 
 function PortalCard({ portal }: { portal: PortalWorkspaceRecord }) {
   const isBuilt = Boolean(portal.portalBuiltAt);
+  const hasEmail = Boolean(portal.portalLoginEmail || portal.ownerEmail);
+  const hasServices = portal.productCount > 0;
+  const accessIssued = Boolean(portal.portalAccessSentAt || portal.portalAccessPreparedAt);
+  const checks = [
+    { label: "Service", ready: hasServices },
+    { label: "Portal", ready: isBuilt },
+    { label: "Sign-in", ready: hasEmail },
+    { label: "Access", ready: accessIssued },
+  ];
+  const completed = checks.filter(check => check.ready).length;
+  const readyToInvite = isReadyToInvite(portal);
   const access = portal.portalAccessSentAt ? "Access sent" : portal.portalAccessPreparedAt ? "Access prepared" : isBuilt ? "Not invited" : "Not created";
+  const nextStep = !hasServices
+    ? "Assign a service"
+    : !isBuilt
+      ? "Create the portal"
+      : !hasEmail
+        ? "Add a customer email"
+        : !accessIssued
+          ? "Send customer access"
+          : "Portal is operational";
+  const setupHref = !hasServices
+    ? `/portal/clients/${portal.id}?tab=delivery#service-assignment`
+    : `/portal/clients/${portal.id}?tab=portal`;
   return (
     <article className="mm-surface-card mm-hover-lift overflow-hidden rounded-md">
       <div className="h-1" style={{ backgroundColor: portal.accentColor }} />
@@ -308,18 +333,31 @@ function PortalCard({ portal }: { portal: PortalWorkspaceRecord }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-base font-semibold text-black/85">{portal.name}</h2>
-              <StatusChip tone={isBuilt ? "ready" : "neutral"}>{isBuilt ? MODE_LABELS[portal.portalMode] : "Needs setup"}</StatusChip>
+              <StatusChip tone={accessIssued ? "ready" : readyToInvite ? "warning" : "neutral"}>{accessIssued ? "Access issued" : readyToInvite ? "Ready to invite" : "Needs setup"}</StatusChip>
               {portal.status !== "active" ? <StatusChip tone="warning">{titleCase(portal.status)}</StatusChip> : null}
             </div>
-            <p className="mt-1 truncate text-xs text-black/45">{portal.companyName ?? "AquaOasis-Web"} · {portal.stageLabel}</p>
+            <p className="mt-1 truncate text-xs text-black/45">{portal.companyName ?? "AquaOasis-Web"} · {portal.stageLabel}{isBuilt ? ` · ${MODE_LABELS[portal.portalMode]}` : ""}</p>
           </div>
         </div>
 
         <dl className="mt-5 grid gap-3 border-y border-black/8 py-4 sm:grid-cols-3">
           <Detail label="Access" value={access} />
           <Detail label="Sign-in" value={portal.portalLoginEmail || portal.ownerEmail || "Not set"} />
-          <Detail label="Plan" value={portal.portalServicePlan || "Not set"} />
+          <Detail label="Services" value={hasServices ? `${portal.productCount} assigned${portal.portalServicePlan ? ` · ${portal.portalServicePlan}` : ""}` : "None assigned"} />
         </dl>
+
+        <div className="mt-4 rounded-md border border-black/8 bg-black/[0.018] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-black/38">Launch progress</p>
+            <span className="text-[11px] font-semibold text-black/55">{completed}/4</span>
+          </div>
+          <div className="mt-2 grid grid-cols-4 gap-1.5" aria-label={`${completed} of 4 portal launch steps complete`}>
+            {checks.map(check => (
+              <span key={check.label} title={`${check.label}: ${check.ready ? "complete" : "needs attention"}`} className={`h-1.5 rounded-full ${check.ready ? "bg-emerald-500" : "bg-black/10"}`} />
+            ))}
+          </div>
+          <p className={`mt-2 text-xs font-medium ${accessIssued ? "text-emerald-700" : "text-black/62"}`}>{nextStep}</p>
+        </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           {isBuilt ? (
@@ -327,13 +365,18 @@ function PortalCard({ portal }: { portal: PortalWorkspaceRecord }) {
               <Eye size={15} /> View portal <ArrowUpRight size={14} />
             </Link>
           ) : null}
-          <Link href={isBuilt ? `/portal/agency/portals/editor?scope=client&clientId=${portal.id}` : `/portal/clients/${portal.id}?tab=portal`} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBuilt ? "border border-black/12 bg-white text-black/70 hover:bg-black/[0.03]" : "bg-black text-white hover:bg-black/85"}`}>
-            {isBuilt ? <MonitorCog size={15} /> : <Sparkles size={15} />}{isBuilt ? "Portal editor" : "Create portal"}
+          {isBuilt ? <Link href={`/portal/agency/portals/editor?scope=client&clientId=${portal.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03]"><MonitorCog size={15} /> Portal editor</Link> : null}
+          <Link href={setupHref} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBuilt ? "border border-black/12 bg-white text-black/70 hover:bg-black/[0.03]" : "bg-black text-white hover:bg-black/85"}`}>
+            {isBuilt ? <MailCheck size={15} /> : hasServices ? <Sparkles size={15} /> : <PackagePlus size={15} />}{isBuilt ? "Access & setup" : hasServices ? "Create portal" : "Assign service"}
           </Link>
         </div>
       </div>
     </article>
   );
+}
+
+function isReadyToInvite(portal: PortalWorkspaceRecord): boolean {
+  return Boolean(portal.portalBuiltAt && portal.productCount > 0 && (portal.portalLoginEmail || portal.ownerEmail));
 }
 
 function StatusChip({ tone, children }: { tone: "ready" | "warning" | "neutral"; children: ReactNode }) {

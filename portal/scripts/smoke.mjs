@@ -495,14 +495,14 @@ async function main() {
       customerRecord.status === 200
       && customerRecordText.includes("Everything we know, shared with you.")
       && customerRecordText.includes("What we hold.")
-      && customerRecordText.includes("Notes we hold about your project."));
+      && customerRecordText.includes("Notes, decisions and summaries."));
     record("customer can revisit recordings and personal account data",
       customerRecordText.includes("Discovery call recording")
       && customerRecordText.includes("Rewatch")
       && customerRecordText.includes(portalSettings.loginEmail)
       && customerRecordText.includes("Foundational Flow"));
     record("customer navigation exposes their record",
-      customerRecordText.includes("Your details"));
+      customerRecordText.includes("Your record"));
 
     const activityInbox = await go("GET", "/portal/agency/activity-inbox");
     const activityInboxText = await text(activityInbox);

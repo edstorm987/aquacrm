@@ -7,6 +7,10 @@ import { getClientForAgency } from "./tenants";
 import type { ClientMilestone, ClientMilestoneStatus } from "./types";
 import { performanceMetricValue } from "@/lib/performanceAnalytics";
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
+import {
+  removeClientRecordLedgerEvent,
+  upsertClientMilestoneLedgerEvent,
+} from "@/lib/server/clientRecordLedger";
 
 export interface ClientMilestoneInput {
   title: string;
@@ -53,6 +57,7 @@ export function createClientMilestone(agencyId: string, clientId: string, input:
     updatedAt: now,
   };
   mutate(state => { state.clientMilestones[milestone.id] = milestone; });
+  upsertClientMilestoneLedgerEvent(agencyId, clientId, milestone);
   logActivity({ agencyId, clientId, actorUserId, category: "fulfillment", action: "milestone.created", message: `Added milestone “${title}” for ${client.name}.`, metadata: { milestoneId: milestone.id } });
   return milestone;
 }
@@ -77,6 +82,7 @@ export function updateClientMilestone(agencyId: string, clientId: string, id: st
     updatedAt: Date.now(),
   };
   mutate(state => { state.clientMilestones[id] = updated; });
+  upsertClientMilestoneLedgerEvent(agencyId, clientId, updated);
   logActivity({ agencyId, clientId, actorUserId, category: "fulfillment", action: "milestone.updated", message: `Updated milestone “${updated.title}”.`, metadata: { milestoneId: id, status, progress } });
   return updated;
 }
@@ -107,12 +113,17 @@ export function syncClientPerformanceMilestones(agencyId: string, clientId: stri
       };
     }
   });
+  for (const milestone of tracked) {
+    const updated = getState().clientMilestones[milestone.id];
+    if (updated) upsertClientMilestoneLedgerEvent(agencyId, clientId, updated);
+  }
 }
 
 export function deleteClientMilestone(agencyId: string, clientId: string, id: string): boolean {
   const existing = getState().clientMilestones[id];
   if (!existing || existing.agencyId !== agencyId || existing.clientId !== clientId) return false;
   mutate(state => { delete state.clientMilestones[id]; });
+  removeClientRecordLedgerEvent(agencyId, clientId, "delivery", `delivery:${id}`);
   return true;
 }
 

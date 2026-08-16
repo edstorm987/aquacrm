@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
@@ -27,7 +27,7 @@ import { addSidebarAttention } from "@/lib/server/sidebarAttention";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
 import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
-import { cleanPortalProducts } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { LeadsPipelineWorkspaceServer } from "@/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer";
 import { isLeadJourneyEligible, isWebsiteEnquiryClassification } from "@/lib/enquiryClassification";
 import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
@@ -38,6 +38,12 @@ import type { ClientContract, ClientContractTemplate } from "@/lib/clientContrac
 import { calculateClientAquaHealth } from "@/lib/clientAquaHealth";
 import { JourneyCommercialWorkspace, type JourneyCommercialClient } from "./_JourneyCommercialWorkspace";
 import type { JourneyMeetingPerson } from "./_JourneyMeetingsWorkspace";
+import { cleanClientPaymentPlans, reconcileClientPaymentPlan } from "@/lib/clientPaymentPlans";
+import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities } from "@/lib/server/websiteEnquiries";
+import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import { synchroniseInboxIdentityResolutions } from "@/lib/server/inboxService";
+import { clearIdentityResolutionReviews, listIdentityResolutionReviews } from "@/lib/server/identityResolution";
+import { clientRelationshipId } from "@/server/clientRelationships";
 
 interface JourneyClientMetadata {
   leadId?: string;
@@ -57,6 +63,16 @@ interface JourneyClientMetadata {
   stripeLink?: string;
   portalLoginEmail?: string;
   clientEmail?: string;
+  clientPaymentPlans?: unknown;
+  files?: Array<{
+    id: string;
+    name?: string;
+    url?: string;
+    category?: string;
+    uploadedAt?: number;
+    customerVisible?: boolean;
+    collectionId?: string;
+  }>;
 }
 
 // /portal/clients — agency-side client list. Client-* roles redirect
@@ -77,6 +93,11 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   const currentUser = getUserById(session.userId);
   const serviceBrands = listTradingCompanies(session.agencyId).filter(company => company.status !== "archived");
   const clients = listClients(session.agencyId);
+  const relationshipWorkspaceCounts = clients.reduce((counts, client) => {
+    const relationshipId = clientRelationshipId(client);
+    counts.set(relationshipId, (counts.get(relationshipId) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
   ensureDefaultAgencyProducts(session.agencyId);
   const products = listAgencyProducts(session.agencyId);
   const workspaceSettings = getAgencyWorkspaceSettings(session.agencyId);
@@ -217,7 +238,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       });
     });
     const brandIds = [...new Set([...contact.brandIds, ...relatedClients.map(client => client.companyId).filter((value): value is string => Boolean(value))])];
-    const services = relatedClients.flatMap(client => cleanPortalProducts(client.metadata?.portalProducts ?? client.metadata?.products));
+    const services = relatedClients.flatMap(client => resolvePortalProductAssignment(client.metadata ?? {}, products).products);
     const canonicalServiceIds = contact.serviceIds.map(value => products.find(product => product.id === value || product.name.toLowerCase() === value.toLowerCase())?.id ?? value);
     const serviceIds = [...new Set([...canonicalServiceIds, ...services.map(service => service.id)])];
     return {
@@ -236,8 +257,24 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       serviceNames: related?.serviceNames ?? [],
     };
   });
+  if (session.isDemo) {
+    clearIdentityResolutionReviews(session.agencyId);
+  } else {
+    const [identityEnquiries, identitySocial] = await Promise.allSettled([
+      listWebsiteEnquiries(500),
+      listInboxSnapshot(session.agencyId),
+    ]);
+    if (identityEnquiries.status === "fulfilled") {
+      await synchroniseWebsiteEnquiryIdentities(session.agencyId, identityEnquiries.value).catch(() => identityEnquiries.value);
+    }
+    if (identitySocial.status === "fulfilled") {
+      await synchroniseInboxIdentityResolutions(session.agencyId, identitySocial.value).catch(() => identitySocial.value);
+    }
+  }
+  await flushPendingWrites();
+  const identityReviews = session.isDemo ? [] : listIdentityResolutionReviews(session.agencyId, { status: "all" });
   const requestedView = (await searchParams).view;
-  const initialView = requestedView === "contacts" || requestedView === "staff" || requestedView === "health" || requestedView === "journey" || requestedView === "all" ? requestedView : "journey";
+  const initialView = requestedView === "contacts" || requestedView === "staff" || requestedView === "health" || requestedView === "journey" || requestedView === "identity" || requestedView === "all" ? requestedView : "journey";
   const installs = listInstalledFor({ agencyId: agency.id });
   const eff = effectiveRole(session);
   const canViewFinance = hasAllPermissions(eff, ["finance.view"]);
@@ -277,12 +314,15 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   }
   const journeyClients: JourneyCommercialClient[] = clients.map(client => {
     const metadata = client.metadata as JourneyClientMetadata | undefined;
-    const services = cleanPortalProducts(metadata?.portalProducts ?? metadata?.products);
+    const services = resolvePortalProductAssignment(metadata ?? {}, products).products;
     const requestsObserved = Array.isArray(metadata?.clientRequests);
     const contracts = Array.isArray(metadata?.contracts) ? metadata.contracts : [];
     return {
       id: client.id,
       name: client.name,
+      relationshipId: clientRelationshipId(client),
+      relationshipWorkspaceCount: relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1,
+      workspaceLabel: client.workspaceLabel,
       ownerEmail: metadata?.portalLoginEmail || metadata?.clientEmail || client.ownerEmail,
       primaryColor: client.brand.primaryColor,
       stageLabel: phaseLabel(client.stage),
@@ -295,6 +335,20 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
         stripeLink: metadata?.stripeLink,
       },
       contracts,
+      paymentPlans: cleanClientPaymentPlans(metadata?.clientPaymentPlans)
+        .map(plan => reconcileClientPaymentPlan(plan, invoicesByClient.get(client.id) ?? [])),
+      commercialFiles: (Array.isArray(metadata?.files) ? metadata.files : [])
+        .filter(file => (file.category === "payment-plan" || file.category === "payment-proof") && Boolean(file.id && file.name && file.url))
+        .map(file => ({
+          id: file.id,
+          name: file.name!,
+          url: file.url!,
+          category: file.category!,
+          uploadedAt: file.uploadedAt,
+          customerVisible: file.customerVisible,
+          collectionId: file.collectionId,
+        })),
+      products: services.map(service => ({ id: service.id, name: service.name })),
       aquaHealth: calculateClientAquaHealth({
         financeConnected,
         invoices: invoicesByClient.get(client.id) ?? [],
@@ -354,6 +408,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
             <ErrorBoundary label="clients index">
               <PeopleHub
                 initialView={initialView}
+                identityReviews={identityReviews}
                 clientDefaults={workspaceSettings}
                 brands={serviceBrands.map(company => ({
                   id: company.id,
@@ -385,7 +440,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                 />}
                 clients={clients.map(client => {
 	                  const metadata = client.metadata as JourneyClientMetadata | undefined;
-                  const services = cleanPortalProducts(metadata?.portalProducts ?? metadata?.products);
+                  const services = resolvePortalProductAssignment(metadata ?? {}, products).products;
                   const healthNotes = [
                     !client.ownerEmail ? "Account email missing" : null,
                     !metadata?.leadSource ? "Acquisition source missing" : null,
@@ -409,6 +464,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                   healthNotes,
                   brandId: client.companyId,
                   brandName: client.companyId ? brandById.get(client.companyId) ?? "Unknown brand" : undefined,
+                  relationshipId: clientRelationshipId(client),
+                  relationshipWorkspaceCount: relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1,
+                  workspaceLabel: client.workspaceLabel,
                   serviceIds: services.map(service => service.id),
                   serviceNames: services.map(service => service.name),
                 };})}

@@ -1,10 +1,9 @@
 // Sidebar — server-rendered navigation. Reads NavPanel[] from
 // buildSidebar(); each panel groups NavItems.
 //
-// Each panel renders inside a native <details> so the operator can
-// collapse sections (chevron + item count in the summary). The panel
-// that contains the current route stays open by default; others
-// follow their cached `open` state. Zero-JS — purely <details>.
+// Standard panels render inside native <details>. Client workspaces
+// keep every section visible so the complete relationship and delivery
+// architecture remains one glance away.
 //
 // Collapsed-mode (data-collapsed="true") hides labels and the
 // summary text, leaving just the leading icon for each item. Native
@@ -47,6 +46,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
       data-sidebar-mobile={mobile ? "true" : "false"}
       data-sidebar-align={navAlignment}
       data-sidebar-variant={variant}
+      data-sidebar-lock={variant === "client" ? "expanded" : undefined}
       suppressHydrationWarning
       className={[
         "mm-private-sidebar shrink-0 bg-white/60 p-4 text-sm",
@@ -75,7 +75,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
         aria-label="Primary"
         className={[
           "mm-sidebar-primary-nav flex min-h-0 flex-1 flex-col gap-1",
-          mobile ? "overflow-y-auto overscroll-contain pr-1" : "",
+          mobile || variant === "client" ? "overflow-y-auto overscroll-contain pr-1" : "",
         ].join(" ")}
       >
         {panels.length === 0 && (
@@ -96,6 +96,28 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
               <div key={panel.id} data-panel-id={panel.id} data-workspaces={workspacesForPanel(panel.id)} className="mm-sidebar-panel">
                 <NavItems panel={panel} currentPath={currentPath} />
               </div>
+            );
+          }
+          if (variant === "client") {
+            return (
+              <section
+                key={panel.id}
+                aria-labelledby={headingId}
+                data-panel-id={panel.id}
+                data-workspaces={workspacesForPanel(panel.id)}
+                className="mm-sidebar-panel mm-sidebar-panel-expanded"
+              >
+                <div
+                  id={headingId}
+                  className="mm-sidebar-heading mm-sidebar-expanded-heading flex items-center gap-2 px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide"
+                >
+                  <span className="flex-1 truncate">{panel.label}</span>
+                  <span aria-label={`${panel.items.length} destinations`} className="text-[9px] font-medium tabular-nums">
+                    {panel.items.length}
+                  </span>
+                </div>
+                <NavItems panel={panel} currentPath={currentPath} />
+              </section>
             );
           }
           return (

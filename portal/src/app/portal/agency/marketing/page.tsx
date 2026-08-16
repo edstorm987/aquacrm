@@ -35,6 +35,7 @@ import { listAutomationWorkflows } from "@/server/automations";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
 import { cleanClientMarketingService } from "@/lib/clientMarketingService";
+import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
 
 const LEADS_PLUGIN = "leads-pipeline";
 const FINANCE_PLUGIN = "agency-finance";
@@ -209,7 +210,7 @@ export default async function MarketingPage({
           </div>
           <div className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.025] px-4 py-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-brand shadow-sm"><Users size={17} aria-hidden /></span>
-            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Service portfolio</p><p className="text-sm font-semibold text-black/75">{clients.filter(client => cleanClientMarketingService((client.metadata ?? {}).clientMarketingService).enabled).length} active · {clients.length} clients</p></div>
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Service portfolio</p><p className="text-sm font-semibold text-black/75">{clients.filter(client => cleanClientMarketingService((client.metadata ?? {}).clientMarketingService).enabled).length} active · {clients.length} workspaces</p></div>
           </div>
         </header>
         <MarketingWorkspaceNavigation view={view} brandScope="all" />
@@ -219,11 +220,11 @@ export default async function MarketingPage({
             {clients.map(client => {
               const active = client.id === selectedClient?.id;
               const service = cleanClientMarketingService((client.metadata ?? {}).clientMarketingService);
-              return <Link key={client.id} href={`/portal/agency/marketing?view=client-services&client=${encodeURIComponent(client.id)}`} aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold ${active ? "border-brand bg-brand text-white" : "border-black/10 bg-white text-black/58"}`}><span className={`size-2 rounded-full ${service.enabled && service.status === "active" ? "bg-emerald-400" : "bg-black/20"}`} />{client.name}</Link>;
+              return <Link key={client.id} href={`/portal/agency/marketing?view=client-services&client=${encodeURIComponent(client.id)}`} aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold ${active ? "border-brand bg-brand text-white" : "border-black/10 bg-white text-black/58"}`}><span className={`size-2 rounded-full ${service.enabled && service.status === "active" ? "bg-emerald-400" : "bg-black/20"}`} />{clientWorkspaceDisplayName(client)}</Link>;
             })}
           </div>
         </section>
-        {selectedClient ? <ClientMarketingServiceWorkspace clientId={selectedClient.id} clientName={selectedClient.name} initial={cleanClientMarketingService((selectedClient.metadata ?? {}).clientMarketingService)} canManage canApprove={false} embeddedInMarketing /> : <p className="border-y border-black/10 py-16 text-center text-sm text-black/45">Add a client before configuring a managed social or ads service.</p>}
+        {selectedClient ? <ClientMarketingServiceWorkspace clientId={selectedClient.id} clientName={clientWorkspaceDisplayName(selectedClient)} initial={cleanClientMarketingService((selectedClient.metadata ?? {}).clientMarketingService)} canManage canApprove={false} embeddedInMarketing /> : <p className="border-y border-black/10 py-16 text-center text-sm text-black/45">Add a client before configuring a managed social or ads service.</p>}
       </div>
     );
   }

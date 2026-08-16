@@ -169,6 +169,7 @@ test("client social and paid-media delivery raises exact operational alerts", as
   const agency = tenants.createAgency({ name: "Managed Growth", slug: "managed-growth-alerts" });
   const client = tenants.createClient(agency.id, {
     name: "Example Client",
+    workspaceLabel: "Retained growth",
     metadata: {
       clientMarketingService: {
         enabled: true,
@@ -180,7 +181,9 @@ test("client social and paid-media delivery raises exact operational alerts", as
     },
   });
   const result = await alerts.listOperationalAlerts(agency.id, now);
-  assert.equal(result.find(alert => alert.id === `client-marketing-budget:${client.id}:campaign-1`)?.severity, "critical");
+  const budgetAlert = result.find(alert => alert.id === `client-marketing-budget:${client.id}:campaign-1`);
+  assert.equal(budgetAlert?.severity, "critical");
+  assert.match(budgetAlert?.title ?? "", /Example Client · Retained growth/);
   assert.equal(result.find(alert => alert.id === `client-marketing-access:${client.id}`)?.severity, "warning");
   assert.equal(result.find(alert => alert.id === `client-marketing-approvals:${client.id}`)?.href, `/portal/clients/${client.id}?tab=marketing`);
 });

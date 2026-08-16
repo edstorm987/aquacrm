@@ -26,7 +26,8 @@ import { LeadsPipelineWorkspace } from "./_LeadsPipelineWorkspace";
 import { BoardSwitcher, PipelineBoard } from "./_PipelineBoard";
 import { FulfilmentProductSwitcher } from "./_FulfilmentProductSwitcher";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
-import { cleanPortalProducts, PORTAL_PRODUCT_CATALOG, type PortalProductKey } from "@/lib/portalProducts";
+import { PORTAL_PRODUCT_CATALOG, type PortalProductKey } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { defaultProductPipelineStage, PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { listTradingCompanies } from "@/server/tradingCompanies";
@@ -43,7 +44,8 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
   const agency = getAgency(session.agencyId)!;
   const { slug } = await params;
   ensureDefaultAgencyProducts(agency.id);
-  const agencyProducts = listAgencyProducts(agency.id);
+  const productCatalogue = listAgencyProducts(agency.id, true);
+  const agencyProducts = productCatalogue.filter(product => product.active);
   const activeBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
 
   const pipeline = getPipelineBySlug(agency.id, slug);
@@ -138,7 +140,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               return sameLead || sameEmail;
             });
             const clientMetadata = client?.metadata ?? {};
-            const services = cleanPortalProducts(clientMetadata.portalProducts ?? clientMetadata.products);
+            const services = resolvePortalProductAssignment(clientMetadata, productCatalogue).products;
             const canonicalServiceIds = (lead.serviceLines ?? []).map(value => agencyProducts.find(product => product.id === value || product.name.toLowerCase() === value.toLowerCase())?.id ?? value);
             const serviceIds = [...new Set([...services.map(service => service.id), ...canonicalServiceIds])];
             return {
@@ -240,7 +242,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     if (!selectedProduct) {
       const productCounts = new Map<PortalProductKey, number>();
       const overviewRows = clients.map(client => {
-        const products = cleanPortalProducts(client.metadata?.portalProducts);
+        const products = resolvePortalProductAssignment(client.metadata ?? {}, productCatalogue).products;
         for (const product of products) {
           if (product.catalogKey) productCounts.set(product.catalogKey, (productCounts.get(product.catalogKey) ?? 0) + 1);
         }
@@ -323,7 +325,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     const productKey = selectedProduct.catalogKey;
     const columns = PRODUCT_PIPELINE_COLUMNS[productKey];
     const cards = clients.flatMap(client => {
-      const products = cleanPortalProducts(client.metadata?.portalProducts);
+      const products = resolvePortalProductAssignment(client.metadata ?? {}, productCatalogue).products;
       if (!products.some(product => product.catalogKey === productKey)) return [];
       const storedStages = client.metadata?.productPipelineStages;
       const productStages = storedStages && typeof storedStages === "object"

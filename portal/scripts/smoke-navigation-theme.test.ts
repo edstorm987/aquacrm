@@ -68,5 +68,6 @@ test("shared visual baseline preserves readable surfaces and controls", () => {
   assert.match(css, /\[data-auth-brand="zimante"\] \.mm-auth-foot a\s*\{\s*color:\s*#795D32/);
   assert.match(customerChrome, /contrastRatio/);
   assert.match(customerChrome, /--portal-accent-dark/);
-  assert.match(clientWorkspace, /max-w-7xl/);
+  assert.match(clientWorkspace, /ClientWorkspaceHeader/);
+  assert.doesNotMatch(clientWorkspace, /max-w-7xl/);
 });

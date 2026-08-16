@@ -7,7 +7,7 @@ import type { OperationalAlert } from "../src/lib/operationalAttention";
 const candidates: AttentionThreadCandidate[] = [
   { key: "website:form_1", formId: "form_1", name: "Alex Stone", email: "alex@example.com" },
   { key: "client:req_1", requestId: "req_1", clientId: "cli_1", name: "North Studio" },
-  { key: "profile:cli_1", clientId: "cli_1", name: "North Studio", email: "owner@north.test" },
+  { key: "profile:cli_1", clientId: "cli_1", name: "North Studio · Rebrand", aliases: ["North Studio"], email: "owner@north.test" },
 ];
 
 function alert(patch: Partial<OperationalAlert>): OperationalAlert {
@@ -24,4 +24,9 @@ test("prefers the active client conversation over the profile shell", () => {
 
 test("falls back to a named contact profile when no thread id is present", () => {
   assert.equal(resolveAttentionThreadKey(alert({ title: "Check in with Alex Stone" }), candidates), "website:form_1");
+});
+
+test("keeps exact project labels while matching alerts by the buyer alias", () => {
+  assert.equal(resolveAttentionThreadKey(alert({ clientName: "North Studio" }), candidates), "client:req_1");
+  assert.equal(resolveAttentionThreadKey(alert({ title: "North Studio · Rebrand needs attention" }), candidates), "profile:cli_1");
 });

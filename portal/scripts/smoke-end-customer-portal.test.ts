@@ -62,7 +62,7 @@ describe("End-customer portal sub-routes (R019)", () => {
     assert.ok(src.includes("portal-customer-embed"), "should set the embed testid");
   });
 
-  it("provides a linked Resources hub and keeps client history in Your details", () => {
+  it("provides a linked Resources hub and keeps client history in Your record", () => {
     const chrome = readFileSync(join(CUSTOMER, "_CustomerPortalChrome.tsx"), "utf8");
     const views = readFileSync(join(CUSTOMER, "_CustomerPortalViews.tsx"), "utf8");
     const catchAll = readFileSync(join(CUSTOMER, "[...rest]", "page.tsx"), "utf8");
@@ -72,14 +72,29 @@ describe("End-customer portal sub-routes (R019)", () => {
     assert.ok(chrome.includes('section: "details"'));
     assert.ok(chrome.includes("presentation.pages[item.section]"));
     assert.ok(design.includes('label: "Resources"'));
-    assert.ok(design.includes('label: "Your details"'));
-    assert.ok(views.includes('if (section === "resources") return <ResourcesView'));
-    assert.ok(views.includes('if (section === "details") return <RecordView'));
+    assert.ok(design.includes('label: "Your record"'));
+    assert.ok(views.includes('else if (section === "resources") content = <ResourcesView'));
+    assert.ok(views.includes('else if (section === "details") content = <RecordView'));
+    assert.ok(views.includes("<PortalPageComposition"));
     assert.ok(views.includes('aria-label="Resources"'));
     assert.ok(views.includes('label: "Open project"'));
     assert.ok(views.includes('label: "Open files"'));
     assert.ok(views.includes('label: "Open support"'));
     assert.ok(catchAll.includes('"resources", "details"'));
+  });
+
+  it("surfaces exact customer attention in the real portal and agency preview", () => {
+    const chrome = readFileSync(join(CUSTOMER, "_CustomerPortalChrome.tsx"), "utf8");
+    const views = readFileSync(join(CUSTOMER, "_CustomerPortalViews.tsx"), "utf8");
+    const layout = readFileSync(join(CUSTOMER, "layout.tsx"), "utf8");
+    const preview = readFileSync(join(ROOT, "src", "app", "client-preview", "[clientId]", "page.tsx"), "utf8");
+
+    assert.ok(chrome.includes("PortalAttentionBadge"));
+    assert.ok(chrome.includes("items need you"));
+    assert.ok(views.includes("Your client desk"));
+    assert.ok(views.includes("The context you need, kept together."));
+    assert.ok(layout.includes("buildCustomerPortalAttention(portalData)"));
+    assert.ok(preview.includes("buildCustomerPortalAttention(data)"));
   });
 
   it("always exposes real Milesymedia support routes", () => {

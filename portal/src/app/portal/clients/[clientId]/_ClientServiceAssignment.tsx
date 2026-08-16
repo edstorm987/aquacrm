@@ -13,6 +13,7 @@ export interface ClientServiceOption {
   category: string;
   description?: string;
   kind: "product" | "package";
+  active: boolean;
   includedProductNames: string[];
 }
 
@@ -28,7 +29,9 @@ export function ClientServiceAssignment({
   options,
   companies,
   initialProducts,
+  initialSelectedProductIds,
   initialCompanyId,
+  defaultProviderName,
   canManage,
 }: {
   clientId: string;
@@ -36,11 +39,13 @@ export function ClientServiceAssignment({
   options: ClientServiceOption[];
   companies: ClientCompanyOption[];
   initialProducts: PortalProductSelection[];
+  initialSelectedProductIds: string[];
   initialCompanyId?: string;
+  defaultProviderName: string;
   canManage: boolean;
 }) {
   const router = useRouter();
-  const initialIds = useMemo(() => initialProducts.map(product => product.id), [initialProducts]);
+  const initialIds = useMemo(() => initialSelectedProductIds, [initialSelectedProductIds]);
   const [selectedIds, setSelectedIds] = useState(initialIds);
   const [selectedCompanyId, setSelectedCompanyId] = useState(initialCompanyId ?? "");
   const [editing, setEditing] = useState(initialProducts.length === 0);
@@ -52,7 +57,7 @@ export function ClientServiceAssignment({
 
   const selectedOptions = options.filter(option => selectedIds.includes(option.id));
   const selectedCompany = companies.find(company => company.id === selectedCompanyId);
-  const providerName = selectedCompany?.name ?? "AquaOasis-Web";
+  const providerName = selectedCompany?.name ?? defaultProviderName;
   const dirty = selectedCompanyId !== (initialCompanyId ?? "")
     || selectedIds.length !== initialIds.length
     || selectedIds.some(id => !initialIds.includes(id));
@@ -112,16 +117,17 @@ export function ClientServiceAssignment({
         <label className="grid gap-1.5 text-xs font-semibold text-black/60">
           Company
           <select value={selectedCompanyId} onChange={event => { setSelectedCompanyId(event.target.value); setError(""); }} className="min-h-10 w-full rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/75 outline-none focus:border-brand/50 focus:ring-2 focus:ring-brand/10">
-            <option value="">AquaOasis-Web (workspace default)</option>
+            <option value="">{defaultProviderName} (workspace default)</option>
             {companies.map(company => <option key={company.id} value={company.id} disabled={company.status === "archived" && company.id !== initialCompanyId}>{company.name}{company.status === "active" ? "" : ` (${company.status})`}</option>)}
           </select>
         </label>
       </div>
       {options.length ? <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{options.map(option => {
         const selected = selectedIds.includes(option.id);
-        return <button key={option.id} type="button" aria-pressed={selected} onClick={() => toggle(option.id)} className={`flex min-h-28 items-start gap-3 rounded-md border p-3 text-left transition ${selected ? "border-brand/35 bg-brand/[0.055]" : "border-black/10 hover:border-black/20 hover:bg-black/[0.018]"}`}>
+        const disabled = !option.active && !selected;
+        return <button key={option.id} type="button" aria-pressed={selected} disabled={disabled} onClick={() => toggle(option.id)} className={`flex min-h-28 items-start gap-3 rounded-md border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${selected ? "border-brand/35 bg-brand/[0.055]" : "border-black/10 hover:border-black/20 hover:bg-black/[0.018]"}`}>
           <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded border ${selected ? "border-brand bg-brand text-white" : "border-black/18 text-transparent"}`}><Check size={12} /></span>
-          <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/78">{option.name}</strong>{option.kind === "package" ? <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase text-black/45">Package</span> : null}</span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-black/35">{option.category}</span><span className="mt-1 line-clamp-2 text-xs leading-5 text-black/45">{option.description || "Configured delivery service."}</span>{option.includedProductNames.length ? <span className="mt-1.5 block text-[10px] text-brand/80">Includes {option.includedProductNames.join(", ")}</span> : null}</span>
+          <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/78">{option.name}</strong>{option.kind === "package" ? <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase text-black/45">Package</span> : null}{!option.active ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-semibold uppercase text-red-700">Archived</span> : null}</span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-black/35">{option.category}</span><span className="mt-1 line-clamp-2 text-xs leading-5 text-black/45">{option.description || "Configured delivery service."}</span>{option.includedProductNames.length ? <span className="mt-1.5 block text-[10px] text-brand/80">Includes {option.includedProductNames.join(", ")}</span> : null}</span>
         </button>;
       })}</div> : <div className="border border-dashed border-black/15 p-5 text-center"><p className="text-sm font-semibold text-black/70">No services exist in the catalogue</p><p className="mt-1 text-xs text-black/45">Create the offer first, then return to assign it.</p><Link href="/portal/agency/fulfilment?view=products" className="mt-3 inline-flex min-h-9 items-center rounded-md bg-black px-3 text-xs font-semibold text-white">Open product editor</Link></div>}
       {error ? <p role="alert" className="mt-3 text-xs font-medium text-red-700">{error}</p> : null}

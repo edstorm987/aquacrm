@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { InboxAttachment, InboxConversation, InboxMessage, InboxMessageType } from "@/lib/inbox/types";
+import type { InboxAttachment, InboxConversation, InboxMessage, InboxMessageType, InboxSnapshot } from "@/lib/inbox/types";
 import {
   claimInboxWebhookEvents,
   completeInboxWebhookEvent,
@@ -16,11 +16,14 @@ import {
   saveInboxMessage,
   updateInboxConnection,
   updateInboxConversation,
+  updateInboxIdentityLinks,
   updateInboxMessage,
 } from "@/lib/server/inboxStore";
 import { readMetaMessagingConfig, sendMetaAttachmentMessage, sendMetaTextMessage } from "@/lib/server/metaMessaging";
+import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clientRecordLedger";
 import { logActivity } from "@/server/activity";
 import { triggerAutomations } from "@/server/automations";
+import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
 
 const META_REPLY_WINDOW_MS = 24 * 60 * 60_000;
 
@@ -89,6 +92,60 @@ export async function ingestMetaWebhookPayload(payload: MetaWebhookPayload): Pro
   return handled;
 }
 
+export async function synchroniseInboxIdentityResolutions(
+  agencyId: string,
+  suppliedSnapshot?: InboxSnapshot,
+): Promise<InboxSnapshot> {
+  const snapshot = suppliedSnapshot ?? await listInboxSnapshot(agencyId);
+  const processed = new Set<string>();
+  let changed = false;
+  for (const conversation of snapshot.conversations) {
+    const originalIdentity = conversation.identity;
+    if (processed.has(originalIdentity.id)) continue;
+    processed.add(originalIdentity.id);
+    const input = {
+      agencyId,
+      sourceType: "social-inbox" as const,
+      sourceId: originalIdentity.id,
+      sourceLabel: `${conversation.connection.displayName} · ${originalIdentity.displayName}`,
+      sourceHref: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`social:${conversation.id}`)}`,
+      name: originalIdentity.displayName,
+      clientId: originalIdentity.clientId,
+      leadId: originalIdentity.leadId,
+      contactId: originalIdentity.contactId,
+    };
+    const resolution = resolveContactIdentity(input);
+    upsertIdentityResolutionReview(input, resolution);
+    if (resolution.clientId && resolution.clientId !== originalIdentity.clientId) {
+      await updateInboxIdentityLinks(agencyId, originalIdentity.id, {
+        leadId: originalIdentity.leadId,
+        contactId: originalIdentity.contactId,
+        clientId: resolution.clientId,
+      });
+      changed = true;
+    }
+  }
+  const next = changed ? await listInboxSnapshot(agencyId) : snapshot;
+  for (const conversation of next.conversations) {
+    if (!conversation.identity.clientId) continue;
+    for (const message of conversation.messages.filter(item => item.direction !== "internal")) {
+      upsertClientSocialMessageLedgerEvent(agencyId, conversation.identity.clientId, {
+        conversationId: conversation.id,
+        messageId: message.id,
+        channel: conversation.connection.channel,
+        accountName: conversation.connection.displayName,
+        participantName: conversation.identity.displayName,
+        text: message.text,
+        attachmentCount: message.attachments.length,
+        sentAt: message.sentAt,
+        direction: message.direction === "inbound" ? "inbound" : "outbound",
+        status: message.status,
+      });
+    }
+  }
+  return next;
+}
+
 async function ingestMetaMessagingEvent(
   agencyId: string,
   connectionId: string,
@@ -111,7 +168,7 @@ async function ingestMetaMessagingEvent(
   const snapshot = await listInboxSnapshot(agencyId);
   const existingThread = snapshot.conversations.find(thread =>
     thread.connectionId === connectionId && thread.externalConversationId === externalUserId);
-  const identity = await saveInboxIdentity({
+  let identity = await saveInboxIdentity({
     agencyId,
     connectionId,
     externalUserId,
@@ -122,6 +179,26 @@ async function ingestMetaMessagingEvent(
     contactId: existingThread?.identity.contactId,
     clientId: existingThread?.identity.clientId,
   });
+  const identityInput = {
+    agencyId,
+    sourceType: "social-inbox" as const,
+    sourceId: identity.id,
+    sourceLabel: identity.displayName,
+    sourceHref: existingThread ? `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`social:${existingThread.id}`)}` : "/portal/agency/inbox?view=all",
+    name: identity.displayName,
+    clientId: identity.clientId,
+    leadId: identity.leadId,
+    contactId: identity.contactId,
+  };
+  const identityResolution = resolveContactIdentity(identityInput);
+  upsertIdentityResolutionReview(identityInput, identityResolution);
+  if (identityResolution.clientId && identityResolution.clientId !== identity.clientId) {
+    identity = await updateInboxIdentityLinks(agencyId, identity.id, {
+      leadId: identity.leadId,
+      contactId: identity.contactId,
+      clientId: identityResolution.clientId,
+    });
+  }
 
   const direction: InboxMessage["direction"] = isEcho ? "outbound" : "inbound";
   const descriptor = describeMetaEvent(event);
@@ -171,6 +248,21 @@ async function ingestMetaMessagingEvent(
     metadata: descriptor.metadata,
     sentAt,
   });
+  const publicConnection = snapshot.connections.find(item => item.id === connectionId);
+  if (identity.clientId && publicConnection) {
+    upsertClientSocialMessageLedgerEvent(agencyId, identity.clientId, {
+      conversationId: conversation.id,
+      messageId: message.id,
+      channel: publicConnection.channel,
+      accountName: publicConnection.displayName,
+      participantName: identity.displayName,
+      text: message.text,
+      attachmentCount: message.attachments.length,
+      sentAt: message.sentAt,
+      direction,
+      status: message.status,
+    });
+  }
 
   if (direction === "inbound") {
     logActivity({
@@ -257,6 +349,20 @@ export async function sendInboxReply(input: {
       message: `Replied to ${conversation.identity.displayName} from ${connection.displayName}.`,
       metadata: { connectionId: connection.id, conversationId: conversation.id, messageId: sent.id },
     });
+    if (conversation.identity.clientId) {
+      upsertClientSocialMessageLedgerEvent(input.agencyId, conversation.identity.clientId, {
+        conversationId: conversation.id,
+        messageId: sent.id,
+        channel: conversation.connection.channel,
+        accountName: conversation.connection.displayName,
+        participantName: conversation.identity.displayName,
+        text: sent.text,
+        attachmentCount: sent.attachments.length,
+        sentAt: sent.sentAt,
+        direction: "outbound",
+        status: sent.status,
+      });
+    }
     return sent;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Meta could not send the message.";
