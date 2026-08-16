@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
 import { getSession } from "@/lib/server/auth";
 import { CommandCenterTransition } from "@/components/chrome/CommandCenterTransition";
+import { ClientWorkspaceTransition } from "@/components/chrome/ClientWorkspaceTransition";
 import { SmartWorkSessionMonitor } from "@/components/chrome/SmartWorkSessionMonitor";
 import { getUserById } from "@/server/users";
 import { AGENCY_ROLES } from "@/server/types";
@@ -22,6 +23,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   return (
     <>
       <CommandCenterTransition />
+      <ClientWorkspaceTransition />
       {children}
       {internalOperator ? <SmartWorkSessionMonitor userName={currentUser?.name || session.email} /> : null}
     </>

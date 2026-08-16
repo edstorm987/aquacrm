@@ -4,6 +4,7 @@ import { Anchor, Crosshair, RadioTower, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isCommandCenterPath } from "@/lib/chrome/commandCenter";
+import { clientWorkspaceRouteId } from "@/lib/chrome/clientWorkspaceRoute";
 import { PERFORMANCE_MODE_EVENT, PERFORMANCE_MODE_STORAGE_KEY, performanceModeEnabled } from "@/lib/chrome/performanceMode";
 
 type TransitionMode = "enter" | "exit";
@@ -100,6 +101,7 @@ export function CommandCenterTransition() {
 
     previousPathRef.current = pathname;
     if (wasCommandCenter === isCommandCenter) return;
+    if (!isCommandCenter && clientWorkspaceRouteId(pathname)) return;
 
     const mode: TransitionMode = isCommandCenter ? "enter" : "exit";
     const existing = activeRef.current;
@@ -119,6 +121,7 @@ export function CommandCenterTransition() {
       const currentlyCommandCenter = isCommandCenterPath(window.location.pathname);
       const destinationIsCommandCenter = isCommandCenterPath(destination.pathname);
       if (currentlyCommandCenter === destinationIsCommandCenter) return;
+      if (!destinationIsCommandCenter && clientWorkspaceRouteId(destination.pathname)) return;
 
       beginTransition(destinationIsCommandCenter ? "enter" : "exit");
     };

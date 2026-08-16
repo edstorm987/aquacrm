@@ -2782,6 +2782,10 @@ html[data-performance-mode="true"] .mm-command-transition {
   display: none !important;
 }
 
+html[data-performance-mode="true"] .mm-client-workspace-transition {
+  display: none !important;
+}
+
 .mm-dialog-panel,
 .mm-portal-root [role="dialog"][aria-modal="true"]:not(.fixed) {
   animation: mm-dialog-enter var(--mm-motion-slow) var(--mm-ease-out);
@@ -4417,6 +4421,217 @@ html[data-color-mode="dark"] .mm-portal-root .plugin-page-shell:not([data-plugin
     animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Brief full-device handoff into and out of a specific internal client record. */
+.mm-client-workspace-transition {
+  --client-transition-accent: #78d7ee;
+  --client-transition-bright: #eefbff;
+  --client-transition-dim: rgb(120 215 238 / 0.5);
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: grid;
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--client-transition-bright);
+  background: #06131f;
+  cursor: progress;
+  animation: mm-client-transition-enter 140ms ease-out both;
+}
+
+.mm-client-workspace-transition[data-mode="exit"] {
+  --client-transition-accent: #dfbf7c;
+  --client-transition-bright: #fff8e8;
+  --client-transition-dim: rgb(223 191 124 / 0.48);
+  background: #15120d;
+}
+
+.mm-client-workspace-transition[data-phase="release"] {
+  pointer-events: none;
+  animation: mm-client-transition-release 240ms ease-in both;
+}
+
+.mm-client-workspace-transition__grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.38;
+  background-image:
+    linear-gradient(rgb(120 215 238 / 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(120 215 238 / 0.055) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+}
+
+.mm-client-workspace-transition[data-mode="exit"] .mm-client-workspace-transition__grid {
+  background-image:
+    linear-gradient(rgb(223 191 124 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(223 191 124 / 0.05) 1px, transparent 1px);
+}
+
+.mm-client-workspace-transition__scan {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 2;
+  height: 1px;
+  background: var(--client-transition-accent);
+  box-shadow: 0 0 12px var(--client-transition-accent);
+  opacity: 0.5;
+  animation: mm-client-transition-scan 720ms ease-in-out both;
+}
+
+.mm-client-workspace-transition__console {
+  display: grid;
+  width: min(calc(100% - 2rem), 34rem);
+  margin: auto;
+  justify-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.mm-client-workspace-transition__mark {
+  position: relative;
+  display: grid;
+  width: 6rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid var(--client-transition-accent);
+  border-radius: 50%;
+  color: var(--client-transition-accent);
+  background: #081b29;
+  box-shadow: inset 0 0 26px rgb(120 215 238 / 0.08), 0 0 34px rgb(120 215 238 / 0.12);
+  animation: mm-client-transition-lock 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.mm-client-workspace-transition[data-mode="exit"] .mm-client-workspace-transition__mark {
+  background: #1b160d;
+  box-shadow: inset 0 0 26px rgb(223 191 124 / 0.08), 0 0 34px rgb(223 191 124 / 0.12);
+}
+
+.mm-client-workspace-transition__mark::before,
+.mm-client-workspace-transition__mark::after {
+  position: absolute;
+  border: 1px solid var(--client-transition-dim);
+  border-radius: 50%;
+  content: "";
+}
+
+.mm-client-workspace-transition__mark::before { inset: 9px; }
+.mm-client-workspace-transition__mark::after { inset: 22px; }
+
+.mm-client-workspace-transition__mark > span {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 312deg, var(--client-transition-dim) 359deg, transparent 360deg);
+  animation: mm-client-transition-spin 650ms linear infinite;
+}
+
+.mm-client-workspace-transition__copy p,
+.mm-client-workspace-transition__systems {
+  color: var(--client-transition-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.mm-client-workspace-transition__copy h2 {
+  margin-top: 0.45rem;
+  color: var(--client-transition-bright);
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.mm-client-workspace-transition__copy > span {
+  display: block;
+  max-width: 31rem;
+  margin-top: 0.55rem;
+  color: color-mix(in srgb, var(--client-transition-bright) 64%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mm-client-workspace-transition__progress {
+  display: grid;
+  width: min(100%, 24rem);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.mm-client-workspace-transition__progress span {
+  height: 3px;
+  background: var(--client-transition-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--client-transition-accent) 40%, transparent);
+  transform-origin: left;
+  animation: mm-client-transition-progress 240ms ease-out both;
+}
+
+.mm-client-workspace-transition__progress span:nth-child(1) { animation-delay: 80ms; }
+.mm-client-workspace-transition__progress span:nth-child(2) { animation-delay: 150ms; }
+.mm-client-workspace-transition__progress span:nth-child(3) { animation-delay: 220ms; }
+.mm-client-workspace-transition__progress span:nth-child(4) { animation-delay: 290ms; }
+.mm-client-workspace-transition__progress span:nth-child(5) { animation-delay: 360ms; }
+
+.mm-client-workspace-transition__systems {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem 1.2rem;
+}
+
+.mm-client-workspace-transition__systems span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+@keyframes mm-client-transition-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mm-client-transition-release {
+  from { opacity: 1; filter: brightness(1); }
+  to { opacity: 0; filter: brightness(0.72); }
+}
+
+@keyframes mm-client-transition-scan {
+  from { top: 0; opacity: 0; }
+  15% { opacity: 0.5; }
+  85% { opacity: 0.5; }
+  to { top: 100%; opacity: 0; }
+}
+
+@keyframes mm-client-transition-lock {
+  from { opacity: 0; transform: scale(1.12); filter: blur(3px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes mm-client-transition-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes mm-client-transition-progress {
+  from { opacity: 0; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@media (max-width: 639px) {
+  .mm-client-workspace-transition__console { width: min(calc(100% - 2rem), 24rem); }
+  .mm-client-workspace-transition__systems { max-width: 18rem; font-size: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-client-workspace-transition,
+  .mm-client-workspace-transition * {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 
