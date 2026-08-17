@@ -28,6 +28,54 @@ export type MeetingStatus = "scheduled" | "confirmed" | "completed" | "no-show" 
 export type MeetingAttemptChannel = "call" | "email" | "sms" | "whatsapp" | "in-person";
 export type MeetingAttemptOutcome = "attempted" | "reached" | "reminder-sent" | "no-show" | "rescheduled" | "completed";
 
+export const LEAD_RELATIONSHIP_CATEGORIES = [
+  "inbound-enquiry",
+  "referral",
+  "networking",
+  "personal-contact",
+  "friends-family",
+  "scraped-list",
+  "cold-outreach",
+  "partner",
+  "other",
+] as const;
+
+export type LeadRelationshipCategory = typeof LEAD_RELATIONSHIP_CATEGORIES[number];
+
+export const LEAD_RELATIONSHIP_CATEGORY_LABELS: Record<LeadRelationshipCategory, string> = {
+  "inbound-enquiry": "Inbound enquiry",
+  referral: "Referral or introduction",
+  networking: "Met through networking",
+  "personal-contact": "Known personally",
+  "friends-family": "Friend or family",
+  "scraped-list": "Scraped or uploaded list",
+  "cold-outreach": "Cold prospect",
+  partner: "Partner relationship",
+  other: "Other or unclassified",
+};
+
+export function isLeadRelationshipCategory(value: unknown): value is LeadRelationshipCategory {
+  return typeof value === "string" && LEAD_RELATIONSHIP_CATEGORIES.includes(value as LeadRelationshipCategory);
+}
+
+export function inferLeadRelationshipCategory(value: {
+  relationshipCategory?: unknown;
+  source?: string;
+  tags?: string[];
+}): LeadRelationshipCategory {
+  if (isLeadRelationshipCategory(value.relationshipCategory)) return value.relationshipCategory;
+  const context = `${value.source ?? ""} ${(value.tags ?? []).join(" ")}`.toLowerCase();
+  if (/friend|family|relative/.test(context)) return "friends-family";
+  if (/network|meetup|conference|event|chamber/.test(context)) return "networking";
+  if (/referr|recommend|intro/.test(context)) return "referral";
+  if (/csv|sheet|spreadsheet|scrap|google.?maps|directory|uploaded-list/.test(context)) return "scraped-list";
+  if (/scout|cold|outbound|prospect/.test(context)) return "cold-outreach";
+  if (/partner|affiliate|collab/.test(context)) return "partner";
+  if (/friend|known|personal/.test(context)) return "personal-contact";
+  if (/website|funnel|form|enquir|inbound|contact|google.?ads|social/.test(context)) return "inbound-enquiry";
+  return "other";
+}
+
 export interface MeetingAttempt {
   id: string;
   at: number;
@@ -341,6 +389,7 @@ export interface Lead {
   company?: string;
   tags: string[];
   source: string;                  // free-form: "csv:<filename>" / "public-funnel" / "manual" / etc.
+  relationshipCategory?: LeadRelationshipCategory; // how the relationship began; distinct from technical attribution
   capturedAt: number;              // epoch ms
   lastEnquiryAt?: number;          // newest distinct enquiry from this person
   lastEnquiryRespondedAt?: number; // first recorded response after newest enquiry
@@ -395,6 +444,7 @@ export interface CreateLeadInput {
   company?: string;
   tags?: string[];
   source: string;
+  relationshipCategory?: LeadRelationshipCategory;
   notes?: string;
   customFields?: Record<string, CustomFieldValue>;
   capturedAt?: number;
@@ -410,6 +460,7 @@ export interface UpdateLeadPatch {
   phone?: string;
   company?: string;
   tags?: string[];
+  relationshipCategory?: LeadRelationshipCategory;
   notes?: string;
   customFields?: Record<string, CustomFieldValue>;
   lastContactedAt?: number;
@@ -441,6 +492,7 @@ export interface LeadFilter {
   query?: string;
   tag?: string;
   source?: string;
+  relationshipCategory?: LeadRelationshipCategory;
   notContactedSinceMs?: number;
 }
 

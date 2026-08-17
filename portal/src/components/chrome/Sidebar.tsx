@@ -1,9 +1,8 @@
 // Sidebar — server-rendered navigation. Reads NavPanel[] from
 // buildSidebar(); each panel groups NavItems.
 //
-// Standard panels render inside native <details>. Client workspaces
-// keep every section visible so the complete relationship and delivery
-// architecture remains one glance away.
+// Standard panels render inside native <details>. Client workspaces keep
+// stable parent destinations visible while contextual detail stays in-page.
 //
 // Collapsed-mode (data-collapsed="true") hides labels and the
 // summary text, leaving just the leading icon for each item. Native

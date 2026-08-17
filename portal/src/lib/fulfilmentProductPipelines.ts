@@ -1,5 +1,6 @@
 import type { PortalProductKey } from "@/lib/portalProducts";
-import type { ClientStage } from "@/server/types";
+import { defaultProductInternalWorkspace } from "@/lib/productInternalWorkspace";
+import type { AgencyProduct, ClientStage } from "@/server/types";
 
 export interface ProductPipelineColumn {
   id: string;
@@ -100,6 +101,21 @@ export const PRODUCT_PIPELINE_COLUMNS: Record<PortalProductKey, ProductPipelineC
   ],
 };
 
+const PRODUCT_STAGE_COLORS = [
+  "#7c8f8e",
+  "#9a7b4f",
+  "#8a6f9e",
+  "#527aa3",
+  "#c07842",
+  "#3f8192",
+  "#2f8b68",
+  "#3f6f65",
+  "#6b7280",
+  "#9b6b7d",
+  "#6c7c9b",
+  "#718c55",
+] as const;
+
 const STAGE_PROGRESS: Record<ClientStage, number> = {
   lead: 0,
   discovery: 0,
@@ -120,4 +136,26 @@ export function defaultProductPipelineStage(productKey: PortalProductKey, client
   const columns = PRODUCT_PIPELINE_COLUMNS[productKey];
   const progress = STAGE_PROGRESS[clientStage] ?? 0;
   return columns[Math.min(progress, columns.length - 1)]?.id ?? columns[0]?.id ?? "brief";
+}
+
+/** The service workspace owns the stage names and their order. Legacy templates only lend colours. */
+export function agencyProductPipelineColumns(product: Pick<AgencyProduct, "id" | "name" | "portalTemplateKey" | "internalWorkspace" | "sopIds">): ProductPipelineColumn[] {
+  const workspace = product.internalWorkspace ?? defaultProductInternalWorkspace(product);
+  const legacy = product.portalTemplateKey ? PRODUCT_PIPELINE_COLUMNS[product.portalTemplateKey] : [];
+  return workspace.lifecycleStages.map((stage, index) => ({
+    id: stage.id,
+    label: stage.label,
+    color: legacy[index]?.color ?? PRODUCT_STAGE_COLORS[index % PRODUCT_STAGE_COLORS.length]!,
+  }));
+}
+
+export function defaultAgencyProductPipelineStage(
+  product: Pick<AgencyProduct, "id" | "name" | "portalTemplateKey" | "internalWorkspace" | "sopIds">,
+  clientStage: ClientStage,
+): string {
+  const columns = agencyProductPipelineColumns(product);
+  if (!columns.length) return "onboarding";
+  const progress = STAGE_PROGRESS[clientStage] ?? 0;
+  const ratio = progress >= 99 ? 1 : Math.min(progress / 5, 0.8);
+  return columns[Math.round(ratio * (columns.length - 1))]?.id ?? columns[0]!.id;
 }

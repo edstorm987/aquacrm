@@ -165,7 +165,7 @@ export function ClientRequestsPanel({
       {requests.length > 0 && (
         <ul className="mt-4 grid gap-2">
           {requests.slice(0, 5).map(item => (
-            <li key={item.id} className="rounded-lg border border-black/10 bg-black/[0.02] p-3">
+            <li id={`client-request-${item.id}`} key={item.id} className="scroll-mt-24 rounded-lg border border-black/10 bg-black/[0.02] p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-black/85">{TYPE_LABELS[item.type]}</span>

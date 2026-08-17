@@ -21,7 +21,7 @@ interface Props {
   logoUrl?: string;
   primaryColor: string;
   providerName: string;
-  stageLabel: string;
+  accountStatusLabel: string;
   sourceLabel: string;
   products: Array<{ id: string; name: string; accentColor?: string }>;
   relationship: {
@@ -47,7 +47,7 @@ export function ClientWorkspaceHeader({
   logoUrl,
   primaryColor,
   providerName,
-  stageLabel,
+  accountStatusLabel,
   sourceLabel,
   products,
   relationship,
@@ -61,6 +61,10 @@ export function ClientWorkspaceHeader({
   const initials = clientName.split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "C";
   const relationshipTone = relationship.state === "risk" ? "risk" : relationship.state === "strong" ? "strong" : "watch";
   const deliveryTone = delivery.blockedMilestones > 0 ? "risk" : delivery.progress === null ? "watch" : "strong";
+  const visibleProducts = products.slice(0, 3);
+  const productSummary = products.length > 3
+    ? `${visibleProducts.map(product => product.name).join(" · ")} · +${products.length - visibleProducts.length} more`
+    : products.map(product => product.name).join(" · ");
 
   return (
     <header className="mm-client-context" style={{ "--client-accent": primaryColor } as CSSProperties}>
@@ -74,7 +78,7 @@ export function ClientWorkspaceHeader({
           )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <p className="mm-client-context-eyebrow">Client control room</p>
+              <p className="mm-client-context-eyebrow">Account overview</p>
               <span className="mm-client-context-provider"><Building2 size={12} /> {providerName}</span>
               {relationshipSwitcher}
             </div>
@@ -84,7 +88,7 @@ export function ClientWorkspaceHeader({
         </div>
 
         <div className="mm-client-context-actions">
-          <Link href={`/portal/agency/inbox?view=all&thread=profile:${encodeURIComponent(clientId)}`} className="mm-client-context-button">
+          <Link href={clientWorkspaceHref(clientId, "communications")} className="mm-client-context-button">
             <Inbox size={15} /> Contact
           </Link>
           {products.length ? <Link href={clientWorkspaceHref(clientId, "portal")} className="mm-client-context-button">
@@ -98,12 +102,12 @@ export function ClientWorkspaceHeader({
       </div>
 
       <div className="mm-client-context-stats">
-        <ContextStat icon={PackageCheck} label="Lifecycle" value={stageLabel} detail={`Source · ${sourceLabel}`} />
+        <ContextStat icon={PackageCheck} label="Account status" value={accountStatusLabel} detail={`Source · ${sourceLabel}`} />
         <ContextStat
           icon={FolderKanban}
           label="Services"
           value={products.length ? `${products.length} active` : "Assignment required"}
-          detail={products.length ? products.map(product => product.name).join(" · ") : "Choose company and services"}
+          detail={products.length ? productSummary : "Choose company and services"}
           tone={products.length ? "strong" : "watch"}
         />
         <ContextStat
@@ -133,13 +137,19 @@ export function ClientWorkspaceHeader({
       {products.length ? (
         <div className="mm-client-context-products" aria-label="Assigned services">
           <span className="text-[10px] font-semibold uppercase text-black/38">Active service architecture</span>
-          {products.map(product => (
+          {visibleProducts.map(product => (
             <Link key={product.id} href={clientWorkspaceHref(clientId, "delivery", { product: product.id })} className="mm-client-product-chip">
               <span aria-hidden className="size-1.5 rounded-full" style={{ backgroundColor: product.accentColor || primaryColor }} />
               {product.name}
               <ArrowUpRight size={12} />
             </Link>
           ))}
+          {products.length > visibleProducts.length ? (
+            <Link href={clientWorkspaceHref(clientId, "delivery")} className="mm-client-product-chip">
+              +{products.length - visibleProducts.length} more services
+              <ArrowUpRight size={12} />
+            </Link>
+          ) : null}
         </div>
       ) : (
         <Link href={`${clientWorkspaceHref(clientId, "delivery")}#service-assignment`} className="mm-client-assignment-alert">

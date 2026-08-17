@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { cleanClientProductProcessState, setClientProductStage } from "@/lib/clientProductProcess";
+import { defaultProductInternalWorkspace } from "@/lib/productInternalWorkspace";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
+import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { clientProductWorkspaces, saveClientProductWorkspaces } from "@/server/productWorkspaces";
 import type {
   PortalProductWorkspace,
@@ -125,12 +128,38 @@ export async function POST(req: Request) {
     const now = Date.now();
     let workspace: PortalProductWorkspace = structuredClone(existing);
     let fileVisibility: { fileIds: string[]; visible: boolean } | null = null;
+    let clientForSave = client;
+    let syncedServiceStageId: string | undefined;
     const pageId = cleanText(body?.pageId, 120);
 
     if (action === "set-stage") {
       if (!management) return NextResponse.json({ ok: false, error: "only the delivery team can move product stages" }, { status: 403 });
       if (!STAGES.includes(body?.stage as PortalProductMode)) return NextResponse.json({ ok: false, error: "valid stage required" }, { status: 400 });
-      workspace.stage = body?.stage as PortalProductMode;
+      const portalMode = body?.stage as PortalProductMode;
+      workspace.stage = portalMode;
+
+      const product = ensureDefaultAgencyProducts(session.agencyId).find(item => item.id === productId);
+      if (product) {
+        const lifecycle = (product.internalWorkspace ?? defaultProductInternalWorkspace(product)).lifecycleStages;
+        const existingProcess = cleanClientProductProcessState(client.metadata?.clientProductProcess);
+        const currentStage = lifecycle.find(stage => stage.id === existingProcess[productId]?.currentStageId);
+        const matchingStage = currentStage?.portalMode === portalMode
+          ? currentStage
+          : lifecycle.find(stage => stage.portalMode === portalMode);
+        if (matchingStage) {
+          syncedServiceStageId = matchingStage.id;
+          const clientProductProcess = setClientProductStage(
+            existingProcess,
+            productId,
+            matchingStage.id,
+            session.email,
+            now,
+          );
+          const updated = updateClient(session.agencyId, clientId, { metadata: { clientProductProcess } });
+          if (!updated) return NextResponse.json({ ok: false, error: "service stage could not be synchronised" }, { status: 500 });
+          clientForSave = updated;
+        }
+      }
     } else if (action === "toggle-check") {
       const itemId = cleanText(body?.itemId, 120);
       const page = workspace.pages[pageId];
@@ -314,7 +343,7 @@ export async function POST(req: Request) {
     }
 
     workspace.updatedAt = now;
-    let saved = saveClientProductWorkspaces(client, updateWorkspace(workspaces, workspace));
+    let saved = saveClientProductWorkspaces(clientForSave, updateWorkspace(workspaces, workspace));
     if (!saved) return NextResponse.json({ ok: false, error: "workspace could not be saved" }, { status: 500 });
     if (fileVisibility?.fileIds.length) {
       const ids = new Set(fileVisibility.fileIds);
@@ -334,7 +363,12 @@ export async function POST(req: Request) {
       category: action === "asset-response" || action === "respond-decision" ? "feedback" : "fulfillment",
       action: `product_workspace.${action}`,
       message: customerMessage(action, workspace.productName),
-      metadata: { productId, pageId, collectionId: cleanText(body?.collectionId, 120) || undefined },
+      metadata: {
+        productId,
+        pageId,
+        collectionId: cleanText(body?.collectionId, 120) || undefined,
+        serviceStageId: syncedServiceStageId,
+      },
     });
     await flushPendingWrites();
     return NextResponse.json({ ok: true, workspace });

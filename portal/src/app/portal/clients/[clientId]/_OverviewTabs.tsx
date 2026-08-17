@@ -40,7 +40,7 @@ const TAB_ICONS: Record<TabId, LucideIcon> = {
 export function OverviewTabs({ clientId, active, visibleTabs }: { clientId: string; active: TabId; visibleTabs?: TabId[] }) {
   const visible = visibleTabs ? new Set(visibleTabs) : null;
   return (
-    <nav aria-label="Client sections" className="flex flex-wrap gap-1 border-b border-black/10">
+    <nav aria-label="Client sections" className="mm-client-local-nav-links flex min-w-0 flex-wrap gap-1">
       {TABS.filter(tab => !visible || visible.has(tab.id)).map(tab => {
         const isActive = tab.id === active;
         const href = clientWorkspaceHref(clientId, tab.id);
@@ -50,11 +50,12 @@ export function OverviewTabs({ clientId, active, visibleTabs }: { clientId: stri
             key={tab.id}
             href={href}
             aria-current={isActive ? "page" : undefined}
+            data-client-local-nav-link
             className={[
-              "-mb-px rounded-t-md border-b-2 px-3 py-2 text-sm",
+              "inline-flex min-h-10 items-center border px-3 py-2 text-sm transition",
               isActive
-                ? "border-brand font-medium text-brand"
-                : "border-transparent text-black/65 hover:text-black/85",
+                ? "border-brand/25 bg-brand/[0.075] font-semibold text-brand"
+                : "border-transparent text-black/58 hover:border-black/10 hover:bg-white hover:text-black/82",
             ].join(" ")}
           >
             <span className="inline-flex items-center gap-2"><Icon size={14} aria-hidden="true" />{tab.label}<AttentionDot href={href} /></span>

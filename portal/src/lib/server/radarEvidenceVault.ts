@@ -117,6 +117,10 @@ export function recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar)
         totalSamples: 0,
         points: [],
         hourly: [],
+        entityType: check.entity?.type,
+        entityId: check.entity?.id,
+        entityLabel: check.entity?.label,
+        parentEntityId: check.entity?.parentId,
       };
       const pointBucket = Math.floor(now / FIVE_MINUTES);
       const previousPoint = series.points.at(-1);
@@ -127,6 +131,10 @@ export function recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar)
       series.familyLabel = check.familyLabel;
       series.sourceId = check.sourceId;
       series.expectedDirection = check.expectedDirection ?? series.expectedDirection;
+      series.entityType = check.entity?.type ?? series.entityType;
+      series.entityId = check.entity?.id ?? series.entityId;
+      series.entityLabel = check.entity?.label ?? series.entityLabel;
+      series.parentEntityId = check.entity?.parentId ?? series.parentEntityId;
       series.lastSeenAt = now;
       series.totalSamples += 1;
       evidence.series[id] = series;

@@ -3,7 +3,7 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth";
 import { createAgencyProduct, ensureDefaultAgencyProducts, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
 import { ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { ensureHydrated } from "@/server/storage";
-import { AGENCY_ROLES, type AgencyProductKind, type AgencyProductPortalMode, type AgencyProductPortalRequirement, type AgencyProductPortalTemplateKey, type AgencyProductPricing } from "@/server/types";
+import { AGENCY_ROLES, type AgencyProductInternalWorkspace, type AgencyProductKind, type AgencyProductPortalMode, type AgencyProductPortalRequirement, type AgencyProductPortalTemplateKey, type AgencyProductPricing, type AgencyProductStatus } from "@/server/types";
 
 type Body = {
   action?: "create" | "update";
@@ -32,12 +32,14 @@ type Body = {
   paymentTermsDays?: number;
   billingNotes?: string;
   internalInfo?: string;
+  internalWorkspace?: AgencyProductInternalWorkspace;
   deliverables?: string[];
   contractTitle?: string;
   contractBody?: string;
   sopIds?: string[];
   sopCategories?: string[];
   active?: boolean;
+  status?: AgencyProductStatus;
   companyIds?: string[];
 };
 
@@ -86,12 +88,14 @@ export async function POST(request: Request) {
       paymentTermsDays: body.paymentTermsDays,
       billingNotes: body.billingNotes,
       internalInfo: body.internalInfo,
+      internalWorkspace: body.internalWorkspace,
       deliverables: body.deliverables,
       contractTitle: body.contractTitle,
       contractBody: body.contractBody,
       sopIds: body.sopIds,
       sopCategories: body.sopCategories,
       active: body.active,
+      status: body.status,
       companyIds: body.companyIds,
     };
     const product = body.action === "create"
@@ -100,7 +104,7 @@ export async function POST(request: Request) {
         ? updateAgencyProduct(session.agencyId, body.productId, input, session.userId)
         : null;
     if (!product) return NextResponse.json({ ok: false, error: "product not found" }, { status: 404 });
-    const portalTemplate = product.portalRequirement !== "none"
+    const portalTemplate = product.status !== "archived" && product.portalRequirement !== "none"
       ? ensureProductPortalTemplate(session.agencyId, product, session.userId)
       : null;
     return NextResponse.json({ ok: true, product, portalTemplate: portalTemplate ? {

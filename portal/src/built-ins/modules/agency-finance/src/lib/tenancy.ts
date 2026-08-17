@@ -45,6 +45,8 @@ export interface Client {
   stage: ClientStage;
   ownerEmail?: string;
   websiteUrl?: string;
+  companyId?: string | null;
+  metadata?: Record<string, unknown>;
   status: EntityStatus;
   createdAt: number;
   updatedAt: number;

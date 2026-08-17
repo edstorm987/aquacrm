@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBusiness, CalendarCheck2, CalendarDays, CalendarRange, Check, CheckCircle2, ChevronLeft, ChevronRight, CirclePause, Clock3, Cloud, CloudOff, ExternalLink, Flag, Inbox, Info, Layers3, List, LoaderCircle, NotebookPen, Pencil, Plus, Radar, RefreshCw, Repeat2, Save, Settings2, ShieldCheck, Sparkles, Target, Trash2, UserRound, Workflow, X } from "lucide-react";
+import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBusiness, Building2, CalendarCheck2, CalendarDays, CalendarRange, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CirclePause, Clock3, Cloud, CloudOff, ExternalLink, Flag, Inbox, Info, Layers3, List, LoaderCircle, NotebookPen, Pencil, Plus, Radar, RefreshCw, Repeat2, Save, Search, Settings2, ShieldCheck, Sparkles, Target, Trash2, UserRound, Workflow, X } from "lucide-react";
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
 import {
   buildProtectedAttentionWindow,
@@ -21,9 +21,11 @@ export type GeneratedAction = {
   kind: string;
   dueAt?: number;
   priority: "normal" | "high" | "urgent";
+  clientId?: string;
 };
 
 export type TeamMember = { id: string; name: string; email: string };
+export type ActionClient = { id: string; name: string; status: string; stage: string };
 type CalendarConnectionView = Omit<CommandCalendarConnection, "encryptedAccessToken" | "encryptedRefreshToken"> & { canRefresh: boolean };
 type CalendarIntegrationState = { configured: boolean; connections: CalendarConnectionView[]; sources: CommandCalendarSource[]; events: CommandCalendarExternalEvent[] };
 
@@ -44,6 +46,7 @@ export function ActionsWorkspace({
   recommendationsGeneratedAt,
   advisorConfigured,
   team,
+  clients,
   sops,
   calendarEvents = [],
   initialCalendarEntries = [],
@@ -59,6 +62,7 @@ export function ActionsWorkspace({
   recommendationsGeneratedAt: number;
   advisorConfigured: boolean;
   team: TeamMember[];
+  clients: ActionClient[];
   sops: SopDocument[];
   calendarEvents?: GeneratedAction[];
   initialCalendarEntries?: CommandCalendarEntry[];
@@ -209,6 +213,7 @@ export function ActionsWorkspace({
           evidenceSourceIds: suggestion.sourceAlertIds,
           expectedOutcome: `Resolve the linked condition and confirm Radar no longer reports it.`,
           reconciliationSourceIds: suggestion.sourceAlertIds,
+          clientId: clientIdFromHref(suggestion.href),
         }),
       });
       const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; task?: AgencyTask } | null;
@@ -242,6 +247,7 @@ export function ActionsWorkspace({
           origin: "crm",
           sourceId: action.id,
           sourceHref: action.href,
+          clientId: action.clientId,
         }),
       });
       const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; task?: AgencyTask } | null;
@@ -311,6 +317,7 @@ export function ActionsWorkspace({
     {view === "list" ? source === "all" ? <UnifiedActionQueue
       window={unifiedWindow}
       team={team}
+      clients={clients}
       sops={sops}
       editing={editing}
       addingId={addingSuggestionId}
@@ -335,7 +342,7 @@ export function ActionsWorkspace({
 
       <section aria-label="Accepted actions" className="grid gap-3">
         <div className="flex flex-wrap items-end justify-between gap-2 border-b border-black/10 pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Accepted actions</p><h2 className="mt-1 text-lg font-semibold text-black/80">{`${sourceLabel(source)} tasks`}</h2></div><span className="text-xs text-black/40">{visibleTasks.length} shown</span></div>
-        {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} sops={sops} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
+        {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} clients={clients} sops={sops} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
         {!visibleTasks.length ? <div className="py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">No accepted tasks in this view</h2><p className="mt-1 text-xs text-black/42">Create one manually or approve a suggested task above.</p></div> : null}
       </section>
     </> : <CalendarView
@@ -345,6 +352,7 @@ export function ActionsWorkspace({
       entries={calendarEntries}
       integration={calendarIntegration}
       team={team}
+      clients={clients}
       onNavigate={amount => setMonth(addMonths(month, amount))}
       onToday={() => setMonth(startOfMonth(new Date()))}
       onTaskCreated={task => setTasks(current => [task, ...current.filter(item => item.id !== task.id)])}
@@ -353,7 +361,7 @@ export function ActionsWorkspace({
       onIntegrationChange={setCalendarIntegration}
     />}
 
-    {adding ? <TaskModal team={team} sops={sops} onClose={() => setAdding(false)} onCreated={task => { setTasks(current => [task, ...current]); setAdding(false); }} /> : null}
+    {adding ? <TaskModal team={team} clients={clients} sops={sops} onClose={() => setAdding(false)} onCreated={task => { setTasks(current => [task, ...current]); setAdding(false); }} /> : null}
   </div>;
 }
 
@@ -373,6 +381,7 @@ function ActionSourceFilters({ source, counts, onChange }: { source: ActionSourc
 function UnifiedActionQueue({
   window,
   team,
+  clients,
   sops,
   editing,
   addingId,
@@ -392,6 +401,7 @@ function UnifiedActionQueue({
 }: {
   window: ProtectedAttentionWindow<UnifiedActionItem>;
   team: TeamMember[];
+  clients: ActionClient[];
   sops: SopDocument[];
   editing: string | null;
   addingId: string | null;
@@ -421,7 +431,7 @@ function UnifiedActionQueue({
     {window.protected ? <ActionReserveSummary window={window} onOpenSource={onOpenSource} /> : null}
     {advisorError ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{advisorError}</p> : null}
     {window.focus.map(item => {
-      if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} sops={sops} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
+      if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} clients={clients} sops={sops} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
       if (item.type === "suggestion") return <UnifiedSuggestionCard key={item.id} suggestion={item.suggestion} source={item.source} busy={addingId === item.id} onAccept={() => onAcceptSuggestion(item.suggestion, item.source)} onDismiss={item.source === "advisor" ? () => onDismissAdvisor(item.id) : undefined} />;
       if (item.type === "proposal") return <ExternalProposalRow key={item.id} proposal={item.proposal} team={team} busy={proposalBusyId === item.id} onDecision={onProposalDecision} unified />;
       return <UnifiedCrmCard key={item.id} action={item.action} busy={addingId === item.id} onAccept={() => onAcceptCrm(item.action)} />;
@@ -589,31 +599,32 @@ function AdvisorPanel({ configured, suggestions, busy, reviewedAt, error, adding
   </section>;
 }
 
-function TaskCard({ task, team, sops, expanded, onToggle, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; sops: SopDocument[]; expanded: boolean; onToggle: () => void; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
+function TaskCard({ task, team, clients, sops, expanded, onToggle, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; expanded: boolean; onToggle: () => void; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
   const owner = team.find(member => member.id === task.assigneeUserId);
+  const client = clients.find(item => item.id === task.clientId);
   const attachedSops = sops.filter(sop => task.sopIds?.includes(sop.id));
   const isOverdue = task.status !== "done" && task.dueAt && task.dueAt < startOfDay(Date.now());
   return <article className={`mm-surface-card mm-hover-lift rounded-lg border bg-white transition ${isOverdue ? "border-red-200" : "border-black/10"}`}>
     <div className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:p-4">
       <button type="button" onClick={() => onPatch({ status: task.status === "done" ? "todo" : "done" })} title={task.status === "done" ? "Reopen task" : "Complete task"} className={`grid size-9 place-items-center rounded-full border ${task.status === "done" ? "border-emerald-600 bg-emerald-600 text-white" : "border-black/15 text-transparent hover:text-black/25"}`}><Check size={16} /></button>
-      <button type="button" onClick={onToggle} className="min-w-0 text-left"><span className="flex flex-wrap items-center gap-2"><strong className={`text-sm ${task.status === "done" ? "text-black/40 line-through" : "text-black/82"}`}>{task.title}</strong><SourceBadge origin={taskOrigin(task)} /><Priority value={task.priority} />{task.status === "in-progress" ? <Pill>In progress</Pill> : null}{task.reconciliation ? <ReconciliationBadge status={task.reconciliation.status} /> : null}{attachedSops.length ? <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700"><BookOpen size={11} />{attachedSops.length} {attachedSops.length === 1 ? "SOP" : "SOPs"}</span> : null}</span><span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-black/45">{owner ? <span className="inline-flex items-center gap-1"><UserRound size={13} />{owner.name}</span> : <span>Unassigned</span>}{task.startAt || task.dueAt ? <span className={`inline-flex items-center gap-1 ${isOverdue ? "font-medium text-red-700" : ""}`}><Clock3 size={13} />{dateRange(task.startAt, task.dueAt)}</span> : <span>No date</span>}{task.reminderAt ? <span className="inline-flex items-center gap-1"><Bell size={12} />{formatDateTime(task.reminderAt)}</span> : null}{task.recurrence ? <span className="inline-flex items-center gap-1 capitalize"><Repeat2 size={12} />{task.recurrence}</span> : null}</span></button>
+      <button type="button" onClick={onToggle} className="min-w-0 text-left"><span className="flex flex-wrap items-center gap-2"><strong className={`text-sm ${task.status === "done" ? "text-black/40 line-through" : "text-black/82"}`}>{task.title}</strong><SourceBadge origin={taskOrigin(task)} /><Priority value={task.priority} />{task.status === "in-progress" ? <Pill>In progress</Pill> : null}{task.reconciliation ? <ReconciliationBadge status={task.reconciliation.status} /> : null}{attachedSops.length ? <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700"><BookOpen size={11} />{attachedSops.length} {attachedSops.length === 1 ? "SOP" : "SOPs"}</span> : null}</span><span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-black/45">{client ? <span className="inline-flex items-center gap-1 font-medium text-sky-700"><Building2 size={13} />{client.name}</span> : null}{owner ? <span className="inline-flex items-center gap-1"><UserRound size={13} />{owner.name}</span> : <span>Unassigned</span>}{task.startAt || task.dueAt ? <span className={`inline-flex items-center gap-1 ${isOverdue ? "font-medium text-red-700" : ""}`}><Clock3 size={13} />{dateRange(task.startAt, task.dueAt)}</span> : <span>No date</span>}{task.reminderAt ? <span className="inline-flex items-center gap-1"><Bell size={12} />{formatDateTime(task.reminderAt)}</span> : null}{task.recurrence ? <span className="inline-flex items-center gap-1 capitalize"><Repeat2 size={12} />{task.recurrence}</span> : null}</span></button>
       <button type="button" onClick={onToggle} className="col-start-2 inline-flex w-fit items-center gap-1.5 rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/55 sm:col-start-auto">{expanded ? <X size={13} /> : <Pencil size={13} />}{expanded ? "Close" : "Edit"}</button>
     </div>
-    {expanded ? <TaskEditor task={task} team={team} sops={sops} onPatch={onPatch} onDelete={onDelete} /> : null}
+    {expanded ? <TaskEditor task={task} team={team} clients={clients} sops={sops} onPatch={onPatch} onDelete={onDelete} /> : null}
   </article>;
 }
 
-function TaskEditor({ task, team, sops, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; sops: SopDocument[]; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
-  const [draft, setDraft] = useState({ title: task.title, notes: task.notes ?? "", status: task.status, priority: task.priority, assigneeUserId: task.assigneeUserId ?? "", startAt: dateInput(task.startAt), dueAt: dateInput(task.dueAt), reminderAt: dateTimeInput(task.reminderAt), recurrence: task.recurrence ?? "none" as AgencyTaskRecurrence, sopIds: task.sopIds ?? [] });
+function TaskEditor({ task, team, clients, sops, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
+  const [draft, setDraft] = useState({ title: task.title, notes: task.notes ?? "", status: task.status, priority: task.priority, assigneeUserId: task.assigneeUserId ?? "", clientId: task.clientId ?? "", startAt: dateInput(task.startAt), dueAt: dateInput(task.dueAt), reminderAt: dateTimeInput(task.reminderAt), recurrence: task.recurrence ?? "none" as AgencyTaskRecurrence, sopIds: task.sopIds ?? [] });
   return <div className="grid gap-3 border-t border-black/10 bg-black/[0.015] p-4">
     <input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm font-medium" />
     <textarea value={draft.notes} onChange={event => setDraft(current => ({ ...current, notes: event.target.value }))} rows={3} className="rounded-md border border-black/15 bg-white px-3 py-2 text-sm" placeholder="Notes, links, or the expected outcome" />
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Select label="Status" value={draft.status} onChange={value => setDraft(current => ({ ...current, status: value as AgencyTaskStatus }))} options={[["todo","To do"],["in-progress","In progress"],["done","Done"]]} />
       <Select label="Priority" value={draft.priority} onChange={value => setDraft(current => ({ ...current, priority: value as AgencyTaskPriority }))} options={[["low","Low"],["normal","Normal"],["high","High"],["urgent","Urgent"]]} />
-      <Select label="Assigned to" value={draft.assigneeUserId} onChange={value => setDraft(current => ({ ...current, assigneeUserId: value }))} options={[["","Unassigned"], ...team.map(member => [member.id, member.name] as [string,string])]} />
       <div className="grid grid-cols-2 gap-2"><DateField label="Start" value={draft.startAt} onChange={value => setDraft(current => ({ ...current, startAt: value }))} /><DateField label="Due" value={draft.dueAt} onChange={value => setDraft(current => ({ ...current, dueAt: value }))} /></div>
     </div>
+    <AssignmentPicker team={team} clients={clients} assigneeUserId={draft.assigneeUserId} clientId={draft.clientId} onAssigneeChange={assigneeUserId => setDraft(current => ({ ...current, assigneeUserId }))} onClientChange={clientId => setDraft(current => ({ ...current, clientId }))} />
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="grid gap-1 text-[10px] font-medium text-black/45">Reminder<input type="datetime-local" value={draft.reminderAt} onChange={event => setDraft(current => ({ ...current, reminderAt: event.target.value }))} className="min-h-10 rounded-md border border-black/15 bg-white px-2 text-xs" /></label>
       <Select label="Repeats" value={draft.recurrence} onChange={value => setDraft(current => ({ ...current, recurrence: value as AgencyTaskRecurrence }))} options={[["none","Does not repeat"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]]} />
@@ -628,7 +639,7 @@ function TaskEditor({ task, team, sops, onPatch, onDelete }: { task: AgencyTask;
       </div>
     </section> : null}
     <SopPicker sops={sops} selected={draft.sopIds} onChange={sopIds => setDraft(current => ({ ...current, sopIds }))} />
-    <div className="flex justify-between gap-3"><button type="button" onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-medium text-red-700"><Trash2 size={14} />Delete</button><button type="button" onClick={() => onPatch({ title: draft.title, notes: draft.notes, status: draft.status, priority: draft.priority, assigneeUserId: draft.assigneeUserId || undefined, startAt: toTimestamp(draft.startAt), dueAt: toTimestamp(draft.dueAt, true), reminderAt: toDateTimeTimestamp(draft.reminderAt) ?? 0, recurrence: draft.recurrence, sopIds: draft.sopIds })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white"><Save size={14} /> Save changes</button></div>
+    <div className="flex justify-between gap-3"><button type="button" onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-medium text-red-700"><Trash2 size={14} />Delete</button><button type="button" onClick={() => onPatch({ title: draft.title, notes: draft.notes, status: draft.status, priority: draft.priority, assigneeUserId: draft.assigneeUserId, clientId: draft.clientId, startAt: toTimestamp(draft.startAt), dueAt: toTimestamp(draft.dueAt, true), reminderAt: toDateTimeTimestamp(draft.reminderAt) ?? 0, recurrence: draft.recurrence, sopIds: draft.sopIds })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white"><Save size={14} /> Save changes</button></div>
   </div>;
 }
 
@@ -636,7 +647,7 @@ function GeneratedCard({ action, busy, onAccept }: { action: GeneratedAction; bu
   return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"><span className={`grid size-9 place-items-center rounded-md ${action.priority === "urgent" ? "bg-red-50 text-red-600" : action.priority === "high" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}><Workflow size={15} /></span><div className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><Pill>{action.kind}</Pill><Priority value={action.priority} /></span><p className="mt-1 text-xs leading-5 text-black/45">{action.detail}{action.dueAt ? ` · ${formatUkDate(action.dueAt, { dateStyle: "medium" })}` : ""}</p></div><div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto sm:justify-end"><Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link><button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept task"}</button></div></article>;
 }
 
-function CalendarView({ month, tasks, actions, entries, integration, team, onNavigate, onToday, onTaskCreated, onTaskUpdated, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
+function CalendarView({ month, tasks, actions, entries, integration, team, onNavigate, onToday, onTaskCreated, onTaskUpdated, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; clients: ActionClient[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(dateKey(Date.now()));
   const [quarterMode, setQuarterMode] = useState(false);
@@ -818,18 +829,60 @@ function dateKey(value: number | Date) { const date = value instanceof Date ? va
 function calendarTime(value?: number, includeDate = false) { if (!value) return "Time not set"; return formatUkDate(value, includeDate ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" }); }
 function relativeTime(value: number) { const seconds = Math.max(0, Math.round((Date.now() - value) / 1_000)); if (seconds < 60) return "just now"; if (seconds < 3_600) return `${Math.floor(seconds / 60)}m ago`; if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}h ago`; return `${Math.floor(seconds / 86_400)}d ago`; }
 
-function TaskModal({ team, sops, onClose, onCreated }: { team: TeamMember[]; sops: SopDocument[]; onClose: () => void; onCreated: (task: AgencyTask) => void }) {
+function TaskModal({ team, clients, sops, onClose, onCreated }: { team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; onClose: () => void; onCreated: (task: AgencyTask) => void }) {
   const [busy, setBusy] = useState(false);
   const [sopIds, setSopIds] = useState<string[]>([]);
-  return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close task form" onClick={onClose} /><form role="dialog" aria-modal="true" aria-labelledby="new-task-title" className="relative mx-auto grid max-h-[100dvh] w-full max-w-xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg" onSubmit={async event => { event.preventDefault(); setBusy(true); const data = new FormData(event.currentTarget); const response = await fetch("/api/portal/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: data.get("title"), notes: data.get("notes"), priority: data.get("priority"), assigneeUserId: data.get("assigneeUserId") || undefined, startAt: toTimestamp(String(data.get("startAt") ?? "")), dueAt: toTimestamp(String(data.get("dueAt") ?? ""), true), reminderAt: toDateTimeTimestamp(String(data.get("reminderAt") ?? "")), recurrence: data.get("recurrence"), origin: "manual", sopIds }) }); const result = await response.json() as { ok: boolean; task?: AgencyTask }; setBusy(false); if (result.ok && result.task) onCreated(result.task); }}>
+  const [assigneeUserId, setAssigneeUserId] = useState("");
+  const [clientId, setClientId] = useState("");
+  return <div className="fixed inset-0 z-[90] grid items-end bg-black/35 sm:items-center sm:p-6"><button className="absolute inset-0" aria-label="Close task form" onClick={onClose} /><form role="dialog" aria-modal="true" aria-labelledby="new-task-title" className="relative mx-auto grid max-h-[100dvh] w-full max-w-2xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg" onSubmit={async event => { event.preventDefault(); setBusy(true); const data = new FormData(event.currentTarget); const response = await fetch("/api/portal/tasks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: data.get("title"), notes: data.get("notes"), priority: data.get("priority"), assigneeUserId: assigneeUserId || undefined, clientId: clientId || undefined, startAt: toTimestamp(String(data.get("startAt") ?? "")), dueAt: toTimestamp(String(data.get("dueAt") ?? ""), true), reminderAt: toDateTimeTimestamp(String(data.get("reminderAt") ?? "")), recurrence: data.get("recurrence"), origin: "manual", sopIds }) }); const result = await response.json() as { ok: boolean; task?: AgencyTask }; setBusy(false); if (result.ok && result.task) onCreated(result.task); }}>
     <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase text-black/40">New task</p><h2 id="new-task-title" className="mt-1 text-xl font-semibold">What needs to happen?</h2></div><button type="button" aria-label="Close task form" onClick={onClose} className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></div>
     <label className="grid gap-1 text-xs font-medium text-black/55">Task<input autoFocus required name="title" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" placeholder="Prepare homepage concepts" /></label>
     <label className="grid gap-1 text-xs font-medium text-black/55">Notes<textarea name="notes" rows={4} className="rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="Outcome, links, context, or checklist" /></label>
-    <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium text-black/55">Assigned to<select name="assigneeUserId" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">Unassigned</option>{team.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label><label className="grid gap-1 text-xs font-medium text-black/55">Priority<select name="priority" defaultValue="normal" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label className="grid gap-1 text-xs font-medium text-black/55">Start date<input name="startAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Due date<input name="dueAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label></div>
+    <AssignmentPicker team={team} clients={clients} assigneeUserId={assigneeUserId} clientId={clientId} onAssigneeChange={setAssigneeUserId} onClientChange={setClientId} />
+    <div className="grid gap-3 sm:grid-cols-3"><label className="grid gap-1 text-xs font-medium text-black/55">Priority<select name="priority" defaultValue="normal" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label className="grid gap-1 text-xs font-medium text-black/55">Start date<input name="startAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Due date<input name="dueAt" type="date" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label></div>
     <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium text-black/55">Reminder<input name="reminderAt" type="datetime-local" className="min-h-11 rounded-md border border-black/15 px-3 text-sm" /></label><label className="grid gap-1 text-xs font-medium text-black/55">Repeats<select name="recurrence" defaultValue="none" className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label></div>
     <SopPicker sops={sops} selected={sopIds} onChange={setSopIds} />
     <div className="flex justify-end"><button disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><Plus size={15} />{busy ? "Adding..." : "Add task"}</button></div>
   </form></div>;
+}
+
+function AssignmentPicker({ team, clients, assigneeUserId, clientId, onAssigneeChange, onClientChange }: { team: TeamMember[]; clients: ActionClient[]; assigneeUserId: string; clientId: string; onAssigneeChange: (id: string) => void; onClientChange: (id: string) => void }) {
+  const staffOptions = team.map(member => ({ id: member.id, label: member.name, detail: member.email, group: "Team" }));
+  const clientOptions = clients.map(client => ({ id: client.id, label: client.name, detail: client.stage.replaceAll("-", " "), group: client.status === "active" ? "Active clients" : "Other client records" }));
+  return <fieldset className="grid gap-2">
+    <legend className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Assignment</legend>
+    <div className="grid gap-2 sm:grid-cols-2">
+      <NestedAssignmentMenu icon={<UserRound size={15} />} label="Staff owner" emptyLabel="Unassigned" value={assigneeUserId} options={staffOptions} onChange={onAssigneeChange} />
+      <NestedAssignmentMenu icon={<Building2 size={15} />} label="Client" emptyLabel="No client" value={clientId} options={clientOptions} onChange={onClientChange} />
+    </div>
+  </fieldset>;
+}
+
+function NestedAssignmentMenu({ icon, label, emptyLabel, value, options, onChange }: { icon: React.ReactNode; label: string; emptyLabel: string; value: string; options: Array<{ id: string; label: string; detail?: string; group: string }>; onChange: (id: string) => void }) {
+  const [query, setQuery] = useState("");
+  const selected = options.find(option => option.id === value);
+  const visible = options.filter(option => `${option.label} ${option.detail ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const groups = [...new Set(visible.map(option => option.group))];
+  const choose = (event: React.MouseEvent<HTMLButtonElement>, id: string) => {
+    onChange(id);
+    setQuery("");
+    event.currentTarget.closest("details")?.removeAttribute("open");
+  };
+  return <details className="group relative min-w-0">
+    <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-md border border-black/12 bg-white px-3 text-left hover:border-black/22 [&::-webkit-details-marker]:hidden">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-black/[0.045] text-black/48">{icon}</span>
+      <span className="min-w-0 flex-1"><span className="block text-[9px] font-semibold uppercase tracking-wide text-black/35">{label}</span><strong className={`block truncate text-xs ${selected ? "text-black/72" : "text-black/42"}`}>{selected?.label ?? emptyLabel}</strong></span>
+      <ChevronDown size={14} className="shrink-0 text-black/35 transition group-open:rotate-180" />
+    </summary>
+    <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-md border border-black/12 bg-white shadow-xl">
+      <label className="flex min-h-10 items-center gap-2 border-b border-black/8 px-3 text-black/40"><Search size={13} /><span className="sr-only">Search {label.toLowerCase()}</span><input value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => event.stopPropagation()} placeholder={`Search ${label.toLowerCase()}`} className="min-w-0 flex-1 border-0 bg-transparent py-2 text-xs text-black/70 outline-none" /></label>
+      <div className="max-h-56 overflow-y-auto p-1.5">
+        <button type="button" onClick={event => choose(event, "")} className={`flex min-h-9 w-full items-center gap-2 rounded px-2 text-left text-xs ${!value ? "bg-black/[0.055] font-semibold text-black/72" : "text-black/48 hover:bg-black/[0.035]"}`}><X size={12} />{emptyLabel}</button>
+        {groups.map(group => <section key={group} className="mt-1"><p className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-black/30">{group}</p>{visible.filter(option => option.group === group).map(option => <button key={option.id} type="button" onClick={event => choose(event, option.id)} className={`flex min-h-10 w-full items-center gap-2 rounded px-2 text-left ${value === option.id ? "bg-brand/[0.08] text-brand" : "text-black/62 hover:bg-black/[0.035]"}`}><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{option.label}</strong>{option.detail ? <span className="block truncate text-[9px] capitalize opacity-60">{option.detail}</span> : null}</span>{value === option.id ? <Check size={13} /> : null}</button>)}</section>)}
+        {!visible.length ? <p className="px-3 py-5 text-center text-xs text-black/38">No match found.</p> : null}
+      </div>
+    </div>
+  </details>;
 }
 
 function SopPicker({ sops, selected, onChange }: { sops: SopDocument[]; selected: string[]; onChange: (ids: string[]) => void }) {
@@ -873,6 +926,7 @@ function calendarDays(month: Date) { const first = startOfMonth(month); const of
 function taskOrigin(task: AgencyTask): AgencyTaskOrigin { return task.origin ?? "manual"; }
 function sourceLabel(source: Exclude<ActionSource, "all">): string { return source === "crm" ? "CRM" : source.charAt(0).toUpperCase() + source.slice(1); }
 function normaliseTitle(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, " "); }
+function clientIdFromHref(href: string): string | undefined { return href.match(/^\/portal\/clients\/([^/?#]+)/)?.[1]; }
 
 function sourceCountMap(tasks: AgencyTask[], radar: AdvisorActionSuggestion[], advisor: AdvisorActionSuggestion[], crm: GeneratedAction[], proposals: ExternalAssistantActionProposal[]): Record<ActionSource, number> {
   const pendingProposals = proposals.filter(proposal => proposal.status === "pending").length;

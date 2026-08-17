@@ -205,7 +205,10 @@ export class ContactService {
         designFeedback: lead.designFeedback,
         supportNotes: lead.supportNotes,
         notes: lead.notes,
-        customFields: lead.customFields,
+        customFields: {
+          ...(lead.customFields ?? {}),
+          ...(lead.relationshipCategory ? { leadRelationshipCategory: lead.relationshipCategory } : {}),
+        },
       },
       actor,
     );

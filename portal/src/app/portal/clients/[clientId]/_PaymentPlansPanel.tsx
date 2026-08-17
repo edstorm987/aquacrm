@@ -22,6 +22,7 @@ import {
   paymentPlanPaid,
   paymentPlanTotal,
   reconcileClientPaymentPlan,
+  summariseClientPaymentPosition,
   type ClientPaymentMilestone,
   type ClientPaymentPlan,
   type PaymentPlanInvoiceEvidence,
@@ -130,12 +131,7 @@ export function PaymentPlansPanel({
     setPlans(current => current.map(plan => reconcileClientPaymentPlan(plan, invoices)));
   }, [invoices]);
 
-  const activePlans = plans.filter(plan => plan.status === "active");
-  const totals = useMemo(() => activePlans.reduce((summary, plan) => ({
-    total: summary.total + paymentPlanTotal(plan),
-    paid: summary.paid + paymentPlanPaid(plan),
-    milestones: summary.milestones + plan.milestones.length,
-  }), { total: 0, paid: 0, milestones: 0 }), [activePlans]);
+  const paymentPosition = useMemo(() => summariseClientPaymentPosition(plans, invoices), [plans, invoices]);
 
   async function request(body: Record<string, unknown>): Promise<{ plans?: ClientPaymentPlan[]; files?: PaymentPlanEvidenceFile[]; invoice?: { id: string; status: string }; error?: string }> {
     const response = await fetch("/api/tenants/client-payment-plans", {
@@ -395,10 +391,13 @@ export function PaymentPlansPanel({
         </button>
       </header>
 
-      <dl className="grid grid-cols-3 divide-x divide-black/10 border-b border-black/10 bg-black/[0.015]">
-        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Active plans</dt><dd className="mt-1 text-lg font-semibold text-black/85">{activePlans.length}</dd></div>
-        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Scheduled</dt><dd className="mt-1 text-lg font-semibold text-black/85">{activePlans.length ? money(totals.total, activePlans[0].currency) : "—"}</dd></div>
-        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Collected</dt><dd className="mt-1 text-lg font-semibold text-emerald-800">{activePlans.length ? money(totals.paid, activePlans[0].currency) : "—"}</dd></div>
+      <dl className="grid grid-cols-2 divide-x divide-y divide-black/10 border-b border-black/10 bg-black/[0.015] sm:grid-cols-3 xl:grid-cols-6">
+        <div className={`p-4 ${paymentPosition.state === "missed-payment" ? "bg-red-50" : paymentPosition.state === "paid-in-full" ? "bg-emerald-50" : paymentPosition.state === "payment-due" ? "bg-amber-50" : ""}`}><dt className="text-[10px] uppercase tracking-wide text-black/40">Payment position</dt><dd className={`mt-1 text-sm font-semibold ${paymentPosition.state === "missed-payment" ? "text-red-800" : paymentPosition.state === "paid-in-full" ? "text-emerald-800" : paymentPosition.state === "payment-due" ? "text-amber-900" : "text-black/85"}`}>{paymentPosition.label}</dd>{paymentPosition.nextDueAt ? <p className="mt-1 text-[10px] text-black/45">Next due {formatUkDate(paymentPosition.nextDueAt, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</p> : null}</div>
+        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Active plans</dt><dd className="mt-1 text-lg font-semibold text-black/85">{paymentPosition.activePlans}</dd></div>
+        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Agreed</dt><dd className="mt-1 text-lg font-semibold text-black/85">{paymentPosition.agreedCents ? money(paymentPosition.agreedCents, paymentPosition.currency) : "—"}</dd></div>
+        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Collected</dt><dd className="mt-1 text-lg font-semibold text-emerald-800">{paymentPosition.agreedCents ? money(paymentPosition.paidCents, paymentPosition.currency) : "—"}</dd></div>
+        <div className="p-4"><dt className="text-[10px] uppercase tracking-wide text-black/40">Outstanding</dt><dd className={`mt-1 text-lg font-semibold ${paymentPosition.outstandingCents ? "text-amber-800" : "text-black/85"}`}>{paymentPosition.agreedCents ? money(paymentPosition.outstandingCents, paymentPosition.currency) : "—"}</dd></div>
+        <div className={paymentPosition.missedPayments ? "bg-red-50 p-4" : "p-4"}><dt className="text-[10px] uppercase tracking-wide text-black/40">Missed payments</dt><dd className={`mt-1 text-lg font-semibold ${paymentPosition.missedPayments ? "text-red-800" : "text-emerald-800"}`}>{paymentPosition.missedPayments}</dd></div>
       </dl>
 
       {creating ? (
@@ -471,12 +470,13 @@ export function PaymentPlansPanel({
                     <tbody className="divide-y divide-black/[0.07]">
                       {plan.milestones.map(milestone => {
                         const locked = Boolean(milestone.invoiceId);
+                        const missed = plan.status === "active" && milestone.status !== "paid" && milestone.status !== "waived" && milestone.dueAt < Date.now();
                         return <tr key={milestone.id}>
                           <td className="px-3 py-3">{editing && !locked ? <input value={milestone.title} onChange={event => updateMilestone(plan.id, milestone.id, { title: event.target.value })} className={`${CONTROL} w-64`} /> : <><p className="font-medium text-black/80">{milestone.title}</p>{milestone.invoiceNumber ? <p className="mt-0.5 text-[10px] text-black/40">{milestone.invoiceNumber}</p> : null}</>}</td>
                           <td className="px-3 py-3 text-xs text-black/55">{editing && !locked ? <select value={milestone.productId ?? ""} onChange={event => { const product = products.find(item => item.id === event.target.value); updateMilestone(plan.id, milestone.id, { productId: product?.id, productName: product?.name }); }} className={`${CONTROL} w-44`}><option value="">Whole relationship</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select> : milestone.productName ?? "Whole relationship"}</td>
                           <td className="px-3 py-3 text-xs text-black/55">{editing && !locked ? <input type="date" value={dateInput(milestone.dueAt)} onChange={event => updateMilestone(plan.id, milestone.id, { dueAt: Date.parse(event.target.value) })} className={CONTROL} /> : formatUkDate(milestone.dueAt, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</td>
                           <td className="px-3 py-3 text-right">{editing && !locked ? <input type="number" min="0.01" step="0.01" value={(milestone.amountCents / 100).toFixed(2)} onChange={event => updateMilestone(plan.id, milestone.id, { amountCents: Math.round(Number(event.target.value) * 100) })} className={`${CONTROL} w-28 text-right`} /> : <span className="font-mono font-semibold text-black/80">{money(milestone.amountCents, plan.currency)}</span>}</td>
-                          <td className="px-3 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${statusClass(milestone.status)}`}>{milestone.status}</span></td>
+                          <td className="px-3 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${missed ? "bg-red-50 text-red-800" : statusClass(milestone.status)}`}>{missed ? "Missed" : milestone.status}</span></td>
                           <td className="px-3 py-3 text-right">{editing && !locked ? <div className="inline-flex items-center gap-1"><button type="button" onClick={() => updateMilestone(plan.id, milestone.id, { status: milestone.status === "waived" ? "planned" : "waived" })} className="min-h-9 rounded-md border border-black/15 px-2 text-[11px] font-semibold">{milestone.status === "waived" ? "Restore" : "Waive"}</button><button type="button" title="Remove milestone" onClick={() => removeMilestone(plan, milestone.id)} className="grid h-9 w-9 place-items-center rounded-md border border-red-200 text-red-700"><Trash2 size={13} /></button></div> : !locked && milestone.status !== "waived" ? <button type="button" onClick={() => void invoiceMilestone(plan, milestone)} disabled={Boolean(busy)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/15 px-3 text-xs font-semibold hover:bg-black/5 disabled:opacity-50"><ReceiptText size={13} /> Issue invoice</button> : milestone.status === "paid" ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><Check size={13} /> Paid</span> : <span className="text-xs text-black/40">{milestone.status === "waived" ? "Waived" : "Linked"}</span>}</td>
                         </tr>;
                       })}

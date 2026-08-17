@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import {
   destinationForOperationalAlert,
+  operationalAlertBelongsToClient,
   operationalAlertMatchesHref,
   operationalAlertMatchesHrefPrefix,
   type OperationalAlertAction,
@@ -32,8 +33,22 @@ interface AttentionContextValue {
 
 const AttentionContext = createContext<AttentionContextValue | null>(null);
 
-export function NotificationAttentionProvider({ initialAlerts, children }: { initialAlerts: OperationalAlertView[]; children: ReactNode }) {
-  const [alerts, setAlerts] = useState(initialAlerts);
+export function NotificationAttentionProvider({
+  initialAlerts,
+  children,
+  clientId,
+}: {
+  initialAlerts: OperationalAlertView[];
+  children: ReactNode;
+  clientId?: string;
+}) {
+  const scopeAlerts = useCallback(
+    (items: OperationalAlertView[]) => clientId
+      ? items.filter(alert => operationalAlertBelongsToClient(alert, clientId))
+      : items,
+    [clientId],
+  );
+  const [alerts, setAlerts] = useState(() => scopeAlerts(initialAlerts));
   const [focusProtectionEnabled, setFocusProtectionState] = useState(true);
   const [busyAlertId, setBusyAlertId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -42,7 +57,7 @@ export function NotificationAttentionProvider({ initialAlerts, children }: { ini
     [alerts, focusProtectionEnabled],
   );
 
-  useEffect(() => setAlerts(initialAlerts), [initialAlerts]);
+  useEffect(() => setAlerts(scopeAlerts(initialAlerts)), [initialAlerts, scopeAlerts]);
 
   useEffect(() => {
     const sync = () => setFocusProtectionState(attentionProtectionEnabled());
@@ -72,9 +87,9 @@ export function NotificationAttentionProvider({ initialAlerts, children }: { ini
     if (!response?.ok) return false;
     const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[] } | null;
     if (!payload?.alerts) return false;
-    setAlerts(payload.alerts);
+    setAlerts(scopeAlerts(payload.alerts));
     return true;
-  }, []);
+  }, [scopeAlerts]);
 
   useEffect(() => {
     const refreshWhenActive = () => {
@@ -114,7 +129,7 @@ export function NotificationAttentionProvider({ initialAlerts, children }: { ini
       });
       const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[]; error?: string } | null;
       if (!response.ok || !payload?.alerts) throw new Error(payload?.error || "The notification could not be updated.");
-      setAlerts(payload.alerts);
+      setAlerts(scopeAlerts(payload.alerts));
       return true;
     } catch (cause) {
       setAlerts(previous);
@@ -146,6 +161,9 @@ export function useAttentionMatches({
   hrefs = [],
   prefixHrefs = [],
   categories = [],
+  clientCategories = [],
+  clientId,
+  allForClient = false,
   navId,
   all = false,
   pool = "focus",
@@ -153,6 +171,9 @@ export function useAttentionMatches({
   hrefs?: string[];
   prefixHrefs?: string[];
   categories?: OperationalAlertCategory[];
+  clientCategories?: OperationalAlertCategory[];
+  clientId?: string;
+  allForClient?: boolean;
   navId?: string;
   all?: boolean;
   pool?: "focus" | "reserve" | "all";
@@ -166,16 +187,27 @@ export function useAttentionMatches({
         : [...context.attentionWindow.focus, ...context.attentionWindow.reserve];
     if (all) return live;
     return live.filter(alert => {
-      if (navId && destinationForOperationalAlert(alert) === navId) return true;
+      const belongsToClient = clientId ? operationalAlertBelongsToClient(alert, clientId) : false;
+      if (allForClient && belongsToClient) return true;
+      if (belongsToClient && clientCategories.includes(alert.category)) return true;
+      if (navId && destinationForOperationalAlert(alert) === navId) {
+        return navId.startsWith("client-") ? belongsToClient : true;
+      }
       if (navId?.startsWith("client-") && hrefs.some(href => operationalAlertMatchesHref(alert, href))) return true;
       if (categories.includes(alert.category)) return true;
       return hrefs.some(href => operationalAlertMatchesHref(alert, href))
         || prefixHrefs.some(href => operationalAlertMatchesHrefPrefix(alert, href));
     });
-  }, [all, categories, context, hrefs, navId, pool, prefixHrefs]);
+  }, [all, allForClient, categories, clientCategories, clientId, context, hrefs, navId, pool, prefixHrefs]);
 }
 
-export function useUnresolvedAttentionMatches({ navId }: { navId: string }): OperationalAlertView[] {
+export function useUnresolvedAttentionMatches({
+  navId,
+  clientId,
+}: {
+  navId: string;
+  clientId?: string;
+}): OperationalAlertView[] {
   const context = useNotificationAttention();
   return useMemo(() => {
     if (!context) return [];
@@ -183,8 +215,9 @@ export function useUnresolvedAttentionMatches({ navId }: { navId: string }): Ope
       alert.persistentUntilResolved
       && alert.state !== "parked"
       && destinationForOperationalAlert(alert) === navId
+      && (!clientId || operationalAlertBelongsToClient(alert, clientId))
     );
-  }, [context, navId]);
+  }, [clientId, context, navId]);
 }
 
 export function AttentionDot({

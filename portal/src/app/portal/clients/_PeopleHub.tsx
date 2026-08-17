@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
-import { Building2, ClipboardPenLine, Columns3, Fingerprint, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, UserRound, UsersRound, X, type LucideIcon } from "lucide-react";
+import { Building2, ClipboardPenLine, Columns3, Fingerprint, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, Settings, UserRound, UserSearch, UsersRound, X, type LucideIcon } from "lucide-react";
 
 import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, type NewClientProductOption } from "@/app/portal/agency/_NewClientButton";
 import {
@@ -13,6 +13,12 @@ import {
 import { formatUkDateTime } from "@/lib/formatDateTime";
 import type { IdentityResolutionReview } from "@/server/types";
 import { IdentityReviewWorkspace } from "./_IdentityReviewWorkspace";
+import {
+  LEAD_RELATIONSHIP_CATEGORIES,
+  LEAD_RELATIONSHIP_CATEGORY_LABELS,
+  inferLeadRelationshipCategory,
+  type LeadRelationshipCategory,
+} from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 
 export type ContactRole = "lead" | "customer" | "account" | "vendor" | "employee" | "other";
 
@@ -60,13 +66,17 @@ export interface HubContact {
   clientId?: string;
   recordKind: "contact" | "lead";
   enquiryClassification?: WebsiteEnquiryClassification;
+  relationshipCategory?: LeadRelationshipCategory;
+  lastEnquiryAt?: number;
+  lastEnquiryRespondedAt?: number;
+  currentStageId?: string;
   brandIds: string[];
   brandNames: string[];
   serviceIds: string[];
   serviceNames: string[];
 }
 
-type View = "all" | "clients" | "health" | "journey" | "contacts" | "staff" | "identity";
+type View = "clients" | "leads" | "journey" | "contacts" | "staff" | "identity";
 type JourneyMode = "list" | "kanban";
 
 const roleLabels: Record<ContactRole, string> = {
@@ -100,52 +110,78 @@ export function PeopleHub({
   const [contactRows, setContactRows] = useState(contacts);
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
-  const [role, setRole] = useState<ContactRole | "all">("all");
   const [niche, setNiche] = useState("");
   const [clientStatus, setClientStatus] = useState<"all" | "active" | "suspended">("all");
   const [brandFilter, setBrandFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
-  const [relationshipFilter, setRelationshipFilter] = useState<WebsiteEnquiryClassification | "">("");
+  const [leadCategoryFilter, setLeadCategoryFilter] = useState<LeadRelationshipCategory | "">("");
   const [addingContact, setAddingContact] = useState(false);
   const [reviewing, setReviewing] = useState<HubContact | null>(null);
 
   const filteredClients = useMemo(() => {
     const q = query.trim().toLowerCase();
     return clients
-      .filter(client => !niche || client.niche === niche)
-      .filter(client => clientStatus === "all" || client.status === clientStatus)
+      .filter(client => view !== "clients" || !niche || client.niche === niche)
+      .filter(client => view !== "clients" || clientStatus === "all" || client.status === clientStatus)
       .filter(client => !brandFilter || client.brandId === brandFilter)
       .filter(client => !serviceFilter || client.serviceIds.includes(serviceFilter))
-      .filter(client => !q || `${client.name} ${client.workspaceLabel ?? ""} ${client.ownerEmail ?? ""} ${client.websiteUrl ?? ""} ${client.stageLabel} ${client.source} ${client.niche ?? ""} ${client.brandName ?? ""} ${client.serviceNames.join(" ")}`.toLowerCase().includes(q));
-  }, [brandFilter, clientStatus, clients, niche, query, serviceFilter]);
+      .filter(client => !q || `${client.name} ${client.workspaceLabel ?? ""} ${client.ownerEmail ?? ""} ${client.websiteUrl ?? ""} ${client.stageLabel} ${client.source} ${client.niche ?? ""} ${client.brandName ?? ""} ${client.serviceNames.join(" ")} ${client.healthNotes.join(" ")}`.toLowerCase().includes(q))
+      .sort((left, right) => Number(right.health === "attention") - Number(left.health === "attention") || left.name.localeCompare(right.name));
+  }, [brandFilter, clientStatus, clients, niche, query, serviceFilter, view]);
 
   const availableNiches = useMemo(
     () => [...new Set(clients.map(client => client.niche).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b)),
     [clients],
   );
 
+  const leadRows = useMemo(
+    () => contactRows.filter(contact => contact.recordKind === "lead" || contact.type === "lead"),
+    [contactRows],
+  );
+  const nonLeadContactRows = useMemo(
+    () => contactRows.filter(contact => contact.recordKind !== "lead" && contact.type !== "lead"),
+    [contactRows],
+  );
+
+  const filteredLeads = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return leadRows
+      .filter(lead => view !== "leads" || !leadCategoryFilter || leadCategory(lead) === leadCategoryFilter)
+      .filter(lead => !brandFilter || lead.brandIds.includes(brandFilter))
+      .filter(lead => !serviceFilter || lead.serviceIds.includes(serviceFilter))
+      .filter(lead => !q || `${lead.name ?? ""} ${lead.email} ${lead.phone ?? ""} ${lead.company ?? ""} ${lead.notes ?? ""} ${lead.tags.join(" ")} ${lead.brandNames.join(" ")} ${lead.serviceNames.join(" ")} ${LEAD_RELATIONSHIP_CATEGORY_LABELS[leadCategory(lead)]}`.toLowerCase().includes(q))
+      .sort((left, right) => Number(leadNeedsAttention(right)) - Number(leadNeedsAttention(left)) || leadSortTime(right) - leadSortTime(left));
+  }, [brandFilter, leadCategoryFilter, leadRows, query, serviceFilter, view]);
+
   const filteredContacts = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return contactRows.filter(contact => {
+    return nonLeadContactRows.filter(contact => {
       if (view === "staff" && contact.type !== "employee") return false;
-      if (view !== "staff" && role !== "all" && contact.type !== role) return false;
       if (view !== "staff" && brandFilter && !contact.brandIds.includes(brandFilter)) return false;
       if (view !== "staff" && serviceFilter && !contact.serviceIds.includes(serviceFilter)) return false;
-      if (view !== "staff" && relationshipFilter && contact.enquiryClassification !== relationshipFilter) return false;
       return !q || `${contact.name ?? ""} ${contact.email} ${contact.phone ?? ""} ${contact.company ?? ""} ${contact.notes ?? ""} ${contact.tags.join(" ")} ${contact.brandNames.join(" ")} ${contact.serviceNames.join(" ")} ${contact.enquiryClassification ? WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[contact.enquiryClassification] : ""}`.toLowerCase().includes(q);
     });
-  }, [brandFilter, contactRows, query, relationshipFilter, role, serviceFilter, view]);
+  }, [brandFilter, nonLeadContactRows, query, serviceFilter, view]);
 
   const staffCount = useMemo(() => contactRows.filter(contact => contact.type === "employee").length, [contactRows]);
   const journeyRows = useMemo(() => buildJourneyRows(clients, contactRows), [clients, contactRows]);
+
+  function selectView(nextView: View) {
+    setView(nextView);
+    if (nextView !== "clients") {
+      setNiche("");
+      setClientStatus("all");
+    }
+    if (nextView !== "leads") setLeadCategoryFilter("");
+  }
 
   return (
     <div className={view === "journey" ? "w-full" : "mx-auto w-full max-w-7xl"}>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Journey</p>
-          <h1 className="mt-1 text-2xl font-semibold text-black/90">Journey, clients & contacts</h1>
-          <p className="mt-1 max-w-2xl text-sm text-black/55">Trace campaign and enquiry sources into contacts, manual relationships and clients without forcing every person to become a customer.</p>
+          <h1 className="mt-1 text-2xl font-semibold text-black/90">Journey, leads, clients & contacts</h1>
+          <p className="mt-1 max-w-2xl text-sm text-black/55">Trace campaigns and enquiries into categorised leads, contacts and clients without forcing every person to become a customer.</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
@@ -157,87 +193,74 @@ export function PeopleHub({
 
       <div className="mt-6 border-b border-black/10">
         <div className="flex gap-3 overflow-x-auto sm:gap-6" role="tablist" aria-label="People view">
-          <Tab active={view === "clients"} onClick={() => setView("clients")} label="Clients" count={clients.length} icon={Building2} />
-          <Tab active={view === "health"} onClick={() => setView("health")} label="Client health" count={clients.filter(client => client.health === "attention").length} icon={HeartPulse} attentionPrefixHref="/portal/clients" />
-          <Tab active={view === "journey"} onClick={() => setView("journey")} label="Journey" count={journeyRows.length} icon={Route} attentionPrefixHref="/portal/agency/pipelines" />
-          <Tab active={view === "contacts"} onClick={() => setView("contacts")} label="Contacts" count={contactRows.length} icon={UserRound} />
-          <Tab active={view === "identity"} onClick={() => setView("identity")} label="Identity review" count={identityReviews.filter(review => review.status === "pending").length} icon={Fingerprint} />
-          <Tab active={view === "staff"} onClick={() => setView("staff")} label="Staff" count={staffCount} icon={UsersRound} />
-          <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={clients.length + contactRows.length} icon={List} />
+          <Tab active={view === "clients"} onClick={() => selectView("clients")} label="Clients" count={clients.length} icon={Building2} attentionPrefixHref="/portal/clients" />
+          <Tab active={view === "leads"} onClick={() => selectView("leads")} label="Leads" count={leadRows.length} icon={UserSearch} attentionPrefixHref="/portal/agency/pipelines/leads" />
+          <Tab active={view === "journey"} onClick={() => selectView("journey")} label="Journey" count={journeyRows.length} icon={Route} attentionPrefixHref="/portal/agency/pipelines" />
+          <Tab active={view === "contacts"} onClick={() => selectView("contacts")} label="Contacts" count={clients.length + contactRows.length} icon={UserRound} />
+          <Tab active={view === "identity"} onClick={() => selectView("identity")} label="Identity review" count={identityReviews.filter(review => review.status === "pending").length} icon={Fingerprint} />
+          <Tab active={view === "staff"} onClick={() => selectView("staff")} label="Staff" count={staffCount} icon={UsersRound} />
         </div>
       </div>
 
       {view !== "journey" && view !== "identity" ? <div className="flex flex-wrap items-center gap-2 border-b border-black/10 py-4">
         <label className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" size={16} />
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search people, notes, or tags" className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder={view === "leads" ? "Search leads, companies, notes, or categories" : "Search people, notes, or tags"} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
         </label>
-        {view !== "clients" && view !== "health" && view !== "staff" ? (
-          <select value={role} onChange={event => setRole(event.target.value as ContactRole | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto">
-            <option value="all">Every contact type</option>
-            {Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        ) : null}
-        {(view === "clients" || view === "health" || view === "all") && availableNiches.length ? (
+        {view === "clients" && availableNiches.length ? (
           <select value={niche} onChange={event => setNiche(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter clients by niche">
             <option value="">Every niche</option>
             {availableNiches.map(option => <option key={option} value={option}>{option}</option>)}
           </select>
         ) : null}
-        {view === "clients" || view === "health" || view === "all" ? (
+        {view === "clients" ? (
           <select value={clientStatus} onChange={event => setClientStatus(event.target.value as "all" | "active" | "suspended")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter clients by status">
             <option value="all">Active and paused</option>
             <option value="active">Active only</option>
             <option value="suspended">Paused only</option>
           </select>
         ) : null}
-        {(view === "clients" || view === "health" || view === "contacts" || view === "all") ? (
+        {(view === "clients" || view === "leads" || view === "contacts") ? (
           <select value={brandFilter} onChange={event => setBrandFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter by brand">
             <option value="">Every brand</option>
             {brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
           </select>
         ) : null}
-        {(view === "clients" || view === "health" || view === "contacts" || view === "all") ? (
+        {(view === "clients" || view === "leads" || view === "contacts") ? (
           <select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter by service">
             <option value="">Every service</option>
             {products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
           </select>
         ) : null}
-        {(view === "contacts" || view === "all") ? (
-          <select value={relationshipFilter} onChange={event => setRelationshipFilter(event.target.value as WebsiteEnquiryClassification | "")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter contacts by relationship">
-            <option value="">Every relationship</option>
-            {Object.entries(WEBSITE_ENQUIRY_CLASSIFICATION_LABELS).filter(([value]) => !["unclassified", "sales", "spam"].includes(value)).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        {view === "leads" ? (
+          <select value={leadCategoryFilter} onChange={event => setLeadCategoryFilter(event.target.value as LeadRelationshipCategory | "")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter leads by relationship category">
+            <option value="">Every lead category</option>
+            {LEAD_RELATIONSHIP_CATEGORIES.map(category => <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]} · {leadRows.filter(lead => leadCategory(lead) === category).length}</option>)}
           </select>
         ) : null}
-        {(query || role !== "all" || niche || clientStatus !== "all" || brandFilter || serviceFilter || relationshipFilter) ? <button type="button" onClick={() => { setQuery(""); setRole("all"); setNiche(""); setClientStatus("all"); setBrandFilter(""); setServiceFilter(""); setRelationshipFilter(""); }} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/15 px-3 text-sm text-black/60"><X size={14} /> Clear</button> : null}
+        {(query || niche || clientStatus !== "all" || brandFilter || serviceFilter || leadCategoryFilter) ? <button type="button" onClick={() => { setQuery(""); setNiche(""); setClientStatus("all"); setBrandFilter(""); setServiceFilter(""); setLeadCategoryFilter(""); }} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/15 px-3 text-sm text-black/60"><X size={14} /> Clear</button> : null}
       </div> : null}
 
-      {view === "all" || view === "clients" ? (
-        <PeopleSection title="Clients" count={filteredClients.length} hidden={view === "all" && filteredClients.length === 0}>
+      {view === "contacts" || view === "clients" ? (
+        <PeopleSection title="Clients" count={filteredClients.length} attentionCount={filteredClients.filter(client => client.health === "attention").length} hidden={view === "contacts" && filteredClients.length === 0}>
           {filteredClients.map(client => <ClientRow key={client.id} client={client} />)}
           {filteredClients.length === 0 ? <Empty text={clients.length ? "No clients match this search." : "No clients yet."} /> : null}
         </PeopleSection>
       ) : null}
 
-      {view === "health" ? (
-        <section className="mm-surface-card mt-7 overflow-hidden rounded-lg border">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
-            <div><h2 className="text-base font-semibold text-black/80">Client health</h2><p className="mt-1 text-sm text-black/45">A quick check for missing details, stale relationships, and delivery risks.</p></div>
-            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">{clients.filter(client => client.health === "attention").length} need attention</span>
-          </div>
-          <div className="divide-y divide-black/[0.07]">
-            {filteredClients.map(client => <HealthRow key={client.id} client={client} />)}
-          </div>
-          {filteredClients.length === 0 ? <Empty text="No clients match this search." /> : null}
-        </section>
+      {view === "contacts" || view === "leads" ? (
+        <PeopleSection title="Leads" count={filteredLeads.length} attentionCount={filteredLeads.filter(leadNeedsAttention).length} hidden={view === "contacts" && filteredLeads.length === 0} attentionLabel="need a response">
+          {filteredLeads.map(lead => <LeadRow key={`${lead.recordKind}:${lead.id}`} lead={lead} onReview={setReviewing} />)}
+          {filteredLeads.length === 0 ? <Empty text={leadRows.length ? "No leads match these filters." : "No leads yet."} /> : null}
+        </PeopleSection>
       ) : null}
 
       {view === "journey" ? <div className="mt-6 min-w-0">{journeyWorkspace}</div> : null}
 
       {view === "identity" ? <IdentityReviewWorkspace initialReviews={identityReviews} clients={clients.map(client => ({ id: client.id, name: client.name, ownerEmail: client.ownerEmail, stage: client.stageLabel, relationshipId: client.relationshipId, workspaceLabel: client.workspaceLabel, providerName: client.brandName }))} /> : null}
 
-      {view === "all" || view === "contacts" || view === "staff" ? (
-        <PeopleSection title={view === "staff" ? "Staff" : "Contacts"} count={filteredContacts.length} hidden={view === "all" && filteredContacts.length === 0}>
+      {view === "contacts" || view === "staff" ? (
+        <PeopleSection title={view === "staff" ? "Staff" : "Other contacts"} count={filteredContacts.length} hidden={view === "contacts" && filteredContacts.length === 0}>
           {filteredContacts.map(contact => <ContactRow key={`${contact.recordKind}:${contact.id}`} contact={contact} onReview={setReviewing} />)}
           {filteredContacts.length === 0 ? (
             <Empty text={view === "staff" ? (staffCount ? "No staff match this search." : "No staff added yet.") : (contactRows.length ? "No contacts match these filters." : "No contacts yet.")} />
@@ -245,7 +268,7 @@ export function PeopleHub({
         </PeopleSection>
       ) : null}
 
-      {view === "all" && filteredClients.length === 0 && filteredContacts.length === 0 ? <Empty text="No people match this search." /> : null}
+      {view === "contacts" && filteredClients.length === 0 && filteredLeads.length === 0 && filteredContacts.length === 0 ? <Empty text="No contacts match this search." /> : null}
 
       {addingContact ? <AddContactModal onClose={() => setAddingContact(false)} /> : null}
       {reviewing ? <ContactScratchpad contact={reviewing} onClose={() => setReviewing(null)} onSaved={updated => {
@@ -265,13 +288,16 @@ function Tab({ active, onClick, label, count, icon: Icon, attentionPrefixHref }:
   );
 }
 
-function PeopleSection({ title, count, hidden, children }: { title: string; count: number; hidden?: boolean; children: React.ReactNode }) {
+function PeopleSection({ title, count, attentionCount = 0, attentionLabel = "need attention", hidden, children }: { title: string; count: number; attentionCount?: number; attentionLabel?: string; hidden?: boolean; children: React.ReactNode }) {
   if (hidden) return null;
   return (
     <section className="mm-surface-card mt-7 overflow-hidden rounded-lg border">
       <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 sm:px-5">
         <h2 className="text-sm font-semibold text-black/75">{title}</h2>
-        <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-xs font-medium text-black/50">{count}</span>
+        <div className="flex items-center gap-2">
+          {attentionCount ? <span title={`${attentionCount} record${attentionCount === 1 ? "" : "s"} ${attentionLabel} and are shown first`} className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 ring-1 ring-inset ring-red-200"><HeartPulse size={12} aria-hidden="true" />{attentionCount} {attentionLabel}</span> : null}
+          <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-xs font-medium text-black/50">{count}</span>
+        </div>
       </div>
       <div className="divide-y divide-black/[0.07]">{children}</div>
     </section>
@@ -280,24 +306,33 @@ function PeopleSection({ title, count, hidden, children }: { title: string; coun
 
 function ClientRow({ client }: { client: HubClient }) {
   const initials = client.name.split(/\s+/).slice(0, 2).map(word => word[0]?.toUpperCase()).join("") || "C";
+  const needsAttention = client.health === "attention";
+  const healthDetail = client.healthNotes.length ? client.healthNotes.join(" · ") : "Details are complete and contact is current.";
   return (
-    <div className="mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5">
-      <div className="grid size-10 place-items-center rounded-md text-xs font-semibold text-white" style={{ backgroundColor: client.primaryColor }}>{initials}</div>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p>{client.workspaceLabel ? <Badge>Project: {client.workspaceLabel}</Badge> : null}{client.relationshipWorkspaceCount > 1 ? <RelationshipBadge count={client.relationshipWorkspaceCount} /> : null}<Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}{client.brandName ? <Badge>{client.brandName}</Badge> : null}{client.serviceNames.slice(0, 2).map(service => <Badge key={service}>{service}</Badge>)}</div>
-        <p className="mt-0.5 truncate text-xs text-black/45">{client.ownerEmail || "No account email"} · Source: {sourceLabel(client.source)}{client.websiteUrl ? ` · ${client.websiteUrl}` : ""}</p>
+    <div className={`mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5 ${needsAttention ? "bg-red-50/35" : ""}`}>
+      <div className="relative">
+        <div className="grid size-10 place-items-center rounded-md text-xs font-semibold text-white" style={{ backgroundColor: client.primaryColor }}>{initials}</div>
+        {needsAttention ? <span role="img" aria-label={`${client.name} needs attention`} title={healthDetail} className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-red-600 shadow-sm" /> : null}
       </div>
-      <Link href={`/portal/clients/${client.id}?tab=relationship`} className="col-start-2 w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03] sm:col-start-auto">Open</Link>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/85">{client.name}</p>{client.workspaceLabel ? <Badge>Project: {client.workspaceLabel}</Badge> : null}{client.relationshipWorkspaceCount > 1 ? <RelationshipBadge count={client.relationshipWorkspaceCount} /> : null}<span title={healthDetail} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${needsAttention ? "bg-red-50 text-red-700 ring-red-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200"}`}><HeartPulse size={11} aria-hidden="true" />{needsAttention ? `${client.healthNotes.length} health alert${client.healthNotes.length === 1 ? "" : "s"}` : "Health clear"}</span><Badge>{client.stageLabel}</Badge>{client.status === "suspended" ? <PausedBadge /> : null}{client.niche ? <Badge>{client.niche}</Badge> : null}{client.brandName ? <Badge>{client.brandName}</Badge> : null}{client.serviceNames.slice(0, 2).map(service => <Badge key={service}>{service}</Badge>)}</div>
+        <p className="mt-0.5 truncate text-xs text-black/45">{client.ownerEmail || "No account email"} · Source: {sourceLabel(client.source)}{client.websiteUrl ? ` · ${client.websiteUrl}` : ""}</p>
+        {needsAttention ? <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700"><HeartPulse size={12} className="shrink-0" aria-hidden="true" /><span className="truncate" title={healthDetail}>{healthDetail}</span></p> : null}
+      </div>
+      <div className="col-start-2 flex w-fit flex-wrap items-center gap-2 sm:col-start-auto">
+        {needsAttention ? <Link href={`/portal/clients/${client.id}?tab=relationship`} title={healthDetail} className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">Review health</Link> : null}
+        <Link
+          href={`/portal/clients/${client.id}?tab=notes`}
+          aria-label={`Open ${client.name} client record`}
+          title={`Open ${client.name} internal client record`}
+          className="grid size-9 place-items-center rounded-md border border-black/15 bg-white text-black/60 hover:bg-black/[0.04] hover:text-black"
+        >
+          <Settings size={15} aria-hidden="true" />
+        </Link>
+        <Link href={`/portal/clients/${client.id}`} title={`Open ${client.name} internal workspace`} className="rounded-md border border-black/15 bg-white px-3 py-2 text-xs font-semibold text-black/70 hover:bg-black/[0.03]">Open workspace</Link>
+      </div>
     </div>
   );
-}
-
-function HealthRow({ client }: { client: HubClient }) {
-  return <div className="mm-interactive-row grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] sm:items-center sm:px-5">
-    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-black/80">{client.name}</p>{client.workspaceLabel ? <Badge>Project: {client.workspaceLabel}</Badge> : null}{client.relationshipWorkspaceCount > 1 ? <RelationshipBadge count={client.relationshipWorkspaceCount} /> : null}<span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${client.health === "healthy" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{client.health === "healthy" ? "Healthy" : "Needs attention"}</span></div><p className="mt-1 text-xs text-black/45">Source: {sourceLabel(client.source)} · {client.stageLabel}</p></div>
-    <div className="text-xs leading-5 text-black/55">{client.healthNotes.length ? client.healthNotes.join(" · ") : "Details are complete and contact is current."}</div>
-    <Link href={`/portal/clients/${client.id}?tab=relationship`} className="w-fit rounded-md border border-black/15 px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">Review</Link>
-  </div>;
 }
 
 function PausedBadge() {
@@ -306,6 +341,60 @@ function PausedBadge() {
 
 function RelationshipBadge({ count }: { count: number }) {
   return <span title={`${count} isolated workspaces belong to this buyer relationship`} className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">Linked buyer · {count} workspaces</span>;
+}
+
+function leadCategory(lead: HubContact): LeadRelationshipCategory {
+  return lead.relationshipCategory ?? inferLeadRelationshipCategory(lead);
+}
+
+function leadNeedsAttention(lead: HubContact): boolean {
+  return Boolean(lead.lastEnquiryAt && (!lead.lastEnquiryRespondedAt || lead.lastEnquiryRespondedAt < lead.lastEnquiryAt));
+}
+
+function leadSortTime(lead: HubContact): number {
+  return lead.lastEnquiryAt ?? lead.nextMeetingAt ?? lead.lastContactedAt ?? lead.capturedAt ?? lead.createdAt ?? 0;
+}
+
+function LeadRow({ lead, onReview }: { lead: HubContact; onReview: (lead: HubContact) => void }) {
+  const needsAttention = leadNeedsAttention(lead);
+  const category = leadCategory(lead);
+  const pipelineLeadId = lead.recordKind === "lead" ? lead.id : lead.promotedFromLeadId;
+  const workspaceHref = pipelineLeadId
+    ? `/portal/agency/pipelines/leads?lead=${encodeURIComponent(pipelineLeadId)}`
+    : "/portal/agency/leads-pipeline/contacts";
+  const stageLabel = lead.nextMeetingAt
+    ? "Meeting booked"
+    : lead.lastContactedAt
+      ? "Contacted"
+      : lead.currentStageId
+        ? sourceLabel(lead.currentStageId)
+        : "Captured";
+  return (
+    <div className={`mm-interactive-row grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5 ${needsAttention ? "bg-red-50/35" : ""}`}>
+      <div className="relative grid size-10 place-items-center rounded-md bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-100">
+        <UserSearch size={18} aria-hidden="true" />
+        {needsAttention ? <span role="img" aria-label="Awaiting a response" title="A newer enquiry is still awaiting a response" className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-red-600 shadow-sm" /> : null}
+      </div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-semibold text-black/85">{lead.name || lead.company || lead.email}</p>
+          <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]}</span>
+          <Badge>{stageLabel}</Badge>
+          {lead.company && lead.name ? <span className="truncate text-xs text-black/40">{lead.company}</span> : null}
+          {lead.brandNames.slice(0, 1).map(brand => <Badge key={brand}>{brand}</Badge>)}
+          {lead.serviceNames.slice(0, 2).map(service => <Badge key={service}>{service}</Badge>)}
+        </div>
+        <p className="mt-0.5 truncate text-xs text-black/45">{lead.email}{lead.phone ? ` · ${lead.phone}` : ""} · Source: {sourceLabel(lead.source)}{lead.tags.length ? ` · ${lead.tags.join(", ")}` : ""}</p>
+        {needsAttention ? <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-red-700"><HeartPulse size={12} aria-hidden="true" />Latest enquiry is awaiting a response</p> : lead.notes ? <p className="mt-1 truncate text-xs text-black/42">{lead.notes}</p> : null}
+      </div>
+      <div className="col-start-2 flex w-fit flex-wrap items-center gap-1.5 sm:col-start-auto">
+        {lead.phone ? <a href={`tel:${lead.phone}`} title="Call lead" aria-label={`Call ${lead.name || lead.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/50 hover:bg-black/[0.03]"><Phone size={15} /></a> : null}
+        <a href={`mailto:${lead.email}`} title="Email lead" aria-label={`Email ${lead.name || lead.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/50 hover:bg-black/[0.03]"><Mail size={15} /></a>
+        <button type="button" onClick={() => onReview(lead)} title="Review lead notes" aria-label={`Review ${lead.name || lead.email}`} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/50 hover:bg-black/[0.03]"><ClipboardPenLine size={15} /></button>
+        <Link href={workspaceHref} className="rounded-md border border-black/15 bg-white px-3 py-2 text-xs font-semibold text-black/70 hover:bg-black/[0.03]">Open workspace</Link>
+      </div>
+    </div>
+  );
 }
 
 function sourceLabel(source: string): string {

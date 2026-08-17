@@ -308,7 +308,7 @@ describe("Pipelines — wiring (source markers)", () => {
     assert.match(src, /data-testid="pipeline-columns"/);
     assert.match(src, /getPipelineBySlug/);
     assert.match(src, /data-testid="fulfilment-overview"/);
-    assert.match(src, /PRODUCT_PIPELINE_COLUMNS/);
+    assert.match(src, /agencyProductPipelineColumns/);
     assert.match(src, /productPipelineStages/);
     assert.match(src, /notFound\(\)/);
   });

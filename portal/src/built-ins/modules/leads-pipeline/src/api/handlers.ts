@@ -38,6 +38,7 @@ import type {
   CommercialPartyKind,
   CommercialPaymentMethod,
   Lead,
+  LeadRelationshipCategory,
   MeetingAttemptChannel,
   MeetingAttemptOutcome,
   MeetingMode,
@@ -55,6 +56,7 @@ import type {
   UpdateLeadPatch,
   UpdateProspectPatch,
 } from "../lib/domain";
+import { isLeadRelationshipCategory } from "../lib/domain";
 import { REQUIRED_PROSPECT_INSPECTION_CHECKS } from "../server/prospects";
 
 function json(body: unknown, status = 200): Response {
@@ -254,6 +256,7 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
       phone: prospect.phone,
       company: prospect.company,
       source: `scouting:${prospect.source}`,
+      relationshipCategory: "cold-outreach",
       tags: [
         "scouted",
         ...prospect.tags,
@@ -925,6 +928,9 @@ export async function listLeadsHandler(req: Request, ctx: PluginCtx): Promise<Re
     query: url.searchParams.get("q") ?? undefined,
     tag: url.searchParams.get("tag") ?? undefined,
     source: url.searchParams.get("source") ?? undefined,
+    relationshipCategory: isLeadRelationshipCategory(url.searchParams.get("relationshipCategory"))
+      ? url.searchParams.get("relationshipCategory") as LeadRelationshipCategory
+      : undefined,
   });
   return json({ ok: true, leads });
 }
@@ -1351,6 +1357,7 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
   let filename: string | undefined;
   let defaultSource: string | undefined;
   let defaultTags: string[] | undefined;
+  let defaultRelationshipCategory: LeadRelationshipCategory | undefined;
   let mapping: Record<string, string> | undefined;
 
   if (contentType.includes("multipart/form-data")) {
@@ -1374,6 +1381,8 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
       if (typeof ds === "string") defaultSource = ds;
       const dt = form.get("defaultTags");
       if (typeof dt === "string") defaultTags = dt.split(",").map(t => t.trim()).filter(Boolean);
+      const category = form.get("defaultRelationshipCategory");
+      if (isLeadRelationshipCategory(category)) defaultRelationshipCategory = category;
       const rawMapping = form.get("mapping");
       if (typeof rawMapping === "string" && rawMapping.trim()) {
         try {
@@ -1386,12 +1395,13 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
       return badRequest(`multipart parse failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
-    const body = await safeJson<{ text: string; filename?: string; defaultSource?: string; defaultTags?: string[]; mapping?: Record<string, string> }>(req);
+    const body = await safeJson<{ text: string; filename?: string; defaultSource?: string; defaultTags?: string[]; defaultRelationshipCategory?: LeadRelationshipCategory; mapping?: Record<string, string> }>(req);
     if (!body?.text) return badRequest("text or multipart file required.");
     text = body.text;
     filename = body.filename;
     defaultSource = body.defaultSource;
     defaultTags = body.defaultTags;
+    defaultRelationshipCategory = isLeadRelationshipCategory(body.defaultRelationshipCategory) ? body.defaultRelationshipCategory : undefined;
     mapping = body.mapping;
   }
   if (!text) return badRequest("empty CSV body.");
@@ -1408,6 +1418,7 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
     actor: ctx.actor,
     defaultSource,
     defaultTags,
+    defaultRelationshipCategory,
     mapping,
     customFieldTypes: Object.fromEntries(customFields.map(field => [field.id, field.type])),
   });
@@ -1604,6 +1615,9 @@ export async function addContactToBoardHandler(req: Request, ctx: PluginCtx): Pr
       company: contact.company,
       tags: Array.from(new Set([...contact.tags, "manual-contact"])),
       source: contact.source || "manual-contact",
+      relationshipCategory: isLeadRelationshipCategory(contact.customFields?.leadRelationshipCategory)
+        ? contact.customFields.leadRelationshipCategory
+        : undefined,
       notes: contact.notes,
       customFields: contact.customFields,
     }, ctx.actor);

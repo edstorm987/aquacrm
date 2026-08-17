@@ -74,13 +74,13 @@ export async function AgencyActionsPage({
 
   for (const client of clients.filter(client => client.status === "active")) {
     const lastContactedAt = Number(client.metadata?.lastContactedAt ?? 0);
-    if (!lastContactedAt || now - lastContactedAt > WEEK) actions.push(signal(`${client.id}:contact`, `Check in with ${client.name}`, lastContactedAt ? "No client contact has been recorded for seven days." : "No client contact has been recorded yet.", `/portal/clients/${client.id}`, "Client", "high", lastContactedAt ? lastContactedAt + WEEK : client.createdAt));
-    if (client.stage === "onboarding" || client.stage === "aqua-epic-intro") actions.push(signal(`${client.id}:onboarding`, `Continue ${client.name}'s onboarding`, "Collect the remaining information, access, content, or decisions.", `/portal/clients/${client.id}?tab=relationship`, "Journey", "normal"));
-    if (!client.ownerEmail) actions.push(signal(`${client.id}:email`, `Add ${client.name}'s account email`, "The client record is missing its main contact email.", `/portal/clients/${client.id}`, "Client", "high"));
-    if ((client.stage === "live" || client.stage === "aqua-mastery") && !client.websiteUrl) actions.push(signal(`${client.id}:live-link`, `Connect ${client.name}'s live website`, "Production is marked live but no website is linked.", `/portal/clients/${client.id}?tab=systems&systemView=properties`, "Development", "high"));
+    if (!lastContactedAt || now - lastContactedAt > WEEK) actions.push(signal(`${client.id}:contact`, `Check in with ${client.name}`, lastContactedAt ? "No client contact has been recorded for seven days." : "No client contact has been recorded yet.", `/portal/clients/${client.id}`, "Client", "high", lastContactedAt ? lastContactedAt + WEEK : client.createdAt, client.id));
+    if (client.stage === "onboarding" || client.stage === "aqua-epic-intro") actions.push(signal(`${client.id}:onboarding`, `Continue ${client.name}'s onboarding`, "Collect the remaining information, access, content, or decisions.", `/portal/clients/${client.id}?tab=relationship`, "Journey", "normal", undefined, client.id));
+    if (!client.ownerEmail) actions.push(signal(`${client.id}:email`, `Add ${client.name}'s account email`, "The client record is missing its main contact email.", `/portal/clients/${client.id}`, "Client", "high", undefined, client.id));
+    if ((client.stage === "live" || client.stage === "aqua-mastery") && !client.websiteUrl) actions.push(signal(`${client.id}:live-link`, `Connect ${client.name}'s live website`, "Production is marked live but no website is linked.", `/portal/clients/${client.id}?tab=systems&systemView=properties`, "Development", "high", undefined, client.id));
     const requests = Array.isArray(client.metadata?.clientRequests) ? client.metadata.clientRequests as Array<{ id: string; type: string; status: string; submittedAt: number }> : [];
     for (const request of requests.filter(request => request.status === "open")) {
-      actions.push(signal(`request:${client.id}:${request.id}`, `Respond to ${client.name}'s ${request.type.replaceAll("-", " ")}`, "Open the conversation and make the next step clear.", "/portal/agency/inbox", "Support", request.type === "support-ticket" ? "urgent" : "high", request.submittedAt));
+      actions.push(signal(`request:${client.id}:${request.id}`, `Respond to ${client.name}'s ${request.type.replaceAll("-", " ")}`, "Open the conversation and make the next step clear.", "/portal/agency/inbox", "Support", request.type === "support-ticket" ? "urgent" : "high", request.submittedAt, client.id));
     }
   }
 
@@ -113,6 +113,7 @@ export async function AgencyActionsPage({
     recommendationsGeneratedAt={businessRadar.generatedAt}
     advisorConfigured={isAssistantConfigured(session.agencyId)}
     team={team}
+    clients={clients.map(client => ({ id: client.id, name: client.name, status: client.status, stage: client.stage }))}
     sops={listSops(session.agencyId)}
     calendarEvents={calendarEvents}
     initialCalendarEntries={listCommandCalendarEntries(session.agencyId, session.userId)}
@@ -123,8 +124,8 @@ export async function AgencyActionsPage({
   />;
 }
 
-function signal(id: string, title: string, detail: string, href: string, kind: string, priority: GeneratedAction["priority"], dueAt?: number): GeneratedAction {
-  return { id, title, detail, href, kind, priority, dueAt };
+function signal(id: string, title: string, detail: string, href: string, kind: string, priority: GeneratedAction["priority"], dueAt?: number, clientId?: string): GeneratedAction {
+  return { id, title, detail, href, kind, priority, dueAt, clientId };
 }
 
 function priorityRank(priority: GeneratedAction["priority"]) {

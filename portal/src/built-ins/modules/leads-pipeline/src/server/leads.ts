@@ -19,9 +19,10 @@ import type {
   Lead,
   LeadFilter,
   LeadJourneyEvent,
+  LeadRelationshipCategory,
   UpdateLeadPatch,
 } from "../lib/domain";
-import { projectLeadCard } from "../lib/domain";
+import { inferLeadRelationshipCategory, isLeadRelationshipCategory, projectLeadCard } from "../lib/domain";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort,
@@ -100,6 +101,7 @@ export function normalizeLeadJourney(lead: Lead): Lead {
   const lastStage = events.filter(event => event.type === "stage-changed").sort((a, b) => b.at - a.at)[0];
   return {
     ...lead,
+    relationshipCategory: inferLeadRelationshipCategory(lead),
     firstContactedAt,
     lastEnquiryAt,
     lastEnquiryRespondedAt,
@@ -134,6 +136,7 @@ export class LeadService {
     return rows
       .filter(l => !filter.tag || l.tags.includes(filter.tag))
       .filter(l => !filter.source || l.source === filter.source)
+      .filter(l => !filter.relationshipCategory || l.relationshipCategory === filter.relationshipCategory)
       .filter(l => !q || `${l.name ?? ""} ${l.email} ${l.company ?? ""}`.toLowerCase().includes(q))
       .filter(l => cutoffStamp == null || (l.lastContactedAt ?? 0) <= cutoffStamp)
       .sort((a, b) => b.capturedAt - a.capturedAt);
@@ -159,6 +162,9 @@ export class LeadService {
   // Create-or-update on canonical email. Returns `{lead, created}` so
   // CSV import can tell whether a row was new or merged.
   async upsert(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
+    if (input.relationshipCategory !== undefined && !isLeadRelationshipCategory(input.relationshipCategory)) {
+      throw new Error("Choose a valid lead relationship category.");
+    }
     const email = canonEmail(input.email);
     const phone = canonPhone(input.phone ?? "");
     if (email && !PLAUSIBLE_EMAIL.test(email)) {
@@ -187,6 +193,7 @@ export class LeadService {
           ])),
           brandSlugs: Array.from(new Set([...(existing.brandSlugs ?? []), ...(input.brandSlugs ?? [])])),
           serviceLines: Array.from(new Set([...(existing.serviceLines ?? []), ...(input.serviceLines ?? [])])),
+          relationshipCategory: existing.relationshipCategory ?? input.relationshipCategory ?? inferLeadRelationshipCategory(input),
           tags: input.tags && input.tags.length > 0
             ? Array.from(new Set([...existing.tags, ...input.tags]))
             : existing.tags,
@@ -235,6 +242,7 @@ export class LeadService {
       company: input.company?.trim() || undefined,
       tags: input.tags ?? [],
       source: input.source,
+      relationshipCategory: input.relationshipCategory ?? inferLeadRelationshipCategory(input),
       capturedAt,
       lastEnquiryAt: enquiryCapture ? capturedAt : undefined,
       enquiryIds: enquiryId ? [enquiryId] : [],
@@ -293,6 +301,9 @@ export class LeadService {
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
+    if (patch.relationshipCategory !== undefined && !isLeadRelationshipCategory(patch.relationshipCategory)) {
+      throw new Error("Choose a valid lead relationship category.");
+    }
     const email = patch.email === undefined ? existing.email : canonEmail(patch.email);
     const phone = patch.phone === undefined ? existing.phone : patch.phone.trim() || undefined;
     if (email && !PLAUSIBLE_EMAIL.test(email)) throw new Error(`Implausible email: ${patch.email}`);
@@ -507,6 +518,7 @@ export class LeadService {
     actor: UserId;
     defaultSource?: string;
     defaultTags?: string[];
+    defaultRelationshipCategory?: LeadRelationshipCategory;
     mapping?: Record<string, string>;
     customFieldTypes?: Record<string, "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox">;
   }): Promise<CsvImportResult> {
@@ -557,6 +569,7 @@ export class LeadService {
           else customFieldEntries.push([id, raw]);
         }
         const customFields = Object.fromEntries(customFieldEntries);
+        const rowRelationshipCategory = cell("relationshipCategory");
         const result = await this.upsert(
           {
             email,
@@ -565,6 +578,9 @@ export class LeadService {
             company: cell("company", row.company),
             tags,
             source: cell("source", row.source) || source,
+            relationshipCategory: isLeadRelationshipCategory(rowRelationshipCategory)
+              ? rowRelationshipCategory
+              : args.defaultRelationshipCategory ?? "scraped-list",
             notes: cell("notes", row.notes),
             customFields,
           },

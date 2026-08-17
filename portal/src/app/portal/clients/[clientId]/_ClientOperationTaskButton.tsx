@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Check, ListPlus, LoaderCircle } from "lucide-react";
 import { useState } from "react";
 
@@ -27,9 +26,9 @@ export function ClientOperationTaskButton({
 
   if (accepted) {
     return (
-      <Link href="/portal/agency/actions?source=crm" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-        <Check size={12} /> In Actions
-      </Link>
+      <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
+        <Check size={12} /> Task accepted
+      </span>
     );
   }
 

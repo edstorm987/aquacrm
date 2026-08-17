@@ -21,6 +21,7 @@ export interface OperationalAlert {
   detail: string;
   href: string;
   persistentUntilResolved?: boolean;
+  clientId?: string;
   clientName?: string;
   occurredAt: number;
 }
@@ -74,6 +75,20 @@ export function operationalAlertMatchesHrefPrefix(alert: OperationalAlert, targe
   if (alertUrl.pathname !== targetUrl.pathname && !alertUrl.pathname.startsWith(`${targetUrl.pathname}/`)) return false;
 
   return operationalAlertQueryMatches(alertUrl, targetUrl);
+}
+
+export function operationalAlertBelongsToClient(alert: OperationalAlert, clientId: string): boolean {
+  if (alert.clientId) return alert.clientId === clientId;
+  const alertUrl = new URL(alert.href, "https://aquacrm.local");
+  const routeMatch = alertUrl.pathname.match(/^\/portal\/clients\/([^/]+)/);
+  if (routeMatch?.[1]) {
+    try {
+      return decodeURIComponent(routeMatch[1]) === clientId;
+    } catch {
+      return routeMatch[1] === clientId;
+    }
+  }
+  return alert.id.split(":").includes(clientId);
 }
 
 function operationalAlertQueryMatches(alertUrl: URL, targetUrl: URL): boolean {

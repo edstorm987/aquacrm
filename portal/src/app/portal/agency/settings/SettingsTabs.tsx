@@ -377,7 +377,7 @@ function WorkspacePane({ ctx }: { ctx: SettingsContext }) {
       <Section eyebrow="Manage the system">
         <div className="divide-y divide-black/10">
           <SettingsDestination title="Clients and journey" detail="Contacts, lifecycle stages, pipelines, enquiries, and relationship progress." links={[["Clients & contacts", "/portal/clients"], ["Journey", "/portal/agency/pipelines/leads"], ["Stages", "/portal/agency/phases"]]} />
-          <SettingsDestination title="Products and fulfilment" detail="Products, packages, portals, delivery stages, contracts, technical work, welcome packs, and delivery knowledge." links={[["Fulfilment command centre", "/portal/agency/fulfilment"], ["Company products", "/portal/agency/company?view=products"], ["Technical performance", "/portal/agency/fulfilment/technical/performance"]]} />
+          <SettingsDestination title="Products and fulfilment" detail="Products, packages, portals, delivery stages, contracts, technical work, welcome packs, and delivery knowledge." links={[["Fulfilment command centre", "/portal/agency/fulfilment"], ["Services", "/portal/agency/fulfilment?view=services"], ["Technical performance", "/portal/agency/fulfilment/technical/performance"]]} />
           <SettingsDestination title="Work and knowledge" detail="Team actions, recurring work, reminders, and SOPs." links={[["Actions", "/portal/agency/actions"], ["SOP library", "/portal/agency/sop-library"]]} />
           <SettingsDestination title="Money and growth" detail="Invoices, income, expenses, campaigns, attribution, internal automations, and client-care activity." links={[["Finance", "/portal/agency/agency-finance"], ["Marketing", "/portal/agency/marketing"], ["Marketing automations", "/portal/agency/marketing?view=automations"], ["Client care", "/portal/agency/you-deserve-it"]]} />
         </div>
@@ -423,7 +423,7 @@ function DefaultsPane({ ctx }: { ctx: SettingsContext }) {
         </div>
       </Section>
       <Section eyebrow="Finance defaults">
-        <p className="mb-4 text-xs leading-5 text-black/45">Applied to new products and documents. Amend individual records in <InlineLink href="/portal/agency/agency-finance/invoices">Invoices</InlineLink> or edit agreement templates inside <InlineLink href="/portal/agency/company?view=products">Company products</InlineLink>.</p>
+        <p className="mb-4 text-xs leading-5 text-black/45">Applied to new products and documents. Amend individual records in <InlineLink href="/portal/agency/agency-finance/invoices">Invoices</InlineLink> or edit agreement templates inside <InlineLink href="/portal/agency/fulfilment?view=services">Services</InlineLink>.</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Currency"><select value={form.defaultCurrency} onChange={event => setForm(value => ({ ...value, defaultCurrency: event.target.value }))} className={control} disabled={!ctx.canManageSettings}><option>GBP</option><option>EUR</option><option>USD</option></select></Field>
           <Field label="Default tax %"><input type="number" min="0" max="100" step="0.01" value={form.defaultTaxRatePercent} onChange={event => setForm(value => ({ ...value, defaultTaxRatePercent: event.target.value }))} className={control} disabled={!ctx.canManageSettings} /></Field>

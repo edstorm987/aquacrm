@@ -4,12 +4,14 @@ import {
   portalProductSelectionFromAgencyProduct,
   type PortalProductSelection,
 } from "./portalProducts";
+import { applyClientProductVariations } from "./clientProductVariations";
 
 export interface PortalProductAssignmentMetadata {
   portalSelectedProductIds?: unknown;
   portalProductIds?: unknown;
   portalProducts?: unknown;
   products?: unknown;
+  clientProductVariations?: unknown;
 }
 
 export interface AgencyProductAssignmentResolution {
@@ -86,16 +88,17 @@ export function resolvePortalProductAssignment(
   metadata: PortalProductAssignmentMetadata,
   catalogue: readonly AgencyProduct[],
 ): PortalProductAssignmentState {
+  const clientCatalogue = applyClientProductVariations(metadata, catalogue);
   const snapshotProducts = cleanPortalProducts(metadata.portalProducts ?? metadata.products);
   const selectedIds = selectedPortalProductIds(metadata);
   const storedEffectiveIds = cleanAssignedProductIds(metadata.portalProductIds);
-  const expanded = resolveAgencyProductAssignment(catalogue, selectedIds);
+  const expanded = resolveAgencyProductAssignment(clientCatalogue, selectedIds);
   const effectiveIds = storedEffectiveIds.length
     ? storedEffectiveIds
     : snapshotProducts.length
       ? snapshotProducts.map(product => product.id)
       : expanded.effectiveIds;
-  const byId = new Map(catalogue.map(product => [product.id, product]));
+  const byId = new Map(clientCatalogue.map(product => [product.id, product]));
   const snapshotById = new Map(snapshotProducts.map(product => [product.id, product]));
   const products = effectiveIds.flatMap(id => {
     const live = byId.get(id);

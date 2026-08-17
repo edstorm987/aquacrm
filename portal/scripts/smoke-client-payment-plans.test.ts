@@ -9,6 +9,7 @@ import {
   paymentPlanPaid,
   paymentPlanTotal,
   reconcileClientPaymentPlan,
+  summariseClientPaymentPosition,
 } from "../src/lib/clientPaymentPlans";
 
 const ROOT = process.cwd();
@@ -53,6 +54,41 @@ test("completed state follows canonical invoice evidence", () => {
   assert.equal(reconciled.status, "completed");
 });
 
+test("payment position distinguishes active, missed, due and paid-in-full states", () => {
+  const [plan] = cleanClientPaymentPlans([{
+    id: "plan-position",
+    title: "Project schedule",
+    currency: "gbp",
+    status: "active",
+    customerVisible: true,
+    createdAt: 1,
+    updatedAt: 1,
+    milestones: [
+      { id: "deposit", title: "Deposit", amountCents: 4_000, dueAt: 100, status: "invoiced", invoiceId: "inv-position" },
+      { id: "launch", title: "Launch", amountCents: 6_000, dueAt: 500, status: "planned" },
+    ],
+  }]);
+  const missed = summariseClientPaymentPosition([plan], [{ id: "inv-position", number: "INV-P", status: "sent", dueAt: 100, totalCents: 4_000, currency: "gbp" }], 200);
+  assert.equal(missed.state, "missed-payment");
+  assert.equal(missed.missedPayments, 1);
+  assert.equal(missed.agreedCents, 10_000);
+  assert.equal(missed.outstandingCents, 10_000);
+  assert.equal(missed.nextDueAt, 500);
+
+  const due = summariseClientPaymentPosition([], [{ id: "inv-due", number: "INV-D", status: "sent", dueAt: 300, totalCents: 2_500, currency: "gbp" }], 200);
+  assert.equal(due.state, "payment-due");
+  assert.equal(due.openInvoices, 1);
+
+  const paid = summariseClientPaymentPosition([plan], [{ id: "inv-position", number: "INV-P", status: "paid", dueAt: 100, totalCents: 4_000, currency: "gbp", paidAt: 90 }], 200);
+  assert.equal(paid.state, "payment-plan");
+  assert.equal(paid.paidCents, 4_000);
+
+  const [single] = cleanClientPaymentPlans([{ id: "single", title: "Paid", currency: "gbp", status: "active", customerVisible: true, createdAt: 1, updatedAt: 1, milestones: [{ id: "only", title: "Full payment", amountCents: 9_000, dueAt: 100, status: "invoiced", invoiceId: "inv-paid" }] }]);
+  const complete = summariseClientPaymentPosition([single], [{ id: "inv-paid", number: "INV-PAID", status: "paid", dueAt: 100, totalCents: 9_000, currency: "gbp", paidAt: 90 }], 200);
+  assert.equal(complete.state, "paid-in-full");
+  assert.equal(complete.outstandingCents, 0);
+});
+
 test("client workspace wires plans to products, Finance invoices, files and customer portal", () => {
   const api = read("src/app/api/tenants/client-payment-plans/route.ts");
   const panel = read("src/app/portal/clients/[clientId]/_PaymentPlansPanel.tsx");
@@ -68,6 +104,9 @@ test("client workspace wires plans to products, Finance invoices, files and cust
   assert.match(api, /clientPaymentPlans/);
   assert.match(panel, /Issue invoice/);
   assert.match(panel, /payment-plan/);
+  assert.match(panel, /Payment position/);
+  assert.match(panel, /Missed payments/);
+  assert.match(panel, /summariseClientPaymentPosition/);
   assert.match(panel, /Share in customer portal/);
   assert.match(panel, /form\.set\("collectionId", evidencePlanId\)/);
   assert.match(panel, /Linked evidence/);

@@ -11,6 +11,11 @@ import { FileSpreadsheet, Plus, SlidersHorizontal, Tags, Trash2, Upload } from "
 import { CommercialPackModal } from "./_CommercialPackModal";
 import { formatElapsed } from "@/lib/leadTiming";
 import { formatUkDate } from "@/lib/formatDateTime";
+import {
+  LEAD_RELATIONSHIP_CATEGORIES,
+  LEAD_RELATIONSHIP_CATEGORY_LABELS,
+  type LeadRelationshipCategory,
+} from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 
 type CustomFieldType = "text" | "number" | "date" | "url" | "select" | "multi-select" | "checkbox";
 type CustomFieldValue = string | string[] | boolean;
@@ -31,6 +36,7 @@ interface LeadRow {
   phone?: string;
   company?: string;
   source: string;
+  relationshipCategory?: LeadRelationshipCategory;
   tags: string[];
   notes?: string;
   firstContactedAt?: number;
@@ -102,12 +108,13 @@ const STANDARD_IMPORT_FIELDS = [
   { value: "company", label: "Company" },
   { value: "tags", label: "Tags" },
   { value: "source", label: "Source" },
+  { value: "relationshipCategory", label: "Relationship category" },
   { value: "notes", label: "Notes" },
 ] as const;
 
 const IMPORT_TEMPLATE = [
-  "email,name,phone,company,tags,source,notes",
-  "jane@example.com,Jane Smith,07123456789,Example Ltd,\"warm;google-profile\",google-maps,\"Needs website and Google profile help\"",
+  "email,name,phone,company,tags,source,relationshipCategory,notes",
+  "jane@example.com,Jane Smith,07123456789,Example Ltd,\"warm;google-profile\",google-maps,scraped-list,\"Needs website and Google profile help\"",
 ].join("\n");
 
 export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustomFields, initialCustomTags, initialImportOpen = false }: ContactsWorkspaceProps) {
@@ -116,6 +123,7 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
   const [contact, setContact] = useState(EMPTY_CONTACT);
   const [defaultSource, setDefaultSource] = useState("sheet-upload");
   const [defaultTags, setDefaultTags] = useState("");
+  const [defaultRelationshipCategory, setDefaultRelationshipCategory] = useState<LeadRelationshipCategory>("scraped-list");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -278,6 +286,7 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
       form.append("file", file);
       form.append("defaultSource", defaultSource);
       form.append("defaultTags", defaultTags);
+      form.append("defaultRelationshipCategory", defaultRelationshipCategory);
       form.append("mapping", JSON.stringify(importMapping));
       const res = await fetch("/api/portal/leads-pipeline/import-csv", { method: "POST", body: form });
       const data = await res.json() as {
@@ -663,7 +672,13 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
                 ) : null}
               </div>
             ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="text-xs font-medium text-black/60">
+                Relationship category
+                <select value={defaultRelationshipCategory} onChange={event => setDefaultRelationshipCategory(event.target.value as LeadRelationshipCategory)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/80">
+                  {LEAD_RELATIONSHIP_CATEGORIES.map(category => <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]}</option>)}
+                </select>
+              </label>
               <Field label="Default source" value={defaultSource} onChange={setDefaultSource} placeholder="google maps, linkedin..." />
               <label className="text-xs font-medium text-black/60">
                 Default tags

@@ -39,7 +39,33 @@ export interface PaymentPlanInvoiceEvidence {
   id: string;
   number: string;
   status: string;
+  dueAt?: number;
+  totalCents?: number;
+  currency?: string;
   paidAt?: number;
+}
+
+export type ClientPaymentPositionState =
+  | "unconfigured"
+  | "draft"
+  | "payment-plan"
+  | "payment-due"
+  | "missed-payment"
+  | "paid-in-full";
+
+export interface ClientPaymentPosition {
+  state: ClientPaymentPositionState;
+  label: string;
+  currency: string;
+  agreedCents: number;
+  paidCents: number;
+  outstandingCents: number;
+  missedPayments: number;
+  openInvoices: number;
+  activePlans: number;
+  completedPlans: number;
+  nextDueAt?: number;
+  lastPaidAt?: number;
 }
 
 function text(value: unknown, max: number): string {
@@ -152,4 +178,76 @@ export function customerVisiblePaymentPlans(plans: readonly ClientPaymentPlan[])
   return plans
     .filter(plan => plan.customerVisible && plan.status !== "draft" && plan.status !== "cancelled")
     .map(plan => ({ ...plan, internalNotes: undefined }));
+}
+
+export function summariseClientPaymentPosition(
+  plans: readonly ClientPaymentPlan[],
+  invoices: readonly PaymentPlanInvoiceEvidence[],
+  now = Date.now(),
+): ClientPaymentPosition {
+  const reconciled = plans.map(plan => reconcileClientPaymentPlan(plan, invoices));
+  const retainedPlans = reconciled.filter(plan => plan.status !== "cancelled");
+  const activePlans = retainedPlans.filter(plan => plan.status === "active");
+  const completedPlans = retainedPlans.filter(plan => plan.status === "completed");
+  const chargeableInvoices = invoices.filter(invoice => !["void", "refunded", "draft"].includes(invoice.status));
+  const openInvoices = chargeableInvoices.filter(invoice => ["sent", "overdue"].includes(invoice.status));
+  const paidInvoices = chargeableInvoices.filter(invoice => invoice.status === "paid");
+  const linkedInvoiceIds = new Set(retainedPlans.flatMap(plan => plan.milestones.map(milestone => milestone.invoiceId).filter((id): id is string => Boolean(id))));
+  const missedMilestones = activePlans.flatMap(plan => plan.milestones).filter(milestone =>
+    milestone.status !== "paid" && milestone.status !== "waived" && milestone.dueAt < now,
+  );
+  const missedInvoices = openInvoices.filter(invoice =>
+    invoice.dueAt !== undefined && invoice.dueAt < now && !linkedInvoiceIds.has(invoice.id),
+  );
+  const nextDueAt = [
+    ...activePlans.flatMap(plan => plan.milestones)
+      .filter(milestone => milestone.status !== "paid" && milestone.status !== "waived" && milestone.dueAt >= now)
+      .map(milestone => milestone.dueAt),
+    ...openInvoices.filter(invoice => invoice.dueAt !== undefined && invoice.dueAt >= now).map(invoice => invoice.dueAt as number),
+  ].sort((a, b) => a - b)[0];
+  const planCurrency = retainedPlans[0]?.currency;
+  const invoiceCurrency = chargeableInvoices.find(invoice => invoice.currency)?.currency;
+  const currency = (planCurrency || invoiceCurrency || "gbp").toLowerCase();
+  const agreedCents = retainedPlans.length
+    ? retainedPlans.reduce((sum, plan) => sum + paymentPlanTotal(plan), 0)
+    : chargeableInvoices.reduce((sum, invoice) => sum + (invoice.totalCents ?? 0), 0);
+  const paidCents = retainedPlans.length
+    ? retainedPlans.reduce((sum, plan) => sum + paymentPlanPaid(plan), 0)
+    : paidInvoices.reduce((sum, invoice) => sum + (invoice.totalCents ?? 0), 0);
+  const missedPayments = missedMilestones.length + missedInvoices.length;
+  const hasOnlyPaidInvoices = chargeableInvoices.length > 0 && chargeableInvoices.every(invoice => invoice.status === "paid");
+  const hasDraft = retainedPlans.some(plan => plan.status === "draft") || invoices.some(invoice => invoice.status === "draft");
+  const state: ClientPaymentPositionState = missedPayments > 0
+    ? "missed-payment"
+    : openInvoices.length > 0
+      ? "payment-due"
+      : activePlans.length > 0
+        ? "payment-plan"
+        : completedPlans.length > 0 || hasOnlyPaidInvoices
+          ? "paid-in-full"
+          : hasDraft
+            ? "draft"
+            : "unconfigured";
+  const label: Record<ClientPaymentPositionState, string> = {
+    unconfigured: "Payment terms not configured",
+    draft: "Payment schedule in draft",
+    "payment-plan": "Payment plan active",
+    "payment-due": "Payment due",
+    "missed-payment": missedPayments === 1 ? "1 missed payment" : `${missedPayments} missed payments`,
+    "paid-in-full": "Paid in full",
+  };
+  return {
+    state,
+    label: label[state],
+    currency,
+    agreedCents,
+    paidCents,
+    outstandingCents: Math.max(0, agreedCents - paidCents),
+    missedPayments,
+    openInvoices: openInvoices.length,
+    activePlans: activePlans.length,
+    completedPlans: completedPlans.length,
+    nextDueAt,
+    lastPaidAt: paidInvoices.map(invoice => invoice.paidAt).filter((value): value is number => Boolean(value)).sort((a, b) => b - a)[0],
+  };
 }

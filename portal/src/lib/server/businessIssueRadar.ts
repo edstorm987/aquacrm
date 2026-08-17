@@ -43,6 +43,7 @@ import { buildRadarMemoryDigest, buildRadarMemoryIssues } from "./radarMemory";
 import { applyRadarEvidenceBaselines, buildRadarEvidenceLayer } from "./radarEvidenceVault";
 import { buildRadarTelemetrySnapshot } from "./radarTelemetry";
 import { makePluginStorage } from "./pluginStorage";
+import { buildClientRadarFleet } from "./clientRadar";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
@@ -398,6 +399,15 @@ export async function buildBusinessIssueRadar(
     },
   );
 
+  const clientRadars = await buildClientRadarFleet(agencyId, {
+    now,
+    clients,
+    operationalAlerts,
+    telemetry,
+  });
+  const clientChecks = clientRadars.flatMap(clientRadar => clientRadar.checks);
+  issues.push(...clientRadars.flatMap(clientRadar => clientRadar.issues));
+
   const observations = applyRadarEvidenceBaselines(agencyId, buildRadarObservations({
     now,
     state,
@@ -424,7 +434,7 @@ export async function buildBusinessIssueRadar(
   const propertySentinels = buildPropertySentinelChecks(telemetry, now);
   const syntheticSentinels = buildSyntheticCanaryChecks(telemetry, syntheticProbes, now);
   const historicalChecks = evidenceLayer.checks;
-  const checksBeforeWatchdog = [...catalogMatrix.checks, ...commercialChecks, ...sourceSentinels, ...propertySentinels, ...syntheticSentinels, ...historicalChecks];
+  const checksBeforeWatchdog = [...catalogMatrix.checks, ...commercialChecks, ...clientChecks, ...sourceSentinels, ...propertySentinels, ...syntheticSentinels, ...historicalChecks];
   const watchdogChecks = buildRadarWatchdogChecks({
     checks: checksBeforeWatchdog,
     coverage,
@@ -517,6 +527,8 @@ export async function buildBusinessIssueRadar(
       baselineCoveragePercent: evidenceLayer.digest.baselineCoveragePercent,
       evidenceSamples: evidenceLayer.digest.totalSamples,
       historicalAnomalies: evidenceLayer.digest.anomalousSeries,
+      clientChecks: clientChecks.length,
+      monitoredClients: clientRadars.length,
     },
     speedToLead,
     commercial,

@@ -192,6 +192,8 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           title: `${clientLabel} has ${pending} marketing approval${pending === 1 ? "" : "s"} waiting`,
           detail: "Open the exact content and campaign records awaiting a client decision.",
           href: marketingHref,
+          clientId: client.id,
+          clientName: client.name,
           occurredAt: marketing.updatedAt ?? client.updatedAt,
         });
         const attentionProfiles = marketing.profiles.filter(profile => profile.status === "attention");
@@ -202,6 +204,8 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           title: `${clientLabel} has ${attentionProfiles.length} social account access issue${attentionProfiles.length === 1 ? "" : "s"}`,
           detail: attentionProfiles.map(profile => `${profile.platform}: ${profile.handle}`).join(" · "),
           href: marketingHref,
+          clientId: client.id,
+          clientName: client.name,
           occurredAt: marketing.updatedAt ?? client.updatedAt,
         });
         for (const campaign of marketing.campaigns.filter(item => item.status === "active" || item.status === "scheduled")) {
@@ -212,6 +216,8 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
             title: `${clientLabel}: ${campaign.name} is over budget`,
             detail: `${money(campaign.spendCents)} spent against ${money(campaign.budgetCents)} allocated.`,
             href: marketingHref,
+            clientId: client.id,
+            clientName: client.name,
             occurredAt: campaign.updatedAt,
           });
           else if (campaign.budgetCents > 0 && campaign.spendCents >= campaign.budgetCents * 0.5 && campaign.leads === 0) alerts.push({
@@ -221,6 +227,8 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
             title: `${clientLabel}: ${campaign.name} needs a performance review`,
             detail: `${money(campaign.spendCents)} spent with zero attributed leads.`,
             href: marketingHref,
+            clientId: client.id,
+            clientName: client.name,
             occurredAt: campaign.updatedAt,
           });
         }
@@ -237,6 +245,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         title: `${requestLabel(request.type)} from ${clientLabel}`,
         detail: `${request.siteLabel ? `${request.siteLabel} · ` : ""}${request.topic ? `${request.topic} · ` : ""}${request.message}`,
         href: `/portal/agency/inbox?view=support&thread=${encodeURIComponent(request.id)}`,
+        clientId: client.id,
         clientName: client.name,
         occurredAt: request.submittedAt,
       });
@@ -254,6 +263,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         title: `${clientLabel} reported ${recentErrors.length} production error${recentErrors.length === 1 ? "" : "s"}`,
         detail: latest.message || latest.path || "Open technical delivery monitoring to inspect the latest error.",
         href: `/portal/clients/${client.id}?tab=systems`,
+        clientId: client.id,
         clientName: client.name,
         occurredAt: latest.occurredAt,
       });
@@ -269,6 +279,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         title: `${clientLabel} has an overdue invoice`,
         detail: `${pack.invoiceNumber ?? "Invoice"} was due ${formatRelativeDate(pack.dueAt, now)}.`,
         href: `/portal/clients/${client.id}?tab=finance`,
+        clientId: client.id,
         clientName: client.name,
         occurredAt: pack.dueAt,
       });
@@ -289,6 +300,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
               : `${clientLabel}: payment milestone is ready to issue`,
             detail: `${milestone.title}${milestone.productName ? ` · ${milestone.productName}` : ""} is due ${formatUkDate(milestone.dueAt, { day: "numeric", month: "short", year: "numeric" })}. Open the exact schedule to create its Finance invoice.`,
             href: `/portal/clients/${client.id}?tab=finance`,
+            clientId: client.id,
             clientName: client.name,
             occurredAt: milestone.dueAt,
           });
@@ -306,6 +318,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         title: `${clientLabel} has a contract awaiting acceptance`,
         detail: `${contract.title} was sent ${formatRelativeDate(waitingSince, now)}. Follow up or record the signed agreement.`,
         href: `/portal/clients/${client.id}?tab=finance`,
+        clientId: client.id,
         clientName: client.name,
         occurredAt: waitingSince,
       });
@@ -320,6 +333,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         title: `${clientLabel}'s portal access is ready to review`,
         detail: `Access has been prepared for ${OPERATIONAL_ALERT_THRESHOLDS.portalAccessDays} days or more but has not been sent.`,
         href: `/portal/clients/${client.id}?tab=portal`,
+        clientId: client.id,
         clientName: client.name,
         occurredAt: portalReadyAt,
       });
@@ -332,7 +346,8 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         category: "client",
         title: `Check in with ${clientLabel}`,
         detail: metadata?.lastContactedAt ? `No contact has been recorded for more than ${OPERATIONAL_ALERT_THRESHOLDS.clientContactDays} days.` : "No client contact has been recorded yet.",
-        href: `/portal/clients/${client.id}`,
+        href: `/portal/clients/${client.id}?tab=relationship`,
+        clientId: client.id,
         clientName: client.name,
         occurredAt: metadata?.lastContactedAt ?? client.createdAt,
       });

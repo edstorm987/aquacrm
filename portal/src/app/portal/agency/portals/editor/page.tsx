@@ -6,12 +6,13 @@ import { AGENCY_ROLES, type ClientPortalMode } from "@/server/types";
 import { listClients } from "@/server/tenants";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { ensureProductPortalTemplates, ensureStunningPortalTemplate } from "@/server/clientPortalDesigns";
+import { clientWorkspaceHref } from "@/lib/clientWorkspace";
 import { ClientPortalStudio, type PortalStudioClient, type PortalStudioTemplate } from "./_ClientPortalStudio";
 
 export default async function ClientPortalEditorPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; productId?: string; templateId?: string; scope?: string; mode?: string; section?: string }>;
+  searchParams: Promise<{ clientId?: string; productId?: string; templateId?: string; scope?: string; mode?: string; section?: string; context?: string }>;
 }) {
   await ensureHydrated();
   let session;
@@ -52,6 +53,7 @@ export default async function ClientPortalEditorPage({
     .sort((a, b) => Number(b.built) - Number(a.built) || a.name.localeCompare(b.name));
   const requestedClient = clients.find(client => client.id === query.clientId);
   const initialClientId = requestedClient?.id ?? clients.find(client => client.built)?.id ?? clients[0]?.id ?? "";
+  const lockToClient = query.context === "client-workspace" && Boolean(requestedClient);
 
   return (
     <ClientPortalStudio
@@ -63,6 +65,9 @@ export default async function ClientPortalEditorPage({
       initialMode={cleanMode(query.mode ?? requestedClient?.mode)}
       initialSection={cleanSection(query.section)}
       canManage={session.role === "agency-owner" || session.role === "agency-manager"}
+      backHref={lockToClient ? clientWorkspaceHref(initialClientId, "portal") : undefined}
+      backLabel={lockToClient ? "Back to client portal" : undefined}
+      lockToClient={lockToClient}
     />
   );
 }

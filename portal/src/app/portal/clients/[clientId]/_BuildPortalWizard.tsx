@@ -1,7 +1,7 @@
 "use client";
 
-// Live-phase gateway modal. Shown on the per-client header as
-// "Build custom portal" when the client is at Live and
+// Portal preparation modal. Shown on the per-client header once the
+// client has an assigned service and
 // `04-the-final-portal/clients/<slug>/` does NOT yet exist on disk.
 //
 // Walks the operator through:

@@ -49,6 +49,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { attentionTitle, useAttentionMatches, useNotificationAttention, useUnresolvedAttentionMatches } from "@/components/chrome/NotificationAttentionProvider";
+import type { OperationalAlertCategory } from "@/lib/operationalAttention";
 
 const NAV_ICONS: Record<string, typeof Circle> = {
   home: Radar,
@@ -187,6 +188,50 @@ function navTone(id: string): string {
   return NAV_TONES[id] ?? CLIENT_SERVICE_TONES.find(([prefix]) => id.startsWith(prefix))?.[1] ?? "slate";
 }
 
+interface ClientAttentionSpec {
+  clientId: string;
+  hrefs: string[];
+  categories: OperationalAlertCategory[];
+  allForClient: boolean;
+}
+
+function clientAttentionSpec(id: string, href: string): ClientAttentionSpec | null {
+  if (!id.startsWith("client-")) return null;
+  const target = new URL(href, "https://aqua.local");
+  const match = target.pathname.match(/^\/portal\/clients\/([^/]+)/);
+  if (!match?.[1]) return null;
+  let clientId = match[1];
+  try {
+    clientId = decodeURIComponent(clientId);
+  } catch {
+    // Keep the encoded route segment when a malformed legacy id is encountered.
+  }
+  const base = target.pathname;
+  const tabHref = (tab: string) => `${base}?tab=${tab}`;
+  if (id === "client-overview") return { clientId, hrefs: [], categories: [], allForClient: true };
+  if (id === "client-relationship") return {
+    clientId,
+    hrefs: [tabHref("relationship"), tabHref("communications")],
+    categories: ["support", "meeting"],
+    allForClient: false,
+  };
+  if (id === "client-delivery") return {
+    clientId,
+    hrefs: [tabHref("delivery"), tabHref("marketing"), tabHref("systems"), tabHref("files")],
+    categories: ["outage", "development", "marketing"],
+    allForClient: false,
+  };
+  if (id === "client-finance") return {
+    clientId,
+    hrefs: [tabHref("finance")],
+    categories: ["money", "contract", "compliance"],
+    allForClient: false,
+  };
+  if (id === "client-portal") return { clientId, hrefs: [tabHref("portal")], categories: [], allForClient: false };
+  if (id === "client-notes") return { clientId, hrefs: [tabHref("notes")], categories: [], allForClient: false };
+  return null;
+}
+
 export function SidebarNavLink({
   id,
   href,
@@ -208,10 +253,9 @@ export function SidebarNavLink({
   const targetHasQuery = Boolean(target?.search);
   const queryMatches = targetHasQuery && target
     ? [...target.searchParams.entries()].every(([key, value]) => searchParams.get(key) === value)
-      && !(id === "client-delivery" && searchParams.has("product"))
     : false;
   const clientOverviewAtRoot = id === "client-overview" && pathname === target?.pathname && !searchParams.has("tab");
-  const active = targetHasQuery
+  const directActive = targetHasQuery
     ? pathname === target?.pathname && queryMatches
     : id === "client-overview"
       ? clientOverviewAtRoot
@@ -225,11 +269,36 @@ export function SidebarNavLink({
         || pathname.startsWith("/portal/agency/portals")
         || pathname.startsWith("/portal/agency/pipelines/fulfilment")
       : pathname === href || pathname.startsWith(`${href}/`);
+  const currentClientTab = pathname === target?.pathname ? searchParams.get("tab") ?? "overview" : null;
+  const groupedClientActive = id === "client-relationship"
+    ? currentClientTab === "relationship" || currentClientTab === "communications"
+    : id === "client-delivery"
+      ? currentClientTab === "delivery" || currentClientTab === "marketing" || currentClientTab === "systems" || currentClientTab === "files"
+      : false;
+  const active = directActive || groupedClientActive;
   const Icon = navIcon(id);
   const attentionContext = useNotificationAttention();
-  const liveAttention = useAttentionMatches({ navId: id, hrefs: [href] });
-  const reserveAttention = useAttentionMatches({ navId: id, hrefs: [href], pool: "reserve" });
-  const unresolvedAttention = useUnresolvedAttentionMatches({ navId: id });
+  const clientAttention = clientAttentionSpec(id, href);
+  const attentionHrefs = clientAttention?.hrefs ?? [href];
+  const liveAttention = useAttentionMatches({
+    navId: id,
+    hrefs: attentionHrefs,
+    clientId: clientAttention?.clientId,
+    clientCategories: clientAttention?.categories,
+    allForClient: clientAttention?.allForClient,
+  });
+  const reserveAttention = useAttentionMatches({
+    navId: id,
+    hrefs: attentionHrefs,
+    clientId: clientAttention?.clientId,
+    clientCategories: clientAttention?.categories,
+    allForClient: clientAttention?.allForClient,
+    pool: "reserve",
+  });
+  const unresolvedAttention = useUnresolvedAttentionMatches({
+    navId: id,
+    clientId: clientAttention?.clientId,
+  });
   const visibleAttention = [...new Map([...liveAttention, ...unresolvedAttention].map(alert => [alert.id, alert])).values()];
   const resolvedAttentionCount = attentionContext ? visibleAttention.length : attentionCount;
   const reserveNote = reserveAttention.length ? `\nAttention shield: ${reserveAttention.length} related ${reserveAttention.length === 1 ? "item is" : "items are"} safely held in reserve.` : "";

@@ -231,11 +231,11 @@ export function ProductWorkspaceApplication({
             </div>
             {management ? (
               <label className="grid gap-1 text-[9px] uppercase tracking-[0.12em] text-black/38">
-                Product stage
+                Portal experience
                 <select
                   value={workspace.stage}
                   disabled={busy !== null}
-                  onChange={event => void mutate("set-stage", { stage: event.target.value }, `${product.name} stage updated.`)}
+                  onChange={event => void mutate("set-stage", { stage: event.target.value }, `${product.name} portal experience updated.`)}
                   className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-xs normal-case tracking-normal text-black/65"
                 >
                   {STAGES.map(stage => <option key={stage.id} value={stage.id}>{stage.label}</option>)}

@@ -26,16 +26,15 @@ import { LeadsPipelineWorkspace } from "./_LeadsPipelineWorkspace";
 import { BoardSwitcher, PipelineBoard } from "./_PipelineBoard";
 import { FulfilmentProductSwitcher } from "./_FulfilmentProductSwitcher";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
-import { PORTAL_PRODUCT_CATALOG, type PortalProductKey } from "@/lib/portalProducts";
 import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { defaultProductPipelineStage, PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
+import { agencyProductPipelineColumns, defaultAgencyProductPipelineStage } from "@/lib/fulfilmentProductPipelines";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
 
 interface RouteProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ product?: string }>;
+  searchParams: Promise<{ product?: string; lead?: string }>;
 }
 
 export default async function PipelineView({ params, searchParams }: RouteProps) {
@@ -43,6 +42,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
   const session = await requireRole([...AGENCY_ROLES]);
   const agency = getAgency(session.agencyId)!;
   const { slug } = await params;
+  const query = await searchParams;
   ensureDefaultAgencyProducts(agency.id);
   const productCatalogue = listAgencyProducts(agency.id, true);
   const agencyProducts = productCatalogue.filter(product => product.active);
@@ -97,6 +97,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
 
       return (
         <LeadsPipelineWorkspace
+          focusedLeadId={query.lead}
           referenceNow={Date.now()}
           columns={pipeline.columns.map(col => ({ id: col.id, label: col.label, color: col.color }))}
           prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
@@ -135,9 +136,10 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
           }))}
           leads={journeyLeadList.map(lead => {
             const client = clients.find(candidate => {
+              const convertedClient = candidate.id === lead.convertedClientId;
               const sameLead = candidate.metadata?.leadId === lead.id;
               const sameEmail = candidate.ownerEmail?.trim().toLowerCase() === lead.email.trim().toLowerCase();
-              return sameLead || sameEmail;
+              return convertedClient || sameLead || sameEmail;
             });
             const clientMetadata = client?.metadata ?? {};
             const services = resolvePortalProductAssignment(clientMetadata, productCatalogue).products;
@@ -151,6 +153,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               phone: lead.phone,
               company: lead.company,
               source: lead.source,
+              relationshipCategory: lead.relationshipCategory,
               tags: lead.tags,
               notes: lead.notes,
               capturedAt: lead.capturedAt,
@@ -232,19 +235,20 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
 
   if (pipeline.kind === "fulfilment") {
     const clients = listClients(agency.id);
-    const productViews = PORTAL_PRODUCT_CATALOG.map(product => ({
-      key: product.catalogKey,
+    const productViews = agencyProducts.map(product => ({
+      key: product.id,
       label: product.name,
     }));
-    const requestedProduct = (await searchParams).product;
-    const selectedProduct = PORTAL_PRODUCT_CATALOG.find(product => product.catalogKey === requestedProduct);
+    const requestedProduct = query.product;
+    const selectedProduct = agencyProducts.find(product => product.id === requestedProduct)
+      ?? agencyProducts.find(product => product.portalTemplateKey === requestedProduct);
 
     if (!selectedProduct) {
-      const productCounts = new Map<PortalProductKey, number>();
+      const productCounts = new Map<string, number>();
       const overviewRows = clients.map(client => {
         const products = resolvePortalProductAssignment(client.metadata ?? {}, productCatalogue).products;
         for (const product of products) {
-          if (product.catalogKey) productCounts.set(product.catalogKey, (productCounts.get(product.catalogKey) ?? 0) + 1);
+          productCounts.set(product.id, (productCounts.get(product.id) ?? 0) + 1);
         }
         return { client, products };
       });
@@ -272,17 +276,17 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               <span className="text-xs tabular-nums text-black/40">{clients.length} clients</span>
             </div>
             <div className="grid gap-x-6 border-b border-black/10 sm:grid-cols-2 lg:grid-cols-3">
-              {PORTAL_PRODUCT_CATALOG.map(product => (
+              {agencyProducts.map(product => (
                 <Link
-                  key={product.catalogKey}
-                  href={`/portal/agency/pipelines/fulfilment?product=${product.catalogKey}`}
+                  key={product.id}
+                  href={`/portal/agency/pipelines/fulfilment?product=${product.id}`}
                   className="flex min-h-16 items-center justify-between gap-3 border-b border-black/[0.07] py-3 text-sm hover:text-brand"
                 >
                   <span>
                     <span className="block font-medium text-black/75">{product.name}</span>
-                    <span className="mt-0.5 block text-xs text-black/40">{product.projectLabel} delivery</span>
+                    <span className="mt-0.5 block text-xs text-black/40">{product.category} delivery</span>
                   </span>
-                  <span className="text-xs font-semibold tabular-nums text-black/45">{productCounts.get(product.catalogKey) ?? 0}</span>
+                  <span className="text-xs font-semibold tabular-nums text-black/45">{productCounts.get(product.id) ?? 0}</span>
                 </Link>
               ))}
             </div>
@@ -303,13 +307,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
                     <p className="mt-0.5 text-xs text-black/40">{phaseLabel(client.stage)}</p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {products.map(product => product.catalogKey ? (
-                      <Link key={product.id} href={`/portal/agency/pipelines/fulfilment?product=${product.catalogKey}`} className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[11px] font-medium text-black/55 hover:bg-black/[0.09]">
-                        {product.name}
-                      </Link>
-                    ) : (
-                      <span key={product.id} className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[11px] text-black/50">{product.name}</span>
-                    ))}
+                    {products.map(product => <Link key={product.id} href={`/portal/agency/pipelines/fulfilment?product=${product.id}`} className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[11px] font-medium text-black/55 hover:bg-black/[0.09]">{product.name}</Link>)}
                     {products.length === 0 ? <span className="text-xs text-amber-700">No services assigned</span> : null}
                   </div>
                   <Link href={`/portal/clients/${client.id}?tab=delivery`} className="text-xs font-medium text-black/55 hover:text-black">Manage</Link>
@@ -322,19 +320,23 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
       );
     }
 
-    const productKey = selectedProduct.catalogKey;
-    const columns = PRODUCT_PIPELINE_COLUMNS[productKey];
+    const productKey = selectedProduct.id;
+    const columns = agencyProductPipelineColumns(selectedProduct);
     const cards = clients.flatMap(client => {
       const products = resolvePortalProductAssignment(client.metadata ?? {}, productCatalogue).products;
-      if (!products.some(product => product.catalogKey === productKey)) return [];
+      if (!products.some(product => product.id === productKey)) return [];
       const storedStages = client.metadata?.productPipelineStages;
       const productStages = storedStages && typeof storedStages === "object"
         ? storedStages as Record<string, unknown>
         : {};
-      const storedStage = typeof productStages[productKey] === "string" ? productStages[productKey] : "";
+      const storedStage = typeof productStages[productKey] === "string"
+        ? productStages[productKey] as string
+        : selectedProduct.portalTemplateKey && typeof productStages[selectedProduct.portalTemplateKey] === "string"
+          ? productStages[selectedProduct.portalTemplateKey] as string
+          : "";
       const columnId = columns.some(column => column.id === storedStage)
         ? storedStage
-        : defaultProductPipelineStage(productKey, client.stage);
+        : defaultAgencyProductPipelineStage(selectedProduct, client.stage);
       return [{
         id: client.id,
         label: client.name,

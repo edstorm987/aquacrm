@@ -2,9 +2,10 @@ import "server-only";
 
 import crypto from "node:crypto";
 import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
+import { defaultProductInternalWorkspace, isProductWorkspaceModule } from "@/lib/productInternalWorkspace";
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
-import type { AgencyProduct, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing } from "./types";
+import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule } from "./types";
 
 export interface AgencyProductInput {
   companyIds?: string[];
@@ -32,18 +33,20 @@ export interface AgencyProductInput {
   paymentTermsDays?: number;
   billingNotes?: string;
   internalInfo?: string;
+  internalWorkspace?: AgencyProductInternalWorkspace;
   deliverables?: string[];
   contractTitle?: string;
   contractBody?: string;
   sopIds?: string[];
   sopCategories?: string[];
+  status?: AgencyProductStatus;
   active?: boolean;
 }
 
 export function listAgencyProducts(agencyId: string, includeArchived = false): AgencyProduct[] {
   return Object.values(getState().agencyProducts)
-    .filter(product => product.agencyId === agencyId && (includeArchived || product.active))
-    .sort((a, b) => Number(b.active) - Number(a.active) || a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    .filter(product => product.agencyId === agencyId && (includeArchived || productStatus(product) === "live"))
+    .sort((a, b) => statusOrder(productStatus(a)) - statusOrder(productStatus(b)) || a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }
 
 export function getAgencyProduct(agencyId: string, productId: string): AgencyProduct | null {
@@ -59,7 +62,7 @@ export function ensureDefaultAgencyProducts(agencyId: string): AgencyProduct[] {
       const category = product.category === "Advisory" && (product.name === "Business OS" || product.name === "Digital health check")
         ? "Lead magnets"
         : product.category;
-      if (category !== product.category || !product.kind || !product.portalRequirement || (!product.portalTemplateKey && inferredTemplate) || !Array.isArray(product.includedProductIds) || !Array.isArray(product.welcomePackItems) || !Array.isArray(product.sopIds) || !Array.isArray(product.sopCategories)) {
+      if (category !== product.category || !product.kind || !product.portalRequirement || !product.status || (!product.portalTemplateKey && inferredTemplate) || !Array.isArray(product.includedProductIds) || !Array.isArray(product.welcomePackItems) || !Array.isArray(product.sopIds) || !Array.isArray(product.sopCategories) || !product.internalWorkspace || !Array.isArray(product.internalWorkspace.lifecycleStages) || product.internalWorkspace.processSteps.some(step => !step.stageId)) {
         mutate(state => {
           state.agencyProducts[product.id] = {
             ...product,
@@ -71,6 +74,14 @@ export function ensureDefaultAgencyProducts(agencyId: string): AgencyProduct[] {
             welcomePackItems: Array.isArray(product.welcomePackItems) ? product.welcomePackItems : [],
             sopIds: Array.isArray(product.sopIds) ? product.sopIds : [],
             sopCategories: Array.isArray(product.sopCategories) ? product.sopCategories : [],
+            status: productStatus(product),
+            active: productStatus(product) === "live",
+            internalWorkspace: cleanInternalWorkspace(product.internalWorkspace, {
+              id: product.id,
+              name: product.name,
+              portalTemplateKey: validPortalTemplateKey(product.portalTemplateKey) ?? inferredTemplate,
+              sopIds: Array.isArray(product.sopIds) ? product.sopIds : [],
+            }),
             updatedAt: Date.now(),
           };
         });
@@ -109,6 +120,7 @@ export function createAgencyProduct(agencyId: string, input: AgencyProductInput,
   const name = clean(input.name, 120);
   if (!name) throw new Error("Product name required.");
   const now = Date.now();
+  const status = validStatus(input.status, input.active);
   const product: AgencyProduct = {
     id: `prod_${crypto.randomBytes(8).toString("hex")}`,
     agencyId,
@@ -137,12 +149,18 @@ export function createAgencyProduct(agencyId: string, input: AgencyProductInput,
     paymentTermsDays: cleanDays(input.paymentTermsDays),
     billingNotes: clean(input.billingNotes, 2_000) || undefined,
     internalInfo: clean(input.internalInfo, 5_000) || undefined,
+    internalWorkspace: cleanInternalWorkspace(input.internalWorkspace, {
+      name,
+      portalTemplateKey: validPortalTemplateKey(input.portalTemplateKey),
+      sopIds: cleanList(input.sopIds, 100, 120),
+    }),
     deliverables: cleanDeliverables(input.deliverables),
     contractTitle: clean(input.contractTitle, 180) || undefined,
     contractBody: clean(input.contractBody, 20_000) || undefined,
     sopIds: cleanList(input.sopIds, 100, 120),
     sopCategories: cleanList(input.sopCategories, 30, 100),
-    active: input.active !== false,
+    status,
+    active: status === "live",
     createdAt: now,
     updatedAt: now,
   };
@@ -155,6 +173,9 @@ export function updateAgencyProduct(agencyId: string, productId: string, input: 
   const existing = getState().agencyProducts[productId];
   if (!existing || existing.agencyId !== agencyId) return null;
   const pricing = input.pricing ? validPricing(input.pricing) : existing.pricing;
+  const status = input.status === undefined
+    ? input.active === undefined ? productStatus(existing) : input.active ? "live" : "archived"
+    : validStatus(input.status);
   const updated: AgencyProduct = {
     ...existing,
     companyIds: input.companyIds === undefined ? existing.companyIds ?? [] : cleanList(input.companyIds, 30, 120),
@@ -184,17 +205,99 @@ export function updateAgencyProduct(agencyId: string, productId: string, input: 
     paymentTermsDays: input.paymentTermsDays === undefined ? existing.paymentTermsDays : cleanDays(input.paymentTermsDays),
     billingNotes: input.billingNotes === undefined ? existing.billingNotes : clean(input.billingNotes, 2_000) || undefined,
     internalInfo: input.internalInfo === undefined ? existing.internalInfo : clean(input.internalInfo, 5_000) || undefined,
+    internalWorkspace: input.internalWorkspace === undefined
+      ? cleanInternalWorkspace(existing.internalWorkspace, existing)
+      : cleanInternalWorkspace(input.internalWorkspace, {
+          id: existing.id,
+          name: input.name === undefined ? existing.name : clean(input.name, 120) || existing.name,
+          portalTemplateKey: input.portalTemplateKey === undefined ? existing.portalTemplateKey : validPortalTemplateKey(input.portalTemplateKey),
+          sopIds: input.sopIds === undefined ? existing.sopIds : cleanList(input.sopIds, 100, 120),
+        }),
     deliverables: input.deliverables === undefined ? existing.deliverables : cleanDeliverables(input.deliverables),
     contractTitle: input.contractTitle === undefined ? existing.contractTitle : clean(input.contractTitle, 180) || undefined,
     contractBody: input.contractBody === undefined ? existing.contractBody : clean(input.contractBody, 20_000) || undefined,
     sopIds: input.sopIds === undefined ? existing.sopIds ?? [] : cleanList(input.sopIds, 100, 120),
     sopCategories: input.sopCategories === undefined ? existing.sopCategories ?? [] : cleanList(input.sopCategories, 30, 100),
-    active: input.active ?? existing.active,
+    status,
+    active: status === "live",
     updatedAt: Date.now(),
   };
   mutate(state => { state.agencyProducts[productId] = updated; });
   logActivity({ agencyId, actorUserId, category: "system", action: "product.updated", message: `Updated product “${updated.name}”.`, metadata: { productId } });
   return updated;
+}
+
+export function productStatus(product: Pick<AgencyProduct, "active"> & { status?: unknown }): AgencyProductStatus {
+  return product.status === "draft" || product.status === "archived" || product.status === "live"
+    ? product.status
+    : product.active === false ? "archived" : "live";
+}
+
+function validStatus(value: unknown, active?: boolean): AgencyProductStatus {
+  if (value === "draft" || value === "archived" || value === "live") return value;
+  return active === false ? "archived" : "live";
+}
+
+function statusOrder(status: AgencyProductStatus): number {
+  return status === "live" ? 0 : status === "draft" ? 1 : 2;
+}
+
+function cleanInternalWorkspace(
+  value: unknown,
+  product: { id?: string; name?: string; portalTemplateKey?: AgencyProductPortalTemplateKey; sopIds?: string[] },
+): AgencyProductInternalWorkspace {
+  const fallback = defaultProductInternalWorkspace(product);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const source = value as Record<string, unknown>;
+  const stages = Array.isArray(source.lifecycleStages) ? source.lifecycleStages.flatMap((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const stage = item as Record<string, unknown>;
+    const label = clean(stage.label, 80);
+    if (!label) return [];
+    return [{
+      id: clean(stage.id, 120) || `${product.id || "service"}-stage-${index + 1}`,
+      label,
+      description: clean(stage.description, 300) || undefined,
+      portalMode: validProductPortalMode(stage.portalMode),
+    }];
+  }).filter((stage, index, all) => all.findIndex(item => item.id === stage.id) === index).slice(0, 12) : [];
+  const lifecycleStages = stages.length ? stages : fallback.lifecycleStages;
+  const stageIds = new Set(lifecycleStages.map(stage => stage.id));
+  const steps = Array.isArray(source.processSteps) ? source.processSteps.flatMap((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const step = item as Record<string, unknown>;
+    const title = clean(step.title, 140);
+    if (!title) return [];
+    return [{
+      id: clean(step.id, 120) || `${product.id || "service"}-step-${index + 1}`,
+      title,
+      instruction: clean(step.instruction, 600) || undefined,
+      stageId: stageIds.has(clean(step.stageId, 120))
+        ? clean(step.stageId, 120)
+        : fallback.processSteps[index]?.stageId ?? lifecycleStages[Math.min(index, lifecycleStages.length - 1)]?.id,
+      module: isProductWorkspaceModule(step.module) ? step.module : "delivery" as AgencyProductWorkspaceModule,
+      sopIds: cleanList(step.sopIds, 10, 120),
+      advanced: step.advanced === true || undefined,
+    }];
+  }).slice(0, 48) : [];
+
+  return {
+    title: clean(source.title, 160) || fallback.title,
+    objective: clean(source.objective, 1_000) || fallback.objective,
+    lifecycleStages,
+    quickActions: cleanWorkspaceModules(source.quickActions, fallback.quickActions, 6),
+    processSteps: steps.length ? steps : fallback.processSteps,
+    advancedModules: cleanWorkspaceModules(source.advancedModules, fallback.advancedModules, 8),
+  };
+}
+
+function validProductPortalMode(value: unknown): AgencyProductPortalMode {
+  return value === "designing" || value === "developed-launch" || value === "maintenance" ? value : "onboarding";
+}
+
+function cleanWorkspaceModules(value: unknown, fallback: AgencyProductWorkspaceModule[], limit: number): AgencyProductWorkspaceModule[] {
+  if (!Array.isArray(value)) return fallback;
+  return [...new Set(value.filter(isProductWorkspaceModule))].slice(0, limit);
 }
 
 function clean(value: unknown, limit: number): string {

@@ -451,7 +451,7 @@ function buildDashboardSignals({
       id: "offers:products",
       title: "Define the sellable offers",
       detail: "Products are still empty, so projections and delivery planning have weak inputs.",
-      href: "/portal/agency/company?view=products",
+      href: "/portal/agency/fulfilment?view=services",
       kind: "Company",
       priority: "high",
     });

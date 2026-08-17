@@ -450,7 +450,7 @@ function ReviewsWorkspace({ payload, calculations, company, canEdit, saving, onS
 function ExecutiveSystems({ payload }: { payload: BattleTablePayload }) {
   const systems = [
     { label: "Service brands", value: String(payload.brandCount), detail: "Trading identities, ownership and aggregate performance", href: "/portal/agency/company?view=companies", icon: <Building2 size={17} /> },
-    { label: "Products and offers", value: String(payload.productCount), detail: "Pricing, packages, fulfilment and portal seeds", href: "/portal/agency/company?view=products", icon: <Package size={17} /> },
+    { label: "Products and offers", value: String(payload.productCount), detail: "Pricing, packages, fulfilment and portal seeds", href: "/portal/agency/fulfilment?view=services", icon: <Package size={17} /> },
     { label: "Connections", value: `${payload.connectedSources}/${payload.totalSources}`, detail: "Evidence, integrations and operating inputs", href: "/portal/agency/company?view=connections", icon: <PlugZap size={17} /> },
     { label: "Legal and compliance", value: String(payload.legalCount), detail: "Contracts, insurance, policies and obligations", href: "/portal/agency/company?view=legal", icon: <FileCheck2 size={17} /> },
     { label: "People and departments", value: String(payload.staffCount), detail: "Capacity owners, roles, leave and compensation", href: "/portal/agency/agency-hr", icon: <UsersRound size={17} /> },

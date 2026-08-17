@@ -184,10 +184,11 @@ describe("standalone portal nav audit", () => {
     assert.ok(read(FINANCE_SETTINGS).includes('<FinanceNav active="settings" />'));
   });
 
-  it("keeps client SOP navigation on the mounted library route", () => {
+  it("keeps client SOP management inside the client workspace", () => {
     const src = read(CLIENT_SOPS);
-    assert.ok(src.includes('href="/portal/agency/sop-library"'));
-    assert.ok(!src.includes('href="/portal/agency/sops"'));
+    assert.ok(src.includes('clientWorkspaceHref(clientId, "delivery"'));
+    assert.ok(src.includes("#service-assignment"));
+    assert.ok(!src.includes('href="/portal/agency/sop-library"'));
   });
 
   it("keeps performance inside the Fulfilment technical workspace", () => {
@@ -262,8 +263,8 @@ describe("standalone portal nav audit", () => {
 
     assert.ok(clientTabs.includes('id: "systems"'), "client tab id should be systems");
     assert.ok(clientTabs.includes('label: "Systems"'), "client tab label should be Systems");
-    assert.ok(clientLayout.includes('label: "Systems and development"'), "client sidebar should show the technical lens");
-    assert.ok(clientLayout.includes('clientWorkspaceHref(client.id, "systems")'), "client sidebar should use the systems lens");
+    assert.ok(!clientLayout.includes('label: "Systems and development"'), "technical detail should not permanently crowd the client sidebar");
+    assert.ok(clientHome.includes('serviceCapabilities.systems ? ["systems" as const]'), "Delivery should expose the technical lens contextually");
     assert.ok(clientTabs.includes('tools: "systems"'), "legacy tools tab links should resolve to systems");
     assert.ok(clientHome.includes('tab === "systems"'), "client systems tab branch missing");
     assert.ok(clientHome.includes("+ Add system"), "quick action should say Add system");

@@ -3,8 +3,10 @@
 import { ArrowLeft } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
-function fallbackFor(path: string): string {
-  if (/^\/portal\/clients\/[^/]+/.test(path)) return "/portal/clients";
+export function topbarBackFallback(path: string): string {
+  const clientMatch = path.match(/^\/portal\/clients\/([^/]+)(?:\/(.+))?$/);
+  if (clientMatch?.[1] && clientMatch[2]) return `/portal/clients/${clientMatch[1]}`;
+  if (clientMatch?.[1]) return "/portal/clients";
   if (path === "/portal/clients") return "/portal/agency";
   if (path.startsWith("/portal/agency/")) return "/portal/agency";
   if (path.startsWith("/portal/customer/")) return "/portal/customer";
@@ -27,7 +29,7 @@ export function TopbarBackButton() {
           router.back();
           return;
         }
-        router.push(fallbackFor(currentPath));
+        router.push(topbarBackFallback(currentPath));
       }}
       className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/65 transition hover:bg-black/[0.04] hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
     >

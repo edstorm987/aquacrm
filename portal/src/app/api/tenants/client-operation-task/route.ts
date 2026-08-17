@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       evidence: [detail],
       expectedOutcome: `${title} is resolved and the outcome is retained on ${client.name}'s client record.`,
       assigneeUserId: session.userId,
+      clientId,
       createdBy: session.userId,
     });
     await flushPendingWrites();

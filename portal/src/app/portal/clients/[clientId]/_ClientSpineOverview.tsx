@@ -1,24 +1,34 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  BookOpen,
   Building2,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
+  Clock3,
+  FileUp,
   FolderKanban,
   HeartHandshake,
   Inbox,
   KeyRound,
+  ListTodo,
+  MessageSquareText,
   MonitorCog,
   NotebookPen,
   PanelTop,
+  Phone,
   ReceiptText,
 } from "lucide-react";
 import type { AquaHealthState } from "@/lib/clientAquaHealth";
 import type { ClientOperationsBrief } from "@/lib/clientOperations";
+import type { ClientRadarSnapshot } from "@/lib/businessRadar";
 import { clientWorkspaceHref } from "@/lib/clientWorkspace";
 import { ClientOperationTaskButton } from "./_ClientOperationTaskButton";
+import { ClientAdvancedControls } from "./_ClientAdvancedControls";
+import { ClientOperatingPlan, type ClientAccountPlanStep, type ClientProductPlan } from "./_ClientOperatingPlan";
 import { ClientOperationsControl, type ClientOperationOwnerOption } from "./_ClientOperationsControl";
+import { ClientRadarPanel } from "./_ClientRadarPanel";
 
 interface Props {
   clientId: string;
@@ -64,11 +74,19 @@ interface Props {
   } | null;
   hasServices: boolean;
   portalReady: boolean;
+  portal: {
+    accessState: "not-prepared" | "missing" | "ready" | "sent";
+    pendingApprovals: number;
+    sharedFiles: number;
+    openRequests: number;
+  };
   lastContactAt?: number;
   commercialGaps: string[];
   commercial: {
     activePlans: number;
     totalPlans: number;
+    paymentState: string;
+    paymentLabel: string;
     scheduledCents: number;
     paidCents: number;
     outstandingCents: number;
@@ -82,6 +100,17 @@ interface Props {
   operationOwners: ClientOperationOwnerOption[];
   acceptedOperationSourceIds: string[];
   canManageOperations: boolean;
+  recentMovement: Array<{
+    id: string;
+    kind: "message" | "call" | "meeting" | "note" | "activity";
+    title: string;
+    detail?: string;
+    occurredAt: number;
+    href: string;
+  }>;
+  radar: ClientRadarSnapshot;
+  productPlans: ClientProductPlan[];
+  canManageProductPlans: boolean;
 }
 
 interface OperationItem {
@@ -93,7 +122,7 @@ interface OperationItem {
   href: string;
 }
 
-export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship, delivery, systems, hasServices, portalReady, lastContactAt, commercialGaps, commercial, operationsBrief, operationOwners, acceptedOperationSourceIds, canManageOperations }: Props) {
+export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship, delivery, systems, hasServices, portalReady, portal, lastContactAt, commercialGaps, commercial, operationsBrief, operationOwners, acceptedOperationSourceIds, canManageOperations, recentMovement, radar, productPlans, canManageProductPlans }: Props) {
   const operations: OperationItem[] = [];
   if (!hasServices) operations.push({
     id: "services",
@@ -159,6 +188,30 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     action: "Prepare portal",
     href: clientWorkspaceHref(clientId, "portal"),
   });
+  if (portal.pendingApprovals > 0) operations.push({
+    id: "portal-approvals",
+    tone: "attention",
+    title: `${portal.pendingApprovals} portal decision${portal.pendingApprovals === 1 ? " is" : "s are"} waiting`,
+    detail: "Review the pending decision, follow up with the client and retain the outcome on the shared record.",
+    action: "Open approvals",
+    href: clientWorkspaceHref(clientId, "portal"),
+  });
+  if (portalReady && portal.accessState === "missing") operations.push({
+    id: "portal-access-missing",
+    tone: "attention",
+    title: "Portal access cannot be sent",
+    detail: "Add the correct client access email before attempting an invitation.",
+    action: "Add access",
+    href: clientWorkspaceHref(clientId, "portal"),
+  });
+  if (portalReady && portal.accessState === "ready") operations.push({
+    id: "portal-invite-ready",
+    tone: "setup",
+    title: "Portal invitation is ready to send",
+    detail: "Review the client-facing experience, then issue the prepared access invitation.",
+    action: "Send access",
+    href: clientWorkspaceHref(clientId, "portal"),
+  });
   if (!lastContactAt) operations.push({
     id: "contact",
     tone: "setup",
@@ -179,7 +232,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     title: "Operational handover is incomplete",
     detail: `Add ${handoverGaps.join(", ")} so another operator can take over without reconstructing the account.`,
     action: "Complete brief",
-    href: `${clientWorkspaceHref(clientId, "overview")}#operational-brief`,
+    href: `${clientWorkspaceHref(clientId, "overview")}?tab=overview#operational-brief`,
   });
   if (operationsBrief.nextReviewAt && operationsBrief.nextReviewAt < Date.now()) operations.unshift({
     id: "account-review-overdue",
@@ -187,7 +240,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     title: "Account review is overdue",
     detail: `The retained review date passed on ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(operationsBrief.nextReviewAt)}. Review the account and set the next checkpoint.`,
     action: "Review account",
-    href: `${clientWorkspaceHref(clientId, "overview")}#operational-brief`,
+    href: `${clientWorkspaceHref(clientId, "overview")}?tab=overview#operational-brief`,
   });
   if (operationsBrief.state === "at-risk") operations.unshift({
     id: "account-state-risk",
@@ -195,7 +248,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     title: "Account is explicitly marked at risk",
     detail: operationsBrief.riskSummary || "Record the risk, owner and recovery move before more work proceeds.",
     action: "Open handover",
-    href: `${clientWorkspaceHref(clientId, "overview")}#operational-brief`,
+    href: `${clientWorkspaceHref(clientId, "overview")}?tab=overview#operational-brief`,
   });
   if (operationsBrief.state === "waiting-client" || operationsBrief.state === "paused") operations.push({
     id: "account-state-waiting",
@@ -203,9 +256,12 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     title: operationsBrief.state === "paused" ? "Account delivery is paused" : "Account is waiting on the client",
     detail: operationsBrief.riskSummary || "Confirm the dependency, retain the next follow-up and keep the client informed.",
     action: "Open handover",
-    href: `${clientWorkspaceHref(clientId, "overview")}#operational-brief`,
+    href: `${clientWorkspaceHref(clientId, "overview")}?tab=overview#operational-brief`,
   });
   const criticalCount = operations.filter(item => item.tone === "critical").length;
+  const primaryOperation = operations[0];
+  const priorityOperations = operations.slice(0, 3);
+  const heldOperations = operations.slice(3);
   const portfolioAttentionCount = relatedWorkspaces.filter(workspace =>
     !workspace.hasServices
     || !workspace.portalReady
@@ -216,22 +272,114 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     || workspace.outstandingCents > 0
     || (workspace.portalReady && workspace.portalAccessState !== "sent"),
   ).length;
+  const radarAttentionCount = radar.totals.critical + radar.totals.warning + radar.totals.watch;
+  const processSteps: ClientAccountPlanStep[] = [
+    {
+      id: "relationship",
+      number: "01",
+      label: "Know the client",
+      title: relationship.state === "risk" ? "Relationship needs a touchpoint" : relationship.score === null ? "Build the relationship record" : "Relationship context retained",
+      detail: relationship.openRequests
+        ? `${relationship.openRequests} open request${relationship.openRequests === 1 ? "" : "s"} need a response.`
+        : relationship.summary,
+      state: relationship.state === "risk" || relationship.openRequests ? "attention" : relationship.score === null ? "setup" : "done",
+      action: "Open relationship",
+      href: clientWorkspaceHref(clientId, "relationship"),
+    },
+    {
+      id: "agreement",
+      number: "02",
+      label: "Agree the work",
+      title: !hasServices ? "Assign the company and services" : commercialGaps.length ? "Complete the commercial record" : "Scope and terms retained",
+      detail: !hasServices
+        ? "Choose what this client bought and which company delivers it."
+        : commercialGaps.length
+          ? commercialGaps.slice(0, 2).join(" · ")
+          : `${delivery.assignedProducts} service${delivery.assignedProducts === 1 ? "" : "s"} · ${commercial.acceptedContracts} accepted agreement${commercial.acceptedContracts === 1 ? "" : "s"}.`,
+      state: !hasServices ? "setup" : commercialGaps.length ? "attention" : "done",
+      action: !hasServices ? "Assign services" : "Open commercial",
+      href: !hasServices ? `${clientWorkspaceHref(clientId, "delivery")}#service-assignment` : clientWorkspaceHref(clientId, "finance"),
+    },
+    {
+      id: "delivery",
+      number: "03",
+      label: "Deliver with playbooks",
+      title: !hasServices ? "Delivery waits for scope" : delivery.blockedMilestones || delivery.overdueMilestones ? "Delivery needs intervention" : delivery.progress === 100 ? "Delivery is complete" : "Work the delivery plan",
+      detail: !hasServices
+        ? "The board and playbooks activate from the assigned services."
+        : `${delivery.progress ?? 0}% complete · ${delivery.openMilestones} open milestone${delivery.openMilestones === 1 ? "" : "s"}.`,
+      state: !hasServices ? "setup" : delivery.blockedMilestones || delivery.overdueMilestones ? "attention" : delivery.progress === 100 ? "done" : "active",
+      action: "Open delivery",
+      href: clientWorkspaceHref(clientId, "delivery"),
+      secondaryAction: hasServices ? "Linked SOPs" : "Set up SOPs",
+      secondaryHref: hasServices ? `${clientWorkspaceHref(clientId, "delivery")}#client-sops` : `${clientWorkspaceHref(clientId, "delivery")}#service-assignment`,
+    },
+    {
+      id: "experience",
+      number: "04",
+      label: "Keep them informed",
+      title: relationship.openRequests || portal.pendingApprovals ? "A client response is waiting" : !portalReady ? "Prepare the shared experience" : portal.accessState === "sent" ? "Client access is live" : "Finish portal access",
+      detail: `${portal.openRequests} open request${portal.openRequests === 1 ? "" : "s"} · ${portal.pendingApprovals} decision${portal.pendingApprovals === 1 ? "" : "s"} waiting.`,
+      state: relationship.openRequests || portal.pendingApprovals ? "attention" : !portalReady || portal.accessState !== "sent" ? "setup" : "done",
+      action: relationship.openRequests ? "Open messages" : "Open portal",
+      href: relationship.openRequests ? clientWorkspaceHref(clientId, "communications") : clientWorkspaceHref(clientId, "portal"),
+    },
+    {
+      id: "review",
+      number: "05",
+      label: "Review and improve",
+      title: radarAttentionCount ? `${radarAttentionCount} signal${radarAttentionCount === 1 ? "" : "s"} need review` : handoverGaps.length ? "Complete the operating brief" : "Client controls are current",
+      detail: `${radar.totals.live} adaptive checks · ${radar.confidencePercent}% evidence confidence.`,
+      state: radar.totals.critical || radar.totals.warning ? "attention" : handoverGaps.length ? "setup" : radarAttentionCount ? "active" : "done",
+      action: "Open advanced review",
+      href: `${clientWorkspaceHref(clientId, "overview")}?tab=overview#advanced-client-controls`,
+    },
+  ];
 
   return (
     <div className="grid gap-6">
-      <section className="mm-client-section-intro border-y border-black/10 py-5">
-        <p className="text-[11px] font-semibold uppercase text-black/40">Client operating picture</p>
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-black/88">{relatedWorkspaces.length > 1 ? "One buyer, clearly separated operations" : "One workspace, one operational truth"}</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-black/55">
-              {relatedWorkspaces.length > 1 ? "Every company and project retains its own delivery, finance and portal records while the buyer relationship remains visible." : "Relationship, delivery, systems and the client-facing experience stay connected to this record. Open a lens to work without losing the wider context."}
-            </p>
+      <section className={`mm-client-next-move overflow-hidden border bg-white ${primaryOperation?.tone === "critical" ? "mm-client-next-move--critical" : primaryOperation ? "mm-client-next-move--attention" : "mm-client-next-move--clear"}`}>
+        <div className="mm-client-section-intro grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="flex min-w-0 items-start gap-4">
+            <span className={`grid size-11 shrink-0 place-items-center rounded-md ${primaryOperation?.tone === "critical" ? "bg-red-50 text-red-700" : primaryOperation ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
+              {primaryOperation ? <ArrowRight size={19} /> : <CheckCircle2 size={19} />}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#315b85]">Next best move</p>
+              <h2 className="mt-1 text-xl font-semibold text-black/88">{primaryOperation?.title ?? "The client operation is clear"}</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-black/55">{primaryOperation?.detail ?? "Continue the agreed delivery plan and retain the next client interaction."}</p>
+            </div>
           </div>
-          <Link href={hasServices ? clientWorkspaceHref(clientId, "portal") : `${clientWorkspaceHref(clientId, "delivery")}#service-assignment`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">
-            <PanelTop size={15} /> {hasServices ? (portalReady ? "Open client portal" : "Prepare client portal") : "Assign services"}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            {criticalCount ? <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold uppercase text-red-700">{criticalCount} critical</span> : null}
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase ${operations.length ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>{operations.length ? `${operations.length} open` : "Clear"}</span>
+            <Link href={primaryOperation?.href ?? clientWorkspaceHref(clientId, "delivery")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#12385d] px-4 text-xs font-semibold text-white hover:bg-[#0d2c4a]">
+              {primaryOperation?.action ?? "Open delivery"} <ArrowRight size={13} />
+            </Link>
+          </div>
         </div>
+        <div className="grid grid-cols-2 border-t border-black/[0.08] sm:grid-cols-3 xl:grid-cols-6">
+          <CommandAction icon={MessageSquareText} label="Message" detail="Open conversation" href={clientWorkspaceHref(clientId, "communications")} />
+          <CommandAction icon={Phone} label="Call" detail="Client communications" href={clientWorkspaceHref(clientId, "communications")} />
+          <CommandAction icon={NotebookPen} label="Add note" detail="Update client record" href={`${clientWorkspaceHref(clientId, "notes")}#client-record`} />
+          <CommandAction icon={ListTodo} label="Review priorities" detail="Client operating plan" href={clientWorkspaceHref(clientId, "overview")} />
+          <CommandAction icon={FileUp} label="Upload file" detail="Files and evidence" href={clientWorkspaceHref(clientId, "files")} />
+          <CommandAction icon={ReceiptText} label="Payment" detail="Contracts and plans" href={clientWorkspaceHref(clientId, "finance")} />
+        </div>
+      </section>
+
+      <section className="mm-client-process overflow-hidden border border-black/10 bg-white" aria-labelledby="client-process-heading">
+        <header className="flex flex-wrap items-end justify-between gap-3 border-b border-black/[0.08] px-5 py-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#315b85]">Client operating plan</p>
+            <h2 id="client-process-heading" className="mt-1 text-lg font-semibold text-black/82">One account process, with a bespoke playbook for every service</h2>
+            <p className="mt-1 text-xs leading-5 text-black/45">Switch scope instead of loading every workflow at once. Product processes are controlled from the product editor.</p>
+          </div>
+          <Link href={hasServices ? `${clientWorkspaceHref(clientId, "delivery", { mode: "advanced" })}#client-sops` : `${clientWorkspaceHref(clientId, "delivery")}#service-assignment`} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">
+            <BookOpen size={14} /> {hasServices ? "Open linked SOPs" : "Assign services to link SOPs"}
+          </Link>
+        </header>
+        <ClientOperatingPlan clientId={clientId} accountSteps={processSteps} products={productPlans} canManage={canManageProductPlans} />
       </section>
 
       {relatedWorkspaces.length > 1 ? (
@@ -255,7 +403,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
                       {workspace.current ? <span className="text-[10px] font-semibold uppercase text-[#087f8c]">Current</span> : null}
                       <Link href={!workspace.hasServices ? `${clientWorkspaceHref(workspace.id, "delivery")}#service-assignment` : clientWorkspaceHref(workspace.id, "portal")} title={`Open ${readiness.toLowerCase()} controls`} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold hover:brightness-95 ${readinessClass}`}>{readiness}</Link>
                     </div>
-                    <p className="mt-1 truncate text-xs text-black/45">{workspace.label || "General workspace"} · {workspace.providerName} · {workspace.stageLabel}</p>
+                    <p className="mt-1 truncate text-xs text-black/45">{workspace.label || "General workspace"} · {workspace.providerName} · Account: {workspace.stageLabel}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold">
                       <Link href={`${clientWorkspaceHref(workspace.id, "delivery")}#service-assignment`} title="Open service assignment and delivery" className="rounded-full bg-black/[0.045] px-2 py-1 text-black/52 hover:bg-black/[0.075]">{workspace.serviceNames.length ? `${workspace.serviceNames.slice(0, 2).join(" · ")}${workspace.serviceNames.length > 2 ? ` +${workspace.serviceNames.length - 2}` : ""}` : "No services assigned"}</Link>
                       <Link href={clientWorkspaceHref(workspace.id, "relationship")} title={`Open Aqua Health · ${workspace.aquaHealthConfidence}% evidence confidence`} className={`rounded-full px-2 py-1 hover:brightness-95 ${healthClass}`}>Aqua Health {workspace.aquaHealthScore === null ? "learning" : `${workspace.aquaHealthScore}/100`}</Link>
@@ -272,13 +420,6 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
           </div>
         </section>
       ) : null}
-
-      <ClientOperationsControl
-        clientId={clientId}
-        initial={operationsBrief}
-        owners={operationOwners}
-        canManage={canManageOperations}
-      />
 
       <section className="overflow-hidden border border-black/10 bg-white" aria-labelledby="client-operations-heading">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-black/10 px-5 py-4">
@@ -300,7 +441,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
 
         <div className="grid lg:grid-cols-[minmax(0,1fr)_17rem]">
           <div className="divide-y divide-black/[0.07]">
-            {operations.length ? operations.map((item, index) => <OperationRow
+            {priorityOperations.length ? priorityOperations.map((item, index) => <OperationRow
               key={item.id}
               item={item}
               index={index}
@@ -313,22 +454,43 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
                 <div><p className="text-sm font-semibold text-black/72">No operational blocker is recorded</p><p className="mt-1 text-xs leading-5 text-black/45">Continue the delivery plan and retain the next client interaction.</p></div>
               </div>
             )}
+            {heldOperations.length ? (
+              <details className="group bg-black/[0.012]">
+                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 text-xs font-semibold text-black/58 hover:bg-black/[0.025]">
+                  <span>{heldOperations.length} additional operational check{heldOperations.length === 1 ? "" : "s"}</span>
+                  <span className="text-[10px] uppercase text-black/38 group-open:hidden">Show</span>
+                  <span className="hidden text-[10px] uppercase text-black/38 group-open:inline">Hide</span>
+                </summary>
+                <div className="divide-y divide-black/[0.07] border-t border-black/[0.07]">
+                  {heldOperations.map((item, index) => <OperationRow
+                    key={item.id}
+                    item={item}
+                    index={index + priorityOperations.length}
+                    clientId={clientId}
+                    canManageOperations={canManageOperations}
+                    accepted={acceptedOperationSourceIds.includes(`client:${clientId}:operation:${item.id}`)}
+                  />)}
+                </div>
+              </details>
+            ) : null}
           </div>
-          <aside className="border-t border-black/10 bg-black/[0.018] p-5 lg:border-l lg:border-t-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/38">Operator shortcuts</p>
-            <div className="mt-3 grid gap-1.5">
-              <Shortcut icon={Inbox} label="Message client" href={clientWorkspaceHref(clientId, "communications")} />
-              <Shortcut icon={NotebookPen} label="Update client record" href={clientWorkspaceHref(clientId, "notes")} />
-              <Shortcut icon={FolderKanban} label="Open delivery" href={clientWorkspaceHref(clientId, "delivery")} />
-              <Shortcut icon={ReceiptText} label="Contracts & payments" href={clientWorkspaceHref(clientId, "finance")} />
-              {hasServices ? <Shortcut icon={PanelTop} label="Open client portal" href={clientWorkspaceHref(clientId, "portal")} /> : null}
-              {canManageOperations ? <Shortcut icon={ClipboardList} label="Open all Actions" href="/portal/agency/actions?source=crm" /> : null}
+          <aside className="border-t border-black/10 bg-black/[0.018] lg:border-l lg:border-t-0">
+            <div className="flex items-center justify-between border-b border-black/[0.07] px-4 py-3">
+              <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/38">Client movement</p><p className="mt-1 text-xs font-semibold text-black/65">Latest retained events</p></div>
+              <Link href={`${clientWorkspaceHref(clientId, "notes")}#client-record`} className="text-[10px] font-semibold uppercase text-[#087f8c]">Full record</Link>
+            </div>
+            <div className="divide-y divide-black/[0.06]">
+              {recentMovement.length ? recentMovement.slice(0, 6).map(item => <MovementRow key={`${item.kind}:${item.id}`} item={item} />) : (
+                <div className="px-4 py-8 text-center"><Clock3 size={18} className="mx-auto text-black/25" /><p className="mt-2 text-xs font-semibold text-black/52">No retained movement yet</p><p className="mt-1 text-[11px] leading-4 text-black/38">Messages, calls, notes and operational changes will appear here.</p></div>
+              )}
             </div>
           </aside>
         </div>
       </section>
 
-      <section className="mm-client-lens-grid grid gap-px overflow-hidden border border-black/10 bg-black/10 md:grid-cols-2 xl:grid-cols-4">
+      <ClientAdvancedControls signalCount={radarAttentionCount} liveChecks={radar.totals.live}>
+          <div id="client-radar" className="scroll-mt-24"><ClientRadarPanel initialRadar={radar} /></div>
+          <section className={`mm-client-lens-grid grid gap-px overflow-hidden border border-black/10 bg-black/10 md:grid-cols-2 ${systems ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
         <Lens
           icon={HeartHandshake}
           eyebrow="Relationship"
@@ -355,15 +517,9 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
           icon={ReceiptText}
           eyebrow="Commercial"
           title="Contracts & payment plan"
-          value={commercial.activePlans
-            ? formatMoney(commercial.scheduledCents - commercial.paidCents, commercial.currency)
-            : commercial.outstandingCents
-              ? formatMoney(commercial.outstandingCents, commercial.currency)
-              : commercial.totalPlans
-                ? "Settled"
-                : "Not planned"}
-          detail={commercial.activePlans
-            ? `${commercial.activePlans} active schedule${commercial.activePlans === 1 ? "" : "s"} · ${formatMoney(commercial.paidCents, commercial.currency)} paid`
+          value={commercial.paymentLabel}
+          detail={commercial.scheduledCents
+            ? `${formatMoney(commercial.paidCents, commercial.currency)} of ${formatMoney(commercial.scheduledCents, commercial.currency)} collected · ${formatMoney(commercial.outstandingCents, commercial.currency)} outstanding`
             : `${commercial.acceptedContracts} accepted agreement${commercial.acceptedContracts === 1 ? "" : "s"} · ${commercial.issuedInvoices} invoice${commercial.issuedInvoices === 1 ? "" : "s"}`}
           summary={commercial.overdueMilestones
             ? `${commercial.overdueMilestones} payment milestone${commercial.overdueMilestones === 1 ? " is" : "s are"} overdue and need an exact next action.`
@@ -372,8 +528,36 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
               : commercial.totalPlans
                 ? "Every retained payment milestone is currently resolved or has no upcoming due date."
                 : "Create a contract-backed payment schedule, then issue each milestone as a canonical invoice."}
-          tone={commercial.overdueMilestones || commercialGaps.length ? "risk" : commercial.totalPlans ? "strong" : "watch"}
+          tone={commercial.paymentState === "missed-payment" || commercialGaps.length ? "risk" : commercial.paymentState === "paid-in-full" ? "strong" : "watch"}
           href={clientWorkspaceHref(clientId, "finance")}
+        />
+        <Lens
+          icon={PanelTop}
+          eyebrow="Client portal"
+          title="Shared experience"
+          value={portal.pendingApprovals
+            ? `${portal.pendingApprovals} waiting`
+            : portal.accessState === "sent"
+              ? "Live"
+              : portal.accessState === "ready"
+                ? "Invite ready"
+                : portalReady
+                  ? "Access needed"
+                  : "Setup"}
+          detail={`${portal.sharedFiles} shared file${portal.sharedFiles === 1 ? "" : "s"} · ${portal.openRequests} open request${portal.openRequests === 1 ? "" : "s"}`}
+          summary={portal.pendingApprovals
+            ? `${portal.pendingApprovals} client decision${portal.pendingApprovals === 1 ? " is" : "s are"} waiting for a response.`
+            : !hasServices
+              ? "Assign a service before preparing a client-facing experience."
+              : !portalReady
+                ? "Prepare the portal from the assigned services and review it before invitation."
+                : portal.accessState === "missing"
+                  ? "Add a client access email before the portal can be invited."
+                  : portal.accessState === "ready"
+                    ? "Portal access is prepared and ready to send."
+                    : "Portal access has been sent and the shared workspace is operational."}
+          tone={portal.pendingApprovals || portal.accessState === "missing" ? "risk" : portal.accessState === "sent" ? "strong" : "watch"}
+          href={clientWorkspaceHref(clientId, "portal")}
         />
         {systems ? <Lens
           icon={MonitorCog}
@@ -387,7 +571,15 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
           tone={systems.tagsNeedingAttention || !systems.websiteConnected ? "watch" : "strong"}
           href={clientWorkspaceHref(clientId, "systems")}
         /> : null}
-      </section>
+          </section>
+
+          <ClientOperationsControl
+            clientId={clientId}
+            initial={operationsBrief}
+            owners={operationOwners}
+            canManage={canManageOperations}
+          />
+      </ClientAdvancedControls>
     </div>
   );
 }
@@ -431,9 +623,15 @@ function OperationRow({ item, index, clientId, canManageOperations, accepted }: 
         <p className="mt-1 text-xs leading-5 text-black/45">{item.detail}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-        <Link href={item.href} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03] hover:text-black">
-          {item.action} <ArrowRight size={12} />
-        </Link>
+        {item.href.endsWith("#operational-brief") ? (
+          <a href={item.href} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03] hover:text-black">
+            {item.action} <ArrowRight size={12} />
+          </a>
+        ) : (
+          <Link href={item.href} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03] hover:text-black">
+            {item.action} <ArrowRight size={12} />
+          </Link>
+        )}
         {canManageOperations ? <ClientOperationTaskButton
           clientId={clientId}
           operationId={item.id}
@@ -448,8 +646,28 @@ function OperationRow({ item, index, clientId, canManageOperations, accepted }: 
   );
 }
 
-function Shortcut({ icon: Icon, label, href }: { icon: typeof Inbox; label: string; href: string }) {
-  return <Link href={href} className="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-xs font-semibold text-black/58 hover:bg-white hover:text-black"><Icon size={14} className="text-black/40" />{label}<ArrowRight size={11} className="ml-auto" /></Link>;
+function CommandAction({ icon: Icon, label, detail, href }: { icon: typeof Inbox; label: string; detail: string; href: string }) {
+  return (
+    <Link href={href} title={`${label}: ${detail}`} className="group flex min-h-14 items-center gap-2.5 border-b border-black/[0.08] px-4 py-2.5 hover:bg-[#f4f8fb] sm:border-r xl:border-b-0">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-[#edf4f8] text-[#315b85] transition-colors group-hover:bg-[#12385d] group-hover:text-white"><Icon size={15} /></span>
+      <span className="min-w-0 text-xs font-semibold text-black/70">{label}<span className="sr-only">: {detail}</span></span>
+      <ArrowRight size={11} className="ml-auto shrink-0 text-black/25" />
+    </Link>
+  );
+}
+
+function MovementRow({ item }: { item: Props["recentMovement"][number] }) {
+  const Icon = item.kind === "message" ? MessageSquareText : item.kind === "call" ? Phone : item.kind === "note" ? NotebookPen : Clock3;
+  return (
+    <Link href={item.href} title={`${item.title} · ${formatMovementTime(item.occurredAt)}`} className="group flex gap-3 px-4 py-3 hover:bg-white">
+      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-white text-black/40 ring-1 ring-black/[0.07] group-hover:text-[#087f8c]"><Icon size={13} /></span>
+      <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-black/65">{item.title}</span>{item.detail ? <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-black/38">{item.detail}</span> : null}<span className="mt-1 block text-[9px] font-semibold uppercase text-black/30">{item.kind} · {formatMovementTime(item.occurredAt)}</span></span>
+    </Link>
+  );
+}
+
+function formatMovementTime(value: number): string {
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(value);
 }
 
 function Lens({ icon: Icon, eyebrow, title, value, detail, summary, tone, href }: {

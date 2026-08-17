@@ -1,11 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, ArrowRight, CircleAlert, CircleGauge, Landmark, PoundSterling, ReceiptText } from "lucide-react";
+import { ArrowDownToLine, ArrowRight, CircleAlert, CircleGauge, CreditCard, Landmark, PoundSterling, ReceiptText, TimerReset, TrendingUp } from "lucide-react";
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
 import { buildBudgetPotSnapshots } from "../lib/budgetHealth";
 import { formatUkDate } from "../lib/safeDate";
 import { listAgencyCampaignBudgetRecords } from "@/lib/server/financeBudgetCampaigns";
+import { cleanClientPaymentPlans, summariseClientPaymentPosition } from "@/lib/clientPaymentPlans";
+import { summariseClientServiceExpansion } from "@/lib/clientCommercialIntelligence";
+import { cleanClientProductProcessState, longestActiveClientProductStage } from "@/lib/clientProductProcess";
 
 function money(cents: number, currency = "gbp"): string {
   return new Intl.NumberFormat("en-GB", {
@@ -78,6 +81,23 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
   const balanceHealthScore = hasFinancialBaseline ? calculatedBalanceHealthScore : 50;
   const balanceHealth = financeHealthLabel(balanceHealthScore, hasFinancialBaseline);
 
+  const clientCommercialRows = clients.map(client => {
+    const clientInvoices = invoices.filter(invoice => invoice.clientId === client.id);
+    const payment = summariseClientPaymentPosition(
+      cleanClientPaymentPlans(client.metadata?.clientPaymentPlans),
+      clientInvoices,
+    );
+    const expansion = summariseClientServiceExpansion(client.metadata?.portalProductAssignmentHistory);
+    const longestStage = longestActiveClientProductStage(cleanClientProductProcessState(client.metadata?.clientProductProcess));
+    return { client, payment, expansion, longestStage };
+  }).sort((left, right) =>
+    right.payment.missedPayments - left.payment.missedPayments
+    || right.payment.outstandingCents - left.payment.outstandingCents
+    || (right.longestStage?.elapsedMs ?? 0) - (left.longestStage?.elapsedMs ?? 0),
+  );
+  const missedPaymentCount = clientCommercialRows.reduce((sum, row) => sum + row.payment.missedPayments, 0);
+  const clientsPaidInFull = clientCommercialRows.filter(row => row.payment.state === "paid-in-full").length;
+
   const clientNameById = new Map(clients.map(client => [client.id, client.name]));
   const profitability = clients.map(client => {
     const revenueCents = invoices
@@ -135,12 +155,14 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
         </div>
       </header>
 
-      <dl className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-5">
+      <dl className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <Metric label="Income received" value={money(incomeCents, currency)} icon={ArrowDownToLine} tone="income" />
         <Metric label="Paid expenses" value={money(expenseCents, currency)} icon={ReceiptText} tone="expense" />
         <Metric label="Operating profit" value={money(netCents, currency)} icon={PoundSterling} tone={netCents < 0 ? "bad" : "good"} />
         <Metric label="Outstanding invoices" value={money(outstandingCents, currency)} icon={Landmark} tone="outstanding" />
         <Metric label={`Tax reserve (${taxReserveRate}%)`} value={money(indicativeTaxReserveCents, currency)} icon={CircleAlert} tone="reserve" />
+        <Metric label="Missed payments" value={String(missedPaymentCount)} icon={CreditCard} tone={missedPaymentCount ? "bad" : "good"} />
+        <Metric label="Clients paid in full" value={String(clientsPaidInFull)} icon={TrendingUp} tone="good" />
       </dl>
 
       <section className={`grid gap-4 border-l-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center ${balanceHealth.tone === "good" ? "border-emerald-600 bg-emerald-50" : balanceHealth.tone === "watch" ? "border-amber-500 bg-amber-50" : "border-red-600 bg-red-50"}`}>
@@ -160,6 +182,29 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
           <a href="/portal/agency/agency-finance/expenses?evidence=missing" className="font-semibold underline underline-offset-2">Review expenses</a>
         </div>
       ) : null}
+
+      <section className="mm-surface-card overflow-hidden rounded-lg border">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
+          <div><h2 className="text-base font-semibold text-black/85">Client collection and expansion</h2><p className="mt-1 text-sm text-black/45">The portfolio truth for payment plans, missed instalments, service-stage age and recorded upsells.</p></div>
+          <span className="inline-flex items-center gap-2 rounded-md bg-black/[0.04] px-3 py-2 text-xs font-semibold text-black/55"><TimerReset size={14} /> {clientCommercialRows.length} client records</span>
+        </header>
+        {clientCommercialRows.length === 0 ? <Empty text="Client payment and service evidence will appear here." /> : <div className="overflow-x-auto px-4 pb-2 sm:px-5">
+          <table className="w-full min-w-[1040px] text-sm">
+            <thead className="border-b border-black/10 text-left text-[11px] uppercase tracking-wide text-black/45"><tr><th className="py-2">Client</th><th className="py-2">Payment position</th><th className="py-2 text-right">Agreed</th><th className="py-2 text-right">Collected</th><th className="py-2 text-right">Outstanding</th><th className="py-2 text-center">Missed</th><th className="py-2">Next due</th><th className="py-2">Longest current stage</th><th className="py-2 text-center">Upsells</th></tr></thead>
+            <tbody>{clientCommercialRows.map(row => <tr key={row.client.id} className="border-b border-black/[0.07] align-top">
+              <td className="py-3 pr-3"><a className="font-medium text-black/80 hover:underline" href={`/portal/clients/${row.client.id}?tab=finance`}>{row.client.name}</a></td>
+              <td className="py-3"><span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${paymentPositionClass(row.payment.state)}`}>{row.payment.label}</span><p className="mt-1 text-[10px] text-black/40">{row.payment.activePlans} active plan{row.payment.activePlans === 1 ? "" : "s"} · {row.payment.openInvoices} open invoice{row.payment.openInvoices === 1 ? "" : "s"}</p></td>
+              <td className="py-3 text-right font-mono">{row.payment.agreedCents ? money(row.payment.agreedCents, row.payment.currency) : "—"}</td>
+              <td className="py-3 text-right font-mono text-emerald-800">{row.payment.agreedCents ? money(row.payment.paidCents, row.payment.currency) : "—"}</td>
+              <td className={`py-3 text-right font-mono font-semibold ${row.payment.outstandingCents ? "text-amber-800" : "text-black/45"}`}>{row.payment.agreedCents ? money(row.payment.outstandingCents, row.payment.currency) : "—"}</td>
+              <td className={`py-3 text-center font-semibold ${row.payment.missedPayments ? "text-red-700" : "text-emerald-700"}`}>{row.payment.missedPayments}</td>
+              <td className="py-3 text-xs text-black/55">{row.payment.nextDueAt ? formatUkDate(row.payment.nextDueAt, { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+              <td className="py-3 text-xs text-black/55">{row.longestStage ? <><span className="font-semibold text-black/70">{humaniseId(row.longestStage.stageId)}</span><br />{duration(row.longestStage.elapsedMs)} in stage</> : "No stage timing"}</td>
+              <td className="py-3 text-center"><span className="font-semibold text-black/75">{row.expansion.upsellCount}</span>{row.expansion.latestProductNames.length ? <p className="mt-1 max-w-40 text-[10px] text-black/40">Latest: {row.expansion.latestProductNames.join(", ")}</p> : null}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>}
+      </section>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
         <section className="mm-surface-card overflow-hidden rounded-lg border">
@@ -245,4 +290,22 @@ function financeHealthLabel(score: number, hasData: boolean): { label: string; t
   if (score >= 70) return { label: "Healthy with a few pressure points", tone: "good" };
   if (score >= 45) return { label: "Watch the balance and commitments", tone: "watch" };
   return { label: "Action needed before new commitments", tone: "bad" };
+}
+
+function paymentPositionClass(state: string): string {
+  if (state === "missed-payment") return "bg-red-50 text-red-800";
+  if (state === "paid-in-full") return "bg-emerald-50 text-emerald-800";
+  if (state === "payment-due") return "bg-amber-50 text-amber-900";
+  if (state === "payment-plan") return "bg-blue-50 text-blue-800";
+  return "bg-black/5 text-black/50";
+}
+
+function humaniseId(value: string): string {
+  return value.replace(/[-_]+/g, " ").replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function duration(value: number): string {
+  const hours = Math.max(0, Math.floor(value / 3_600_000));
+  const days = Math.floor(hours / 24);
+  return days ? `${days}d ${hours % 24}h` : `${hours}h`;
 }

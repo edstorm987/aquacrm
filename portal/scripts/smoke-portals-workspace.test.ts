@@ -58,7 +58,7 @@ describe("agency portals workspace", () => {
     assert.ok(products.includes("Lifecycle stage copy"));
     assert.ok(productDetail.includes("Portal template"));
     assert.ok(productDetail.includes("Lifecycle copy"));
-    assert.ok(productDetail.includes("Edit portal template"));
+    assert.ok(productDetail.includes("Open template editor"));
     assert.ok(products.includes("Edit this product's portal template"));
     assert.ok(conversion.includes("catalogKey: product.portalTemplateKey"));
     assert.ok(conversion.includes("stageFocusOverrides: product.portalStageFocus"));

@@ -118,6 +118,9 @@ export function ClientPortalStudio({
   initialMode,
   initialSection,
   canManage,
+  backHref = "/portal/agency/portals?view=templates",
+  backLabel = "Back to portals",
+  lockToClient = false,
 }: {
   clients: PortalStudioClient[];
   templates: PortalStudioTemplate[];
@@ -127,6 +130,9 @@ export function ClientPortalStudio({
   initialMode: ClientPortalMode;
   initialSection: ClientPortalSectionId;
   canManage: boolean;
+  backHref?: string;
+  backLabel?: string;
+  lockToClient?: boolean;
 }) {
   const [scope, setScope] = useState<Scope>(initialScope);
   const [clientId, setClientId] = useState(initialClientId);
@@ -379,11 +385,13 @@ export function ClientPortalStudio({
   }
 
   function changeScope(nextScope: Scope) {
+    if (lockToClient) return;
     if (scope === nextScope || !confirmDraftDiscard()) return;
     setScope(nextScope);
   }
 
   function changeClient(nextClientId: string) {
+    if (lockToClient) return;
     if (clientId === nextClientId || !confirmDraftDiscard()) return;
     const nextClient = clients.find(client => client.id === nextClientId);
     setClientId(nextClientId);
@@ -426,7 +434,7 @@ export function ClientPortalStudio({
   return (
     <div className="fixed inset-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#111311] text-white">
       <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 border-b border-white/10 bg-[#151715] px-3 xl:flex xl:min-h-[68px] xl:gap-3 xl:px-4">
-        <Link href="/portal/agency/portals?view=templates" onClick={event => { if (!confirmDraftDiscard()) event.preventDefault(); }} aria-label="Back to portals" title="Back to portals" className="my-2 grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/70 hover:bg-white/5 hover:text-white xl:my-0">
+        <Link href={backHref} onClick={event => { if (!confirmDraftDiscard()) event.preventDefault(); }} aria-label={backLabel} title={backLabel} className="my-2 grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/70 hover:bg-white/5 hover:text-white xl:my-0">
           <ArrowLeft size={18} />
         </Link>
         <div className="hidden min-w-40 xl:block">
@@ -434,10 +442,16 @@ export function ClientPortalStudio({
           <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name}</p>
         </div>
 
-        <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Editing scope">
-          <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
-          <TopToggle active={scope === "client"} disabled={busy} onClick={() => changeScope("client")} label="Client" />
-        </div>
+        {lockToClient ? (
+          <div className="col-start-2 row-start-1 inline-flex min-h-10 shrink-0 items-center gap-2 justify-self-start rounded-md border border-cyan-300/20 bg-cyan-300/[0.06] px-3 text-xs font-semibold text-cyan-200 xl:col-auto xl:row-auto" aria-label="Editing client portal">
+            <PanelsTopLeft size={15} /> Client portal
+          </div>
+        ) : (
+          <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Editing scope">
+            <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
+            <TopToggle active={scope === "client"} disabled={busy} onClick={() => changeScope("client")} label="Client" />
+          </div>
+        )}
 
         <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
           {scope === "template" ? (
@@ -445,9 +459,15 @@ export function ClientPortalStudio({
               {templates.map(template => <option key={template.id} value={template.id} className="bg-[#1a1c1a]">{template.name}{template.active ? "" : " (archived)"}</option>)}
             </select>
           ) : null}
-          <select aria-label="Preview client" value={clientId} disabled={busy} onChange={event => changeClient(event.target.value)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none disabled:opacity-45 sm:min-w-44 sm:max-w-56 sm:shrink-0">
-            {clients.map(client => <option key={client.id} value={client.id} className="bg-[#1a1c1a]">{client.name}{client.built ? "" : " (not built)"}</option>)}
-          </select>
+          {lockToClient ? (
+            <div className="flex h-10 min-w-0 items-center rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-white/80 sm:min-w-44 sm:max-w-56 sm:shrink-0" title={selectedClient?.name}>
+              <span className="truncate">{selectedClient?.name}</span>
+            </div>
+          ) : (
+            <select aria-label="Preview client" value={clientId} disabled={busy} onChange={event => changeClient(event.target.value)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none disabled:opacity-45 sm:min-w-44 sm:max-w-56 sm:shrink-0">
+              {clients.map(client => <option key={client.id} value={client.id} className="bg-[#1a1c1a]">{client.name}{client.built ? "" : " (not built)"}</option>)}
+            </select>
+          )}
           <select aria-label="Lifecycle stage" value={mode} onChange={event => setMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
             {CLIENT_PORTAL_MODES.map(item => <option key={item} value={item} className="bg-[#1a1c1a]">{portalDocument?.stages[item].label || MODE_LABELS[item]}</option>)}
           </select>

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { before, test } from "node:test";
 import { readFileSync } from "node:fs";
-import { operationalAlertMatchesHref, operationalAlertMatchesHrefPrefix } from "../src/lib/operationalAttention";
+import { operationalAlertBelongsToClient, operationalAlertMatchesHref, operationalAlertMatchesHrefPrefix } from "../src/lib/operationalAttention";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -378,6 +378,7 @@ test("workspace tab destinations expose shared attention points", () => {
   const finance = readFileSync("src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx", "utf8");
   const development = readFileSync("src/app/portal/agency/development/_DevelopmentNav.tsx", "utf8");
   const clientTabs = readFileSync("src/app/portal/clients/[clientId]/_OverviewTabs.tsx", "utf8");
+  const sidebarNav = readFileSync("src/components/chrome/SidebarNavLink.tsx", "utf8");
   assert.match(provider, /export function AttentionDot/);
   assert.match(provider, /title=\{title\}/);
   assert.match(inbox, /attentionHref="\/portal\/agency\/inbox\?view=forms"/);
@@ -386,6 +387,12 @@ test("workspace tab destinations expose shared attention points", () => {
   assert.match(finance, /<AttentionDot href=\{href\}/);
   assert.match(development, /<AttentionDot href=\{item.href\}/);
   assert.match(clientTabs, /<AttentionDot href=\{href\}/);
+  assert.match(sidebarNav, /clientAttentionSpec/);
+  assert.match(sidebarNav, /allForClient/);
+  assert.match(sidebarNav, /clientId: clientAttention\?\.clientId/);
+  assert.match(provider, /navId\.startsWith\("client-"\) \? belongsToClient : true/);
+  assert.match(provider, /!clientId \|\| operationalAlertBelongsToClient\(alert, clientId\)/);
+  assert.match(sidebarNav, /categories: \["support", "meeting"\]/);
 });
 
 test("attention links resolve to the narrowest matching workspace tab", () => {
@@ -395,4 +402,7 @@ test("attention links resolve to the narrowest matching workspace tab", () => {
   assert.equal(operationalAlertMatchesHref(financeAlert, "/portal/agency/agency-finance"), false);
   assert.equal(operationalAlertMatchesHrefPrefix(clientAlert, "/portal/clients?tab=fulfilment"), true);
   assert.equal(operationalAlertMatchesHrefPrefix(clientAlert, "/portal/clients?tab=finance"), false);
+  assert.equal(operationalAlertBelongsToClient({ ...clientAlert, clientId: "one" }, "one"), true);
+  assert.equal(operationalAlertBelongsToClient({ ...clientAlert, clientId: "two" }, "one"), false);
+  assert.equal(operationalAlertBelongsToClient({ ...clientAlert, clientId: undefined }, "one"), true);
 });

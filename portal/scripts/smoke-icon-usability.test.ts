@@ -15,9 +15,10 @@ describe("icon-led workspace usability", () => {
     const experience = read("src/app/portal/agency/you-deserve-it/_YouDeserveItWorkspace.tsx");
     const radar = read("src/app/portal/agency/_RadarPolicyPanel.tsx");
 
-    for (const icon of ["Building2", "HeartPulse", "Route", "UserRound", "UsersRound", "List"]) {
+    for (const icon of ["Building2", "UserSearch", "Route", "UserRound", "Fingerprint", "UsersRound"]) {
       assert.match(people, new RegExp(`icon=\\{${icon}\\}`));
     }
+    assert.match(people, /<HeartPulse/);
     for (const icon of ["Megaphone", "UserRoundSearch", "RadioTower", "Globe2", "Workflow", "Target", "MapPin", "Star", "Activity", "LockKeyhole"]) {
       assert.match(marketing, new RegExp(`icon=\\{${icon}\\}`));
     }

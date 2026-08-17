@@ -11,10 +11,9 @@ import {
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES, type ClientStage } from "@/server/types";
-import type { PortalProductKey } from "@/lib/portalProducts";
 import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { listAgencyProducts } from "@/server/agencyProducts";
-import { PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
+import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
+import { agencyProductPipelineColumns } from "@/lib/fulfilmentProductPipelines";
 
 export async function POST(req: Request) {
   try {
@@ -30,22 +29,26 @@ export async function POST(req: Request) {
     }
 
     if (body.productKey) {
-      const productKey = body.productKey as PortalProductKey;
-      const columns = PRODUCT_PIPELINE_COLUMNS[productKey];
+      const catalogue = listAgencyProducts(session.agencyId, true);
+      const product = getAgencyProduct(session.agencyId, body.productKey)
+        ?? catalogue.find(item => item.portalTemplateKey === body.productKey);
+      const columns = product ? agencyProductPipelineColumns(product) : [];
       const column = columns?.find(item => item.id === body.columnId);
-      const assigned = resolvePortalProductAssignment(client.metadata ?? {}, listAgencyProducts(session.agencyId, true)).products
-        .some(product => product.catalogKey === productKey);
-      if (!column || !assigned) {
+      const assigned = product && resolvePortalProductAssignment(client.metadata ?? {}, catalogue).products
+        .some(selection => selection.id === product.id);
+      if (!product || !column || !assigned) {
         return NextResponse.json({ ok: false, error: "Product or delivery stage not found" }, { status: 404 });
       }
       const currentStages = client.metadata?.productPipelineStages;
       const productPipelineStages = currentStages && typeof currentStages === "object"
         ? { ...currentStages as Record<string, unknown> }
         : {};
-      const previous = typeof productPipelineStages[productKey] === "string"
-        ? productPipelineStages[productKey]
+      const previous = typeof productPipelineStages[product.id] === "string"
+        ? productPipelineStages[product.id]
+        : product.portalTemplateKey && typeof productPipelineStages[product.portalTemplateKey] === "string"
+          ? productPipelineStages[product.portalTemplateKey]
         : undefined;
-      productPipelineStages[productKey] = column.id;
+      productPipelineStages[product.id] = column.id;
       const updated = updateClient(session.agencyId, client.id, {
         metadata: { productPipelineStages },
       });
@@ -61,13 +64,13 @@ export async function POST(req: Request) {
         category: "fulfillment",
         action: "client.product-delivery-stage.moved",
         message: `Moved ${client.name}'s product delivery to ${column.label}.`,
-        metadata: { productKey, fromStage: previous, toStage: column.id },
+        metadata: { productId: product.id, productKey: product.portalTemplateKey, fromStage: previous, toStage: column.id },
       });
 
       return NextResponse.json({
         ok: true,
         client: { id: updated.id, name: updated.name },
-        productKey,
+        productKey: product.id,
         columnId: column.id,
       });
     }

@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, CircleAlert, Layers3, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, CircleAlert, ExternalLink, Layers3, LoaderCircle, RefreshCw, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 export interface ProductRolloutClient {
   id: string;
   name: string;
+  effectiveName: string;
+  variation: boolean;
+  variationUpdatedAt?: number;
   portalBuilt: boolean;
   catalogueCurrent: boolean;
   packageScopeCurrent: boolean;
@@ -68,14 +71,14 @@ export function ProductRolloutCentre({
     }
   }
 
-  return <section className="border-y border-black/10 py-6">
+  return <section id="assigned-clients" className="scroll-mt-24 border-y border-black/10 py-6">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div className="flex max-w-2xl items-start gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-md bg-brand/10 text-brand"><Layers3 size={18} /></span>
         <div>
-          <p className="text-[10px] font-semibold uppercase text-brand">Controlled adaptation</p>
-          <h2 className="mt-1 text-lg font-semibold text-black/85">Client rollout centre</h2>
-          <p className="mt-1 text-sm leading-6 text-black/50">See exactly where this product is assigned. Catalogue sync updates product details and package contents while preserving delivery history. Template adoption is separate so bespoke client design is never overwritten silently.</p>
+          <p className="text-[10px] font-semibold uppercase text-brand">Assigned clients</p>
+          <h2 className="mt-1 text-lg font-semibold text-black/85">Clients, variations and rollout</h2>
+          <p className="mt-1 text-sm leading-6 text-black/50">See everyone using this service, whether they inherit the master definition or have a bespoke variation, and exactly which portal or catalogue updates need attention.</p>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -93,16 +96,18 @@ export function ProductRolloutCentre({
 
     {clients.length ? <div className="divide-y divide-black/8">{clients.map(client => {
       const needsAttention = !client.catalogueCurrent || !client.packageScopeCurrent || client.templateStatus === "outdated";
-      return <label key={client.id} className="grid cursor-pointer gap-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
-        <input type="checkbox" checked={selected.includes(client.id)} onChange={() => toggle(client.id)} className="size-4 accent-black" />
-        <span className="min-w-0"><span className="block truncate text-sm font-semibold text-black/75">{client.name}</span><span className="mt-0.5 block text-xs text-black/42">{client.assignmentLabel}</span></span>
-        <span className="flex flex-wrap gap-1.5 sm:justify-end">
+      return <div key={client.id} className="grid gap-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+        <input aria-label={`Select ${client.name}`} type="checkbox" checked={selected.includes(client.id)} onChange={() => toggle(client.id)} className="size-4 accent-black" />
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="truncate text-sm font-semibold text-black/75">{client.name}</span><span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${client.variation ? "bg-sky-50 text-sky-700" : "bg-black/[0.05] text-black/45"}`}>{client.variation ? "Client variation" : "Master service"}</span></div><span className="mt-0.5 block text-xs text-black/42">{client.effectiveName}{client.effectiveName !== client.assignmentLabel ? ` · ${client.assignmentLabel}` : ""}</span></div>
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
           <Status current={client.catalogueCurrent} currentLabel="Catalogue current" attentionLabel="Product copy changed" />
           <Status current={client.packageScopeCurrent} currentLabel="Scope current" attentionLabel="Package changed" />
           <span className={`rounded-full px-2 py-1 text-[9px] font-semibold uppercase ${client.templateStatus === "outdated" ? "bg-red-50 text-red-700" : client.templateStatus === "not-built" ? "bg-black/[0.05] text-black/45" : "bg-emerald-50 text-emerald-700"}`}>{templateLabel(client.templateStatus)}</span>
           {needsAttention ? <span title="This client is included in the recommended rollout" className="grid size-6 place-items-center rounded-full bg-amber-100 text-amber-700"><CircleAlert size={12} /></span> : <span className="grid size-6 place-items-center rounded-full bg-emerald-50 text-emerald-700"><Check size={12} /></span>}
-        </span>
-      </label>;
+          <Link title={`Open ${client.name} internal workspace`} href={`/portal/clients/${encodeURIComponent(client.id)}?tab=delivery&product=${encodeURIComponent(productId)}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/55 hover:bg-black/[0.04]"><SlidersHorizontal size={13} /></Link>
+          {client.portalBuilt ? <Link title={`Open ${client.name} portal studio`} href={`/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(client.id)}&productId=${encodeURIComponent(productId)}&context=client-workspace`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/55 hover:bg-black/[0.04]"><ExternalLink size={13} /></Link> : null}
+        </div>
+      </div>;
     })}</div> : <p className="py-8 text-center text-sm text-black/35">This product is not assigned to any clients yet.</p>}
     {notice ? <p role="status" className="mt-4 border-l-2 border-brand bg-brand/[0.04] px-3 py-2 text-xs text-black/65">{notice}</p> : null}
   </section>;

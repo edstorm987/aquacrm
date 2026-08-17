@@ -140,12 +140,12 @@ export function ClientWorkspaceSwitcher({
                             <p className="font-semibold text-black/82">{workspace.name}</p>
                             {workspace.current ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase text-[#087f8c]"><Check size={11} /> Current</span> : null}
                           </div>
-                          <p className="mt-1 text-xs text-black/45">{workspace.workspaceLabel || "General workspace"} · {workspace.providerName} · {workspace.stageLabel} · {workspace.portalReady ? "Portal ready" : "Portal not built"}</p>
+                          <p className="mt-1 text-xs text-black/45">{workspace.workspaceLabel || "General workspace"} · {workspace.providerName} · Account: {workspace.stageLabel} · {workspace.portalReady ? "Portal ready" : "Portal not built"}</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           {!workspace.current ? <Link href={`/portal/clients/${encodeURIComponent(workspace.id)}`} onClick={() => setOpen(false)} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/12 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Internal <ExternalLink size={13} /></Link> : null}
                           {workspace.portalReady ? <Link href={`/client-preview/${encodeURIComponent(workspace.id)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/12 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]"><Eye size={13} /> View portal</Link> : null}
-                          {canManage ? <Link href={`/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(workspace.id)}&mode=onboarding&section=home`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><PanelsTopLeft size={13} /> {workspace.portalReady ? "Portal studio" : "Prepare portal"}</Link> : null}
+                          {canManage ? <Link href={`/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(workspace.id)}&mode=onboarding&section=home&context=client-workspace`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><PanelsTopLeft size={13} /> {workspace.portalReady ? "Portal studio" : "Prepare portal"}</Link> : null}
                         </div>
                         {canManage && !workspace.current ? (
                           pendingDetachId === workspace.id ? (

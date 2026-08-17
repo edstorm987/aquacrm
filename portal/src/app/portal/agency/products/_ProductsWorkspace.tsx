@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Archive, ArrowRight, Building2, Check, ChevronRight, FolderOpen, Grid2X2, Layers3, Package, Plus, RotateCcw, X } from "lucide-react";
-import type { AgencyProduct, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, SopDocument, TradingCompany } from "@/server/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Archive, ArrowDown, ArrowRight, ArrowUp, Building2, Check, ChevronRight, FolderOpen, Grid2X2, Layers3, Lightbulb, ListChecks, Package, Plus, Rocket, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
+import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule, AgencyProductWorkspaceStage, AgencyProductWorkspaceStep, SopDocument, TradingCompany } from "@/server/types";
 import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/agencyProductCategories";
 import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
+import { defaultProductInternalWorkspace, PRODUCT_STAGE_PORTAL_MODES, PRODUCT_WORKSPACE_MODULES } from "@/lib/productInternalWorkspace";
 
 export type Draft = {
   id?: string;
@@ -33,15 +34,17 @@ export type Draft = {
   paymentTermsDays: string;
   billingNotes: string;
   internalInfo: string;
+  internalWorkspace: AgencyProductInternalWorkspace;
   deliverables: string;
   contractTitle: string;
   contractBody: string;
   sopIds: string[];
   sopCategories: string[];
   companyIds: string[];
+  status: AgencyProductStatus;
 };
 
-export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalTemplateKey: "", portalHeadline: "", portalWelcomeNote: "", portalStageFocus: { onboarding: "", designing: "", "developed-launch": "", maintenance: "" }, portalSupportCta: "Send request", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [] };
+export const EMPTY_PRODUCT_DRAFT: Draft = { kind: "product", name: "", category: "Digital", description: "", buyerHeadline: "", coverImageUrl: "", accentColor: "#8E7340", portalRequirement: "optional", portalTemplateKey: "", portalHeadline: "", portalWelcomeNote: "", portalStageFocus: { onboarding: "", designing: "", "developed-launch": "", maintenance: "" }, portalSupportCta: "Send request", includedProductIds: [], welcomePackItems: "", welcomePackNotes: "", pricing: "custom", price: "", billingInterval: "month", depositPercent: "0", taxRatePercent: "0", paymentTermsDays: "7", billingNotes: "", internalInfo: "", internalWorkspace: defaultProductInternalWorkspace({ name: "New service" }), deliverables: "", contractTitle: "", contractBody: "", sopIds: [], sopCategories: [], companyIds: [], status: "live" };
 
 const AQUA_COMPANY_ID = "aqua-oasis-web";
 
@@ -61,7 +64,7 @@ export function ProductsWorkspace({ initialProducts, sops, companies, defaults =
   const [view, setView] = useState<"browse" | "all">("browse");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const visible = useMemo(() => products.filter(product => showArchived || product.active), [products, showArchived]);
+  const visible = useMemo(() => products.filter(product => showArchived || catalogueStatus(product) !== "archived"), [products, showArchived]);
   const categories = useMemo(() => [...new Set(visible.map(product => product.category))].sort(), [visible]);
   const companyShelves = useMemo<CompanyShelf[]>(() => {
     const activeCompanies = companies.filter(company => showArchived || company.status !== "archived");
@@ -101,22 +104,25 @@ export function ProductsWorkspace({ initialProducts, sops, companies, defaults =
   }
 
   async function toggle(product: AgencyProduct) {
-    const response = await fetch("/api/portal/products", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "update", productId: product.id, active: !product.active }) });
+    const nextStatus: AgencyProductStatus = catalogueStatus(product) === "live" ? "archived" : "live";
+    const response = await fetch("/api/portal/products", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "update", productId: product.id, status: nextStatus }) });
     const json = await response.json().catch(() => null) as { product?: AgencyProduct } | null;
     if (response.ok && json?.product) upsert(json.product);
   }
 
-  function openNewProduct(companyId = selectedCompanyId, category = selectedCategory) {
+  function openNewProduct(companyId = selectedCompanyId, category = selectedCategory, status: AgencyProductStatus = "live") {
     const company = companyShelves.find(item => item.id === companyId);
     setDraft({
       ...EMPTY_PRODUCT_DRAFT,
       includedProductIds: [],
       sopIds: [],
       sopCategories: [],
+      internalWorkspace: defaultProductInternalWorkspace({ name: "New service" }),
       companyIds: company?.draftCompanyId ? [company.draftCompanyId] : [],
       category: category || "Digital",
       taxRatePercent: String(defaults.taxRatePercent),
       paymentTermsDays: String(defaults.paymentTermsDays),
+      status,
     });
   }
 
@@ -135,11 +141,11 @@ export function ProductsWorkspace({ initialProducts, sops, companies, defaults =
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{embedded ? embeddedLabel : "Products"}</p><h2 className={`${embedded ? "text-2xl" : "text-3xl"} mt-1 font-semibold tracking-tight text-black/90`}>Your complete offer catalogue.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Every service, package, price and delivery process, organised around the company that sells it.</p></div>
-        <button type="button" onClick={() => openNewProduct()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New product</button>
+        <div className="flex flex-wrap gap-2"><button type="button" onClick={() => openNewProduct(selectedCompanyId, selectedCategory, "draft")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65"><Lightbulb size={15} />Draft idea</button><button type="button" onClick={() => openNewProduct()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New service</button></div>
       </header>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-y border-black/10 py-3">
-        <p className="text-sm text-black/55">{products.filter(product => product.active).length} active product{products.filter(product => product.active).length === 1 ? "" : "s"} · {categories.length} categor{categories.length === 1 ? "y" : "ies"} · {companyShelves.length} compan{companyShelves.length === 1 ? "y" : "ies"}</p>
+        <p className="text-sm text-black/55">{products.filter(product => catalogueStatus(product) === "live").length} live · {products.filter(product => catalogueStatus(product) === "draft").length} draft · {categories.length} categor{categories.length === 1 ? "y" : "ies"} · {companyShelves.length} compan{companyShelves.length === 1 ? "y" : "ies"}</p>
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex rounded-md border border-black/10 bg-black/[0.025] p-1" aria-label="Catalogue view">
             <button type="button" onClick={() => setView("browse")} className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 text-xs font-semibold ${view === "browse" ? "bg-white text-black shadow-sm" : "text-black/50"}`}><Layers3 size={14} />Browse</button>
@@ -233,12 +239,13 @@ function ProductCard({ product, sops, companies, onToggle }: { product: AgencyPr
     ? companies.filter(company => (product.companyIds ?? []).includes(company.id)).map(company => company.name).join(" · ")
     : "AquaOasis-Web";
   const sopCount = linkedSopCount(product, sops);
-  return <article className={`group overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm transition hover:border-black/20 hover:shadow-md ${product.active ? "" : "opacity-60"}`}>
+  const status = catalogueStatus(product);
+  return <article className={`group overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm transition hover:border-black/20 hover:shadow-md ${status === "archived" ? "opacity-60" : ""}`}>
     <div className="relative aspect-[16/9] overflow-hidden bg-cover bg-center" style={{ backgroundColor: product.accentColor || "#8E7340", backgroundImage: product.coverImageUrl ? `url(${product.coverImageUrl})` : undefined }}>
       {product.coverImageUrl ? <div className="absolute inset-0 bg-black/20 transition group-hover:bg-black/10" /> : <div className="grid h-full place-items-center text-white/85">{product.kind === "package" ? <Layers3 size={34} /> : <Package size={34} />}</div>}
       <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <span className="rounded-md bg-white/90 px-2 py-1 text-[10px] font-bold text-black/65">{product.category}</span>
-        {product.active ? null : <span className="rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white">Archived</span>}
+        {status === "live" ? null : <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${status === "draft" ? "bg-amber-100 text-amber-900" : "bg-black/75 text-white"}`}>{status === "draft" ? "Draft idea" : "Archived"}</span>}
       </div>
     </div>
     <div className="flex min-h-64 flex-col p-4">
@@ -252,8 +259,8 @@ function ProductCard({ product, sops, companies, onToggle }: { product: AgencyPr
         <span><strong className="block font-semibold text-black/70">{sopCount}</strong>Linked SOP{sopCount === 1 ? "" : "s"}</span>
       </div>
       <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-        <Link href={`/portal/agency/products/${product.id}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white">Open product <ArrowRight size={14} /></Link>
-        <button type="button" onClick={() => void onToggle(product)} aria-label={`${product.active ? "Archive" : "Restore"} ${product.name}`} className="grid size-9 place-items-center rounded-md text-black/50 hover:bg-black/[0.04]">{product.active ? <Archive size={15} /> : <RotateCcw size={15} />}</button>
+        <Link href={`/portal/agency/products/${product.id}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white">Open & edit <ArrowRight size={14} /></Link>
+        <button type="button" onClick={() => void onToggle(product)} aria-label={`${status === "live" ? "Archive" : status === "draft" ? "Publish" : "Restore"} ${product.name}`} title={status === "live" ? "Archive service" : status === "draft" ? "Publish service" : "Restore service"} className="grid size-9 place-items-center rounded-md text-black/50 hover:bg-black/[0.04]">{status === "live" ? <Archive size={15} /> : status === "draft" ? <Rocket size={15} /> : <RotateCcw size={15} />}</button>
       </div>
     </div>
   </article>;
@@ -263,9 +270,16 @@ function EmptyCatalogue({ title, actionLabel, onAction }: { title: string; actio
   return <div className="border-y border-dashed border-black/15 py-10 text-center"><p className="font-semibold text-black/70">{title}</p><button type="button" onClick={onAction} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65"><Plus size={14} />{actionLabel}</button></div>;
 }
 
-export function ProductEditor({ draft, products, sops, companies, onClose, onSaved }: { draft: Draft; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; onClose: () => void; onSaved: (product: AgencyProduct) => void }) {
+export function ProductEditor({ draft, products, sops, companies, onClose, onSaved, clientContext, focusSection }: { draft: Draft; products: AgencyProduct[]; sops: SopDocument[]; companies: TradingCompany[]; onClose: () => void; onSaved: (product: AgencyProduct) => void; clientContext?: { clientId: string; clientName: string }; focusSection?: "stages" }) {
   const [form, setForm] = useState(draft);
   const [busy, setBusy] = useState(false);
+  const stageSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (focusSection !== "stages") return;
+    const frame = window.requestAnimationFrame(() => stageSectionRef.current?.scrollIntoView({ block: "start" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusSection]);
   const [error, setError] = useState("");
   const sopCategories = [...new Set(sops.map(sop => sop.category).filter((value): value is string => Boolean(value)))].sort();
 
@@ -277,14 +291,117 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
     setForm(value => ({ ...value, sopCategories: value.sopCategories.includes(category) ? value.sopCategories.filter(item => item !== category) : [...value.sopCategories, category] }));
   }
 
+  function updateInternalWorkspace(patch: Partial<AgencyProductInternalWorkspace>) {
+    setForm(value => ({ ...value, internalWorkspace: { ...value.internalWorkspace, ...patch } }));
+  }
+
+  function toggleWorkspaceModule(field: "quickActions" | "advancedModules", module: AgencyProductWorkspaceModule) {
+    setForm(value => {
+      const current = value.internalWorkspace[field];
+      return { ...value, internalWorkspace: { ...value.internalWorkspace, [field]: current.includes(module) ? current.filter(item => item !== module) : [...current, module] } };
+    });
+  }
+
+  function updateWorkspaceStep(stepId: string, patch: Partial<AgencyProductWorkspaceStep>) {
+    setForm(value => ({ ...value, internalWorkspace: { ...value.internalWorkspace, processSteps: value.internalWorkspace.processSteps.map(step => step.id === stepId ? { ...step, ...patch } : step) } }));
+  }
+
+  function updateWorkspaceStage(stageId: string, patch: Partial<AgencyProductWorkspaceStage>) {
+    setForm(value => ({ ...value, internalWorkspace: { ...value.internalWorkspace, lifecycleStages: value.internalWorkspace.lifecycleStages.map(stage => stage.id === stageId ? { ...stage, ...patch } : stage) } }));
+  }
+
+  function addWorkspaceStage() {
+    setForm(value => value.internalWorkspace.lifecycleStages.length >= 12 ? value : ({ ...value, internalWorkspace: { ...value.internalWorkspace,
+      lifecycleStages: [...value.internalWorkspace.lifecycleStages, {
+        id: `workspace-stage-${Date.now().toString(36)}`,
+        label: "New service stage",
+        description: "Define what must be true before this service moves forward.",
+        portalMode: "designing",
+      }],
+    } }));
+  }
+
+  function moveWorkspaceStage(index: number, direction: -1 | 1) {
+    setForm(value => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= value.internalWorkspace.lifecycleStages.length) return value;
+      const lifecycleStages = [...value.internalWorkspace.lifecycleStages];
+      [lifecycleStages[index], lifecycleStages[nextIndex]] = [lifecycleStages[nextIndex], lifecycleStages[index]];
+      return { ...value, internalWorkspace: { ...value.internalWorkspace, lifecycleStages } };
+    });
+  }
+
+  function removeWorkspaceStage(stageId: string) {
+    setForm(value => {
+      if (value.internalWorkspace.lifecycleStages.length <= 1) return value;
+      const lifecycleStages = value.internalWorkspace.lifecycleStages.filter(stage => stage.id !== stageId);
+      const replacementId = lifecycleStages[0]?.id;
+      return { ...value, internalWorkspace: { ...value.internalWorkspace,
+        lifecycleStages,
+        processSteps: value.internalWorkspace.processSteps.map(step => step.stageId === stageId ? { ...step, stageId: replacementId } : step),
+      } };
+    });
+  }
+
+  function addWorkspaceStep() {
+    setForm(value => value.internalWorkspace.processSteps.length >= 48 ? value : ({ ...value, internalWorkspace: { ...value.internalWorkspace,
+      processSteps: [...value.internalWorkspace.processSteps, {
+        id: `workspace-step-${Date.now().toString(36)}`,
+        title: "New process step",
+        instruction: "",
+        stageId: value.internalWorkspace.lifecycleStages[0]?.id,
+        module: "delivery",
+        sopIds: [],
+      }],
+    } }));
+  }
+
+  function moveWorkspaceStep(index: number, direction: -1 | 1) {
+    setForm(value => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= value.internalWorkspace.processSteps.length) return value;
+      const processSteps = [...value.internalWorkspace.processSteps];
+      [processSteps[index], processSteps[nextIndex]] = [processSteps[nextIndex], processSteps[index]];
+      return { ...value, internalWorkspace: { ...value.internalWorkspace, processSteps } };
+    });
+  }
+
+  function removeWorkspaceStep(stepId: string) {
+    setForm(value => ({ ...value, internalWorkspace: { ...value.internalWorkspace, processSteps: value.internalWorkspace.processSteps.filter(step => step.id !== stepId) } }));
+  }
+
+  function linkStepSop(stepId: string, sopId: string) {
+    setForm(value => ({
+      ...value,
+      sopIds: sopId && !value.sopIds.includes(sopId) ? [...value.sopIds, sopId] : value.sopIds,
+      internalWorkspace: {
+        ...value.internalWorkspace,
+        processSteps: value.internalWorkspace.processSteps.map(step => step.id === stepId ? { ...step, sopIds: sopId ? [sopId] : [] } : step),
+      },
+    }));
+  }
+
+  function resetInternalWorkspace() {
+    setForm(value => ({
+      ...value,
+      internalWorkspace: defaultProductInternalWorkspace({
+        id: value.id,
+        name: value.name || "New service",
+        portalTemplateKey: value.portalTemplateKey || undefined,
+        sopIds: value.sopIds,
+      }),
+    }));
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true); setError("");
-    const response = await fetch("/api/portal/products", {
+    const response = await fetch(clientContext ? "/api/tenants/client-product-variation" : "/api/portal/products", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        action: form.id ? "update" : "create",
+        action: clientContext ? "save" : form.id ? "update" : "create",
+        clientId: clientContext?.clientId,
         productId: form.id,
         kind: form.kind,
         name: form.name,
@@ -310,12 +427,14 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
         paymentTermsDays: Number(form.paymentTermsDays || 0),
         billingNotes: form.billingNotes,
         internalInfo: form.internalInfo,
+        internalWorkspace: form.internalWorkspace,
         deliverables: form.deliverables.split("\n").map(item => item.trim()).filter(Boolean),
         contractTitle: form.contractTitle,
         contractBody: form.contractBody,
         sopIds: form.sopIds,
         sopCategories: form.sopCategories,
         companyIds: form.companyIds,
+        status: form.status,
       }),
     });
     const json = await response.json().catch(() => null) as { product?: AgencyProduct; error?: string } | null;
@@ -324,30 +443,30 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
   }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="presentation">
-      <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="product-editor-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl">
+      <form onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="product-editor-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-black/10 bg-white p-5 shadow-2xl">
         <div className="flex items-start justify-between">
-          <div><p className="text-xs font-semibold uppercase text-brand">{form.id ? "Edit product" : "New product"}</p><h2 id="product-editor-title" className="mt-1 text-xl font-semibold">Define the offer clearly.</h2></div>
+          <div><p className="text-xs font-semibold uppercase text-brand">{clientContext ? `Client variation · ${clientContext.clientName}` : form.id ? "Edit product" : "New product"}</p><h2 id="product-editor-title" className="mt-1 text-xl font-semibold">{clientContext ? `Customise ${form.name} for this client.` : "Define the offer clearly."}</h2>{clientContext ? <p className="mt-1 max-w-2xl text-xs leading-5 text-black/45">Only differences from the catalogue are retained. Resetting the variation restores the official service without deleting client work.</p> : null}</div>
           <button type="button" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
         <div className="mt-5 grid gap-4">
-          <Field label="Offer type"><select value={form.kind} onChange={event => setForm(value => ({ ...value, kind: event.target.value as AgencyProductKind }))} className={control}><option value="product">Individual product</option><option value="package">Package of products</option></select></Field>
-          <Field label="Product name"><input required value={form.name} onChange={event => setForm(value => ({ ...value, name: event.target.value }))} className={control} placeholder="Local visibility package" /></Field>
-          {companies.length ? <Field label="Service brand">
+          {clientContext ? null : <div className="grid gap-4 sm:grid-cols-2"><Field label="Offer type"><select value={form.kind} onChange={event => setForm(value => ({ ...value, kind: event.target.value as AgencyProductKind }))} className={control}><option value="product">Individual product</option><option value="package">Package of products</option></select></Field><Field label="Catalogue state"><select value={form.status} onChange={event => setForm(value => ({ ...value, status: event.target.value as AgencyProductStatus }))} className={control}><option value="draft">Draft idea · internal only</option><option value="live">Live · available to clients</option><option value="archived">Archived · retained history</option></select></Field></div>}
+          <Field label={clientContext ? "Client-specific service name" : "Product name"}><input required value={form.name} onChange={event => setForm(value => ({ ...value, name: event.target.value }))} className={control} placeholder="Local visibility package" /></Field>
+          {!clientContext && companies.length ? <Field label="Service brand">
             <div className="flex flex-wrap gap-2 rounded-md border border-black/10 bg-black/[0.015] p-3">
               <label className="inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-2 text-xs text-black/65"><input type="checkbox" checked={!form.companyIds.length} onChange={() => setForm(value => ({ ...value, companyIds: [] }))} />Shared AquaOasis-Web offer</label>
               {companies.filter(company => company.status !== "archived").map(company => <label key={company.id} className="inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-2 text-xs text-black/65"><input type="checkbox" checked={form.companyIds.includes(company.id)} onChange={() => setForm(value => ({ ...value, companyIds: value.companyIds.includes(company.id) ? value.companyIds.filter(id => id !== company.id) : [...value.companyIds, company.id] }))} />{company.name}</label>)}
             </div>
           </Field> : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Category"><input list="product-categories" value={form.category} onChange={event => setForm(value => ({ ...value, category: event.target.value }))} className={control} /><datalist id="product-categories">{AGENCY_PRODUCT_CATEGORIES.map(category => <option key={category} value={category} />)}</datalist></Field>
+          <div className={`grid gap-4 ${clientContext ? "" : "sm:grid-cols-2"}`}>
+            {clientContext ? null : <Field label="Category"><input list="product-categories" value={form.category} onChange={event => setForm(value => ({ ...value, category: event.target.value }))} className={control} /><datalist id="product-categories">{AGENCY_PRODUCT_CATEGORIES.map(category => <option key={category} value={category} />)}</datalist></Field>}
             <Field label="Pricing"><select value={form.pricing} onChange={event => setForm(value => ({ ...value, pricing: event.target.value as AgencyProductPricing }))} className={control}><option value="custom">Custom quote</option><option value="fixed">Fixed price</option><option value="from">Starting from</option><option value="recurring">Recurring</option></select></Field>
           </div>
           {form.pricing !== "custom" ? <div className="grid gap-4 sm:grid-cols-2"><Field label="Price (£)"><input required type="number" min="0" step="0.01" value={form.price} onChange={event => setForm(value => ({ ...value, price: event.target.value }))} className={control} /></Field>{form.pricing === "recurring" ? <Field label="Bill every"><select value={form.billingInterval} onChange={event => setForm(value => ({ ...value, billingInterval: event.target.value as Draft["billingInterval"] }))} className={control}><option value="month">Month</option><option value="quarter">Quarter</option><option value="year">Year</option></select></Field> : null}</div> : null}
           <Field label="Customer-facing description"><textarea rows={3} value={form.description} onChange={event => setForm(value => ({ ...value, description: event.target.value }))} className={`${control} py-2`} /></Field>
           <Field label="Deliverables (one per line)"><textarea rows={5} value={form.deliverables} onChange={event => setForm(value => ({ ...value, deliverables: event.target.value }))} className={`${control} py-2`} placeholder={"Strategy session\nWebsite design\nLaunch support"} /></Field>
 
-          {form.kind === "package" ? <details className="border-t border-black/10 pt-4" open>
+          {!clientContext && form.kind === "package" ? <details className="border-t border-black/10 pt-4" open>
             <summary className="cursor-pointer text-sm font-semibold text-black/75">Products in this package</summary>
             <p className="mt-1 text-xs leading-5 text-black/45">Bundle existing products while keeping package pricing, contract, portal and welcome experience editable.</p>
             <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto rounded-md border border-black/10 p-3">
@@ -357,6 +476,79 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
               })}
             </div>
           </details> : null}
+
+          <details className="border-t border-black/10 pt-4" open>
+            <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
+              <span className="flex items-start gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-sky-50 text-sky-700"><ListChecks size={17} /></span>
+                <span><span className="block text-sm font-semibold text-black/78">Internal client workspace</span><span className="mt-1 block text-xs leading-5 text-black/45">Build the operating process your team inherits whenever this product is assigned.</span></span>
+              </span>
+              <span className="shrink-0 rounded-full bg-black/[0.045] px-2.5 py-1 text-[10px] font-semibold text-black/45">{form.internalWorkspace.lifecycleStages.length} stages · {form.internalWorkspace.processSteps.length} steps</span>
+            </summary>
+
+            <div className="mt-5 grid gap-6 rounded-md border border-black/10 bg-black/[0.015] p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Workspace name"><input value={form.internalWorkspace.title ?? ""} onChange={event => updateInternalWorkspace({ title: event.target.value })} className={control} placeholder={`${form.name || "Service"} delivery plan`} /></Field>
+                <Field label="Operating objective"><input value={form.internalWorkspace.objective ?? ""} onChange={event => updateInternalWorkspace({ objective: event.target.value })} className={control} placeholder="The result this workspace must produce" /></Field>
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-semibold text-black/65">Everyday controls</p><p className="mt-1 text-[11px] text-black/40">Keep only the destinations used while delivering this service.</p></div><span className="text-[10px] font-semibold uppercase text-black/35">{form.internalWorkspace.quickActions.length} visible</span></div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {PRODUCT_WORKSPACE_MODULES.map(module => {
+                    const selected = form.internalWorkspace.quickActions.includes(module.id);
+                    return <label key={module.id} className={`cursor-pointer border px-3 py-2.5 transition ${selected ? "border-sky-300 bg-sky-50" : "border-black/10 bg-white hover:border-black/20"}`}><span className="flex items-center gap-2"><input type="checkbox" checked={selected} onChange={() => toggleWorkspaceModule("quickActions", module.id)} /><span className="text-xs font-semibold text-black/68">{module.label}</span></span><span className="mt-1 block pl-5 text-[10px] leading-4 text-black/38">{module.description}</span></label>;
+                  })}
+                </div>
+              </div>
+
+              <div ref={stageSectionRef} className="scroll-mt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-black/65">Service stages</p><p className="mt-1 text-[11px] text-black/40">Each assigned service moves independently. The portal mode controls the matching client-facing experience.</p></div><button type="button" onClick={addWorkspaceStage} disabled={form.internalWorkspace.lifecycleStages.length >= 12} title={form.internalWorkspace.lifecycleStages.length >= 12 ? "A service can contain up to 12 stages" : "Add service stage"} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 disabled:cursor-not-allowed disabled:opacity-45"><Plus size={13} /> Add stage</button></div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {form.internalWorkspace.lifecycleStages.map((stage, index) => <article key={stage.id} className="border border-black/10 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3"><span className="text-[10px] font-semibold uppercase text-black/38">Stage {String(index + 1).padStart(2, "0")}</span><span className="flex items-center gap-1"><button type="button" title="Move stage up" aria-label={`Move ${stage.label} up`} disabled={index === 0} onClick={() => moveWorkspaceStage(index, -1)} className="grid size-8 place-items-center text-black/42 disabled:opacity-25"><ArrowUp size={14} /></button><button type="button" title="Move stage down" aria-label={`Move ${stage.label} down`} disabled={index === form.internalWorkspace.lifecycleStages.length - 1} onClick={() => moveWorkspaceStage(index, 1)} className="grid size-8 place-items-center text-black/42 disabled:opacity-25"><ArrowDown size={14} /></button><button type="button" title="Remove stage" aria-label={`Remove ${stage.label}`} disabled={form.internalWorkspace.lifecycleStages.length <= 1} onClick={() => removeWorkspaceStage(stage.id)} className="grid size-8 place-items-center text-red-600 disabled:opacity-25"><Trash2 size={14} /></button></span></div>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_170px]"><Field label="Stage name"><input required value={stage.label} onChange={event => updateWorkspaceStage(stage.id, { label: event.target.value })} className={control} /></Field><Field label="Portal experience"><select value={stage.portalMode} onChange={event => updateWorkspaceStage(stage.id, { portalMode: event.target.value as AgencyProductPortalMode })} className={control}>{PRODUCT_STAGE_PORTAL_MODES.map(mode => <option key={mode.id} value={mode.id}>{mode.label}</option>)}</select></Field></div>
+                    <div className="mt-3"><Field label="Done when"><input value={stage.description ?? ""} onChange={event => updateWorkspaceStage(stage.id, { description: event.target.value })} className={control} placeholder="What must be true before this service moves on?" /></Field></div>
+                  </article>)}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-black/65">Ordered process</p><p className="mt-1 text-[11px] text-black/40">Each step can open the correct workspace and one exact SOP.</p></div><button type="button" onClick={addWorkspaceStep} disabled={form.internalWorkspace.processSteps.length >= 48} title={form.internalWorkspace.processSteps.length >= 48 ? "A service can contain up to 48 process steps" : "Add process step"} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 disabled:cursor-not-allowed disabled:opacity-45"><Plus size={13} /> Add step</button></div>
+                <div className="mt-3 grid gap-3">
+                  {form.internalWorkspace.processSteps.map((step, index) => <article key={step.id} className="border border-black/10 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] font-semibold uppercase text-black/38">Step {String(index + 1).padStart(2, "0")}</span>
+                      <span className="flex items-center gap-1">
+                        <button type="button" title="Move step up" aria-label={`Move ${step.title} up`} disabled={index === 0} onClick={() => moveWorkspaceStep(index, -1)} className="grid size-8 place-items-center text-black/42 disabled:opacity-25"><ArrowUp size={14} /></button>
+                        <button type="button" title="Move step down" aria-label={`Move ${step.title} down`} disabled={index === form.internalWorkspace.processSteps.length - 1} onClick={() => moveWorkspaceStep(index, 1)} className="grid size-8 place-items-center text-black/42 disabled:opacity-25"><ArrowDown size={14} /></button>
+                        <button type="button" title="Remove step" aria-label={`Remove ${step.title}`} onClick={() => removeWorkspaceStep(step.id)} className="grid size-8 place-items-center text-red-600"><Trash2 size={14} /></button>
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_170px_170px]">
+                      <Field label="Step name"><input required value={step.title} onChange={event => updateWorkspaceStep(step.id, { title: event.target.value })} className={control} /></Field>
+                      <Field label="Service stage"><select value={step.stageId ?? form.internalWorkspace.lifecycleStages[0]?.id ?? ""} onChange={event => updateWorkspaceStep(step.id, { stageId: event.target.value })} className={control}>{form.internalWorkspace.lifecycleStages.map(stage => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</select></Field>
+                      <Field label="Open workspace"><select value={step.module} onChange={event => updateWorkspaceStep(step.id, { module: event.target.value as AgencyProductWorkspaceModule })} className={control}>{PRODUCT_WORKSPACE_MODULES.map(module => <option key={module.id} value={module.id}>{module.label}</option>)}</select></Field>
+                    </div>
+                    <div className="mt-3"><Field label="What the operator must do"><textarea rows={2} value={step.instruction ?? ""} onChange={event => updateWorkspaceStep(step.id, { instruction: event.target.value })} className={`${control} py-2`} placeholder="A concrete instruction with a clear finish condition." /></Field></div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <Field label="SOP for this step"><select value={step.sopIds[0] ?? ""} onChange={event => linkStepSop(step.id, event.target.value)} className={control}><option value="">No exact SOP</option>{sops.map(sop => <option key={sop.id} value={sop.id}>{sop.title}{sop.category ? ` · ${sop.category}` : ""}</option>)}</select></Field>
+                      <label className="flex min-h-11 items-center gap-2 border border-black/10 bg-black/[0.018] px-3 text-xs text-black/58"><input type="checkbox" checked={step.advanced === true} onChange={event => updateWorkspaceStep(step.id, { advanced: event.target.checked })} />Advanced step</label>
+                    </div>
+                  </article>)}
+                  {form.internalWorkspace.processSteps.length ? null : <div className="border border-dashed border-black/15 px-4 py-7 text-center text-xs text-black/45">No steps yet. Add the first step your team should follow.</div>}
+                </div>
+              </div>
+
+              <details className="border-t border-black/10 pt-4">
+                <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-black/62"><SlidersHorizontal size={14} /> Advanced workspace tools · {form.internalWorkspace.advancedModules.length}</summary>
+                <p className="mt-1 text-[11px] text-black/40">These stay behind an Advanced button in the client workspace.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">{PRODUCT_WORKSPACE_MODULES.map(module => <label key={module.id} className="flex items-center gap-2 border border-black/10 bg-white px-3 py-2.5 text-xs text-black/62"><input type="checkbox" checked={form.internalWorkspace.advancedModules.includes(module.id)} onChange={() => toggleWorkspaceModule("advancedModules", module.id)} />{module.label}</label>)}</div>
+              </details>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4"><p className="max-w-xl text-[11px] leading-5 text-black/42">Packages combine their own process with every included product, so the client workspace expands without overwriting either playbook.</p><button type="button" onClick={resetInternalWorkspace} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/58"><RotateCcw size={13} /> Suggested process</button></div>
+            </div>
+          </details>
 
           <details className="border-t border-black/10 pt-4" open={Boolean(form.buyerHeadline || form.coverImageUrl || form.portalHeadline)}>
             <summary className="cursor-pointer text-sm font-semibold text-black/75">Design and buying experience</summary>
@@ -369,7 +561,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
               </div>
               <Field label="Client portal"><select value={form.portalRequirement} onChange={event => setForm(value => ({ ...value, portalRequirement: event.target.value as AgencyProductPortalRequirement }))} className={control}><option value="required">Required for this product</option><option value="optional">Optional</option><option value="none">Not needed</option></select></Field>
               {form.portalRequirement !== "none" ? <>
-                <Field label="Portal template"><select value={form.portalTemplateKey} onChange={event => setForm(value => ({ ...value, portalTemplateKey: event.target.value as AgencyProductPortalTemplateKey | "" }))} className={control}><option value="">No template attached</option>{PORTAL_PRODUCT_CATALOG.map(template => <option key={template.catalogKey} value={template.catalogKey}>{template.name} portal</option>)}</select></Field>
+                {clientContext ? <p className="rounded-md border border-black/10 bg-black/[0.018] px-3 py-3 text-xs leading-5 text-black/48">This variation inherits the official portal template. Use the client portal studio below for page, brand, code and version changes belonging only to this client.</p> : <Field label="Portal template"><select value={form.portalTemplateKey} onChange={event => setForm(value => ({ ...value, portalTemplateKey: event.target.value as AgencyProductPortalTemplateKey | "" }))} className={control}><option value="">No template attached</option>{PORTAL_PRODUCT_CATALOG.map(template => <option key={template.catalogKey} value={template.catalogKey}>{template.name} portal</option>)}</select></Field>}
                 <Field label="Portal headline"><input value={form.portalHeadline} onChange={event => setForm(value => ({ ...value, portalHeadline: event.target.value }))} className={control} placeholder="Your project, clearly managed." /></Field>
                 <Field label="Portal welcome message"><textarea rows={4} value={form.portalWelcomeNote} onChange={event => setForm(value => ({ ...value, portalWelcomeNote: event.target.value }))} className={`${control} py-2`} placeholder="The first message the client sees in their branded portal." /></Field>
                 <Field label="Portal support button"><input value={form.portalSupportCta} onChange={event => setForm(value => ({ ...value, portalSupportCta: event.target.value }))} className={control} placeholder="Send request" /></Field>
@@ -380,7 +572,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
                     {(Object.entries({ onboarding: "Onboarding", designing: "Designing", "developed-launch": "Review & launch", maintenance: "Live care" }) as Array<[AgencyProductPortalMode, string]>).map(([stage, label]) => <Field key={stage} label={label}><textarea rows={3} value={form.portalStageFocus[stage]} onChange={event => setForm(value => ({ ...value, portalStageFocus: { ...value.portalStageFocus, [stage]: event.target.value } }))} className={`${control} py-2`} /></Field>)}
                   </div>
                 </details>
-                <Link href={form.id ? `/portal/agency/portals/editor?scope=template&productId=${encodeURIComponent(form.id)}` : "/portal/agency/portals?view=templates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.05]">{form.id ? "Edit this product's portal template" : "Open portal template library"} <ArrowRight size={13} /></Link>
+                <Link href={clientContext ? `/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(clientContext.clientId)}&mode=onboarding&section=home&context=client-workspace` : form.id ? `/portal/agency/portals/editor?scope=template&productId=${encodeURIComponent(form.id)}` : "/portal/agency/portals?view=templates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.05]">{clientContext ? "Edit this client's portal experience" : form.id ? "Edit this product's portal template" : "Open portal template library"} <ArrowRight size={13} /></Link>
               </> : null}
             </div>
           </details>
@@ -428,7 +620,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
         </div>
 
         {error ? <p className="mt-4 text-sm text-red-700">{error}</p> : null}
-        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button><button disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Check size={14} />{busy ? "Saving..." : "Save product"}</button></div>
+        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="min-h-10 px-3 text-sm">Cancel</button><button disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white"><Check size={14} />{busy ? "Saving..." : clientContext ? "Save client variation" : "Save product"}</button></div>
       </form>
     </div>
   );
@@ -436,7 +628,8 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
 
 const control = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm";
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-xs font-medium text-black/60">{label}{children}</label>; }
-export function toDraft(product: AgencyProduct): Draft { return { id: product.id, kind: product.kind ?? "product", name: product.name, category: product.category, description: product.description ?? "", buyerHeadline: product.buyerHeadline ?? "", coverImageUrl: product.coverImageUrl ?? "", accentColor: product.accentColor ?? "#8E7340", portalRequirement: product.portalRequirement ?? "optional", portalTemplateKey: product.portalTemplateKey ?? "", portalHeadline: product.portalHeadline ?? "", portalWelcomeNote: product.portalWelcomeNote ?? "", portalStageFocus: { onboarding: product.portalStageFocus?.onboarding ?? "", designing: product.portalStageFocus?.designing ?? "", "developed-launch": product.portalStageFocus?.["developed-launch"] ?? "", maintenance: product.portalStageFocus?.maintenance ?? "" }, portalSupportCta: product.portalSupportCta ?? "Send request", includedProductIds: product.includedProductIds ?? [], welcomePackItems: (product.welcomePackItems ?? []).join("\n"), welcomePackNotes: product.welcomePackNotes ?? "", pricing: product.pricing, price: product.priceCents === undefined ? "" : (product.priceCents / 100).toFixed(2), billingInterval: product.billingInterval ?? "month", depositPercent: String(product.depositPercent ?? 0), taxRatePercent: String(product.taxRatePercent ?? 0), paymentTermsDays: String(product.paymentTermsDays ?? 7), billingNotes: product.billingNotes ?? "", internalInfo: product.internalInfo ?? "", deliverables: product.deliverables.join("\n"), contractTitle: product.contractTitle ?? "", contractBody: product.contractBody ?? "", sopIds: product.sopIds ?? [], sopCategories: product.sopCategories ?? [], companyIds: product.companyIds ?? [] }; }
+export function toDraft(product: AgencyProduct): Draft { return { id: product.id, kind: product.kind ?? "product", name: product.name, category: product.category, description: product.description ?? "", buyerHeadline: product.buyerHeadline ?? "", coverImageUrl: product.coverImageUrl ?? "", accentColor: product.accentColor ?? "#8E7340", portalRequirement: product.portalRequirement ?? "optional", portalTemplateKey: product.portalTemplateKey ?? "", portalHeadline: product.portalHeadline ?? "", portalWelcomeNote: product.portalWelcomeNote ?? "", portalStageFocus: { onboarding: product.portalStageFocus?.onboarding ?? "", designing: product.portalStageFocus?.designing ?? "", "developed-launch": product.portalStageFocus?.["developed-launch"] ?? "", maintenance: product.portalStageFocus?.maintenance ?? "" }, portalSupportCta: product.portalSupportCta ?? "Send request", includedProductIds: product.includedProductIds ?? [], welcomePackItems: (product.welcomePackItems ?? []).join("\n"), welcomePackNotes: product.welcomePackNotes ?? "", pricing: product.pricing, price: product.priceCents === undefined ? "" : (product.priceCents / 100).toFixed(2), billingInterval: product.billingInterval ?? "month", depositPercent: String(product.depositPercent ?? 0), taxRatePercent: String(product.taxRatePercent ?? 0), paymentTermsDays: String(product.paymentTermsDays ?? 7), billingNotes: product.billingNotes ?? "", internalInfo: product.internalInfo ?? "", internalWorkspace: product.internalWorkspace ?? defaultProductInternalWorkspace(product), deliverables: product.deliverables.join("\n"), contractTitle: product.contractTitle ?? "", contractBody: product.contractBody ?? "", sopIds: product.sopIds ?? [], sopCategories: product.sopCategories ?? [], companyIds: product.companyIds ?? [], status: catalogueStatus(product) }; }
 export function priceLabel(product: AgencyProduct): string { if (product.pricing === "custom" || product.priceCents === undefined) return "Custom quote"; const amount = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(product.priceCents / 100); if (product.pricing === "from") return `From ${amount}`; if (product.pricing === "recurring") return `${amount} / ${product.billingInterval ?? "month"}`; return amount; }
 export function linkedSopCount(product: AgencyProduct, sops: SopDocument[]): number { return new Set(sops.filter(sop => (product.sopIds ?? []).includes(sop.id) || Boolean(sop.category && (product.sopCategories ?? []).includes(sop.category))).map(sop => sop.id)).size; }
 export function portalLabel(requirement?: AgencyProductPortalRequirement): string { return requirement === "required" ? "required" : requirement === "none" ? "not needed" : "optional"; }
+export function catalogueStatus(product: Pick<AgencyProduct, "active"> & { status?: AgencyProductStatus }): AgencyProductStatus { return product.status ?? (product.active ? "live" : "archived"); }

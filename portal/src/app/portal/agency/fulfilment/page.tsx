@@ -7,11 +7,11 @@ import { listClientMilestones } from "@/server/clientMilestones";
 import { phaseLabel } from "@/server/phases";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
 import { listClients } from "@/server/tenants";
-import { portalProductSelectionFromAgencyProduct, PORTAL_PRODUCT_CATALOG, type PortalProductKey } from "@/lib/portalProducts";
+import { portalProductSelectionFromAgencyProduct } from "@/lib/portalProducts";
 import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { portalProductModule } from "@/lib/portalProductModules";
 import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
-import { defaultProductPipelineStage, PRODUCT_PIPELINE_COLUMNS } from "@/lib/fulfilmentProductPipelines";
+import { agencyProductPipelineColumns, defaultAgencyProductPipelineStage } from "@/lib/fulfilmentProductPipelines";
 import { portalWorkspaceData } from "../portals/_portalWorkspaceData";
 import { listSops } from "@/server/sops";
 import { listTradingCompanies } from "@/server/tradingCompanies";
@@ -32,11 +32,12 @@ import {
 interface SearchParams {
   view?: string;
   product?: string;
+  client?: string;
   technical?: string;
   status?: string;
 }
 
-const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "products", "clients", "portals"];
+const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "clients", "portals"];
 
 export default async function FulfilmentPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await ensureHydrated();
@@ -49,6 +50,7 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
 
   const agencyId = session.activeAgencyId ?? session.agencyId;
   const requested = await searchParams;
+  if (requested.view === "products") redirect("/portal/agency/fulfilment?view=services");
   const view = VALID_VIEWS.includes(requested.view as FulfilmentView) ? requested.view as FulfilmentView : "overview";
   ensureDefaultAgencyProducts(agencyId);
   const allAgencyProducts = listAgencyProducts(agencyId, true);
@@ -79,6 +81,8 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
     stageBoard={stageBoard}
     portals={portals}
     portalProducts={portalProducts}
+    focusedClientId={requested.client}
+    focusedProductId={requested.product}
     productEditor={{
       initialProducts: allAgencyProducts,
       sops: listSops(agencyId),
@@ -117,19 +121,22 @@ function clientRecord(client: Client, agencyProducts: AgencyProduct[], milestone
   const products = selections.map(selection => {
     const agencyProduct = agencyProductById.get(selection.id) ?? (selection.catalogKey ? agencyProductByTemplate.get(selection.catalogKey) : undefined);
     const workspace = workspaces.get(selection.id);
-    const definition = selection.catalogKey ? PORTAL_PRODUCT_CATALOG.find(product => product.catalogKey === selection.catalogKey) : undefined;
-    const columns = selection.catalogKey ? PRODUCT_PIPELINE_COLUMNS[selection.catalogKey] : undefined;
-    const storedStage = selection.catalogKey && typeof storedStages[selection.catalogKey] === "string" ? storedStages[selection.catalogKey] as string : "";
+    const columns = agencyProduct ? agencyProductPipelineColumns(agencyProduct) : undefined;
+    const storedStage = typeof storedStages[selection.id] === "string"
+      ? storedStages[selection.id] as string
+      : selection.catalogKey && typeof storedStages[selection.catalogKey] === "string"
+        ? storedStages[selection.catalogKey] as string
+        : "";
     const stageId = columns?.some(column => column.id === storedStage)
       ? storedStage
-      : selection.catalogKey ? defaultProductPipelineStage(selection.catalogKey, client.stage) : workspace?.stage ?? "onboarding";
+      : agencyProduct ? defaultAgencyProductPipelineStage(agencyProduct, client.stage) : workspace?.stage ?? "onboarding";
     const stageLabel = columns?.find(column => column.id === stageId)?.label ?? titleCase(String(stageId));
     return {
       id: selection.id,
       name: selection.name,
       catalogKey: selection.catalogKey,
       accentColor: selection.accentColor ?? agencyProduct?.accentColor ?? client.brand.primaryColor ?? "#237b78",
-      stageLabel: definition ? stageLabel : titleCase(workspace?.stage ?? "onboarding"),
+      stageLabel,
       progress: workspace ? portalWorkspaceProgress(workspace) : 0,
     };
   });
@@ -189,33 +196,59 @@ function productRecord(product: AgencyProduct, clients: Client[], catalogue: Age
 }
 
 function buildStageBoard(requestedProduct: string | undefined, clients: Client[], products: AgencyProduct[], relationshipWorkspaceCounts: Map<string, number>): FulfilmentStageBoard {
-  const available = products.flatMap(product => product.portalTemplateKey ? [{ key: product.portalTemplateKey, label: product.name }] : []);
-  const unique = Array.from(new Map(available.map(product => [product.key, product])).values());
-  const selectedKey = unique.some(product => product.key === requestedProduct)
-    ? requestedProduct as PortalProductKey
-    : unique.find(product => clients.some(client => resolvePortalProductAssignment(client.metadata ?? {}, products).products.some(selection => selection.catalogKey === product.key)))?.key as PortalProductKey | undefined
-      ?? unique[0]?.key as PortalProductKey | undefined
-      ?? "website";
-  const definition = PORTAL_PRODUCT_CATALOG.find(product => product.catalogKey === selectedKey) ?? PORTAL_PRODUCT_CATALOG[0]!;
-  const columns = PRODUCT_PIPELINE_COLUMNS[definition.catalogKey];
-  const cards = clients.flatMap(client => {
-    const assigned = resolvePortalProductAssignment(client.metadata ?? {}, products).products.some(product => product.catalogKey === definition.catalogKey);
-    if (!assigned) return [];
-    const stages = client.metadata?.productPipelineStages && typeof client.metadata.productPipelineStages === "object"
-      ? client.metadata.productPipelineStages as Record<string, unknown>
-      : {};
-    const stored = typeof stages[definition.catalogKey] === "string" ? stages[definition.catalogKey] as string : "";
-    const columnId = columns.some(column => column.id === stored) ? stored : defaultProductPipelineStage(definition.catalogKey, client.stage);
-    const linkedCount = relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1;
-    return [{
-      id: client.id,
-      label: client.workspaceLabel ? `${client.name} · ${client.workspaceLabel}` : client.name,
-      sub: linkedCount > 1 ? `${definition.name} · linked buyer (${linkedCount})` : definition.name,
-      href: `/portal/clients/${client.id}?tab=delivery`,
-      columnId,
-    }];
+  const available = products.map(product => ({ key: product.id, label: product.name }));
+  const requestedDefinition = products.find(product => product.id === requestedProduct)
+    ?? products.find(product => product.portalTemplateKey === requestedProduct);
+  const definition = requestedDefinition
+    ?? products.find(product => clients.some(client => resolvePortalProductAssignment(client.metadata ?? {}, products).products.some(selection => selection.id === product.id)))
+    ?? products[0];
+  const columns = definition ? agencyProductPipelineColumns(definition) : [];
+  const cardsFor = (product: AgencyProduct) => {
+    const productColumns = agencyProductPipelineColumns(product);
+    return clients.flatMap(client => {
+      const assigned = resolvePortalProductAssignment(client.metadata ?? {}, products).products.some(selection => selection.id === product.id);
+      if (!assigned) return [];
+      const stages = client.metadata?.productPipelineStages && typeof client.metadata.productPipelineStages === "object"
+        ? client.metadata.productPipelineStages as Record<string, unknown>
+        : {};
+      const stored = typeof stages[product.id] === "string"
+        ? stages[product.id] as string
+        : product.portalTemplateKey && typeof stages[product.portalTemplateKey] === "string"
+          ? stages[product.portalTemplateKey] as string
+          : "";
+      const columnId = productColumns.some(column => column.id === stored) ? stored : defaultAgencyProductPipelineStage(product, client.stage);
+      const linkedCount = relationshipWorkspaceCounts.get(clientRelationshipId(client)) ?? 1;
+      return [{
+        id: client.id,
+        label: client.workspaceLabel ? `${client.name} · ${client.workspaceLabel}` : client.name,
+        sub: linkedCount > 1 ? `${product.name} · linked buyer (${linkedCount})` : product.name,
+        href: `/portal/clients/${client.id}?tab=delivery`,
+        columnId,
+      }];
+    });
+  };
+  const cards = definition ? cardsFor(definition) : [];
+  const overviews = products.map(product => {
+    const productCards = cardsFor(product);
+    return {
+      key: product.id,
+      label: product.name,
+      total: productCards.length,
+      columns: agencyProductPipelineColumns(product).map(column => ({
+        ...column,
+        count: productCards.filter(card => card.columnId === column.id).length,
+      })),
+    };
   });
-  return { productKey: definition.catalogKey, productName: definition.name, products: unique, columns, cards };
+  return {
+    productKey: definition?.id ?? "",
+    productName: definition?.name ?? "Service",
+    focused: Boolean(requestedProduct && requestedDefinition),
+    products: available,
+    columns,
+    cards,
+    overviews,
+  };
 }
 
 function attentionItems(clients: FulfilmentClientRecord[], milestoneMap: Map<string, ClientMilestone[]>): FulfilmentAttentionItem[] {

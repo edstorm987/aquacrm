@@ -50,6 +50,7 @@ export async function handleFunnelLeadCaptured(
       phone: payload.phone,
       company: payload.company,
       source: payload.source ?? "public-funnel",
+      relationshipCategory: "inbound-enquiry",
       tags: ["public-funnel"],
     },
     SYSTEM_ACTOR,

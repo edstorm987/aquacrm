@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Binoculars, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, MoreHorizontal, Plus, Presentation, Search, TimerReset, Trash2, X } from "lucide-react";
+import { ArrowLeft, BarChart3, Binoculars, Building2, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, Mail, MessageCircle, MoreHorizontal, Phone, Plus, Presentation, Search, TimerReset, Trash2, UserRoundCheck, X } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
 import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
 import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/formatDateTime";
@@ -16,6 +16,12 @@ import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiryClassification";
+import {
+  LEAD_RELATIONSHIP_CATEGORIES,
+  LEAD_RELATIONSHIP_CATEGORY_LABELS,
+  inferLeadRelationshipCategory,
+  type LeadRelationshipCategory,
+} from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 
 interface PipelineColumnView {
   id: string;
@@ -31,6 +37,7 @@ interface LeadView {
   phone?: string;
   company?: string;
   source: string;
+  relationshipCategory?: LeadRelationshipCategory;
   tags: string[];
   notes?: string;
   capturedAt: number;
@@ -96,6 +103,7 @@ interface LeadJourneyEventView {
 type ProspectView = ScoutingProspectView;
 
 interface LeadsPipelineWorkspaceProps {
+  focusedLeadId?: string;
   referenceNow: number;
   columns: PipelineColumnView[];
   prospects: ProspectView[];
@@ -130,6 +138,7 @@ const EMPTY_FORM = {
   tags: "",
   notes: "",
   source: "manual",
+  relationshipCategory: "" as "" | LeadRelationshipCategory,
   brandId: "",
   serviceId: "",
 };
@@ -185,6 +194,7 @@ interface LeadDetailsPatch {
   name?: string;
   phone?: string;
   company?: string;
+  relationshipCategory?: LeadRelationshipCategory;
   tags?: string[];
   notes?: string;
   callRecordingUrl?: string;
@@ -220,7 +230,7 @@ interface ClientConversionPackage {
   billingCadence: string;
 }
 
-export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
   const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -231,6 +241,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
   const [query, setQuery] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [relationshipCategoryFilter, setRelationshipCategoryFilter] = useState<"" | LeadRelationshipCategory>("");
   const [nicheFilter, setNicheFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
@@ -288,15 +299,26 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [leads, products]);
 
+  const relationshipCategoryCounts = useMemo(() => {
+    const counts = new Map<LeadRelationshipCategory, number>();
+    for (const lead of leads) {
+      const category = inferLeadRelationshipCategory(lead);
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
+    if (prospects.length) counts.set("cold-outreach", (counts.get("cold-outreach") ?? 0) + prospects.length);
+    return counts;
+  }, [leads, prospects.length]);
+
   const scopedLeads = useMemo(() => {
     return leads
       .filter(lead => matchesQuery(lead, query))
       .filter(lead => !tagFilter || lead.tags.includes(tagFilter))
       .filter(lead => !sourceFilter || lead.source === sourceFilter)
+      .filter(lead => !relationshipCategoryFilter || inferLeadRelationshipCategory(lead) === relationshipCategoryFilter)
       .filter(lead => !nicheFilter || lead.niche === nicheFilter)
       .filter(lead => !brandFilter || lead.brandId === brandFilter)
       .filter(lead => !serviceFilter || lead.serviceIds.includes(serviceFilter));
-  }, [brandFilter, leads, nicheFilter, query, serviceFilter, sourceFilter, tagFilter]);
+  }, [brandFilter, leads, nicheFilter, query, relationshipCategoryFilter, serviceFilter, sourceFilter, tagFilter]);
 
   const filteredLeads = useMemo(() => {
     return scopedLeads.filter(lead => matchesWorkFilter(lead, workFilter, clock));
@@ -306,6 +328,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
     if (workFilter !== "all" && workFilter !== "scouting") return [];
     const q = query.trim().toLowerCase();
     return prospects
+      .filter(() => !relationshipCategoryFilter || relationshipCategoryFilter === "cold-outreach")
       .filter(() => !brandFilter && !serviceFilter)
       .filter(prospect => !q || [
         prospect.name,
@@ -320,7 +343,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       ].filter(Boolean).join(" ").toLowerCase().includes(q))
       .filter(prospect => !sourceFilter || prospect.source === sourceFilter)
       .filter(prospect => !nicheFilter || prospect.niche === nicheFilter);
-  }, [brandFilter, nicheFilter, prospects, query, serviceFilter, sourceFilter, workFilter]);
+  }, [brandFilter, nicheFilter, prospects, query, relationshipCategoryFilter, serviceFilter, sourceFilter, workFilter]);
 
   const grouped = useMemo(() => {
     const out = new Map(columns.map(col => [col.id, [] as LeadView[]]));
@@ -400,6 +423,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
             ...(form.niche.trim() ? [`niche:${form.niche.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`] : []),
           ],
           source: form.source.trim() || "manual",
+          relationshipCategory: form.relationshipCategory || undefined,
           notes: form.notes || undefined,
           companyId: form.brandId || undefined,
           companyIds: form.brandId ? [form.brandId] : undefined,
@@ -703,6 +727,60 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
     }
   }
 
+  async function updateLeadCategory(id: string, relationshipCategory: LeadRelationshipCategory) {
+    setBusy(`category:${id}`);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch(`/api/portal/leads-pipeline/leads?id=${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ relationshipCategory }),
+      });
+      const payload = await response.json() as { ok: boolean; error?: string };
+      if (!payload.ok) throw new Error(payload.error ?? "Could not update the lead category.");
+      setSuccess(`Relationship updated to ${LEAD_RELATIONSHIP_CATEGORY_LABELS[relationshipCategory]}.`);
+      router.refresh();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const focusedLead = focusedLeadId ? leads.find(lead => lead.id === focusedLeadId) : undefined;
+
+  if (focusedLeadId) {
+    return (
+      <>
+        <LeadInternalWorkspace
+          lead={focusedLead}
+          columns={columns}
+          clock={clock}
+          busy={busy}
+          error={error}
+          success={success}
+          onMove={(columnId) => void moveLead(focusedLeadId, columnId)}
+          onContact={() => void markContacted(focusedLeadId)}
+          onSave={(patch, meeting) => void saveLeadDetails(focusedLeadId, patch, meeting)}
+          onCategoryChange={category => void updateLeadCategory(focusedLeadId, category)}
+          onConvert={() => focusedLead && setConversionLead(focusedLead)}
+          onArchive={() => focusedLead && void archiveLead(focusedLead.id, focusedLead.name || focusedLead.company || focusedLead.email || focusedLead.phone || "lead")}
+        />
+        {conversionLead && (
+          <ConvertLeadModal
+            lead={conversionLead}
+            busy={busy === `convert:${conversionLead.id}`}
+            updating={conversionLead.tags.includes("converted")}
+            products={products}
+            onCancel={() => setConversionLead(null)}
+            onSubmit={conversion => void convertLead(conversionLead.id, conversion)}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5" data-testid="leads-workspace">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -818,6 +896,17 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
           <QuickFilter active={workFilter === "proposal"} onClick={() => setWorkFilter("proposal")}>Proposal</QuickFilter>
           <QuickFilter active={workFilter === "awaiting-payment"} onClick={() => setWorkFilter("awaiting-payment")}>Awaiting payment</QuickFilter>
           <QuickFilter active={workFilter === "won"} onClick={() => setWorkFilter("won")}>Won</QuickFilter>
+          <select
+            value={relationshipCategoryFilter}
+            onChange={event => setRelationshipCategoryFilter(event.target.value as "" | LeadRelationshipCategory)}
+            aria-label="Filter by lead relationship category"
+            className="min-h-8 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"
+          >
+            <option value="">Every relationship · {leads.length + prospects.length}</option>
+            {LEAD_RELATIONSHIP_CATEGORIES.map(category => (
+              <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]} · {relationshipCategoryCounts.get(category) ?? 0}</option>
+            ))}
+          </select>
           <details className="group ml-auto">
             <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:bg-black/[0.03]">
               <Search size={13} aria-hidden="true" />
@@ -866,6 +955,7 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                   setQuery("");
                   setTagFilter("");
                   setSourceFilter("");
+                  setRelationshipCategoryFilter("");
                   setNicheFilter("");
                   setBrandFilter("");
                   setServiceFilter("");
@@ -988,6 +1078,12 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                       </select>
                     </div>
 
+                    <div className="mt-2">
+                      <span className="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200" title="How this relationship began">
+                        {LEAD_RELATIONSHIP_CATEGORY_LABELS[inferLeadRelationshipCategory(lead)]}
+                      </span>
+                    </div>
+
                     {lead.tags.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1">
                         {lead.tags.slice(0, 2).map(tag => (
@@ -1012,47 +1108,13 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
                       </p>
                     )}
                     <LeadWaitStrip lead={lead} clock={clock} />
-                    <DetailsEditor
-                      email={lead.email}
-                      name={lead.name}
-                      phone={lead.phone}
-                      company={lead.company}
-                      tags={lead.tags}
-                      notes={lead.notes}
-                      callRecordingUrl={lead.callRecordingUrl}
-                      sessionNotes={lead.sessionNotes}
-                      inspirationLinks={lead.inspirationLinks}
-                      potentialProblems={lead.potentialProblems}
-                      potentialSolutions={lead.potentialSolutions}
-                      pricePoints={lead.pricePoints}
-                      budgetRange={lead.budgetRange}
-                      designFeedback={lead.designFeedback}
-                      supportNotes={lead.supportNotes}
-                      capturedAt={lead.capturedAt}
-                      lastEnquiryAt={lead.lastEnquiryAt}
-                      lastEnquiryRespondedAt={lead.lastEnquiryRespondedAt}
-                      enquiryCount={lead.enquiryCount}
-                      firstContactedAt={lead.firstContactedAt}
-                      lastContactedAt={lead.lastContactedAt}
-                      currentStageId={lead.currentStageId ?? lead.columnId}
-                      stageEnteredAt={lead.stageEnteredAt}
-                      convertedAt={lead.convertedAt}
-                      journeyEvents={lead.journeyEvents}
-                      clock={clock}
-                      meetingAt={lead.nextMeetingAt}
-                      meetingLink={lead.meetingLink}
-                      meetingNotes={lead.meetingNotes}
-                      meetingMode={lead.meetingMode}
-                      meetingLocation={lead.meetingLocation}
-                      meetingStatus={lead.meetingStatus}
-                      meetingConfirmedAt={lead.meetingConfirmedAt}
-                      meetingReminderAt={lead.meetingReminderAt}
-                      meetingReminderSentAt={lead.meetingReminderSentAt}
-                      meetingAttempts={lead.meetingAttempts}
-                      salesPresentations={lead.salesPresentations}
-                      busy={busy === `details:${lead.id}`}
-                      onSave={(patch, meeting) => saveLeadDetails(lead.id, patch, meeting)}
-                    />
+                    <Link
+                      href={`/portal/agency/pipelines/leads?lead=${encodeURIComponent(lead.id)}`}
+                      className="mt-3 flex min-h-10 w-full items-center justify-between rounded-md border border-black/10 bg-black/[0.02] px-3 text-xs font-semibold text-black/65 hover:border-brand/30 hover:bg-brand/[0.05] hover:text-brand"
+                    >
+                      Open workspace
+                      <ExternalLink size={13} aria-hidden="true" />
+                    </Link>
                     {lead.nextMeetingAt && (
                       <p className="mt-2 text-[11px] font-medium text-amber-800">
                         Meeting · {formatUkDateTime(lead.nextMeetingAt)}
@@ -1283,6 +1345,13 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
               <Field label="Niche" value={form.niche} onChange={v => setForm(f => ({ ...f, niche: v }))} placeholder="Plumber, clinic, consultant..." />
               <Field label="Lead source" value={form.source} onChange={v => setForm(f => ({ ...f, source: v }))} placeholder="Referral, Google, event..." />
               <label className="text-xs font-medium text-black/60">
+                How do you know this lead?
+                <select required value={form.relationshipCategory} onChange={event => setForm(current => ({ ...current, relationshipCategory: event.target.value as "" | LeadRelationshipCategory }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                  <option value="">Choose a relationship</option>
+                  {LEAD_RELATIONSHIP_CATEGORIES.map(category => <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-black/60">
                 Brand
                 <select value={form.brandId} onChange={event => setForm(current => ({ ...current, brandId: event.target.value }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
                   <option value="">Not assigned yet</option>
@@ -1321,6 +1390,220 @@ export function LeadsPipelineWorkspace({ referenceNow, columns, prospects, leads
       )}
     </div>
   );
+}
+
+function LeadInternalWorkspace({
+  lead,
+  columns,
+  clock,
+  busy,
+  error,
+  success,
+  onMove,
+  onContact,
+  onSave,
+  onCategoryChange,
+  onConvert,
+  onArchive,
+}: {
+  lead?: LeadView;
+  columns: PipelineColumnView[];
+  clock: number;
+  busy: string | null;
+  error: string | null;
+  success: string | null;
+  onMove: (columnId: string) => void;
+  onContact: () => void;
+  onSave: (patch: LeadDetailsPatch, meeting: LeadMeetingDraft) => void;
+  onCategoryChange: (category: LeadRelationshipCategory) => void;
+  onConvert: () => void;
+  onArchive: () => void;
+}) {
+  if (!lead) {
+    return (
+      <section className="mx-auto w-full max-w-3xl rounded-lg border border-amber-200 bg-amber-50 p-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Lead workspace</p>
+        <h1 className="mt-2 text-xl font-semibold text-amber-950">This lead is no longer in the active Journey.</h1>
+        <p className="mt-2 text-sm text-amber-800">It may have been rerouted, archived or converted since this link was opened.</p>
+        <Link href="/portal/clients?view=journey" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white">
+          <ArrowLeft size={15} aria-hidden="true" /> Back to Journey
+        </Link>
+      </section>
+    );
+  }
+
+  const timing = leadTimingSnapshot(lead, clock);
+  const name = lead.name || lead.company || lead.email || lead.phone || "Lead";
+  const stage = lead.currentStageId ?? lead.columnId;
+  const inboxHref = lead.enquiryId
+    ? `/portal/agency/inbox?view=all&form=${encodeURIComponent(lead.enquiryId)}`
+    : "/portal/agency/inbox?view=all";
+  const responseLabel = timing.awaitingResponse
+    ? formatElapsed(timing.currentWaitMs)
+    : timing.latestResponseMs === undefined
+      ? "No sample"
+      : formatElapsed(timing.latestResponseMs);
+  const responseDetail = timing.awaitingResponse ? "waiting for your reply" : "latest recorded response";
+
+  return (
+    <div className="flex flex-col gap-5" data-testid="lead-internal-workspace">
+      <header className="border-b border-black/10 pb-5">
+        <Link href="/portal/clients?view=journey" className="inline-flex items-center gap-1.5 text-xs font-semibold text-black/45 hover:text-brand">
+          <ArrowLeft size={14} aria-hidden="true" /> Journey
+        </Link>
+        <div className="mt-4 flex flex-wrap items-start justify-between gap-5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand">Lead internal workspace</p>
+              <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-200">{LEAD_RELATIONSHIP_CATEGORY_LABELS[inferLeadRelationshipCategory(lead)]}</span>
+              {lead.tags.includes("converted") ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">Converted</span> : null}
+            </div>
+            <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-black/90">{name}</h1>
+            <p className="mt-1 text-sm text-black/50">
+              {[lead.company && lead.company !== name ? lead.company : null, lead.brandName, lead.serviceNames.join(" + ")].filter(Boolean).join(" · ") || "Qualification, communication and conversion in one record."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {lead.phone ? <a href={`tel:${lead.phone}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Phone size={15} /> Call</a> : null}
+            {lead.email ? <a href={`mailto:${lead.email}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Mail size={15} /> Email</a> : null}
+            <Link href={inboxHref} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><MessageCircle size={15} /> Inbox</Link>
+            {lead.tags.includes("converted") && lead.clientId ? (
+              <Link href={`/portal/clients/${lead.clientId}`} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Building2 size={15} /> Open client</Link>
+            ) : (
+              <button type="button" onClick={onConvert} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-3 text-xs font-semibold text-white"><UserRoundCheck size={15} /> Convert</button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {error ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
+      {success ? <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{success}</p> : null}
+
+      <dl className="grid overflow-hidden rounded-lg border border-black/10 bg-black/[0.08] sm:grid-cols-2 xl:grid-cols-4">
+        <LeadWorkspaceMetric label="Journey age" value={formatElapsed(timing.journeyAgeMs)} detail={`Captured ${formatUkDateTime(lead.capturedAt)}`} />
+        <LeadWorkspaceMetric label="Response" value={responseLabel} detail={responseDetail} tone={timing.awaitingResponse ? "warning" : "complete"} />
+        <LeadWorkspaceMetric label="Current stage" value={formatElapsed(timing.stageAgeMs)} detail={`${stageLabel(stage)} · time in stage`} />
+        <LeadWorkspaceMetric label="Enquiries" value={String(lead.enquiryCount ?? 0)} detail={`${sourceLabel(lead.source)} · attributed source`} />
+      </dl>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+        <div className="space-y-5">
+          <section className="rounded-lg border border-black/10 bg-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand">Next move</p>
+                <h2 className="mt-1 text-lg font-semibold text-black/85">Keep this opportunity moving</h2>
+                <p className="mt-1 text-sm text-black/48">Update the stage, record contact, then keep the detail in the full sales record.</p>
+              </div>
+              <label className="text-xs font-medium text-black/50">
+                Journey stage
+                <select value={stage} onChange={event => onMove(event.target.value)} disabled={busy === `move:${lead.id}`} className="mt-1 block min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/70">
+                  {columns.map(column => (
+                    <option key={column.id} value={column.id} disabled={column.id === "scouting" && stage !== "scouting"}>
+                      {column.label}{column.id === "scouting" ? " (pre-qualified)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <button type="button" onClick={onContact} disabled={busy === `contacted:${lead.id}`} className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 disabled:opacity-50">
+                {busy === `contacted:${lead.id}` ? "Recording..." : "Mark contacted"}
+              </button>
+              <Link href={inboxHref} className="flex min-h-11 items-center justify-center rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65">Open conversation</Link>
+              {lead.nextMeetingAt ? (
+                <a href={lead.meetingLink || "#lead-record"} target={lead.meetingLink ? "_blank" : undefined} rel={lead.meetingLink ? "noreferrer" : undefined} className="flex min-h-11 items-center justify-center rounded-md bg-black px-3 text-sm font-semibold text-white">
+                  {lead.meetingLink ? "Join meeting" : "Review meeting"}
+                </a>
+              ) : <a href="#lead-record" className="flex min-h-11 items-center justify-center rounded-md bg-black px-3 text-sm font-semibold text-white">Book meeting</a>}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-black/10 bg-white p-5">
+            <LeadTimingTrace lead={lead} events={lead.journeyEvents ?? []} clock={clock} />
+          </section>
+
+          <section id="lead-record" className="rounded-lg border border-black/10 bg-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand">Complete record</p>
+                <h2 className="mt-1 text-lg font-semibold text-black/85">Qualification, meetings and evidence</h2>
+                <p className="mt-1 text-sm text-black/48">Open advanced details when you need the full sales dossier.</p>
+              </div>
+              <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[10px] font-semibold text-black/45">Saved to this lead</span>
+            </div>
+            <DetailsEditor
+              buttonLabel="Open full sales record"
+              email={lead.email} name={lead.name} phone={lead.phone} company={lead.company} tags={lead.tags} notes={lead.notes}
+              callRecordingUrl={lead.callRecordingUrl} sessionNotes={lead.sessionNotes} inspirationLinks={lead.inspirationLinks}
+              potentialProblems={lead.potentialProblems} potentialSolutions={lead.potentialSolutions} pricePoints={lead.pricePoints}
+              budgetRange={lead.budgetRange} designFeedback={lead.designFeedback} supportNotes={lead.supportNotes}
+              capturedAt={lead.capturedAt} lastEnquiryAt={lead.lastEnquiryAt} lastEnquiryRespondedAt={lead.lastEnquiryRespondedAt}
+              enquiryCount={lead.enquiryCount} firstContactedAt={lead.firstContactedAt} lastContactedAt={lead.lastContactedAt}
+              currentStageId={stage} stageEnteredAt={lead.stageEnteredAt} convertedAt={lead.convertedAt} journeyEvents={lead.journeyEvents}
+              clock={clock} meetingAt={lead.nextMeetingAt} meetingLink={lead.meetingLink} meetingNotes={lead.meetingNotes}
+              meetingMode={lead.meetingMode} meetingLocation={lead.meetingLocation} meetingStatus={lead.meetingStatus}
+              meetingConfirmedAt={lead.meetingConfirmedAt} meetingReminderAt={lead.meetingReminderAt}
+              meetingReminderSentAt={lead.meetingReminderSentAt} meetingAttempts={lead.meetingAttempts}
+              salesPresentations={lead.salesPresentations} busy={busy === `details:${lead.id}`} onSave={onSave}
+            />
+          </section>
+        </div>
+
+        <aside className="space-y-5">
+          <section className="rounded-lg border border-black/10 bg-white p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Contact and attribution</p>
+            <label className="mt-3 block text-xs font-medium text-black/55">
+              Relationship category
+              <select
+                value={inferLeadRelationshipCategory(lead)}
+                onChange={event => onCategoryChange(event.target.value as LeadRelationshipCategory)}
+                disabled={busy === `category:${lead.id}`}
+                className="mt-1 min-h-10 w-full rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/70 disabled:opacity-50"
+              >
+                {LEAD_RELATIONSHIP_CATEGORIES.map(category => <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]}</option>)}
+              </select>
+            </label>
+            <dl className="mt-3 divide-y divide-black/[0.07] text-sm">
+              <LeadFact label="Email" value={lead.email || "Not recorded"} />
+              <LeadFact label="Phone" value={lead.phone || "Not recorded"} />
+              <LeadFact label="Source" value={sourceLabel(lead.source)} />
+              <LeadFact label="Brand" value={lead.brandName || "Not assigned"} />
+              <LeadFact label="Services" value={lead.serviceNames.join(", ") || "Not assigned"} />
+            </dl>
+            {lead.tags.length ? <div className="mt-4 flex flex-wrap gap-1.5">{lead.tags.map(tag => <span key={tag} className="rounded-full bg-black/[0.05] px-2 py-1 text-[10px] text-black/55">{tag}</span>)}</div> : null}
+          </section>
+
+          <section className="rounded-lg border border-black/10 bg-black/[0.025] p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Known context</p>
+            <LeadContext label="Potential problem" value={lead.potentialProblems} />
+            <LeadContext label="Proposed direction" value={lead.potentialSolutions} />
+            <LeadContext label="Budget" value={lead.budgetRange || lead.pricePoints} />
+            <LeadContext label="Internal note" value={lead.notes} />
+            {!lead.potentialProblems && !lead.potentialSolutions && !lead.budgetRange && !lead.pricePoints && !lead.notes ? <p className="mt-3 text-sm text-black/40">Open the full sales record to build the qualification picture.</p> : null}
+          </section>
+
+          <button type="button" onClick={onArchive} disabled={busy === `archive:${lead.id}`} className="w-full min-h-10 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 disabled:opacity-50">
+            {busy === `archive:${lead.id}` ? "Archiving..." : "Archive lead"}
+          </button>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function LeadWorkspaceMetric({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "neutral" | "warning" | "complete" }) {
+  const valueClass = tone === "warning" ? "text-red-700" : tone === "complete" ? "text-emerald-700" : "text-black/85";
+  return <div className="bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-2 text-2xl font-semibold tabular-nums ${valueClass}`}>{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
+}
+
+function LeadFact({ label, value }: { label: string; value: string }) {
+  return <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-black/40">{label}</dt><dd className="min-w-0 break-words font-medium text-black/70">{value}</dd></div>;
+}
+
+function LeadContext({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return <div className="mt-4 border-t border-black/[0.07] pt-3"><h3 className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{label}</h3><p className="mt-1 text-sm leading-6 text-black/60">{value}</p></div>;
 }
 
 function ProspectCard({
@@ -1739,6 +2022,7 @@ function stageLabel(value?: string): string {
 }
 
 function DetailsEditor({
+  buttonLabel = "Open lead",
   email,
   name,
   phone,
@@ -1779,6 +2063,7 @@ function DetailsEditor({
   busy,
   onSave,
 }: {
+  buttonLabel?: string;
   email: string;
   name?: string;
   phone?: string;
@@ -1857,7 +2142,7 @@ function DetailsEditor({
         onClick={() => setOpen(true)}
         className="mt-3 w-full rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 text-left text-xs font-medium text-black/65 hover:bg-black/[0.04]"
       >
-        Open lead
+        {buttonLabel}
       </button>
       {open && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4 sm:p-8">
@@ -2386,6 +2671,7 @@ function matchesQuery(lead: LeadView, query: string): boolean {
     lead.phone,
     lead.company,
     lead.source,
+    LEAD_RELATIONSHIP_CATEGORY_LABELS[inferLeadRelationshipCategory(lead)],
     lead.notes,
     lead.brandName,
     lead.serviceNames.join(" "),

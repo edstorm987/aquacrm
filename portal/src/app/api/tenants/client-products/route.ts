@@ -9,6 +9,8 @@ import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getAgency, getClientForAgency, updateClient } from "@/server/tenants";
 import { getTradingCompany } from "@/server/tradingCompanies";
+import { applyClientProductVariations } from "@/lib/clientProductVariations";
+import { productStatus } from "@/server/agencyProducts";
 
 interface Body {
   clientId?: unknown;
@@ -45,22 +47,28 @@ export async function POST(request: Request) {
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
 
     const requestedIds = cleanProductIds(body.productIds);
-    const catalogue = ensureDefaultAgencyProducts(session.agencyId);
+    const catalogue = applyClientProductVariations(client.metadata ?? {}, ensureDefaultAgencyProducts(session.agencyId));
     const previousAssignment = resolvePortalProductAssignment(client.metadata ?? {}, catalogue);
     const assignment = resolveAgencyProductAssignment(catalogue, requestedIds);
     if (assignment.missingIds.length) {
       return NextResponse.json({ ok: false, error: "One or more selected services are no longer available." }, { status: 409 });
     }
     const previouslyAssigned = new Set(previousAssignment.effectiveIds);
-    const newlyArchived = assignment.effectiveProducts.filter(product => !product.active && !previouslyAssigned.has(product.id));
-    if (newlyArchived.length) {
+    const unavailable = assignment.effectiveProducts.filter(product => productStatus(product) !== "live" && !previouslyAssigned.has(product.id));
+    if (unavailable.length) {
       return NextResponse.json({
         ok: false,
-        error: `${newlyArchived.map(product => product.name).join(", ")} ${newlyArchived.length === 1 ? "is" : "are"} archived and cannot be added to a client.`,
+        error: `${unavailable.map(product => product.name).join(", ")} ${unavailable.length === 1 ? "is" : "are"} still draft or archived and cannot be added to a client.`,
       }, { status: 409 });
     }
 
     const products = assignment.effectiveProducts.map(portalProductSelectionFromAgencyProduct);
+    const previousSelectedIds = new Set(previousAssignment.selectedIds);
+    const currentSelectedIds = new Set(assignment.selectedIds);
+    const addedProductIds = assignment.selectedIds.filter(id => !previousSelectedIds.has(id));
+    const removedProductIds = previousAssignment.selectedIds.filter(id => !currentSelectedIds.has(id));
+    const addedProductNames = addedProductIds.map(id => catalogue.find(product => product.id === id)?.name).filter((name): name is string => Boolean(name));
+    const removedProductNames = removedProductIds.map(id => catalogue.find(product => product.id === id)?.name).filter((name): name is string => Boolean(name));
     const hasCompanyAssignment = Object.prototype.hasOwnProperty.call(body, "companyId");
     if (hasCompanyAssignment && body?.companyId !== null && typeof body?.companyId !== "string") {
       return NextResponse.json({ ok: false, error: "companyId must be a company id or null" }, { status: 400 });
@@ -81,6 +89,15 @@ export async function POST(request: Request) {
     const existingHistory = Array.isArray(client.metadata?.portalProductAssignmentHistory)
       ? client.metadata.portalProductAssignmentHistory.slice(-19)
       : [];
+    const changeType = existingHistory.length === 0 && previousAssignment.selectedIds.length === 0
+      ? "initial"
+      : addedProductIds.length > 0 && removedProductIds.length === 0
+        ? "upsell"
+        : removedProductIds.length > 0 && addedProductIds.length === 0
+          ? "contraction"
+          : addedProductIds.length || removedProductIds.length
+            ? "reconfiguration"
+            : "unchanged";
     const updated = updateClient(session.agencyId, client.id, {
       companyId: hasCompanyAssignment ? requestedCompanyId || null : undefined,
       metadata: {
@@ -92,6 +109,11 @@ export async function POST(request: Request) {
           selectedProductIds: assignment.selectedIds,
           effectiveProductIds: assignment.effectiveIds,
           products,
+          addedProductIds,
+          addedProductNames,
+          removedProductIds,
+          removedProductNames,
+          changeType,
           assignedAt,
           assignedBy: session.userId,
         }],
@@ -106,11 +128,15 @@ export async function POST(request: Request) {
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "fulfillment",
-      action: "client.services_assigned",
-      message: products.length
-        ? `Assigned ${products.map(product => product.name).join(", ")} to ${client.name} under ${company?.name ?? defaultProviderName}.`
-        : `Updated ${client.name} under ${company?.name ?? defaultProviderName} with no service assignments.`,
-      metadata: { selectedProductIds: assignment.selectedIds, productIds: assignment.effectiveIds, productNames: products.map(product => product.name), companyId: effectiveCompanyId || null, companyName: company?.name ?? defaultProviderName },
+      action: changeType === "upsell" ? "client.services_expanded" : changeType === "contraction" ? "client.services_reduced" : "client.services_assigned",
+      message: changeType === "upsell"
+        ? `Expanded ${client.name} with ${addedProductNames.join(", ")}.`
+        : changeType === "contraction"
+          ? `Removed ${removedProductNames.join(", ")} from ${client.name}.`
+          : products.length
+            ? `Assigned ${products.map(product => product.name).join(", ")} to ${client.name} under ${company?.name ?? defaultProviderName}.`
+            : `Updated ${client.name} under ${company?.name ?? defaultProviderName} with no service assignments.`,
+      metadata: { selectedProductIds: assignment.selectedIds, productIds: assignment.effectiveIds, productNames: products.map(product => product.name), addedProductIds, addedProductNames, removedProductIds, removedProductNames, changeType, companyId: effectiveCompanyId || null, companyName: company?.name ?? defaultProviderName },
     });
     await flushPendingWrites();
 

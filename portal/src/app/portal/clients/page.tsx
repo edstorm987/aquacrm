@@ -44,6 +44,7 @@ import { listInboxSnapshot } from "@/lib/server/inboxStore";
 import { synchroniseInboxIdentityResolutions } from "@/lib/server/inboxService";
 import { clearIdentityResolutionReviews, listIdentityResolutionReviews } from "@/lib/server/identityResolution";
 import { clientRelationshipId } from "@/server/clientRelationships";
+import { inferLeadRelationshipCategory, isLeadRelationshipCategory } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 
 interface JourneyClientMetadata {
   leadId?: string;
@@ -183,6 +184,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
 	        createdAt: contact.createdAt,
 	        clientId: contact.clientId,
 	        recordKind: "contact" as const,
+          relationshipCategory: isLeadRelationshipCategory(contact.customFields?.leadRelationshipCategory)
+            ? contact.customFields.leadRelationshipCategory
+            : undefined,
           enquiryClassification: isWebsiteEnquiryClassification(contact.customFields?.enquiryClassification)
             ? contact.customFields.enquiryClassification
             : undefined,
@@ -207,8 +211,12 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
 	          lastContactedAt: lead.lastContactedAt,
 	          nextMeetingAt: lead.nextMeetingAt,
 	          capturedAt: lead.capturedAt,
+	          lastEnquiryAt: lead.lastEnquiryAt,
+	          lastEnquiryRespondedAt: lead.lastEnquiryRespondedAt,
+	          currentStageId: lead.currentStageId,
 	          pipelineCardId: lead.pipelineCardId,
 	          recordKind: "lead" as const,
+          relationshipCategory: inferLeadRelationshipCategory(lead),
           brandIds: [...new Set([lead.companyId, ...(lead.companyIds ?? [])].filter((value): value is string => Boolean(value)))],
           brandNames: [],
           serviceIds: [...new Set(lead.serviceLines ?? [])],
@@ -274,7 +282,13 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   await flushPendingWrites();
   const identityReviews = session.isDemo ? [] : listIdentityResolutionReviews(session.agencyId, { status: "all" });
   const requestedView = (await searchParams).view;
-  const initialView = requestedView === "contacts" || requestedView === "staff" || requestedView === "health" || requestedView === "journey" || requestedView === "identity" || requestedView === "all" ? requestedView : "journey";
+  const initialView = requestedView === "health"
+    ? "clients"
+    : requestedView === "all"
+      ? "contacts"
+      : requestedView === "contacts" || requestedView === "staff" || requestedView === "clients" || requestedView === "leads" || requestedView === "journey" || requestedView === "identity"
+      ? requestedView
+      : "journey";
   const installs = listInstalledFor({ agencyId: agency.id });
   const eff = effectiveRole(session);
   const canViewFinance = hasAllPermissions(eff, ["finance.view"]);

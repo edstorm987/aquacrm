@@ -16,7 +16,13 @@ import {
 
 type CentreView = "attention" | "parked" | "read";
 
-export function NotificationCentreButton() {
+export function NotificationCentreButton({
+  includeProductUpdates = true,
+  updatesHref = "/portal/agency/settings#updates",
+}: {
+  includeProductUpdates?: boolean;
+  updatesHref?: string;
+} = {}) {
   const attention = useNotificationAttention();
   const alerts = attention?.alerts ?? [];
   const attentionWindow = attention?.attentionWindow;
@@ -27,12 +33,12 @@ export function NotificationCentreButton() {
 
   useEffect(() => {
     const syncReleaseState = () => {
-      setUpdateUnread(window.localStorage.getItem(RELEASE_STORAGE_KEY) !== LATEST_RELEASE.version);
+      setUpdateUnread(includeProductUpdates && window.localStorage.getItem(RELEASE_STORAGE_KEY) !== LATEST_RELEASE.version);
     };
     syncReleaseState();
     window.addEventListener(RELEASE_SEEN_EVENT, syncReleaseState);
     return () => window.removeEventListener(RELEASE_SEEN_EVENT, syncReleaseState);
-  }, []);
+  }, [includeProductUpdates]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,8 +132,8 @@ export function NotificationCentreButton() {
 
           {attention?.error ? <p role="alert" className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">{attention.error}</p> : null}
 
-          <Link
-            href="/portal/agency/settings#updates"
+          {includeProductUpdates ? <Link
+            href={updatesHref}
             onClick={() => { markReleaseRead(); setOpen(false); }}
             className="mm-notification-release group flex shrink-0 items-center gap-3 border-t border-black/10 bg-black/[0.018] px-4 py-3 transition hover:bg-black/[0.035]"
           >
@@ -137,7 +143,7 @@ export function NotificationCentreButton() {
               <span className="mt-0.5 block truncate text-[11px] text-black/45">{LATEST_RELEASE.title} · {formatReleaseDate(LATEST_RELEASE.releasedAt)}</span>
             </span>
             <ChevronRight size={14} className="text-black/25" aria-hidden />
-          </Link>
+          </Link> : null}
         </section>
       ) : null}
     </div>

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, CircleAlert, Clock3, FolderKanban, PackageCheck, PanelTop } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, CircleAlert, Clock3, FolderKanban, PackageCheck, PanelTop, SlidersHorizontal } from "lucide-react";
 import { clientWorkspaceHref } from "@/lib/clientWorkspace";
 import { formatUkDate } from "@/lib/formatDateTime";
+import { ClientServiceSwitcher } from "./_ClientServiceSwitcher";
 
 export interface ClientDeliveryProduct {
   id: string;
@@ -11,6 +12,8 @@ export interface ClientDeliveryProduct {
   accentColor?: string;
   stage: string;
   progress: number;
+  nextAction?: string;
+  nextActionDetail?: string;
 }
 
 export interface ClientDeliveryMilestone {
@@ -20,43 +23,45 @@ export interface ClientDeliveryMilestone {
   targetAt?: number;
 }
 
-export function ClientDeliveryOverview({ clientId, products, milestones, portalReady, selectedProductId }: {
+export function ClientDeliveryOverview({ clientId, products, milestones, portalReady, selectedProductId, advanced }: {
   clientId: string;
   products: ClientDeliveryProduct[];
   milestones: ClientDeliveryMilestone[];
   portalReady: boolean;
   selectedProductId?: string;
+  advanced: boolean;
 }) {
   const open = milestones.filter(item => item.status !== "complete");
   const now = Date.now();
   const attention = open.filter(item => item.status === "blocked" || Boolean(item.targetAt && item.targetAt < now));
   const focusedProduct = products.find(product => product.id === selectedProductId) ?? products[0];
+  const simpleHref = clientWorkspaceHref(clientId, "delivery", { product: focusedProduct?.id });
+  const advancedHref = clientWorkspaceHref(clientId, "delivery", { product: focusedProduct?.id, mode: "advanced" });
   return (
     <section className="grid gap-5">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Fulfilment lens</p>
-          <h2 className="mt-2 text-2xl font-semibold text-black/88">Delivery workspace</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/55">Assigned services, execution stages, milestones, tasks, files, approvals, and the shared portal live here.</p>
+          <h2 className="mt-2 text-2xl font-semibold text-black/88">Service workspace</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/55">See the active service and its next move first. Boards, SOPs, evidence, and configuration remain available in Advanced Fulfilment.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={clientWorkspaceHref(clientId, "files")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65">Open files <ArrowRight size={13} /></Link>
-          <Link href={clientWorkspaceHref(clientId, "portal")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><PanelTop size={14} /> {portalReady ? "Open portal" : "Prepare portal"}</Link>
+          <Link href={advanced ? simpleHref : advancedHref} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-xs font-semibold ${advanced ? "border border-black/12 bg-white text-black/65" : "bg-black text-white"}`}><SlidersHorizontal size={14} /> {advanced ? "Simple view" : "Advanced Fulfilment"}</Link>
         </div>
       </header>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-[#315b85] bg-sky-50/55 px-4 py-3">
+        <p className="text-xs leading-5 text-black/55"><strong className="font-semibold text-black/72">{advanced ? "Advanced mode" : "Simple mode"}</strong> · {advanced ? "The execution board, linked SOPs, and specialist controls are open below." : "Only the information needed to move delivery forward is shown."}</p>
+        <div className="flex flex-wrap gap-3">
+          <Link href={clientWorkspaceHref(clientId, "files")} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#315b85]">Files <ArrowRight size={12} /></Link>
+          <Link href={clientWorkspaceHref(clientId, "portal")} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#315b85]"><PanelTop size={13} /> {portalReady ? "Portal" : "Prepare portal"}</Link>
+        </div>
+      </div>
 
       <div className="grid gap-px overflow-hidden border border-black/10 bg-black/10 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
         <div className="bg-white p-5">
           <div className="flex items-center gap-2"><PackageCheck size={17} className="text-black/45" /><h3 className="text-sm font-semibold text-black/78">Assigned product workspaces</h3></div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {products.map(product => (
-              <Link id={`product-${product.id}`} key={product.id} href={clientWorkspaceHref(clientId, "delivery", { product: product.id })} aria-current={focusedProduct?.id === product.id ? "true" : undefined} className={`border-l-2 px-3 py-3 transition ${focusedProduct?.id === product.id ? "bg-brand/[0.065]" : "bg-black/[0.018] hover:bg-black/[0.035]"}`} style={{ borderColor: product.accentColor || "var(--brand-primary)" }}>
-                <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-black/78">{product.name}</p><p className="mt-0.5 text-xs text-black/42">{product.stage}</p></div><span className="text-sm font-semibold tabular-nums text-black/65">{product.progress}%</span></div>
-                <div className="mt-3 h-1.5 overflow-hidden bg-black/[0.07]"><div className="h-full bg-brand" style={{ width: `${Math.max(0, Math.min(100, product.progress))}%` }} /></div>
-              </Link>
-            ))}
-            {!products.length ? <p className="py-6 text-sm text-black/45">No product is assigned yet. Assign one from the Fulfilment product editor.</p> : null}
-          </div>
+          <ClientServiceSwitcher clientId={clientId} products={products} selectedProductId={focusedProduct?.id} advanced={advanced} />
         </div>
         <aside className="bg-white p-5">
           <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Clock3 size={17} className="text-black/45" /><h3 className="text-sm font-semibold text-black/78">Milestone watch</h3></div>{attention.length ? <CircleAlert size={16} className="text-red-600" /> : null}</div>
@@ -79,12 +84,15 @@ export function ClientDeliveryOverview({ clientId, products, milestones, portalR
           </a>
         </div>
         <aside className="bg-white p-5">
-          <p className="text-xs font-semibold text-black/72">Agreed outputs</p>
-          <ul className="mt-3 grid gap-2">{focusedProduct.deliverables.length ? focusedProduct.deliverables.map(item => <li key={item} className="flex items-start gap-2 text-xs leading-5 text-black/55"><Check size={13} className="mt-0.5 shrink-0 text-brand" />{item}</li>) : <li className="text-xs text-black/42">Add deliverables in the Fulfilment product editor.</li>}</ul>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-brand">Next useful move</p>
+          <h4 className="mt-2 text-sm font-semibold text-black/75">{focusedProduct.nextAction || "Review this service stage"}</h4>
+          <p className="mt-1 text-xs leading-5 text-black/45">{focusedProduct.nextActionDetail || `Confirm the next action for ${focusedProduct.name}, then retain the result in its service record.`}</p>
+          <details className="group mt-4 border-t border-black/[0.08] pt-3">
+            <summary className="cursor-pointer list-none text-xs font-semibold text-black/55">Agreed outputs · {focusedProduct.deliverables.length} <span className="group-open:hidden">+</span><span className="hidden group-open:inline">-</span></summary>
+            <ul className="mt-3 grid gap-2">{focusedProduct.deliverables.length ? focusedProduct.deliverables.map(item => <li key={item} className="flex items-start gap-2 text-xs leading-5 text-black/55"><Check size={13} className="mt-0.5 shrink-0 text-brand" />{item}</li>) : <li className="text-xs text-black/42">Add deliverables in the Fulfilment product editor.</li>}</ul>
+          </details>
         </aside>
       </section> : null}
-
-      <div className="flex items-center gap-2 border-b border-black/10 pb-3"><FolderKanban size={17} className="text-black/45" /><h3 className="text-sm font-semibold text-black/78">Execution board</h3></div>
     </section>
   );
 }

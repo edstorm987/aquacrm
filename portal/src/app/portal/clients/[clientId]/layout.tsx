@@ -28,10 +28,9 @@ import { cookies } from "next/headers";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
-import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
+import { ClientRadarQuickLookControl } from "@/components/chrome/ClientRadarQuickLookControl";
 import { clientWorkspaceHref } from "@/lib/clientWorkspace";
 import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { clientServiceCapabilities, inheritedClientServiceKeys } from "@/lib/clientServiceWorkspace";
 import { listAgencyProducts } from "@/server/agencyProducts";
 import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
 
@@ -58,10 +57,6 @@ export default async function ClientLayout({
   if (!client) notFound();
   const serviceCatalogue = listAgencyProducts(session.agencyId, true);
   const assignedServices = resolvePortalProductAssignment(client.metadata ?? {}, serviceCatalogue).products;
-  const serviceCapabilities = clientServiceCapabilities(
-    assignedServices,
-    inheritedClientServiceKeys(assignedServices, serviceCatalogue),
-  );
   const agency = getAgency(client.agencyId);
   const providerFallback = agency?.name?.trim() || "AquaOasis-Web";
   const providerName = resolveClientPortalProvider(client, { name: providerFallback, mark: providerFallback.charAt(0) }).name;
@@ -72,63 +67,29 @@ export default async function ClientLayout({
   // (i.e. always populated). Provides at-minimum an escape hatch +
   // overview tabs as nav links.
   const overviewBase = `/portal/clients/${client.id}`;
-  const deliveryItems: import("@/lib/chrome/sidebarLayout").NavPanel["items"] = serviceCapabilities.hasServices
-    ? [
-        { id: "client-delivery", label: "Delivery overview", href: clientWorkspaceHref(client.id, "delivery"), order: 10 },
-        ...assignedServices.map((product, index) => ({
-          id: `client-service-${product.catalogKey ?? "custom"}-${product.id}`,
-          label: product.name,
-          href: clientWorkspaceHref(client.id, "delivery", { product: product.id }),
-          order: 20 + index,
-        })),
-        ...(serviceCapabilities.marketing ? [{ id: "client-marketing", label: "Social and paid media", href: clientWorkspaceHref(client.id, "marketing"), order: 50 }] : []),
-        ...(serviceCapabilities.systems ? [{ id: "client-systems", label: "Systems and development", href: clientWorkspaceHref(client.id, "systems"), order: 60 }] : []),
-      ]
-    : [{ id: "client-assign-services", label: "Assign services", href: `${clientWorkspaceHref(client.id, "delivery")}#service-assignment`, order: 10 }];
+  const canReturnToAgency = session.role === "agency-owner" || session.role === "agency-manager";
   const workspacePanel: import("@/lib/chrome/sidebarLayout").NavPanel = {
     id: "main",
-    label: "Client control",
+    label: "Client workspace",
     order: 0,
     items: [
-      { id: "back-to-agency", label: "← Back to agency", href: "/portal/agency", order: 0 },
-      { id: "client-overview", label: "Operations desk", href: clientWorkspaceHref(client.id, "overview"), order: 10 },
+      ...(canReturnToAgency ? [{ id: "back-to-agency", label: "← Back to agency", href: "/portal/agency", order: 0 }] : []),
+      { id: "client-overview", label: "Overview", href: clientWorkspaceHref(client.id, "overview"), order: 10 },
+      { id: "client-relationship", label: "Relationship", href: clientWorkspaceHref(client.id, "relationship"), order: 20 },
+      {
+        id: "client-delivery",
+        label: "Fulfilment",
+        href: clientWorkspaceHref(client.id, "delivery"),
+        badge: assignedServices.length || "Set up",
+        order: 30,
+      },
+      { id: "client-finance", label: "Commercial", href: clientWorkspaceHref(client.id, "finance"), order: 40 },
+      { id: "client-notes", label: "Client record", href: clientWorkspaceHref(client.id, "notes"), order: 50 },
+      { id: "client-portal", label: "Client portal", href: clientWorkspaceHref(client.id, "portal"), order: 60 },
     ],
   };
   let panels: import("@/lib/chrome/sidebarLayout").NavPanel[] = [
     workspacePanel,
-    {
-      id: "content",
-      label: "Operate",
-      order: 20,
-      items: [
-        { id: "client-communications", label: "Messages & support", href: clientWorkspaceHref(client.id, "communications"), order: 10 },
-        { id: "client-relationship", label: "Health & journey", href: clientWorkspaceHref(client.id, "relationship"), order: 20 },
-        { id: "client-notes", label: "Client record", href: clientWorkspaceHref(client.id, "notes"), order: 30 },
-      ],
-    },
-    {
-      id: "fulfillment",
-      label: "Delivery & services",
-      order: 30,
-      items: deliveryItems,
-    },
-    ...(serviceCapabilities.hasServices ? [{
-      id: "tools" as const,
-      label: "Assets & access",
-      order: 40,
-      items: [
-        { id: "client-files", label: "Files and assets", href: clientWorkspaceHref(client.id, "files"), order: 10 },
-        { id: "client-portal", label: "Client portal", href: clientWorkspaceHref(client.id, "portal"), order: 20 },
-      ],
-    }] : []),
-    {
-      id: "ops",
-      label: "Commercial",
-      order: 50,
-      items: [
-        { id: "client-finance", label: "Contracts & payments", href: clientWorkspaceHref(client.id, "finance"), order: 10 },
-      ],
-    },
     {
       id: "settings",
       label: "Settings",
@@ -215,7 +176,7 @@ export default async function ClientLayout({
         />
       ) : null}
       <ThemeInjector brand={client.brand} scope="client" />
-      <NotificationAttentionProvider initialAlerts={alertViews}>
+      <NotificationAttentionProvider initialAlerts={alertViews} clientId={client.id}>
       <div className="mm-portal-root mm-client-workspace-shell flex h-dvh overflow-hidden" data-workspace-shell="client">
         <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} navAlignment="start" variant="client" />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -241,9 +202,9 @@ export default async function ClientLayout({
             ]}
             previewActive={!!previewActive}
             notifications={session.role.startsWith("agency-")
-              ? <NotificationCentreButton />
+              ? <NotificationCentreButton includeProductUpdates={false} />
               : undefined}
-            radarControl={session.role === "agency-owner" || session.role === "agency-manager" ? <RadarQuickLookControl agencyId={session.agencyId} /> : null}
+            radarControl={session.role === "agency-owner" || session.role === "agency-manager" ? <ClientRadarQuickLookControl agencyId={session.agencyId} clientId={client.id} /> : null}
             advisorControl={session.role === "agency-owner" || session.role === "agency-manager" ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={sessionUser?.name || session.email} />
             ) : null}

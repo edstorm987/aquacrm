@@ -25,6 +25,7 @@ export type BusinessSignalStatus = BusinessIssueSeverity | "healthy" | "unknown"
 export type AdvisorCoverageStatus = "connected" | "empty" | "disconnected" | "unavailable";
 export type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind" | "learning" | "inactive";
 export type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog";
+export type RadarEntityType = "client" | "product" | "property";
 export type RadarRuleLens =
   | "connection"
   | "freshness"
@@ -49,6 +50,14 @@ export interface BusinessRadarIssue {
   href: string;
   detectedAt: number;
   sourceIds: string[];
+  entity?: RadarEntityReference;
+}
+
+export interface RadarEntityReference {
+  type: RadarEntityType;
+  id: string;
+  label: string;
+  parentId?: string;
 }
 
 export interface BusinessMetricSignal {
@@ -101,6 +110,47 @@ export interface BusinessRadarCheck {
   policy?: RadarPolicyRule;
   alwaysOn?: boolean;
   exceptionId?: string;
+  entity?: RadarEntityReference;
+}
+
+export interface ClientRadarPackSummary {
+  id: string;
+  label: string;
+  kind: "base" | "product" | "source";
+  productId?: string;
+  productName?: string;
+  totalChecks: number;
+  liveChecks: number;
+  critical: number;
+  warning: number;
+  blind: number;
+  learning: number;
+}
+
+export interface ClientRadarSnapshot {
+  generatedAt: number;
+  clientId: string;
+  clientName: string;
+  healthScore: number | null;
+  healthState: "strong" | "watch" | "risk" | "learning";
+  confidencePercent: number;
+  readinessPercent: number;
+  summary: string;
+  lastRecordedAt?: number;
+  checks: BusinessRadarCheck[];
+  issues: BusinessRadarIssue[];
+  packs: ClientRadarPackSummary[];
+  totals: {
+    total: number;
+    live: number;
+    passed: number;
+    critical: number;
+    warning: number;
+    watch: number;
+    blind: number;
+    learning: number;
+    inactive: number;
+  };
 }
 
 export interface RadarDomainSummary {
@@ -321,6 +371,8 @@ export interface BusinessIssueRadar {
     baselineCoveragePercent: number;
     evidenceSamples: number;
     historicalAnomalies: number;
+    clientChecks?: number;
+    monitoredClients?: number;
   };
   speedToLead: SpeedToLeadRadar;
   commercial: CommercialLifecycleSnapshot;

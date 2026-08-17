@@ -11,13 +11,15 @@ import { listClients } from "@/server/tenants";
 import { ensureProductPortalTemplate, getClientPortalInstance } from "@/server/clientPortalDesigns";
 import { productSelectionFingerprint, resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { portalProductSelectionFromAgencyProduct } from "@/lib/portalProducts";
+import { clientProductVariations } from "@/lib/clientProductVariations";
 import type { ProductRolloutClient } from "./_ProductRolloutCentre";
 
-export default async function ProductDetailPage({ params }: { params: Promise<{ productId: string }> }) {
+export default async function ProductDetailPage({ params, searchParams }: { params: Promise<{ productId: string }>; searchParams: Promise<{ edit?: string }> }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   ensureDefaultAgencyProducts(session.agencyId);
   const { productId } = await params;
+  const requested = await searchParams;
   const product = getAgencyProduct(session.agencyId, productId);
   if (!product) notFound();
   const products = listAgencyProducts(session.agencyId, true);
@@ -27,6 +29,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const currentProduct = portalProductSelectionFromAgencyProduct(product);
   const rolloutClients: ProductRolloutClient[] = listClients(session.agencyId, { includeArchived: true }).flatMap(client => {
     const assignment = resolvePortalProductAssignment(client.metadata ?? {}, products);
+    const variations = clientProductVariations(client.metadata ?? {});
+    const effectiveProduct = assignment.products.find(item => item.id === product.id);
+    const effectiveCurrentProduct = effectiveProduct ?? currentProduct;
     const currentScope = resolveAgencyProductAssignment(products, assignment.selectedIds);
     if (!assignment.effectiveIds.includes(product.id) && !currentScope.effectiveIds.includes(product.id)) return [];
     const snapshot = assignment.snapshotProducts.find(item => item.id === product.id);
@@ -39,8 +44,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     return [{
       id: client.id,
       name: client.name,
+      effectiveName: effectiveProduct?.name ?? product.name,
+      variation: Boolean(variations[product.id]),
+      variationUpdatedAt: variations[product.id]?.updatedAt,
       portalBuilt: Boolean(instance),
-      catalogueCurrent: snapshot ? productSelectionFingerprint([snapshot]) === productSelectionFingerprint([currentProduct]) : false,
+      catalogueCurrent: snapshot ? productSelectionFingerprint([snapshot]) === productSelectionFingerprint([effectiveCurrentProduct]) : false,
       packageScopeCurrent: assignment.effectiveIds.length === currentScope.effectiveIds.length
         && assignment.effectiveIds.every(id => currentScope.effectiveIds.includes(id)),
       templateStatus,
@@ -51,6 +59,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   return (
     <ProductDetailWorkspace
       initialProduct={product}
+      initialEditing={requested.edit === "stages" || requested.edit === "service"}
       products={products}
       sops={listSops(session.agencyId)}
       companies={listTradingCompanies(session.agencyId, true)}

@@ -21,6 +21,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: Comp
   await ensureHydrated();
   const query = await searchParams;
   const requestedView = singleValue(query.view);
+  if (requestedView === "products") redirect("/portal/agency/fulfilment?view=services");
   const requestedIntegration = integrationProvider(singleValue(query.integration));
   const specialistView = requestedView === "connections" || requestedView === "products" || requestedView === "legal" || requestedView === "companies";
   if (!specialistView) {

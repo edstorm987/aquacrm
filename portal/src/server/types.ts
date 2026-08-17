@@ -712,6 +712,7 @@ export interface AgencyTask {
   reconciliation?: AgencyTaskReconciliation;
   acceptedAt?: number;
   assigneeUserId?: string;
+  clientId?: string;
   sopIds?: string[];
   createdBy: string;
   createdAt: number;
@@ -1108,10 +1109,38 @@ export interface SopDocument {
 }
 
 export type AgencyProductPricing = "fixed" | "from" | "recurring" | "custom";
+export type AgencyProductStatus = "draft" | "live" | "archived";
 export type AgencyProductPortalRequirement = "required" | "optional" | "none";
 export type AgencyProductKind = "product" | "package";
 export type AgencyProductPortalTemplateKey = "website" | "brand-identity" | "photography" | "google-profile" | "content" | "social-ads" | "automation" | "custom-software" | "ongoing-care" | "business-os" | "health-check";
 export type AgencyProductPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
+export type AgencyProductWorkspaceModule = "relationship" | "commercial" | "delivery" | "communications" | "files" | "portal" | "systems" | "marketing" | "sops";
+
+export interface AgencyProductWorkspaceStage {
+  id: string;
+  label: string;
+  description?: string;
+  portalMode: AgencyProductPortalMode;
+}
+
+export interface AgencyProductWorkspaceStep {
+  id: string;
+  title: string;
+  instruction?: string;
+  stageId?: string;
+  module: AgencyProductWorkspaceModule;
+  sopIds: string[];
+  advanced?: boolean;
+}
+
+export interface AgencyProductInternalWorkspace {
+  title?: string;
+  objective?: string;
+  lifecycleStages: AgencyProductWorkspaceStage[];
+  quickActions: AgencyProductWorkspaceModule[];
+  processSteps: AgencyProductWorkspaceStep[];
+  advancedModules: AgencyProductWorkspaceModule[];
+}
 
 export interface AgencyProduct {
   id: string;
@@ -1141,14 +1170,48 @@ export interface AgencyProduct {
   paymentTermsDays?: number;
   billingNotes?: string;
   internalInfo?: string;
+  internalWorkspace?: AgencyProductInternalWorkspace;
   deliverables: string[];
   contractTitle?: string;
   contractBody?: string;
   sopIds: string[];
   sopCategories: string[];
+  status: AgencyProductStatus;
   active: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface ClientProductVariation {
+  productId: string;
+  name?: string;
+  description?: string;
+  buyerHeadline?: string;
+  coverImageUrl?: string;
+  accentColor?: string;
+  portalRequirement?: AgencyProductPortalRequirement;
+  portalHeadline?: string;
+  portalWelcomeNote?: string;
+  portalStageFocus?: Partial<Record<AgencyProductPortalMode, string>>;
+  portalSupportCta?: string;
+  welcomePackItems?: string[];
+  welcomePackNotes?: string;
+  pricing?: AgencyProductPricing;
+  priceCents?: number;
+  billingInterval?: "month" | "quarter" | "year";
+  depositPercent?: number;
+  taxRatePercent?: number;
+  paymentTermsDays?: number;
+  billingNotes?: string;
+  internalInfo?: string;
+  internalWorkspace?: AgencyProductInternalWorkspace;
+  deliverables?: string[];
+  contractTitle?: string;
+  contractBody?: string;
+  sopIds?: string[];
+  sopCategories?: string[];
+  updatedAt: number;
+  updatedBy: string;
 }
 
 export type ClientMilestoneStatus = "not-started" | "in-progress" | "complete" | "blocked";
@@ -2137,6 +2200,10 @@ export interface RadarEvidenceSeries {
   totalSamples: number;
   points: RadarEvidencePoint[];
   hourly: RadarEvidenceHourlyRollup[];
+  entityType?: "client" | "product" | "property";
+  entityId?: string;
+  entityLabel?: string;
+  parentEntityId?: string;
 }
 
 export interface RadarEvidenceState {

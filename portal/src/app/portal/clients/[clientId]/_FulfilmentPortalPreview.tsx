@@ -264,7 +264,7 @@ export function FulfilmentPortalPreview({
         <div className="flex flex-wrap gap-2">
           {portalBuiltAt ? (
             <a
-              href={`/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(clientId)}&mode=${encodeURIComponent(mode)}&section=home`}
+              href={`/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(clientId)}&mode=${encodeURIComponent(mode)}&section=home&context=client-workspace`}
               className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-medium text-white"
             >
               <Sparkles size={15} aria-hidden="true" />

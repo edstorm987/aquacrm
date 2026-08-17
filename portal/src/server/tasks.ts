@@ -24,6 +24,7 @@ export interface CreateAgencyTaskInput {
   expectedOutcome?: string;
   reconciliationSourceIds?: string[];
   assigneeUserId?: string;
+  clientId?: string;
   sopIds?: string[];
   createdBy: string;
 }
@@ -70,18 +71,19 @@ export function createAgencyTask(input: CreateAgencyTaskInput): AgencyTask {
       detail: "Awaiting the next Radar sweep.",
     } : undefined,
     acceptedAt: origin !== "manual" ? now : undefined,
-    assigneeUserId: input.assigneeUserId,
+    assigneeUserId: validAssigneeUserId(input.agencyId, input.assigneeUserId),
+    clientId: validClientId(input.agencyId, input.clientId),
     sopIds: validSopIds(input.agencyId, input.sopIds),
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now,
   };
   mutate(state => { state.tasks[task.id] = task; });
-  logActivity({ agencyId: task.agencyId, actorUserId: input.createdBy, category: "system", action: "task.created", message: `Created task “${task.title}”.`, metadata: { taskId: task.id } });
+  logActivity({ agencyId: task.agencyId, clientId: task.clientId, actorUserId: input.createdBy, category: "system", action: "task.created", message: `Created task “${task.title}”.`, metadata: { taskId: task.id, clientId: task.clientId } });
   return task;
 }
 
-export function updateAgencyTask(agencyId: string, id: string, patch: Partial<Pick<AgencyTask, "title" | "notes" | "status" | "priority" | "startAt" | "dueAt" | "reminderAt" | "recurrence" | "assigneeUserId" | "sopIds">>, actorUserId: string): AgencyTask | null {
+export function updateAgencyTask(agencyId: string, id: string, patch: Partial<Pick<AgencyTask, "title" | "notes" | "status" | "priority" | "startAt" | "dueAt" | "reminderAt" | "recurrence" | "assigneeUserId" | "clientId" | "sopIds">>, actorUserId: string): AgencyTask | null {
   const existing = getState().tasks[id];
   if (!existing || existing.agencyId !== agencyId) return null;
   const status: AgencyTaskStatus = patch.status ?? existing.status;
@@ -92,13 +94,15 @@ export function updateAgencyTask(agencyId: string, id: string, patch: Partial<Pi
     notes: patch.notes === "" ? undefined : patch.notes?.trim().slice(0, 4_000) ?? existing.notes,
     reminderAt: patch.reminderAt === 0 ? undefined : patch.reminderAt ?? existing.reminderAt,
     recurrence: patch.recurrence === "none" ? undefined : validRecurrence(patch.recurrence) ?? existing.recurrence,
+    assigneeUserId: patch.assigneeUserId === undefined ? existing.assigneeUserId : validAssigneeUserId(agencyId, patch.assigneeUserId),
+    clientId: patch.clientId === undefined ? existing.clientId : validClientId(agencyId, patch.clientId),
     sopIds: patch.sopIds === undefined ? existing.sopIds : validSopIds(agencyId, patch.sopIds),
     status,
     updatedAt: Date.now(),
     completedAt: status === "done" ? existing.completedAt ?? Date.now() : undefined,
   };
   mutate(state => { state.tasks[id] = updated; });
-  logActivity({ agencyId, actorUserId, category: "system", action: `task.${status}`, message: `${status === "done" ? "Completed" : "Updated"} task “${updated.title}”.`, metadata: { taskId: id } });
+  logActivity({ agencyId, clientId: updated.clientId, actorUserId, category: "system", action: `task.${status}`, message: `${status === "done" ? "Completed" : "Updated"} task “${updated.title}”.`, metadata: { taskId: id, clientId: updated.clientId } });
   if (existing.status !== "done" && status === "done" && updated.recurrence) {
     createNextOccurrence(updated, actorUserId);
   }
@@ -127,6 +131,7 @@ function createNextOccurrence(task: AgencyTask, actorUserId: string): AgencyTask
     expectedOutcome: task.expectedOutcome,
     reconciliationSourceIds: task.reconciliation?.sourceIds,
     assigneeUserId: task.assigneeUserId,
+    clientId: task.clientId,
     sopIds: task.sopIds,
     createdBy: actorUserId,
   });
@@ -204,6 +209,19 @@ function validSopIds(agencyId: string, ids?: string[]): string[] | undefined {
     .filter(id => typeof id === "string" && getState().sops[id]?.agencyId === agencyId)
     .slice(0, 20);
   return unique.length ? unique : undefined;
+}
+
+function validAssigneeUserId(agencyId: string, userId?: string): string | undefined {
+  const cleaned = userId?.trim();
+  if (!cleaned) return undefined;
+  const user = Object.values(getState().users).find(item => item.id === cleaned);
+  return !user || user.agencyId === agencyId ? cleaned : undefined;
+}
+
+function validClientId(agencyId: string, clientId?: string): string | undefined {
+  const cleaned = clientId?.trim();
+  if (!cleaned) return undefined;
+  return getState().clients[cleaned]?.agencyId === agencyId ? cleaned : undefined;
 }
 
 function validRecurrence(value?: AgencyTaskRecurrence): Exclude<AgencyTaskRecurrence, "none"> | undefined {

@@ -1,7 +1,7 @@
 export const CLIENT_WORKSPACE_TABS = [
   { id: "overview", label: "Overview" },
   { id: "relationship", label: "Relationship" },
-  { id: "delivery", label: "Delivery" },
+  { id: "delivery", label: "Fulfilment" },
   { id: "marketing", label: "Social & ads" },
   { id: "systems", label: "Systems" },
   { id: "finance", label: "Finance" },

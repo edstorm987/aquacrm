@@ -111,9 +111,9 @@ export function OnboardingDashboardPanel({
     >
       <header className="flex items-baseline justify-between gap-2">
         <h2 id="onboarding-title" className="text-sm font-medium uppercase tracking-wide text-black/55">
-          Customer journey
+          Legacy account setup
         </h2>
-        <span className="text-[11px] text-black/45">Onboarding → Live care</span>
+        <span className="text-[11px] text-black/45">Used only until services are assigned</span>
       </header>
 
       <ol className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-6">
