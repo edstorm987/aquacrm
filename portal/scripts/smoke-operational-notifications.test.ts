@@ -382,8 +382,9 @@ test("workspace tab destinations expose shared attention points", () => {
   assert.match(provider, /export function AttentionDot/);
   assert.match(provider, /title=\{title\}/);
   assert.match(inbox, /attentionHref="\/portal\/agency\/inbox\?view=forms"/);
-  assert.match(inbox, /Mark read/);
-  assert.match(inbox, /Park for 24 hours/);
+  assert.match(inbox, /<span>Resolve<\/span>/);
+  assert.match(inbox, /Remind later/);
+  assert.match(inbox, /Dismiss/);
   assert.match(finance, /<AttentionDot href=\{href\}/);
   assert.match(development, /<AttentionDot href=\{item.href\}/);
   assert.match(clientTabs, /<AttentionDot href=\{href\}/);

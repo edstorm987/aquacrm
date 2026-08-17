@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { AlertTriangle, Bell, Bot, Check, CheckCheck, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, UserPlus, Users, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Bot, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
 import type { OperationalAlertView } from "@/lib/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
@@ -16,6 +16,7 @@ import { EnquiryCommunications } from "./_EnquiryCommunications";
 import { UnifiedInboxWorkspace, type UnifiedClientProfile } from "./_UnifiedInboxWorkspace";
 import { AttentionDot, useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
 import { resolveAttentionThreadKey, type AttentionThreadCandidate } from "@/lib/inbox/attentionThread";
+import { resolveAttentionAction } from "@/lib/inbox/attentionResolution";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
@@ -261,11 +262,12 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     /> : null}
 
     {view === "attention" ? <section>
-      <SectionHeader title="What needs you now" detail="Critical items first. Resolve each item at its source." />
+      <SectionHeader title="What needs you now" detail="Every signal has an exact resolution path. Fix it now, remind yourself later, or dismiss it until the evidence changes." />
       <div className="mt-3 grid gap-2">
         {visibleAlerts.map(alert => {
-          const contactThreadKey = resolveAttentionThreadKey(alert, attentionThreadCandidates);
-          return <AlertRow key={alert.id} alert={alert} contactAvailable={Boolean(contactThreadKey)} onContact={() => openAttentionContact(alert)} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />;
+          const resolution = resolveAttentionAction(alert);
+          const contactThreadKey = resolution.opensInboxThread ? resolveAttentionThreadKey(alert, attentionThreadCandidates) : null;
+          return <AlertRow key={alert.id} alert={alert} contactAvailable={Boolean(contactThreadKey)} onContact={() => openAttentionContact(alert)} busy={notificationAttention?.busyAlertId === alert.id} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />;
         })}
       </div>
       {!visibleAlerts.length ? <Empty icon={<CircleCheck size={25} />} title="Nothing needs attention" detail="Support, monitoring, overdue money, meetings, client health, and campaign pacing are clear." /> : null}
@@ -587,9 +589,45 @@ function Tab({ active, onClick, label, count, icon: Icon, attentionHref, attenti
   return <button type="button" onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}><Icon size={15} aria-hidden="true" /><span>{label}{count !== undefined ? <span className="ml-1 text-xs text-black/35">{count}</span> : null}</span><AttentionDot href={attentionHref} all={attentionAll} />{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}</button>;
 }
 
-function AlertRow({ alert, contactAvailable, onContact, onAction }: { alert: OperationalAlertView; contactAvailable: boolean; onContact: () => void; onAction: (action: "read" | "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
+function AlertRow({ alert, contactAvailable, onContact, busy, onAction }: { alert: OperationalAlertView; contactAvailable: boolean; onContact: () => void; busy: boolean; onAction: (action: "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
   const styles = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
-  return <article title={`${alert.title}\n${alert.detail}`} className="mm-surface-card mm-interactive-row grid gap-3 rounded-md p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span><span className="min-w-0"><span className="flex flex-wrap items-center gap-2">{contactAvailable ? <button type="button" onClick={onContact} className="text-left text-sm font-semibold text-black/80 hover:underline">{alert.title}</button> : <Link href={alert.href} className="text-sm font-semibold text-black/80 hover:underline">{alert.title}</Link>}<Pill>{alert.category}</Pill>{contactAvailable ? <Pill tone="blue">Contact found</Pill> : null}</span><span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span></span><span className="flex items-center gap-1.5">{contactAvailable ? <button type="button" onClick={onContact} title="Open contact in All inbox" aria-label={`Open ${alert.title} in All inbox`} className="grid size-8 place-items-center rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"><MessageCircle size={14} /></button> : null}<button type="button" onClick={() => void onAction("read")} title="Mark read" aria-label={`Mark ${alert.title} read`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04]"><CheckCheck size={14} /></button><button type="button" onClick={() => void onAction("park", Date.now() + 24 * 60 * 60 * 1000)} title="Park for 24 hours" aria-label={`Park ${alert.title} for 24 hours`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04]"><Clock3 size={14} /></button><button type="button" onClick={() => void onAction("dismiss")} title="Dismiss until this issue changes" aria-label={`Dismiss ${alert.title}`} className="grid size-8 place-items-center rounded-md border border-black/10 text-black/45 hover:border-red-200 hover:bg-red-50 hover:text-red-700"><X size={14} /></button><Link href={alert.href} aria-label={`Open source for ${alert.title}`} title="Open source" className="grid size-8 place-items-center text-black/25 hover:text-black/60"><ExternalLink size={16} /></Link></span></article>;
+  const resolution = resolveAttentionAction(alert);
+  const resolveControl = contactAvailable
+    ? <button type="button" onClick={onContact} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><span>Resolve</span><ArrowRight size={13} /></button>
+    : <Link href={alert.href} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><span>Resolve</span><ArrowRight size={13} /></Link>;
+  return <article title={`${alert.title}\n${alert.detail}`} className="mm-surface-card mm-interactive-row grid gap-3 rounded-md p-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
+    <span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span>
+    <span className="min-w-0">
+      <span className="flex flex-wrap items-center gap-2"><strong className="text-sm font-semibold text-black/80">{alert.title}</strong><Pill>{alert.category}</Pill>{contactAvailable ? <Pill tone="blue">Conversation matched</Pill> : null}</span>
+      <span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span>
+      <span className="mt-2 block text-[11px] leading-5 text-black/42"><strong className="font-semibold text-black/58">Resolution:</strong> Open {resolution.destination}. {resolution.action} The signal clears automatically once the underlying evidence is healthy.</span>
+    </span>
+    <span className="flex flex-wrap items-center gap-2 lg:justify-end">
+      {resolveControl}
+      <RemindLaterMenu disabled={busy} title={alert.title} onPark={parkedUntil => void onAction("park", parkedUntil)} />
+      <button type="button" disabled={busy} onClick={() => void onAction("dismiss")} title="Hide until the underlying issue changes" aria-label={`Dismiss ${alert.title} until it changes`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/50 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"><X size={13} />Dismiss</button>
+    </span>
+  </article>;
+}
+
+function RemindLaterMenu({ disabled, title, onPark }: { disabled: boolean; title: string; onPark: (until: number) => void }) {
+  const now = Date.now();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  return <details className="group/remind relative">
+    <summary aria-label={`Remind me later about ${title}`} className={`inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/55 hover:bg-black/[0.035] [&::-webkit-details-marker]:hidden ${disabled ? "pointer-events-none opacity-40" : ""}`}><Clock3 size={13} />Remind later<ChevronDown size={12} className="transition group-open/remind:rotate-180" /></summary>
+    <div className="absolute right-0 top-10 z-30 w-44 overflow-hidden rounded-md border border-black/10 bg-white py-1 shadow-xl">
+      <ReminderChoice label="In 1 hour" onClick={() => onPark(now + 60 * 60 * 1000)} />
+      <ReminderChoice label="Tomorrow at 09:00" onClick={() => onPark(tomorrow.getTime())} />
+      <ReminderChoice label="In 3 days" onClick={() => onPark(now + 3 * 24 * 60 * 60 * 1000)} />
+      <ReminderChoice label="In 7 days" onClick={() => onPark(now + 7 * 24 * 60 * 60 * 1000)} />
+    </div>
+  </details>;
+}
+
+function ReminderChoice({ label, onClick }: { label: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="block min-h-9 w-full px-3 text-left text-xs text-black/60 hover:bg-black/[0.04] hover:text-black">{label}</button>;
 }
 
 function Channel({ icon, name, detail, connected = false }: { icon: React.ReactNode; name: string; detail: string; connected?: boolean }) {

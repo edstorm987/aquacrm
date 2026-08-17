@@ -105,7 +105,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
     const baseAlert = {
       id: `task:${task.id}`,
       category: "task" as const,
-      href: "/portal/agency/actions",
+      href: `/portal/agency/actions#task-${encodeURIComponent(task.id)}`,
       persistentUntilResolved: true,
     };
     if (task.dueAt && task.dueAt < now) {
@@ -414,7 +414,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           category: "meeting",
           title: `Meeting reminder due for ${label}`,
           detail: "Send the reminder using the agreed channel, then record the attempt.",
-          href: "/portal/agency/pipelines/leads",
+          href: `/portal/agency/pipelines/leads?lead=${encodeURIComponent(lead.id)}`,
           occurredAt: lead.meetingReminderAt,
         });
       }
@@ -437,7 +437,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           detail: enquiryDetail(enquiry, lead.source),
           href: enquiry
             ? `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`
-            : "/portal/agency/pipelines/leads",
+            : `/portal/agency/pipelines/leads?lead=${encodeURIComponent(lead.id)}`,
           occurredAt: lead.capturedAt,
         });
       }

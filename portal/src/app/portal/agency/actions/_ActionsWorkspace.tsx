@@ -84,6 +84,7 @@ export function ActionsWorkspace({
   const [showDone, setShowDone] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
   const [month, setMonth] = useState(startOfMonth(new Date()));
   const [advisorSuggestions, setAdvisorSuggestions] = useState<AdvisorActionSuggestion[]>([]);
   const [advisorBusy, setAdvisorBusy] = useState(false);
@@ -115,11 +116,15 @@ export function ActionsWorkspace({
     advisorReviewedAt,
     sort,
   }), [advisorReviewedAt, advisorSuggestions, crmIntake, externalProposals, liveRecommendations, openTasks, recommendationsGeneratedAt, showDone, sort, tasks]);
-  const unifiedWindow = useMemo(() => buildProtectedAttentionWindow(unifiedItems, {
+  const protectedWindow = useMemo(() => buildProtectedAttentionWindow(unifiedItems, {
     groupKey: item => item.source,
     urgencyRank: item => priorityRank(item.priority),
     enabled: attention?.focusProtectionEnabled ?? true,
   }), [attention?.focusProtectionEnabled, unifiedItems]);
+  const unifiedWindow = useMemo(
+    () => promoteLinkedTask(protectedWindow, linkedTaskId),
+    [linkedTaskId, protectedWindow],
+  );
 
   const refreshExternalProposals = useCallback(async () => {
     const response = await fetch("/api/portal/external-ai/proposals", { method: "GET", cache: "no-store" }).catch(() => null);
@@ -148,9 +153,26 @@ export function ActionsWorkspace({
 
   useEffect(() => {
     const targetId = decodeURIComponent(window.location.hash.slice(1));
+    if (targetId.startsWith("task-")) {
+      const taskId = targetId.slice("task-".length);
+      const task = tasks.find(item => item.id === taskId);
+      setView("list");
+      setSource("all");
+      setLinkedTaskId(taskId);
+      setEditing(taskId);
+      if (task?.status === "done") setShowDone(true);
+      return;
+    }
+    setLinkedTaskId(null);
     if (!targetId.startsWith("external-proposal-")) return;
     window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" }));
-  }, [externalProposals]);
+  }, [externalProposals, tasks]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const targetId = `task-${editing}`;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" })));
+  }, [editing, unifiedWindow]);
 
   async function patchTask(id: string, patch: Partial<AgencyTask>) {
     const response = await fetch("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...patch }) });
@@ -604,7 +626,7 @@ function TaskCard({ task, team, clients, sops, expanded, onToggle, onPatch, onDe
   const client = clients.find(item => item.id === task.clientId);
   const attachedSops = sops.filter(sop => task.sopIds?.includes(sop.id));
   const isOverdue = task.status !== "done" && task.dueAt && task.dueAt < startOfDay(Date.now());
-  return <article className={`mm-surface-card mm-hover-lift rounded-lg border bg-white transition ${isOverdue ? "border-red-200" : "border-black/10"}`}>
+  return <article id={`task-${task.id}`} className={`mm-surface-card mm-hover-lift scroll-mt-24 rounded-lg border bg-white transition target:border-cyan-300 target:ring-2 target:ring-cyan-100 ${isOverdue ? "border-red-200" : "border-black/10"}`}>
     <div className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:p-4">
       <button type="button" onClick={() => onPatch({ status: task.status === "done" ? "todo" : "done" })} title={task.status === "done" ? "Reopen task" : "Complete task"} className={`grid size-9 place-items-center rounded-full border ${task.status === "done" ? "border-emerald-600 bg-emerald-600 text-white" : "border-black/15 text-transparent hover:text-black/25"}`}><Check size={16} /></button>
       <button type="button" onClick={onToggle} className="min-w-0 text-left"><span className="flex flex-wrap items-center gap-2"><strong className={`text-sm ${task.status === "done" ? "text-black/40 line-through" : "text-black/82"}`}>{task.title}</strong><SourceBadge origin={taskOrigin(task)} /><Priority value={task.priority} />{task.status === "in-progress" ? <Pill>In progress</Pill> : null}{task.reconciliation ? <ReconciliationBadge status={task.reconciliation.status} /> : null}{attachedSops.length ? <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700"><BookOpen size={11} />{attachedSops.length} {attachedSops.length === 1 ? "SOP" : "SOPs"}</span> : null}</span><span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-black/45">{client ? <span className="inline-flex items-center gap-1 font-medium text-sky-700"><Building2 size={13} />{client.name}</span> : null}{owner ? <span className="inline-flex items-center gap-1"><UserRound size={13} />{owner.name}</span> : <span>Unassigned</span>}{task.startAt || task.dueAt ? <span className={`inline-flex items-center gap-1 ${isOverdue ? "font-medium text-red-700" : ""}`}><Clock3 size={13} />{dateRange(task.startAt, task.dueAt)}</span> : <span>No date</span>}{task.reminderAt ? <span className="inline-flex items-center gap-1"><Bell size={12} />{formatDateTime(task.reminderAt)}</span> : null}{task.recurrence ? <span className="inline-flex items-center gap-1 capitalize"><Repeat2 size={12} />{task.recurrence}</span> : null}</span></button>
@@ -953,6 +975,25 @@ function buildUnifiedActionQueue({ tasks, radar, advisor, proposals, crm, recomm
     if (sort === "recently-updated") return right.updatedAt - left.updatedAt;
     return priorityRank(left.priority) - priorityRank(right.priority) || (left.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.dueAt ?? Number.MAX_SAFE_INTEGER) || right.updatedAt - left.updatedAt;
   });
+}
+
+function promoteLinkedTask(window: ProtectedAttentionWindow<UnifiedActionItem>, taskId: string | null): ProtectedAttentionWindow<UnifiedActionItem> {
+  if (!taskId || window.focus.some(item => item.type === "task" && item.id === taskId)) return window;
+  const linked = window.reserve.find(item => item.type === "task" && item.id === taskId);
+  if (!linked) return window;
+  const displaced = window.focus.at(-1);
+  const focus = [linked, ...window.focus.filter(item => item.id !== linked.id)].slice(0, window.focusLimit);
+  const reserve = [
+    ...window.reserve.filter(item => item.id !== linked.id),
+    ...(displaced && !focus.some(item => item.id === displaced.id) ? [displaced] : []),
+  ];
+  const reserveGroups = [...reserve.reduce((groups, item) => {
+    groups.set(item.source, (groups.get(item.source) ?? 0) + 1);
+    return groups;
+  }, new Map<string, number>())]
+    .map(([key, count]) => ({ key, count }))
+    .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+  return { ...window, focus, reserve, reserveCount: reserve.length, reserveGroups };
 }
 
 function sortTasks(tasks: AgencyTask[], sort: ActionSort): AgencyTask[] {
