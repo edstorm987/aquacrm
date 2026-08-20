@@ -26,6 +26,9 @@ import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { INTERNAL_WORKSPACE_NAME, INTERNAL_WORKSPACE_SUBTITLE } from "@/lib/shared/internalWorkspace";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { getRequestOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
+import { performanceModePreference } from "@/lib/server/performanceMode";
+import { devIconPreference } from "@/lib/server/devIconPreference";
+import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
 import { addSidebarAttention } from "@/lib/server/sidebarAttention";
 import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPreferences";
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
@@ -76,7 +79,15 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     isFounder: eff.isFounder,
     devModeAvailable: canUseDevMode(),
   });
-  const operationalAlerts = await getRequestOperationalAlerts(agency.id);
+  // Performance mode (server-read cookie): the sidebar attention sweep runs a
+  // full portfolio scan + a live Supabase fetch on EVERY agency page. When perf
+  // mode is on we skip it entirely — the sidebar still renders, badges simply
+  // show nothing/paused rather than triggering that work per navigation.
+  const perfMode = await performanceModePreference();
+  // Dev-icon visibility preference (server-read cookie). Sits UNDER the founder
+  // + Dev-Mode gate below: it can only hide an icon the founder already earns.
+  const devIconVisible = await devIconPreference();
+  const operationalAlerts: OperationalAlert[] = perfMode ? [] : await getRequestOperationalAlerts(agency.id);
   const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
   const panels = addSidebarAttention(basePanels, alertViews.filter(alert =>
     alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")
@@ -130,7 +141,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
             publicShowcase={session.publicShowcase}
             canUseDevMode={canUseDevMode() && eff.isFounder}
-            devConsole={devDocsAccessible(session)}
+            devConsole={devDocsAccessible(session) && devIconVisible}
             devModeActive={Boolean(session.devReturnAgencyId)}
             privacyTerms={privacyTerms}
             notifications={<NotificationCentreButton />}

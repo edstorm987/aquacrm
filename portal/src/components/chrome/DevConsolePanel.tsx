@@ -503,7 +503,7 @@ export function DevConsolePanel({
           }}
           className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"
         >
-          <Hammer size={14} aria-hidden="true" /> Open the workspace
+          <Hammer size={14} aria-hidden="true" /> Open Dev Team workspace
         </a>
       </footer>
     </>

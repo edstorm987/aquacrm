@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { clientWorkspaceRouteId } from "@/lib/chrome/clientWorkspaceRoute";
 import { isCommandCenterPath } from "@/lib/chrome/commandCenter";
-import { PERFORMANCE_MODE_EVENT, PERFORMANCE_MODE_STORAGE_KEY, performanceModeEnabled } from "@/lib/chrome/performanceMode";
+import { CINEMATIC_MODE_EVENT, CINEMATIC_MODE_STORAGE_KEY, cinematicModeEnabled } from "@/lib/chrome/cinematicMode";
 
 type TransitionMode = "enter" | "exit";
 type TransitionPhase = "engage" | "release";
@@ -72,7 +72,7 @@ export function ClientWorkspaceTransition() {
   }, [clearTransition]);
 
   const beginTransition = useCallback((mode: TransitionMode): number | null => {
-    if (performanceModeEnabled()) {
+    if (!cinematicModeEnabled()) {
       dismissTransition();
       return null;
     }
@@ -144,17 +144,18 @@ export function ClientWorkspaceTransition() {
   useEffect(() => {
     const handlePreference = (event: Event) => {
       const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
-      const next = typeof enabled === "boolean" ? enabled : performanceModeEnabled();
-      if (next) dismissTransition();
+      const next = typeof enabled === "boolean" ? enabled : cinematicModeEnabled();
+      // `next` is Cinematic-mode ON (play). Skip only when it's OFF.
+      if (!next) dismissTransition();
     };
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== PERFORMANCE_MODE_STORAGE_KEY) return;
-      if (event.newValue === "1") dismissTransition();
+      if (event.key !== CINEMATIC_MODE_STORAGE_KEY) return;
+      if (event.newValue === "0") dismissTransition();
     };
-    window.addEventListener(PERFORMANCE_MODE_EVENT, handlePreference);
+    window.addEventListener(CINEMATIC_MODE_EVENT, handlePreference);
     window.addEventListener("storage", handleStorage);
     return () => {
-      window.removeEventListener(PERFORMANCE_MODE_EVENT, handlePreference);
+      window.removeEventListener(CINEMATIC_MODE_EVENT, handlePreference);
       window.removeEventListener("storage", handleStorage);
     };
   }, [dismissTransition]);

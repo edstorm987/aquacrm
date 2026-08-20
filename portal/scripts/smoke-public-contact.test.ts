@@ -41,7 +41,7 @@ test("website enquiries appear in alerts and a first-class inbox feed", () => {
   assert.match(alerts, /website-message:\$\{enquiry\.id\}/);
   assert.match(alerts, /enquiryTitle\(enquiry/);
   assert.match(alerts, /enquiry\.channel === "support"/);
-  assert.match(inboxPage, /listWebsiteEnquiries\(\)/);
+  assert.match(inboxPage, /listWebsiteEnquiries\(session\.agencyId\)/);
   assert.match(inboxUi, /label="Enquiries"/);
   assert.match(inboxUi, /label="Chatbot"/);
   assert.match(inboxUi, /label="Support"/);

@@ -169,7 +169,9 @@ describe("Dev Console — the topbar wiring", () => {
       "src/app/portal/clients/page.tsx",
       "src/app/portal/clients/[clientId]/layout.tsx",
     ]) {
-      assert.match(read(surface), /devConsole=\{devDocsAccessible\(session\)\}/, `${surface} gates the icon server-side`);
+      // Server-side gate = the founder gate AND the dev-icon visibility cookie
+      // (the profile "Dev Mode" toggle drives that cookie instead of navigating).
+      assert.match(read(surface), /devConsole=\{devDocsAccessible\(session\) && /, `${surface} gates the icon server-side`);
     }
     // The staff portal is not a founder surface — no icon, no import.
     assert.doesNotMatch(read("src/app/portal/team/layout.tsx"), /devConsole/);
@@ -266,7 +268,7 @@ describe("Dev Console — the topbar wiring", () => {
     assert.match(panel, /event\.metaKey \|\| event\.ctrlKey/, "a modifier click opens a tab; don't arm this one");
     // Performance mode is honoured by reuse, not re-implemented.
     assert.doesNotMatch(panel, /performanceModeEnabled/);
-    assert.match(read("src/components/chrome/DevModeLoadIn.tsx"), /performanceModeEnabled\(\) \|\| reducedMotionPreferred\(\)/);
+    assert.match(read("src/components/chrome/DevModeLoadIn.tsx"), /!cinematicModeEnabled\(\) \|\| reducedMotionPreferred\(\)/);
   });
 
   it("the panel shows live status and links to the workspace, without changing identity", () => {
@@ -284,7 +286,7 @@ describe("Dev Console — the topbar wiring", () => {
       /read\("core"\)[\s\S]{0,400}read\("full"\)/,
       "both are in flight together, not chained",
     );
-    for (const label of ["Findings", "Blockers", "Working now", "Open launch blockers", "Open the workspace"]) {
+    for (const label of ["Findings", "Blockers", "Working now", "Open launch blockers", "Open Dev Team workspace"]) {
       assert.match(panel, new RegExp(label));
     }
     // Entering the workspace is plain navigation. Minting a session here would

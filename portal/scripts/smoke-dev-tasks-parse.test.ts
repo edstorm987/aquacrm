@@ -145,6 +145,7 @@ test("only the plans that genuinely have no phases yield none", async () => {
   const allowed = new Set([
     "advisor-omega-upgrade",
     "aqua-engine-and-dev-team-plugin",
+    "dev-team-ui-polish",
     "aqua-tag-handoff",
     "dev-docs-handoff",
     "enquiry-detail-card-handoff",

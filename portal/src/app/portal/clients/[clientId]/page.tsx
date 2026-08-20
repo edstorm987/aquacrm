@@ -577,7 +577,7 @@ export default async function ClientHome({
   const linkedInbox = tab === "notes"
     ? await listInboxSnapshot(session.agencyId).catch(() => ({ connections: [], conversations: [], generatedAt: Date.now() }))
     : { connections: [], conversations: [], generatedAt: Date.now() };
-  const websiteEnquiriesRaw = tab === "notes" ? await listWebsiteEnquiries(500).catch(() => []) : [];
+  const websiteEnquiriesRaw = tab === "notes" ? await listWebsiteEnquiries(session.agencyId, 500).catch(() => []) : [];
   const websiteEnquiries = websiteEnquiriesRaw.length
     ? await synchroniseWebsiteEnquiryIdentities(session.agencyId, websiteEnquiriesRaw).catch(() => websiteEnquiriesRaw)
     : websiteEnquiriesRaw;

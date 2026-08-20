@@ -20,7 +20,7 @@ export async function personInteractions(
   const knownPhones = new Set((person.phones ?? []).map(entry => entry.value));
   const knownEnquiries = new Set(person.facets.enquiryIds ?? []);
 
-  const enquiries = await getRequestWebsiteEnquiries().catch(() => []);
+  const enquiries = await getRequestWebsiteEnquiries(agencyId).catch(() => []);
   const interactions: PersonInteraction[] = [];
 
   for (const enquiry of enquiries) {

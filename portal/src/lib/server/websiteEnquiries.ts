@@ -2,6 +2,8 @@ import "server-only";
 import { cache } from "react";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { enquiryBelongsToAgency } from "@/lib/supabase/ownedEnquiry";
+import { isMissingAgencyIdColumnRead } from "@/lib/supabase/enquiryAgencyColumn";
 import { isWebsiteEnquiryClassification, type WebsiteEnquiryClassification } from "@/lib/enquiries/enquiryClassification";
 import { publicAquaSite, publicAquaSiteName, resolvePublicAquaSite } from "@/lib/public/publicSites";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
@@ -504,24 +506,77 @@ export function triageWebsiteEnquiry(channel: WebsiteEnquiryChannel, message?: s
 // The raw function below is untouched: API routes, scripts and tests keep
 // exactly the behaviour they had.
 const cachedWebsiteEnquiries = cache(
-  (limit: number): Promise<WebsiteEnquiry[]> => listWebsiteEnquiries(limit),
+  (agencyId: string, limit: number): Promise<WebsiteEnquiry[]> => listWebsiteEnquiries(agencyId, limit),
 );
 
-export function getRequestWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]> {
-  return cachedWebsiteEnquiries(limit);
+export function getRequestWebsiteEnquiries(agencyId: string, limit = 250): Promise<WebsiteEnquiry[]> {
+  return cachedWebsiteEnquiries(agencyId, limit);
 }
 
-export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]> {
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("brand_enquiries")
-    .select("id, brand_slug, name, email, phone, contact_method, services, message, source_url, campaign, consent, created_at, metadata")
-    .order("created_at", { ascending: false })
-    .limit(Math.min(Math.max(limit, 1), 500));
+/** The non-ownership columns every enquiry read projects. */
+const ENQUIRY_READ_COLUMNS =
+  "id, brand_slug, name, email, phone, contact_method, services, message, source_url, campaign, consent, created_at, metadata";
+
+/**
+ * The narrow slice of the admin client this read uses. Declared so a test can
+ * inject a fake table without standing up the whole Supabase surface — the raw
+ * function stays exercisable against a mixed-tenant fixture.
+ */
+export interface EnquiryReadClient {
+  from(table: string): {
+    select(columns: string): {
+      order(column: string, options: { ascending: boolean }): {
+        limit(count: number): PromiseLike<{
+          data: unknown;
+          error: { code?: string | null; message?: string | null } | null;
+        }>;
+      };
+    };
+  };
+}
+
+/**
+ * Every website enquiry that belongs to `agencyId`, newest first.
+ *
+ * SECURITY — this reads through the RLS-bypassing service-role client, so the
+ * query returns EVERY tenant's `brand_enquiries` rows. Ownership is therefore
+ * enforced in the app: rows are filtered through `enquiryBelongsToAgency` before
+ * they are mapped, so a caller only ever sees its own agency's enquiries. The
+ * predicate works both before and after the hand-applied `agency_id` migration
+ * (column when present, `metadata.agencyId` otherwise), so behaviour for the
+ * current single tenant is unchanged — its own rows still come back exactly as
+ * before; only other agencies' rows are excluded.
+ *
+ * `agencyId` is REQUIRED so a missed caller is a compile error, never a silent
+ * unscoped read. `deps.supabase` is a test seam; production omits it.
+ */
+export async function listWebsiteEnquiries(
+  agencyId: string,
+  limit = 250,
+  deps: { supabase?: EnquiryReadClient } = {},
+): Promise<WebsiteEnquiry[]> {
+  const supabase = deps.supabase ?? (createSupabaseAdminClient() as unknown as EnquiryReadClient);
+  const cap = Math.min(Math.max(limit, 1), 500);
+  const load = (columns: string) =>
+    supabase
+      .from("brand_enquiries")
+      .select(columns)
+      .order("created_at", { ascending: false })
+      .limit(cap);
+
+  // Project the authoritative `agency_id` column. Pre-migration it does not
+  // exist and Postgres answers 42703 — retry without it and let the predicate
+  // fall back to `metadata.agencyId`, exactly as the per-row guard does.
+  let { data, error } = await load(`agency_id, ${ENQUIRY_READ_COLUMNS}`);
+  if (error && isMissingAgencyIdColumnRead(error)) {
+    ({ data, error } = await load(ENQUIRY_READ_COLUMNS));
+  }
 
   if (error) throw new Error(`Could not load website enquiries: ${error.message}`);
 
-  return ((data ?? []) as BrandEnquiryRow[]).map(mapBrandEnquiryRow);
+  return ((data ?? []) as Array<BrandEnquiryRow & { agency_id?: string | null }>)
+    .filter(row => enquiryBelongsToAgency(row, agencyId))
+    .map(mapBrandEnquiryRow);
 }
 
 /**

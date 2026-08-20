@@ -218,7 +218,7 @@ export default async function MarketingPage({
   // and Channels needs neither — so a channel tab still costs no radar build.
   const modelViews = view === "pulse" || view === "demand";
   const spineViews = view === "customers";
-  const spineEnquiries = (spineViews || modelViews) && !session.isDemo ? await listWebsiteEnquiries().catch(() => null) : null;
+  const spineEnquiries = (spineViews || modelViews) && !session.isDemo ? await listWebsiteEnquiries(session.agencyId).catch(() => null) : null;
   // The command model builds the spine from the same cached radar read, so pulse,
   // radar and funnel content cost one radar build between them, not three.
   const model = modelViews ? await marketingCommandModel(session.agencyId, { enquiries: spineEnquiries, companyId: selectedCompanyId }) : null;

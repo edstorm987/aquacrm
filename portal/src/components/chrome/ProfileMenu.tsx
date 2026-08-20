@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Eye, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
+import { ChevronDown, Clapperboard, Eye, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
-import { PERFORMANCE_MODE_EVENT, PERFORMANCE_MODE_STORAGE_KEY, performanceModeEnabled, setPerformanceMode } from "@/lib/chrome/performanceMode";
-import { DEV_MODE_LOADIN_KEY } from "@/lib/chrome/devModeLoadIn";
+import { CINEMATIC_MODE_EVENT, CINEMATIC_MODE_STORAGE_KEY, cinematicModeEnabled, setCinematicMode } from "@/lib/chrome/cinematicMode";
+import { performanceModeCookieEnabled, setPerformanceModeCookie } from "@/lib/chrome/performanceMode";
+import { devIconCookieEnabled, setDevIconCookie } from "@/lib/chrome/devIconPreference";
 import { useNotificationAttention } from "./NotificationAttentionProvider";
 import { ColorModeToggle } from "./ColorModeToggle";
 import { QuickNoteWindow } from "./QuickNoteWindow";
@@ -57,7 +58,9 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   const firstName = display.split(/\s+/)[0] || "Account";
   const [open, setOpen] = useState(false);
   const [quickNoteOpen, setQuickNoteOpen] = useState(false);
+  const [cinematicMode, setCinematicModeState] = useState(true);
   const [performanceMode, setPerformanceModeState] = useState(false);
+  const [devIconShown, setDevIconShown] = useState(true);
   const [devBusy, setDevBusy] = useState(false);
 
   // Opening the Dev Team workspace does NOT change who you are.
@@ -76,7 +79,13 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   async function toggleDevMode() {
     if (devBusy) return;
     if (!devModeActive) {
-      window.location.assign("/portal/dev-team");
+      // NOT a navigation. This toggle governs whether the topbar Dev Console
+      // icon is shown; opening the workspace happens from inside that icon's
+      // popover. Flip the server-readable cookie and reload so the topbar
+      // re-renders with (or without) the icon.
+      const next = !devIconShown;
+      setDevIconShown(next);
+      setDevIconCookie(next);
       return;
     }
     setDevBusy(true);
@@ -99,19 +108,23 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
   const focusProtectionEnabled = attention?.focusProtectionEnabled ?? true;
 
   useEffect(() => {
-    const sync = () => setPerformanceModeState(performanceModeEnabled());
+    const sync = () => setCinematicModeState(cinematicModeEnabled());
     const syncCustom = (event: Event) => {
       const detail = (event as CustomEvent<{ enabled?: boolean }>).detail;
-      setPerformanceModeState(typeof detail?.enabled === "boolean" ? detail.enabled : performanceModeEnabled());
+      setCinematicModeState(typeof detail?.enabled === "boolean" ? detail.enabled : cinematicModeEnabled());
     };
     const syncStorage = (event: StorageEvent) => {
-      if (event.key === PERFORMANCE_MODE_STORAGE_KEY) sync();
+      if (event.key === CINEMATIC_MODE_STORAGE_KEY) sync();
     };
     sync();
-    window.addEventListener(PERFORMANCE_MODE_EVENT, syncCustom);
+    // Performance mode + dev-icon visibility are cookie-backed (server-read),
+    // so hydrate their switch state from the current cookies once.
+    setPerformanceModeState(performanceModeCookieEnabled());
+    setDevIconShown(devIconCookieEnabled());
+    window.addEventListener(CINEMATIC_MODE_EVENT, syncCustom);
     window.addEventListener("storage", syncStorage);
     return () => {
-      window.removeEventListener(PERFORMANCE_MODE_EVENT, syncCustom);
+      window.removeEventListener(CINEMATIC_MODE_EVENT, syncCustom);
       window.removeEventListener("storage", syncStorage);
     };
   }, []);
@@ -180,18 +193,43 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
             <button
               type="button"
               role="menuitemcheckbox"
+              aria-checked={cinematicMode}
+              onClick={() => {
+                const next = !cinematicMode;
+                setCinematicModeState(next);
+                setCinematicMode(next);
+              }}
+              className="mm-cinematic-mode-toggle flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
+            >
+              <Clapperboard size={16} className="text-[#8E7340]" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">Cinematic mode</span>
+                <span className="mt-0.5 block text-[10px] leading-4 text-[#776D60]">
+                  {cinematicMode ? "Play transitions and load-in scenes" : "Transitions skipped for a faster feel"}
+                </span>
+              </span>
+              <span aria-hidden="true" data-enabled={cinematicMode} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
+                <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={cinematicMode} />
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitemcheckbox"
               aria-checked={performanceMode}
               onClick={() => {
                 const next = !performanceMode;
                 setPerformanceModeState(next);
-                setPerformanceMode(next);
+                // Cookie write + reload so the next SERVER render skips heavy work.
+                setPerformanceModeCookie(next);
               }}
               className="mm-performance-mode-toggle flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9]"
             >
               <Gauge size={16} className="text-[#8E7340]" aria-hidden="true" />
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">Performance mode</span>
-                <span className="mt-0.5 block text-[10px] leading-4 text-[#776D60]">Skip cinematic loading screens</span>
+                <span className="mt-0.5 block text-[10px] leading-4 text-[#776D60]">
+                  {performanceMode ? "Per-page attention sweep paused — lighter navigation" : "Full attention sweep on every page"}
+                </span>
               </span>
               <span aria-hidden="true" data-enabled={performanceMode} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
                 <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={performanceMode} />
@@ -226,7 +264,7 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
               <button
                 type="button"
                 role="menuitemcheckbox"
-                aria-checked={devModeActive}
+                aria-checked={devModeActive || devIconShown}
                 disabled={devBusy}
                 onClick={() => void toggleDevMode()}
                 className="mm-dev-mode-toggle flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9] disabled:opacity-60"
@@ -235,11 +273,15 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">Dev Mode</span>
                   <span className="mt-0.5 block text-[10px] leading-4 text-[#776D60]">
-                    {devModeActive ? "On demo data — switch back to your account" : "Explore demo profiles on safe data"}
+                    {devModeActive
+                      ? "On demo data — switch back to your account"
+                      : devIconShown
+                        ? "Dev tools icon shown in the topbar"
+                        : "Show the dev tools icon in the topbar"}
                   </span>
                 </span>
-                <span aria-hidden="true" data-enabled={devModeActive} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
-                  <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={devModeActive} />
+                <span aria-hidden="true" data-enabled={devModeActive || devIconShown} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
+                  <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={devModeActive || devIconShown} />
                 </span>
               </button>
             ) : null}

@@ -20,6 +20,7 @@ import { Topbar } from "@/components/chrome/Topbar";
 import { requireRole } from "@/lib/server/auth/auth";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { devIconPreference } from "@/lib/server/devIconPreference";
 import { AGENCY_ROLES } from "@/server/types";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";
@@ -198,7 +199,7 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
             tenantLabel="Dev Team"
             currentPath={currentPath}
             searchRecordsEnabled={false}
-            devConsole={devDocsAccessible(session)}
+            devConsole={devDocsAccessible(session) && (await devIconPreference())}
             isDemo={session.isDemo}
             devModeActive={Boolean(session.devReturnAgencyId)}
           />

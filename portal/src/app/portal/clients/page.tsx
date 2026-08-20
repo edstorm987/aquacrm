@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { devIconPreference } from "@/lib/server/devIconPreference";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { phaseLabel } from "@/server/phases";
@@ -272,7 +273,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     clearIdentityResolutionReviews(session.agencyId);
   } else {
     const [identityEnquiries, identitySocial] = await Promise.allSettled([
-      listWebsiteEnquiries(500),
+      listWebsiteEnquiries(session.agencyId, 500),
       listInboxSnapshot(session.agencyId),
     ]);
     if (identityEnquiries.status === "fulfilled") {
@@ -412,7 +413,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
             currentPath={currentPath}
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
-            devConsole={devDocsAccessible(session)}
+            devConsole={devDocsAccessible(session) && (await devIconPreference())}
             privacyTerms={[
               ...clients.flatMap(client => [client.name, client.ownerEmail ?? ""]),
               ...contacts.flatMap(contact => [contact.name ?? "", contact.email, contact.phone ?? "", contact.company ?? ""]),

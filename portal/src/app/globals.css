@@ -1079,8 +1079,8 @@ html[data-color-mode="dark"] .mm-portal-root .mm-profile-menu :is([role="menuite
   background: rgb(212 184 136 / 0.11) !important;
 }
 
-html[data-color-mode="dark"] .mm-portal-root :is(.mm-performance-mode-toggle, .mm-focus-protection-toggle) > span:nth-child(2) > span:last-child,
-html[data-portal-shell="command"] .mm-portal-topbar :is(.mm-performance-mode-toggle, .mm-focus-protection-toggle) > span:nth-child(2) > span:last-child {
+html[data-color-mode="dark"] .mm-portal-root :is(.mm-cinematic-mode-toggle, .mm-performance-mode-toggle, .mm-focus-protection-toggle) > span:nth-child(2) > span:last-child,
+html[data-portal-shell="command"] .mm-portal-topbar :is(.mm-cinematic-mode-toggle, .mm-performance-mode-toggle, .mm-focus-protection-toggle) > span:nth-child(2) > span:last-child {
   color: rgb(225 246 250 / 0.48) !important;
 }
 
@@ -3080,17 +3080,17 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   animation: mm-badge-enter 320ms var(--mm-ease-spring);
 }
 
-html[data-performance-mode="true"] .mm-command-transition {
+html[data-cinematic-mode="false"] .mm-command-transition {
   display: none !important;
 }
 
-html[data-performance-mode="true"] .mm-client-workspace-transition {
+html[data-cinematic-mode="false"] .mm-client-workspace-transition {
   display: none !important;
 }
 
 /* Dev Mode load-in reuses the command-transition system but sits above the
    native command/client transitions so it cleanly covers whichever one the
-   landing path fires. The performance-mode hide above already applies to it
+   landing path fires. The cinematic-off hide above already applies to it
    (it also carries the .mm-command-transition class). Two-class selector so it
    wins over `.mm-command-transition { z-index: 10000 }` regardless of source
    order. `pointer-events: none` is the fail-safe: purely decorative, it can

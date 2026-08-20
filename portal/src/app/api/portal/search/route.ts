@@ -538,7 +538,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role): Pr
   addPluginCandidates(candidates, state, agencyId, clientById);
 
   const [enquiriesResult, inboxResult, alertsResult, radarResult, sourceDataResult] = await Promise.allSettled([
-    listWebsiteEnquiries(500),
+    listWebsiteEnquiries(agencyId, 500),
     listInboxSnapshot(agencyId),
     listOperationalAlerts(agencyId),
     getCachedBusinessIssueRadar(agencyId),

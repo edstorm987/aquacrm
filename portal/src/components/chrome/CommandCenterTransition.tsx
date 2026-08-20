@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isCommandCenterPath } from "@/lib/chrome/commandCenter";
 import { clientWorkspaceRouteId } from "@/lib/chrome/clientWorkspaceRoute";
-import { PERFORMANCE_MODE_EVENT, PERFORMANCE_MODE_STORAGE_KEY, performanceModeEnabled } from "@/lib/chrome/performanceMode";
+import { CINEMATIC_MODE_EVENT, CINEMATIC_MODE_STORAGE_KEY, cinematicModeEnabled } from "@/lib/chrome/cinematicMode";
 
 type TransitionMode = "enter" | "exit";
 type TransitionPhase = "engage" | "release";
@@ -71,7 +71,7 @@ export function CommandCenterTransition() {
   }, [clearTransition]);
 
   const beginTransition = useCallback((mode: TransitionMode): number | null => {
-    if (performanceModeEnabled()) {
+    if (!cinematicModeEnabled()) {
       dismissTransition();
       return null;
     }
@@ -133,21 +133,23 @@ export function CommandCenterTransition() {
   useEffect(() => {
     const handlePreference = (event: Event) => {
       const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
-      const next = typeof enabled === "boolean" ? enabled : performanceModeEnabled();
-      document.documentElement.dataset.performanceMode = String(next);
-      if (next) dismissTransition();
+      const next = typeof enabled === "boolean" ? enabled : cinematicModeEnabled();
+      // `next` = Cinematic ON (play). Mirror onto the html attribute the CSS
+      // belt-and-braces hide keys off, and skip when it's OFF.
+      document.documentElement.dataset.cinematicMode = String(next);
+      if (!next) dismissTransition();
     };
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== PERFORMANCE_MODE_STORAGE_KEY) return;
-      const enabled = event.newValue === "1";
-      document.documentElement.dataset.performanceMode = String(enabled);
-      if (enabled) dismissTransition();
+      if (event.key !== CINEMATIC_MODE_STORAGE_KEY) return;
+      const enabled = event.newValue !== "0";
+      document.documentElement.dataset.cinematicMode = String(enabled);
+      if (!enabled) dismissTransition();
     };
-    document.documentElement.dataset.performanceMode = String(performanceModeEnabled());
-    window.addEventListener(PERFORMANCE_MODE_EVENT, handlePreference);
+    document.documentElement.dataset.cinematicMode = String(cinematicModeEnabled());
+    window.addEventListener(CINEMATIC_MODE_EVENT, handlePreference);
     window.addEventListener("storage", handleStorage);
     return () => {
-      window.removeEventListener(PERFORMANCE_MODE_EVENT, handlePreference);
+      window.removeEventListener(CINEMATIC_MODE_EVENT, handlePreference);
       window.removeEventListener("storage", handleStorage);
     };
   }, [dismissTransition]);

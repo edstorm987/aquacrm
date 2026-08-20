@@ -438,7 +438,7 @@ export async function loadCustomerPortalData(
   ]);
   const [inboxSnapshot, websiteEnquiries] = await Promise.all([
     listInboxSnapshot(client.agencyId).catch(() => ({ connections: [], conversations: [], generatedAt: Date.now() })),
-    listWebsiteEnquiries(500).catch(() => []),
+    listWebsiteEnquiries(client.agencyId, 500).catch(() => []),
   ]);
   const socialRecordMessages: CustomerRecordMessage[] = inboxSnapshot.conversations
     .filter(conversation => conversation.identity.clientId === client.id)

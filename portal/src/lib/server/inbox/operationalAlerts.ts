@@ -431,7 +431,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       campaigns.list(),
       leads.list(),
       prospects.list(),
-      getRequestWebsiteEnquiries().catch(() => []),
+      getRequestWebsiteEnquiries(agencyId).catch(() => []),
     ]);
     const websiteEnquiryById = new Map(websiteEnquiries.map(enquiry => [enquiry.id, enquiry]));
     const alertedEnquiryIds = new Set<string>();

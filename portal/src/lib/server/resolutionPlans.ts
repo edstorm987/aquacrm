@@ -689,7 +689,7 @@ async function genericEvidenceFor(
  */
 async function enquiryReplyPlan(agencyId: string, alertId: string): Promise<ResolutionPlan | null> {
   const enquiryId = alertId.slice(alertId.indexOf(":") + 1);
-  const enquiries = await getRequestWebsiteEnquiries().catch(() => []);
+  const enquiries = await getRequestWebsiteEnquiries(agencyId).catch(() => []);
   const enquiry = enquiries.find(entry => entry.id === enquiryId);
   if (!enquiry) return null;
 

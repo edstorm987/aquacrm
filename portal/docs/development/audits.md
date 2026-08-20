@@ -71,6 +71,17 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-20 — 🟡 RED (stale test pins from an unlogged rename) — `performanceMode → cinematicMode`; not a behavioural regression
+
+**Caught by the periodic full-suite check** (unlogged: `updates.md` top unchanged, count stable 2507). Suite is **RED — 6 fail** (was 0 last tick), but they're **stale source-shape test pins from an unlogged rename**, not product regressions — verified by reading the failing assertions:
+- **`performanceMode` → `cinematicMode` rename.** `smoke-dev-mode` (isolated **46/2**, so real-in-isolation but stale, not a flake) fails "reuses the command-transition CSS system and respects performance mode" because it asserts the source contains `/performanceModeEnabled\(\)/`, but the component now imports **`cinematicModeEnabled` from `@/lib/chrome/cinematicMode`** — the "skip cinematic loading screens" toggle was renamed. Same cause for "Dev Mode — cinematic load-in (Phase 3)" and "Dev Console — topbar wiring". The toggle behaviour is preserved under the new name; only the test string is stale.
+- **Churning dev-tasks tooling** — `only the plans that genuinely have no phases yield none` (the same actively-iterated plan-parser).
+
+**Findings:**
+- 🟡 **Stale source-shape test pins after an unlogged `performanceMode → cinematicMode` rename.** The rename (source: `chrome/cinematicMode.ts` / `cinematicModeEnabled()`) wasn't reflected in the `smoke-dev-mode` / `smoke-dev-console` pins that still assert `performanceModeEnabled()`. Not a behavioural regression (the cinematic-skip toggle still gates the load-in + reduced-motion still respected) — but it red-lines the suite. **Fix (test + log):** update the pins to `cinematicModeEnabled()`, and log the rename in `updates.md`. Same recurring pattern as the roadmap/dev-team stale-test reds — a rename ahead of its test pins.
+
+**→ Commander:** Suite red (6 fail) is **stale test pins from an unlogged `performanceMode → cinematicMode` rename** + the churning dev-tasks tooling — **not a product regression** (the skip-cinematic toggle still works, just renamed; the source uses `cinematicModeEnabled()`). Update the stale `performanceModeEnabled()` pins and log the rename. Launch state otherwise green; blockers resolved.
+
 ## 2026-08-20 — ✅ PASS — Website-enquiry tenant isolation: app-level ownership guard on brand_enquiries (a real HIGH cross-tenant hole, closed)
 
 **Verdict:** ✅ PASS — a comprehensive, defense-in-depth fix for a **real HIGH multi-tenant hole** the worker found: `brand_enquiries` RLS was degraded to a no-op (null-tolerant policy + `profiles.agency_id` never populated → `current_profile_agency_id()` null → "any internal user manages EVERY agency's enquiries"), and the routes addressed rows by **enumerable id**, so an agency owner could **read / reply / erase another agency's enquiries.** The new app-level ownership guard closes it on every `brand_enquiries` route, is column-authoritative (no metadata spoof), has **no existence oracle**, and works before + after the pending migration. Tested. **(Honest note: my tick-64 RLS audit verified the scoped client *applies* RLS but did not catch that the *policy itself* wasn't isolating pre-migration — the worker did. Verifying "the code uses RLS" ≠ verifying "RLS actually isolates.")**

@@ -2,12 +2,12 @@
 
 import { Crosshair, FlaskConical, Hammer, RadioTower, ShieldCheck, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { performanceModeEnabled } from "@/lib/chrome/performanceMode";
+import { cinematicModeEnabled } from "@/lib/chrome/cinematicMode";
 import { DEV_MODE_LOADIN_KEY, DEV_MODE_LOADIN_WORKSPACE } from "@/lib/chrome/devModeLoadIn";
 
 // Dev Mode cinematic load-in. Reuses the existing command-transition CSS system
-// (`.mm-command-transition`, gated by `html[data-performance-mode]` — the same
-// "Skip cinematic loading screens" toggle) so the swap feels like the rest of
+// (`.mm-command-transition`, gated by `html[data-cinematic-mode="false"]` — the
+// same "Cinematic mode" toggle) so the swap feels like the rest of
 // the app rather than a bespoke spinner. It's dev-scoped: the layout only
 // mounts it on a demo session, and it renders nothing unless the switcher set
 // the sessionStorage flag on the way in. Sits above the native transitions
@@ -87,9 +87,9 @@ export function DevModeLoadIn() {
     try { flag = window.sessionStorage.getItem(DEV_MODE_LOADIN_KEY); } catch { /* private mode */ }
     if (!flag) return;
     try { window.sessionStorage.removeItem(DEV_MODE_LOADIN_KEY); } catch { /* ignore */ }
-    // Respect the "Skip cinematic loading screens" toggle + reduced motion —
-    // exactly like CommandCenterTransition / ClientWorkspaceTransition.
-    if (performanceModeEnabled() || reducedMotionPreferred()) return;
+    // Respect Cinematic mode (OFF = skip) + reduced motion — exactly like
+    // CommandCenterTransition / ClientWorkspaceTransition.
+    if (!cinematicModeEnabled() || reducedMotionPreferred()) return;
     setPersona(flag);
   }, []);
 

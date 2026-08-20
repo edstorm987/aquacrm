@@ -23,7 +23,7 @@ test("Radar source records remain tenant scoped and owner or manager only", () =
   // itself may be the request-deduped wrapper (`getRequestWebsiteEnquiries`) or
   // the raw `listWebsiteEnquiries` — both hit the same query — so match either
   // rather than pinning one identifier and failing on a perf refactor.
-  assert.match(inspector, /canInspectPublicEnquiries \? (?:getRequest|list)WebsiteEnquiries\(500\) : Promise\.resolve\(\[\]\)/);
+  assert.match(inspector, /canInspectPublicEnquiries \? (?:getRequest|list)WebsiteEnquiries\(agencyId, 500\) : Promise\.resolve\(\[\]\)/);
 });
 
 test("Radar source records redact credentials before display or export", () => {

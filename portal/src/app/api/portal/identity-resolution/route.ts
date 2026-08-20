@@ -46,7 +46,7 @@ export async function POST() {
     const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
     if (session.isDemo) return NextResponse.json({ ok: false, error: "Showcase Mode is read-only." }, { status: 403 });
     const [enquiriesResult, socialResult] = await Promise.allSettled([
-      listWebsiteEnquiries(500),
+      listWebsiteEnquiries(session.agencyId, 500),
       listInboxSnapshot(session.agencyId),
     ]);
     if (enquiriesResult.status === "fulfilled") {
@@ -100,7 +100,7 @@ export async function PATCH(request: Request) {
 
     if (action === "link" && review.selectedClientId) {
       if (review.sourceType === "website-enquiry") {
-        const enquiry = (await listWebsiteEnquiries(500)).find(item => item.id === review.sourceId);
+        const enquiry = (await listWebsiteEnquiries(session.agencyId, 500)).find(item => item.id === review.sourceId);
         if (enquiry) {
           await recordWebsiteEnquiryIdentityResolution(enquiry.id, review.resolution);
           synchroniseWebsiteEnquiryLedgerEvents(session.agencyId, review.selectedClientId, { ...enquiry, clientId: review.selectedClientId });

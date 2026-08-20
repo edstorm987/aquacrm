@@ -117,7 +117,7 @@ async function gatherConsentEvidence(agencyId: string): Promise<ConsentEvidence>
   };
 
   try {
-    const enquiries = await listWebsiteEnquiries(500);
+    const enquiries = await listWebsiteEnquiries(agencyId, 500);
     const withConsent = enquiries.filter(enquiry => enquiry.consent !== undefined && enquiry.consent !== null);
     const withVersion = enquiries.filter(enquiry => typeof enquiry.consentVersion === "number");
     const stamps = enquiries

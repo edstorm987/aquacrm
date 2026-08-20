@@ -123,7 +123,7 @@ export async function buildBusinessIssueRadar(
   const [companyResult, alertResult, enquiryResult, inboxResult, leadResult] = await Promise.allSettled([
     inputs.company ? Promise.resolve(inputs.company) : buildCompanyHealthSnapshot(agencyId, now),
     inputs.operationalAlerts ? Promise.resolve(inputs.operationalAlerts) : listOperationalAlerts(agencyId, now),
-    getRequestWebsiteEnquiries(500),
+    getRequestWebsiteEnquiries(agencyId, 500),
     listInboxSnapshot(agencyId),
     leadInstall ? listRadarLeads(agencyId, leadInstall.id) : Promise.resolve([]),
   ]);

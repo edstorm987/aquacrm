@@ -5,14 +5,14 @@ import { isCommandCenterPath } from "../src/lib/chrome/commandCenter";
 
 describe("Command Center device transition", () => {
   it("covers entry and exit from the portal root without hijacking modified links", async () => {
-    const [component, layout, styles, dashboard, popup, profile, performanceMode] = await Promise.all([
+    const [component, layout, styles, dashboard, popup, profile, cinematicMode] = await Promise.all([
       readFile(new URL("../src/components/chrome/CommandCenterTransition.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/layout.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/globals.css", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/_CommandDeckPopup.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/components/chrome/ProfileMenu.tsx", import.meta.url), "utf8"),
-      readFile(new URL("../src/lib/chrome/performanceMode.ts", import.meta.url), "utf8"),
+      readFile(new URL("../src/lib/chrome/cinematicMode.ts", import.meta.url), "utf8"),
     ]);
 
     assert.match(layout, /<CommandCenterTransition \/>/);
@@ -30,13 +30,18 @@ describe("Command Center device transition", () => {
     assert.match(styles, /data-color-mode="light"\]\[data-portal-shell="command"\]/);
     assert.match(styles, /data-color-mode="light"\] \.mm-command-transition/);
     assert.match(styles, /data-color-mode="dark"\] \.mm-command-transition/);
-    assert.match(profile, /Performance mode/);
+    // Cinematic mode is the user-facing name for whether transitions play.
+    assert.match(profile, /Cinematic mode/);
     assert.match(profile, /role="menuitemcheckbox"/);
-    assert.match(profile, /Skip cinematic loading screens/);
-    assert.match(performanceMode, /aqua-performance-mode/);
-    assert.match(component, /performanceModeEnabled\(\)/);
-    assert.match(component, /PERFORMANCE_MODE_EVENT/);
-    assert.match(styles, /data-performance-mode="true"\] \.mm-command-transition/);
+    assert.match(profile, /mm-cinematic-mode-toggle/);
+    // The real Performance mode (server-readable) still has its own row.
+    assert.match(profile, /Performance mode/);
+    // Legacy performance-mode value is migrated so cutscene prefs carry over.
+    assert.match(cinematicMode, /aqua-performance-mode/);
+    assert.match(cinematicMode, /cinematicModeEnabled/);
+    assert.match(component, /!cinematicModeEnabled\(\)/);
+    assert.match(component, /CINEMATIC_MODE_EVENT/);
+    assert.match(styles, /data-cinematic-mode="false"\] \.mm-command-transition/);
   });
 
   it("treats executive, day, and Radar stations as one Command Centre boundary", () => {

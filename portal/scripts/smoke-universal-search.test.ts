@@ -10,7 +10,7 @@ const commandCentre = readFileSync("src/app/portal/agency/_DashboardCommandCente
 const radarSources = readFileSync("src/lib/server/radar/radarSourceInspection.ts", "utf8");
 
 test("universal search indexes complete website enquiries and social messages", () => {
-  assert.match(searchApi, /listWebsiteEnquiries\(500\)/);
+  assert.match(searchApi, /listWebsiteEnquiries\(agencyId, 500\)/);
   assert.match(searchApi, /listInboxSnapshot\(agencyId\)/);
   assert.match(searchApi, /enquiry\.message/);
   assert.match(searchApi, /message\.text/);

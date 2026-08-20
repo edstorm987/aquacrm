@@ -1,22 +1,40 @@
-export const PERFORMANCE_MODE_STORAGE_KEY = "aqua-performance-mode";
-export const PERFORMANCE_MODE_EVENT = "aqua-performance-mode:change";
+// Performance mode — the REAL one. A server-readable cookie so server
+// components can actually SKIP heavy work (portfolio sweeps, Supabase fetches,
+// disk scans) rather than merely hiding an animation.
+//
+// This file used to hold the localStorage flag that gated cutscenes. That
+// concern moved to `cinematicMode.ts` (user-facing "Cinematic mode"), and this
+// module was re-pointed to the genuine performance switch:
+//
+//   • The client sets/clears a cookie (`aqua_perf_mode`, path=/, NOT httpOnly
+//     so this toggle can write it) and reloads.
+//   • The next server render reads it via `performanceModePreference()` in
+//     `@/lib/server/performanceMode` and gates its expensive work.
+//
+// Default OFF → byte-for-byte today's behaviour.
 
-export function performanceModeEnabled(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(PERFORMANCE_MODE_STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
+/** Cookie name. Read on the server by `performanceModePreference()`. */
+export const PERFORMANCE_MODE_COOKIE = "aqua_perf_mode";
+
+/** Read the current preference from the browser's cookies. Client-only. */
+export function performanceModeCookieEnabled(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split("; ").some(entry => entry === `${PERFORMANCE_MODE_COOKIE}=1`);
 }
 
-export function setPerformanceMode(enabled: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(PERFORMANCE_MODE_STORAGE_KEY, enabled ? "1" : "0");
-  } catch {
-    /* The preference still applies to this page when storage is unavailable. */
+/**
+ * Persist the preference and reload so the next SERVER render reflects it.
+ * A cookie (not localStorage) is the whole point — only cookies reach the
+ * server on the navigation that follows.
+ */
+export function setPerformanceModeCookie(enabled: boolean): void {
+  if (typeof document === "undefined") return;
+  if (enabled) {
+    // ~1 year; path=/ so every portal route sees it. SameSite=Lax is enough —
+    // this is a rendering preference, never a security boundary.
+    document.cookie = `${PERFORMANCE_MODE_COOKIE}=1; path=/; max-age=31536000; samesite=lax`;
+  } else {
+    document.cookie = `${PERFORMANCE_MODE_COOKIE}=; path=/; max-age=0; samesite=lax`;
   }
-  document.documentElement.dataset.performanceMode = String(enabled);
-  window.dispatchEvent(new CustomEvent(PERFORMANCE_MODE_EVENT, { detail: { enabled } }));
+  if (typeof window !== "undefined") window.location.reload();
 }

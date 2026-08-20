@@ -645,7 +645,7 @@ describe("Dev Mode — cinematic load-in (Phase 3)", () => {
   it("reuses the command-transition CSS system and respects performance mode", () => {
     const loadin = read("src/components/chrome/DevModeLoadIn.tsx");
     assert.match(loadin, /mm-command-transition mm-devmode-loadin/);   // reuse, not a bespoke overlay
-    assert.match(loadin, /performanceModeEnabled\(\)/);                 // "Skip cinematic loading screens"
+    assert.match(loadin, /!cinematicModeEnabled\(\)/);                 // Cinematic mode OFF = skip the load-in
     assert.match(loadin, /reducedMotionPreferred/);
     assert.match(loadin, /DEV_MODE_LOADIN_KEY/);
     // the z-index bump sits it above the native command/client transitions
@@ -695,12 +695,16 @@ describe("Dev Mode — cinematic load-in (Phase 3)", () => {
     assert.match(read("src/lib/chrome/devModeLoadIn.ts"), /export const DEV_MODE_LOADIN_KEY/);
   });
 
-  it("opening the Dev Team workspace does not swap identity", () => {
-    // The contract Ed asked for: he goes into the workspace as himself, on his
-    // real account — the account row navigates, it does not mint a persona.
+  it("the account-menu dev toggle shows/hides the topbar icon — it does not navigate", () => {
+    // The contract Ed asked for: a menu toggle should TOGGLE, not teleport. The
+    // row now flips the dev-icon visibility cookie; opening the workspace is a
+    // separate action inside that icon's popover. It still never mints a persona.
     const menu = read("src/components/chrome/ProfileMenu.tsx");
-    assert.match(menu, /window\.location\.assign\("\/portal\/dev-team"\)/, "entering is navigation");
+    assert.doesNotMatch(menu, /window\.location\.assign\("\/portal\/dev-team"\)/, "the toggle no longer navigates to the workspace");
+    assert.match(menu, /setDevIconCookie/, "the toggle drives the dev-icon visibility cookie");
     assert.doesNotMatch(menu, /action:\s*devModeActive\s*\?\s*"exit"\s*:\s*"enter"/, "no longer mints on entry");
+    // The demo-persona exit path is preserved.
+    assert.match(menu, /\/api\/auth\/dev-mode/);
   });
 });
 

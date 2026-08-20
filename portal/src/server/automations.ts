@@ -603,7 +603,7 @@ async function evaluateCondition(run: AutomationRun, node: AutomationWorkflowNod
     const enquiryId = String(run.eventData.enquiryId ?? "");
     if (enquiryId) {
       try {
-        const enquiry = (await listWebsiteEnquiries(500)).find(item => item.id === enquiryId);
+        const enquiry = (await listWebsiteEnquiries(run.agencyId, 500)).find(item => item.id === enquiryId);
         if (enquiry) return !enquiry.firstRespondedAt && enquiry.status !== "resolved";
       } catch (error) {
         appendRunLog(run.id, { nodeId: node.id, level: "info", message: `Live enquiry check was unavailable; using the captured event state (${error instanceof Error ? error.message : "unknown reason"}).` });

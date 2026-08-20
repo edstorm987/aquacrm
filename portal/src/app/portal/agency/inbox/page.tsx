@@ -57,7 +57,7 @@ export default async function AgencyInboxPage() {
   const [liveAlerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
     listOperationalAlerts(session.agencyId),
     Promise.resolve(listActivity({ agencyId: session.agencyId, limit: 150 })),
-    (session.isDemo ? Promise.resolve([]) : listWebsiteEnquiries()).then(
+    (session.isDemo ? Promise.resolve([]) : listWebsiteEnquiries(session.agencyId)).then(
       submissions => ({ submissions, error: null as string | null }),
       cause => ({
         submissions: [],

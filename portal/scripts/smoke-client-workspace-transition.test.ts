@@ -13,19 +13,20 @@ test("client workspace route detection excludes the Journey index and customer p
   assert.equal(clientWorkspaceRouteId("/portal/customer"), null);
 });
 
-test("client operations has a short transition with Performance Mode bypass", () => {
+test("client operations has a short transition with Cinematic Mode bypass", () => {
   const transition = read("src/components/chrome/ClientWorkspaceTransition.tsx");
   const commandTransition = read("src/components/chrome/CommandCenterTransition.tsx");
   const layout = read("src/app/portal/layout.tsx");
   const styles = read("src/app/globals.css");
 
   assert.match(layout, /<ClientWorkspaceTransition \/>/);
-  assert.match(transition, /performanceModeEnabled\(\)/);
-  assert.match(transition, /PERFORMANCE_MODE_EVENT/);
+  // Cinematic mode OFF (= !cinematicModeEnabled()) skips the transition.
+  assert.match(transition, /!cinematicModeEnabled\(\)/);
+  assert.match(transition, /CINEMATIC_MODE_EVENT/);
   assert.match(transition, /currentClientId === destinationClientId/);
   assert.match(transition, /minimumHold = reduced \? 50 : current\.mode === "enter" \? 760 : 520/);
   assert.match(commandTransition, /!destinationIsCommandCenter && clientWorkspaceRouteId\(destination\.pathname\)/);
-  assert.match(styles, /data-performance-mode="true"\] \.mm-client-workspace-transition/);
+  assert.match(styles, /data-cinematic-mode="false"\] \.mm-client-workspace-transition/);
   assert.match(styles, /@keyframes mm-client-transition-lock/);
   assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*?\.mm-client-workspace-transition/);
 });

@@ -36,6 +36,8 @@ import { DynamicRadarConsole, type DynamicRadarStatus } from "./_DynamicRadarCon
 import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
 import { inspectRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
 import { getRequestOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
+import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
+import { performanceModePreference } from "@/lib/server/performanceMode";
 import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessRecommendedActions";
 import { AgencyActionsPage } from "./actions/_ActionsPage";
 import { AssistantWorkspace } from "./assistant/AssistantWorkspace";
@@ -86,6 +88,11 @@ export default async function AgencyHome() {
   const session = await requireRole([...AGENCY_ROLES]);
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
+  // Performance mode (server-read cookie): keep the two heaviest *repeated*
+  // costs off the landing critical path. The operational-alerts sweep (a live
+  // Supabase fetch) is skipped, and the dev-team board disk scan that feeds the
+  // station badge is not run here — the station still scans itself when opened.
+  const perfMode = await performanceModePreference();
   const clients = listClients(agency.id);
   const tasks = listAgencyTasks(agency.id);
   ensureDefaultAgencyProducts(agency.id);
@@ -95,7 +102,7 @@ export default async function AgencyHome() {
   const recommendationTime = Date.now();
   const [businessRadar, operationalAlerts, companyHealth, brandPortfolio, clientsNeedingAttention] = await Promise.all([
     getCachedBusinessIssueRadar(agency.id),
-    getRequestOperationalAlerts(agency.id),
+    perfMode ? Promise.resolve<OperationalAlert[]>([]) : getRequestOperationalAlerts(agency.id),
     getRequestCompanyHealth(agency.id),
     buildBrandPortfolioSnapshot(agency.id, recommendationTime),
     listClientsNeedingAttention(agency.id, recommendationTime),
@@ -177,7 +184,7 @@ export default async function AgencyHome() {
   // "Blocked" tile shows) and carries the open-launch-blocker subset with it so
   // the label can break the number down instead of asserting a bare count.
   // Only for a founder — nobody else sees the station.
-  const devTeamLanes = devTeamVisible ? composeLanes(await scanDevTeamBoard()) : null;
+  const devTeamLanes = devTeamVisible && !perfMode ? composeLanes(await scanDevTeamBoard()) : null;
   const devTeamBlockedCount = devTeamLanes?.blocked.length ?? 0;
   const devTeamLaunchBlockerCount = devTeamLanes?.blocked.filter(item => item.kind === "blocker").length ?? 0;
   const battleTableScopes = buildBattleTableScopes({
