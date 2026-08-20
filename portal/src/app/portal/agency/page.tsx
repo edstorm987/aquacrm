@@ -38,12 +38,14 @@ import { inspectRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
 import { getRequestOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
 import { performanceModePreference } from "@/lib/server/performanceMode";
+import { shouldRunHeavyPanels, normalizeScanFlag, buildPausedBusinessRadar, buildPausedIntelligenceSnapshot } from "./commandPerformance";
 import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessRecommendedActions";
 import { AgencyActionsPage } from "./actions/_ActionsPage";
 import { AssistantWorkspace } from "./assistant/AssistantWorkspace";
 import { buildAssistantBusinessContext } from "@/lib/server/assistants/assistantBusinessContext";
 import { getAssistantWorkspace } from "@/lib/server/assistants/assistantStore";
 import { radarDigest } from "@/lib/radar/businessRadar";
+import type { BusinessIssueRadar } from "@/lib/radar/businessRadar";
 import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligenceService";
 import { getRequestCompanyHealth } from "@/lib/server/kpi/companyHealthSnapshot";
 import { listLegalDocuments } from "@/server/legalDocuments";
@@ -83,7 +85,7 @@ function StationStreaming({ label }: { label: string }) {
   );
 }
 
-export default async function AgencyHome() {
+export default async function AgencyHome({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
   const agency = getAgency(session.agencyId);
@@ -93,6 +95,14 @@ export default async function AgencyHome() {
   // Supabase fetch) is skipped, and the dev-team board disk scan that feeds the
   // station badge is not run here — the station still scans itself when opened.
   const perfMode = await performanceModePreference();
+  // One automatic build at launch OR on a button: under Performance mode the
+  // two heaviest panels (radar + KPI intelligence) are paused and served on
+  // demand via a one-shot `?scan=1` render ("Run scan"). With Performance mode
+  // OFF (default) `runHeavyPanels` is always true and the code path below is
+  // byte-for-byte unchanged.
+  const scanRequested = normalizeScanFlag((await searchParams)?.scan);
+  const runHeavyPanels = shouldRunHeavyPanels(perfMode, scanRequested);
+  const scanPaused = !runHeavyPanels;
   const clients = listClients(agency.id);
   const tasks = listAgencyTasks(agency.id);
   ensureDefaultAgencyProducts(agency.id);
@@ -100,21 +110,41 @@ export default async function AgencyHome() {
   const serviceBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
   const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
   const recommendationTime = Date.now();
-  const [businessRadar, operationalAlerts, companyHealth, brandPortfolio, clientsNeedingAttention] = await Promise.all([
-    getCachedBusinessIssueRadar(agency.id),
-    perfMode ? Promise.resolve<OperationalAlert[]>([]) : getRequestOperationalAlerts(agency.id),
-    getRequestCompanyHealth(agency.id),
-    buildBrandPortfolioSnapshot(agency.id, recommendationTime),
-    listClientsNeedingAttention(agency.id, recommendationTime),
-  ]);
+  let businessRadar: BusinessIssueRadar;
+  let operationalAlerts: OperationalAlert[];
+  let companyHealth: Awaited<ReturnType<typeof getRequestCompanyHealth>>;
+  let brandPortfolio: Awaited<ReturnType<typeof buildBrandPortfolioSnapshot>>;
+  let clientsNeedingAttention: Awaited<ReturnType<typeof listClientsNeedingAttention>>;
+  if (runHeavyPanels) {
+    [businessRadar, operationalAlerts, companyHealth, brandPortfolio, clientsNeedingAttention] = await Promise.all([
+      getCachedBusinessIssueRadar(agency.id),
+      perfMode ? Promise.resolve<OperationalAlert[]>([]) : getRequestOperationalAlerts(agency.id),
+      getRequestCompanyHealth(agency.id),
+      buildBrandPortfolioSnapshot(agency.id, recommendationTime),
+      listClientsNeedingAttention(agency.id, recommendationTime),
+    ]);
+  } else {
+    // Paused: skip the full business-issue sweep. Company health, brand
+    // portfolio and client-attention are kept (they feed the Battle table and
+    // are comparatively cheap); the radar itself is a lightweight placeholder.
+    [operationalAlerts, companyHealth, brandPortfolio, clientsNeedingAttention] = await Promise.all([
+      Promise.resolve<OperationalAlert[]>([]),
+      getRequestCompanyHealth(agency.id),
+      buildBrandPortfolioSnapshot(agency.id, recommendationTime),
+      listClientsNeedingAttention(agency.id, recommendationTime),
+    ]);
+    businessRadar = buildPausedBusinessRadar(workspaceSettings.advisor.radarPolicy, recommendationTime);
+  }
   const radarEvidence = inspectRadarEvidence(agency.id);
-  const intelligenceSnapshot = await buildCommandIntelligenceSnapshot({
-    agencyId: agency.id,
-    radar: businessRadar,
-    evidence: radarEvidence,
-    now: recommendationTime,
-    brandPortfolio,
-  });
+  const intelligenceSnapshot = runHeavyPanels
+    ? await buildCommandIntelligenceSnapshot({
+        agencyId: agency.id,
+        radar: businessRadar,
+        evidence: radarEvidence,
+        now: recommendationTime,
+        brandPortfolio,
+      })
+    : buildPausedIntelligenceSnapshot(companyHealth.actuals.currency, recommendationTime);
   const calendarIntegration = getCommandCalendarIntegrationSnapshot(agency.id, session.userId);
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
@@ -372,6 +402,7 @@ export default async function AgencyHome() {
   return (
     <div className="mm-command-center-workspace mx-auto flex w-full max-w-[1600px] flex-col gap-5 pb-6" data-testid="agency-pipelines-hub">
       <DashboardCommandCenter
+        scanPaused={scanPaused}
         planning={dashboardPlanningSnapshot(agency.id, session.userId)}
         tasks={tasks}
         calendarEntries={listCommandCalendarEntries(agency.id, session.userId)}

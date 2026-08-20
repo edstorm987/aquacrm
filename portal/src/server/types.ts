@@ -1626,6 +1626,41 @@ export interface SopDocument {
   updatedAt: number;
 }
 
+// ─── SOP guides (SOP Engine, Phase 3) ─────────────────────────────────────
+//
+// A GUIDE is an ordered sequence of existing SOPs — it is COMPOSED in the SOP
+// library, not a new content type. It references `SopDocument`s that already
+// exist (written | file | interactive) by id; viewing a guide renders each
+// referenced SOP inline via the existing renderers. This is additive: the
+// People-training island (`PeopleTrainingModule`) is deliberately left in
+// place for now — a later phase folds it in.
+//
+// Ed's decision 2026-08-20: audience defaults to staff + founder; the quiz is
+// OPT-IN per guide (`quizEnabled`, default off). Both are optional per-guide
+// flags — absent means "use the sensible default", never "misconfigured".
+
+/** Who a guide is intended for. */
+export type SopGuideAudience = "staff" | "founder" | "freelancer" | "client";
+
+export interface SopGuide {
+  id: string;
+  agencyId: string;
+  title: string;
+  description?: string;
+  /** Ordered list of `SopDocument` ids. Order is meaningful — it is the
+   *  sequence the guide is read in. Every id must resolve to a SOP owned by
+   *  the same agency; validated on write. */
+  sopIds: string[];
+  /** Opt-in quiz/completion gate (Ed's decision — off unless turned on). */
+  quizEnabled?: boolean;
+  /** Intended audience. Absent → staff + founder (the launch default). */
+  audience?: SopGuideAudience[];
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type AgencyProductPricing = "fixed" | "from" | "recurring" | "custom";
 export type AgencyProductStatus = "draft" | "live" | "archived";
 export type AgencyProductPortalRequirement = "required" | "optional" | "none";
@@ -3250,6 +3285,8 @@ export interface PortalState {
   commandCalendarSources: Record<string, CommandCalendarSource>;
   commandCalendarExternalEvents: Record<string, CommandCalendarExternalEvent>;
   sops: Record<string, SopDocument>;
+  /** SOP Engine guides — ordered sequences of SOPs composed in the library. */
+  sopGuides: Record<string, SopGuide>;
   agencyProducts: Record<string, AgencyProduct>;
   clientMilestones: Record<string, ClientMilestone>;
   performanceExperiments: Record<string, PerformanceExperiment>;

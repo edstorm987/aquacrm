@@ -3,6 +3,7 @@ import {
   Activity,
   Banknote,
   BookOpen,
+  ShieldCheck,
   CalendarDays,
   ChevronRight,
   Gift,
@@ -192,6 +193,13 @@ const WORKSPACE_GROUPS: WorkspaceGroup[] = [
         detail: "The standard operating procedures that keep delivery consistent.",
         action: "Open SOP library",
         icon: BookOpen,
+      },
+      {
+        href: "/portal/agency/governance",
+        label: "Governance",
+        detail: "Compliance posture, the legal register, DPO/data-erasure, and security — know where you stand.",
+        action: "Open Governance",
+        icon: ShieldCheck,
       },
       {
         href: "/portal/agency/activity-inbox",

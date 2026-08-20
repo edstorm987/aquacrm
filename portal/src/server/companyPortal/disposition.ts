@@ -438,6 +438,12 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Copied into the new tenant when a moving `AgencyProduct.sopIds` points at one. The origin keeps its own.",
   },
+  sopGuides: {
+    disposition: "closure",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason: "A guide is an ordered composition of the agency's own SOPs. It rides along by closure with the SOPs it references; the origin keeps its own copy.",
+  },
   agencyProducts: {
     disposition: "move",
     ownership: "company-multi",
@@ -731,7 +737,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so a 79th collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 78;
+export const PROMOTION_COLLECTION_COUNT = 79;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

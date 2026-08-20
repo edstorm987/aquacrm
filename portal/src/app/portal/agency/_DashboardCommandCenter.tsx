@@ -182,6 +182,7 @@ export function DashboardCommandCenter({
   devTeamBlockedCount = 0,
   devTeamLaunchBlockerCount = 0,
   battleTablePayload,
+  scanPaused = false,
 }: {
   planning: DashboardPlanningPayload;
   tasks: AgencyTask[];
@@ -210,9 +211,28 @@ export function DashboardCommandCenter({
   /** The subset of those that are open launch blockers (state.md). */
   devTeamLaunchBlockerCount?: number;
   battleTablePayload: BattleTablePayload;
+  /** Performance mode has paused the radar + KPI intelligence builds; the page
+   *  passed lightweight placeholders and this surfaces the "Run scan" control. */
+  scanPaused?: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // "Run scan" navigates to a one-shot `?scan=1` render that forces the full
+  // build. Once that heavy render has loaded, strip `scan` from the URL so a
+  // later refresh returns to the fast paused view rather than rebuilding again.
+  const runScanHref = (() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("scan", "1");
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  })();
+  useEffect(() => {
+    if (searchParams.get("scan") !== "1") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("scan");
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+  }, [pathname, searchParams]);
   const isDayCommandRoute = pathname === "/portal/agency/command-center";
   const requestedStationValue = searchParams.get("station");
   const requestedClockOutReview = searchParams.get("review") === "clock-out";
@@ -1030,6 +1050,12 @@ export function DashboardCommandCenter({
         }}
         onSelect={selectCommandStation}
       />
+      {scanPaused ? (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e5c479]/30 bg-[#e5c479]/[0.06] px-4 py-3 text-sm text-[#f0dcae]" data-testid="command-scan-paused">
+          <span className="flex items-center gap-2"><Gauge size={15} /> Performance mode is on — Radar and KPI intelligence are paused for a faster Command Centre. Run a scan to load live business signals.</span>
+          <Link href={runScanHref} prefetch={false} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#e5c479]/40 bg-[#e5c479]/[0.12] px-3 font-semibold text-[#f6e8c6] hover:bg-[#e5c479]/20"><RefreshCw size={14} /> Run scan</Link>
+        </div>
+      ) : null}
       {activeStation === "devteam" ? <div className="grid min-w-0 gap-0" data-testid="dev-team-station">{devTeamWorkspace}</div> : activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{executiveWorkspace}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceSnapshot} onOpen={openIntelligence} /></div> : activeStation === "battle" ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceSnapshot} onOpenIntelligence={openIntelligence} radarIncidents={warRoomIncidents} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
       <header className="mm-command-workspace-header flex min-h-14 shrink-0 items-center gap-3 border-b border-[#62e8ff]/25 bg-[#020b11] px-3 text-white shadow-[0_8px_24px_rgba(0,20,28,.16)] sm:px-5">
         <span className="mm-command-workspace-emblem grid size-8 shrink-0 place-items-center border border-[#62e8ff]/35 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><Compass size={16} /></span>

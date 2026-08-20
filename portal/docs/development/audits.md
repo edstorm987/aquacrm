@@ -71,6 +71,15 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-20 — 🟡 Update — unlogged governance work: tick-73 red RESOLVED; new trivial completeness gap; still unlogged
+
+**Rolling reds from the mid-flight, unlogged governance feature.** Re-checked this tick (isolating each):
+- ✅ The tick-73 operational-notifications / Actions-attention red is **RESOLVED** — `smoke-operational-notifications` **15/0** in isolation (the counts were reconciled).
+- 🟡 **New (real, trivial) red:** `smoke-tools-directory` (**5/1** isolated) — "Tools directory is missing reachable sidebar destinations: **`/portal/agency/governance`**. Add a card for each so navigation stays complete." The new governance page is in the sidebar but not yet in the agency Tools directory (a completeness guard doing its job). **Fix:** add a Tools-directory card for `/portal/agency/governance`.
+- (phantom, not real) `smoke-client-erasure` "Promotion disposition map — exhaustiveness" passes **27/0 in isolation** — a concurrent-run transient, not an erasure regression.
+
+**→ Commander:** The unlogged governance feature is still mid-flight (rolling completeness reds as its pages get wired). Trivial fix outstanding: add the `/portal/agency/governance` card to the agency Tools directory. **And — still — please log the governance + SOPs features** so they enter the audit queue (two unlogged product features now). The tick-73 count red is fixed; erasure is fine (that red was a phantom). Launch blockers resolved.
+
 ## 2026-08-20 — 🟠 RED (real, unlogged) — operational-alerts / Actions-attention counts broke; new governance / "external AI proposals" work
 
 **Caught by the periodic full-suite check.** Suite **2576 pass / 3 fail** — and unlike the recent phantoms, these are **REAL** (reproduce in isolation: `smoke-operational-notifications` **12/3**, not a flake). Three count-mismatch failures in the **sidebar-attention / Actions** contract:

@@ -2,9 +2,12 @@
 
 import { useId, useMemo, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   BookOpen,
   ChevronLeft,
   Download,
+  Eye,
   FileImage,
   FileSpreadsheet,
   FileText,
@@ -13,7 +16,11 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
+  GraduationCap,
+  Layers,
+  ListChecks,
   PenLine,
+  Pencil,
   Presentation,
   Plus,
   Save,
@@ -26,7 +33,7 @@ import {
   X,
 } from "lucide-react";
 
-import type { SopDocument } from "@/server/types";
+import type { SopDocument, SopGuide } from "@/server/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { BlockRenderer } from "@/lib/elements/BlockRenderer";
 // Load-bearing side-effect: populates the shared element registry the
@@ -46,7 +53,14 @@ type EditorDraft = {
 
 const EMPTY_DRAFT: EditorDraft = { title: "", category: "", categories: [], tags: "", content: "" };
 
-export function SopLibrary({ initialSops, initialCategories }: { initialSops: SopDocument[]; initialCategories: string[] }) {
+export function SopLibrary({ initialSops, initialCategories, initialGuides = [], canManageGuides = false }: {
+  initialSops: SopDocument[];
+  initialCategories: string[];
+  initialGuides?: SopGuide[];
+  canManageGuides?: boolean;
+}) {
+  const [view, setView] = useState<"library" | "guides">("library");
+  const [guides, setGuides] = useState(initialGuides);
   const [sops, setSops] = useState(initialSops);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -60,7 +74,25 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
   const [organisingSop, setOrganisingSop] = useState<SopDocument | null>(null);
   const [viewingInteractive, setViewingInteractive] = useState<SopDocument | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<{ category: string; replacementCategory: string } | null>(null);
+  const [guideEditor, setGuideEditor] = useState<GuideEditorState | null>(null);
+  const [viewingGuide, setViewingGuide] = useState<SopGuide | null>(null);
   const [error, setError] = useState("");
+
+  function upsertGuide(guide: SopGuide) {
+    setGuides(current => [guide, ...current.filter(item => item.id !== guide.id)]);
+  }
+
+  async function removeGuide(guide: SopGuide) {
+    if (!window.confirm(`Delete guide “${guide.title}”? The SOPs it references are not affected.`)) return;
+    setError("");
+    const response = await fetch(`/api/portal/sop-guides?id=${encodeURIComponent(guide.id)}`, { method: "DELETE" });
+    const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+    if (!response.ok || !result?.ok) {
+      setError(result?.error ?? "The guide could not be deleted.");
+      return;
+    }
+    setGuides(current => current.filter(item => item.id !== guide.id));
+  }
 
   const categories = useMemo(() => [...new Set([...manualCategories, ...uniqueCategories(sops)])].sort((a, b) => a.localeCompare(b)), [manualCategories, sops]);
   const allTags = useMemo(() => [...new Set(sops.flatMap(sop => sop.tags))].sort((a, b) => a.localeCompare(b)), [sops]);
@@ -178,22 +210,53 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-black/40">Knowledge</p>
           <h1 className="mt-1 text-2xl font-semibold text-black/90 sm:text-3xl">SOP library</h1>
-          <p className="mt-1 text-sm text-black/50">Procedures, documents, presentations and training media in one organised library.</p>
+          <p className="mt-1 text-sm text-black/50">{view === "guides"
+            ? "Compose ordered guides from the SOPs already in your library."
+            : "Procedures, documents, presentations and training media in one organised library."}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setCreatingCategory(current => !current)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
-            <FolderPlus size={16} /> Create category
-          </button>
-          <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
-            <FileUp size={16} /> Upload SOP
-          </button>
-          <button type="button" onClick={() => openWriter()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
-            <PenLine size={16} /> Write SOP
-          </button>
-        </div>
+        {view === "library" ? (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setCreatingCategory(current => !current)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
+              <FolderPlus size={16} /> Create category
+            </button>
+            <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
+              <FileUp size={16} /> Upload SOP
+            </button>
+            <button type="button" onClick={() => openWriter()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
+              <PenLine size={16} /> Write SOP
+            </button>
+          </div>
+        ) : canManageGuides ? (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setGuideEditor({ mode: "create", draft: { ...EMPTY_GUIDE_DRAFT } })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
+              <Plus size={16} /> New guide
+            </button>
+          </div>
+        ) : null}
       </header>
 
+      <nav className="mt-4 inline-flex rounded-lg border border-black/10 bg-black/[0.025] p-1 text-sm font-semibold">
+        <button type="button" onClick={() => setView("library")} aria-pressed={view === "library"} className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 ${view === "library" ? "bg-white text-black/85 shadow-sm" : "text-black/50 hover:text-black/75"}`}>
+          <BookOpen size={15} /> Library
+        </button>
+        <button type="button" onClick={() => setView("guides")} aria-pressed={view === "guides"} className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 ${view === "guides" ? "bg-white text-black/85 shadow-sm" : "text-black/50 hover:text-black/75"}`}>
+          <GraduationCap size={15} /> Guides<span className="rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">{guides.length}</span>
+        </button>
+      </nav>
+
       {error ? <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+
+      {view === "guides" ? (
+        <GuidesView
+          guides={guides}
+          sops={sops}
+          canManage={canManageGuides}
+          onEdit={guide => setGuideEditor({ mode: "edit", guide, draft: guideToDraft(guide) })}
+          onView={setViewingGuide}
+          onDelete={removeGuide}
+        />
+      ) : (
+      <>
 
       {creatingCategory ? (
         <section className="mt-4 grid gap-2 rounded-lg border border-black/10 bg-black/[0.025] p-3 sm:grid-cols-[1fr_auto_auto]">
@@ -330,6 +393,8 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
           </section> : null}
         </>
       )}
+      </>
+      )}
 
       {editor ? <WrittenSopModal
         draft={editor}
@@ -379,6 +444,261 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
           </div>
         </div>
       </Modal> : null}
+      {guideEditor ? <GuideComposerModal
+        editor={guideEditor}
+        sops={sops}
+        onClose={() => setGuideEditor(null)}
+        onSaved={guide => { upsertGuide(guide); setGuideEditor(null); }}
+        onError={setError}
+      /> : null}
+      {viewingGuide ? <GuideViewer guide={viewingGuide} sops={sops} onClose={() => setViewingGuide(null)} /> : null}
+    </div>
+  );
+}
+
+// ─── SOP guides (SOP Engine Phase 3) ──────────────────────────────────────
+
+type GuideDraft = {
+  title: string;
+  description: string;
+  sopIds: string[];
+  quizEnabled: boolean;
+};
+
+type GuideEditorState =
+  | { mode: "create"; draft: GuideDraft }
+  | { mode: "edit"; guide: SopGuide; draft: GuideDraft };
+
+const EMPTY_GUIDE_DRAFT: GuideDraft = { title: "", description: "", sopIds: [], quizEnabled: false };
+
+function guideToDraft(guide: SopGuide): GuideDraft {
+  return {
+    title: guide.title,
+    description: guide.description ?? "",
+    sopIds: [...guide.sopIds],
+    quizEnabled: guide.quizEnabled === true,
+  };
+}
+
+function GuidesView({ guides, sops, canManage, onEdit, onView, onDelete }: {
+  guides: SopGuide[];
+  sops: SopDocument[];
+  canManage: boolean;
+  onEdit: (guide: SopGuide) => void;
+  onView: (guide: SopGuide) => void;
+  onDelete: (guide: SopGuide) => void;
+}) {
+  const sopById = useMemo(() => new Map(sops.map(sop => [sop.id, sop])), [sops]);
+
+  if (!guides.length) {
+    return (
+      <section className="mm-surface-card mt-5 grid min-h-[320px] place-items-center rounded-lg border border-dashed border-black/15 px-5 py-12 text-center">
+        <div className="max-w-sm">
+          <span className="mm-area-icon mx-auto grid size-12 place-items-center rounded-lg"><GraduationCap size={21} /></span>
+          <h2 className="mt-4 text-lg font-semibold text-black/80">No guides yet</h2>
+          <p className="mt-1 text-sm leading-6 text-black/45">A guide is an ordered run of SOPs you already have — pick them, order them, and read them as one sequence.{canManage ? "" : " Ask an owner or manager to compose one."}</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-5 grid gap-3">
+      {guides.map(guide => {
+        const resolved = guide.sopIds.map(id => sopById.get(id)).filter((sop): sop is SopDocument => Boolean(sop));
+        const missing = guide.sopIds.length - resolved.length;
+        return (
+          <article key={guide.id} className="mm-surface-card flex flex-col gap-3 rounded-lg border border-black/10 p-4 sm:flex-row sm:items-center">
+            <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md"><Layers size={17} /></span>
+            <button type="button" onClick={() => onView(guide)} className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-sm font-semibold text-black/80">{guide.title}</span>
+              {guide.description ? <span className="mt-0.5 block truncate text-xs text-black/45">{guide.description}</span> : null}
+              <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black/40">
+                <span>{guide.sopIds.length} SOP{guide.sopIds.length === 1 ? "" : "s"}</span>
+                {missing ? <span className="text-amber-700">{missing} missing</span> : null}
+                {guide.quizEnabled ? <span className="inline-flex items-center gap-1 text-black/50"><ListChecks size={12} /> Quiz</span> : null}
+                <span>Updated {formatDate(guide.updatedAt)}</span>
+              </span>
+            </button>
+            <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
+              <button type="button" title="View guide" onClick={() => onView(guide)} className="grid size-9 place-items-center rounded-md text-black/45 hover:bg-black/[0.04] hover:text-black"><Eye size={16} /></button>
+              {canManage ? <button type="button" title="Edit guide" onClick={() => onEdit(guide)} className="grid size-9 place-items-center rounded-md text-black/40 hover:bg-black/[0.04] hover:text-black"><Pencil size={16} /></button> : null}
+              {canManage ? <button type="button" title="Delete guide" onClick={() => onDelete(guide)} className="grid size-9 place-items-center rounded-md text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={16} /></button> : null}
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function GuideComposerModal({ editor, sops, onClose, onSaved, onError }: {
+  editor: GuideEditorState;
+  sops: SopDocument[];
+  onClose: () => void;
+  onSaved: (guide: SopGuide) => void;
+  onError: (message: string) => void;
+}) {
+  const [draft, setDraft] = useState(editor.draft);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const sopById = useMemo(() => new Map(sops.map(sop => [sop.id, sop])), [sops]);
+
+  const selectedSops = draft.sopIds.map(id => sopById.get(id)).filter((sop): sop is SopDocument => Boolean(sop));
+  const available = useMemo(() => {
+    const needle = pickerQuery.trim().toLowerCase();
+    return sops
+      .filter(sop => !draft.sopIds.includes(sop.id))
+      .filter(sop => !needle || [sop.title, ...(sop.categories ?? []), ...sop.tags].filter(Boolean).join(" ").toLowerCase().includes(needle))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [sops, draft.sopIds, pickerQuery]);
+
+  function addSop(id: string) {
+    setDraft(current => current.sopIds.includes(id) ? current : { ...current, sopIds: [...current.sopIds, id] });
+  }
+  function removeSop(id: string) {
+    setDraft(current => ({ ...current, sopIds: current.sopIds.filter(item => item !== id) }));
+  }
+  function moveSop(index: number, delta: number) {
+    setDraft(current => {
+      const next = [...current.sopIds];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...current, sopIds: next };
+    });
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!draft.title.trim()) return onError("A guide needs a title.");
+    setBusy(true);
+    onError("");
+    const payload = {
+      ...(editor.mode === "edit" ? { id: editor.guide.id } : {}),
+      title: draft.title,
+      description: draft.description,
+      sopIds: draft.sopIds,
+      quizEnabled: draft.quizEnabled,
+    };
+    const response = await fetch("/api/portal/sop-guides", {
+      method: editor.mode === "edit" ? "PATCH" : "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => null) as { ok?: boolean; guide?: SopGuide; error?: string } | null;
+    setBusy(false);
+    if (!response.ok || !result?.guide) return onError(result?.error ?? "The guide could not be saved.");
+    onSaved(result.guide);
+  }
+
+  return <Modal title={editor.mode === "edit" ? "Edit guide" : "New guide"} onClose={onClose} wide>
+    <form className="grid gap-4" onSubmit={submit}>
+      <Field label="Title"><input required autoFocus value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} className={inputClass} placeholder="e.g. New starter onboarding" /></Field>
+      <Field label="Description"><textarea value={draft.description} onChange={event => setDraft(current => ({ ...current, description: event.target.value }))} rows={2} className={`${inputClass} resize-y py-2 leading-6`} placeholder="What this guide walks someone through." /></Field>
+
+      <div className="grid gap-3 rounded-md border border-black/10 bg-black/[0.018] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-black/60">Sequence</p>
+            <p className="mt-0.5 text-[11px] text-black/40">Add SOPs and order them — this is the run someone reads top to bottom.</p>
+          </div>
+          <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-semibold text-black/45">{selectedSops.length} selected</span>
+        </div>
+
+        {selectedSops.length ? <ol className="grid gap-1.5">
+          {draft.sopIds.map((id, index) => {
+            const sop = sopById.get(id);
+            return (
+              <li key={id} className="flex items-center gap-2 rounded-md border border-black/10 bg-white px-2.5 py-2">
+                <span className="grid size-6 shrink-0 place-items-center rounded bg-black/[0.05] text-[11px] font-semibold text-black/50">{index + 1}</span>
+                <span className="text-black/40">{sop ? resourceIcon(sop, 15) : <FileText size={15} />}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-black/75">{sop ? sop.title : <em className="text-amber-700">Missing SOP ({id})</em>}</span>
+                <button type="button" title="Move up" disabled={index === 0} onClick={() => moveSop(index, -1)} className="grid size-8 place-items-center rounded text-black/40 hover:bg-black/[0.05] disabled:opacity-25"><ArrowUp size={15} /></button>
+                <button type="button" title="Move down" disabled={index === draft.sopIds.length - 1} onClick={() => moveSop(index, 1)} className="grid size-8 place-items-center rounded text-black/40 hover:bg-black/[0.05] disabled:opacity-25"><ArrowDown size={15} /></button>
+                <button type="button" title="Remove" onClick={() => removeSop(id)} className="grid size-8 place-items-center rounded text-black/35 hover:bg-red-50 hover:text-red-700"><X size={15} /></button>
+              </li>
+            );
+          })}
+        </ol> : <p className="rounded-md border border-dashed border-black/10 bg-white px-3 py-4 text-center text-xs text-black/40">No SOPs added yet — pick from the list below.</p>}
+
+        <div className="grid gap-2">
+          <div className="relative">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" />
+            <input value={pickerQuery} onChange={event => setPickerQuery(event.target.value)} className="min-h-10 w-full rounded-md border border-black/12 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search SOPs to add" />
+          </div>
+          <div className="grid max-h-48 gap-1 overflow-y-auto rounded-md border border-black/10 bg-white p-1.5">
+            {available.length ? available.map(sop => (
+              <button key={sop.id} type="button" onClick={() => addSop(sop.id)} className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-black/70 hover:bg-black/[0.04]">
+                <span className="text-black/40">{resourceIcon(sop, 15)}</span>
+                <span className="min-w-0 flex-1 truncate">{sop.title}</span>
+                <span className="text-[10px] text-black/35">{resourceLabel(sop)}</span>
+                <Plus size={14} className="text-black/40" />
+              </button>
+            )) : <p className="px-2 py-3 text-center text-xs text-black/40">{sops.length ? "No SOPs match." : "Write or upload SOPs first, then compose them into a guide."}</p>}
+          </div>
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2.5 rounded-md border border-black/10 bg-black/[0.018] px-3 py-2.5 text-sm text-black/70">
+        <input type="checkbox" checked={draft.quizEnabled} onChange={event => setDraft(current => ({ ...current, quizEnabled: event.target.checked }))} className="size-4 accent-black" />
+        <span><span className="font-medium">Quiz / completion gate</span><span className="block text-[11px] text-black/40">Opt-in per guide. Off by default.</span></span>
+      </label>
+
+      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}><Save size={15} />{busy ? "Saving..." : "Save guide"}</button></div>
+    </form>
+  </Modal>;
+}
+
+function GuideViewer({ guide, sops, onClose }: { guide: SopGuide; sops: SopDocument[]; onClose: () => void }) {
+  const sopById = useMemo(() => new Map(sops.map(sop => [sop.id, sop])), [sops]);
+  return <Modal title={guide.title} onClose={onClose} wide>
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-black/45">
+        <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 font-semibold"><Layers size={12} /> Guide</span>
+        <span>{guide.sopIds.length} SOP{guide.sopIds.length === 1 ? "" : "s"}</span>
+        {guide.quizEnabled ? <span className="inline-flex items-center gap-1"><ListChecks size={12} /> Quiz enabled</span> : null}
+      </div>
+      {guide.description ? <p className="text-sm leading-6 text-black/60">{guide.description}</p> : null}
+      {guide.sopIds.length ? <ol className="grid gap-4">
+        {guide.sopIds.map((id, index) => {
+          const sop = sopById.get(id);
+          return (
+            <li key={id} className="rounded-lg border border-black/10 bg-white">
+              <div className="flex items-center gap-2 border-b border-black/8 px-4 py-2.5">
+                <span className="grid size-6 shrink-0 place-items-center rounded bg-black/[0.05] text-[11px] font-semibold text-black/50">{index + 1}</span>
+                <span className="text-black/40">{sop ? resourceIcon(sop, 15) : <FileText size={15} />}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-black/80">{sop ? sop.title : "Missing SOP"}</span>
+                {sop ? <span className="text-[10px] text-black/35">{resourceLabel(sop)}</span> : null}
+              </div>
+              <div className="p-4">
+                {sop ? <GuideSopContent sop={sop} /> : <p className="text-sm text-amber-700">This SOP ({id}) no longer exists in the library.</p>}
+              </div>
+            </li>
+          );
+        })}
+      </ol> : <p className="rounded-lg border border-dashed border-black/15 px-4 py-10 text-center text-sm text-black/40">This guide has no SOPs yet.</p>}
+      <div className="flex justify-end"><button type="button" onClick={onClose} className={secondaryButton}>Close</button></div>
+    </div>
+  </Modal>;
+}
+
+function GuideSopContent({ sop }: { sop: SopDocument }) {
+  if (sop.kind === "interactive") {
+    return sop.blocks && sop.blocks.length
+      ? <BlockRenderer blocks={sop.blocks} />
+      : <p className="py-4 text-center text-sm text-black/40">This interactive SOP has no content yet.</p>;
+  }
+  if (sop.kind === "written") {
+    return sop.content?.trim()
+      ? <div className="whitespace-pre-wrap text-sm leading-6 text-black/70">{sop.content}</div>
+      : <p className="py-4 text-center text-sm text-black/40">This written SOP has no content yet.</p>;
+  }
+  return (
+    <div className="flex items-center gap-3 rounded-md bg-black/[0.03] p-3">
+      <span className="text-black/40">{resourceIcon(sop, 20)}</span>
+      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-black/75">{sop.fileName ?? sop.title}</p><p className="text-xs text-black/40">{resourceLabel(sop)}</p></div>
+      <a href={`/api/portal/sops/content?id=${encodeURIComponent(sop.id)}`} target="_blank" rel="noreferrer" className={`${secondaryButton} inline-flex items-center gap-2`}><Download size={15} /> Open</a>
     </div>
   );
 }
