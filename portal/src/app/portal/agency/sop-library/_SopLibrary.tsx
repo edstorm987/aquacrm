@@ -36,6 +36,13 @@ import {
 import type { SopDocument, SopGuide } from "@/server/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { BlockRenderer } from "@/lib/elements/BlockRenderer";
+import type { Block } from "@/lib/elements";
+import {
+  COMPOSER_BLOCK_TYPES,
+  composerBlockType,
+  createComposerBlock,
+  type ComposerBlockType,
+} from "./composerBlocks";
 // Load-bearing side-effect: populates the shared element registry the
 // BlockRenderer resolves against, so interactive SOP blocks render with real
 // components instead of degrading to empty fragments. Mirrors how the portal
@@ -72,7 +79,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<SopDocument | null>(null);
   const [organisingSop, setOrganisingSop] = useState<SopDocument | null>(null);
-  const [viewingInteractive, setViewingInteractive] = useState<SopDocument | null>(null);
+  const [composer, setComposer] = useState<ComposerDraft | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<{ category: string; replacementCategory: string } | null>(null);
   const [guideEditor, setGuideEditor] = useState<GuideEditorState | null>(null);
   const [viewingGuide, setViewingGuide] = useState<SopGuide | null>(null);
@@ -145,6 +152,21 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
 
   function openWriter(category = selectedCategory) {
     setEditor({ ...EMPTY_DRAFT, category, categories: category ? [category] : [] });
+  }
+
+  function openComposer(category = selectedCategory) {
+    setComposer({ title: "", category, categories: category ? [category] : [], tags: "", blocks: [] });
+  }
+
+  function editComposer(sop: SopDocument) {
+    setComposer({
+      id: sop.id,
+      title: sop.title,
+      category: sop.category ?? "",
+      categories: sopCategories(sop),
+      tags: sop.tags.join(", "),
+      blocks: (sop.blocks ?? []).map(cloneComposerBlock),
+    });
   }
 
   async function createCategory() {
@@ -221,6 +243,9 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
             </button>
             <button type="button" onClick={() => setUploadOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
               <FileUp size={16} /> Upload SOP
+            </button>
+            <button type="button" onClick={() => openComposer()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-medium text-black/70">
+              <Sparkles size={16} /> New interactive SOP
             </button>
             <button type="button" onClick={() => openWriter()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
               <PenLine size={16} /> Write SOP
@@ -364,7 +389,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
                 <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md">
                   {resourceIcon(sop)}
                 </span>
-                <button type="button" onClick={() => sop.kind === "interactive" ? setViewingInteractive(sop) : sop.kind === "written" ? setEditor({
+                <button type="button" onClick={() => sop.kind === "interactive" ? editComposer(sop) : sop.kind === "written" ? setEditor({
                   id: sop.id,
                   title: sop.title,
                   category: sop.category ?? "",
@@ -424,7 +449,13 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
         onSaved={sop => { upsert(sop); setOrganisingSop(null); }}
         onError={setError}
       /> : null}
-      {viewingInteractive ? <InteractiveSopViewer sop={viewingInteractive} onClose={() => setViewingInteractive(null)} /> : null}
+      {composer ? <InteractiveSopComposerModal
+        draft={composer}
+        categories={categories}
+        onClose={() => setComposer(null)}
+        onSaved={sop => { upsert(sop); setComposer(null); }}
+        onError={setError}
+      /> : null}
       {deletingCategory ? <Modal title="Delete category" onClose={() => setDeletingCategory(null)}>
         <div className="grid gap-4">
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -985,18 +1016,180 @@ function uniqueStrings(values: string[]): string[] {
   }).map(value => value.trim()).sort((a, b) => a.localeCompare(b));
 }
 
-function InteractiveSopViewer({ sop, onClose }: { sop: SopDocument; onClose: () => void }) {
-  return <Modal title={sop.title} onClose={onClose} wide>
-    <div className="grid gap-4">
-      <p className="text-xs text-black/45">Interactive SOP · read-only preview</p>
-      <div className="rounded-lg border border-black/10 bg-white p-4">
-        {sop.blocks && sop.blocks.length
-          ? <BlockRenderer blocks={sop.blocks} />
-          : <p className="py-8 text-center text-sm text-black/40">This interactive SOP has no content yet.</p>}
+// ─── Interactive SOP composer (SOP Engine) ────────────────────────────────
+//
+// A SIMPLE block composer — add / reorder / remove a small set of element-engine
+// block types and edit each block's content with basic form fields. It never
+// touches the website-editor plugin: blocks are seeded via the element engine's
+// own `createComposerBlock` and rendered through the shared `BlockRenderer`, so
+// what is composed here is exactly what the library renders. On save the block
+// tree is persisted as a `kind: "interactive"` SopDocument through the existing
+// sops create/update route, which validates it against the element schema.
+
+type ComposerDraft = {
+  id?: string;
+  title: string;
+  category: string;
+  categories: string[];
+  tags: string;
+  blocks: Block[];
+};
+
+/** A structural clone so editing a draft never mutates the stored SOP's blocks. */
+function cloneComposerBlock(block: Block): Block {
+  return {
+    ...block,
+    props: { ...(block.props ?? {}) },
+    children: block.children ? block.children.map(cloneComposerBlock) : block.children,
+  };
+}
+
+function InteractiveSopComposerModal({ draft, categories, onClose, onSaved, onError }: {
+  draft: ComposerDraft;
+  categories: string[];
+  onClose: () => void;
+  onSaved: (sop: SopDocument) => void;
+  onError: (message: string) => void;
+}) {
+  const [value, setValue] = useState(draft);
+  const [busy, setBusy] = useState(false);
+
+  function addBlock(type: ComposerBlockType["type"]) {
+    setValue(current => ({ ...current, blocks: [...current.blocks, createComposerBlock(type)] }));
+  }
+  function removeBlock(index: number) {
+    setValue(current => ({ ...current, blocks: current.blocks.filter((_, i) => i !== index) }));
+  }
+  function moveBlock(index: number, delta: number) {
+    setValue(current => {
+      const next = [...current.blocks];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...current, blocks: next };
+    });
+  }
+  function setBlockProp(index: number, key: string, propValue: unknown) {
+    setValue(current => ({
+      ...current,
+      blocks: current.blocks.map((block, i) => i === index
+        ? { ...block, props: { ...(block.props ?? {}), [key]: propValue } }
+        : block),
+    }));
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!value.title.trim()) return onError("An interactive SOP needs a title.");
+    setBusy(true);
+    onError("");
+    const payload = {
+      ...(value.id ? { id: value.id } : { kind: "interactive" as const }),
+      title: value.title,
+      blocks: value.blocks,
+      category: value.category,
+      categories: value.categories,
+      tags: splitTags(value.tags),
+    };
+    const response = await fetch("/api/portal/sops", {
+      method: value.id ? "PATCH" : "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => null) as { ok?: boolean; sop?: SopDocument; error?: string } | null;
+    setBusy(false);
+    if (!response.ok || !result?.sop) return onError(result?.error ?? "The interactive SOP could not be saved.");
+    onSaved(result.sop);
+  }
+
+  return <Modal title={value.id ? "Edit interactive SOP" : "New interactive SOP"} onClose={onClose} wide>
+    <form className="grid gap-4" onSubmit={submit}>
+      <Field label="Title"><input required autoFocus value={value.title} onChange={event => setValue(current => ({ ...current, title: event.target.value }))} className={inputClass} placeholder="e.g. Client onboarding walk-through" /></Field>
+      <CategoryAssignmentFields
+        primary={value.category}
+        assigned={value.categories}
+        categories={categories}
+        onChange={(category, assigned) => setValue(current => ({ ...current, category, categories: assigned }))}
+      />
+      <Field label="Tags"><input value={value.tags} onChange={event => setValue(current => ({ ...current, tags: event.target.value }))} className={inputClass} placeholder="Training, onboarding, finance" /></Field>
+
+      <div className="grid gap-3 rounded-md border border-black/10 bg-black/[0.018] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-black/60">Blocks</p>
+            <p className="mt-0.5 text-[11px] text-black/40">Add content blocks, order them, and edit each one — this is what readers see.</p>
+          </div>
+          <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-semibold text-black/45">{value.blocks.length} block{value.blocks.length === 1 ? "" : "s"}</span>
+        </div>
+
+        {value.blocks.length ? <ol className="grid gap-2.5">
+          {value.blocks.map((block, index) => {
+            const palette = composerBlockType(block.type);
+            return (
+              <li key={block.id} className="rounded-md border border-black/10 bg-white">
+                <div className="flex items-center gap-2 border-b border-black/8 px-3 py-2">
+                  <span className="grid size-6 shrink-0 place-items-center rounded bg-black/[0.05] text-[11px] font-semibold text-black/50">{index + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-black/70">{palette?.label ?? block.type}</span>
+                  <button type="button" title="Move up" disabled={index === 0} onClick={() => moveBlock(index, -1)} className="grid size-8 place-items-center rounded text-black/40 hover:bg-black/[0.05] disabled:opacity-25"><ArrowUp size={15} /></button>
+                  <button type="button" title="Move down" disabled={index === value.blocks.length - 1} onClick={() => moveBlock(index, 1)} className="grid size-8 place-items-center rounded text-black/40 hover:bg-black/[0.05] disabled:opacity-25"><ArrowDown size={15} /></button>
+                  <button type="button" title="Remove block" onClick={() => removeBlock(index)} className="grid size-8 place-items-center rounded text-black/35 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /></button>
+                </div>
+                <div className="grid gap-3 p-3 sm:grid-cols-2">
+                  <div className="grid gap-2.5">
+                    {palette ? palette.fields.map(field => (
+                      <ComposerFieldInput
+                        key={field.key}
+                        field={field}
+                        value={block.props?.[field.key]}
+                        onChange={next => setBlockProp(index, field.key, next)}
+                      />
+                    )) : <p className="text-xs text-black/40">This block type has no inline fields.</p>}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-black/35">Preview</p>
+                    <div className="overflow-hidden rounded-md border border-black/8 bg-white p-3">
+                      <BlockRenderer blocks={[block]} />
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol> : <p className="rounded-md border border-dashed border-black/10 bg-white px-3 py-4 text-center text-xs text-black/40">No blocks yet — add one below.</p>}
+
+        <div className="grid gap-1.5">
+          <p className="text-[11px] font-medium text-black/45">Add a block</p>
+          <div className="flex flex-wrap gap-1.5">
+            {COMPOSER_BLOCK_TYPES.map(entry => (
+              <button key={entry.type} type="button" title={entry.hint} onClick={() => addBlock(entry.type)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 text-xs font-semibold text-black/65 hover:border-black/30 hover:text-black">
+                <Plus size={13} /> {entry.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="flex justify-end"><button type="button" onClick={onClose} className={secondaryButton}>Close</button></div>
-    </div>
+
+      <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={secondaryButton}>Cancel</button><button disabled={busy} className={primaryButton}><Save size={15} />{busy ? "Saving..." : "Save SOP"}</button></div>
+    </form>
   </Modal>;
+}
+
+function ComposerFieldInput({ field, value, onChange }: {
+  field: ComposerBlockType["fields"][number];
+  value: unknown;
+  onChange: (next: unknown) => void;
+}) {
+  if (field.control === "textarea") {
+    return <Field label={field.label}><textarea value={typeof value === "string" ? value : ""} onChange={event => onChange(event.target.value)} rows={4} className={`${inputClass} resize-y py-2 leading-6`} placeholder={field.placeholder} /></Field>;
+  }
+  if (field.control === "select") {
+    return <Field label={field.label}><select value={typeof value === "string" ? value : ""} onChange={event => onChange(event.target.value)} className={inputClass}>{(field.options ?? []).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>;
+  }
+  if (field.control === "level") {
+    const current = typeof value === "number" ? value : 2;
+    return <Field label={field.label}><select value={String(current)} onChange={event => onChange(Number(event.target.value))} className={inputClass}>{[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>Heading {level}</option>)}</select></Field>;
+  }
+  return <Field label={field.label}><input type={field.control === "url" ? "url" : "text"} value={typeof value === "string" ? value : ""} onChange={event => onChange(event.target.value)} className={inputClass} placeholder={field.placeholder} /></Field>;
 }
 
 function resourceIcon(sop: SopDocument, size = 17): React.ReactNode {

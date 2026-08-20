@@ -467,9 +467,18 @@ export function ActionsWorkspace({
       {source === "today" ? <TodayView
         tasks={tasks}
         entries={calendarEntries}
+        // The needs-attention alerts already held here (origin "inbox"). They
+        // are the un-accepted "do this now" items — surfaced in Today so one
+        // glance shows attention alerts alongside today's actions. Deduped
+        // upstream against alerts already accepted as tasks, so no double count.
+        attentionActions={crmIntake.filter(action => action.origin === "inbox")}
         busyId={addingSuggestionId}
         onComplete={task => void completeTask(task)}
         onPostpone={(task, until) => void postponeTask(task, until)}
+        // Both resolution paths kept intact: an alert clears through the
+        // operational-alert store, a task clears via completeTask/postponeTask.
+        onAttentionAction={handleAttentionAction}
+        onMarkAttentionDone={markAttentionDone}
         onOpenCalendar={() => setView("calendar")}
       /> : null}
       {source === "completed" ? <section aria-labelledby="completed-heading" className="overflow-hidden rounded-lg border border-black/10 bg-white"><header className="border-b border-black/10 bg-black/[0.02] px-4 py-4 sm:px-5"><h2 id="completed-heading" className="text-lg font-semibold text-black/82">Completed</h2><p className="mt-1 text-xs leading-5 text-black/48">Everything you have resolved, accepted or judged not worth acting on.</p></header><CompletedRegister /></section> : null}

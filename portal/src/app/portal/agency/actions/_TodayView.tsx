@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, CalendarPlus, Check, ChevronDown, Clock3, LoaderCircle } from "lucide-react";
+import { Bell, CalendarDays, CalendarPlus, Check, ChevronDown, Clock3, LoaderCircle } from "lucide-react";
 
+import { AttentionControls } from "@/components/attention/AttentionControls";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import type { GeneratedAction } from "./_ActionsWorkspace";
 import type { AgencyTask, CommandCalendarEntry } from "@/server/types";
 
 /**
@@ -21,16 +23,30 @@ import type { AgencyTask, CommandCalendarEntry } from "@/server/types";
 export function TodayView({
   tasks,
   entries,
+  attentionActions = [],
   busyId,
   onComplete,
   onPostpone,
+  onAttentionAction,
+  onMarkAttentionDone,
   onOpenCalendar,
 }: {
   tasks: AgencyTask[];
   entries: CommandCalendarEntry[];
+  /**
+   * Needs-attention alerts that want the founder now. They keep their OWN
+   * resolution path (Resolve / Remind later / Dismiss through the operational-
+   * alert store) — they are not tasks and must never be completed as one, so
+   * they render with AttentionControls rather than the task Complete/Postpone
+   * model. Already deduped upstream against alerts accepted as tasks, so a row
+   * cannot appear here and in the task list at once.
+   */
+  attentionActions?: GeneratedAction[];
   busyId: string | null;
   onComplete: (task: AgencyTask) => void;
   onPostpone: (task: AgencyTask, until: number) => void;
+  onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => void | Promise<void>;
+  onMarkAttentionDone?: (action: GeneratedAction) => void | Promise<void>;
   onOpenCalendar: () => void;
 }) {
   const now = Date.now();
@@ -49,21 +65,26 @@ export function TodayView({
     .filter(entry => sameDay(entry.startsAt, now))
     .sort((a, b) => a.startsAt - b.startsAt);
 
+  const nothingToday = due.length === 0 && todaysEntries.length === 0 && attentionActions.length === 0;
+
   return (
     <section aria-labelledby="today-heading" className="overflow-hidden rounded-lg border border-black/10 bg-white">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 bg-black/[0.02] px-4 py-4 sm:px-5">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Today</p>
           <h2 id="today-heading" className="mt-1 text-lg font-semibold text-black/85">
-            {due.length === 0 && todaysEntries.length === 0
+            {nothingToday
               ? "Nothing booked for today"
-              : `${due.length} action${due.length === 1 ? "" : "s"} and ${todaysEntries.length} commitment${todaysEntries.length === 1 ? "" : "s"}`}
+              : `${attentionActions.length ? `${attentionActions.length} needing you, ` : ""}${due.length} action${due.length === 1 ? "" : "s"} and ${todaysEntries.length} commitment${todaysEntries.length === 1 ? "" : "s"}`}
           </h2>
           <p className="mt-1 text-xs leading-5 text-black/48">
-            {overdueCount > 0
-              // Named, not hidden in a separate section where it can be ignored.
-              ? `${overdueCount} carried over from before today.`
-              : "Accepted work due today, and what is in the diary."}
+            {attentionActions.length > 0
+              // Attention alerts are "now" by nature — surface them before the diary line.
+              ? `${attentionActions.length} needs attention now${overdueCount > 0 ? `, ${overdueCount} carried over from before today` : ""}.`
+              : overdueCount > 0
+                // Named, not hidden in a separate section where it can be ignored.
+                ? `${overdueCount} carried over from before today.`
+                : "Accepted work due today, and what is in the diary."}
           </p>
         </div>
         <button
@@ -74,6 +95,41 @@ export function TodayView({
           <CalendarPlus size={14} aria-hidden />Queue more from the calendar
         </button>
       </header>
+
+      {attentionActions.length ? (
+        <div className="border-b border-black/[0.07] bg-amber-50/40 px-4 py-3 sm:px-5">
+          <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800/80">
+            <Bell size={12} aria-hidden />Needs attention
+          </h3>
+          <ul className="mt-2 grid gap-2">
+            {attentionActions.map(action => (
+              <li
+                key={action.id}
+                data-attention-action={action.id}
+                className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-amber-200/70 bg-white px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-black/82">{action.title}</span>
+                  <span className="mt-0.5 block text-[11px] leading-5 text-black/45">{action.detail}</span>
+                </div>
+                {/* The alert's OWN controls — Resolve / Remind later / Dismiss
+                    go through the operational-alert store, never the task
+                    Complete/Postpone path. */}
+                <AttentionControls
+                  title={action.title}
+                  kind={action.resolutionKind ?? "in-app"}
+                  resolveHref={action.href}
+                  evidenceHref={action.evidenceHref}
+                  busy={busyId === action.id}
+                  onMarkDone={onMarkAttentionDone ? () => void onMarkAttentionDone(action) : undefined}
+                  onPark={onAttentionAction ? (until: number) => void onAttentionAction(action, "park", until) : undefined}
+                  onDismiss={onAttentionAction ? () => void onAttentionAction(action, "dismiss") : undefined}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {todaysEntries.length ? (
         <div className="border-b border-black/[0.07] bg-black/[0.012] px-4 py-3 sm:px-5">
