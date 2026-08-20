@@ -72,18 +72,31 @@ against them without deciding which.
 Columns below are cross-checked against
 `../../../supabase/migrations/` and the live PostgREST schema, not inferred.
 
-### `brand_enquiries` (service-role) — the most-used table (31 `.from` sites, 14 files)
+### `brand_enquiries` (mixed keys) — the most-used table (31 `.from` sites, 14 files)
 Website enquiry capture. `id`, `brand_slug`, `name`, `email?`, `phone?`,
 `contact_method?`, `services?` (text[]), `message?`, `source_url?`, `campaign?`,
-`consent?` (bool), `created_at` (timestamptz), `metadata` (jsonb). **No
-`agency_id` column** — enquiries are global; agency/client routing lives *inside*
-`metadata` (`agencyId`, `routedClientId`, `clientId`, `masterTag`/`captureOnly`).
-Erasure = **hard delete** `.delete().eq("id",…)`.
+`consent?` (bool), `created_at` (timestamptz), `metadata` (jsonb), and — since
+`20260820150000_brand_enquiries_agency_scope.sql` — **`agency_id` (text)**, the
+real tenant column. ⚠ **That migration is written but NOT yet applied** (Ed runs
+`supabase db push` by hand); until then the live table still has no such column,
+and the insert paths detect the missing column (`PGRST204`) and retry without it
+(`src/lib/supabase/enquiryAgencyColumn.ts`). Routing metadata (`agencyId`,
+`routedClientId`, `clientId`, `masterTag`/`captureOnly`) stays in `metadata` —
+the migration backfills the column from `metadata->>'agencyId'` (default
+`'milesymedia'`, the founder agency) and a trigger keeps it filled.
+Erasure = **hard delete** `.delete().eq("id",…)` (now `.select("id")`-verified so
+an RLS-filtered delete fails loudly instead of no-oping).
 **RLS:** enabled. `anon` may **INSERT only**, and only when `consent = true` and
 the row carries a real name plus an email or a ≥7-char phone — the website form's
 validation is in the policy's `WITH CHECK`, not just in app code. No anon SELECT:
 the live probe returned 0 rows to the anon key against 35 rows for service-role.
-Because there is no `agency_id`, **RLS cannot scope this table by tenant at all.**
+Internal users manage rows through an **agency-aware policy** (null-tolerant
+ratchet: unscoped profile or unscoped row → today's behaviour; both stamped →
+must match `current_profile_agency_id()`). The website-inbox routes
+(`api/portal/website-enquiries/*`, `api/portal/inbox/media`) now reach this
+table with the **user's scoped client** (`createScopedSupabaseClient`), so RLS
+actually applies there; the service-role paths that remain are pinned and
+justified in `scripts/smoke-service-role-usage.test.ts`.
 
 ### `website_consent_events` (service-role) — consent audit, insert-only
 `brand_slug?`, `site_key`, `property_id`, `anonymous_id?`, `necessary` (always
@@ -193,10 +206,11 @@ appear nowhere in the repo).
 | inbox `db()` | service-role | **Bypasses RLS** |
 | `createRouteSupabaseClient` | anon + cookies | subject to RLS |
 | `createServerSupabaseClient` | anon + cookies | subject to RLS |
+| `createScopedSupabaseClient` | anon + cookies, 401 if no live Supabase user | subject to RLS |
 | storageSupabase / migrate | service-role (PostgREST) | **Bypasses RLS** |
 
 ### Security posture (verified 2026-08-20)
-- **Every substantive discrete-table op goes through the service-role key, which bypasses RLS.** Re-counted in `src/` on 2026-08-20: **27** `createSupabaseAdminClient()` call sites across **19** files, and **9** files referencing `SERVICE_ROLE` (`supabase/admin.ts`, `server/storage.ts`, `server/storageSupabase.ts`, `lib/server/{env,inboxStore,privateUploadStorage,publicUploadStorage,productionReadiness,databaseStorageHealth}.ts`). *(The previous line said "26 / 14 files"; the 14 does not match any `SERVICE_ROLE` grep — 14 is the number of files that touch `brand_enquiries`, which is the figure two headings up.)* Against that, **exactly one** table read in the whole portal uses the anon key (`profiles`, in `api/auth/login`). Tenant isolation for the service-role paths is therefore **enforced only in application code** (`.eq("agency_id",…)`, metadata routing, `withTenantScope`). **RLS here is defence-in-depth, not the primary control** — do not describe it as database-enforced tenant isolation.
+- **Service-role usage is now measured and pinned.** Excluding the definition file (`lib/supabase/admin.ts`), `src/` had **23** `createSupabaseAdminClient()` call sites in **18** files on the morning of 2026-08-20; the phase-4 reduction that afternoon moved the ten website-inbox route sites onto the user's scoped client, leaving **13 sites in 8 files** — pinned, with per-site justifications, in `scripts/smoke-service-role-usage.test.ts` (the count can only change knowingly). Counting admin.ts's own three internal `auth.admin` helpers too, the older "27 sites / 19 files" figure becomes 17/9. The anon-key surface is now `profiles` (login) **plus `brand_enquiries` via the scoped client in the website-inbox routes**. Everything still on the service role enforces tenancy **in application code only** (`.eq("agency_id",…)`, metadata routing, `withTenantScope`). **RLS is defence-in-depth plus the inbox-route paths, not blanket database-enforced tenant isolation** — do not oversell it.
 - **RLS IS in the repo** — in `../../../supabase/migrations/`, not in `portal/`. Enabled on every table the app touches, with policies built on two `security definer` helpers with pinned `search_path` (`current_profile_role()`, `is_internal_user()`). Live-verified: anon reads 0 rows from `brand_enquiries`/`profiles`/`app_datastores`/`website_consent_events`, and is denied outright on `app_datastore_history`. Only `brands`/`shoots`/`shoot_photos` are anon-readable, deliberately — they hold public website content and no PII. `scripts/schema.sql` deferring RLS applies **only** to `portal_kv`, a different database.
 - **Two `SECURITY DEFINER` RPCs are defined in the migrations**, both with pinned `search_path` and `execute` revoked from `anon`/`authenticated`: `apply_app_datastore_patch` (live) and `claim_inbox_webhook_events` (not applied). A **third**, `rls_auto_enable`, exists in the live project and **is in no migration** — dashboard-only drift that will not survive a rebuild. Export and commit it.
 - **Verify with:** `../../../supabase/rls-verify.sql` (read-only, live posture) and `scripts/smoke-rls-policy-coverage.test.ts` (repo posture vs. code, runs in the smoke suite).

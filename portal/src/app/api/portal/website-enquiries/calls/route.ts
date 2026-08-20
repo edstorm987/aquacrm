@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { initiatePhoneCall, resolveCommunicationSender } from "@/lib/server/email/outboundCommunications";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient, type ScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type { WebsiteEnquiryCall } from "@/lib/server/websiteEnquiries";
@@ -151,8 +151,8 @@ export async function PATCH(request: Request) {
   }
 }
 
-async function loadEnquiry(id: string): Promise<{ supabase: ReturnType<typeof createSupabaseAdminClient>; enquiry: EnquiryRow }> {
-  const supabase = createSupabaseAdminClient();
+async function loadEnquiry(id: string): Promise<{ supabase: ScopedSupabaseClient; enquiry: EnquiryRow }> {
+  const supabase = await createScopedSupabaseClient();
   const { data, error } = await supabase.from("brand_enquiries").select("id, name, phone, metadata").eq("id", id).maybeSingle();
   if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
   if (!data) throw new Error("website_enquiry_not_found");

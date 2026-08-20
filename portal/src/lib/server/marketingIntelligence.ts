@@ -663,8 +663,9 @@ export interface MarketingFunnelStage {
 }
 
 export interface MarketingFunnelInput {
-  pageviews: number;
-  forms: number;
+  /** `null` = no Aqua Tag reading for the window (the lineage type carries measuredness). */
+  pageviews: number | null;
+  forms: number | null;
   leads: number;
   contacted: number;
   meetings: number;
@@ -687,8 +688,8 @@ export function shapeMarketingFunnel(
   opts: { trafficMeasured?: boolean; formsMeasured?: boolean } = {},
 ): MarketingFunnelStage[] {
   const stages: Array<Omit<MarketingFunnelStage, "conversionPercent" | "dropFromPrevious">> = [
-    { id: "pageviews", label: "Pageviews", value: opts.trafficMeasured === false ? null : lineage.pageviews, measured: opts.trafficMeasured !== false, evidence: "Aqua Tag telemetry, rolling 7 days", href: "/portal/agency/marketing?view=radar" },
-    { id: "forms", label: "Form submissions", value: opts.formsMeasured === false ? null : lineage.forms, measured: opts.formsMeasured !== false, evidence: "Tracked website form events", href: "/portal/agency/marketing?view=radar" },
+    { id: "pageviews", label: "Pageviews", value: opts.trafficMeasured === false ? null : lineage.pageviews, measured: opts.trafficMeasured !== false && lineage.pageviews !== null, evidence: "Aqua Tag telemetry, rolling 7 days", href: "/portal/agency/marketing?view=radar" },
+    { id: "forms", label: "Form submissions", value: opts.formsMeasured === false ? null : lineage.forms, measured: opts.formsMeasured !== false && lineage.forms !== null, evidence: "Tracked website form events", href: "/portal/agency/marketing?view=radar" },
     { id: "leads", label: "Leads", value: lineage.leads, measured: true, evidence: "Retained lead records", href: "/portal/agency/pipelines/leads" },
     { id: "contacted", label: "Contacted", value: lineage.contacted, measured: true, evidence: "A touch or stage progress recorded", href: "/portal/agency/pipelines/leads" },
     { id: "meetings", label: "Meetings", value: lineage.meetings, measured: true, evidence: "Meeting stage or later", href: "/portal/agency/pipelines/leads" },

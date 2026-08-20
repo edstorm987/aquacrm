@@ -21,26 +21,26 @@ interface BuildCommercialIntelligenceInput {
   pipeline: Pipeline | null;
   cards: readonly PipelineCard[];
   currency: string;
-  pageviews: number;
-  forms: number;
   /**
-   * Whether `pageviews` is an actual reading. The Radar emits `value: 0` on
-   * `blind`/`learning`/`inactive` checks, so an agency with nothing monitored
-   * arrives here indistinguishable from a monitored-but-quiet one. Callers that
-   * know the difference pass `false` so the funnel can render "—" instead of a
-   * fabricated zero. Omitted means "the caller asserts this is a reading" —
-   * that keeps every pre-existing call site behaving exactly as before.
+   * Pageviews for the window, or `null` when there is no actual reading. The
+   * Radar emits `value: 0` on `blind`/`learning`/`inactive` checks, so an
+   * agency with nothing monitored used to arrive here indistinguishable from a
+   * monitored-but-quiet one behind a separate honesty flag a caller could
+   * forget (the flag defaulted to "measured"). The type now carries
+   * measuredness itself: passing a number asserts a real reading, `null` says
+   * "unmeasured" and renders "—" downstream. A fake zero is unrepresentable.
    */
-  pageviewsMeasured?: boolean;
-  /** Same contract as `pageviewsMeasured`, for `forms`. */
-  formsMeasured?: boolean;
+  pageviews: number | null;
+  /** Same contract as `pageviews`, for tracked form submissions. */
+  forms: number | null;
   now?: number;
 }
 
 /**
- * `CommercialIntelligenceSnapshot["lineage"]` plus the honesty flags. Additive
- * on purpose: `lineage.pageviews` stays `number` so `marketingIntelligence.ts`
- * (a different lane's file) keeps compiling untouched.
+ * `CommercialIntelligenceSnapshot["lineage"]` plus the honesty flags. The
+ * flags are now derived from the values (`pageviews === null` ⇔ unmeasured)
+ * and kept for display convenience; the values themselves are `number | null`,
+ * so a consumer cannot read a fabricated zero even if it ignores the flags.
  */
 export type CommercialLineage = CommercialIntelligenceSnapshot["lineage"] & {
   pageviewsMeasured: boolean;
@@ -76,10 +76,10 @@ export function buildCommercialIntelligence({
   currency,
   pageviews,
   forms,
-  pageviewsMeasured = true,
-  formsMeasured = true,
   now = Date.now(),
 }: BuildCommercialIntelligenceInput): CommercialIntelligenceSnapshotWithMeasurement {
+  const pageviewsMeasured = pageviews !== null;
+  const formsMeasured = forms !== null;
   const columns = [...(pipeline?.columns ?? [])].sort((left, right) => left.order - right.order);
   const columnById = new Map(columns.map(column => [column.id, column]));
   const cardsById = new Map(cards.map(card => [card.id, card]));
@@ -244,8 +244,8 @@ export function buildCommercialIntelligence({
     makeFormula({ id: "cost-per-lead", label: "Cost per acquired lead", category: "efficiency", unit: "currency", value: campaignSpend && campaignLinked.length ? campaignSpend / campaignLinked.length : null, numerator: campaignSpend, denominator: campaignLinked.length, formula: "Recorded campaign spend / campaign-linked leads", target: "At or below approved channel target", status: campaignSpend && campaignLinked.length ? "healthy" : "learning", source: "Campaign spend + source-linked leads", detail: "Blended cost per traceable lead across recorded campaigns." }),
     makeFormula({ id: "customer-acquisition-cost", label: "Customer acquisition cost", category: "efficiency", unit: "currency", value: campaignSpend && linkedConversions.length ? campaignSpend / linkedConversions.length : null, numerator: campaignSpend, denominator: linkedConversions.length, formula: "Recorded campaign spend / linked converted clients", target: "Below approved gross-profit allowance", status: campaignSpend && linkedConversions.length ? "healthy" : "learning", source: "Campaign spend + converted-client links", detail: "Blended paid acquisition cost using only traceable client conversions." }),
     makeFormula({ id: "campaign-roas", label: "Campaign return on spend", category: "outcome", unit: "ratio", value: campaignSpend ? campaignRevenue / campaignSpend : null, numerator: campaignRevenue, denominator: campaignSpend, formula: "Attributed campaign revenue / recorded campaign spend", target: "3.00× or above", status: campaignSpend ? campaignRevenue / campaignSpend >= 3 ? "healthy" : campaignRevenue / campaignSpend >= 1 ? "warning" : "critical" : "learning", source: "Campaign spend + attributed revenue", detail: "Activates only when spend is recorded; revenue remains attribution-dependent." }),
-    makeFormula({ id: "pageview-to-form", label: "Pageview-to-form conversion", category: "driver", unit: "percent", value: percent(forms, pageviews), numerator: forms, denominator: pageviews, formula: "Tracked forms / tracked pageviews × 100", target: "1% or above", status: rateStatus(percent(forms, pageviews), pageviews, 1, 1, 0.3), source: "Aqua Tag telemetry", detail: "The monitored estate's ability to turn visits into captured demand." }),
-    makeFormula({ id: "form-to-lead", label: "Form-to-lead retention", category: "quality", unit: "percent", value: percent(leads.length, forms), numerator: leads.length, denominator: forms, formula: "Retained lead records / tracked forms × 100", target: "100% after deduplication policy", status: forms ? rateStatus(percent(leads.length, forms), forms, 1, 80, 50) : "learning", source: "Aqua Tag forms + lead records", detail: "A directional reconciliation; repeat forms and non-web leads can make the ratio exceed 100%." }),
+    makeFormula({ id: "pageview-to-form", label: "Pageview-to-form conversion", category: "driver", unit: "percent", value: percent(forms, pageviews), numerator: forms ?? undefined, denominator: pageviews ?? undefined, formula: "Tracked forms / tracked pageviews × 100", target: "1% or above", status: rateStatus(percent(forms, pageviews), pageviews, 1, 1, 0.3), source: "Aqua Tag telemetry", detail: "The monitored estate's ability to turn visits into captured demand." }),
+    makeFormula({ id: "form-to-lead", label: "Form-to-lead retention", category: "quality", unit: "percent", value: percent(leads.length, forms), numerator: leads.length, denominator: forms ?? undefined, formula: "Retained lead records / tracked forms × 100", target: "100% after deduplication policy", status: forms ? rateStatus(percent(leads.length, forms), forms, 1, 80, 50) : "learning", source: "Aqua Tag forms + lead records", detail: "A directional reconciliation; repeat forms and non-web leads can make the ratio exceed 100%." }),
     makeFormula({ id: "lead-loss-rate", label: "Recorded lead loss rate", category: "outcome", unit: "percent", value: percent(lost.length, closed), numerator: lost.length, denominator: closed, formula: "Lost decisions / (won + lost decisions) × 100", target: "Below 40%", status: inverseRateStatus(percent(lost.length, closed), closed, 3, 40, 65), source: "Lead pipeline terminal stages", detail: "Loss among decided opportunities, excluding leads that remain open." }),
     makeFormula({ id: "decision-coverage", label: "Pipeline decision coverage", category: "quality", unit: "percent", value: percent(closed, leads.length), numerator: closed, denominator: leads.length, formula: "Won or lost decisions / all retained leads × 100", target: "Enough closure to support conversion conclusions", status: leads.length ? closed ? "healthy" : "learning" : "learning", source: "Lead pipeline terminal stages", detail: "Shows how much of the retained lead pool has reached a recorded outcome." }),
     makeFormula({ id: "repeat-enquiry-rate", label: "Repeat enquiry rate", category: "driver", unit: "percent", value: percent(repeatEnquiryLeads.length, leads.length), numerator: repeatEnquiryLeads.length, denominator: leads.length, formula: "Leads with 2+ enquiries / all leads × 100", target: "Monitor buying intent and support overlap", status: leads.length ? "healthy" : "learning", source: "Lead enquiry roll-ups", detail: "Identifies people returning through more than one enquiry event." }),
@@ -361,11 +361,11 @@ function reachedStage(lead: Lead, stageId: string, columns: Pipeline["columns"])
 function sourceKey(value: string): string { const key = value.trim().toLowerCase().replace(/\s*:\s*/g, ":").replace(/\s+/g, "-"); return key && !["unknown", "none", "n/a", "not-recorded"].includes(key) ? key : "unattributed"; }
 function sourceLabel(value: string): string { const key = sourceKey(value); return key === "unattributed" ? "Unattributed" : key.split(":").map(part => titleCase(part.replace(/-/g, " "))).join(": "); }
 function titleCase(value: string): string { return value.replace(/[-_]/g, " ").replace(/\b\w/g, match => match.toUpperCase()); }
-function percent(numerator: number, denominator: number): number | null { return denominator > 0 ? round(numerator / denominator * 100, 1) : null; }
+function percent(numerator: number | null, denominator: number | null): number | null { return numerator !== null && denominator !== null && denominator > 0 ? round(numerator / denominator * 100, 1) : null; }
 function median(values: readonly number[]): number | null { if (!values.length) return null; const sorted = [...values].sort((a, b) => a - b); const middle = Math.floor(sorted.length / 2); return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2; }
 function round(value: number, precision = 1): number { const factor = 10 ** precision; return Math.round(value * factor) / factor; }
 function duration(value: number): string { if (value < 60_000) return `${Math.round(value / 1_000)}s`; if (value < 3_600_000) return `${Math.round(value / 60_000)}m`; if (value < DAY) return `${round(value / 3_600_000, 1)}h`; return `${round(value / DAY, 1)}d`; }
-function rateStatus(value: number | null, sample: number, minimum: number, healthy: number, warning: number): CommandKpiStatus { if (sample < minimum || value === null) return "learning"; return value >= healthy ? "healthy" : value >= warning ? "warning" : "critical"; }
+function rateStatus(value: number | null, sample: number | null, minimum: number, healthy: number, warning: number): CommandKpiStatus { if (sample === null || sample < minimum || value === null) return "learning"; return value >= healthy ? "healthy" : value >= warning ? "warning" : "critical"; }
 function inverseRateStatus(value: number | null, sample: number, minimum: number, healthy: number, warning: number): CommandKpiStatus { if (sample < minimum || value === null) return "learning"; return value <= healthy ? "healthy" : value <= warning ? "warning" : "critical"; }
 function durationStatus(value: number | null, sample: number, minimum: number, healthy: number, warning: number): CommandKpiStatus { if (sample < minimum || value === null) return "learning"; return value <= healthy ? "healthy" : value <= warning ? "warning" : "critical"; }
 function stringValue(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }

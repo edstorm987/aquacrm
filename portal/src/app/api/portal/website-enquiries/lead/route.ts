@@ -5,7 +5,7 @@ import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/fou
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID required." }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     const { data, error } = await supabase
       .from("brand_enquiries")
       .select("id, brand_slug, name, email, phone, contact_method, services, message, source_url, campaign, created_at, metadata")

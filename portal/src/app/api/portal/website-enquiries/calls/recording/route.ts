@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (!file.size || file.size > MAX_RECORDING_BYTES) return NextResponse.json({ ok: false, error: "Call recordings must be smaller than 100 MB." }, { status: 413 });
     if (!AUDIO_TYPES.has(file.type)) return NextResponse.json({ ok: false, error: "This audio recording format is not supported." }, { status: 415 });
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     const { data, error } = await supabase.from("brand_enquiries").select("id, name, metadata").eq("id", enquiryId).maybeSingle();
     if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });

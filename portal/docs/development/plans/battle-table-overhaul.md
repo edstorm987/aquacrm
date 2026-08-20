@@ -2,7 +2,7 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
-**Status: BUILT (phases 1–4) — war room is the Battle Table's front door. Phase 5 (look/feel polish) partial.**
+**Status: BUILT (phases 1–5) — war room is the front door; the drill-in layer wears the same command chrome (P5 done 2026-08-20).**
 
 ## What was built (2026-08-20)
 - `src/app/portal/agency/_battleWarRoom.ts` — the pure, testable war-room model:
@@ -31,9 +31,18 @@
   cash actual, so a cash tile would read "Learning" forever.
 - **All 10 sections stay** as drill-in. None collapsed.
 
+### Phase 5 (2026-08-20, later) — the drill-in layer reads as stations
+- The drill-in strip is now a **command rail**: back-to-war-room, a numbered
+  station chip (`ST-01`…`ST-10`, derived from the sections list, with the
+  section's own icon), `Planning station · {scope}`, and a live-feed reminder
+  ("Feeds the war room live" — true: `profiles` state feeds the battlefield).
+- Every `BattleSection` header carries the gold accent signature
+  (`border-l-2 border-[#d7b56d]/45`) the war-room zones speak in, so a planning
+  body reads as a station of the same surface, not a settings page.
+- Look/feel only — no behaviour, data or route change. Pinned by the
+  "Phase 5" shape test in `scripts/smoke-battle-table.test.ts`.
+
 ### Not built
-- Phase 5 look/feel is only what the war room itself carries; the 10 planning
-  sections still read as forms inside their own bodies.
 - The pulse does not yet read `CommandKpi` plan targets directly (it uses the
   retained company plan); tying it to the KPI overhaul's targets is the next step.
 

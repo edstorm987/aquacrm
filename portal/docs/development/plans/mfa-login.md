@@ -2,9 +2,9 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md)
 
-**Status: Phases 1 + 2 BUILT (2026-08-20) — the login gate is COMPLETE on BOTH sides (server `login/route.ts:312` + the form's code step `LoginForm.tsx:197`). Phases 3 + 4 (session assurance, recovery codes) not started — they need files outside this plan's map, not a decision from Ed.**
+**Status: ALL FOUR PHASES BUILT (phases 3 + 4 on 2026-08-20, same day, second lane). Sessions carry the proven `aal`; magic-link + Google OAuth refuse MFA-enrolled accounts (fail-closed — they now REQUIRE `SUPABASE_SERVICE_ROLE_KEY` to mint anything); ten single-use scrypt-hashed recovery codes generate on the first TOTP-gated JSON sign-in, shown once, spendable in the login `code` field. Runtime-verified: `smoke-mfa.test.ts` (83 with `smoke-mfa-doors`) drives the real handlers. Leftovers, honestly: (1) both signup routes still mint sessions with no MFA check — low exposure (they refuse existing portal emails) but outside this lane's map; (2) recovery codes generate at first gated sign-in, not on the enrolment screen — the enrol/verify routes belong to the other lane; (3) recovery method built as backup codes (Ed's "backup codes vs owner-reset" decision was still open — guess made, confirm with Ed).**
 
-> ⚠ Two things that are **not** covered and must not be read into "MFA is on": (1) the other doors — magic link, Google OAuth and both signup routes still mint `lk_session_v1` with no MFA step (re-verified 2026-08-20: zero MFA references in all four); (2) there is still **no recovery path**, so a lost authenticator locks the account out.
+> ⚠ Superseded 2026-08-20 (second lane): magic link and Google OAuth are now GATED (they refuse enrolled accounts and fail closed when enrolment cannot be read), and recovery codes exist. What remains true: **both signup routes** still mint `lk_session_v1` with no MFA check — they refuse existing portal emails, so the exposure is an email with an enrolled Supabase identity but no portal user; they are outside this plan's second-lane file map.
 This is the last outstanding piece of **security-hardening**, not a separate
 feature: the 2026-08-20 audit found that hardening was incomplete for exactly
 one reason, that `login/route.ts` had no MFA step.
@@ -46,13 +46,16 @@ login gate.
 
 ### Still open
 
-- **Phase 3 (session assurance)** — needs an `aal` field on `SessionPayload`
-  (`server/types.ts`) and on `issueSession` (`lib/server/auth.ts`). Both are
-  outside this plan's file map. Until then the app session records *that* two
-  factors were satisfied only implicitly, by having been issued at all.
-- **Phase 4 (recovery)** — backup codes need persisted state
-  (`server/storage.ts` / `server/types.ts`), also outside the map. There is no
-  recovery path today; the account panel says so plainly rather than pretending.
+- ~~**Phase 3 (session assurance)**~~ — ✅ BUILT 2026-08-20 (second lane, which
+  was granted the minimal additive edits: `SessionPayload.aal` in
+  `server/types.ts` + `aal` passthrough in `lib/server/auth/auth.ts`). Note the
+  recovery state deliberately lives ON `ServerUser` (`mfaRecovery`), NOT as a
+  new `PortalState` collection — `parseBlob` in `server/storage.ts` is an
+  allowlist that silently destroys unknown top-level collections, and
+  storage.ts stayed outside the map.
+- ~~**Phase 4 (recovery)**~~ — ✅ BUILT 2026-08-20, see phase list above. The
+  account panel's "no recovery path" wording is now stale IF it still says so —
+  the panel belongs to the other lane; whoever holds it should re-read it.
 - ~~**The login screen's code box**~~ — ✅ **BUILT, and this bullet was stale.**
   Re-checked in source 2026-08-20: `LoginForm.tsx` holds `code` +
   `mfaRequired` state (`:54–55`), re-POSTs the same credentials plus `code`
@@ -63,17 +66,18 @@ login gate.
   from a missing box. Both halves of the gate — server and form — now exist.
 - **`docs/workspace/api-reference.md`** wants a row for
   `GET /api/portal/mfa/enrol`; that file is outside the map too.
-- ⚠️ **The other doors into the same session.** `signInWithPassword` lives in
-  exactly one route, so the *password* door is now gated — but `lk_session_v1`
-  is also minted, with no MFA step at all, by:
-  `api/auth/magic/verify/route.ts` (magic link),
-  `api/auth/oauth/google/callback/route.ts` (Google),
-  `api/auth/signup/route.ts` and `api/auth/end-customer/signup/route.ts`.
-  For a user who has enrolled a factor, a magic link or a Google sign-in is
-  today a way around the TOTP challenge. All four are outside this plan's file
-  map and were **not** touched. Whoever holds them should apply the same shape:
-  read the verified factors, withhold the cookie, require the code. Until then,
-  "MFA on login" means the password login specifically.
+- ~~⚠️ **The other doors into the same session.**~~ — magic link + Google OAuth
+  ✅ CLOSED 2026-08-20 (second lane): both check enrolment through the Supabase
+  admin API (`checkSideDoorMfa`) and refuse enrolled accounts with
+  `?magic_error|oauth_error=mfa_required`; an unreadable check refuses with
+  `mfa_unavailable` (fail-closed — these two doors now REQUIRE
+  `SUPABASE_SERVICE_ROLE_KEY` in every environment, which password-reset
+  already required; it is in `.env.local`, verify Vercel). Cost note: the check
+  is `auth.admin.listUsers` pagination per sign-in — fine pre-launch, replace
+  with a direct lookup if user counts grow. **Still open: both signup routes**
+  (`api/auth/signup`, `api/auth/end-customer/signup`) mint sessions with no
+  check; they refuse existing portal emails, so the hole is an email with an
+  enrolled Supabase identity but no portal user. Outside this lane's map.
 
 ## Where we are — the 2026-08-19 audit, kept for the record (superseded by "What was built" above)
 - **Real Supabase MFA already exists:** `/api/portal/mfa/enrol` (`auth.mfa.enroll/listFactors/unenroll`) + `/api/portal/mfa/verify` (`auth.mfa.challenge/verify`). Tested (`smoke-mfa.test.ts`).
@@ -89,8 +93,8 @@ an MFA stand-in; that is a separate gate and is unchanged.)
 ## Phases
 1. ✅ **Enrolment surface** — let a user enrol a TOTP factor from account/security settings (the enrol endpoint exists; surface it with a QR + confirm). Show enrolled/disabled state.
 2. ✅ **Login gate** — after a valid password, if the user has an MFA factor, **withhold the app session cookie** and require a TOTP challenge → verify (reuse `mfa.ts` + `/api/portal/mfa/verify`) → *then* mint `lk_session_v1`. Rate-limit + lock out attempts (reuse `rateLimit.ts`).
-3. ⛔ **Session assurance** — record the aal level on the session; `mfa.ts` gates sensitive actions to aal2 (owner actions, erasure, etc.).
-4. ⛔ **Recovery** — a recovery path (backup codes / admin reset) so a lost authenticator doesn't lock an owner out permanently.
+3. ✅ **Session assurance** (2026-08-20) — every session-minting auth route stamps `SessionPayload.aal` ("aal2" only when a second factor was verified); read via `sessionAssurance` / `sessionHasSecondFactor` (`lib/server/auth/mfa.ts`), absence fails closed. Gating individual owner actions on aal2 is now a per-action wiring job for whoever owns each route.
+4. ✅ **Recovery** (2026-08-20) — ten single-use recovery codes, scrypt-hashed on `ServerUser.mfaRecovery`, generated on the account's first TOTP-gated JSON sign-in (both factors freshly proven; the enrolment routes belong to the other lane), returned once as `recoveryCodes` on that login response (`LoginForm` holds the redirect until saved), spent via the same login `code` field (any non-six-digit entry), wrong codes rate-limited + counted to lockout. A native form post never triggers generation — it has nowhere to show them.
 
 ## Reuse
 `lib/server/mfa.ts`, `/api/portal/mfa/{enrol,verify}`, Supabase `auth.mfa.*`, the login route (`/api/auth/login`), `rateLimit.ts`, `smoke-mfa.test.ts` (extend).

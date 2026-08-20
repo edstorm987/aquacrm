@@ -12,6 +12,7 @@ import { getAgencyBySlug } from "@/server/tenants";
 import { getUser } from "@/server/users";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isMissingAgencyIdColumn } from "@/lib/supabase/enquiryAgencyColumn";
 import { notifyBrandEnquiry } from "@/lib/server/email/enquiryNotifications";
 import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/public/publicSites";
 import { triggerAutomations } from "@/server/automations";
@@ -300,37 +301,56 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { data: captured, error: captureError } = await supabase
+    // Tenant is written twice on purpose: `agency_id` is the real column RLS
+    // scopes on once the agency_scope migration is applied; `metadata.agencyId`
+    // is what the existing `.from` sites still route by, and what the
+    // migration's backfill and trigger read for rows created before it ran.
+    const enquiryRow = {
+      brand_slug: brand,
+      name,
+      email: hasEmail ? email : null,
+      phone: hasPhone ? phone : null,
+      contact_method: contactMethod,
+      services,
+      message: message || null,
+      source_url: sourceUrl || null,
+      campaign: campaign || null,
+      consent: true,
+      agency_id: agency.id,
+      metadata: {
+        agencyId: agency.id,
+        consentPurpose: "reply-to-enquiry",
+        consentVersion: 1,
+        consentCapturedAt: capturedAt,
+        origin: origin || "same-origin",
+        channel,
+        siteKey: publicSite?.siteKey ?? null,
+        propertyId: publicSite?.propertyId ?? brand,
+        siteName: publicSite?.siteName ?? brandDefinition.name,
+        pagePath,
+        ...(routedCompanyId ? { routedCompanyId } : {}),
+        inboxStatus: "open",
+        enquiryClassification: "unclassified",
+        notification: "pending",
+      },
+    };
+    let { data: captured, error: captureError } = await supabase
       .from("brand_enquiries")
-      .insert({
-        brand_slug: brand,
-        name,
-        email: hasEmail ? email : null,
-        phone: hasPhone ? phone : null,
-        contact_method: contactMethod,
-        services,
-        message: message || null,
-        source_url: sourceUrl || null,
-        campaign: campaign || null,
-        consent: true,
-        metadata: {
-          consentPurpose: "reply-to-enquiry",
-          consentVersion: 1,
-          consentCapturedAt: capturedAt,
-          origin: origin || "same-origin",
-          channel,
-          siteKey: publicSite?.siteKey ?? null,
-          propertyId: publicSite?.propertyId ?? brand,
-          siteName: publicSite?.siteName ?? brandDefinition.name,
-          pagePath,
-          ...(routedCompanyId ? { routedCompanyId } : {}),
-          inboxStatus: "open",
-          enquiryClassification: "unclassified",
-          notification: "pending",
-        },
-      })
+      .insert(enquiryRow)
       .select("id")
       .single();
+    if (captureError && isMissingAgencyIdColumn(captureError)) {
+      // The migration is applied by hand (Ed runs `supabase db push`), so this
+      // code can be live against the old schema. A visitor's enquiry must not
+      // be lost while the schema catches up — retry without the column;
+      // metadata.agencyId still records the tenant for the backfill.
+      const { agency_id: _pendingMigration, ...legacyRow } = enquiryRow;
+      ({ data: captured, error: captureError } = await supabase
+        .from("brand_enquiries")
+        .insert(legacyRow)
+        .select("id")
+        .single());
+    }
     if (captureError || !captured?.id) {
       throw new Error(`Supabase enquiry capture failed: ${captureError?.message || "no record returned"}`);
     }
@@ -468,6 +488,7 @@ export async function POST(req: NextRequest) {
     await supabase
       .from("brand_enquiries")
       .update({ metadata: {
+        agencyId: agency.id,
         consentPurpose: "reply-to-enquiry",
         consentVersion: 1,
         consentCapturedAt: capturedAt,

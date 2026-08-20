@@ -803,8 +803,9 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ClientEndCustomerConfig (2 members)` — uses the foundation defaults (signups enabled, no return URL).
 - `interface Client (17 members)`
 - `interface EndCustomer (6 members)`
-- `interface ServerUser (17 members)`
-- `interface SessionPayload (19 members)` — handlers re-verify via `getSession()`. iat/exp in unix seconds.
+- `interface MfaRecoveryState (3 members)` — warning inside parseBlob).
+- `interface ServerUser (18 members)`
+- `interface SessionPayload (20 members)` — handlers re-verify via `getSession()`. iat/exp in unix seconds.
 - `interface PluginInstall (12 members)` — the agency uses across all clients).
 - `interface PluginInstallScope (2 members)` — means agency-wide; otherwise client-scoped under the agency.
 - `interface ActivityEntry (10 members)`
@@ -879,7 +880,8 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface RadarPolicyConfiguration (6 members)`
 - `interface KpiTargetOverride (6 members)` — One KPI target/baseline override (Phase 4 — KPI intelligence). `effectiveFrom` versions the change so trend lines stay comparable; `history` keeps prior values.
 - `interface KpiTargetsConfig (3 members)` — Per-agency, optionally per-company, KPI target overrides. Resolved system-default → agency → company (most specific wins), like the radar policy.
-- `interface AgencyWorkspaceSettings (22 members)`
+- `interface SharedKpiComparisonView (9 members)` — One agency-shared saved KPI comparison view. Saved views come in two halves by decision: private (browser localStorage, never leaves the machine) and shared (this — persisted in a…
+- `interface AgencyWorkspaceSettings (23 members)`
 - `interface PortalFormFieldDefinition (9 members)`
 - `interface PortalFormEditorState (3 members)`
 - `interface ClientPortalStagePresentation (6 members)`

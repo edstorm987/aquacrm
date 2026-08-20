@@ -111,8 +111,8 @@ function LifecycleHeader({ snapshot }: { snapshot: CommercialIntelligenceSnapsho
 function LineagePlot({ snapshot, onState }: { snapshot: CommercialIntelligenceSnapshot; onState: (value: RecordStateFilter) => void }) {
   // A Radar `value: 0` is not a measurement. When the tag is not monitoring the
   // estate the funnel must say so rather than assert that nobody visited.
-  const pageviewsMeasured = snapshot.lineage.pageviewsMeasured !== false;
-  const formsMeasured = snapshot.lineage.formsMeasured !== false;
+  const pageviewsMeasured = snapshot.lineage.pageviewsMeasured !== false && snapshot.lineage.pageviews !== null;
+  const formsMeasured = snapshot.lineage.formsMeasured !== false && snapshot.lineage.forms !== null;
   const points = [
     { label: "Pageviews", value: snapshot.lineage.pageviews, state: "all" as const, evidence: pageviewsMeasured ? "Aqua Tag" : "Not monitored", measured: pageviewsMeasured },
     { label: "Forms", value: snapshot.lineage.forms, state: "all" as const, evidence: formsMeasured ? "Tracked forms" : "Not monitored", measured: formsMeasured },
@@ -129,14 +129,14 @@ function LineagePlot({ snapshot, onState }: { snapshot: CommercialIntelligenceSn
     <div className="mt-4 grid grid-cols-2 border-l border-t border-[#62e8ff]/14 sm:grid-cols-3 xl:grid-cols-9">
       {points.map((point, index) => {
         const previous = points[index - 1];
-        const progression = point.measured && previous?.measured && previous.value ? point.value / previous.value * 100 : null;
+        const progression = point.measured && point.value !== null && previous?.measured && previous.value ? point.value / previous.value * 100 : null;
         const detail = index === 0
           ? point.measured ? "Estate exposure" : "Nothing monitored yet"
           : !point.measured ? "Not measured — no Aqua Tag reading"
           : previous && !previous.measured ? "Prior stage not monitored"
           : progression === null ? "No prior sample" : `${Math.round(progression)}% from prior`;
         return <button key={point.label} onClick={() => onState(point.state)} className="group relative min-h-[112px] border-b border-r border-[#62e8ff]/14 p-3 text-left hover:bg-[#62e8ff]/[0.06]">
-          <span className="text-[7px] font-semibold uppercase text-white/28">{String(index + 1).padStart(2, "0")} · {point.evidence}</span><strong className={`mt-2 block text-2xl tabular-nums ${point.measured ? "text-white/82" : "text-white/38"}`}>{point.measured ? point.value.toLocaleString() : "—"}</strong><span className="mt-1 block text-[10px] font-semibold text-[#8ef1ff]">{point.label}</span><span className="mt-2 block text-[8px] text-white/26">{detail}</span>
+          <span className="text-[7px] font-semibold uppercase text-white/28">{String(index + 1).padStart(2, "0")} · {point.evidence}</span><strong className={`mt-2 block text-2xl tabular-nums ${point.measured ? "text-white/82" : "text-white/38"}`}>{point.measured && point.value !== null ? point.value.toLocaleString() : "—"}</strong><span className="mt-1 block text-[10px] font-semibold text-[#8ef1ff]">{point.label}</span><span className="mt-2 block text-[8px] text-white/26">{detail}</span>
           {index < points.length - 1 ? <ArrowRight size={12} className="absolute right-[-7px] top-1/2 z-10 hidden -translate-y-1/2 bg-[#020b11] text-[#62e8ff]/40 xl:block" /> : null}
         </button>;
       })}

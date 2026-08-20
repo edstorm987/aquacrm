@@ -628,6 +628,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-kpi-shared-views.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-kpi-targets.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -669,6 +673,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-meta-master-inbox.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-mfa-doors.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -938,6 +946,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-scouting-niche.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-service-role-usage.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 

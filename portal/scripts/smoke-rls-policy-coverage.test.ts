@@ -194,7 +194,7 @@ const INJECTED_CLIENTS: Record<string, ClientKind> = {
 };
 
 const SERVICE_MARKERS = ["createSupabaseAdminClient", "SUPABASE_SERVICE_ROLE_KEY"];
-const ANON_MARKERS = ["createRouteSupabaseClient", "createServerSupabaseClient"];
+const ANON_MARKERS = ["createRouteSupabaseClient", "createServerSupabaseClient", "createScopedSupabaseClient"];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -353,5 +353,60 @@ describe("RLS policy coverage — written SQL vs. what the code assumes", () => 
       "The honesty claim in the RLS plan rests on there being many service-role call sites that " +
         "bypass RLS. If that is no longer true, update the plan rather than this assertion.",
     );
+  });
+});
+
+describe("brand_enquiries tenant scoping — the agency_id column and its policy", () => {
+  // Written 2026-08-20 with the agency_scope migration. Until that migration,
+  // brand_enquiries routed tenants through metadata->>'agencyId' only — a JSON
+  // key RLS cannot scope on — which is why its policy could not be per-agency.
+  // These assertions FAIL if the column, its backfill trigger, the agency-aware
+  // policy, or the insert-side stamping is ever removed.
+  const written = readWrittenPolicySet();
+  const allMigrationSql = written.migrations
+    .map(file => readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"))
+    .join("\n");
+
+  it("adds the agency_id column in written SQL, with backfill and trigger", () => {
+    assert.match(
+      allMigrationSql,
+      /alter table public\.brand_enquiries\s+add column if not exists agency_id text/,
+      "No migration adds brand_enquiries.agency_id. Without the column, RLS cannot scope the table by tenant.",
+    );
+    assert.match(
+      allMigrationSql,
+      /create trigger set_brand_enquiries_agency/,
+      "The default-agency trigger is gone. Writers that only stamp metadata.agencyId would leave the column null.",
+    );
+    assert.match(
+      allMigrationSql,
+      /create or replace function public\.current_profile_agency_id\(\)/,
+      "current_profile_agency_id() is gone — the policy has nothing to compare the row's agency_id against.",
+    );
+  });
+
+  it("scopes the internal-users policy by agency", () => {
+    const policy = [...written.policies.values()].find(
+      candidate => candidate.table === "brand_enquiries" && candidate.command === "all",
+    );
+    assert.ok(policy, "brand_enquiries has no FOR ALL policy for internal users at all.");
+    assert.match(
+      policy!.using ?? "",
+      /current_profile_agency_id/,
+      `The brand_enquiries manage policy ("${policy!.name}", ${policy!.migration}) no longer compares ` +
+        `agency_id against current_profile_agency_id(). That reverts tenant scoping to app code only.`,
+    );
+  });
+
+  it("stamps the tenant on both public insert paths", () => {
+    const brandEnquiry = readFileSync(path.join(SRC_ROOT, "app", "api", "public", "brand-enquiry", "route.ts"), "utf8");
+    const formCapture = readFileSync(path.join(SRC_ROOT, "app", "api", "public", "form-capture", "route.ts"), "utf8");
+    assert.match(brandEnquiry, /agency_id: agency\.id/, "brand-enquiry inserts must write the agency_id column.");
+    assert.match(brandEnquiry, /agencyId: agency\.id/, "brand-enquiry must keep metadata.agencyId for the routing sites and the backfill.");
+    assert.match(formCapture, /agency_id: masterAgencyId \?\? null/, "form-capture inserts must write the agency_id column.");
+    // Ed applies the migration by hand, so the code must survive the old
+    // schema: both paths retry without the column on its exact absence.
+    assert.match(brandEnquiry, /isMissingAgencyIdColumn/, "brand-enquiry lost its pre-migration fallback.");
+    assert.match(formCapture, /isMissingAgencyIdColumn/, "form-capture lost its pre-migration fallback.");
   });
 });

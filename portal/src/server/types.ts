@@ -326,6 +326,25 @@ export function isLeadRole(role: Role): boolean {
 // can detect + repair idempotently.
 export const USER_SCHEMA_V = 2;
 
+// ─── Two-factor recovery codes ────────────────────────────────────────────
+//
+// Stored ON the user record deliberately: `state.users` rides through the
+// storage parser wholesale, so an optional field here survives every
+// hydration without a new line in storage.ts's parseBlob allowlist (a new
+// top-level collection would be silently destroyed without one — see the
+// warning inside parseBlob).
+export interface MfaRecoveryState {
+  /** scrypt-hashed codes — same `scrypt$N$r$p$<salt>$<hash>` format as
+   *  `passwordHash`. A code's entry is DELETED the moment it is spent, so
+   *  single-use is enforced by absence and `codeHashes.length` is how many
+   *  remain. Plaintext codes are never stored anywhere. */
+  codeHashes: string[];
+  /** When this set was generated (epoch ms). */
+  generatedAt: number;
+  /** Codes consumed from this set since `generatedAt`. */
+  usedCount: number;
+}
+
 export interface ServerUser {
   id: string;
   email: string;
@@ -358,6 +377,10 @@ export interface ServerUser {
   // canvas resize). R+1 swaps to an external ref via the client-files plugin
   // once foundation has user-scoped file storage.
   avatarUrl?: string;
+  // Two-factor recovery codes (hashed, single-use, shown exactly once).
+  // Generated when the account's first TOTP-gated sign-in completes. See
+  // `lib/server/auth/mfa.ts` — issueRecoveryCodesIfMissing / consumeRecoveryCode.
+  mfaRecovery?: MfaRecoveryState;
   createdAt: number;
   updatedAt: number;
 }
@@ -426,6 +449,12 @@ export interface SessionPayload {
   // user-aware paths (getCurrentUser / requireRole+lookup). Stateless verify
   // via HMAC stays cheap; rotation enforcement is opt-in at the lookup layer.
   sessionRev?: number;
+  // Which assurance level this sign-in actually proved. "aal2" only when a
+  // second factor (TOTP or a recovery code) was verified by the flow that
+  // minted this cookie; "aal1" for password-only sign-ins. Optional and
+  // additive: cookies minted before this field existed carry nothing, and an
+  // absent value must be read as "not proven" — never as aal2.
+  aal?: "aal1" | "aal2";
   iat: number;
   exp: number;
 }
@@ -1868,6 +1897,25 @@ export interface KpiTargetsConfig {
   updatedAt: number;
 }
 
+/** One agency-shared saved KPI comparison view. Saved views come in two halves
+ *  by decision: private (browser localStorage, never leaves the machine) and
+ *  shared (this — persisted in agency settings so the whole workspace can
+ *  recall the same monitoring configuration). Mirrors the browser-side
+ *  `SavedComparisonView` shape minus plan overrides, which are already
+ *  server-persisted through `kpiTargets`. */
+export interface SharedKpiComparisonView {
+  id: string;
+  name: string;
+  kpiIds: string[];
+  mode: "plan" | "indexed" | "change" | "raw";
+  range: "24h" | "7d" | "30d" | "90d" | "quarter" | "ytd" | "12m" | "all" | "custom";
+  /** yyyy-mm-dd bounds, used when `range` is "custom". */
+  start?: string;
+  end?: string;
+  createdAt: number;
+  createdBy?: string;
+}
+
 export interface AgencyWorkspaceSettings {
   agencyId: string;
   legalName?: string;
@@ -1889,6 +1937,8 @@ export interface AgencyWorkspaceSettings {
   sopCategories?: string[];
   /** Per-agency / per-company KPI target overrides (Phase 4). Additive; optional. */
   kpiTargets?: KpiTargetsConfig;
+  /** Agency-shared saved KPI comparison views (the shared half of saved views). Additive; optional. */
+  kpiSavedViews?: SharedKpiComparisonView[];
   advisor: {
     speedToLeadTargetMinutes: number;
     speedToLeadWarningMinutes: number;

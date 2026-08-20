@@ -24,12 +24,12 @@ agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 
 **Command Centre / founder-home components**
 - `_DashboardCommandCenter.tsx` ⊕ **(2469L)** — the Command Centre dashboard shell.
-- `_CommandIntelligenceWorkspace.tsx` (875L) — command intelligence / KPI workspace.
+- `_CommandIntelligenceWorkspace.tsx` (1026L) — command intelligence / KPI workspace (saved views: private in-browser + agency-shared via `/api/portal/kpi-registry/views`, 2026-08-20).
 - `_CommercialIntelligenceWorkspace.tsx` — commercial intelligence summary.
 - `_CommandCentreKpiTrajectory.tsx`, `_CommandDeckPopup.tsx`, `_CommandStationNav.tsx`.
 - `_DayBriefingPanel.tsx` / `_DayCommandSensorPanel.tsx` / `_DayKpiIntelligencePanel.tsx` — daily briefing / sensor / KPI panels.
 - `_FounderDashboardKpis.tsx`, `_AgencyActivityFeed.tsx` ("today across the agency").
-- `_BattleTableWorkspace.tsx` (652L), `_BrandPortfolioInstrument.tsx`, `_CapitalOwnershipWorkspace.tsx`.
+- `_BattleTableWorkspace.tsx` (840L — war room + P5 station chrome), `_BrandPortfolioInstrument.tsx`, `_CapitalOwnershipWorkspace.tsx`.
 - `_ClockOutReviewDialog.tsx`, `_QuarterlyStrategyReview.tsx`, `_WeeklyReviewWorkspace.tsx`.
 - `_DynamicRadarConsole.tsx`, `_RadarPolicyPanel.tsx`, `_RadarScanControl.tsx` (radar console / policy / scan trigger).
 - `_NewClientButton.tsx` — inline "+ New client" modal.

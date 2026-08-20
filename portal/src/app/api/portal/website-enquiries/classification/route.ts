@@ -11,7 +11,7 @@ import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/trading
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { pipelinePort } from "@/lib/server/leadsPipelinePorts";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { getInstall } from "@/server/pluginInstalls";
 import { classifyPerson, upsertPerson } from "@/server/persons";
 import { deleteCard, getPipelineBySlug, listCards } from "@/server/pipelines";
@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
     }
     const classification = body.classification;
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     const { data, error } = await supabase
       .from("brand_enquiries")
       .select("id, brand_slug, name, email, phone, contact_method, services, message, source_url, campaign, created_at, metadata")

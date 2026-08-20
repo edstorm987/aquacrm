@@ -7,8 +7,10 @@ import {
   MFA_LOGIN_CHALLENGE_MESSAGE,
   MFA_LOGIN_REJECTED_MESSAGE,
   MFA_LOGIN_UNAVAILABLE_MESSAGE,
-  hasVerifiedFactor, loginMfaStep, raisedToSecondFactor, readAssurance,
-  readTokenAssurance, requireTwoFactor, verifiedFactors,
+  RECOVERY_CODE_COUNT,
+  generateRecoveryCodes, hashRecoveryCode, hasVerifiedFactor, loginMfaStep,
+  normalizeRecoveryCode, raisedToSecondFactor, readAssurance,
+  readTokenAssurance, recoveryCodeMatches, requireTwoFactor, verifiedFactors,
 } from "../src/lib/server/auth/mfa.ts";
 
 // Memory backend before anything touches the state layer, exactly as
@@ -20,7 +22,7 @@ import { POST } from "../src/app/api/auth/login/route";
 import { GET as mfaStatus } from "../src/app/api/portal/mfa/enrol/route";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
-import { createUser } from "../src/server/users";
+import { createUser, getUserByLogin } from "../src/server/users";
 import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 import { isLoginLocked, recordLoginFailure } from "../src/lib/server/rateLimit";
 
@@ -302,6 +304,33 @@ describe("deciding what login must do next", () => {
     assert.equal(step.status === "check-code" ? step.code : "", "123456");
   });
 
+  it("routes anything that does not read as six digits to the recovery check", () => {
+    // A recovery code can only ever be checked against stored hashes, so a
+    // typo costs one rejected attempt — it can never skip the step.
+    const step = loginMfaStep({ user: withFactor, code: " abcde-fghij " });
+    assert.equal(step.status, "check-recovery");
+    assert.equal(step.status === "check-recovery" ? step.code : "", "ABCDEFGHIJ");
+    // Too short for a TOTP is still a recovery attempt, never a pass.
+    assert.equal(loginMfaStep({ user: withFactor, code: "12345" }).status, "check-recovery");
+  });
+
+  it("still reads a dashed six-digit code as a TOTP", () => {
+    const step = loginMfaStep({ user: withFactor, code: "123-456" });
+    assert.equal(step.status, "check-code");
+    assert.equal(step.status === "check-code" ? step.code : "", "123456");
+  });
+
+  it("lets a recovery code past a factor the login cannot challenge", () => {
+    // The `unavailable` refusal exists so an uncheckable factor is never waved
+    // through — but the recovery code must still work there, or that account
+    // has no way back in at all.
+    const step = loginMfaStep({
+      user: { factors: [{ id: "p1", factor_type: "phone", status: "verified" }] },
+      code: "ABCDE-FGHIJ",
+    });
+    assert.equal(step.status, "check-recovery");
+  });
+
   it("refuses rather than waves through a factor it cannot challenge", () => {
     // A verified factor of a kind this path cannot check still means protection
     // is switched on. Skipping it would silently turn 2FA off for that account.
@@ -369,7 +398,12 @@ const PASSWORD = "Sup3rSecret!pw";
 const GOOD_CODE = "123456";
 const GUARDED_EMAIL = "mfa.guarded@p2-smoke.test";
 const PLAIN_EMAIL = "mfa.plain@p2-smoke.test";
+// Enrolled accounts that start with NO recovery codes — one for the recovery
+// loop itself, one to prove a native form post does not burn the one showing.
+const RECOVERY_EMAIL = "mfa.recovery@p2-smoke.test";
+const FORM_FIRST_EMAIL = "mfa.formfirst@p2-smoke.test";
 const FACTOR_ID = "factor-totp-1";
+const ENROLLED_EMAILS = new Set([GUARDED_EMAIL, RECOVERY_EMAIL, FORM_FIRST_EMAIL]);
 
 function jwtWith(aal: string): string {
   const part = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -394,7 +428,7 @@ function resetStub() {
 }
 
 function factorsFor(email: string) {
-  return email === GUARDED_EMAIL
+  return ENROLLED_EMAILS.has(email)
     ? [{ id: FACTOR_ID, friendly_name: "Aqua", factor_type: "totp", status: factorStatus,
         created_at: new Date(0).toISOString(), updated_at: new Date(0).toISOString() }]
     : [];
@@ -498,6 +532,17 @@ function sessionCookieOf(res: Response): string | undefined {
   return res.headers.getSetCookie().find(c => c.startsWith(`${SESSION_COOKIE_NAME}=`));
 }
 
+/** The `aal` claim inside the minted app session cookie, or undefined. */
+function sessionAalOf(res: Response): unknown {
+  const cookie = sessionCookieOf(res);
+  if (!cookie) return undefined;
+  const token = decodeURIComponent(cookie.split(";")[0]!.slice(`${SESSION_COOKIE_NAME}=`.length));
+  const payload = JSON.parse(
+    Buffer.from(token.split(".")[0]!, "base64url").toString("utf8"),
+  ) as { aal?: unknown };
+  return payload.aal;
+}
+
 let savedEnv: Record<string, string | undefined> = {};
 let stubReachable = false;
 
@@ -512,7 +557,7 @@ before(async () => {
 
   await ensureHydrated();
   const agency = createAgency({ name: "MFA Gate Co", ownerEmail: "owner@p2-smoke.test" });
-  for (const email of [GUARDED_EMAIL, PLAIN_EMAIL]) {
+  for (const email of [GUARDED_EMAIL, PLAIN_EMAIL, RECOVERY_EMAIL, FORM_FIRST_EMAIL]) {
     createUser({ email, password: PASSWORD, name: "MFA Tester", role: "agency-owner", agencyId: agency.id });
   }
 
@@ -589,8 +634,15 @@ describe("a password alone cannot open the portal", () => {
     const body = await res.json() as Record<string, unknown>;
     assert.equal(body.ok, true);
     // The success body is a portal-wide contract (see
-    // `smoke-auth-form-encoding.test.ts`) — the gate must not add a key to it.
-    assert.deepEqual(Object.keys(body).sort(), ["mustChangePassword", "ok", "redirect", "user"]);
+    // `smoke-auth-form-encoding.test.ts`, which pins the password-only shape
+    // untouched). The ONE key the gate may add is `recoveryCodes`, and only on
+    // the sign-in that generated them — this is that sign-in for this account.
+    assert.deepEqual(
+      Object.keys(body).sort(),
+      ["mustChangePassword", "ok", "recoveryCodes", "redirect", "user"],
+    );
+    // And the cookie itself must say a second factor was proven.
+    assert.equal(sessionAalOf(res), "aal2", "a TOTP-gated sign-in is aal2");
 
     const challenge = sbCalls.findIndex(call => call.includes("/challenge"));
     const verify = sbCalls.findIndex(call => call.includes("/verify"));
@@ -766,6 +818,151 @@ describe("what the gate is careful not to give away or weaken", () => {
   });
 });
 
+describe("recovery codes — the way back in when the authenticator is gone", () => {
+  // Shared across this describe on purpose: the codes are shown exactly once,
+  // so the later tests can only hold what the first sign-in handed out —
+  // exactly the position a real person is in.
+  let savedCodes: string[] = [];
+
+  it("hands out ten codes on the first two-factor sign-in, hashed at rest, shown once", async () => {
+    assert.equal(stubReachable, true, "the stub must be reachable or this proves nothing");
+    resetStub();
+    const first = await POST(
+      loginRequest({ email: RECOVERY_EMAIL, password: PASSWORD, code: GOOD_CODE }, "10.9.20.1"),
+    );
+    assert.equal(first.status, 200);
+    const body = await first.json() as { recoveryCodes?: unknown };
+    assert.ok(Array.isArray(body.recoveryCodes), "the first gated sign-in must hand the codes out");
+    savedCodes = body.recoveryCodes as string[];
+    assert.equal(savedCodes.length, RECOVERY_CODE_COUNT);
+    for (const code of savedCodes) {
+      assert.match(code, /^[A-Z2-9]{5}-[A-Z2-9]{5}$/, `${code} is not a readable recovery code`);
+    }
+    assert.equal(new Set(savedCodes).size, savedCodes.length, "codes must not repeat");
+
+    // At rest: hashes only. A plaintext copy in state is a second place to
+    // steal the account from, which is the opposite of a recovery path.
+    const stored = getUserByLogin(RECOVERY_EMAIL)?.mfaRecovery;
+    assert.ok(stored, "the hashes must be stored, or the codes can never be checked");
+    assert.equal(stored!.codeHashes.length, RECOVERY_CODE_COUNT);
+    for (const hash of stored!.codeHashes) {
+      assert.match(hash, /^scrypt\$/, "stored form must be an scrypt hash");
+      for (const code of savedCodes) {
+        assert.ok(!hash.includes(code.replace("-", "")), "no plaintext code may appear in state");
+      }
+    }
+
+    // Shown once. The second sign-in gets the session and nothing else.
+    resetStub();
+    const second = await POST(
+      loginRequest({ email: RECOVERY_EMAIL, password: PASSWORD, code: GOOD_CODE }, "10.9.20.2"),
+    );
+    assert.equal(second.status, 200);
+    const secondBody = await second.json() as Record<string, unknown>;
+    assert.ok(!("recoveryCodes" in secondBody), "the codes are shown exactly once");
+  });
+
+  it("signs in with password + one recovery code, and spends it", async () => {
+    resetStub();
+    const res = await POST(
+      loginRequest({ email: RECOVERY_EMAIL, password: PASSWORD, code: savedCodes[0]! }, "10.9.21.1"),
+    );
+    assert.equal(res.status, 200);
+    assert.ok(sessionCookieOf(res), "a recovery code is the second factor — the session must mint");
+    // It counts as a proven second factor on the session it minted…
+    assert.equal(sessionAalOf(res), "aal2", "a recovery sign-in proved two factors");
+    // …and it never touches the authenticator machinery to do it.
+    assert.ok(
+      !sbCalls.some(call => call.includes("/challenge") || call.includes("/verify")),
+      "recovery must not depend on the authenticator that was lost",
+    );
+
+    const remaining = getUserByLogin(RECOVERY_EMAIL)?.mfaRecovery;
+    assert.equal(remaining?.codeHashes.length, RECOVERY_CODE_COUNT - 1, "the spent code's hash is deleted");
+    assert.equal(remaining?.usedCount, 1);
+
+    // Single-use means single-use: the same code again is just a wrong code.
+    const replay = await POST(
+      loginRequest({ email: RECOVERY_EMAIL, password: PASSWORD, code: savedCodes[0]! }, "10.9.21.2"),
+    );
+    assert.equal(replay.status, 401);
+    assert.equal(sessionCookieOf(replay), undefined, "a spent recovery code must never sign in again");
+    assert.equal(((await replay.json()) as { error?: unknown }).error, MFA_LOGIN_REJECTED_MESSAGE);
+  });
+
+  it("counts a wrong recovery code towards the lockout, like any wrong code", async () => {
+    const ip = "10.9.22.1";
+    for (let i = 0; i < 9; i += 1) recordLoginFailure({ ip, email: RECOVERY_EMAIL });
+    assert.equal(isLoginLocked({ ip, email: RECOVERY_EMAIL }).locked, false);
+    resetStub();
+    const res = await POST(
+      loginRequest({ email: RECOVERY_EMAIL, password: PASSWORD, code: "WRONG-WRONG" }, ip),
+    );
+    assert.equal(res.status, 401);
+    assert.equal(sessionCookieOf(res), undefined);
+    assert.equal(isLoginLocked({ ip, email: RECOVERY_EMAIL }).locked, true, "the lockout must engage");
+  });
+
+  it("does not burn the one showing on a native form post", async () => {
+    // A published-site form login redirects — there is nowhere to show the
+    // codes. If that sign-in generated them anyway they would be stored,
+    // never seen, and gone. So the form path must not trigger generation;
+    // the next JSON sign-in, which CAN show them, does.
+    resetStub();
+    const formRes = await POST(
+      new NextRequest(LOGIN_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "x-forwarded-for": "10.9.23.1",
+          referer: `${ORIGIN}/sites/acme/login`,
+        },
+        body: new URLSearchParams({
+          email: FORM_FIRST_EMAIL, password: PASSWORD, code: GOOD_CODE,
+        }).toString(),
+      }),
+    );
+    assert.equal(formRes.status, 303);
+    assert.ok(sessionCookieOf(formRes), "the form sign-in itself must still work");
+    assert.equal(
+      getUserByLogin(FORM_FIRST_EMAIL)?.mfaRecovery,
+      undefined,
+      "a sign-in that cannot show the codes must not generate them",
+    );
+
+    resetStub();
+    const jsonRes = await POST(
+      loginRequest({ email: FORM_FIRST_EMAIL, password: PASSWORD, code: GOOD_CODE }, "10.9.23.2"),
+    );
+    assert.equal(jsonRes.status, 200);
+    const body = await jsonRes.json() as { recoveryCodes?: unknown };
+    assert.ok(
+      Array.isArray(body.recoveryCodes),
+      "the first sign-in that can show the codes hands them out",
+    );
+  });
+
+  it("stamps password-only sign-ins as one factor, not two", async () => {
+    resetStub();
+    const res = await POST(loginRequest({ email: PLAIN_EMAIL, password: PASSWORD }, "10.9.24.1"));
+    assert.equal(res.status, 200);
+    assert.equal(sessionAalOf(res), "aal1", "no second factor was proven here");
+  });
+
+  it("generates, normalizes and matches codes honestly (the pure pieces)", () => {
+    const codes = generateRecoveryCodes();
+    assert.equal(codes.length, RECOVERY_CODE_COUNT);
+    // Typed the way people type: any case, dashes and spaces optional.
+    assert.equal(normalizeRecoveryCode(` ${codes[0]!.toLowerCase()} `), codes[0]!.replace("-", ""));
+    assert.equal(normalizeRecoveryCode(42), "");
+    const hashes = codes.map(hashRecoveryCode);
+    assert.equal(recoveryCodeMatches(codes[3]!, hashes), 3);
+    assert.equal(recoveryCodeMatches(codes[3]!.toLowerCase(), hashes), 3);
+    assert.equal(recoveryCodeMatches("AAAAA-AAAAA", hashes), -1);
+    assert.equal(recoveryCodeMatches("", hashes), -1);
+  });
+});
+
 describe("the account page's honest answer to \"is it on?\"", () => {
   // Enrolment already existed as endpoints; what was missing was anywhere on
   // somebody's own account to start it from and anything that says whether it
@@ -907,6 +1104,39 @@ describe("the screen that satisfies the gate", () => {
       "the password must survive the challenge so the retry is one field",
     );
 });
+
+  it("holds the redirect until freshly issued recovery codes have been seen", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const root = dirname(dirname(fileURLToPath(import.meta.url)));
+    const form = readFileSync(join(root, "src/app/login/LoginForm.tsx"), "utf8");
+
+    // The server sends the codes exactly once. A form that navigates straight
+    // past that response has shown them to nobody, ever.
+    assert.match(form, /recoveryCodes\?:\s*string\[\]/, "the form must read the codes off the response");
+    assert.match(form, /data-testid="login-recovery-codes"/, "there must be a screen that shows them");
+    assert.match(form, /setPendingRedirect\(destination\)/, "the redirect must wait for the person");
+    // And the code field must admit a recovery code, not just six digits.
+    assert.match(form, /recovery code/i, "the field must say recovery codes work here");
+    assert.doesNotMatch(form, /maxLength=\{8\}/, "an 11-character recovery code must fit in the field");
+  });
+
+  it("explains a side-door refusal instead of a silent bounce", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const root = dirname(dirname(fileURLToPath(import.meta.url)));
+    const form = readFileSync(join(root, "src/app/login/LoginForm.tsx"), "utf8");
+
+    // The magic-link and Google doors redirect here with an error code when
+    // they refuse an enrolled account. Untranslated, that bounce reads as
+    // "the link is broken" — so the form must say what actually happened.
+    assert.match(form, /magic_error/, "the form must read the magic-link refusal");
+    assert.match(form, /oauth_error/, "the form must read the OAuth refusal");
+    assert.match(form, /mfa_required/, "the enrolled refusal must be translated for the person");
+    assert.match(form, /mfa_unavailable/, "the unchecked refusal must be translated too");
+  });
 
   it("never offers enrolment without a way to sign in afterwards", async () => {
     const { readFileSync } = await import("node:fs");

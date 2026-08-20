@@ -39,12 +39,26 @@ export function LoginForm({
     ? returnParam ?? `${typeof window !== "undefined" ? window.location.origin : ""}/portal/customer`
     : nextParam ?? "/portal";
 
+  // Why a magic-link or Google sign-in bounced back here. The side doors
+  // refuse to mint a session for an account with two-factor switched on
+  // (`mfa_required`), or when enrolment could not be checked at all
+  // (`mfa_unavailable`) — and the person deserves to be told which, or the
+  // bounce reads as the link being broken.
+  const doorError = [params.get("magic_error"), params.get("oauth_error")];
+  const doorNotice = doorError.includes("mfa_required")
+    ? "Two-factor authentication is switched on for this account, so that sign-in "
+      + "method cannot check it. Sign in with your password and authenticator code."
+    : doorError.includes("mfa_unavailable")
+      ? "Two-factor enrolment could not be checked just now, so that sign-in was "
+        + "refused. Sign in with your password, or try again shortly."
+      : null;
+
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(doorNotice);
   const [magicSent, setMagicSent] = useState<{ devUrl?: string } | null>(null);
   // The second factor. `/api/auth/login` answers a correct password on an
   // MFA-enrolled account with 401 { mfaRequired: true } and NO session cookie;
@@ -53,6 +67,11 @@ export function LoginForm({
   // shipped before the screen that satisfies it.
   const [code, setCode] = useState("");
   const [mfaRequired, setMfaRequired] = useState(false);
+  // Fresh recovery codes from the sign-in that generated them. The server
+  // sends them exactly once, so navigation waits until the person has had
+  // the one chance they will ever get to save them.
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
   function navigate(url: string) {
     if (embedded && typeof window !== "undefined" && window.parent !== window) {
@@ -105,7 +124,10 @@ export function LoginForm({
           body: JSON.stringify({ email, password, clientId, brand: brandParam, ...(code.trim() ? { code: code.trim() } : {}) }),
         });
       }
-      const data = (await res.json()) as { ok: boolean; error?: string; returnUrl?: string; redirect?: string; mfaRequired?: boolean };
+      const data = (await res.json()) as {
+        ok: boolean; error?: string; returnUrl?: string; redirect?: string;
+        mfaRequired?: boolean; recoveryCodes?: string[];
+      };
       if (!res.ok || !data.ok) {
         if (data.mfaRequired) {
           // Ask for the code and keep the password in state so the retry is one
@@ -121,7 +143,16 @@ export function LoginForm({
       // Server may suggest a return URL via the client's
       // `endCustomers.postLoginReturnUrl` config (returnUrl) or a
       // role-aware redirect (R022). Either overrides page-level success.
-      navigate(data.returnUrl ?? data.redirect ?? success);
+      const destination = data.returnUrl ?? data.redirect ?? success;
+      if (Array.isArray(data.recoveryCodes) && data.recoveryCodes.length > 0) {
+        // This response is the only time these codes exist outside the
+        // person's own copy. Hold the redirect until they say they are saved.
+        setRecoveryCodes(data.recoveryCodes);
+        setPendingRedirect(destination);
+        setBusy(false);
+        return;
+      }
+      navigate(destination);
     } catch {
       setError("Network error. Try again.");
       setBusy(false);
@@ -133,6 +164,34 @@ export function LoginForm({
     : (mode === "signup" ? "Create account" : "Sign in");
 
   const isMagic = mode === "magic";
+
+  // The one showing of the recovery codes. Rendered INSTEAD of the form: the
+  // sign-in already succeeded, and the only job left is making sure these are
+  // saved before the page moves on and they are gone for good.
+  if (recoveryCodes) {
+    return (
+      <div className="mm-auth-form" data-testid="login-recovery-codes">
+        <p><strong>Save your recovery codes</strong></p>
+        <p>
+          Your authenticator now protects this account. If you ever lose it,
+          any one of these one-time codes signs you in instead. They are shown
+          only this once — copy them somewhere safe now.
+        </p>
+        <ol style={{ fontFamily: "monospace", columns: 2, paddingLeft: "1.5em" }}>
+          {recoveryCodes.map(recoveryCode => (
+            <li key={recoveryCode}>{recoveryCode}</li>
+          ))}
+        </ol>
+        <button
+          type="button"
+          className="mm-btn-primary"
+          onClick={() => navigate(pendingRedirect ?? success)}
+        >
+          I have saved them — continue
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={onSubmit} className="mm-auth-form">
@@ -199,17 +258,19 @@ export function LoginForm({
           <span className="mm-label">Authentication code</span>
           <input
             type="text"
-            inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={8}
+            maxLength={16}
             required
             autoFocus
             value={code}
             onChange={event => setCode(event.target.value)}
-            placeholder="6-digit code"
+            placeholder="6-digit or recovery code"
             className="mm-input"
             data-testid="login-mfa-code"
           />
+          <span className="mm-input-label-aside">
+            Lost your authenticator? Enter one of your saved recovery codes instead.
+          </span>
         </label>
       )}
       {!isMagic && mode === "signin" && (

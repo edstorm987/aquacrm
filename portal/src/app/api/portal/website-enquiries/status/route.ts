@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import type { WebsiteEnquiryStatus } from "@/lib/server/websiteEnquiries";
 import { ensureHydrated } from "@/server/storage";
 
@@ -26,7 +26,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID and a valid status are required." }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     const { data, error } = await supabase
       .from("brand_enquiries")
       .select("id, metadata")

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const enquiryId = typeof body?.enquiryId === "string" ? body.enquiryId.trim() : "";
     if (!enquiryId) return NextResponse.json({ ok: false, error: "An enquiry is required." }, { status: 400 });
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     // Load first, so a missing one is a clean 404 rather than a silent no-op,
     // and so nothing outside this agency's brands can be reached by id.
     const { data, error } = await supabase
@@ -33,8 +33,12 @@ export async function POST(request: Request) {
     if (error) throw new Error(`Could not load the enquiry: ${error.message}`);
     if (!data) return NextResponse.json({ ok: false, error: "That enquiry was not found." }, { status: 404 });
 
-    const { error: deleteError } = await supabase.from("brand_enquiries").delete().eq("id", enquiryId);
+    // `.select("id")` makes the delete LOUD under row-level security: a policy
+    // that filtered this row out would otherwise report success while deleting
+    // nothing — unacceptable for a deletion the user is told is permanent.
+    const { data: deleted, error: deleteError } = await supabase.from("brand_enquiries").delete().eq("id", enquiryId).select("id");
     if (deleteError) throw new Error(`Could not delete the enquiry: ${deleteError.message}`);
+    if (!deleted?.length) throw new Error("The enquiry was visible but could not be deleted. Check the row-level security policies.");
 
     logActivity({
       agencyId: session.agencyId,

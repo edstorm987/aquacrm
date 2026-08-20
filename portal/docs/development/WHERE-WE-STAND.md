@@ -78,9 +78,9 @@ You have been carrying these as open. They are not.
 - **RLS residue.** `brand_enquiries` has no agency id, and roughly 27-36 places still use the service key that bypasses RLS. Medium, and it is engineering, not your decision.
 - ~~One stale test~~ Resolved — the suite runs fully green (2,458 / 0).
 - **MFA phases 3-4** — per-request assurance and recovery codes. Right now assurance is proven once at sign-in and never re-checked. Also: magic link, Google sign-in and both signup routes mint a session with **zero** MFA. Medium, and worth doing before real clients.
-- **Shared saved KPI views.** You decided private *and* shared; only private (browser-local) was built. Small.
-- **A type trap left open.** `commandIntelligence.ts:126,132` still say `?? 0` behind a separate "was it measured?" flag. The display is fixed, but the next person who reads that number gets a confident zero again. This class of bug has bitten twice. Small, worth doing while it's fresh.
-- **Cleanup:** the `fulfilment`/`fulfillment` spelling split, two contacts systems, two inbox surfaces, no nav link to Aqua Tags.
+- ~~Shared saved KPI views~~ **DONE 2026-08-20 (evening).** Shared views persist agency-wide (`agencySettings.kpiSavedViews` + `/api/portal/kpi-registry/views`); the save control has a private/shared toggle.
+- ~~A type trap left open~~ **CLOSED 2026-08-20 (evening).** The `?? 0` sites are gone; pageviews/forms are `number | null` end to end (demand flow, lineage, KPI value), so an unmeasured reading is unrepresentable as a zero. Issue #15 fully resolved.
+- **Cleanup:** the `fulfilment`/`fulfillment` spelling split, two contacts systems, two inbox surfaces. ~~No nav link to Aqua Tags~~ — a sidebar row ("Aqua tags", after Fulfilment) now points at `/portal/agency/fulfilment?view=tags` (2026-08-20 evening).
 
 ---
 

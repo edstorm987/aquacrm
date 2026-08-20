@@ -180,6 +180,24 @@ describe("standalone portal nav audit", () => {
     assert.ok(!canonical.includes('"automations"'), "internal automations should live inside Marketing");
   });
 
+  it("gives Aqua Tags a sidebar entry, placed with Fulfilment's items", () => {
+    // The Aqua Tags control tower lives at /portal/agency/fulfilment?view=tags.
+    // Before 2026-08-20 no sidebar or menu entry pointed at it — the workspace
+    // was reachable only through the in-page Fulfilment tab strip.
+    const panels = buildSidebar({ role: "agency-owner", scope: "agency", installedPlugins: [] });
+    const main = panels.find(panel => panel.id === "main");
+    assert.ok(main, "agency scope should assemble a main panel");
+    const items = main!.items;
+    const aquaTags = items.filter(item => item.id === "aqua-tags");
+    assert.equal(aquaTags.length, 1, "exactly one Aqua tags sidebar row");
+    assert.equal(aquaTags[0]!.label, "Aqua tags");
+    assert.equal(aquaTags[0]!.href, "/portal/agency/fulfilment?view=tags");
+    // It rides directly behind Fulfilment in the canonical daily-priority order.
+    const fulfilmentIndex = items.findIndex(item => item.id === "fulfilment");
+    assert.ok(fulfilmentIndex >= 0, "Fulfilment must stay in the main nav");
+    assert.equal(items[fulfilmentIndex + 1]?.id, "aqua-tags", "Aqua tags sits immediately after Fulfilment");
+  });
+
   it("keeps Calendar and Notepad together in the Tools quick-action hub", () => {
     assert.ok(existsSync(TOOLS_PAGE), "Tools page should be mounted");
     const page = read(TOOLS_PAGE);

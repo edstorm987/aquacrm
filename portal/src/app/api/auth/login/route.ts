@@ -17,6 +17,8 @@ import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { getAuthBrand, matchAuthBrandAgency } from "@/lib/brands/authBrand";
 import {
   MFA_LOGIN_REJECTED_MESSAGE,
+  consumeRecoveryCode,
+  issueRecoveryCodesIfMissing,
   loginMfaStep,
   raisedToSecondFactor,
 } from "@/lib/server/auth/mfa";
@@ -133,6 +135,12 @@ async function handleFormLogin(req: NextRequest): Promise<NextResponse> {
   // Re-enter the JSON handler so there is exactly one copy of the sign-in
   // logic (rate limit → lockout → Supabase → portal provisioning).
   const headers = new Headers({ "content-type": "application/json" });
+  // A form login ends in a redirect — there is nowhere to SHOW anything.
+  // The JSON handler reads this to hold back the one-time showing of fresh
+  // recovery codes (generating them here would store them, never show them,
+  // and lose them). Spoofing the header from a JSON caller only suppresses
+  // the showing for that request — it grants nothing.
+  headers.set("x-aqua-login-surface", "native-form");
   const forwardedFor = req.headers.get("x-forwarded-for");
   const realIp = req.headers.get("x-real-ip");
   if (forwardedFor) headers.set("x-forwarded-for", forwardedFor);
@@ -322,10 +330,17 @@ async function handleJsonLogin(req: NextRequest) {
     );
   }
 
-  if (step.status === "check-code") {
+  // Fresh recovery codes, when this sign-in is the one that generates them.
+  // Set only on the first TOTP-gated JSON sign-in of an enrolled account;
+  // shown in that response and never recoverable again.
+  let freshRecoveryCodes: string[] | undefined;
+
+  if (step.status === "check-code" || step.status === "check-recovery") {
     // A tighter budget than the 10/min covering the handler as a whole: the
     // secret is six digits, and five guesses a minute is already generous.
     // Keyed on the pair, so one account under attack cannot lock out another.
+    // Recovery attempts share the SAME budget — two kinds of code must not
+    // mean twice the guesses.
     const codeLimit = rateLimit({ key: `login-mfa:${ip}|${email}`, max: 5, windowMs: 60_000 });
     if (!codeLimit.allowed) {
       return NextResponse.json(
@@ -333,6 +348,35 @@ async function handleJsonLogin(req: NextRequest) {
         { status: 429, headers: { "retry-after": String(codeLimit.retryAfterSec) } },
       );
     }
+  }
+
+  if (step.status === "check-recovery") {
+    // The way back in when the authenticator is gone (phase 4). The code is
+    // checked against scrypt hashes on the user record and DELETED on use —
+    // single-use by absence. It never touches Supabase's MFA machinery,
+    // because the whole point is that the enrolled factor is unavailable.
+    const spent = await consumeRecoveryCode(portalUser.id, step.code);
+    if (!spent.ok) {
+      recordLoginFailure({ ip, email });
+      // Same message as a wrong TOTP. Saying "that recovery code is spent"
+      // would confirm it was ever real.
+      return NextResponse.json(
+        { ok: false, mfaRequired: true, error: MFA_LOGIN_REJECTED_MESSAGE },
+        { status: 401 },
+      );
+    }
+    logActivity({
+      agencyId: portalUser.agencyId,
+      clientId: portalUser.clientId,
+      actorUserId: portalUser.id,
+      actorEmail: portalUser.email,
+      category: "auth",
+      action: "user.mfa_recovery_used",
+      message: `${portalUser.email} signed in with a two-factor recovery code (${spent.remaining} left).`,
+    });
+  }
+
+  if (step.status === "check-code") {
 
     // A fresh challenge on every attempt. Holding one open across attempts is
     // what makes a spent code keep working for as long as the challenge lives.
@@ -360,6 +404,14 @@ async function handleJsonLogin(req: NextRequest) {
         { ok: false, mfaRequired: true, error: MFA_LOGIN_REJECTED_MESSAGE },
         { status: 401 },
       );
+    }
+
+    // Both factors have just been proven together — the strictest moment this
+    // route has — so this is when the recovery codes are generated, once.
+    // Not on the native-form path: that response is a redirect with nowhere
+    // to show them, and codes stored but never shown are codes lost.
+    if (req.headers.get("x-aqua-login-surface") !== "native-form") {
+      freshRecoveryCodes = await issueRecoveryCodesIfMissing(portalUser.id);
     }
   }
 
@@ -399,6 +451,10 @@ async function handleJsonLogin(req: NextRequest) {
     activeAgencyId,
     clientId: portalUser.clientId,
     sessionRev: portalUser.sessionRev ?? 0,
+    // What this sign-in actually proved. `check-code` was confirmed by
+    // Supabase's own aal2 token; `check-recovery` spent a stored single-use
+    // code. Everything else got here on a password alone.
+    aal: step.status === "not-required" ? "aal1" : "aal2",
   });
   const cookie = sessionCookie(token);
   const redirect = resolvePostLoginPath(null, portalUser);
@@ -437,6 +493,9 @@ async function handleJsonLogin(req: NextRequest) {
     },
     mustChangePassword: false,
     redirect,
+    // Present ONLY on the sign-in that generated them (see above) — the one
+    // and only time the plaintext exists outside the person's own copy.
+    ...(freshRecoveryCodes ? { recoveryCodes: freshRecoveryCodes } : {}),
   });
   response.cookies.set(cookie.name, cookie.value, cookie.options);
   // The public-brand cookie still resolves through the STATIC front list on

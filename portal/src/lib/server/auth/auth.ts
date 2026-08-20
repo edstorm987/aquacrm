@@ -75,6 +75,11 @@ interface IssueSessionInput {
   // here so the cookie gets stamped — later rotations bump the user record's
   // value and stale tokens fail freshness checks at the lookup layer.
   sessionRev?: number;
+  // Which assurance level this sign-in proved (mirrors `SessionPayload.aal`).
+  // Flows that verified a second factor pass "aal2"; single-factor flows pass
+  // "aal1". Optional so existing callers (demo / dev / preview mints) are
+  // untouched — an absent value reads as "not proven", never as aal2.
+  aal?: "aal1" | "aal2";
 }
 
 export function issueSession(input: IssueSessionInput): string {
@@ -104,6 +109,7 @@ export function issueSession(input: IssueSessionInput): string {
     previewReturnUserId: input.previewReturnUserId,
     publicShowcase: input.publicShowcase === true ? true : undefined,
     sessionRev: input.sessionRev ?? 0,
+    aal: input.aal,
     iat: now,
     exp: now + COOKIE_MAX_AGE,
   };

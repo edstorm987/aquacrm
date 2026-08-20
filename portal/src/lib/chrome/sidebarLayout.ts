@@ -84,6 +84,8 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -8 });
       items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "main", order: -7 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "main", order: -6 });
+      // Aqua Tags — the tag control tower is a Fulfilment view (?view=tags); this is its only sidebar entry.
+      items.push({ id: "aqua-tags",   label: "Aqua tags",          href: "/portal/agency/fulfilment?view=tags", panelId: "main", order: -5.5 });
       items.push({ id: "finance",     label: "Finance",            href: "/portal/agency/agency-finance",  panelId: "ops",  order: -4 });
       if (input.role === "agency-owner" || input.role === "agency-manager") {
         items.push({ id: "people",      label: "Staff",              href: "/portal/agency/people",          panelId: "main", order: -3 });
@@ -226,7 +228,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
-          "home", "inbox", "actions", "pipelines", "fulfilment",
+          "home", "inbox", "actions", "pipelines", "fulfilment", "aqua-tags",
       "finance", "people", "you-deserve-it", "marketing", "sop-library", "tools",
     ]);
     const canonicalOrder = [...canonicalMainIds];

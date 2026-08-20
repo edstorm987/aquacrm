@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID and a reply are required." }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     const { data, error } = await supabase
       .from("brand_enquiries")
       .select("id, brand_slug, name, email, message, metadata")

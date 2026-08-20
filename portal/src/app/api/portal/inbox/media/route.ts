@@ -7,7 +7,7 @@ import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth
 import { getInboxConversation } from "@/lib/server/inbox/inboxStore";
 import { inboxMediaUrl, signInboxMediaToken, type InboxMediaTargetKind } from "@/lib/server/inbox/inboxMedia";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { getClientForAgency } from "@/server/tenants";
@@ -61,7 +61,7 @@ async function targetExists(agencyId: string, kind: InboxMediaTargetKind, target
     const requests = Array.isArray(client?.metadata?.clientRequests) ? client.metadata.clientRequests : [];
     return requests.some(item => item && typeof item === "object" && (item as { id?: unknown }).id === requestId);
   }
-  const { data } = await createSupabaseAdminClient().from("brand_enquiries").select("id").eq("id", targetId).maybeSingle();
+  const { data } = await (await createScopedSupabaseClient()).from("brand_enquiries").select("id").eq("id", targetId).maybeSingle();
   return Boolean(data);
 }
 

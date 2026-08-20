@@ -18,6 +18,7 @@ import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { createUser, getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
+import { checkSideDoorMfa } from "@/lib/server/auth/mfa";
 import crypto from "crypto";
 
 function err(req: NextRequest, code: string, status = 400) {
@@ -47,6 +48,17 @@ export async function GET(req: NextRequest) {
   if (!result.ok) return err(req, result.error);
   const claims = result.claims;
   if (!claims.emailVerified) return err(req, "email_not_verified");
+
+  // ─── The second-factor side door check ──────────────────────────────────
+  // Google proves ONE factor. Before this gate, a Google sign-in minted a
+  // full session — agency-owner sessions included — for accounts whose TOTP
+  // enrolment the password door refuses to skip. An enrolled account is
+  // refused here and signs in with password + code instead. Fail-closed:
+  // when enrolment cannot be read at all, nothing is minted either. Sits
+  // before BOTH paths below, the first-run bootstrap included — an identity
+  // that cannot be checked must not become the first owner on the quiet.
+  const mfaGate = await checkSideDoorMfa(claims.email);
+  if (mfaGate.status === "refuse") return err(req, mfaGate.error, 403);
 
   const agencies = listAgencies();
 
@@ -109,6 +121,8 @@ function setSessionAndRedirect(
   const token = issueSession({
     userId: user.id, email: user.email, role: user.role,
     agencyId: user.agencyId, ...(user.clientId ? { clientId: user.clientId } : {}),
+    // One factor was proven here (the Google identity), and the cookie says so.
+    aal: "aal1",
   });
   const cookie = sessionCookie(token);
   // Role-aware fallback (chapter #125): when state's returnUrl is the

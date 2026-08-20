@@ -46,11 +46,11 @@ not live.
 | `/api/auth/end-customer/signup` | POST | Register an end-customer for a client | public (rate-limited) | |
 | `/api/auth/verify-email` | GET | Redeem HMAC email-verification token | public (token) | |
 | `/api/auth/magic/request` | POST | Issue 15-min magic-link token, deliver/log | public | |
-| `/api/auth/magic/verify` | GET | Verify magic token, auto-create end-customer, issue session | public (token) | |
+| `/api/auth/magic/verify` | GET | Verify magic token, auto-create end-customer, issue session (aal1); refuses MFA-enrolled accounts | public (token) | |
 | `/api/auth/password/request-reset` | POST | Start forgotten-password flow (enumeration-safe) | public | |
 | `/api/auth/password/reset` | POST | Redeem reset token, set new password | public (token) | **LIVE (auth)** |
 | `/api/auth/oauth/google/start` | GET | Redirect to Google authorize URL | public | |
-| `/api/auth/oauth/google/callback` | GET | Exchange code, sign in / first-run bootstrap | public (oauth) | |
+| `/api/auth/oauth/google/callback` | GET | Exchange code, sign in / first-run bootstrap (aal1); refuses MFA-enrolled accounts | public (oauth) | |
 | `/api/auth/profile/update` | POST | Update own display name | authenticated | |
 | `/api/auth/profile/avatar` | POST, DELETE | Save / clear own avatar data-URL | authenticated | |
 | `/api/auth/preview-as-client-at-phase` | POST | Founder-only: re-issue session as demo client at a phase | founder | |
@@ -142,6 +142,7 @@ not live.
 | `/api/portal/kpi-registry/evidence` | GET | Radar evidence series as KPI descriptors (lazy feed for the KPI explorer's instrument bank) | agency | LIVE |
 | `/api/portal/kpi-registry/targets` | GET · POST | Read the agency's KPI target overrides; POST sets/clears one (optionally per-company), versioned with effective-from | agency | LIVE |
 | `/api/portal/kpi-registry/custom` | GET · POST · DELETE | Guided custom KPIs: list / create (numerator + optional denominator + op) / delete by id | agency | LIVE |
+| `/api/portal/kpi-registry/views` | GET · POST · DELETE | Shared saved KPI comparison views (the agency-shared half of saved views; the private half stays in browser localStorage): list / save (replaces a same-named view) / delete by `?id=` | agency | LIVE |
 
 ## `api/portal/*` — tasks
 
@@ -201,6 +202,7 @@ not live.
 | `/api/portal/settings/integrations` | GET, POST | Integration connections list/save/test/revoke | agency | |
 | `/api/portal/settings/portal-editor` | GET, POST, DELETE | Portal form-field editor state | agency (write: owner/manager) | |
 | `/api/portal/agency/users` | GET, POST, PATCH | Agency team users manage; provisions Supabase identity | agency owner/manager | **LIVE (auth)** |
+| `/api/portal/mfa/enrol` | GET | Report whether a verified factor is enrolled (no side effects) | authenticated (Supabase user) | **LIVE (auth)** |
 | `/api/portal/mfa/enrol` | POST | Start Supabase TOTP MFA enrolment | authenticated (Supabase user) | **LIVE (auth)** |
 | `/api/portal/mfa/verify` | POST | Verify TOTP code / raise session to aal2 | authenticated (Supabase user) | **LIVE (auth)** |
 | `/api/portal/agency/companies/[companyId]/promote` | GET, POST | **Promote a trading company into its own agency.** GET = the read-only preview (what would move, re-key, seed, be left behind, and what a human still has to decide); POST = create the tenant, grant the promoter membership, re-mint their cookie, tombstone the brand. **It MOVES NO RECORDS** — creating a tenant is cheap and reversible, relocating live records across a tenant boundary is not, so they are separate phases | agency owner/manager (promoter must be a member) | |

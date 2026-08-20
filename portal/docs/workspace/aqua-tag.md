@@ -40,7 +40,9 @@ snippet via `ensureAgencyMasterSiteKey` + `masterTagSnippet` and passes
 `<AquaTagsWorkspace>` as the `tagsWorkspace` prop (mirroring the `technical`
 view). Reached at `/portal/agency/fulfilment?view=tags` — **moved here 2026-08-19
 (plan Phase 3)** from the old Command Centre `agency/aqua-tags/` route (removed;
-its `AquaTagsPage` is gone). This is the home of the master tag and the guided
+its `AquaTagsPage` is gone). **Since 2026-08-20 it also has a sidebar entry** —
+an "Aqua tags" row directly after Fulfilment (`lib/chrome/sidebarLayout.ts`,
+id `aqua-tags`), closing the "no nav link to Aqua Tags" cleanup item. This is the home of the master tag and the guided
 setup, with these live parts:
 1. **Your master tag** — the snippet, read-only, with a copy button + the key preview.
 2. **Prove it's live** — enter a domain → calls `/api/portal/aqua-tags/detect` → renders a `DetectionResult`: *tag found + N forms*, *a tag with a different key*, or *no tag yet* (with paste-and-redeploy guidance).

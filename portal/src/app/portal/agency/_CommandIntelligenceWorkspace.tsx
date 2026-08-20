@@ -159,6 +159,8 @@ export function applyIntelligenceScope(snapshot: CommandIntelligenceSnapshot, sc
     }];
   });
   const readingValue = (id: string) => kpis.find(kpi => kpi.id === id)?.value ?? 0;
+  // Preserves "unmeasured" (`null`) instead of minting a zero for scopes without a reading.
+  const readingValueOrNull = (id: string) => kpis.find(kpi => kpi.id === id)?.value ?? null;
   const scopedPortfolio = scope.inheritGlobalKpis;
   const campaigns = scopedPortfolio ? snapshot.campaigns : [];
   const audienceProfiles = scopedPortfolio ? snapshot.audienceProfiles : [];
@@ -178,8 +180,8 @@ export function applyIntelligenceScope(snapshot: CommandIntelligenceSnapshot, sc
     audienceDemographics,
     sourceCohorts,
     demandFlow: {
-      pageviews: readingValue("traffic-7d"),
-      forms: readingValue("forms-7d"),
+      pageviews: readingValueOrNull("traffic-7d"),
+      forms: readingValueOrNull("forms-7d"),
       leads: scopedPortfolio ? snapshot.demandFlow.leads : 0,
       convertedLeads: scopedPortfolio ? snapshot.demandFlow.convertedLeads : 0,
       activeClients: scope.kind === "client" ? readingValue("active-clients") : scopedPortfolio ? snapshot.demandFlow.activeClients : 0,
@@ -350,6 +352,8 @@ export type ComparisonRange = "24h" | "7d" | "30d" | "90d" | "quarter" | "ytd" |
 type KpiPlanOverride = { baselineValue?: number; targetValue?: number };
 type KpiPlanOverrides = Record<string, KpiPlanOverride>;
 type SavedComparisonView = { id: string; name: string; kpiIds: string[]; mode: ComparisonMode; range: ComparisonRange; start: string; end: string; plans?: KpiPlanOverrides };
+/** The shared half of saved views — agency-scoped rows from `/api/portal/kpi-registry/views`. */
+type SharedKpiViewRow = { id: string; name: string; kpiIds: string[]; mode: ComparisonMode; range: ComparisonRange; start?: string; end?: string };
 
 const COMPARISON_COLOURS = ["#62e8ff", "#68f5d0", "#fcd34d", "#f87171", "#a78bfa", "#fb7185", "#38bdf8", "#4ade80", "#f59e0b", "#c084fc", "#2dd4bf", "#fda4af", "#93c5fd", "#bef264", "#fdba74", "#e879f9", "#67e8f9", "#86efac", "#fde047", "#fca5a5"];
 const SAVED_COMPARISON_KEY = "aqua:kpi-comparison-views:v1";
@@ -372,6 +376,10 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerDomain, setPickerDomain] = useState<KpiDomainFilter>("all");
   const [savedViews, setSavedViews] = useState<SavedComparisonView[]>([]);
+  // Saved views are private AND shared by decision: private stays in this
+  // browser's localStorage; shared persists agency-wide via kpi-registry/views.
+  const [sharedViews, setSharedViews] = useState<SharedKpiViewRow[]>([]);
+  const [savedScope, setSavedScope] = useState<"private" | "shared">("private");
   const [planOverrides, setPlanOverrides] = useState<KpiPlanOverrides>({});
   const [viewName, setViewName] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
@@ -439,6 +447,14 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/portal/kpi-registry/views").then(response => response.json()).then((data: { ok?: boolean; views?: SharedKpiViewRow[] }) => {
+      if (!cancelled && data.ok && Array.isArray(data.views)) setSharedViews(data.views);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   async function createCustom() {
     if (!customForm.label.trim() || !customForm.numeratorId) return;
     try {
@@ -462,30 +478,51 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
     setSelectedIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
   }
 
-  function saveView() {
+  async function saveView() {
     const name = viewName.trim();
     if (!name || !selectedIds.length) {
       setSaveMessage("Name the view and select at least one KPI.");
+      return;
+    }
+    if (savedScope === "shared") {
+      try {
+        const response = await fetch("/api/portal/kpi-registry/views", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, kpiIds: selectedIds, mode, range, start: customStart, end: customEnd }) });
+        const data = await response.json() as { ok?: boolean; views?: SharedKpiViewRow[] };
+        if (!response.ok || !data.ok || !Array.isArray(data.views)) throw new Error("save failed");
+        setSharedViews(data.views);
+        setViewName("");
+        setSaveMessage("Comparison view shared with the whole agency workspace.");
+      } catch {
+        setSaveMessage("The shared view could not be saved. Try again.");
+      }
       return;
     }
     const next = [...savedViews.filter(view => view.name.toLowerCase() !== name.toLowerCase()), { id: `comparison-${Date.now()}`, name, kpiIds: selectedIds, mode, range, start: customStart, end: customEnd, plans: planOverrides }];
     setSavedViews(next);
     window.localStorage.setItem(SAVED_COMPARISON_KEY, JSON.stringify(next));
     setViewName("");
-    setSaveMessage("Comparison view saved in this workspace.");
+    setSaveMessage("Comparison view saved in this browser only.");
   }
 
-  function loadView(view: SavedComparisonView) {
+  function loadView(view: SavedComparisonView | SharedKpiViewRow) {
     setSelectedIds(view.kpiIds.filter(id => snapshot.kpis.some(kpi => kpi.id === id)));
     setMode(view.mode);
     setRange(view.range);
-    setCustomStart(view.start);
-    setCustomEnd(view.end);
-    if (view.plans) {
+    setCustomStart(view.start ?? customStart);
+    setCustomEnd(view.end ?? customEnd);
+    if ("plans" in view && view.plans) {
       setPlanOverrides(view.plans);
       window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(view.plans));
     }
     setSaveMessage(`Loaded ${view.name}.`);
+  }
+
+  async function deleteSharedView(id: string) {
+    try {
+      const response = await fetch(`/api/portal/kpi-registry/views?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const data = await response.json() as { ok?: boolean; views?: SharedKpiViewRow[] };
+      if (data.ok && Array.isArray(data.views)) setSharedViews(data.views);
+    } catch { /* keep the row; nothing was deleted */ }
   }
 
   function deleteView(id: string) {
@@ -545,7 +582,7 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
       </div>
     </div>
 
-    <section className="border-t border-[#62e8ff]/16 bg-[#031018]/55 p-4 sm:p-5"><div className="grid gap-4 xl:grid-cols-[minmax(250px,.65fr)_minmax(320px,1.35fr)]"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SAVED COMPARISON VIEWS</p><h3 className="mt-1 text-xs font-semibold">Return to a monitoring configuration</h3><div className="mt-3 flex"><input value={viewName} onChange={event => setViewName(event.target.value)} placeholder="View name" className="min-h-9 min-w-0 flex-1 border border-[#62e8ff]/14 bg-[#020b11] px-3 text-[10px] text-white outline-none focus:border-[#62e8ff]/45" /><button type="button" onClick={saveView} title="Save KPI comparison view" className="grid size-9 place-items-center border border-l-0 border-[#62e8ff]/20 bg-[#62e8ff]/[0.07] text-[#8ef1ff]"><Save size={13} /></button></div>{saveMessage ? <p className="mt-2 text-[8px] text-[#68f5d0]/70">{saveMessage}</p> : null}</div><div className="grid gap-px border border-[#62e8ff]/12 bg-[#62e8ff]/12 sm:grid-cols-2">{savedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3"><button type="button" onClick={() => loadView(view)} className="min-w-0 flex-1 text-left"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode}</span></button><button type="button" onClick={() => deleteView(view.id)} title={`Delete ${view.name}`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300"><Trash2 size={11} /></button></div>)}{!savedViews.length ? <p className="p-5 text-center text-[10px] text-white/28 sm:col-span-2">Saved views stay in this browser workspace and can be recalled without rebuilding the graph.</p> : null}</div></div></section>
+    <section className="border-t border-[#62e8ff]/16 bg-[#031018]/55 p-4 sm:p-5"><div className="grid gap-4 xl:grid-cols-[minmax(250px,.65fr)_minmax(320px,1.35fr)]"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SAVED COMPARISON VIEWS</p><h3 className="mt-1 text-xs font-semibold">Return to a monitoring configuration</h3><div className="mt-3 flex"><input value={viewName} onChange={event => setViewName(event.target.value)} placeholder="View name" className="min-h-9 min-w-0 flex-1 border border-[#62e8ff]/14 bg-[#020b11] px-3 text-[10px] text-white outline-none focus:border-[#62e8ff]/45" /><button type="button" onClick={() => void saveView()} title="Save KPI comparison view" className="grid size-9 place-items-center border border-l-0 border-[#62e8ff]/20 bg-[#62e8ff]/[0.07] text-[#8ef1ff]"><Save size={13} /></button></div><div className="mt-2 grid grid-cols-2 border border-[#62e8ff]/14" role="group" aria-label="Where this view is saved"><button type="button" aria-pressed={savedScope === "private"} onClick={() => setSavedScope("private")} className={`min-h-8 px-2 text-[8px] font-semibold uppercase transition ${savedScope === "private" ? "bg-[#62e8ff]/[0.12] text-[#8ef1ff]" : "text-white/35 hover:text-white/60"}`}>Only me · this browser</button><button type="button" aria-pressed={savedScope === "shared"} onClick={() => setSavedScope("shared")} className={`min-h-8 border-l border-[#62e8ff]/14 px-2 text-[8px] font-semibold uppercase transition ${savedScope === "shared" ? "bg-[#68f5d0]/[0.1] text-[#68f5d0]" : "text-white/35 hover:text-white/60"}`}>Shared · whole agency</button></div>{saveMessage ? <p className="mt-2 text-[8px] text-[#68f5d0]/70">{saveMessage}</p> : null}</div><div className="grid gap-px border border-[#62e8ff]/12 bg-[#62e8ff]/12 sm:grid-cols-2">{sharedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3"><button type="button" onClick={() => loadView(view)} className="min-w-0 flex-1 text-left"><span className="flex items-center gap-1.5"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="shrink-0 border border-[#68f5d0]/25 bg-[#68f5d0]/[0.07] px-1.5 py-0.5 text-[6px] font-semibold uppercase text-[#68f5d0]">Shared</span></span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode} · whole agency</span></button><button type="button" onClick={() => void deleteSharedView(view.id)} title={`Delete the shared view ${view.name} for everyone`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300"><Trash2 size={11} /></button></div>)}{savedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3"><button type="button" onClick={() => loadView(view)} className="min-w-0 flex-1 text-left"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode}</span></button><button type="button" onClick={() => deleteView(view.id)} title={`Delete ${view.name}`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300"><Trash2 size={11} /></button></div>)}{!savedViews.length && !sharedViews.length ? <p className="p-5 text-center text-[10px] text-white/28 sm:col-span-2">Private views stay in this browser; shared views are stored with the agency workspace and visible to everyone in it.</p> : null}</div></div></section>
 
     <section className="border-t border-[#62e8ff]/16 p-4 sm:p-5" aria-labelledby="custom-kpi-heading"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">CUSTOM KPIS</p><h3 id="custom-kpi-heading" className="mt-1 text-xs font-semibold">Build a KPI from two metrics</h3><p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/32">Pick a numerator and, optionally, a denominator and an operation. Guided — not a formula language — so it only wires existing registry metrics together. New custom KPIs plot in the bank like any other.</p></div>
       <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(140px,1fr)_minmax(140px,1fr)_92px_minmax(140px,1fr)_auto] lg:items-end">
@@ -800,15 +837,15 @@ function DemandFlow({ snapshot }: { snapshot: CommandIntelligenceSnapshot }) {
     const status = snapshot.kpis.find(kpi => kpi.id === id)?.status;
     return status !== undefined && status !== "learning" && status !== "blind";
   };
-  const steps = [
-    { label: "Pageviews", value: snapshot.demandFlow.pageviews, window: "7 days", measured: kpiMeasured("traffic-7d") },
-    { label: "Forms", value: snapshot.demandFlow.forms, window: "7 days", measured: kpiMeasured("forms-7d") },
+  const steps: Array<{ label: string; value: number | null; window: string; measured: boolean }> = [
+    { label: "Pageviews", value: snapshot.demandFlow.pageviews, window: "7 days", measured: snapshot.demandFlow.pageviews !== null && kpiMeasured("traffic-7d") },
+    { label: "Forms", value: snapshot.demandFlow.forms, window: "7 days", measured: snapshot.demandFlow.forms !== null && kpiMeasured("forms-7d") },
     { label: "New leads", value: snapshot.demandFlow.leads, window: "30 days", measured: true },
     { label: "Converted", value: snapshot.demandFlow.convertedLeads, window: "retained", measured: true },
     { label: "Active clients", value: snapshot.demandFlow.activeClients, window: "current", measured: true },
   ];
-  const max = Math.max(1, ...steps.map(step => step.measured ? step.value : 0));
-  return <div className="mt-5 space-y-2">{steps.map((step, index) => <div key={step.label} className="grid grid-cols-[82px_minmax(0,1fr)_54px] items-center gap-3"><div><p className="text-[9px] font-semibold text-white/62">{step.label}</p><p className="text-[7px] uppercase text-white/25">{step.measured ? step.window : "not monitored"}</p></div><div className="relative h-7 border border-[#62e8ff]/12 bg-black/25"><span className={`absolute inset-y-0 left-0 ${index < 2 ? "bg-[#62e8ff]/25" : index < 4 ? "bg-[#e5c479]/25" : "bg-[#68f5d0]/25"}`} style={{ width: `${step.measured ? Math.max(step.value ? 6 : 0, step.value / max * 100) : 0}%` }} /><span className="absolute inset-y-0 left-2 flex items-center text-[7px] font-semibold uppercase text-[#8ec9d5]/38">Stage 0{index + 1}</span></div><strong className={`text-right text-sm tabular-nums ${step.measured ? "text-white/85" : "text-white/38"}`}>{step.measured ? step.value.toLocaleString() : "—"}</strong></div>)}</div>;
+  const max = Math.max(1, ...steps.map(step => step.measured ? step.value ?? 0 : 0));
+  return <div className="mt-5 space-y-2">{steps.map((step, index) => <div key={step.label} className="grid grid-cols-[82px_minmax(0,1fr)_54px] items-center gap-3"><div><p className="text-[9px] font-semibold text-white/62">{step.label}</p><p className="text-[7px] uppercase text-white/25">{step.measured ? step.window : "not monitored"}</p></div><div className="relative h-7 border border-[#62e8ff]/12 bg-black/25"><span className={`absolute inset-y-0 left-0 ${index < 2 ? "bg-[#62e8ff]/25" : index < 4 ? "bg-[#e5c479]/25" : "bg-[#68f5d0]/25"}`} style={{ width: `${step.measured && step.value !== null ? Math.max(step.value ? 6 : 0, step.value / max * 100) : 0}%` }} /><span className="absolute inset-y-0 left-2 flex items-center text-[7px] font-semibold uppercase text-[#8ec9d5]/38">Stage 0{index + 1}</span></div><strong className={`text-right text-sm tabular-nums ${step.measured ? "text-white/85" : "text-white/38"}`}>{step.measured && step.value !== null ? step.value.toLocaleString() : "—"}</strong></div>)}</div>;
 }
 
 function KpiInstrument({ kpi, onClick, expanded = false }: { kpi: CommandKpi; onClick: () => void; expanded?: boolean }) {

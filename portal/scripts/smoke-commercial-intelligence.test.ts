@@ -94,35 +94,40 @@ test("commercial formulas expose missing evidence as learning, never as a zero p
 // that literally nobody visited the site.
 
 test("with no monitored properties the funnel reports pageviews as unmeasured, not zero", () => {
-  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 0, forms: 4, pageviewsMeasured: false, formsMeasured: true, now });
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: null, forms: 4, now });
   assert.equal(snapshot.lineage.pageviewsMeasured, false);
-  assert.equal(snapshot.lineage.pageviews, 0, "the raw figure is preserved; only its honesty flag changes");
+  assert.equal(snapshot.lineage.pageviews, null, "the type carries the missing reading — a consumer cannot see a fabricated 0");
   assert.equal(snapshot.lineage.formsMeasured, true, "an unmeasured pageview count must not drag forms down with it");
+  const pageviewToForm = snapshot.formulas.find(metric => metric.id === "pageview-to-form");
+  assert.equal(pageviewToForm?.value, null);
+  assert.equal(pageviewToForm?.status, "learning", "a formula over an unmeasured denominator stays learning");
 });
 
 test("with a real reading the funnel is measured and equals the reading", () => {
-  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 10, pageviewsMeasured: true, formsMeasured: true, now });
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 10, now });
   assert.equal(snapshot.lineage.pageviewsMeasured, true);
   assert.equal(snapshot.lineage.pageviews, 1_240);
 });
 
 test("with no monitored properties the funnel reports forms as unmeasured, not zero", () => {
-  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 0, pageviewsMeasured: true, formsMeasured: false, now });
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: null, now });
   assert.equal(snapshot.lineage.formsMeasured, false);
-  assert.equal(snapshot.lineage.forms, 0);
+  assert.equal(snapshot.lineage.forms, null);
   assert.equal(snapshot.lineage.pageviewsMeasured, true);
 });
 
 test("with a real form reading the funnel is measured and equals the reading", () => {
-  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 37, formsMeasured: true, now });
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 37, now });
   assert.equal(snapshot.lineage.formsMeasured, true);
   assert.equal(snapshot.lineage.forms, 37);
 });
 
-test("callers that supply no honesty flag keep today's behaviour", () => {
-  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_000, forms: 10, now });
+test("a measured zero is a genuine reading, not \"unmeasured\"", () => {
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 0, forms: 0, now });
   assert.equal(snapshot.lineage.pageviewsMeasured, true);
+  assert.equal(snapshot.lineage.pageviews, 0);
   assert.equal(snapshot.lineage.formsMeasured, true);
+  assert.equal(snapshot.lineage.forms, 0);
 });
 
 // ── The same honesty, driven through the real server path ────────────────────
@@ -188,6 +193,15 @@ test("a fresh agency's Command Centre reports pageviews and forms as unmeasured,
   const snapshot = await snapshotFor(agencyId, radar);
   assert.equal(snapshot.commercialIntelligence.lineage.pageviewsMeasured, false);
   assert.equal(snapshot.commercialIntelligence.lineage.formsMeasured, false);
+  // The former `?? 0` trap: the snapshot used to carry value 0 behind the flag,
+  // so any consumer that ignored the flag read a confident zero. The value is
+  // now `null` end to end — the fake zero is unrepresentable.
+  assert.equal(snapshot.commercialIntelligence.lineage.pageviews, null);
+  assert.equal(snapshot.commercialIntelligence.lineage.forms, null);
+  assert.equal(snapshot.demandFlow.pageviews, null);
+  assert.equal(snapshot.demandFlow.forms, null);
+  assert.equal(snapshot.kpis.find(kpi => kpi.id === "traffic-7d")?.value, null);
+  assert.equal(snapshot.kpis.find(kpi => kpi.id === "forms-7d")?.value, null);
   assert.equal(snapshot.kpis.find(kpi => kpi.id === "traffic-7d")?.display, "—", "the KPI card must not print a confident 0");
   assert.equal(snapshot.kpis.find(kpi => kpi.id === "forms-7d")?.display, "—");
 });

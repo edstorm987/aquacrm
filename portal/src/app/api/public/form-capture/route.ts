@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { PUBLIC_AQUA_SITES, publicAquaSiteName } from "@/lib/public/publicSites";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isMissingAgencyIdColumn } from "@/lib/supabase/enquiryAgencyColumn";
 import { resolveAgencyByMasterSiteKey, resolveWebsiteSourceRouting } from "@/server/websiteSources";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import {
@@ -231,7 +232,7 @@ export async function POST(req: NextRequest) {
     // Nothing to attach to yet. Held rather than dropped: the site may post
     // its enquiry a moment later, and a submission Aqua saw but cannot show
     // is the exact failure this work exists to remove.
-    const { data: inserted } = await supabase.from("brand_enquiries").insert({
+    const enquiryRow = {
       brand_slug: site?.propertyId ?? siteKey,
       name: enquiryName,
       email: email || null,
@@ -243,6 +244,11 @@ export async function POST(req: NextRequest) {
       message: enquiryMessage,
       source_url: capture.pageUrl,
       consent: false,
+      // The tenant column RLS scopes on (a master-tag submission belongs to
+      // that agency; a capture-only hold has no owner yet and the trigger in
+      // the agency_scope migration defaults it). metadata.agencyId below stays
+      // as the routing key the rest of the code reads.
+      agency_id: masterAgencyId ?? null,
       metadata: {
         inboxStatus: "open",
         enquiryClassification: "unclassified",
@@ -259,7 +265,16 @@ export async function POST(req: NextRequest) {
         ...(routedClientId ? { routedClientId } : {}),
         ...(routedCompanyId ? { routedCompanyId } : {}),
       },
-    }).select("id").single();
+    };
+    let { data: inserted, error: insertError } = await supabase
+      .from("brand_enquiries").insert(enquiryRow).select("id").single();
+    if (insertError && isMissingAgencyIdColumn(insertError)) {
+      // agency_id migration not applied yet (Ed runs it by hand) — a capture
+      // must not be dropped while the schema catches up.
+      const { agency_id: _pendingMigration, ...legacyRow } = enquiryRow;
+      ({ data: inserted, error: insertError } = await supabase
+        .from("brand_enquiries").insert(legacyRow).select("id").single());
+    }
 
     // Surface it on the client the site is routed to, so it reaches them and
     // not just the agency queue.

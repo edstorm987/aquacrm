@@ -71,6 +71,17 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-20 — 🟡 RED (docs-completeness, security-governance) — 8 service-role (RLS-bypass) files undocumented in the RLS plan
+
+**Caught by the periodic full-suite check** (unlogged: count grew +6 → 2463, top of `updates.md` unchanged). One real red (reproduces in isolation), and it's a **governance/audit-trail gap, not a code bug:** `smoke-service-role-usage.test.ts` — its call-site **count is stable (13 sites / 8 files — that subtest passes)**, but a second subtest fails: **8 service-role files are not documented in `docs/development/plans/rls-enable.md`** — `clients/[clientId]/erase/route.ts`, `public/brand-enquiry`, `public/form-capture`, `telemetry/collect`, `databaseStorageHealth.ts`, `privateUploadStorage.ts`, `publicUploadStorage.ts`, `websiteEnquiries.ts`.
+
+**Why it matters (mildly):** each service-role call **bypasses Supabase RLS**, so tenant isolation there rests on code, not the DB. The guard requires the RLS plan's phase-4 table to justify *why* each remaining site keeps the service role — otherwise the "we reduced service-role usage" claim can't be audited. The 8 sites look **legitimate** (public ingestion endpoints, storage, a DB-health probe — places that genuinely run without a user session or must cross tenants), so the fix is to **document/justify them**, not remove them.
+
+**Findings:**
+- 🟡 **The RLS plan doesn't document 8 of the 13 service-role sites.** A governance guard (likely newly-added, hence unlogged) is red until each RLS-bypass is justified in `rls-enable.md`. **Fix (docs, route to whoever owns RLS):** add the 8 files to the phase-4 table with a one-line "why this keeps the service role" each. Not a code regression — the count is stable and the sites are legitimate.
+
+**→ Commander:** Suite has 1 red — a **docs-completeness governance gap**, not a bug: 8 RLS-bypass (service-role) files aren't justified in `rls-enable.md`, so the "service-role reduction" can't be fully audited. Finish the phase-4 table (one line per file). Likely mid-work (the guard was just added). Launch state otherwise green; blockers resolved.
+
 ## 2026-08-20 — ✅ PASS — Editor renamed to "Aqua Engine" (user-facing labels only)
 
 **Verdict:** ✅ PASS. A safe cosmetic rebrand — the display name a user sees ("Website Editor" / "Portal editor" / "Open Studio" → **Aqua Engine**) across labels, tabs, buttons, hints, aria-labels. Correctly **did not** touch the load-bearing identifiers: the `website-editor` plugin id (keys installed state), URLs, and internal code identifiers are unchanged — so no persistence/routing/code break. `tsc` 0, suite green (2457/0, my run); 2 test pins updated. Nothing to flag.

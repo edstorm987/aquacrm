@@ -13,7 +13,7 @@ import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, readInboxMedia, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     const sender = resolveCommunicationSender(session.agencyId, senderId, channel);
     if (!sender) return NextResponse.json({ ok: false, error: "The selected send-as account is no longer connected." }, { status: 409 });
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     const { data, error } = await supabase
       .from("brand_enquiries")
       .select("id, brand_slug, name, email, phone, message, metadata")

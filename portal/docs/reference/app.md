@@ -857,6 +857,15 @@ Every exported function, class, type and const in this area, with its real signa
 - `async POST(request: Request): Promise<Response>`
 
 
+## `src/app/api/portal/kpi-registry/views/`
+
+### `src/app/api/portal/kpi-registry/views/route.ts`
+
+- `async GET(): Promise<Response>` — Shared saved KPI comparison views (the shared half of saved views; the private half stays in the browser's localStorage). GET → the agency's shared views. POST → save one (replace…
+- `async POST(request: Request): Promise<Response>`
+- `async DELETE(request: Request): Promise<Response>`
+
+
 ## `src/app/api/portal/marketing/campaign-assets/content/`
 
 ### `src/app/api/portal/marketing/campaign-assets/content/route.ts`

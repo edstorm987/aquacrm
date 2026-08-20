@@ -2,7 +2,7 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
-**Status: BUILDING — phases 1, 2 and 5 done; phases 3 and 4 open (3 needs Ed). The headline premise of this plan was wrong and has been corrected.**
+**Status: BUILDING — phases 1, 2 and 5 done; phase 3 written and waiting on Ed's `db push`; phase 4 first reduction landed 2026-08-20 (23→13 call sites, pinned). The headline premise of this plan was wrong and has been corrected.**
 
 This plan was written around "RLS is not in the repo". It is. The policies live
 in **[`../../../../supabase/migrations/`](../../../../supabase/README.md)** — a
@@ -55,10 +55,19 @@ tenant isolation, and it must not be sold as such.**
    live production failure waiting on the first inbox request — not a hygiene
    issue. *Needs Ed — `supabase db push`.*
 
-3. **`brand_enquiries` still has no `agency_id`.** 31 `.from` sites across 14
-   files, all routing by `metadata.agencyId`. Until the column exists, RLS
-   **cannot** scope the table by tenant, whatever policies are written. This is
-   the one item that is a genuine schema decision rather than a chore.
+3. **`brand_enquiries` `agency_id` — SQL written 2026-08-20, not yet applied.**
+   `20260820150000_brand_enquiries_agency_scope.sql` adds the column (text —
+   agency ids are the app's slugs), backfills from `metadata->>'agencyId'` with
+   `'milesymedia'` (the founder agency) as the default of last resort, keeps it
+   filled with a trigger, adds `profiles.agency_id` +
+   `current_profile_agency_id()`, and replaces the flat internal-users policy
+   with a null-tolerant agency-matched one (a ratchet: unscoped profiles keep
+   today's behaviour; stamping a profile scopes that user down). Both insert
+   paths now stamp `agency_id` AND `metadata.agencyId`, with a `PGRST204`
+   retry-without-column so capture survives the window before the migration is
+   applied. **Ed applies it: `supabase db push` from `aquaCRM/supabase/`, then
+   run `rls-verify.sql` in the SQL editor.** Nothing here has touched the live
+   database.
 
 Secondary: `clients`, `client_portals`, `client_portal_members` and
 `audit_events` exist, are policed, are empty, and are queried by no portal code
@@ -75,10 +84,58 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 3. **`brand_enquiries` decision** — add `agency_id` (backfill from
    `metadata->>'agencyId'`) so it can be RLS-scoped, or accept it stays global +
    app-filtered. **Open. Needs Ed.**
-4. **Reduce service-role reliance where feasible** — for reads that could run
-   under the user's session, move them off service-role so RLS applies. Scoped;
-   don't break the app. **Open.** Note the honest ordering: this is the phase
-   that would turn RLS into a real control, and it is the one not started.
+4. **Reduce service-role reliance where feasible** — **first reduction landed
+   2026-08-20.** Measured by grep for `createSupabaseAdminClient(` in `src/`,
+   excluding its definition file (`src/lib/supabase/admin.ts`): **before 23
+   call sites in 18 files → after 13 call sites in 8 files.** The count is
+   pinned in `scripts/smoke-service-role-usage.test.ts`, which fails on any
+   drift and demands the table below stay in step.
+
+   **What made the conversion safe:** `getSession()` already refuses any portal
+   session whose Supabase session is missing or stale whenever Supabase is
+   configured, so every route behind `requireRole` carries live Supabase
+   cookies. `createScopedSupabaseClient()` (`src/lib/supabase/scoped.ts`) is
+   the anon key + those cookies, with a `getUser()` check that turns the
+   remaining cases (demo/showcase sessions, cookie-only gates) into a loud 401
+   rather than a silent RLS-empty "not found".
+
+   **Converted to the scoped client (10 sites, 10 files)** — the website-inbox
+   surface, all behind internal-role gates, all covered by the internal-users
+   policy on `brand_enquiries`:
+   - `src/app/api/portal/website-enquiries/status/route.ts`
+   - `src/app/api/portal/website-enquiries/classification/route.ts`
+   - `src/app/api/portal/website-enquiries/lead/route.ts`
+   - `src/app/api/portal/website-enquiries/reply/route.ts`
+   - `src/app/api/portal/website-enquiries/communications/route.ts`
+   - `src/app/api/portal/website-enquiries/erase/route.ts` (delete now
+     `.select("id")`-verified so an RLS-filtered delete fails loudly)
+   - `src/app/api/portal/website-enquiries/calls/route.ts`
+   - `src/app/api/portal/website-enquiries/calls/recording/route.ts`
+   - `src/app/api/portal/website-enquiries/calls/recording/content/route.ts`
+   - `src/app/api/portal/inbox/media/route.ts`
+
+   Known behaviour change, deliberate: demo/showcase sessions (which skip the
+   Supabase check in `getSession()`) can no longer mutate real enquiries
+   through these routes — they get a 401 unless real Supabase cookies are also
+   present (Ed's own dev-mode keeps his cookies, so his flows still work).
+
+   **What stays on the service role, and why (13 sites, 8 files):**
+
+   | Site | Why it must keep the service role |
+   |---|---|
+   | `src/app/api/public/brand-enquiry/route.ts` (1) | Public endpoint, no session. Anon may only INSERT consented rows; this route also SELECTs for dedupe and UPDATEs metadata — an anon SELECT power here would let anyone probe enquiries by email. |
+   | `src/app/api/public/form-capture/route.ts` (1) | Public endpoint, no session; inserts `consent:false` hold rows the anon insert policy correctly refuses, and attaches captures to existing rows. |
+   | `src/app/api/telemetry/collect/route.ts` (1) | Public endpoint, no session; `website_consent_events` deliberately has no anon policy — consent rows are written server-side after validation/redaction. |
+   | `src/app/api/portal/clients/[clientId]/erase/route.ts` (1) | GDPR erasure must scrub rows and storage objects regardless of what RLS would show the caller; `smoke-client-erasure.test.ts` pins this wiring. |
+   | `src/lib/server/websiteEnquiries.ts` (3) | Shared read/annotate layer for radar, operational alerts, marketing intelligence and server components — paths with no request/user context. **The remaining phase-4 candidate**: converting it means deciding those engines run as somebody. |
+   | `src/lib/server/privateUploadStorage.ts` (3) | Private buckets deny anon/authenticated by design; the app proxies bytes itself. |
+   | `src/lib/server/publicUploadStorage.ts` (2) | Public-assets bucket is service-role-writable only. |
+   | `src/lib/server/databaseStorageHealth.ts` (1) | Diagnostics must count ALL rows to report truthfully; runs without a user session. |
+
+   (`src/lib/supabase/admin.ts` is outside the count as the definition file;
+   its three internal call sites are `auth.admin.*` operations that exist only
+   on the service role. `src/server/clientErasure.ts` takes the admin client
+   injected — counted at its injection site, the erase route above.)
 5. **Verify** — both halves now exist:
    - live posture → `../../../../supabase/rls-verify.sql`, read-only, run it in
      the SQL editor after any `db push` or dashboard change;
@@ -112,6 +169,7 @@ against every other plan in flight._
 - `../../../../supabase/rls-verify.sql`
 - `../../../../supabase/README.md`
 - `scripts/smoke-rls-policy-coverage.test.ts`
+- `scripts/smoke-service-role-usage.test.ts`
 - `scripts/schema.sql`
 - `src/lib/supabase/admin.ts`
 - `src/lib/supabase/route.ts`

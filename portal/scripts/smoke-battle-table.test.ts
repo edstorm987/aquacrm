@@ -238,6 +238,20 @@ test("Battle Table is the third command station and owns every executive control
   assert.doesNotMatch(sidebar, /id: "company"/);
 });
 
+test("Phase 5 — drill-in sections wear the war-room chrome, not a settings page", () => {
+  const table = read("src/app/portal/agency/_BattleTableWorkspace.tsx");
+  // The drill-in strip is a command rail: back route + a numbered station chip
+  // derived from the sections list + the scope + the live-feed reminder.
+  assert.match(table, /Back to the war room/);
+  assert.match(table, /const stationCode = activeStationIndex >= 0 \? `ST-\$\{String\(activeStationIndex \+ 1\)\.padStart\(2, "0"\)\}` : ""/);
+  assert.match(table, /\{stationCode\} · \{activeStation\.label\}/);
+  assert.match(table, /Planning station · \{selectedScope\.label\}/);
+  assert.match(table, /Feeds the war room live/);
+  // Every BattleSection header carries the gold accent signature the war-room
+  // zones speak in, so a planning body reads as a station of the same surface.
+  assert.match(table, /<header className="mb-5 border-l-2 border-\[#d7b56d\]\/45 pl-4">/);
+});
+
 function read(path: string): string {
   return readFileSync(path, "utf8");
 }

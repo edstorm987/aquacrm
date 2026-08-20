@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated } from "@/server/storage";
 
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const enquiryId = request.nextUrl.searchParams.get("enquiryId")?.trim() ?? "";
     const callId = request.nextUrl.searchParams.get("callId")?.trim() ?? "";
     if (!enquiryId || !callId) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createScopedSupabaseClient();
     const { data, error } = await supabase.from("brand_enquiries").select("metadata").eq("id", enquiryId).maybeSingle();
     if (error || !data) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
     const metadata = data.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, unknown> : {};

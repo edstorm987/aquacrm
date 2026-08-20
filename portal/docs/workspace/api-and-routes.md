@@ -27,10 +27,22 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 > **`auth/login` HAS an MFA step** (corrected 2026-08-20 — an earlier version of
 > this chapter and its siblings said it did not, and that error was briefed to
-> workers). `route.ts:320-360` runs `loginMfaStep` from `lib/server/mfa.ts`,
+> workers). `route.ts` runs `loginMfaStep` from `lib/server/auth/mfa.ts`,
 > rate-limits code attempts at 5/min per IP+email, then
 > `supabase.auth.mfa.challenge` + `.verify` and refuses unless the new token is
 > `aal2`. The browser side is the code step in `app/login/LoginForm.tsx`.
+>
+> **Phases 3–4 landed 2026-08-20:** every session-minting auth route stamps
+> `aal` onto `lk_session_v1` ("aal2" only when a second factor was verified);
+> `auth/magic/verify` and `auth/oauth/google/callback` now REFUSE enrolled
+> accounts (redirect to `/login?…_error=mfa_required`; an unreadable enrolment
+> check refuses too, `mfa_unavailable`) via `checkSideDoorMfa`; and the login
+> route accepts single-use recovery codes in the same `code` field (anything
+> not six digits), generating ten scrypt-hashed codes on the first TOTP-gated
+> JSON sign-in — returned once as `recoveryCodes` in that response only.
+> ⚠ Both signup routes still mint sessions without an MFA check — they refuse
+> existing portal emails, so the exposure is an email with an ENROLLED Supabase
+> identity but no portal user; they are outside the MFA lane's file map.
 
 ### `api/portal/` — the agency side
 - **Auth/team:** `mfa/{enrol,verify}` **[LIVE]** (enrolment + raise-to-aal2; the *login* gate lives in `api/auth/login`), `agency/users` **[LIVE]**.

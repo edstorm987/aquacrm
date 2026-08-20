@@ -15,6 +15,7 @@ import { getClient } from "@/server/tenants";
 import { createUser, getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { verifyMagicToken, consumeMagicNonce } from "@/lib/server/auth/magicLink";
+import { checkSideDoorMfa } from "@/lib/server/auth/mfa";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 
 function err(req: NextRequest, code: string) {
@@ -44,6 +45,18 @@ export async function GET(req: NextRequest) {
   if (!client || !["active", "suspended"].includes(client.status) || client.agencyId !== agencyId) {
     return err(req, "client_inactive");
   }
+
+  // ─── The second-factor side door check ──────────────────────────────────
+  // A magic link proves ONE factor (mailbox access). If this email's Supabase
+  // identity has a verified second factor, minting `lk_session_v1` here would
+  // hand out exactly the bypass the login gate closed — so it refuses and the
+  // person signs in with password + code instead, which CAN check the factor.
+  // Fail-closed on purpose: when enrolment cannot be read at all, nothing is
+  // minted either — a door that opens whenever the check is down is not
+  // closed. Placed BEFORE the user lookup so a refused sign-in cannot
+  // auto-create an end-customer as a side effect.
+  const mfaGate = await checkSideDoorMfa(email);
+  if (mfaGate.status === "refuse") return err(req, mfaGate.error);
 
   let user = getUser(email, { clientId, role: "end-customer" });
   if (!user) {
@@ -79,6 +92,8 @@ export async function GET(req: NextRequest) {
   const sessionToken = issueSession({
     userId: user.id, email: user.email, role: user.role,
     agencyId: user.agencyId, ...(user.clientId ? { clientId: user.clientId } : {}),
+    // One factor was proven here (mailbox access), and the cookie says so.
+    aal: "aal1",
   });
   const cookie = sessionCookie(sessionToken);
   const fallback = resolvePostLoginPath(null, user);

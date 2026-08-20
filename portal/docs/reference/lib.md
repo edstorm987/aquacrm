@@ -751,8 +751,8 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/lib/intelligence/commercialIntelligence.ts`
 
-- `buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency, pageviews, forms, pageviewsMeasured = true, formsMeasured = true, now = Date.now(), }: BuildCommercialIntelligenceInput): CommercialInt…`
-- `type CommercialLineage = CommercialIntelligenceSnapshot["lineage"] & { pageviewsMeasured: boolean; formsMeasured: boolean; }` — `CommercialIntelligenceSnapshot["lineage"]` plus the honesty flags. Additive on purpose: `lineage.pageviews` stays `number` so `marketingIntelligence.ts` (a different lane's file)…
+- `buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency, pageviews, forms, now = Date.now(), }: BuildCommercialIntelligenceInput): CommercialIntelligenceSnapshotWithMeasurement`
+- `type CommercialLineage = CommercialIntelligenceSnapshot["lineage"] & { pageviewsMeasured: boolean; formsMeasured: boolean; }` — `CommercialIntelligenceSnapshot["lineage"]` plus the honesty flags. The flags are now derived from the values (`pageviews === null` ⇔ unmeasured) and kept for display convenience;…
 - `type CommercialIntelligenceSnapshotWithMeasurement = Omit<CommercialIntelligenceSnapshot, "lineage"> & { lineage: CommercialLineage }`
 
 ### `src/lib/intelligence/commercialLifecycle.ts`
@@ -1367,12 +1367,27 @@ Every exported function, class, type and const in this area, with its real signa
 - `loginMfaStep(input: { user: SignedInUser | null | undefined; code: unknown }): LoginMfaStep` — What the login route must do next, given the user Supabase just returned and whatever the caller sent as a code. The property this exists to make unmissable: **an absent code is n…
 - `readTokenAssurance(accessToken: unknown): AssuranceLevel | "unstated" | null` — The `aal` claim inside a Supabase access token. Returns the level when the token carries one, `"unstated"` when the token reads fine but has no `aal` claim, and `null` when nothin…
 - `raisedToSecondFactor(accessToken: unknown): boolean` — Whether a factor verification actually *raised* the session. The point of the check: a verify call that answers "fine" without the assurance level moving is not a second factor, i…
+- `sessionAssurance(session: { aal?: unknown } | null | undefined): AssuranceLevel | null` — The assurance level an app session cookie proved at sign-in, or null.
+- `sessionHasSecondFactor(session: { aal?: unknown } | null | undefined): boolean` — Whether this app session proved a second factor when it was minted. The one to gate sensitive actions on (owner actions, erasure, key material): a legacy cookie from before `aal` …
+- `gateSideDoorSession(lookup: SideDoorLookup): SideDoorMfaDecision` — Whether a single-factor flow may mint the app session for this account. ANY verified factor refuses — not just TOTP. The login gate can be picky about factor kinds because it can …
+- `async checkSideDoorMfa(email: string): Promise<SideDoorMfaDecision>` — The impure edge of the side-door gate: look the email up through the Supabase admin API and hand the answer to `gateSideDoorSession`. Dynamic import on purpose — `lib/supabase/adm…
+- `generateRecoveryCodes(count = RECOVERY_CODE_COUNT): string[]` — Ten fresh plaintext codes, formatted XXXXX-XXXXX for reading aloud.
+- `normalizeRecoveryCode(input: unknown): string` — A code the way a person will actually type it: any case, with or without the dash, with stray spaces. Everything is compared in this normal form.
+- `hashRecoveryCode(code: string): string` — scrypt hash in the same format `server/users.ts` uses for passwords.
+- `recoveryCodeMatches(code: unknown, hashes: string[]): number` — Which stored hash (if any) a submitted code matches. Every hash is checked even after a match is found, so the work done does not say where — or whether — the match happened.
+- `async issueRecoveryCodesIfMissing(userId: string): Promise<string[] | undefined>` — Generate and store this user's recovery codes if they have none left to lose — no existing set, or a set that is fully spent. Returns the plaintext codes ONLY when a fresh set was…
+- `async consumeRecoveryCode(userId: string, rawCode: unknown): Promise<{ ok: true; remaining: number } | { ok: false }>` — Spend one recovery code. The re-check happens inside the mutation, so two requests racing on the same code cannot both be told yes — `mutate` is synchronous and the second one fin…
 - `MFA_LOGIN_CHALLENGE_MESSAGE = "Enter the six-digit code from your authenticator app to finish signing in."` — The message shown when a code is needed. It is only ever reached *after* a correct password, so it cannot be used to discover whether an account exists — but it also says nothing …
 - `MFA_LOGIN_REJECTED_MESSAGE = "That code was not right. Try the current one."` — Same wording whether the code was wrong, expired or already used.
 - `MFA_LOGIN_UNAVAILABLE_MESSAGE = "Two-factor authentication is switched on for this account but could not be checked here. "` — A factor exists but Aqua has no way to challenge it — refuse, never skip.
+- `MFA_SIDE_DOOR_ENROLLED_ERROR = "mfa_required"` — Query-string error code: enrolled — use password + authenticator instead.
+- `MFA_SIDE_DOOR_UNCHECKED_ERROR = "mfa_unavailable"` — Query-string error code: enrolment could not be checked — refused.
+- `RECOVERY_CODE_COUNT = 10` — the enrolment screen itself demands.
 - `type AssuranceLevel = "aal1" | "aal2"` — Two-factor authentication, via Supabase. Aqua does not implement 2FA — Supabase Auth already has it, and a hand-rolled TOTP implementation is a liability with no upside. What live…
 - `type MfaRequirement = | { status: "satisfied" } /** Has a factor, has not been challenged on this session. */ | { status: "challenge-required"; message: string } /** No factor at all — must enrol before this action is p…`
 - `type LoginMfaStep = | { status: "not-required" } /** A factor exists and no code came with the request. Withhold the session. */ | { status: "code-required"; message: string } /** A code came with the request — check it…`
+- `type SideDoorLookup = | { outcome: "found"; factors: Array<{ status?: unknown }> | null | undefined } /** No Supabase account for this email at all (most end-customers). */ | { outcome: "absent" } /** The lookup failed …` — What the enrolment lookup found out, expressed without a Supabase type.
+- `type SideDoorMfaDecision = | { status: "clear" } | { status: "refuse"; error: typeof MFA_SIDE_DOOR_ENROLLED_ERROR | typeof MFA_SIDE_DOOR_UNCHECKED_ERROR; }`
 - `interface AssuranceState (2 members)`
 - `interface SignedInUser (1 members)` — The shape of the user Supabase hands back from a password sign-in.
 - `interface ChallengeableFactor (2 members)` — A factor the login gate is able to challenge.
@@ -2049,6 +2064,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `buildEvidenceDescriptors(agencyId: string): KpiDescriptor[]` — Register every retained radar-evidence series for an agency as an evidence-kind descriptor. This is the vault-backed series provider the plan anticipated — it reads the durable ti…
 - `type KpiRegistryInput = Parameters<typeof buildCommandIntelligenceSnapshot>[0]` — Same inputs as the command-intelligence builder (radar + evidence + scope).
 
+### `src/lib/server/kpi/kpiSavedViews.ts`
+
+- `listSharedKpiViews(agencyId: string): SharedKpiComparisonView[]` — The agency's shared saved KPI views, newest last (save order).
+- `saveSharedKpiView(agencyId: string, input: SaveSharedKpiViewInput, opts: { actorUserId: string; now?: number }): SharedKpiComparisonView` — Save (or replace, by case-insensitive name — the same replace-on-same-name semantics the private browser half applies) one shared view. Throws on a missing name or an empty KPI se…
+- `deleteSharedKpiView(agencyId: string, id: string, opts: { actorUserId: string }): SharedKpiComparisonView[]` — Delete one shared view by id. Returns the remaining views.
+- `interface SaveSharedKpiViewInput (6 members)`
+
 ### `src/lib/server/kpi/kpiTargets.ts`
 
 - `getKpiTargetsConfig(agencyId: string): KpiTargetsConfig` — The agency's persisted KPI targets config (empty if none set).
@@ -2588,9 +2610,18 @@ Every exported function, class, type and const in this area, with its real signa
 - `requireSupabasePublicConfig(): SupabasePublicConfig`
 - `interface SupabasePublicConfig (2 members)`
 
+### `src/lib/supabase/enquiryAgencyColumn.ts`
+
+- `isMissingAgencyIdColumn(error: { code?: string | null; message?: string | null } | null | undefined): boolean` — True when Supabase rejected a write because `brand_enquiries.agency_id` does not exist yet. The migration adding the column (`supabase/migrations/20260820150000_brand_enquiries_ag…
+
 ### `src/lib/supabase/route.ts`
 
 - `createRouteSupabaseClient(req: NextRequest)`
+
+### `src/lib/supabase/scoped.ts`
+
+- `async createScopedSupabaseClient(): Promise<ScopedSupabaseClient>` — The signed-in user's OWN Supabase client for internal portal routes — anon key plus the caller's session cookies, so every query runs under row-level security as that user instead…
+- `type ScopedSupabaseClient = NonNullable<Awaited<ReturnType<typeof createServerSupabaseClient>>>`
 
 ### `src/lib/supabase/server.ts`
 

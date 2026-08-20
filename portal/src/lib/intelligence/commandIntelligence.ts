@@ -187,8 +187,10 @@ export interface CommandSourceCohort {
 }
 
 export interface CommandDemandFlow {
-  pageviews: number;
-  forms: number;
+  /** Pageviews in the 7-day window. `null` means no Aqua Tag reading exists — never a fabricated zero. */
+  pageviews: number | null;
+  /** Tracked form submissions in the 7-day window. `null` means unmeasured, not "no forms". */
+  forms: number | null;
   leads: number;
   convertedLeads: number;
   activeClients: number;
@@ -289,8 +291,10 @@ export interface CommercialIntelligenceSnapshot {
   people: CommercialPersonRow[];
   sources: CommercialSourcePerformance[];
   lineage: {
-    pageviews: number;
-    forms: number;
+    /** `null` when no Aqua Tag reading exists — the type itself carries measuredness so a consumer cannot read a fabricated zero. */
+    pageviews: number | null;
+    /** Same contract as `pageviews`, for tracked form submissions. */
+    forms: number | null;
     leads: number;
     contacted: number;
     meetings: number;
