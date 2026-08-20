@@ -97,6 +97,7 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -2.5 });
       items.push({ id: "marketing",   label: "Marketing",          href: "/portal/agency/marketing",       panelId: "main", order: -2 });
       items.push({ id: "sop-library", label: "SOP library",        href: "/portal/agency/sop-library",     panelId: "ops",  order: -2 });
+      items.push({ id: "governance",  label: "Governance",         href: "/portal/agency/governance",      panelId: "ops",  order: -1.5 });
       items.push({ id: "tools",       label: "Tools",              href: "/portal/agency/tools",           panelId: "tools", order: -1 });
     }
   } else if (input.scope === "client" && input.currentClient) {
@@ -232,7 +233,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
           "home", "inbox", "pipelines", "fulfilment", "aqua-tags",
-      "finance", "people", "you-deserve-it", "marketing", "sop-library", "tools",
+      "finance", "people", "you-deserve-it", "marketing", "sop-library", "governance", "tools",
     ]);
     const canonicalOrder = [...canonicalMainIds];
     // Collect any "Logs" items from any panel and re-route to settings.
