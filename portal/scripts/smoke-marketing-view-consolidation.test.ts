@@ -5,13 +5,17 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 /**
- * Marketing P6 — the second consolidation: ten views collapse to five.
+ * Marketing P6 — the second consolidation: ten views collapse to five, then the
+ * funnel builder is restored as a first-class sixth tab.
  *
- *   Pulse · Demand · Customers · Channels · Automations
+ *   Pulse · Demand · Funnels · Customers · Channels · Automations
  *
- * Client services is demoted to a header link. The rule from the first cut
- * holds: **no retired `?view=` value may die.** Ed has links, bookmarks and docs
- * pointing at the old tabs, and a dead link is worse than ten tabs.
+ * The 10 → 5 cut buried the funnel builder two levels deep inside Channels, so
+ * from the founder seat it vanished. It is now its own top-level Funnels tab
+ * (right after Demand), while the Channels → Funnels channel path still resolves
+ * for old links. Client services is demoted to a header link. The rule from the
+ * first cut holds: **no retired `?view=` value may die.** Ed has links, bookmarks
+ * and docs pointing at the old tabs, and a dead link is worse than an extra tab.
  *
  * These tests fail against the pre-P6 behaviour: `?view=demand` did not exist,
  * `?view=sources` rendered its own view, and the bar carried ten tabs.
@@ -40,7 +44,7 @@ const OLD_VIEW_LANDINGS: ReadonlyArray<{
   { old: "radar", view: "pulse", section: "radar", why: "radar is a block inside Pulse" },
   { old: "campaigns", view: "demand", section: "campaigns", why: "campaigns is a block inside Demand" },
   { old: "sources", view: "demand", section: "sources", why: "lead sources is a block inside Demand" },
-  { old: "funnels", view: "channels", channel: "funnels", why: "the funnel builder moved into Channels" },
+  { old: "funnels", view: "funnels", section: null, why: "the funnel builder is restored as its own top-level tab" },
   { old: "customer-profiles", view: "customers", why: "the view was renamed Customers" },
   // ── retired by the first cut, must STILL work ──
   { old: "social", view: "channels", channel: "social", why: "first-cut channel tab" },
@@ -116,14 +120,15 @@ test("resolving a retired link and re-linking it lands in the same place", async
 
 // ── The bar itself ───────────────────────────────────────────────────────────
 
-test("the tab bar carries exactly the five views, not ten", async () => {
+test("the tab bar carries exactly the six views, funnels right after demand", async () => {
   const { MARKETING_TAB_VIEWS } = await views();
-  assert.deepEqual([...MARKETING_TAB_VIEWS], ["pulse", "demand", "customers", "channels", "automations"]);
+  assert.deepEqual([...MARKETING_TAB_VIEWS], ["pulse", "demand", "funnels", "customers", "channels", "automations"]);
   // The bar in the page must BE that list — no drift, in either direction.
   const bar = PAGE.slice(PAGE.indexOf("function MarketingWorkspaceNavigation"));
   const rendered = [...bar.slice(0, bar.indexOf("</nav>")).matchAll(/<MarketingTab href=\{marketingHref\("([a-z-]+)"/g)].map(match => match[1]);
   assert.deepEqual(rendered, [...MARKETING_TAB_VIEWS], "the rendered bar and MARKETING_TAB_VIEWS have drifted apart");
-  for (const gone of ["radar", "campaigns", "customer-profiles", "funnels", "sources", "client-services", "overview"]) {
+  assert.ok(rendered.includes("funnels"), "the funnel builder has a first-class Funnels tab");
+  for (const gone of ["radar", "campaigns", "customer-profiles", "sources", "client-services", "overview"]) {
     assert.ok(!rendered.includes(gone), `${gone} is no longer a top-level tab`);
   }
 });

@@ -363,8 +363,7 @@ test("live alerts mark the relevant sidebar destination without making every are
     label: "",
     order: 0,
     items: [
-      { id: "actions", label: "Actions", href: "/portal/agency/actions" },
-      { id: "inbox", label: "Master inbox", href: "/portal/agency/inbox" },
+      { id: "inbox", label: "Inbox & actions", href: "/portal/agency/inbox" },
       { id: "marketing", label: "Marketing", href: "/portal/agency/marketing" },
       { id: "finance", label: "Finance", href: "/portal/agency/agency-finance" },
       { id: "sop-library", label: "SOP library", href: "/portal/agency/sop-library" },
@@ -379,8 +378,9 @@ test("live alerts mark the relevant sidebar destination without making every are
   ]);
 
   const items = marked[0].items;
-  assert.equal(items.find(item => item.id === "actions")?.attentionCount, 2);
-  assert.equal(items.find(item => item.id === "inbox")?.attentionCount, 1);
+  // Actions merged into the inbox ("Inbox & actions" row): both action alerts and
+  // the support alert now land on the single inbox row (2 + 1 = 3).
+  assert.equal(items.find(item => item.id === "inbox")?.attentionCount, 3);
   assert.equal(items.find(item => item.id === "finance")?.attentionCount, 1);
   assert.equal(items.find(item => item.id === "marketing")?.attentionCount, undefined);
   assert.equal(items.find(item => item.id === "sop-library")?.attentionCount, undefined);
@@ -409,7 +409,7 @@ test("pending external AI proposals feed Actions attention and parked proposals 
     id: "main",
     label: "",
     order: 0,
-    items: [{ id: "actions", label: "Actions", href: "/portal/agency/actions" }],
+    items: [{ id: "inbox", label: "Inbox & actions", href: "/portal/agency/inbox" }],
   }], pendingAlerts);
   assert.equal(marked[0].items[0].attentionCount, 1);
 
@@ -459,7 +459,7 @@ test("open Actions keep a sidebar count until the underlying task is resolved", 
     id: "main",
     label: "",
     order: 0,
-    items: [{ id: "actions", label: "Actions", href: "/portal/agency/actions" }],
+    items: [{ id: "inbox", label: "Inbox & actions", href: "/portal/agency/inbox" }],
   }], readViews.filter(alert => alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")));
   assert.equal(marked[0].items[0].attentionCount, 1);
 

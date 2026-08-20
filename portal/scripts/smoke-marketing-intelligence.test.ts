@@ -290,7 +290,7 @@ test("the marketing workspace surfaces pulse, radar and the live funnel", async 
   assert.match(page, /radar: model \? <MarketingRadarWorkspace/, "the marketing radar is routed inside Pulse");
   assert.match(page, /funnel: model \? <MarketingFunnelBoard/, "the live funnel is routed inside Demand");
   const views = readFileSync(new URL("../src/app/portal/agency/marketing/_marketingViews.ts", import.meta.url), "utf8");
-  assert.match(views, /"pulse", "demand", "customers", "channels", "automations"/, "the five tabs are the accepted view names");
+  assert.match(views, /"pulse", "demand", "funnels", "customers", "channels", "automations"/, "the six tabs are the accepted view names (funnels restored as a first-class tab)");
   assert.match(views, /radar: \{ view: "pulse", section: "radar" \}/, "?view=radar still resolves");
 
   const surfaces = readFileSync(new URL("../src/app/portal/agency/marketing/_MarketingCommandSurfaces.tsx", import.meta.url), "utf8");
@@ -596,6 +596,9 @@ test("the tab bar carries one Channels tab, not five channel tabs", async () => 
   for (const gone of ["social", "website", "google-ads", "google-business", "reputation"]) {
     assert.ok(!tabs.includes(gone), `${gone} is no longer a top-level tab`);
   }
-  assert.equal(tabs.length, 5, `P6 cut the bar to five tabs, found ${tabs.length}: ${tabs.join(", ")}`);
+  // Six tabs since the funnel builder was restored as a first-class Funnels tab
+  // (the five channels are still an in-view switcher inside Channels).
+  assert.equal(tabs.length, 6, `expected six tabs, found ${tabs.length}: ${tabs.join(", ")}`);
+  assert.ok(tabs.includes("funnels"), "the funnel builder has its own Funnels tab");
   assert.match(page, /<MarketingChannelNavigation/, "the channels are an in-view switcher");
 });

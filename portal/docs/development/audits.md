@@ -71,6 +71,20 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-20 — 🟠 RED (real, unlogged) — operational-alerts / Actions-attention counts broke; new governance / "external AI proposals" work
+
+**Caught by the periodic full-suite check.** Suite **2576 pass / 3 fail** — and unlike the recent phantoms, these are **REAL** (reproduce in isolation: `smoke-operational-notifications` **12/3**, not a flake). Three count-mismatch failures in the **sidebar-attention / Actions** contract:
+- "live alerts mark the relevant sidebar destination without making every area noisy" (expected 2)
+- "pending external AI proposals feed Actions attention and parked proposals stay quiet" (expected 1)
+- "open Actions keep a sidebar count until the underlying task is resolved"
+
+**Source:** the growth (+16 tests) + recent unlogged source (`agency/governance/_GovernanceWorkspace.tsx`, marketing changes) points at a **new, unlogged governance / "external AI proposals → Actions attention" feature** that changed the operational-alerts counting so these behavioural contracts no longer hold. `updates.md` has no entry for it.
+
+**Findings:**
+- 🟠 **Real red: the Actions/sidebar-attention counts no longer match their contracts** (`smoke-operational-notifications:8-10`, isolated 12/3). Either a **regression** (the new governance wiring broke live-alert marking / proposal-feeds-Actions / open-Actions counting) or **unfinished mid-work** (tests + code not yet aligned). Can't tell which — the work is unlogged and mid-flight. **Route:** reconcile the Actions-attention counting with these contracts (fix the code, or if the contract changed deliberately, update the tests + say why), and **log the governance/proposals feature** so it can be audited.
+
+**→ Commander:** Suite has a **real red** (not a phantom this time) — 3 sidebar-attention/Actions count mismatches in `smoke-operational-notifications`, from **unlogged governance / "external AI proposals → Actions" work** (new `agency/governance/` workspace, no `updates.md` entry). Reconcile the counts (regression fix, or a deliberate contract change with updated tests) + **log the feature**. This is now **two** unlogged product features in flight (governance/proposals + the SOPs tab from tick 70) — both need logging to be audited. Launch blockers otherwise resolved.
+
 ## 2026-08-20 — 📋 UNLOGGED product feature landed (SOPs) — green, but not in the queue; please log for audit
 
 **Caught by the periodic full-suite check** (+28 tests → 2553, **green**; `updates.md` top unchanged). Most of the growth is internal dev-team tooling (`smoke-dev-team-perf`/`-ui`, `DevTeamTransition.tsx`, the churning `dev-tasks-parse`) — low product risk, actively iterated. **But it includes a new client-facing product feature with no `updates.md` entry:** **SOPs (Standard Operating Procedures)** — `src/app/portal/clients/[clientId]/_ClientSopsTab.tsx` + `smoke-sop-interactive.test.ts` (interactive SOPs on a client tab). It's green/tested, but **invisible to the docs-driven audit queue** — I can't verify a feature I have no claim for.

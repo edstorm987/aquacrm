@@ -362,6 +362,30 @@ export default async function MarketingPage({
             </section>
           ))}
         </div>
+      ) : view === "funnels" ? (
+        <div className="space-y-7">
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-black/10 bg-black/[0.02] px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-black/80">Funnels &amp; booking</h2>
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-black/50">Build the journey here. How it is <em>performing</em> — pageviews through to won — is the live funnel on Demand, so the two can never disagree.</p>
+            </div>
+            <Link href={marketingSectionHref("demand", "funnel", brandScope)} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/68">Open the live funnel <ArrowUpRight size={14} /></Link>
+          </section>
+          <FunnelsWorkspace
+            assets={scopedMarketingAssets.filter(asset => asset.kind === "funnel")}
+            companies={companyOptions}
+            defaultCompanyIds={defaultCompanyIds}
+            projects={FIRST_PARTY_DEVELOPMENT_PROJECTS.map(project => ({
+              id: project.id,
+              name: project.name,
+              brand: project.brand,
+              previewUrl: project.previewUrl,
+              publicUrl: project.publicUrl,
+              repositoryUrl: project.repositoryUrl,
+              sourcePath: project.sourcePath,
+            }))}
+          />
+        </div>
       ) : view === "customers" ? (
         <div className="space-y-6">
           <MarketingAudienceEvidencePanel spine={spine} />
@@ -942,15 +966,19 @@ function MarketingTab({ href, active, icon: Icon, children }: { href: string; ac
 }
 
 /**
- * The five tabs. Client services is deliberately absent — it is a header link
- * now — while `?view=client-services` stays a live URL, and Automations is
- * agency-wide so it never carries a brand scope.
+ * The six tabs. Funnels sits right after Demand — the funnel builder is a
+ * first-class destination (Ed calls it vital), one click from Marketing rather
+ * than buried two levels deep in Channels; the Channels → Funnels channel path
+ * still resolves for old links. Client services is deliberately absent — it is a
+ * header link now — while `?view=client-services` stays a live URL, and
+ * Automations is agency-wide so it never carries a brand scope.
  */
 function MarketingWorkspaceNavigation({ view, brandScope }: { view: MarketingView; brandScope: string }) {
   return (
     <nav aria-label="Marketing view" className="flex gap-5 overflow-x-auto border-b border-black/10">
       <MarketingTab href={marketingHref("pulse", brandScope)} active={view === "pulse"} icon={Gauge}>Pulse</MarketingTab>
       <MarketingTab href={marketingHref("demand", brandScope)} active={view === "demand"} icon={Megaphone}>Demand</MarketingTab>
+      <MarketingTab href={marketingHref("funnels", brandScope)} active={view === "funnels"} icon={Workflow}>Funnels</MarketingTab>
       <MarketingTab href={marketingHref("customers", brandScope)} active={view === "customers"} icon={UserRoundSearch}>Customers</MarketingTab>
       <MarketingTab href={marketingHref("channels", brandScope)} active={view === "channels"} icon={Globe2}>Channels</MarketingTab>
       <MarketingTab href={marketingHref("automations", "all")} active={view === "automations"} icon={LockKeyhole}>Automations</MarketingTab>

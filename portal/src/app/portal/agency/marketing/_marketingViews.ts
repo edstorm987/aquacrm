@@ -17,8 +17,9 @@
  * | ------------- | ---------------------------------------------- |
  * | `pulse`       | the data spine, the marketing KPIs, the radar   |
  * | `demand`      | the live funnel, campaigns, lead sources        |
+ * | `funnels`     | the funnel builder (build the journey)         |
  * | `customers`   | customer profiles + audience evidence          |
- * | `channels`    | the five channels **plus the funnel builder**  |
+ * | `channels`    | the five channels (funnel builder resolves here too) |
  * | `automations` | internal automations                           |
  *
  * Client services is no longer a tab: it is a header link, but `?view=client-
@@ -32,10 +33,11 @@
  * bookmark still opens on lead sources rather than three screens above them.
  */
 
-/** The five tabs, plus the demoted-but-still-addressable client services view. */
+/** The six tabs, plus the demoted-but-still-addressable client services view. */
 export type MarketingView =
   | "pulse"
   | "demand"
+  | "funnels"
   | "customers"
   | "channels"
   | "automations"
@@ -52,9 +54,11 @@ export type MarketingChannel =
 /** A block inside a merged view. The retired tabs became these. */
 export type MarketingSection = "pulse" | "radar" | "funnel" | "campaigns" | "sources";
 
-/** The tabs in the bar, in order. */
+/** The tabs in the bar, in order. Funnels sits right after Demand — Ed calls
+ *  the funnel builder vital, so it is a first-class destination, not two levels
+ *  deep inside Channels. */
 export const MARKETING_TAB_VIEWS: readonly MarketingView[] = [
-  "pulse", "demand", "customers", "channels", "automations",
+  "pulse", "demand", "funnels", "customers", "channels", "automations",
 ];
 
 /** Everything `?view=` may legally name, tabs plus the demoted view. */
@@ -95,7 +99,10 @@ export const RETIRED_MARKETING_VIEWS: Readonly<Record<string, {
   radar: { view: "pulse", section: "radar" },
   campaigns: { view: "demand", section: "campaigns" },
   sources: { view: "demand", section: "sources" },
-  funnels: { view: "channels", channel: "funnels" },
+  // `funnels` is no longer retired: it is a first-class top-level tab again, so
+  // `?view=funnels` resolves onto itself (see MARKETING_TAB_VIEWS) rather than
+  // redirecting into Channels. The Channels → Funnels channel path
+  // (`?view=channels&channel=funnels`) still resolves independently.
   "customer-profiles": { view: "customers" },
   // ── First cut: the five channel tabs (still resolved by name below too) ──
   social: { view: "channels", channel: "social" },
