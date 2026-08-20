@@ -74,7 +74,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
   return (
     <header className="mm-portal-topbar relative z-40 flex min-h-14 shrink-0 items-center justify-between gap-1.5 border-b border-black/10 bg-white/40 px-3 py-2 backdrop-blur-xl sm:gap-2 sm:px-4 md:px-6">
-      <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-3">
         {panels && tenantLabel && currentPath && (
           <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} sidebarVariant={sidebarVariant} />
         )}
@@ -84,7 +84,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           {subtitle ? <p className="truncate text-[11px] text-black/40">{subtitle}</p> : null}
         </div>
       </div>
-      <div className="ml-auto flex min-w-0 flex-nowrap items-center gap-1 text-xs sm:gap-2 lg:gap-3">
+      <div className="flex shrink-0 flex-nowrap items-center gap-1 text-xs sm:gap-2 lg:gap-3">
         {!publicShowcase && companySwitcher ? <div className="mm-private-chrome hidden lg:block">{companySwitcher}</div> : null}
         {searchItems.length ? <PortalSearch items={searchItems} recordsEnabled={recordsEnabled} /> : null}
         {advisorEnabled ? advisorControl ?? <Link href="/portal/agency/assistant" aria-label="Open Aqua Advisor" className="inline-flex size-9 items-center justify-center gap-2 rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"><Sparkles size={16} /><span className="hidden text-xs font-semibold xl:inline">Advisor</span></Link> : null}
@@ -113,9 +113,9 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           <Link
             href={homeHref ?? "/"}
             aria-label={homeLabel ?? "Back to website"}
-            className="inline-flex size-9 items-center justify-center gap-1.5 rounded-md border border-black/10 bg-white text-black/70 hover:bg-black/5 sm:size-auto sm:px-2 sm:py-1"
+            className="inline-flex size-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-black/10 bg-white text-black/70 hover:bg-black/5 lg:size-auto lg:px-2 lg:py-1"
           >
-            <span aria-hidden>←</span><span className="hidden sm:inline">{homeLabel ?? "Back to website"}</span>
+            <span aria-hidden>←</span><span className="hidden lg:inline">{homeLabel ?? "Back to website"}</span>
           </Link>
         ) : null}
         {publicShowcase ? (
