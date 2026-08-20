@@ -21,8 +21,8 @@ The single source of truth for what every folder is and what's left. Companion t
    OPEN: unify behind one adapter, live commit/publish path, install tiers, GitHub+AquaTag+Vercel setup.
 2. **SOP Engine** — SOPs → guides → training; traditional + interactive/video content.
    MOVED ✓: `src/engines/sop/server/{sops,sopGuides}.ts` (was `server/sops.ts` + `sopGuides.ts`). `sop-library/` workspace stays under `app/portal/`.
-   DONE: interactive SOPs + composer, guides.
-   OPEN: merge People training in, tuned views (staff/client/product), assignment+progress+certification.
+   DONE: interactive SOPs + composer, guides. ALSO already built (People-training island): assignment (`PeopleTrainingAssignment.sopId`), progress (status/completedAt), modules + quiz-gated certification (`PeopleTrainingModule`), team view (`/portal/team/training`).
+   OPEN (Ed's call): merge the SOP-guide system with the People-training island — types.ts:1635 says the island is "deliberately left in place", so this is an architecture decision, not a blind build. Then tuned views (staff/client/product).
 3. **Data Engine** (= Radar + KPI, Ed's definition) — signals → health, evidence-confidence, forecasts.
    MOVED ✓: `src/engines/data/radar/` (client) + `src/engines/data/server/{radar,kpi}/` (was `lib/radar/` + `server/radar/` + `server/kpi/`).
    NOT MOVED (fuzzy): `lib/performance/` + `lib/intelligence/` — separate split decision.
