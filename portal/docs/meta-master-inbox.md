@@ -74,7 +74,7 @@ workers cannot claim the same delivery event.
 Instagram Login requests `instagram_business_basic` and
 `instagram_business_manage_messages`. Facebook Login requests the Page and
 Instagram permissions required to discover Pages, subscribe them and reply.
-The exact approved set is visible in `src/lib/server/metaMessaging.ts` and
+The exact approved set is visible in `src/lib/server/integrations/metaMessaging.ts` and
 should be reconciled with the pinned Graph API version during review.
 
 ## Runtime routes

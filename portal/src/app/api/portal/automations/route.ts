@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   createAutomationFolder,
   createAutomationWorkflow,

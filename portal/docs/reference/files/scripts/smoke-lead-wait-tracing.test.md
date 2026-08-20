@@ -11,7 +11,7 @@ _No exported symbols (side-effect / internal module)._
 - [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](../src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.md)
 - [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](../src/built-ins/modules/leads-pipeline/src/lib/domain.md)
 - [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](../src/built-ins/modules/leads-pipeline/src/server/leads.md)
-- [`src/lib/leadTiming.ts`](../src/lib/leadTiming.md)
+- [`src/lib/enquiries/leadTiming.ts`](../src/lib/enquiries/leadTiming.md)
 
 ## Used by
 

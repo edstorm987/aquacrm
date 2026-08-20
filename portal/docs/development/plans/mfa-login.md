@@ -2,7 +2,9 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md)
 
-**Status: Phases 1 + 2 BUILT (2026-08-20). Phases 3 + 4 blocked — see below.**
+**Status: Phases 1 + 2 BUILT (2026-08-20) — the login gate is COMPLETE on BOTH sides (server `login/route.ts:312` + the form's code step `LoginForm.tsx:197`). Phases 3 + 4 (session assurance, recovery codes) not started — they need files outside this plan's map, not a decision from Ed.**
+
+> ⚠ Two things that are **not** covered and must not be read into "MFA is on": (1) the other doors — magic link, Google OAuth and both signup routes still mint `lk_session_v1` with no MFA step (re-verified 2026-08-20: zero MFA references in all four); (2) there is still **no recovery path**, so a lost authenticator locks the account out.
 This is the last outstanding piece of **security-hardening**, not a separate
 feature: the 2026-08-20 audit found that hardening was incomplete for exactly
 one reason, that `login/route.ts` had no MFA step.
@@ -51,12 +53,14 @@ login gate.
 - **Phase 4 (recovery)** — backup codes need persisted state
   (`server/storage.ts` / `server/types.ts`), also outside the map. There is no
   recovery path today; the account panel says so plainly rather than pretending.
-- **The login screen's code box** — `src/app/login/LoginForm.tsx` is outside
-  the map. The server contract is ready for it: a first POST answers
-  `401 { ok: false, mfaRequired: true, error }`, and the form should then
-  re-POST the same credentials plus `code`. Until that lands, an enrolled user
-  can be refused with nowhere to type the code — which is why enrolment stays
-  opt-in and nobody is enrolled yet.
+- ~~**The login screen's code box**~~ — ✅ **BUILT, and this bullet was stale.**
+  Re-checked in source 2026-08-20: `LoginForm.tsx` holds `code` +
+  `mfaRequired` state (`:54–55`), re-POSTs the same credentials plus `code`
+  (`:105`), flips into the code step on `401 { mfaRequired: true }` (`:110`),
+  and renders the field at `:197–211` (`autoComplete="one-time-code"`,
+  `data-testid="login-mfa-code"`). So an enrolled user **does** have somewhere
+  to type the code, and the "nobody is enrolled yet" caveat no longer follows
+  from a missing box. Both halves of the gate — server and form — now exist.
 - **`docs/workspace/api-reference.md`** wants a row for
   `GET /api/portal/mfa/enrol`; that file is outside the map too.
 - ⚠️ **The other doors into the same session.** `signInWithPassword` lives in
@@ -71,9 +75,9 @@ login gate.
   read the verified factors, withhold the cookie, require the code. Until then,
   "MFA on login" means the password login specifically.
 
-## Where we are (verified)
+## Where we are — the 2026-08-19 audit, kept for the record (superseded by "What was built" above)
 - **Real Supabase MFA already exists:** `/api/portal/mfa/enrol` (`auth.mfa.enroll/listFactors/unenroll`) + `/api/portal/mfa/verify` (`auth.mfa.challenge/verify`). Tested (`smoke-mfa.test.ts`).
-- `lib/server/mfa.ts` **decides *when* aal2 is required** (aal1 vs aal2 assurance) and fails closed — but it isn't gating login. Its own comment: "Aqua does not implement 2FA — Supabase Auth already has it."
+- `lib/server/mfa.ts` **decides *when* aal2 is required** (aal1 vs aal2 assurance) and fails closed. _(This section is the pre-fix audit, kept for the record: the "but it isn't gating login" clause it used to carry was true on 2026-08-19 and false from 2026-08-20 — see "What was built" above.)_
 - **The catch:** login (`/api/auth/login`) validates the password via Supabase, cross-checks `profiles.role`, then issues the app's **own** HMAC session cookie (`lk_session_v1`) — Supabase's session is largely discarded. So the MFA step has to gate **that cookie's issuance**, not just Supabase's session.
 
 ## The gap (closed 2026-08-20)
@@ -111,7 +115,7 @@ no git to recover from. Before assigning this plan, check these paths against ev
 plan in flight._
 
 - `src/app/api/auth/login/route.ts`
-- `src/lib/server/mfa.ts`
+- `src/lib/server/auth/mfa.ts`
 - `src/app/api/portal/mfa/enrol/route.ts`
 - `src/app/api/portal/mfa/verify/route.ts`
 - `src/lib/server/rateLimit.ts`

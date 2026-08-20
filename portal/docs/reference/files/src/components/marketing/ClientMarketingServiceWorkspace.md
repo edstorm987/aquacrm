@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Depends on (2)
 
-- [`src/lib/clientMarketingService.ts`](../../lib/clientMarketingService.md)
-- [`src/lib/formatDateTime.ts`](../../lib/formatDateTime.md)
+- [`src/lib/clients/clientMarketingService.ts`](../../lib/clients/clientMarketingService.md)
+- [`src/lib/shared/formatDateTime.ts`](../../lib/shared/formatDateTime.md)
 
 ## Used by (2)
 

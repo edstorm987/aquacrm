@@ -9,8 +9,8 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (5)
 
 - [`src/lib/chrome/sidebarLayout.ts`](../src/lib/chrome/sidebarLayout.md)
-- [`src/lib/formatDateTime.ts`](../src/lib/formatDateTime.md)
-- [`src/lib/server/devDocs.ts`](../src/lib/server/devDocs.md)
+- [`src/lib/server/dev/devDocs.ts`](../src/lib/server/dev/devDocs.md)
+- [`src/lib/shared/formatDateTime.ts`](../src/lib/shared/formatDateTime.md)
 - [`src/server/storage.ts`](../src/server/storage.md)
 - [`src/server/types.ts`](../src/server/types.md)
 

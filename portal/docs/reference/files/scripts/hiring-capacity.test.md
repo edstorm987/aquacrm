@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/hiringCapacity.ts`](../src/lib/hiringCapacity.md)
+- [`src/lib/performance/hiringCapacity.ts`](../src/lib/performance/hiringCapacity.md)
 
 ## Used by
 

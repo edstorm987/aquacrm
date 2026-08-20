@@ -5,10 +5,10 @@ import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
 import { buildBudgetPotSnapshots } from "../lib/budgetHealth";
 import { formatUkDate } from "../lib/safeDate";
-import { listAgencyCampaignBudgetRecords } from "@/lib/server/financeBudgetCampaigns";
-import { cleanClientPaymentPlans, summariseClientPaymentPosition } from "@/lib/clientPaymentPlans";
-import { summariseClientServiceExpansion } from "@/lib/clientCommercialIntelligence";
-import { cleanClientProductProcessState, longestActiveClientProductStage } from "@/lib/clientProductProcess";
+import { listAgencyCampaignBudgetRecords } from "@/lib/server/finance/financeBudgetCampaigns";
+import { cleanClientPaymentPlans, summariseClientPaymentPosition } from "@/lib/clients/clientPaymentPlans";
+import { summariseClientServiceExpansion } from "@/lib/clients/clientCommercialIntelligence";
+import { cleanClientProductProcessState, longestActiveClientProductStage } from "@/lib/clients/clientProductProcess";
 
 function money(cents: number, currency = "gbp"): string {
   return new Intl.NumberFormat("en-GB", {

@@ -4,15 +4,17 @@
 
 _No file-level doc-comment. Purpose inferred from its path (App routes & UI — src/app/) and its exports below._
 
-## Exports (1)
+## Exports (2)
 
+- `async GET(request: NextRequest)`
 - `async POST(request: NextRequest)`
 
-## Depends on (1)
+## Depends on (2)
 
+- [`src/lib/server/auth/mfa.ts`](../../../../../lib/server/auth/mfa.md)
 - [`src/lib/supabase/route.ts`](../../../../../lib/supabase/route.md)
 
-## Used by
+## Used by (1)
 
-_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+- [`scripts/smoke-mfa.test.ts`](../../../../../../scripts/smoke-mfa.test.md)
 

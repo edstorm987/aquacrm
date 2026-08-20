@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/clientMarketingService.ts`](../src/lib/clientMarketingService.md)
+- [`src/lib/clients/clientMarketingService.ts`](../src/lib/clients/clientMarketingService.md)
 
 ## Used by
 

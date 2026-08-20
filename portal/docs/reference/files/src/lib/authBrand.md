@@ -1,4 +1,4 @@
-# `src/lib/authBrand.ts`
+# `src/lib/brands/authBrand.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

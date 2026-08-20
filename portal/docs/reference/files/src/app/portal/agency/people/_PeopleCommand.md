@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (5)
 
 - [`src/components/people/TeamChat.tsx`](../../../../components/people/TeamChat.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/people.ts`](../../../../server/people.md)
 - [`src/server/staffCapacity.ts`](../../../../server/staffCapacity.md)
 - [`src/server/types.ts`](../../../../server/types.md)

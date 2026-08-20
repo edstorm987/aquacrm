@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/externalAssistantSetup.ts`](../src/lib/externalAssistantSetup.md)
+- [`src/lib/integrations/externalAssistantSetup.ts`](../src/lib/integrations/externalAssistantSetup.md)
 
 ## Used by
 

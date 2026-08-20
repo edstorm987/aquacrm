@@ -1,4 +1,4 @@
-# `src/lib/server/inboxStore.ts`
+# `src/lib/server/inbox/inboxStore.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -33,7 +33,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/formatDateTime.ts`](../formatDateTime.md)
+- [`src/lib/shared/formatDateTime.ts`](../formatDateTime.md)
 - [`src/lib/inbox/types.ts`](../inbox/types.md)
 
 ## Used by (17)
@@ -51,8 +51,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 - [`src/app/portal/customer/_portalData.ts`](../../app/portal/customer/_portalData.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/inboxService.ts`](./inboxService.md)
-- [`src/lib/server/metaMessaging.ts`](./metaMessaging.md)
-- [`src/lib/server/radarSourceInspection.ts`](./radarSourceInspection.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./businessIssueRadar.md)
+- [`src/lib/server/inbox/inboxService.ts`](./inboxService.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](./metaMessaging.md)
+- [`src/lib/server/radar/radarSourceInspection.ts`](./radarSourceInspection.md)
 

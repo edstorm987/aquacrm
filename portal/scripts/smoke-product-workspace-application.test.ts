@@ -3,16 +3,16 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 
-import { PORTAL_PRODUCT_CATALOG, type PortalProductSelection } from "../src/lib/portalProducts";
-import { BESPOKE_PRODUCT_MODULES } from "../src/lib/portalBespokeProductModules";
-import { portalProductModule } from "../src/lib/portalProductModules";
+import { PORTAL_PRODUCT_CATALOG, type PortalProductSelection } from "../src/lib/portal/portalProducts";
+import { BESPOKE_PRODUCT_MODULES } from "../src/lib/portal/portalBespokeProductModules";
+import { portalProductModule } from "../src/lib/portal/portalProductModules";
 import {
   cleanPortalProductWorkspace,
   createPortalProductWorkspace,
   mergePortalProductWorkspaceStore,
   portalWorkspacePageFields,
   portalWorkspaceProgress,
-} from "../src/lib/portalProductWorkspaces";
+} from "../src/lib/portal/portalProductWorkspaces";
 
 const req = createRequire(import.meta.url);
 const serverOnlyPath = req.resolve("server-only");

@@ -64,7 +64,7 @@ writeFileSync(
 process.chdir(FIXTURE_ROOT);
 
 async function founderSession() {
-  const { issueSession } = await import("../src/lib/server/auth");
+  const { issueSession } = await import("../src/lib/server/auth/auth");
   const { ensureHydrated } = await import("../src/server/storage");
   const { createAgency } = await import("../src/server/tenants");
   const { createUser } = await import("../src/server/users");
@@ -96,8 +96,8 @@ describe("Dev Console route — the worker count is the truth, not the list leng
   it("caps the list at five and still reports all seven active workers", async () => {
     const { NextRequest } = await import("next/server");
     const { GET } = await import("../src/app/api/portal/dev-team/console/route");
-    const { readCheckIns } = await import("../src/lib/server/devTeamWorkers");
-    const { invalidateDevConsoleBadge, ACTIVE_WORKER_WINDOW_MS } = await import("../src/lib/server/devConsoleStatus");
+    const { readCheckIns } = await import("../src/lib/server/dev/devTeamWorkers");
+    const { invalidateDevConsoleBadge, ACTIVE_WORKER_WINDOW_MS } = await import("../src/lib/server/dev/devConsoleStatus");
 
     invalidateDevConsoleBadge();
     const { token } = await founderSession();
@@ -143,7 +143,7 @@ describe("Dev Console route — the worker count is the truth, not the list leng
   it("the gate is re-asserted on the route itself, for both parts", async () => {
     const { NextRequest } = await import("next/server");
     const { GET } = await import("../src/app/api/portal/dev-team/console/route");
-    const { issueSession } = await import("../src/lib/server/auth");
+    const { issueSession } = await import("../src/lib/server/auth/auth");
     const { createUser } = await import("../src/server/users");
     const { agency } = await founderSession();
 

@@ -53,7 +53,7 @@ process.env.VERCEL_TOKEN = "fake-token-for-smoke";
 
 // Import from the impl, NOT vercelDomain.ts — the public file has
 // `import "server-only"` which throws under plain Node.
-import * as mod from "../src/lib/server/vercelDomain.impl";
+import * as mod from "../src/lib/server/integrations/vercelDomain.impl";
 
 test("configFromEnv reads VERCEL_TOKEN", () => {
   process.env.VERCEL_TOKEN = "fake-token-for-smoke";

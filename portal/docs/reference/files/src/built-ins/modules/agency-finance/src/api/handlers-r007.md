@@ -21,7 +21,7 @@
 - [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](../lib/aquaPluginTypes.md)
 - [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](../lib/domain.md)
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../server/foundationAdapter.md)
-- [`src/lib/server/financeCurrency.ts`](../../../../../lib/server/financeCurrency.md)
+- [`src/lib/server/finance/financeCurrency.ts`](../../../../../lib/server/finance/financeCurrency.md)
 
 ## Used by (2)
 

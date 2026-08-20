@@ -30,12 +30,12 @@ import { ProfileMenu } from "@/components/chrome/ProfileMenu";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { contrastRatio } from "@/lib/a11y/contrastValidator";
-import { formatPortalCopy, portalCustomCode } from "@/lib/clientPortalDesign";
-import { portalBuilder } from "@/lib/clientPortalBuilder";
-import { portalProductModule, type PortalModuleIcon } from "@/lib/portalProductModules";
-import type { PortalProductSelection } from "@/lib/portalProducts";
+import { formatPortalCopy, portalCustomCode } from "@/lib/portal/clientPortalDesign";
+import { portalBuilder } from "@/lib/portal/clientPortalBuilder";
+import { portalProductModule, type PortalModuleIcon } from "@/lib/portal/portalProductModules";
+import type { PortalProductSelection } from "@/lib/portal/portalProducts";
 import type { ClientPortalDesignDocument } from "@/server/types";
-import type { CustomerPortalAttention, CustomerPortalAttentionItem } from "@/lib/customerPortalAttention";
+import type { CustomerPortalAttention, CustomerPortalAttentionItem } from "@/lib/portal/customerPortalAttention";
 import { PortalCustomExtension } from "./_PortalCustomExtension";
 
 const NAV = [

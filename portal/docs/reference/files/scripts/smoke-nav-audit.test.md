@@ -6,6 +6,13 @@
 
 _No exported symbols (side-effect / internal module)._
 
+## Depends on (4)
+
+- [`src/app/portal/agency/[...rest]/_retiredStaffRoute.ts`](../src/app/portal/agency/[...rest]/_retiredStaffRoute.md)
+- [`src/built-ins/modules/agency-hr/index.ts`](../src/built-ins/modules/agency-hr/index.md)
+- [`src/lib/chrome/sidebarLayout.ts`](../src/lib/chrome/sidebarLayout.md)
+- [`src/server/types.ts`](../src/server/types.md)
+
 ## Used by
 
 _No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._

@@ -24,7 +24,7 @@ import "server-only";
 //       a captured lead — graceful no-op so BOS still renders.
 
 import crypto from "node:crypto";
-import { issueSession as foundationIssueSession } from "@/lib/server/auth";
+import { issueSession as foundationIssueSession } from "@/lib/server/auth/auth";
 import { createUser, getUser } from "@/server/users";
 import { LEAD_AGENCY_ID } from "@/server/types";
 import type { ServerUser } from "@/server/types";

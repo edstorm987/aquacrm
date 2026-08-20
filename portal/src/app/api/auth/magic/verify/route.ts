@@ -10,12 +10,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
 import { ensureHydrated } from "@/server/storage";
-import { issueSession, sessionCookie } from "@/lib/server/auth";
+import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import { getClient } from "@/server/tenants";
 import { createUser, getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
-import { verifyMagicToken, consumeMagicNonce } from "@/lib/server/magicLink";
-import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
+import { verifyMagicToken, consumeMagicNonce } from "@/lib/server/auth/magicLink";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 
 function err(req: NextRequest, code: string) {
   const url = new URL("/login", req.nextUrl.origin);

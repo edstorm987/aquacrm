@@ -27,8 +27,8 @@ import {
 
 import type { InboxConversationThread, InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
 import { integrationDefinition } from "@/lib/integrations/catalog";
-import { formatElapsed } from "@/lib/leadTiming";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatElapsed } from "@/lib/enquiries/leadTiming";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type Queue = "all" | "unread" | "waiting" | "mine" | "closed";
 

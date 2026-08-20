@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (5)
 
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/clientRecordLedger.ts`](../../../../lib/server/clientRecordLedger.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](../../../../lib/server/clients/clientRecordLedger.md)
 - [`src/server/clientRelationships.ts`](../../../../server/clientRelationships.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)

@@ -1,4 +1,4 @@
-# `src/lib/externalAssistantSetup.ts`
+# `src/lib/integrations/externalAssistantSetup.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

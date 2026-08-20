@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, getClientForAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
@@ -8,9 +8,9 @@ import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { CustomerPortalChrome } from "@/app/portal/customer/_CustomerPortalChrome";
 import { CustomerPortalContent, type CustomerPortalSection } from "@/app/portal/customer/_CustomerPortalViews";
 import { customerPortalModeLabel, loadCustomerPortalData, portalMode, type CustomerPortalMode } from "@/app/portal/customer/_portalData";
-import { portalProjectLabel } from "@/lib/portalProducts";
-import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
-import { buildCustomerPortalAttention } from "@/lib/customerPortalAttention";
+import { portalProjectLabel } from "@/lib/portal/portalProducts";
+import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
+import { buildCustomerPortalAttention } from "@/lib/portal/customerPortalAttention";
 
 export default async function ClientPreviewPage({
   params,

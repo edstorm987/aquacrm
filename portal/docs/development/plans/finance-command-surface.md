@@ -113,7 +113,7 @@ plan in flight._
 - `src/lib/server/closeDeal.ts`
 - `src/app/api/tenants/close-deal/route.ts`
 - `src/lib/server/resolutionPlans.ts`
-- `src/lib/server/clientDelightExpense.ts`
+- `src/lib/server/clients/clientDelightExpense.ts`
 - `src/app/portal/clients/[clientId]/_FinanceTabClient.tsx`
 - `src/lib/chrome/sidebarLayout.ts`
 - `scripts/smoke-finance-channels.test.ts`

@@ -1,4 +1,4 @@
-# `src/lib/server/effectiveRole.ts`
+# `src/lib/server/auth/effectiveRole.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -29,5 +29,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/phases/page.tsx`](../../app/portal/agency/phases/page.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 - [`src/lib/server/RequirePermission.tsx`](./RequirePermission.md)
-- [`src/lib/server/devDocs.ts`](./devDocs.md)
+- [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
 

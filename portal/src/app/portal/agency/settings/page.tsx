@@ -4,19 +4,19 @@
 
 import { redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { getUserById, listUsersForAgency } from "@/server/users";
 import { listPhasesForAgency } from "@/server/phases";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
-import { listManagedIntegrationProviders } from "@/lib/server/integrationConnections";
+import { listManagedIntegrationProviders } from "@/lib/server/integrations/integrationConnections";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { SettingsTabs } from "./SettingsTabs";
 import type { Role } from "@/server/types";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { listExternalAssistantApiKeys } from "@/lib/server/externalAssistantKeys";
+import { listExternalAssistantApiKeys } from "@/lib/server/assistants/externalAssistantKeys";
 import { Settings2 } from "lucide-react";
 
 type AgencyTeamRole = Extract<Role, "agency-owner" | "agency-manager" | "agency-staff">;

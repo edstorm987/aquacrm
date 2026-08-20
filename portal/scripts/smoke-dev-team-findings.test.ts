@@ -31,7 +31,7 @@ process.chdir(SANDBOX);
 const FINDINGS_DIR = join(SANDBOX, "docs", "development", "findings");
 const IMAGES_DIR = join(FINDINGS_DIR, "images");
 
-type FindingsModule = typeof import("../src/lib/server/devTeamFindings");
+type FindingsModule = typeof import("../src/lib/server/dev/devTeamFindings");
 let findings: FindingsModule;
 
 // A 1x1 png and a deliberately oversized payload (> the 6MB cap).
@@ -39,7 +39,7 @@ const TINY_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAf
 const HUGE_PNG = `data:image/png;base64,${"A".repeat(9_000_000)}`;
 
 before(async () => {
-  findings = await import("../src/lib/server/devTeamFindings");
+  findings = await import("../src/lib/server/dev/devTeamFindings");
   assert.equal((await findings.listFindings()).length, 0, "the sandbox must start empty");
 });
 

@@ -1,4 +1,4 @@
-import type { DevConsoleCore, DevConsoleStatus } from "@/lib/server/devConsoleStatus";
+import type { DevConsoleCore, DevConsoleStatus } from "@/lib/server/dev/devConsoleStatus";
 
 // What the Dev Console popover does with the two reads it fires.
 //

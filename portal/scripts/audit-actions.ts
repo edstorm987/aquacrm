@@ -22,7 +22,7 @@ async function main() {
     ?? "";
   console.log("agency:", agencyId, "| clients:", Object.keys(state.clients ?? {}).length);
 
-  const { listOperationalAlerts } = await import("../src/lib/server/operationalAlerts");
+  const { listOperationalAlerts } = await import("../src/lib/server/inbox/operationalAlerts");
   const { resolutionPlanFor, resolutionEvidenceFor } = await import("../src/lib/server/resolutionPlans");
 
   const alerts = await listOperationalAlerts(agencyId);

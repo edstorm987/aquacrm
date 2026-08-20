@@ -1,4 +1,4 @@
-# `src/lib/attentionProtection.ts`
+# `src/lib/intelligence/attentionProtection.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -22,7 +22,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/operationalAttention.ts`](./operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](./operationalAttention.md)
 
 ## Used by (5)
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { cleanClientProductProcessState, setClientProductStage } from "@/lib/clientProductProcess";
-import { defaultProductInternalWorkspace } from "@/lib/productInternalWorkspace";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { cleanClientProductProcessState, setClientProductStage } from "@/lib/clients/clientProductProcess";
+import { defaultProductInternalWorkspace } from "@/lib/products/productInternalWorkspace";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
@@ -15,8 +15,8 @@ import type {
   PortalWorkspaceCollectionStatus,
   PortalWorkspaceDecision,
   PortalWorkspaceOutputStatus,
-} from "@/lib/portalProductWorkspaces";
-import type { PortalProductMode } from "@/lib/portalProducts";
+} from "@/lib/portal/portalProductWorkspaces";
+import type { PortalProductMode } from "@/lib/portal/portalProducts";
 import type { ClientFileRef } from "../client-files/route";
 
 export const runtime = "nodejs";

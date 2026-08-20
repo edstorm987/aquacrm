@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateAvatarDataUrl, AVATAR_MAX_DATA_URL_BYTES } from "../src/lib/avatarDataUrl";
+import { validateAvatarDataUrl, AVATAR_MAX_DATA_URL_BYTES } from "../src/lib/shared/avatarDataUrl";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");

@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 
 const AGENCY = "agency-alert-routing";
 let mod: {
-  listOperationalAlerts: typeof import("../src/lib/server/operationalAlerts").listOperationalAlerts;
+  listOperationalAlerts: typeof import("../src/lib/server/inbox/operationalAlerts").listOperationalAlerts;
   resolveAttentionAction: typeof import("../src/lib/inbox/attentionResolution").resolveAttentionAction;
   getState: typeof import("../src/server/storage").getState;
   mutate: typeof import("../src/server/storage").mutate;
@@ -23,7 +23,7 @@ before(async () => {
   const storage = await import("../src/server/storage");
   await storage.ensureHydrated();
   mod = {
-    listOperationalAlerts: (await import("../src/lib/server/operationalAlerts")).listOperationalAlerts,
+    listOperationalAlerts: (await import("../src/lib/server/inbox/operationalAlerts")).listOperationalAlerts,
     resolveAttentionAction: (await import("../src/lib/inbox/attentionResolution")).resolveAttentionAction,
     getState: storage.getState,
     mutate: storage.mutate,

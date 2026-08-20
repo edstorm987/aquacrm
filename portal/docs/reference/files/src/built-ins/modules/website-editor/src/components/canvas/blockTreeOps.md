@@ -2,30 +2,18 @@
 
 ← [File index](../../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
 
-**What it is:** Pure functions for manipulating the block tree. Kept side-effect-free so the editor's optimistic updates are easy to reason about.
+**What it is:** Pure functions for manipulating the element tree.  Implementation moved to `src/lib/elements/blockTreeOps.ts` in P1. Re-exported here verbatim.  `import "../blockRegistry"` is load-bearing: `createBlock()` reads `defaultProps` through the shared `src/lib/elements/registry` lookup, and this plugin's registry is what fills it.
 
-## Exports (12)
-
-- `makeBlockId(): string`
-- `createBlock(type: BlockType): Block`
-- `interface BlockLocation (3 members)`
-- `findBlock(blocks: Block[], id: string, parent: Block | null = null): BlockLocation | null`
-- `updateBlock(blocks: Block[], id: string, patch: Partial<Block>): Block[]`
-- `removeBlock(blocks: Block[], id: string): Block[]`
-- `duplicateBlock(blocks: Block[], id: string): Block[]`
-- `insertSibling(blocks: Block[], targetId: string, newBlock: Block, position: "before" | "after"): Block[]`
-- `appendChild(blocks: Block[], parentId: string, newBlock: Block): Block[]`
-- `moveBlock(blocks: Block[], sourceId: string, targetId: string, position: "before" | "after" | "inside"): Block[]`
-- `isDescendant(block: Block, candidateId: string): boolean`
-- `cloneBlock(block: Block): Block`
+_No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
 - [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../blockRegistry.md)
-- [`src/built-ins/modules/website-editor/src/types/block.ts`](../../types/block.md)
+- [`src/lib/elements/blockTreeOps.ts`](../../../../../../lib/elements/blockTreeOps.md)
 
-## Used by (3)
+## Used by (4)
 
+- [`scripts/smoke-element-engine.test.ts`](../../../../../../../scripts/smoke-element-engine.test.md)
 - [`scripts/smoke-website-visual-builder.test.ts`](../../../../../../../scripts/smoke-website-visual-builder.test.md)
 - [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](../editor/EditorBlockStage.md)
 - [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](../../pages/EditorPage.md)

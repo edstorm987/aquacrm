@@ -12,7 +12,7 @@ _No exported symbols (side-effect / internal module)._
 - [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](../src/built-ins/modules/agency-finance/src/lib/tenancy.md)
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../src/built-ins/modules/agency-finance/src/server/foundationAdapter.md)
 - [`src/built-ins/modules/agency-finance/src/server/ports.ts`](../src/built-ins/modules/agency-finance/src/server/ports.md)
-- [`src/lib/server/clientDelightExpense.ts`](../src/lib/server/clientDelightExpense.md)
+- [`src/lib/server/clients/clientDelightExpense.ts`](../src/lib/server/clients/clientDelightExpense.md)
 
 ## Used by
 

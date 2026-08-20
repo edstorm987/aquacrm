@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { resolveAgencyPluginPage } from "@/built-ins/runtime/_routeResolver";
 import { listPlugins } from "@/built-ins/runtime/_registry";

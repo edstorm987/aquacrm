@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/clientWorkspace.ts`](../src/lib/clientWorkspace.md)
+- [`src/lib/clients/clientWorkspace.ts`](../src/lib/clients/clientWorkspace.md)
 
 ## Used by
 

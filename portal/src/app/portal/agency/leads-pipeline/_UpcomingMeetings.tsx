@@ -1,4 +1,4 @@
-import { formatUkDateTime, isoDateTimeValue, timestampFromValue } from "@/lib/formatDateTime";
+import { formatUkDateTime, isoDateTimeValue, timestampFromValue } from "@/lib/shared/formatDateTime";
 
 export interface UpcomingMeeting {
   id: string;

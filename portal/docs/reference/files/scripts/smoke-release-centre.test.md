@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/releases.ts`](../src/lib/releases.md)
+- [`src/lib/projects/releases.ts`](../src/lib/projects/releases.md)
 
 ## Used by
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
-import { createCustomKpi, deleteCustomKpi, listCustomKpis } from "@/lib/server/customKpis";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { createCustomKpi, deleteCustomKpi, listCustomKpis } from "@/lib/server/kpi/customKpis";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { CustomKpiOp } from "@/server/types";

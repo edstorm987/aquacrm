@@ -12,12 +12,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/inbox/_EnquiryCommunications.tsx`](./_EnquiryCommunications.md)
 - [`src/lib/a11y/useFocusTrap.ts`](../../../../lib/a11y/useFocusTrap.md)
-- [`src/lib/enquiryClassification.ts`](../../../../lib/enquiryClassification.md)
-- [`src/lib/enquiryFormLayout.ts`](../../../../lib/enquiryFormLayout.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/leadTiming.ts`](../../../../lib/leadTiming.md)
-- [`src/lib/server/outboundCommunications.ts`](../../../../lib/server/outboundCommunications.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../../../../lib/enquiries/enquiryClassification.md)
+- [`src/lib/enquiries/enquiryFormLayout.ts`](../../../../lib/enquiries/enquiryFormLayout.md)
+- [`src/lib/enquiries/leadTiming.ts`](../../../../lib/enquiries/leadTiming.md)
+- [`src/lib/server/email/outboundCommunications.ts`](../../../../lib/server/email/outboundCommunications.md)
 - [`src/lib/server/websiteEnquiries.ts`](../../../../lib/server/websiteEnquiries.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/enquiryContactDetails.ts`](../../../../server/enquiryContactDetails.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

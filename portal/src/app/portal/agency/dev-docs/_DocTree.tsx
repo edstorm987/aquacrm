@@ -5,8 +5,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { relativeAge, formatUkDateTime } from "@/lib/formatDateTime";
-import type { DevDocTreeNode } from "@/lib/server/devDocs";
+import { relativeAge, formatUkDateTime } from "@/lib/shared/formatDateTime";
+import type { DevDocTreeNode } from "@/lib/server/dev/devDocs";
 
 // Folders this big (the generated reference/ tree) start collapsed; every
 // top-level folder and every smaller one starts open.

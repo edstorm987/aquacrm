@@ -9,7 +9,7 @@ import { inferResolutionFocus } from "../src/lib/inbox/resolutionFocus";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
-const source = readFileSync(join(ROOT, "src", "lib", "server", "operationalAlerts.ts"), "utf-8");
+const source = readFileSync(join(ROOT, "src", "lib", "server", "inbox", "operationalAlerts.ts"), "utf-8");
 const table = readFileSync(join(ROOT, "src", "lib", "inbox", "resolutionExplain.ts"), "utf-8");
 
 /**

@@ -2,17 +2,18 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
 
-Every HTTP handler in the app — **201 route files** (192 under `api/**` + 9
+Every HTTP handler in the app — **206 route files** (197 under `api/**` + 9
 top-level) — one row each: path, methods, purpose, scope/auth, and whether it
 touches **live Supabase**.
 
 > ⚠ **This page is HAND-MAINTAINED — nothing generates or verifies it.** Unlike
 > `docs/reference/`, no script rebuilds these rows, so they drift silently as
 > routes land. Counts were last reconciled against the filesystem on
-> **2026-08-20** (they had been 21 routes behind when first reconciled, and the
-> `dev-team/*` group gained 5 more routes within the hour — it is under active
-> construction, so expect this number to lag again). To re-check before you
-> trust a number:
+> **2026-08-20 (second pass, evening)** — they had drifted again by 5 in a day
+> (`auth/switch-agency`, `portal/agency/companies/[companyId]/promote`,
+> `portal/compliance/frameworks`, `portal/compliance/posture`, and one more under
+> `dev-team/*`). This page lags by construction; **re-run the `find` before you
+> trust any number here**:
 >
 > ```bash
 > find src/app -name route.ts | wc -l                     # total
@@ -32,7 +33,7 @@ not live.
 > endpoint, update the matching row here (and the [overview](api-and-routes.md)
 > if it changes a group).
 
-## `api/auth/*` (20)
+## `api/auth/*` (21)
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
@@ -53,7 +54,8 @@ not live.
 | `/api/auth/profile/update` | POST | Update own display name | authenticated | |
 | `/api/auth/profile/avatar` | POST, DELETE | Save / clear own avatar data-URL | authenticated | |
 | `/api/auth/preview-as-client-at-phase` | POST | Founder-only: re-issue session as demo client at a phase | founder | |
-| `/api/auth/preview-as-freelancer` | POST | Agency-side freelancer preview: `POST {employeeId}` mints an **isDemo** session as that freelancer (isDemo bypasses the Supabase identity check, so a never-logged-in freelancer can be previewed) stamped `previewReturnAgencyId`/`previewReturnWasDemo`; `POST {action:"exit"}` re-mints the owner. Not Dev Mode (own return markers, no switcher) | owner/manager to enter · active preview session to exit | runtime-verified (in-process) |
+| `/api/auth/preview-as-freelancer` | POST | Agency-side freelancer preview: `POST {employeeId}` mints an **isDemo** session as that freelancer (isDemo bypasses the Supabase identity check, so a never-logged-in freelancer can be previewed) stamped `previewReturnAgencyId`/`previewReturnWasDemo`/**`previewReturnUserId`**; `POST {action:"exit"}` re-mints **the stashed enterer** (`getUserById(session.previewReturnUserId)`, `:49`) — **not** "an owner it found", which was the privilege-escalation fixed 2026-08-20. Not Dev Mode (own return markers, no switcher) | owner/manager to enter · active preview session to exit | runtime-verified (in-process) |
+| `/api/auth/switch-agency` | GET, POST | **Company switcher** — GET returns `{activeAgencyId, agencies[]}`; POST `{agencyId}` re-mints the session cookie with a new `activeAgencyId` and answers a brand-aware `redirect` (`resolvePostLoginPath`). Authorised by **membership only**: the id is looked up in the signed session's `agencyIds` **∩** the live user record's, so a switch can only narrow, never widen. Role/email are copied from the live user record, never from the request or the old cookie. Every refusal (not a member / no such agency / archived / paused) answers the same 403 `forbidden` so an agency id can't be probed. Demo · Dev Mode · freelancer-preview · showcase sessions are refused outright (they carry return-markers a re-mint would drop). Same-origin + `no-store` | authenticated, non-borrowed session; fresh session required | |
 | `/api/auth/showcase-mode` | POST | Enter/exit/reset showcase workspace | agency owner/manager | |
 | `/api/auth/dev-mode` | POST | Dev-only Dev Mode: `enter` (founder-only) → demo owner · `switch` {persona owner/staff/customer/freelancer} → re-mint as that demo persona (each lands on its own surface: agency / team / customer portal / freelancer workspace) · `exit` → back to real. `switch`/`exit` authorised by the signed `devReturnAgencyId`, not founder role. Fenced to `demo-agency`; gated by `canUseDevMode()` (404 otherwise) | founder to enter · active dev session to switch/exit (dev-gated) | runtime-verified (in-process) |
 
@@ -63,7 +65,7 @@ not live.
 |---|---|---|---|---|
 | `/api/portal/connections` | GET, POST | Agency-side portal connections: list/create/withdraw/reset | agency | |
 | `/api/portal/connections/request-code` | POST | Email a single-use confirmation code for a connection (also serves resend); sends only to the session's own email | authenticated | |
-| `/api/portal/connections/accept` | POST | Accept a portal connection — verifies the emailed code (`00000` dev bypass only behind the dev-mode gate) | authenticated | |
+| `/api/portal/connections/accept` | POST | Accept a portal connection — verifies the emailed code (6 digits, HMAC-hashed on the connection record, 15-min TTL, single-use, 5-attempt lockout; the `DEV_CONFIRMATION_CODE` bypass is `"000000"` — six zeros — and only behind the dev-mode gate). Rate-limited 20/15min per IP+user | authenticated | |
 | `/api/portal/customer/connections` | POST | End-customer withdraws own portal connection | end-customer | |
 | `/api/portal/customer/setup` | POST | End-customer first-time password setup; provisions Supabase identity | authenticated (end-customer) | **LIVE (auth)** |
 | `/api/portal/customer/workspace` | POST | End-customer switch active client-portal workspace; re-issue session | end-customer | |
@@ -201,6 +203,9 @@ not live.
 | `/api/portal/agency/users` | GET, POST, PATCH | Agency team users manage; provisions Supabase identity | agency owner/manager | **LIVE (auth)** |
 | `/api/portal/mfa/enrol` | POST | Start Supabase TOTP MFA enrolment | authenticated (Supabase user) | **LIVE (auth)** |
 | `/api/portal/mfa/verify` | POST | Verify TOTP code / raise session to aal2 | authenticated (Supabase user) | **LIVE (auth)** |
+| `/api/portal/agency/companies/[companyId]/promote` | GET, POST | **Promote a trading company into its own agency.** GET = the read-only preview (what would move, re-key, seed, be left behind, and what a human still has to decide); POST = create the tenant, grant the promoter membership, re-mint their cookie, tombstone the brand. **It MOVES NO RECORDS** — creating a tenant is cheap and reversible, relocating live records across a tenant boundary is not, so they are separate phases | agency owner/manager (promoter must be a member) | |
+| `/api/portal/compliance/posture` | GET | Compliance posture for one company or the agency-wide scope. **Read-only, and it never returns a verdict** — it reports what the app can see *and what it cannot*; `assertPostureHonesty` violations are surfaced in the response rather than swallowed. An unknown `?companyId` 404s rather than silently falling back to agency-wide | agency owner/manager/staff | |
+| `/api/portal/compliance/frameworks` | POST | Switch the **optional per-company HIPAA readiness track** on/off. It switches on a *checklist* — it confers nothing, changes no technical control, and the response says so on every success. Only `framework:"hipaa"` is accepted; GDPR always applies and cannot be turned off | agency owner/manager | |
 
 ## `api/portal/*` — HR (People) & dispatcher
 
@@ -211,11 +216,14 @@ not live.
 | `/api/portal/dashboard-planning` | GET, POST | My-Day: clock in/out, work sessions, day/week plans | agency (staff gated by station) | |
 | `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers | authenticated (scope inferred) | varies by plugin |
 
-## `api/portal/*` — Dev Team & team chat (10)
+## `api/portal/*` — Dev Team & team chat (10 `dev-team/*` + `team-chat`)
 
-> The `dev-team/*` group is **actively being extended** (2026-08-19) — a second
-> worker is landing routes here. Re-run the `find` above before trusting the
-> count.
+> The `dev-team/*` group is **actively being extended**. All ten rows below were
+> re-checked against the filesystem on 2026-08-20 and every one exists; re-run
+> `find src/app/api/portal/dev-team -name route.ts` before trusting the count.
+> Note the **UI** these serve was re-shaped the same day — twelve Dev Console
+> screens became six sections with `?view=` tabs — but **no endpoint moved or was
+> renamed**; see [hazards](hazards-and-duplication.md).
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
@@ -329,18 +337,21 @@ not live.
 
 | Group | Endpoints | Verify with |
 |---|---|---|
-| `api/auth/*` | 20 | `find src/app/api/auth -name route.ts \| wc -l` |
-| `api/portal/*` | 114 | `find src/app/api/portal -name route.ts \| wc -l` |
+| `api/auth/*` | 21 | `find src/app/api/auth -name route.ts \| wc -l` |
+| `api/portal/*` | 118 | `find src/app/api/portal -name route.ts \| wc -l` |
 | `api/tenants/*` | 35 | `find src/app/api/tenants -name route.ts \| wc -l` |
 | `api/public/*` | 6 | `find src/app/api/public -name route.ts \| wc -l` |
 | `api/v1/*` | 10 | `find src/app/api/v1 -name route.ts \| wc -l` |
 | `api/*` infra | 7 | the rest of `src/app/api` |
 | top-level `src/app/*` | 9 | `find src/app -name route.ts -not -path 'src/app/api/*'` |
-| **Total** | **201** | `find src/app -name route.ts \| wc -l` |
+| **Total** | **206** | `find src/app -name route.ts \| wc -l` |
 
-Counts verified against the filesystem **2026-08-20**; every row above is present.
+Counts re-verified against the filesystem **2026-08-20 (evening)**; every row above
+is present, and a path-by-path diff of this page against `find src/app/api -name
+route.ts` came back **empty in both directions** — nothing documented is missing
+from source, nothing in source is missing here.
 
-**~57 of the 201 touch live Supabase** (auth/admin, `brand_enquiries`, Storage,
+**~57 of the 206 touch live Supabase** (auth/admin, `brand_enquiries`, Storage,
 consent events, or the `inbox_*` store).
 
 Two Live-column edge cases (they don't match a naive `supabase/admin` grep):

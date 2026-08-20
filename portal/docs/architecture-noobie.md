@@ -103,10 +103,12 @@ every company runs the same code and differs only in what is enabled.
 
 ---
 
-## 4. The editor is one engine wearing four hats
+## 4. Aqua Engine — one editor wearing four hats
 
-There is **one** editing engine — `src/lib/editing/engine.ts`. It works the same
-way everywhere:
+There is **one** editing engine, and its name is **Aqua Engine** —
+`src/lib/editing/engine.ts`. Every button that used to say "Website editor",
+"Portal editor" or "Studio" now says Aqua Engine, because they were always the
+same tool pointed at different things. It works the same way everywhere:
 
 ```
    what you want to change  →  a PLAN (a dry run: here is exactly what would change)

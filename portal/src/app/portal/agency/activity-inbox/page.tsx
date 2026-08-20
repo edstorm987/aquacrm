@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ensureHydrated } from "@/server/storage";
 import { listActivity } from "@/server/activity";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { formatUkDateTime, isoDateTimeValue } from "@/lib/formatDateTime";
+import { formatUkDateTime, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 function formatTime(ts: number): string {
   return formatUkDateTime(ts);

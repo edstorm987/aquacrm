@@ -9,7 +9,7 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (2)
 
 - [`src/lib/server/env.ts`](../src/lib/server/env.md)
-- [`src/lib/server/oauthGoogle.ts`](../src/lib/server/oauthGoogle.md)
+- [`src/lib/server/integrations/oauthGoogle.ts`](../src/lib/server/integrations/oauthGoogle.md)
 
 ## Used by
 

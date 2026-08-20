@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/integrationConnections.ts`](../../../../../lib/server/integrationConnections.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](../../../../../lib/server/integrations/integrationConnections.md)
 - [`src/lib/server/siteEditor/codeAdapter.ts`](../../../../../lib/server/siteEditor/codeAdapter.md)
 - [`src/lib/server/siteEditor/fileTree.ts`](../../../../../lib/server/siteEditor/fileTree.md)
 - [`src/lib/server/siteEditor/githubSource.ts`](../../../../../lib/server/siteEditor/githubSource.md)

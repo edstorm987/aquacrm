@@ -64,7 +64,7 @@ import type {
 import type { DelegatableTask, StaffCard, StaffDirectoryEntry, StaffOrgChart, StaffOrgNode, StaffPresenceState } from "@/server/people";
 import type { StaffCapacitySignal, StaffCapacitySnapshot } from "@/server/staffCapacity";
 import { TeamChat } from "@/components/people/TeamChat";
-import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
+import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
 type Station = { id: PeopleWorkspaceStationId; label: string; description: string; href: string; mandatory?: boolean };
 type Snapshot = {

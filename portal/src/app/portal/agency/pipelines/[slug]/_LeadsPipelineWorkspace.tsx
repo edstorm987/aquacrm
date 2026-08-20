@@ -7,15 +7,15 @@ import Link from "next/link";
 import { ArrowLeft, BarChart3, Binoculars, Building2, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, Mail, MessageCircle, MoreHorizontal, Phone, Plus, Presentation, Search, TimerReset, Trash2, UserRoundCheck, X } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
 import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
-import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/formatDateTime";
-import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/leadTiming";
+import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/shared/formatDateTime";
+import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/enquiries/leadTiming";
 import { BoardSwitcher } from "./_PipelineBoard";
 import { ScoutingCommand, type ScoutingProspectView } from "./_ScoutingCommand";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
-} from "@/lib/enquiryClassification";
+} from "@/lib/enquiries/enquiryClassification";
 import {
   LEAD_RELATIONSHIP_CATEGORIES,
   LEAD_RELATIONSHIP_CATEGORY_LABELS,

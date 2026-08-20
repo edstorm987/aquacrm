@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { listNotepadFolders, listNotepadNotes } from "@/server/notepad";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";

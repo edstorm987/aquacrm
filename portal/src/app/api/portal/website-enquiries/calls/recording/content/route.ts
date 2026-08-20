@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { get } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureHydrated } from "@/server/storage";

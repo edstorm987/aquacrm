@@ -16,7 +16,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/components/chrome/Topbar.tsx`](../../../components/chrome/Topbar.md)
 - [`src/components/ui/ErrorBoundary.tsx`](../../../components/ui/ErrorBoundary.md)
 - [`src/lib/chrome/sidebarLayout.ts`](../../../lib/chrome/sidebarLayout.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
 - [`src/server/people.ts`](../../../server/people.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

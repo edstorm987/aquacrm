@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { withdrawOwnPortalConnection } from "@/server/portalConnectionStore";
 import { logActivity } from "@/server/activity";

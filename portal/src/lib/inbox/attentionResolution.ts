@@ -1,4 +1,4 @@
-import type { OperationalAlert } from "@/lib/operationalAttention";
+import type { OperationalAlert } from "@/lib/intelligence/operationalAttention";
 
 export interface AttentionResolution {
   destination: string;

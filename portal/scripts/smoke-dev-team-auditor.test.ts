@@ -39,10 +39,10 @@ require.cache[serverOnlyPath] = {
 
 const read = (rel: string) => readFile(new URL(`../${rel}`, import.meta.url), "utf8");
 
-type Auditor = typeof import("../src/lib/server/devTeamAuditor");
+type Auditor = typeof import("../src/lib/server/dev/devTeamAuditor");
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type Connections = typeof import("../src/lib/server/integrationConnections");
+type Connections = typeof import("../src/lib/server/integrations/integrationConnections");
 
 let auditor: Auditor;
 let storage: Storage;
@@ -54,10 +54,10 @@ before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   process.env.PORTAL_VAULT_ENCRYPTION_KEY = "auditor-smoke-vault-key-longer-than-thirty-two-characters";
   delete process.env.OPENAI_API_KEY; // the point is a vault connection, not an env key
-  auditor = await import("../src/lib/server/devTeamAuditor");
+  auditor = await import("../src/lib/server/dev/devTeamAuditor");
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  connections = await import("../src/lib/server/integrationConnections");
+  connections = await import("../src/lib/server/integrations/integrationConnections");
   await storage.ensureHydrated();
   await storage.reset();
 });

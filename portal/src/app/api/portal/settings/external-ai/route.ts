@@ -1,19 +1,19 @@
 import crypto from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getSessionFromRequest } from "@/lib/server/auth";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import {
   createExternalAssistantApiKey,
   EXTERNAL_ASSISTANT_PERMISSIONS,
   listExternalAssistantApiKeys,
   revokeExternalAssistantApiKey,
   rotateExternalAssistantApiKey,
-} from "@/lib/server/externalAssistantKeys";
+} from "@/lib/server/assistants/externalAssistantKeys";
 import {
   buildExternalAssistantContext,
   EXTERNAL_ASSISTANT_MODULES,
   isExternalAssistantModule,
-} from "@/lib/server/externalAssistantApi";
+} from "@/lib/server/assistants/externalAssistantApi";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites, getState } from "@/server/storage";
 import type { ExternalAssistantApiPermission } from "@/server/types";

@@ -12,8 +12,8 @@ import {
   Settings2,
 } from "lucide-react";
 
-import type { AquaHealthState } from "@/lib/clientAquaHealth";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import type { AquaHealthState } from "@/lib/clients/clientAquaHealth";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 interface Props {
   clientId: string;

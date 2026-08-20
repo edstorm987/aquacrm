@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { requireSession } from "@/lib/server/auth";
+import { requireSession } from "@/lib/server/auth/auth";
 import { updateUser, getUserById } from "@/server/users";
 
 export async function POST(req: Request) {

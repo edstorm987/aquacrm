@@ -3,8 +3,8 @@ import { test } from "node:test";
 
 import * as storage from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
-import { buildBusinessIssueRadar } from "../src/lib/server/businessIssueRadar";
-import { runRadarDeepSweep, runRadarProbeRefresh, runRadarScheduledSweep } from "../src/lib/server/radarSweeps";
+import { buildBusinessIssueRadar } from "../src/lib/server/radar/businessIssueRadar";
+import { runRadarDeepSweep, runRadarProbeRefresh, runRadarScheduledSweep } from "../src/lib/server/radar/radarSweeps";
 
 // Radar upgrade — Stage 3: sweep-isolation.
 //

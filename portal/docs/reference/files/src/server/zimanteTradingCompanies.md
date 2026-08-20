@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (4)
 
-- [`src/lib/tradingBrands.ts`](../lib/tradingBrands.md)
+- [`src/lib/brands/tradingBrands.ts`](../lib/brands/tradingBrands.md)
 - [`src/server/agencyProducts.ts`](./agencyProducts.md)
 - [`src/server/tradingCompanies.ts`](./tradingCompanies.md)
 - [`src/server/types.ts`](./types.md)

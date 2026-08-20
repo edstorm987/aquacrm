@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";

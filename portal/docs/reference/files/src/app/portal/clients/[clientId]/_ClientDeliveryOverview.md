@@ -13,8 +13,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (3)
 
 - [`src/app/portal/clients/[clientId]/_ClientServiceSwitcher.tsx`](./_ClientServiceSwitcher.md)
-- [`src/lib/clientWorkspace.ts`](../../../../lib/clientWorkspace.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (1)
 

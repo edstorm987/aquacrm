@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 ## Depends on (4)
 
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](./NotificationAttentionProvider.md)
-- [`src/lib/formatDateTime.ts`](../../lib/formatDateTime.md)
-- [`src/lib/operationalAttention.ts`](../../lib/operationalAttention.md)
-- [`src/lib/releases.ts`](../../lib/releases.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../../lib/intelligence/operationalAttention.md)
+- [`src/lib/projects/releases.ts`](../../lib/projects/releases.md)
+- [`src/lib/shared/formatDateTime.ts`](../../lib/shared/formatDateTime.md)
 
 ## Used by (4)
 

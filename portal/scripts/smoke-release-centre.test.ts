@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { APP_VERSION, LATEST_RELEASE, PRODUCT_RELEASES } from "../src/lib/releases";
+import { APP_VERSION, LATEST_RELEASE, PRODUCT_RELEASES } from "../src/lib/projects/releases";
 
 const settingsSource = readFileSync(new URL("../src/app/portal/agency/settings/SettingsTabs.tsx", import.meta.url), "utf8");
 const bellSource = readFileSync(new URL("../src/components/chrome/NotificationCentreButton.tsx", import.meta.url), "utf8");

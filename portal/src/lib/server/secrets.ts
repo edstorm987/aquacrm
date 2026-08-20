@@ -9,7 +9,7 @@ import "server-only";
 // new code should prefer these accessors.
 
 import { requireEnv, optionalEnv } from "./env";
-import { INTERNAL_WORKSPACE_NAME } from "@/lib/internalWorkspace";
+import { INTERNAL_WORKSPACE_NAME } from "@/lib/shared/internalWorkspace";
 
 // Required-in-prod. `requireEnv` throws in production when missing,
 // returns `undefined` in dev so devs can boot without setting one.

@@ -19,9 +19,11 @@
 - `interface EditAdapter (3 members)`
 - `async runEdits(input: { adapter: EditAdapter; intents: EditIntent[]; confirm?: boolean; }): Promise<PublishOutcome>`
 
-## Used by (7)
+## Used by (9)
 
+- [`scripts/smoke-dev-team-editor.test.ts`](../../../scripts/smoke-dev-team-editor.test.md)
 - [`scripts/smoke-editing-engine.test.ts`](../../../scripts/smoke-editing-engine.test.md)
+- [`scripts/smoke-element-engine.test.ts`](../../../scripts/smoke-element-engine.test.md)
 - [`src/app/api/portal/dev-team/editor/route.ts`](../../app/api/portal/dev-team/editor/route.md)
 - [`src/app/portal/dev-team/editor/_AppConfigEditor.tsx`](../../app/portal/dev-team/editor/_AppConfigEditor.md)
 - [`src/lib/server/editing/adapters.ts`](../server/editing/adapters.md)

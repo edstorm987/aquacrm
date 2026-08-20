@@ -13,9 +13,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (6)
 
 - [`src/app/portal/customer/_portalData.ts`](../../portal/customer/_portalData.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
 - [`src/lib/server/aquaEmbedToken.ts`](../../../lib/server/aquaEmbedToken.md)
-- [`src/lib/server/clientPortalProvider.ts`](../../../lib/server/clientPortalProvider.md)
+- [`src/lib/server/clients/clientPortalProvider.ts`](../../../lib/server/clients/clientPortalProvider.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)
 

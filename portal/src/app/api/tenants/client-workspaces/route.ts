@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import {
   createLinkedClientWorkspace,
@@ -13,8 +13,8 @@ import { getClientForAgency, updateClient } from "@/server/tenants";
 import { getTradingCompany } from "@/server/tradingCompanies";
 import { AGENCY_ROLES } from "@/server/types";
 import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
-import { resolveAgencyProductAssignment } from "@/lib/productAssignments";
-import { portalProductSelectionFromAgencyProduct } from "@/lib/portalProducts";
+import { resolveAgencyProductAssignment } from "@/lib/products/productAssignments";
+import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 
 type Body = {

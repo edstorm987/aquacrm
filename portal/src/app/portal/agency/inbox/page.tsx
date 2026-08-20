@@ -1,22 +1,22 @@
-import { requireRole } from "@/lib/server/auth";
-import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { requireRole } from "@/lib/server/auth/auth";
+import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities } from "@/lib/server/websiteEnquiries";
 import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/websiteEnquiries";
 import { listActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
-import { listInboxSnapshot } from "@/lib/server/inboxStore";
-import { metaInboxReadiness } from "@/lib/server/metaMessaging";
-import { outboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
-import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
-import { synchroniseInboxIdentityResolutions } from "@/lib/server/inboxService";
+import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
+import { metaInboxReadiness } from "@/lib/server/integrations/metaMessaging";
+import { outboundCommunicationReadiness } from "@/lib/server/email/outboundCommunications";
+import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPreferences";
+import { synchroniseInboxIdentityResolutions } from "@/lib/server/inbox/inboxService";
 import { clearIdentityResolutionReviews } from "@/lib/server/identityResolution";
 
 import { MasterInbox } from "./_MasterInbox";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
-import { cleanClientRequests } from "@/lib/clientRequests";
-import { clientWorkspaceDisplayName } from "@/lib/clientWorkspace";
+import { cleanClientRequests } from "@/lib/clients/clientRequests";
+import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
 
 type RequestRecord = {
   id: string;

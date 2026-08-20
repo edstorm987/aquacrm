@@ -28,7 +28,7 @@ import { PortalsWorkspace, type PortalTemplateProductRecord, type PortalWorkspac
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
-import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "clients" | "portals" | "tags";
 

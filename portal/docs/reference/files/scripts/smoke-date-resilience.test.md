@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/formatDateTime.ts`](../src/lib/formatDateTime.md)
+- [`src/lib/shared/formatDateTime.ts`](../src/lib/shared/formatDateTime.md)
 
 ## Used by
 

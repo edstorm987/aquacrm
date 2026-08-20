@@ -28,7 +28,7 @@ import type {
   CompanyShareClass,
   CompanyShareholder,
 } from "@/server/types";
-import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
+import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
 type CapitalView = "overview" | "ownership" | "ledger" | "investments" | "dividends" | "governance";
 type CapitalCommit = (capital: CompanyCapitalPlan, success: string) => Promise<boolean>;

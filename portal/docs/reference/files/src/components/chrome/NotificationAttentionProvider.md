@@ -15,8 +15,8 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Depends on (2)
 
-- [`src/lib/attentionProtection.ts`](../../lib/attentionProtection.md)
-- [`src/lib/operationalAttention.ts`](../../lib/operationalAttention.md)
+- [`src/lib/intelligence/attentionProtection.ts`](../../lib/intelligence/attentionProtection.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../../lib/intelligence/operationalAttention.md)
 
 ## Used by (15)
 

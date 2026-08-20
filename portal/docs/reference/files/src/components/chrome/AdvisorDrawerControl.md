@@ -11,11 +11,11 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 ## Depends on (6)
 
 - [`src/components/chrome/GlobalAdvisorDrawer.tsx`](./GlobalAdvisorDrawer.md)
-- [`src/lib/businessRadar.ts`](../../lib/businessRadar.md)
-- [`src/lib/server/assistantBusinessContext.ts`](../../lib/server/assistantBusinessContext.md)
-- [`src/lib/server/assistantStore.ts`](../../lib/server/assistantStore.md)
-- [`src/lib/server/businessIssueRadar.ts`](../../lib/server/businessIssueRadar.md)
-- [`src/lib/server/openaiAssistant.ts`](../../lib/server/openaiAssistant.md)
+- [`src/lib/radar/businessRadar.ts`](../../lib/radar/businessRadar.md)
+- [`src/lib/server/assistants/assistantBusinessContext.ts`](../../lib/server/assistants/assistantBusinessContext.md)
+- [`src/lib/server/assistants/assistantStore.ts`](../../lib/server/assistants/assistantStore.md)
+- [`src/lib/server/assistants/openaiAssistant.ts`](../../lib/server/assistants/openaiAssistant.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](../../lib/server/radar/businessIssueRadar.md)
 
 ## Used by (3)
 

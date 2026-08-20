@@ -79,6 +79,10 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `CommandCenterTransition()`
 
+### `src/components/chrome/CompanySwitcher.tsx`
+
+- `CompanySwitcher()`
+
 ### `src/components/chrome/DevConsoleButton.tsx`
 
 - `DevConsoleButton({ initialBadge }: { initialBadge: DevConsoleBadge })`

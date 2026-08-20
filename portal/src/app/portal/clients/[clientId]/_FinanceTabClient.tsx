@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
-import type { ClientPaymentPlan } from "@/lib/clientPaymentPlans";
+import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
+import type { ClientPaymentPlan } from "@/lib/clients/clientPaymentPlans";
 import { ContractsPanel } from "./_ContractsPanel";
 import { PaymentPlansPanel, type PaymentPlanEvidenceFile } from "./_PaymentPlansPanel";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 interface Invoice {
   id: string;

@@ -1,4 +1,4 @@
-# `src/lib/server/radarMemory.ts`
+# `src/lib/server/radar/radarMemory.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -13,13 +13,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/businessRadar.ts`](../businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](../businessRadar.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (3)
 
 - [`src/app/api/portal/clients/[clientId]/radar/route.ts`](../../app/api/portal/clients/[clientId]/radar/route.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/radarSweeps.ts`](./radarSweeps.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./businessIssueRadar.md)
+- [`src/lib/server/radar/radarSweeps.ts`](./radarSweeps.md)
 

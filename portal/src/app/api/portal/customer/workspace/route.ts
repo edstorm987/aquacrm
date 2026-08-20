@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, issueSession, requireRole, sessionCookie } from "@/lib/server/auth";
+import { authErrorResponse, issueSession, requireRole, sessionCookie } from "@/lib/server/auth/auth";
 import { listAccessibleClientPortals } from "@/server/clientRelationships";
 import { getUserById } from "@/server/users";
 

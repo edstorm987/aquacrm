@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/personDestination.ts`](../src/lib/personDestination.md)
+- [`src/lib/people/personDestination.ts`](../src/lib/people/personDestination.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

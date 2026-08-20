@@ -10,14 +10,14 @@ import {
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { DEV_MODE_LOADIN_KEY, DEV_MODE_LOADIN_WORKSPACE } from "@/lib/chrome/devModeLoadIn";
-import { relativeAge } from "@/lib/formatDateTime";
+import { relativeAge } from "@/lib/shared/formatDateTime";
 import type { FindingDraft } from "@/components/chrome/DevConsoleButton";
 import { EMPTY_DRAFT } from "@/components/chrome/DevConsoleButton";
-import type { DevConsoleCore } from "@/lib/server/devConsoleStatus";
+import type { DevConsoleCore } from "@/lib/server/dev/devConsoleStatus";
 import {
   readableError, runDevConsoleLoad, workerTotal, type ConsoleStatus,
 } from "@/components/chrome/devConsoleLoad";
-import type { Finding, FindingSeverity } from "@/lib/server/devTeamFindings";
+import type { Finding, FindingSeverity } from "@/lib/server/dev/devTeamFindings";
 
 // The Dev Console popover body — lazily loaded, so none of this ships until the
 // console is first opened.

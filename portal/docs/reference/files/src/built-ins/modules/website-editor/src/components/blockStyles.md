@@ -2,21 +2,17 @@
 
 ← [File index](../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
 
-**What it is:** Maps a Block's typed `styles` field onto inline React style props. Kept in its own module so both the editor canvas and the host-side PortalPageRenderer use identical logic — what you see in the canvas matches what visitors see live.  Faithful port of `02/src/components/editor/blockStyles.ts`.
+**What it is:** Maps an element's typed `styles` field onto inline React style props.  THE IMPLEMENTATION MOVED to `src/lib/elements/blockStyles.ts` in P1 of the element engine, so the portal and stage surfaces can share the one mapper rather than growing a third copy (there are already two more: `styleString` in `server/staticExport.ts` is the other live one). This path re-exports it verbatim — every block component still imports `../blockStyles`.
 
-## Exports (3)
-
-- `blockStylesToCss(styles?: BlockStyles): CSSProperties`
-- `overridesToCssText(override?: Partial<BlockStyles>): string`
-- `STYLE_FIELD_GROUPS: Array<{ label: string; fields: Array<keyof BlockStyles> }>`
+_No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/built-ins/modules/website-editor/src/types/block.ts`](../types/block.md)
+- [`src/lib/elements/blockStyles.ts`](../../../../../lib/elements/blockStyles.md)
 
 ## Used by (70)
 
-- [`src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`](./BlockRenderer.md)
+- [`scripts/smoke-element-engine.test.ts`](../../../../../../scripts/smoke-element-engine.test.md)
 - [`src/built-ins/modules/website-editor/src/components/blocks/AccordionBlock.tsx`](./blocks/AccordionBlock.md)
 - [`src/built-ins/modules/website-editor/src/components/blocks/AffiliateLeaderboardBlock.tsx`](./blocks/AffiliateLeaderboardBlock.md)
 - [`src/built-ins/modules/website-editor/src/components/blocks/AffiliatePayoutMeterBlock.tsx`](./blocks/AffiliatePayoutMeterBlock.md)

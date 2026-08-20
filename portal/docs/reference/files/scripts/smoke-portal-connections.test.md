@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/server/portalConnections.ts`](../src/lib/server/portalConnections.md)
+- [`src/lib/server/portal/portalConnections.ts`](../src/lib/server/portal/portalConnections.md)
 
 ## Used by
 

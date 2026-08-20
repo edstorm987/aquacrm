@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
-import { sendTransactionalEmail } from "@/lib/server/transactionalEmail";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
+import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 

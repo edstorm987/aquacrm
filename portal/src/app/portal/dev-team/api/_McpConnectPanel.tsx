@@ -6,8 +6,8 @@ import { useMemo, useState } from "react";
 import {
   buildExternalAssistantSetupDocument,
   externalAssistantSetupFilename,
-} from "@/lib/externalAssistantSetup";
-import { formatUkDate } from "@/lib/formatDateTime";
+} from "@/lib/integrations/externalAssistantSetup";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 // "How to connect" for the MCP server — the half the Settings panel doesn't
 // show. Everything here is DERIVED SERVER-SIDE from the live code (the

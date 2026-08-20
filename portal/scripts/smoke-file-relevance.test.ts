@@ -11,7 +11,7 @@ describe("narrowing the repository to what is being edited", () => {
   it("keeps what renders a client portal", () => {
     for (const path of [
       "src/app/client-preview/[clientId]/page.tsx",
-      "src/lib/clientPortalBuilder.ts",
+      "src/lib/portal/clientPortalBuilder.ts",
       "src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx",
     ]) {
       assert.ok(isRelevant(path, PORTAL_SCOPE), `${path} should be portal-relevant`);
@@ -36,7 +36,7 @@ describe("narrowing further to one page", () => {
     // is a dead end.
     const scope = scopeForSection(PORTAL_SCOPE, "billing");
     assert.ok(isRelevant("src/components/portal/BillingPanel.tsx", scope));
-    assert.ok(isRelevant("src/lib/clientPortalBuilder.ts", scope), "the shell must stay reachable");
+    assert.ok(isRelevant("src/lib/portal/clientPortalBuilder.ts", scope), "the shell must stay reachable");
     assert.equal(scope.label, "billing files");
   });
 
@@ -47,13 +47,13 @@ describe("narrowing further to one page", () => {
 
 describe("filtering a list", () => {
   const files = [
-    { path: "src/lib/clientPortalBuilder.ts" },
+    { path: "src/lib/portal/clientPortalBuilder.ts" },
     { path: "src/app/api/telemetry/collect/route.ts" },
     { path: "src/lib/chrome/brandKit.ts" },
   ];
 
   it("keeps only what is in scope", () => {
-    assert.deepEqual(relevantFiles(files, PORTAL_SCOPE).map(f => f.path), ["src/lib/clientPortalBuilder.ts"]);
+    assert.deepEqual(relevantFiles(files, PORTAL_SCOPE).map(f => f.path), ["src/lib/portal/clientPortalBuilder.ts"]);
   });
 
   it("never hides a file that was explicitly opened", () => {

@@ -9,11 +9,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `metadata`
 - `default async AccountPage()`
 
-## Depends on (5)
+## Depends on (6)
 
 - [`src/app/portal/account/AvatarUploader.tsx`](./AvatarUploader.md)
+- [`src/app/portal/account/TwoFactorPanel.tsx`](./TwoFactorPanel.md)
 - [`src/components/chrome/ColorModeToggle.tsx`](../../../components/chrome/ColorModeToggle.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/users.ts`](../../../server/users.md)
 

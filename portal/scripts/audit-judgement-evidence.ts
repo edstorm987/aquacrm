@@ -19,7 +19,7 @@ async function main() {
   const state = getState() as Record<string, Record<string, { id?: string }>>;
   const agencyId = Object.values(state.agencies ?? {})[0]?.id ?? "";
 
-  const { getCachedBusinessIssueRadar } = await import("../src/lib/server/businessIssueRadar");
+  const { getCachedBusinessIssueRadar } = await import("../src/lib/server/radar/businessIssueRadar");
   const { radarEvidenceFor } = await import("../src/lib/server/resolutionPlans");
   const { plainMeaningFor, clearanceFor } = await import("../src/lib/inbox/resolutionExplain");
 

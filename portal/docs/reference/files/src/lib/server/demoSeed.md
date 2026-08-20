@@ -1,4 +1,4 @@
-# `src/lib/server/demoSeed.ts`
+# `src/lib/server/seeds/demoSeed.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

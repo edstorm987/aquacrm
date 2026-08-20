@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
-import { syncGoogleCalendars } from "@/lib/server/googleCalendar";
-import { invalidateBusinessIssueRadarCache } from "@/lib/server/businessIssueRadar";
-import { invalidateRadarSourceInspection } from "@/lib/server/radarSourceInspection";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { syncGoogleCalendars } from "@/lib/server/integrations/googleCalendar";
+import { invalidateBusinessIssueRadarCache } from "@/lib/server/radar/businessIssueRadar";
+import { invalidateRadarSourceInspection } from "@/lib/server/radar/radarSourceInspection";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

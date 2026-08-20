@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 
 import type { SopDocument } from "@/server/types";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type EditorDraft = {
   id?: string;

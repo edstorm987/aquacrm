@@ -1,4 +1,4 @@
-# `src/lib/server/googleSearchConsole.ts`
+# `src/lib/server/integrations/googleSearchConsole.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,10 +11,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/performanceAnalytics.ts`](../performanceAnalytics.md)
+- [`src/lib/performance/performanceAnalytics.ts`](../performanceAnalytics.md)
 
 ## Used by (2)
 
 - [`src/app/api/portal/performance/search-console/route.ts`](../../app/api/portal/performance/search-console/route.md)
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrationConnections.md)
 

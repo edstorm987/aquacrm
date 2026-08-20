@@ -24,7 +24,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/api/portal/calendar/route.ts`](../app/api/portal/calendar/route.md)
 - [`src/app/portal/agency/actions/_ActionsPage.tsx`](../app/portal/agency/actions/_ActionsPage.md)
 - [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
-- [`src/lib/server/businessIssueRadar.ts`](../lib/server/businessIssueRadar.md)
-- [`src/lib/server/operationalAlerts.ts`](../lib/server/operationalAlerts.md)
-- [`src/lib/server/radarSourceInspection.ts`](../lib/server/radarSourceInspection.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](../lib/server/inbox/operationalAlerts.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](../lib/server/radar/businessIssueRadar.md)
+- [`src/lib/server/radar/radarSourceInspection.ts`](../lib/server/radar/radarSourceInspection.md)
 

@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowDown, ArrowRight, ArrowUp, Building2, Check, ChevronRight, FolderOpen, Grid2X2, Layers3, Lightbulb, ListChecks, Package, Plus, Rocket, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
 import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule, AgencyProductWorkspaceStage, AgencyProductWorkspaceStep, SopDocument, TradingCompany } from "@/server/types";
-import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/agencyProductCategories";
-import { PORTAL_PRODUCT_CATALOG, PORTAL_PHASE_LABELS } from "@/lib/portalProducts";
-import { defaultProductInternalWorkspace, PRODUCT_STAGE_PORTAL_MODES, PRODUCT_WORKSPACE_MODULES } from "@/lib/productInternalWorkspace";
+import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/products/agencyProductCategories";
+import { PORTAL_PRODUCT_CATALOG, PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
+import { defaultProductInternalWorkspace, PRODUCT_STAGE_PORTAL_MODES, PRODUCT_WORKSPACE_MODULES } from "@/lib/products/productInternalWorkspace";
 
 export type Draft = {
   id?: string;

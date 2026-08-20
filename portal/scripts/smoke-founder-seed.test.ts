@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const SEED = join(ROOT, "src", "lib", "server", "founderSeed.ts");
+const SEED = join(ROOT, "src", "lib", "server", "seeds", "founderSeed.ts");
 const ENV_EXAMPLE = join(ROOT, ".env.example");
 const README = join(ROOT, "README.md");
 const TRADING_COMPANY_SEED = join(ROOT, "src", "server", "zimanteTradingCompanies.ts");

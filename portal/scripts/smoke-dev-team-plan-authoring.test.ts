@@ -5,7 +5,7 @@
 // the writer and the two readers live in three different modules and nobody
 // crossed the seam:
 //
-//   src/lib/server/devTeamPlans.ts   writes docs/development/plans/<slug>.md
+//   src/lib/server/dev/devTeamPlans.ts   writes docs/development/plans/<slug>.md
 //   devTeamBoard.parsePlanStatus     reads the `**Status:` line → a board lane
 //   devTeamTasks.parsePhases         reads `## Phases…` → the Tasks view
 //
@@ -45,11 +45,11 @@ mkdirSync(SANDBOX_PLANS, { recursive: true });
 process.chdir(SANDBOX);
 
 const { createPlan, planSlug, renderPlanMarkdown } =
-  require_("../src/lib/server/devTeamPlans") as typeof import("../src/lib/server/devTeamPlans");
+  require_("../src/lib/server/dev/devTeamPlans") as typeof import("../src/lib/server/dev/devTeamPlans");
 const { parsePhases, scanTasks } =
-  require_("../src/lib/server/devTeamTasks") as typeof import("../src/lib/server/devTeamTasks");
+  require_("../src/lib/server/dev/devTeamTasks") as typeof import("../src/lib/server/dev/devTeamTasks");
 const { parsePlanStatus } =
-  require_("../src/lib/server/devTeamBoard") as typeof import("../src/lib/server/devTeamBoard");
+  require_("../src/lib/server/dev/devTeamBoard") as typeof import("../src/lib/server/dev/devTeamBoard");
 
 after(() => {
   process.chdir(originalCwd);
@@ -280,7 +280,7 @@ describe("The plan write path is gated the same way the portal is", () => {
   });
 
   it("the writer only ever writes .md inside docs/development/plans", () => {
-    const source = read("src/lib/server/devTeamPlans.ts");
+    const source = read("src/lib/server/dev/devTeamPlans.ts");
     assert.match(source, /^import "server-only";/m);
     assert.match(source, /flag: "wx"/, "the overwrite refusal is the write, not a check before it");
     assert.equal(

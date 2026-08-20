@@ -24,9 +24,9 @@
 - [`src/components/attention/AttentionControls.tsx`](../../components/attention/AttentionControls.md)
 - [`src/components/attention/DeferralNote.tsx`](../../components/attention/DeferralNote.md)
 - [`src/components/attention/ResolutionBanner.tsx`](../../components/attention/ResolutionBanner.md)
-- [`src/lib/advisorActions.ts`](../advisorActions.md)
-- [`src/lib/businessRecommendedActions.ts`](../businessRecommendedActions.md)
+- [`src/lib/advisor/advisorActions.ts`](../advisor/advisorActions.md)
 - [`src/lib/inbox/resolutionFocus.ts`](./resolutionFocus.md)
-- [`src/lib/operationalAttention.ts`](../operationalAttention.md)
+- [`src/lib/intelligence/businessRecommendedActions.ts`](../intelligence/businessRecommendedActions.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../intelligence/operationalAttention.md)
 - [`src/lib/server/resolutionPlans.ts`](../server/resolutionPlans.md)
 

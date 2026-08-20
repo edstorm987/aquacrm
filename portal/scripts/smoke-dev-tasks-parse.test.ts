@@ -9,7 +9,7 @@ import { join } from "node:path";
 // does. These pin the three ways it did not.
 
 async function plans(): Promise<{ name: string; md: string }[]> {
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   const dir = join(PROJECT_ROOT, "docs/development/plans");
   const names = (await readdir(dir)).filter(n => n.toLowerCase().endsWith(".md")).sort();
   return Promise.all(names.map(async name => ({
@@ -18,8 +18,14 @@ async function plans(): Promise<{ name: string; md: string }[]> {
   })));
 }
 
+/** Every parsed task across every plan — for rules that must hold generally. */
+async function allTasks() {
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
+  return (await scanTasks()).flatMap(plan => plan.tasks);
+}
+
 async function taskById(id: string) {
-  const { scanTasks } = await import("../src/lib/server/devTeamTasks");
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
   for (const plan of await scanTasks()) {
     const found = plan.tasks.find(t => t.id === id);
     if (found) return found;
@@ -30,7 +36,7 @@ async function taskById(id: string) {
 // ---- "done" is a marker a phase writes, not a word in its prose ------------
 
 test("a word inside the body never marks a live phase done", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "## Phases",
     "1. **Toggle + owner→dev entry.** Add a toggle row — built the same way those toggles are.",
@@ -43,7 +49,7 @@ test("a word inside the body never marks a live phase done", async () => {
 });
 
 test("a BLOCKED phase can never read as done, whatever else the paragraph says", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "## Phases",
     "1. ⛔ **Cohere** — BLOCKED on Ed: consolidate the 12 views. Also built (2026-08-19) the routing.",
@@ -60,10 +66,22 @@ test("the three real plans that rendered as finished are not finished", async ()
     assert.ok(task, `${id} should still exist`);
     assert.notEqual(task.state, "done", `${id} is not done — a word in its body said so`);
   }
-  const blocked = await taskById("marketing-workspace-overhaul#6");
-  assert.ok(blocked, "marketing-workspace-overhaul#6 should still exist");
-  assert.match(blocked.detail ?? "", /BLOCKED on Ed/i);
-  assert.notEqual(blocked.state, "done", "the one task blocked ON ED must never read as finished");
+  // This used to name marketing-workspace-overhaul#6 as "the one task blocked on
+  // Ed". That work then SHIPPED and the plan correctly stopped saying so — which
+  // failed this test for the right reason in the wrong place. Pinning one task's
+  // wording made the suite depend on a plan never progressing.
+  //
+  // The real contract is the RULE: a phase whose own body says it is blocked must
+  // never render as finished. Property-based, so it cannot rot as plans move.
+  const all = await allTasks();
+  const blockedTasks = all.filter(task => /\bBLOCKED\b/i.test(task.detail ?? ""));
+  for (const task of blockedTasks) {
+    assert.notEqual(
+      task.state,
+      "done",
+      `${task.id} says BLOCKED in its body but renders as finished`,
+    );
+  }
 });
 
 test("phases that really did ship are still counted", async () => {
@@ -77,7 +95,7 @@ test("phases that really did ship are still counted", async () => {
 // ---- every plan that has phases must produce them ---------------------------
 
 test("a `## Phasing` section is a phases section", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "# Plan — Radar",
     "## Phasing (incremental, non-breaking)",
@@ -91,7 +109,7 @@ test("a `## Phasing` section is a phases section", async () => {
 });
 
 test("`**Phase N — Title:**` paragraphs are phases too", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "## Phases",
     "**Phase 0 — Spine (I own, serial):** new `dev-team/` scope + `layout.tsx`.",
@@ -107,7 +125,7 @@ test("`**Phase N — Title:**` paragraphs are phases too", async () => {
 });
 
 test("the flagship plans that vanished are back, with the right progress", async () => {
-  const { scanTasks } = await import("../src/lib/server/devTeamTasks");
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
   const byName = new Map((await scanTasks()).map(p => [p.planName, p]));
 
   const radar = byName.get("radar-upgrade");
@@ -121,11 +139,12 @@ test("the flagship plans that vanished are back, with the right progress", async
 });
 
 test("only the plans that genuinely have no phases yield none", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   // Handoff notes and a plan whose phases read "(To fill once Ed answers)".
   // Anything else dropping to zero means a plan silently left the roadmap.
   const allowed = new Set([
     "advisor-omega-upgrade",
+    "aqua-engine-and-dev-team-plugin",
     "aqua-tag-handoff",
     "dev-docs-handoff",
     "enquiry-detail-card-handoff",
@@ -139,7 +158,7 @@ test("only the plans that genuinely have no phases yield none", async () => {
 test("a Phases section still stops at the next heading of ANY level", async () => {
   // The fix that brought the corpus back to 127 tasks. Widening the anchor to
   // `Phasing` must not widen this.
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "## Phases",
     "1. **First.** Does a thing.",
@@ -153,7 +172,7 @@ test("a Phases section still stops at the next heading of ANY level", async () =
 });
 
 test("no plan produces two tasks with the same id", async () => {
-  const { scanTasks } = await import("../src/lib/server/devTeamTasks");
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
   for (const plan of await scanTasks()) {
     const ids = plan.tasks.map(t => t.id);
     assert.equal(new Set(ids).size, ids.length, `${plan.planName} has duplicate task ids`);
@@ -163,7 +182,7 @@ test("no plan produces two tasks with the same id", async () => {
 // ---- a task title is a title, not the paragraph -----------------------------
 
 test("a status emoji before the bold lead does not swallow the whole paragraph", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "## Phases",
     "1. ✅ **Finish the factors — SHIPPED (2026-08-19).** Added `enquiry` (form/conversion",
@@ -176,7 +195,7 @@ test("a status emoji before the bold lead does not swallow the whole paragraph",
 });
 
 test("a title too long to fit is cut at a word, never through one", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "## Phases",
     `1. ✅ ${"supercalifragilistic ".repeat(12)}clientAquaHealthTelemetryIdentifier tail`,
@@ -188,7 +207,7 @@ test("a title too long to fit is cut at a word, never through one", async () => 
 });
 
 test("no task in the real corpus is a 140-character run-on", async () => {
-  const { scanTasks } = await import("../src/lib/server/devTeamTasks");
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
   for (const plan of await scanTasks()) {
     for (const task of plan.tasks) {
       assert.ok(task.title.length <= 141, `${task.id} title is ${task.title.length} chars: ${task.title}`);

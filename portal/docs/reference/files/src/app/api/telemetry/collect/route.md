@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (6)
 
-- [`src/lib/publicSites.ts`](../../../../lib/publicSites.md)
-- [`src/lib/server/clientTelemetry.ts`](../../../../lib/server/clientTelemetry.md)
+- [`src/lib/public/publicSites.ts`](../../../../lib/public/publicSites.md)
+- [`src/lib/server/clients/clientTelemetryService.ts`](../../../../lib/server/clients/clientTelemetryService.md)
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
 - [`src/lib/supabase/admin.ts`](../../../../lib/supabase/admin.md)
 - [`src/server/agencyWebsite.ts`](../../../../server/agencyWebsite.md)

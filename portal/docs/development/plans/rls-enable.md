@@ -2,7 +2,7 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
-**Status: the headline premise of this plan was wrong, and it has been corrected.**
+**Status: BUILDING — phases 1, 2 and 5 done; phases 3 and 4 open (3 needs Ed). The headline premise of this plan was wrong and has been corrected.**
 
 This plan was written around "RLS is not in the repo". It is. The policies live
 in **[`../../../../supabase/migrations/`](../../../../supabase/README.md)** — a

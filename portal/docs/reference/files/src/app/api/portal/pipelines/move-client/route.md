@@ -10,9 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (9)
 
-- [`src/lib/fulfilmentProductPipelines.ts`](../../../../../lib/fulfilmentProductPipelines.md)
-- [`src/lib/productAssignments.ts`](../../../../../lib/productAssignments.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/products/fulfilmentProductPipelines.ts`](../../../../../lib/products/fulfilmentProductPipelines.md)
+- [`src/lib/products/productAssignments.ts`](../../../../../lib/products/productAssignments.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/agencyProducts.ts`](../../../../../server/agencyProducts.md)
 - [`src/server/pipelines.ts`](../../../../../server/pipelines.md)

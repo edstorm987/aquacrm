@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
-import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getInstall } from "@/server/pluginInstalls";

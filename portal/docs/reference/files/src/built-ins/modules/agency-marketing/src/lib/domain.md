@@ -79,6 +79,6 @@
 - [`src/built-ins/modules/agency-marketing/src/server/reports.ts`](../server/reports.md)
 - [`src/built-ins/modules/agency-marketing/src/server/templates.ts`](../server/templates.md)
 - [`src/built-ins/modules/agency-marketing/src/server/touchpoints.ts`](../server/touchpoints.md)
-- [`src/lib/customerProfileScope.ts`](../../../../../lib/customerProfileScope.md)
-- [`src/lib/server/commandIntelligence.ts`](../../../../../lib/server/commandIntelligence.md)
+- [`src/lib/people/customerProfileScope.ts`](../../../../../lib/people/customerProfileScope.md)
+- [`src/lib/server/commandIntelligenceService.ts`](../../../../../lib/server/commandIntelligenceService.md)
 

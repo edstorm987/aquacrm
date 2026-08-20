@@ -3,7 +3,7 @@ import { webcrypto } from "node:crypto";
 import test from "node:test";
 import vm from "node:vm";
 
-import { AQUA_TAG_SOURCE } from "../src/lib/aquaTagSource";
+import { AQUA_TAG_SOURCE } from "../src/lib/integrations/aquaTagSource";
 
 test("Aqua Tag sends only consented, non-personal telemetry", async () => {
   const storage = new Map<string, string>();

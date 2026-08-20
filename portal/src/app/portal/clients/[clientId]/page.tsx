@@ -12,7 +12,7 @@ import { join } from "node:path";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { requireRoleForClient } from "@/lib/server/auth";
+import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { ALL_ROLES, isAgencyRole } from "@/server/types";
 import { getAgency, getClientForAgency, listClients } from "@/server/tenants";
 import { clientRelationshipId, listClientRelationshipWorkspaces } from "@/server/clientRelationships";
@@ -29,8 +29,8 @@ import { KanbanTabClient } from "./_KanbanTabClient";
 import { CommsRow } from "./_CommsRow";
 import { FilesTabClient, type FileCategory } from "./_FilesTabClient";
 import { FinanceTabClient } from "./_FinanceTabClient";
-import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
-import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
+import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
+import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { listContractTemplates } from "@/server/contractTemplates";
 import { ensureDefaultAgencyProducts, productStatus } from "@/server/agencyProducts";
 import { PropertiesTabClient, type ClientProperty } from "./_PropertiesTabClient";
@@ -39,7 +39,7 @@ import { ClientTagWorkspace } from "./_ClientTagWorkspace";
 import { FulfilmentPortalPreview, type CustomerPortalMode } from "./_FulfilmentPortalPreview";
 import { ClientPortalConnections } from "./_ClientPortalConnections";
 import { describePortalConnection, listPortalConnections } from "@/server/portalConnectionStore";
-import { connectionLinkOrigin } from "@/lib/server/portalConnections";
+import { connectionLinkOrigin } from "@/lib/server/portal/portalConnections";
 import { PhaseTransitionButton } from "./_PhaseTransitionButton";
 import { ClientRequestsPanel } from "./_ClientRequestsPanel";
 import type { ClientRequest } from "@/app/api/tenants/client-requests/route";
@@ -49,10 +49,10 @@ import { RequirePermission } from "@/lib/server/RequirePermission";
 import { OnboardingDashboardPanel, type OnboardingPhase } from "./_OnboardingDashboardPanel";
 import { customerVisibleInvoices, loadCustomerPortalData } from "@/app/portal/customer/_portalData";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
-import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/githubProjectPublisher";
-import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/vercelProjectDeployer";
-import { cleanClientContacts, type ClientEntityType } from "@/lib/clientContacts";
+import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
+import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/integrations/githubProjectPublisher";
+import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/integrations/vercelProjectDeployer";
+import { cleanClientContacts, type ClientEntityType } from "@/lib/clients/clientContacts";
 import { ClientContactsPanel } from "./_ClientContactsPanel";
 import { WebsiteBuilderLauncher } from "./_WebsiteBuilderLauncher";
 import { ClientSpineOverview } from "./_ClientSpineOverview";
@@ -65,33 +65,33 @@ import { ClientWorkspaceSwitcher } from "./_ClientWorkspaceSwitcher";
 import { OverviewTabs } from "./_OverviewTabs";
 import { ClientNotesWorkspace } from "./_ClientNotesWorkspace";
 import { ClientRecordWorkspace, type ClientRecordMessage } from "./_ClientRecordWorkspace";
-import { calculateClientAquaHealth } from "@/lib/clientAquaHealth";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { clientServiceCapabilities, inheritedClientServiceKeys } from "@/lib/clientServiceWorkspace";
+import { calculateClientAquaHealth } from "@/lib/clients/clientAquaHealth";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { clientServiceCapabilities, inheritedClientServiceKeys } from "@/lib/clients/clientServiceWorkspace";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
-import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
-import { defaultProductInternalWorkspace } from "@/lib/productInternalWorkspace";
+import { portalWorkspaceProgress } from "@/lib/portal/portalProductWorkspaces";
+import { defaultProductInternalWorkspace } from "@/lib/products/productInternalWorkspace";
 import { listClientMilestones } from "@/server/clientMilestones";
 import { getInstall } from "@/server/pluginInstalls";
 import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
-import { clientWorkspaceHref, resolveClientWorkspaceTab } from "@/lib/clientWorkspace";
+import { clientWorkspaceHref, resolveClientWorkspaceTab } from "@/lib/clients/clientWorkspace";
 import { Boxes, Globe2, MonitorCog } from "lucide-react";
-import { cleanClientMarketingService } from "@/lib/clientMarketingService";
-import { formatUkDate, formatUkDateTime, timestampFromValue } from "@/lib/formatDateTime";
-import { cleanClientRecordEntries } from "@/lib/clientRelationshipRecord";
-import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import { cleanClientMarketingService } from "@/lib/clients/clientMarketingService";
+import { formatUkDate, formatUkDateTime, timestampFromValue } from "@/lib/shared/formatDateTime";
+import { cleanClientRecordEntries } from "@/lib/clients/clientRelationshipRecord";
+import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
 import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities } from "@/lib/server/websiteEnquiries";
 import { normaliseIdentityEmail, normaliseIdentityPhone } from "@/lib/server/identityResolution";
 import { listAgencyTasks } from "@/server/tasks";
 import { listSops } from "@/server/sops";
 import { canUsePeopleStation, listPeopleEmployees } from "@/server/people";
 import { getUserById } from "@/server/users";
-import { buildClientRadar } from "@/lib/server/clientRadar";
-import { cleanClientOperationsBrief } from "@/lib/clientOperations";
-import { clientVariationProductIds } from "@/lib/clientProductVariations";
-import { cleanClientProductProcessState } from "@/lib/clientProductProcess";
-import { cleanClientRequests } from "@/lib/clientRequests";
+import { buildClientRadar } from "@/lib/server/radar/clientRadarService";
+import { cleanClientOperationsBrief } from "@/lib/clients/clientOperations";
+import { clientVariationProductIds } from "@/lib/clients/clientProductVariations";
+import { cleanClientProductProcessState } from "@/lib/clients/clientProductProcess";
+import { cleanClientRequests } from "@/lib/clients/clientRequests";
 import {
   clientContractLedgerEvent,
   clientInvoiceLedgerEvent,
@@ -100,12 +100,12 @@ import {
   queryClientRecordLedger,
   synchroniseClientRecordLedger,
   type ClientRecordLedgerEventInput,
-} from "@/lib/server/clientRecordLedger";
+} from "@/lib/server/clients/clientRecordLedger";
 import {
   cleanClientPaymentPlans,
   reconcileClientPaymentPlan,
   summariseClientPaymentPosition,
-} from "@/lib/clientPaymentPlans";
+} from "@/lib/clients/clientPaymentPlans";
 import type { ClientOperationOwnerOption } from "./_ClientOperationsControl";
 import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
 import {
@@ -229,7 +229,7 @@ export default async function ClientHome({
     portalServicePlan?: string;
     portalPlanSummary?: string;
     portalPlanIncludes?: string[];
-    portalProducts?: import("@/lib/portalProducts").PortalProductSelection[];
+    portalProducts?: import("@/lib/portal/portalProducts").PortalProductSelection[];
     portalExperienceHeadline?: string;
     portalBillingCadence?: string;
     portalWelcomeNote?: string;
@@ -1219,7 +1219,7 @@ export default async function ClientHome({
             <nav aria-label="Technical workspace views" className="grid gap-px overflow-hidden border border-black/10 bg-black/10 sm:grid-cols-3">
               <Link href={clientWorkspaceHref(client.id, "systems")} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "monitoring" ? "text-brand" : "text-black/58"}`}><MonitorCog size={17} /> Monitoring</Link>
               <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "properties" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "properties" ? "text-brand" : "text-black/58"}`}><Boxes size={17} /> Properties and deployments</Link>
-              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "website" ? "text-brand" : "text-black/58"}`}><Globe2 size={17} /> Website editor</Link>
+              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "website" ? "text-brand" : "text-black/58"}`}><Globe2 size={17} /> Aqua Engine</Link>
             </nav>
             {systemView === "monitoring" ? (
               <div className="grid gap-6">
@@ -1236,7 +1236,7 @@ export default async function ClientHome({
               />
             ) : (
               <section className="border-y border-black/10 bg-white py-6">
-                <h2 className="text-lg font-medium text-black/90">Website editor</h2>
+                <h2 className="text-lg font-medium text-black/90">Aqua Engine</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">Visually build pages and responsive sections, add custom code, preview every device, and publish when {client.name} is ready.</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <WebsiteBuilderLauncher clientId={client.id} ready={installs.some(install => install.pluginId === "website-editor" && install.enabled)} />

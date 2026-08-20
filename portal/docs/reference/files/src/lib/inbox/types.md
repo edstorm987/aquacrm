@@ -30,8 +30,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx`](../../app/portal/agency/inbox/_SocialInboxWorkspace.md)
 - [`src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx`](../../app/portal/agency/inbox/_UnifiedInboxWorkspace.md)
 - [`src/app/portal/agency/marketing/_MarketingChannelsWorkspace.tsx`](../../app/portal/agency/marketing/_MarketingChannelsWorkspace.md)
-- [`src/lib/server/inboxService.ts`](../server/inboxService.md)
-- [`src/lib/server/inboxStore.ts`](../server/inboxStore.md)
-- [`src/lib/server/metaMessaging.ts`](../server/metaMessaging.md)
-- [`src/lib/server/radarObservations.ts`](../server/radarObservations.md)
+- [`src/lib/server/inbox/inboxService.ts`](../server/inbox/inboxService.md)
+- [`src/lib/server/inbox/inboxStore.ts`](../server/inbox/inboxStore.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](../server/integrations/metaMessaging.md)
+- [`src/lib/server/radar/radarObservations.ts`](../server/radar/radarObservations.md)
 

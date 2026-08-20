@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { PEOPLE_STATIONS } from "@/server/people";
 import { ensureHydrated } from "@/server/storage";
 import type { PeopleWorkspaceStationId } from "@/server/types";

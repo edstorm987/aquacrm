@@ -18,8 +18,8 @@ import {
   buildExternalAssistantSetupDocument,
   buildExternalAssistantSetupPrompt,
   externalAssistantSetupFilename,
-} from "@/lib/externalAssistantSetup";
-import { formatUkDate } from "@/lib/formatDateTime";
+} from "@/lib/integrations/externalAssistantSetup";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 interface ApiKeySummary {
   id: string;

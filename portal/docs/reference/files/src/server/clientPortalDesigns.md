@@ -29,9 +29,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (5)
 
-- [`src/lib/clientPortalDesign.ts`](../lib/clientPortalDesign.md)
-- [`src/lib/portalProductModules.ts`](../lib/portalProductModules.md)
-- [`src/lib/portalProducts.ts`](../lib/portalProducts.md)
+- [`src/lib/portal/clientPortalDesign.ts`](../lib/portal/clientPortalDesign.md)
+- [`src/lib/portal/portalProductModules.ts`](../lib/portal/portalProductModules.md)
+- [`src/lib/portal/portalProducts.ts`](../lib/portal/portalProducts.md)
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
 

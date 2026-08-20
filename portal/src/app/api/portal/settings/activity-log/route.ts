@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSessionFromRequest } from "@/lib/server/auth";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { queryActivity, redactActivityValue } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
-import { isoDateTimeValue } from "@/lib/formatDateTime";
+import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 const ALLOWED_ROLES = new Set(["agency-owner", "agency-manager"]);
 

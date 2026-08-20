@@ -1,4 +1,4 @@
-# `src/lib/commercialLifecycle.ts`
+# `src/lib/intelligence/commercialLifecycle.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -16,13 +16,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
 - [`src/server/types.ts`](../server/types.md)
 
 ## Used by (4)
 
 - [`scripts/smoke-commercial-lifecycle-radar.test.ts`](../../scripts/smoke-commercial-lifecycle-radar.test.md)
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
-- [`src/lib/server/businessIssueRadar.ts`](./server/businessIssueRadar.md)
-- [`src/lib/server/radarObservations.ts`](./server/radarObservations.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./server/businessIssueRadar.md)
+- [`src/lib/server/radar/radarObservations.ts`](./server/radarObservations.md)
 

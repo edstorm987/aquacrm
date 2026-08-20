@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureHydrated } from "@/server/storage";
 import { logActivity } from "@/server/activity";

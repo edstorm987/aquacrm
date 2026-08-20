@@ -3,7 +3,7 @@
 import { Eye, EyeOff, Link2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export type FileCategory = "brand" | "brief" | "recording" | "inspiration" | "design-feedback" | "preview" | "deliverable" | "invoice" | "contract" | "payment-plan" | "payment-proof" | "proposal" | "legal" | "misc";
 

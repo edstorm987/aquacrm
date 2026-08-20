@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { cleanClientRecordEntries } from "../src/lib/clientRelationshipRecord";
-import { cleanClientRequests } from "../src/lib/clientRequests";
+import { cleanClientRecordEntries } from "../src/lib/clients/clientRelationshipRecord";
+import { cleanClientRequests } from "../src/lib/clients/clientRequests";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -129,7 +129,7 @@ test("the internal client record unifies messages, calls, files and controlled p
 test("the customer portal receives only approved records and linked participant messages", () => {
   const data = read("src/app/portal/customer/_portalData.ts");
   const view = read("src/app/portal/customer/_CustomerPortalViews.tsx");
-  const design = read("src/lib/clientPortalDesign.ts");
+  const design = read("src/lib/portal/clientPortalDesign.ts");
   const content = read("src/app/api/tenants/client-files/content/route.ts");
 
   assert.match(data, /entry\.visibility === "client"/);

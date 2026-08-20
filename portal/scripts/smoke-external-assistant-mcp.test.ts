@@ -15,9 +15,9 @@ require.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type Keys = typeof import("../src/lib/server/externalAssistantKeys");
-type Gateway = typeof import("../src/lib/server/externalAssistantApi");
-type Mcp = typeof import("../src/lib/server/externalAssistantMcp");
+type Keys = typeof import("../src/lib/server/assistants/externalAssistantKeys");
+type Gateway = typeof import("../src/lib/server/assistants/externalAssistantApi");
+type Mcp = typeof import("../src/lib/server/assistants/externalAssistantMcp");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -33,9 +33,9 @@ before(async () => {
   delete process.env.MILESYMEDIA_ASSISTANT_API_TOKEN;
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  keys = await import("../src/lib/server/externalAssistantKeys");
-  gateway = await import("../src/lib/server/externalAssistantApi");
-  mcp = await import("../src/lib/server/externalAssistantMcp");
+  keys = await import("../src/lib/server/assistants/externalAssistantKeys");
+  gateway = await import("../src/lib/server/assistants/externalAssistantApi");
+  mcp = await import("../src/lib/server/assistants/externalAssistantMcp");
   await storage.ensureHydrated();
   agencyId = tenants.createAgency({ name: "MCP assistant smoke", slug: "mcp-assistant-smoke" }).id;
 });
@@ -248,7 +248,7 @@ test("the Dev Team gate is strictly narrower than the external-AI endpoint it mo
   // The decision behind mounting `ExternalAiConnectionPanel` (whose endpoint is
   // gated to owner/manager) inside Dev Team (gated founder + Dev Mode) with NO
   // wrapper. Hermetic: `effectiveRole` reads no env, so nothing is mutated here.
-  const { effectiveRole } = await import("../src/lib/server/effectiveRole");
+  const { effectiveRole } = await import("../src/lib/server/auth/effectiveRole");
   const roles = [
     "agency-owner", "agency-manager", "agency-staff",
     "client-owner", "client-staff", "freelancer", "end-customer", "lead",
@@ -258,7 +258,7 @@ test("the Dev Team gate is strictly narrower than the external-AI endpoint it mo
 
   // `devDocsAccessible` = canUseDevMode() && isFounder, so anyone who reaches
   // the page is an agency-owner — which the endpoint already admits.
-  const devDocs = require("node:fs").readFileSync("src/lib/server/devDocs.ts", "utf8");
+  const devDocs = require("node:fs").readFileSync("src/lib/server/dev/devDocs.ts", "utf8");
   assert.match(devDocs, /canUseDevMode\(\) && effectiveRole\(session\)\.isFounder/);
   const endpoint = require("node:fs").readFileSync("src/app/api/portal/settings/external-ai/route.ts", "utf8");
   assert.match(endpoint, /ALLOWED_ROLES = new Set\(\["agency-owner", "agency-manager"\]\)/);
@@ -297,7 +297,7 @@ test("the page's setup-document download describes the selected key's real scope
   // Brief item: offer `buildExternalAssistantSetupDocument` as a download. What
   // matters is WHICH scope it describes — a document claiming access a key does
   // not have sends someone to debug a connection that was never going to work.
-  const setup = await import("../src/lib/externalAssistantSetup");
+  const setup = await import("../src/lib/integrations/externalAssistantSetup");
   const created = keys.createExternalAssistantApiKey({
     agencyId,
     name: "Docs download probe",

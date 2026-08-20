@@ -17,8 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
-import { formatUkDate } from "@/lib/formatDateTime";
+import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm outline-none focus:border-black/35 focus:ring-2 focus:ring-black/5";
 

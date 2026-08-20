@@ -10,7 +10,7 @@ import {
   isoDateTimeValue,
   localDateTimeInputValue,
   timestampFromValue,
-} from "../src/lib/formatDateTime";
+} from "../src/lib/shared/formatDateTime";
 
 test("shared date formatting contains malformed legacy timestamps", () => {
   for (const value of [undefined, null, "", "not-a-date", Number.NaN, Number.POSITIVE_INFINITY, new Date(Number.NaN)]) {

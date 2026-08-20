@@ -3,9 +3,9 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, type Role } from "@/server/types";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { ensureHydrated } from "@/server/storage";
 
 import { PageHeader } from "../_ui";

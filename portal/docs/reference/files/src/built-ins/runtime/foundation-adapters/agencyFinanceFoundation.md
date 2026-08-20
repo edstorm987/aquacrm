@@ -20,7 +20,7 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 - [`src/app/portal/agency/performance/page.tsx`](../../../app/portal/agency/performance/page.md)
 - [`src/app/portal/clients/page.tsx`](../../../app/portal/clients/page.md)
 - [`src/built-ins/runtime/_registry.ts`](../_registry.md)
-- [`src/lib/server/brandPortfolio.ts`](../../../lib/server/brandPortfolio.md)
-- [`src/lib/server/clientDelightExpense.ts`](../../../lib/server/clientDelightExpense.md)
-- [`src/lib/server/companyHealthSnapshot.ts`](../../../lib/server/companyHealthSnapshot.md)
+- [`src/lib/server/brandPortfolioService.ts`](../../../lib/server/brandPortfolioService.md)
+- [`src/lib/server/clients/clientDelightExpense.ts`](../../../lib/server/clients/clientDelightExpense.md)
+- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../../../lib/server/kpi/companyHealthSnapshot.md)
 

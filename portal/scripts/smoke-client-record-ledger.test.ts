@@ -8,7 +8,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("client record ledger uses stable keyset cursors without crossing tenant boundaries", async () => {
   const { ensureHydrated } = await import("../src/server/storage");
-  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clients/clientRecordLedger");
   await ensureHydrated();
   const agencyId = "agency-ledger-cursor";
   const clientId = "client-ledger-cursor";
@@ -51,7 +51,7 @@ test("client record ledger uses stable keyset cursors without crossing tenant bo
 });
 
 test("ledger pagination retains every event when several records share a timestamp", async () => {
-  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clients/clientRecordLedger");
   const agencyId = "agency-ledger-tied-cursor";
   const clientId = "client-ledger-tied-cursor";
   const occurredAt = Date.UTC(2026, 7, 16, 12);
@@ -83,7 +83,7 @@ test("ledger pagination retains every event when several records share a timesta
 });
 
 test("linked evidence can be queried independently of the surrounding client timeline", async () => {
-  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clients/clientRecordLedger");
   const agencyId = "agency-ledger-evidence";
   const clientId = "client-ledger-evidence";
   const occurredAt = Date.UTC(2026, 7, 16, 13);
@@ -103,7 +103,7 @@ test("linked evidence can be queried independently of the surrounding client tim
 });
 
 test("complete ledger sources reconcile deletions while append-only connectors retain history", async () => {
-  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clients/clientRecordLedger");
   const agencyId = "agency-ledger-reconcile";
   const clientId = "client-ledger-reconcile";
   const manual = (sourceId: string) => ({
@@ -130,7 +130,7 @@ test("complete ledger sources reconcile deletions while append-only connectors r
 
 test("client activity writes through to the ledger and query lenses are server-side", async () => {
   const { logActivity } = await import("../src/server/activity");
-  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger, synchroniseClientRecordLedger } = await import("../src/lib/server/clients/clientRecordLedger");
   const agencyId = "agency-ledger-activity";
   const clientId = "client-ledger-activity";
   logActivity({ agencyId, clientId, category: "tenant", action: "relationship.reviewed", message: "Quarterly review completed" });
@@ -149,7 +149,7 @@ test("client activity writes through to the ledger and query lenses are server-s
 
 test("finance activity snapshots create, update and remove canonical invoice records", async () => {
   const { logActivity } = await import("../src/server/activity");
-  const { queryClientRecordLedger } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger } = await import("../src/lib/server/clients/clientRecordLedger");
   const agencyId = "agency-ledger-finance-port";
   const clientId = "client-ledger-finance-port";
   const invoiceId = "invoice-port-1";
@@ -177,7 +177,7 @@ test("finance activity snapshots create, update and remove canonical invoice rec
 });
 
 test("linked social messages write through with stable conversation identities", async () => {
-  const { queryClientRecordLedger, upsertClientSocialMessageLedgerEvent } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger, upsertClientSocialMessageLedgerEvent } = await import("../src/lib/server/clients/clientRecordLedger");
   const agencyId = "agency-ledger-social";
   const clientId = "client-ledger-social";
   upsertClientSocialMessageLedgerEvent(agencyId, clientId, {
@@ -206,7 +206,7 @@ test("canonical record builders preserve source identity and expose actionable s
     clientMilestoneLedgerEvent,
     clientPaymentPlanLedgerEvent,
     clientRequestLedgerEvents,
-  } = await import("../src/lib/server/clientRecordLedger");
+  } = await import("../src/lib/server/clients/clientRecordLedger");
   const clientId = "client-ledger-builders";
   const now = Date.UTC(2026, 7, 16);
 
@@ -279,7 +279,7 @@ test("canonical source mutations write through to the client record ledger", () 
   const invoices = read("src/built-ins/modules/agency-finance/src/server/invoices.ts");
   const milestones = read("src/server/clientMilestones.ts");
   const requests = read("src/app/api/tenants/client-requests/route.ts");
-  const social = read("src/lib/server/inboxService.ts");
+  const social = read("src/lib/server/inbox/inboxService.ts");
   const socialLinks = read("src/app/api/portal/inbox/conversations/route.ts");
 
   assert.match(contracts, /upsertClientContractLedgerEvent/);
@@ -288,7 +288,7 @@ test("canonical source mutations write through to the client record ledger", () 
   assert.match(plans, /upsertClientInvoiceLedgerEvent/);
   assert.match(invoices, /invoiceActivityMetadata/);
   assert.match(invoices, /action: "invoice\.updated"/);
-  assert.match(read("src/lib/server/clientRecordLedger.ts"), /entry\.action\.startsWith\("invoice\."\)/);
+  assert.match(read("src/lib/server/clients/clientRecordLedger.ts"), /entry\.action\.startsWith\("invoice\."\)/);
   assert.match(milestones, /upsertClientMilestoneLedgerEvent/);
   assert.match(milestones, /removeClientRecordLedgerEvent/);
   assert.match(requests, /synchroniseClientRequestLedgerEvents/);

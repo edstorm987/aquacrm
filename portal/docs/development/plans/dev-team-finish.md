@@ -45,12 +45,12 @@ labels.
    and passed in (the station's content is already gated + built there).
 2. **Stale plan statuses.** Several plans still open with `**Status: PLAN (not built)**` though
    they shipped (aqua-tag, client-health, kpi-intelligence), while others say "complete" though
-   their worker row carries a live 🔴. `composeLanes` (`src/lib/server/devTeamBoard.ts`) already
+   their worker row carries a live 🔴. `composeLanes` (`src/lib/server/dev/devTeamBoard.ts`) already
    reconciles the workers table over the plan header — verify that reconciliation is actually
    right for each lane, and **correct the stale `**Status:` lines in the plan files themselves**
    so the source of truth stops lying. Do not "fix" this by hiding items.
 3. **Auditor over-reports.** The "rework & held" list shows every historical 🔴 entry, including
-   ones a later ✅ PASS resolved (`src/lib/server/devTeamAuditor.ts` + the auditor page). The
+   ones a later ✅ PASS resolved (`src/lib/server/dev/devTeamAuditor.ts` + the auditor page). The
    banner ledger ("Open now") is the accurate signal. Make the distinction unmistakable in the
    UI — open vs historical — or resolve entries that a later PASS supersedes. **Do not silently
    hide anything**: over-surfacing is safer than under-surfacing, but it must be *labelled*
@@ -70,8 +70,8 @@ labels.
 
 ## Reuse (do not rebuild)
 `src/app/portal/dev-team/_ui.tsx` (the shared kit: `PageHeader`/`Panel`/`Pill`/`EmptyState` +
-tokens) · `src/lib/server/devTeamBoard.ts` (lanes) · `src/lib/server/devTeamAuditor.ts` ·
-`src/lib/server/devDocs.ts` (`scanBlockers`) · `src/app/portal/agency/_DevTeamStation.tsx` ·
+tokens) · `src/lib/server/dev/devTeamBoard.ts` (lanes) · `src/lib/server/dev/devTeamAuditor.ts` ·
+`src/lib/server/dev/devDocs.ts` (`scanBlockers`) · `src/app/portal/agency/_DevTeamStation.tsx` ·
 lucide-react icons. Match the polished Home (`src/app/portal/dev-team/page.tsx`) for the light
 portal palette, and the executive station for the DARK command-centre palette.
 
@@ -84,8 +84,8 @@ plan in flight._
 
 - `src/app/portal/dev-team/layout.tsx`
 - `src/app/portal/dev-team/_ui.tsx`
-- `src/lib/server/devTeamBoard.ts`
-- `src/lib/server/devTeamAuditor.ts`
+- `src/lib/server/dev/devTeamBoard.ts`
+- `src/lib/server/dev/devTeamAuditor.ts`
 - `src/app/portal/dev-team/auditor/page.tsx`
 - `src/app/portal/dev-team/auditor/_Section.tsx`
 - `src/app/portal/dev-team/page.tsx`

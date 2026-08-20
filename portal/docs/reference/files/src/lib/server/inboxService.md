@@ -1,4 +1,4 @@
-# `src/lib/server/inboxService.ts`
+# `src/lib/server/inbox/inboxService.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -15,10 +15,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (7)
 
 - [`src/lib/inbox/types.ts`](../inbox/types.md)
-- [`src/lib/server/clientRecordLedger.ts`](./clientRecordLedger.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](./clientRecordLedger.md)
 - [`src/lib/server/identityResolution.ts`](./identityResolution.md)
-- [`src/lib/server/inboxStore.ts`](./inboxStore.md)
-- [`src/lib/server/metaMessaging.ts`](./metaMessaging.md)
+- [`src/lib/server/inbox/inboxStore.ts`](./inboxStore.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](./metaMessaging.md)
 - [`src/server/activity.ts`](../../server/activity.md)
 - [`src/server/automations.ts`](../../server/automations.md)
 

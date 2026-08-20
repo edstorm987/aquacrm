@@ -10,8 +10,8 @@
 
 ## Depends on (6)
 
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
-- [`src/lib/server/postLoginRedirect.ts`](../../../lib/server/postLoginRedirect.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/postLoginRedirect.ts`](../../../lib/server/auth/postLoginRedirect.md)
 - [`src/server/activity.ts`](../../../server/activity.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

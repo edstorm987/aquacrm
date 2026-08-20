@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/server/externalAssistantApi.ts`](../../../../lib/server/externalAssistantApi.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](../../../../lib/server/assistants/externalAssistantApi.md)
 
 ## Used by
 

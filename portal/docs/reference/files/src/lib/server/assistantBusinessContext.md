@@ -1,4 +1,4 @@
-# `src/lib/server/assistantBusinessContext.ts`
+# `src/lib/server/assistants/assistantBusinessContext.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

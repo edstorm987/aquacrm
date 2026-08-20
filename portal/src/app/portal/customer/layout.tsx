@@ -3,17 +3,17 @@ import { cookies, headers } from "next/headers";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { getClientForAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { CustomerPortalChrome } from "./_CustomerPortalChrome";
 import { customerPortalModeLabel, loadCustomerPortalData } from "./_portalData";
-import { portalProjectLabel } from "@/lib/portalProducts";
-import { getAuthBrand } from "@/lib/authBrand";
-import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
-import { buildCustomerPortalAttention } from "@/lib/customerPortalAttention";
+import { portalProjectLabel } from "@/lib/portal/portalProducts";
+import { getAuthBrand } from "@/lib/brands/authBrand";
+import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
+import { buildCustomerPortalAttention } from "@/lib/portal/customerPortalAttention";
 import { listAccessibleClientPortals } from "@/server/clientRelationships";
 
 export async function generateMetadata(): Promise<Metadata> {

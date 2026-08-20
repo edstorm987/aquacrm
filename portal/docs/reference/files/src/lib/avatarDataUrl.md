@@ -1,4 +1,4 @@
-# `src/lib/avatarDataUrl.ts`
+# `src/lib/shared/avatarDataUrl.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

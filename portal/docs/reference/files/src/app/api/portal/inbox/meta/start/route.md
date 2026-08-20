@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (3)
 
-- [`src/lib/server/auth.ts`](../../../../../../lib/server/auth.md)
-- [`src/lib/server/metaMessaging.ts`](../../../../../../lib/server/metaMessaging.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](../../../../../../lib/server/integrations/metaMessaging.md)
 - [`src/server/storage.ts`](../../../../../../server/storage.md)
 
 ## Used by

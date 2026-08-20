@@ -1,4 +1,4 @@
-# `src/lib/server/portalConnections.ts`
+# `src/lib/server/portal/portalConnections.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

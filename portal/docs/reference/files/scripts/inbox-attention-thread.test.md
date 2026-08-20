@@ -9,7 +9,7 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (2)
 
 - [`src/lib/inbox/attentionThread.ts`](../src/lib/inbox/attentionThread.md)
-- [`src/lib/operationalAttention.ts`](../src/lib/operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../src/lib/intelligence/operationalAttention.md)
 
 ## Used by
 

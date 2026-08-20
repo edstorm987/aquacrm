@@ -21,7 +21,7 @@ import {
   RELEASE_SEEN_EVENT,
   RELEASE_STORAGE_KEY,
   formatReleaseDate,
-} from "@/lib/releases";
+} from "@/lib/projects/releases";
 
 interface SettingsContext {
   user: { name?: string; email: string; role: string; avatarUrl?: string };

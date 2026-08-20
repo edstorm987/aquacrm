@@ -1,4 +1,4 @@
-# `src/lib/server/financeWorkforce.ts`
+# `src/lib/server/finance/financeWorkforce.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

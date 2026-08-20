@@ -8,8 +8,8 @@ import {
   type ClientMarketingContentStatus,
   type ClientMarketingService,
   type ClientSocialProfile,
-} from "@/lib/clientMarketingService";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+} from "@/lib/clients/clientMarketingService";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";

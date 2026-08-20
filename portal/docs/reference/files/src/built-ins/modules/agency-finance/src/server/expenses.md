@@ -12,6 +12,7 @@
     - `async get(id: string): Promise<Expense | null>`
     - `async listForCategory(categoryId: string): Promise<Expense[]>`
     - `async create(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<Expense>`
+    - `async createDetailed(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<{ expense: Expense; deduped: boolean }>`
     - `async update(id: string, patch: UpdateExpensePatch, actor: UserId): Promise<Expense | null>`
     - `async approve(id: string, actor: UserId, decisionNote?: string): Promise<Expense | null>`
     - `async reject(id: string, actor: UserId, decisionNote?: string): Promise<Expense | null>`
@@ -21,7 +22,7 @@
 ## Depends on (8)
 
 - [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](../lib/domain.md)
-- [`src/built-ins/modules/agency-finance/src/lib/ids.ts`](../lib/ids.md)
+- [`src/built-ins/modules/agency-finance/src/lib/idempotency.ts`](../lib/idempotency.md)
 - [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](../lib/tenancy.md)
 - [`src/built-ins/modules/agency-finance/src/lib/time.ts`](../lib/time.md)
 - [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](./budgets.md)

@@ -41,7 +41,7 @@ behind the dev-mode gate (not removed).
 - `src/app/api/portal/connections/request-code/route.ts` — **new** endpoint (mint + email + resend + send throttle).
 
 ### Shared files touched — **additive, flagged** (not in this worker's lane; no other worker owns them)
-- `src/lib/server/portalConnections.ts` — added optional `pendingCode?: PendingConfirmationCode` field to `PortalConnection` + a `import type`.
+- `src/lib/server/portal/portalConnections.ts` — added optional `pendingCode?: PendingConfirmationCode` field to `PortalConnection` + a `import type`.
 - `src/server/portalConnectionStore.ts` — added `issuePortalConnectionCode`, `recordPortalConnectionCodeAttempt`; `acceptPortalConnection` now clears `pendingCode` on completion.
 
 ### Tests

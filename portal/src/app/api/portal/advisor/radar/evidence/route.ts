@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
-import { inspectRadarEvidence, inspectRadarEvidenceSeries } from "@/lib/server/radarEvidenceVault";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { inspectRadarEvidence, inspectRadarEvidenceSeries } from "@/lib/server/radar/radarEvidenceVault";
 import { ensureHydrated } from "@/server/storage";
 
 export async function GET(request: Request) {

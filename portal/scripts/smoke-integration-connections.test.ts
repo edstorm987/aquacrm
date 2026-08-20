@@ -15,9 +15,9 @@ require.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type Connections = typeof import("../src/lib/server/integrationConnections");
-type Communications = typeof import("../src/lib/server/outboundCommunications");
-type Meta = typeof import("../src/lib/server/metaMessaging");
+type Connections = typeof import("../src/lib/server/integrations/integrationConnections");
+type Communications = typeof import("../src/lib/server/email/outboundCommunications");
+type Meta = typeof import("../src/lib/server/integrations/metaMessaging");
 type Users = typeof import("../src/server/users");
 
 let storage: Storage;
@@ -32,9 +32,9 @@ before(async () => {
   process.env.PORTAL_VAULT_ENCRYPTION_KEY = "integration-smoke-vault-key-longer-than-thirty-two-characters";
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  connections = await import("../src/lib/server/integrationConnections");
-  communications = await import("../src/lib/server/outboundCommunications");
-  meta = await import("../src/lib/server/metaMessaging");
+  connections = await import("../src/lib/server/integrations/integrationConnections");
+  communications = await import("../src/lib/server/email/outboundCommunications");
+  meta = await import("../src/lib/server/integrations/metaMessaging");
   users = await import("../src/server/users");
   await storage.ensureHydrated();
   await storage.reset();

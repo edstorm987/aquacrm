@@ -1,4 +1,4 @@
-# `src/lib/server/openaiAssistant.ts`
+# `src/lib/server/assistants/openaiAssistant.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -13,12 +13,12 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (7)
 
-- [`src/lib/advisorActions.ts`](../advisorActions.md)
-- [`src/lib/advisorSkills.ts`](../advisorSkills.md)
-- [`src/lib/businessRadar.ts`](../businessRadar.md)
-- [`src/lib/server/advisorSkills.ts`](./advisorSkills.md)
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
-- [`src/lib/server/operationalAlerts.ts`](./operationalAlerts.md)
+- [`src/lib/advisor/advisorActions.ts`](../advisorActions.md)
+- [`src/lib/advisor/advisorSkills.ts`](../advisorSkills.md)
+- [`src/lib/radar/businessRadar.ts`](../businessRadar.md)
+- [`src/lib/server/assistants/advisorSkillsService.ts`](./advisorSkills.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrationConnections.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./operationalAlerts.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (5)

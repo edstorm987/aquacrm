@@ -1,4 +1,4 @@
-import { EXTERNAL_ASSISTANT_MODULES, externalApiHeaders } from "@/lib/server/externalAssistantApi";
+import { EXTERNAL_ASSISTANT_MODULES, externalApiHeaders } from "@/lib/server/assistants/externalAssistantApi";
 
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;

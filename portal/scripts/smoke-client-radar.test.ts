@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { calculateClientAquaHealth } from "../src/lib/clientAquaHealth";
-import { buildClientRadarSnapshot, type ClientRadarInput } from "../src/lib/clientRadar";
+import { calculateClientAquaHealth } from "../src/lib/clients/clientAquaHealth";
+import { buildClientRadarSnapshot, type ClientRadarInput } from "../src/lib/radar/clientRadar";
 
 const NOW = Date.parse("2026-08-16T12:00:00.000Z");
 const DAY = 86_400_000;

@@ -8,10 +8,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated, getState, mutate } from "@/server/storage";
 import { createClient, getAgency } from "@/server/tenants";
-import { getSessionFromRequest } from "@/lib/server/auth";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { setupClientStarterPortal, type ClientPortalSetupResult } from "@/server/clientPortalSetup";
-import { customerPortalProvisioningMetadata } from "@/lib/server/customerPortalProvisioning";
+import { customerPortalProvisioningMetadata } from "@/lib/server/clients/customerPortalProvisioning";
 import { createClientDelight } from "@/server/clientDelight";
 import type { ClientStage } from "@/server/types";
 import { getTradingCompany } from "@/server/tradingCompanies";

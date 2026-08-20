@@ -12,7 +12,7 @@ _No exported symbols (side-effect / internal module)._
 - [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](../src/built-ins/modules/agency-finance/src/lib/tenancy.md)
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../src/built-ins/modules/agency-finance/src/server/foundationAdapter.md)
 - [`src/built-ins/modules/agency-finance/src/server/ports.ts`](../src/built-ins/modules/agency-finance/src/server/ports.md)
-- [`src/lib/clientContracts.ts`](../src/lib/clientContracts.md)
+- [`src/lib/clients/clientContracts.ts`](../src/lib/clients/clientContracts.md)
 - [`src/lib/server/closeDeal.ts`](../src/lib/server/closeDeal.md)
 
 ## Used by

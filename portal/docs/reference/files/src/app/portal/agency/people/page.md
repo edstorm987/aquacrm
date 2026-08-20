@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (5)
 
 - [`src/app/portal/agency/people/_PeopleCommand.tsx`](./_PeopleCommand.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/people.ts`](../../../../server/people.md)
 - [`src/server/staffCapacity.ts`](../../../../server/staffCapacity.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)

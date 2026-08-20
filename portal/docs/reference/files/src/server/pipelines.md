@@ -49,8 +49,8 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/pipelines/[slug]/page.tsx`](../app/portal/agency/pipelines/[slug]/page.md)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../built-ins/modules/leads-pipeline/src/api/handlers.md)
 - [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](../built-ins/modules/leads-pipeline/src/pages/CampaignsPage.md)
-- [`src/lib/server/commandIntelligence.ts`](../lib/server/commandIntelligence.md)
+- [`src/lib/server/auth/showcaseMode.ts`](../lib/server/auth/showcaseMode.md)
+- [`src/lib/server/commandIntelligenceService.ts`](../lib/server/commandIntelligenceService.md)
 - [`src/lib/server/leadsPipelinePorts.ts`](../lib/server/leadsPipelinePorts.md)
-- [`src/lib/server/showcaseMode.ts`](../lib/server/showcaseMode.md)
 - [`src/server/agencyBootstrap.ts`](./agencyBootstrap.md)
 

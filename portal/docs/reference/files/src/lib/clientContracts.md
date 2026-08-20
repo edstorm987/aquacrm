@@ -1,4 +1,4 @@
-# `src/lib/clientContracts.ts`
+# `src/lib/clients/clientContracts.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -23,10 +23,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
 - [`src/app/portal/customer/_CustomerPortalActions.tsx`](../app/portal/customer/_CustomerPortalActions.md)
 - [`src/app/portal/customer/_portalData.ts`](../app/portal/customer/_portalData.md)
-- [`src/lib/clientAquaHealth.ts`](./clientAquaHealth.md)
-- [`src/lib/server/clientRadar.ts`](./server/clientRadar.md)
+- [`src/lib/clients/clientAquaHealth.ts`](./clientAquaHealth.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./server/clientRadar.md)
 - [`src/lib/server/closeDeal.ts`](./server/closeDeal.md)
-- [`src/lib/server/operationalAlerts.ts`](./server/operationalAlerts.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./server/operationalAlerts.md)
 - [`src/lib/server/resolutionPlans.ts`](./server/resolutionPlans.md)
 - [`src/server/contractTemplates.ts`](../server/contractTemplates.md)
 

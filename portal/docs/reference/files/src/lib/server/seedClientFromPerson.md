@@ -1,4 +1,4 @@
-# `src/lib/server/seedClientFromPerson.ts`
+# `src/lib/server/seeds/seedClientFromPerson.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/server/clientRecordLedger.ts`](./clientRecordLedger.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](./clientRecordLedger.md)
 - [`src/server/persons.ts`](../../server/persons.md)
 
 ## Used by (2)

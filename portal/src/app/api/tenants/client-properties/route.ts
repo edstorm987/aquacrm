@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
-import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/publicUrl";
+import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/public/publicUrl";
 
 export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
 export type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived";

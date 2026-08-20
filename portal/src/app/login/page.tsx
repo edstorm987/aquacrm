@@ -2,10 +2,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 // Renamed to avoid clashing with the route-level `dynamic` const below.
 import nextDynamic from "next/dynamic";
-import { isGoogleOAuthConfigured } from "@/lib/server/oauthGoogle";
-import { getCurrentUser, getSession } from "@/lib/server/auth";
-import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
-import { resolveAuthBrand, type ResolvedAuthBrand } from "@/lib/authBrand";
+import { isGoogleOAuthConfigured } from "@/lib/server/integrations/oauthGoogle";
+import { getCurrentUser, getSession } from "@/lib/server/auth/auth";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
+import { resolveAuthBrand, type ResolvedAuthBrand } from "@/lib/brands/authBrand";
 import { ensureHydrated } from "@/server/storage";
 import { listAgencies } from "@/server/tenants";
 import type { Metadata } from "next";
@@ -17,7 +17,7 @@ import type { Metadata } from "next";
 // The guard is unchanged and load-bearing: `resolveAuthBrand` falls back to the
 // neutral AquaCRM front for anything it does not recognise, so a stale, guessed
 // or hostile `?brand=` can never paint this page with an unrelated client's
-// name. See `src/lib/authBrand.ts`.
+// name. See `src/lib/brands/authBrand.ts`.
 async function brandFor(value: string | undefined): Promise<ResolvedAuthBrand> {
   await ensureHydrated();
   return resolveAuthBrand(value, listAgencies());

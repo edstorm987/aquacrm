@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clientWorkspaceHref, resolveClientWorkspaceTab } from "../src/lib/clientWorkspace";
+import { clientWorkspaceHref, resolveClientWorkspaceTab } from "../src/lib/clients/clientWorkspace";
 
 test("legacy client workspace tabs resolve into canonical lenses", () => {
   assert.equal(resolveClientWorkspaceTab("fulfilment"), "delivery");

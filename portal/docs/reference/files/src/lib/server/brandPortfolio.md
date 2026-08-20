@@ -1,4 +1,4 @@
-# `src/lib/server/brandPortfolio.ts`
+# `src/lib/server/brandPortfolioService.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -13,8 +13,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../../built-ins/modules/agency-finance/src/server/foundationAdapter.md)
 - [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](../../built-ins/runtime/foundation-adapters/agencyFinanceFoundation.md)
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
-- [`src/lib/brandPortfolio.ts`](../brandPortfolio.md)
-- [`src/lib/clientTelemetry.ts`](../clientTelemetry.md)
+- [`src/lib/brands/brandPortfolio.ts`](../brandPortfolio.md)
+- [`src/lib/clients/clientTelemetry.ts`](../clientTelemetry.md)
 - [`src/lib/server/pluginStorage.ts`](./pluginStorage.md)
 - [`src/server/agencyProducts.ts`](../../server/agencyProducts.md)
 - [`src/server/clientMilestones.ts`](../../server/clientMilestones.md)
@@ -27,5 +27,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Used by (2)
 
 - [`src/app/portal/agency/page.tsx`](../../app/portal/agency/page.md)
-- [`src/lib/server/commandIntelligence.ts`](./commandIntelligence.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./commandIntelligence.md)
 

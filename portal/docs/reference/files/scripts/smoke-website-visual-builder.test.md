@@ -6,8 +6,9 @@ _No file-level doc-comment. Purpose inferred from its path (Scripts — scripts/
 
 _No exported symbols (side-effect / internal module)._
 
-## Depends on (3)
+## Depends on (4)
 
+- [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../src/built-ins/modules/website-editor/src/components/blockRegistry.md)
 - [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](../src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.md)
 - [`src/built-ins/modules/website-editor/src/types/block.ts`](../src/built-ins/modules/website-editor/src/types/block.md)
 - [`src/lib/server/pluginRequestScope.ts`](../src/lib/server/pluginRequestScope.md)

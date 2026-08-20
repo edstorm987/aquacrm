@@ -360,14 +360,14 @@ describe("work put off keeps a record of it", () => {
   // Off-system work is the case that needs this. Nothing in Aqua carries the
   // job out, so the only pressure to act is knowing how long you have not —
   // and a parked item otherwise returns looking identical to a new one.
-  let prefs: typeof import("../src/lib/server/operationalAlertPreferences");
+  let prefs: typeof import("../src/lib/server/inbox/operationalAlertPreferences");
   const ALERT = {
     id: "invoice:cli_1:INV-9", title: "Invoice overdue", detail: "£400 outstanding",
     href: "/portal/agency/agency-finance/invoices", severity: "warning" as const,
     category: "money" as const, occurredAt: 1_000, kind: "off-system" as const,
   };
 
-  before(async () => { prefs = await import("../src/lib/server/operationalAlertPreferences"); });
+  before(async () => { prefs = await import("../src/lib/server/inbox/operationalAlertPreferences"); });
 
   beforeEach(() => {
     mutate(state => {
@@ -464,9 +464,9 @@ describe("Radar evidence finds the history it already has", () => {
   // 3,090 checks while 1,505 more had history sitting in the vault that
   // nothing found. The symptom was Evidence showing figures with no graph on
   // almost every Radar alert — the one thing those alerts exist to show.
-  let vault: typeof import("../src/lib/server/radarEvidenceVault");
+  let vault: typeof import("../src/lib/server/radar/radarEvidenceVault");
 
-  before(async () => { vault = await import("../src/lib/server/radarEvidenceVault"); });
+  before(async () => { vault = await import("../src/lib/server/radar/radarEvidenceVault"); });
 
   beforeEach(() => {
     mutate(state => {
@@ -525,19 +525,19 @@ describe("work put off repeatedly breaks out of the reserve", () => {
     // The shield caps the focus window, which is what makes it useful — but a
     // job put off ten times would otherwise sit in the reserve forever,
     // hidden by the very act of deferring it.
-    const { promoteForDeferrals } = await import("../src/lib/attentionProtection");
+    const { promoteForDeferrals } = await import("../src/lib/intelligence/attentionProtection");
     assert.equal(promoteForDeferrals(2, 3), 1);
     assert.equal(promoteForDeferrals(2, 9), 1, "the count must not keep climbing");
   });
 
   it("leaves work below the threshold alone", async () => {
-    const { promoteForDeferrals } = await import("../src/lib/attentionProtection");
+    const { promoteForDeferrals } = await import("../src/lib/intelligence/attentionProtection");
     assert.equal(promoteForDeferrals(2, undefined), 2);
     assert.equal(promoteForDeferrals(2, 2), 2);
   });
 
   it("never lets a deferred job outrank a live emergency", async () => {
-    const { promoteForDeferrals } = await import("../src/lib/attentionProtection");
+    const { promoteForDeferrals } = await import("../src/lib/intelligence/attentionProtection");
     assert.equal(promoteForDeferrals(0, 50), 0);
   });
 });

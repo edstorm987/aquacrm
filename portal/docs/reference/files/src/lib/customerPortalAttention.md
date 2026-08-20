@@ -1,4 +1,4 @@
-# `src/lib/customerPortalAttention.ts`
+# `src/lib/portal/customerPortalAttention.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

@@ -100,8 +100,8 @@ Codex workers in ONE uncommitted tree, two agents in the same file destroys work
 no git to recover from. Before assigning this plan, check these paths against every other
 plan in flight._
 
-- `src/lib/server/metaMessaging.ts`
-- `src/lib/server/integrationConnections.ts`
+- `src/lib/server/integrations/metaMessaging.ts`
+- `src/lib/server/integrations/integrationConnections.ts`
 - `src/lib/integrations/catalog.ts`
 - `src/app/api/webhooks/meta/route.ts`
 - `src/app/api/portal/inbox/meta/start/route.ts`
@@ -110,6 +110,6 @@ plan in flight._
 - `src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx`
 - `src/app/portal/agency/inbox/page.tsx`
 - `src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`
-- `src/lib/server/inboxService.ts`
+- `src/lib/server/inbox/inboxService.ts`
 - `scripts/smoke-meta-master-inbox.test.ts`
 - `docs/development/plans/meta-inbox-connect.md`

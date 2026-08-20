@@ -18,7 +18,7 @@
 - `type ExpenseRecurrence`
 - `interface ExpenseAttachment (8 members)`
 - `interface Expense (33 members)`
-- `interface CreateExpenseInput (24 members)`
+- `interface CreateExpenseInput (25 members)`
 - `interface UpdateExpensePatch (23 members)`
 - `type ExpenseCategoryStatus`
 - `interface ExpenseCategory (8 members)`
@@ -105,5 +105,5 @@
 - [`src/built-ins/modules/agency-finance/src/server/pnl.ts`](../server/pnl.md)
 - [`src/built-ins/modules/agency-finance/src/server/reports.ts`](../server/reports.md)
 - [`src/lib/server/closeDeal.ts`](../../../../../lib/server/closeDeal.md)
-- [`src/lib/server/financeCurrency.ts`](../../../../../lib/server/financeCurrency.md)
+- [`src/lib/server/finance/financeCurrency.ts`](../../../../../lib/server/finance/financeCurrency.md)
 

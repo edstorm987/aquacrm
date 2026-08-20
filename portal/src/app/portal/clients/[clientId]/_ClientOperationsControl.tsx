@@ -8,8 +8,8 @@ import {
   CLIENT_OPERATION_STATES,
   clientOperationStateLabel,
   type ClientOperationsBrief,
-} from "@/lib/clientOperations";
-import { dateInputValue } from "@/lib/formatDateTime";
+} from "@/lib/clients/clientOperations";
+import { dateInputValue } from "@/lib/shared/formatDateTime";
 
 export interface ClientOperationOwnerOption {
   id: string;

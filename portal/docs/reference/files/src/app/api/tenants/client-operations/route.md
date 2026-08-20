@@ -10,10 +10,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (11)
 
-- [`src/lib/clientOperations.ts`](../../../../lib/clientOperations.md)
-- [`src/lib/clientRelationshipRecord.ts`](../../../../lib/clientRelationshipRecord.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/clients/clientOperations.ts`](../../../../lib/clients/clientOperations.md)
+- [`src/lib/clients/clientRelationshipRecord.ts`](../../../../lib/clients/clientRelationshipRecord.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/people.ts`](../../../../server/people.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)

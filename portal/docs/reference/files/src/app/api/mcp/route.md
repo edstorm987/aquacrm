@@ -12,8 +12,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (3)
 
-- [`src/lib/server/externalAssistantApi.ts`](../../../lib/server/externalAssistantApi.md)
-- [`src/lib/server/externalAssistantMcp.ts`](../../../lib/server/externalAssistantMcp.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](../../../lib/server/assistants/externalAssistantApi.md)
+- [`src/lib/server/assistants/externalAssistantMcp.ts`](../../../lib/server/assistants/externalAssistantMcp.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 
 ## Used by

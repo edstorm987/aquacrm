@@ -12,8 +12,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (3)
 
 - [`src/lib/chrome/sidebarLayout.ts`](../chrome/sidebarLayout.md)
-- [`src/lib/operationalAttention.ts`](../operationalAttention.md)
-- [`src/lib/server/operationalAlerts.ts`](./operationalAlerts.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../intelligence/operationalAttention.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./inbox/operationalAlerts.md)
 
 ## Used by (2)
 

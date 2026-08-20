@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/businessRadar.ts`](../src/lib/businessRadar.md)
-- [`src/lib/businessRecommendedActions.ts`](../src/lib/businessRecommendedActions.md)
+- [`src/lib/intelligence/businessRecommendedActions.ts`](../src/lib/intelligence/businessRecommendedActions.md)
+- [`src/lib/radar/businessRadar.ts`](../src/lib/radar/businessRadar.md)
 
 ## Used by
 

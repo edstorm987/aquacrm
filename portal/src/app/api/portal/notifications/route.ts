@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-import type { OperationalAlertAction } from "@/lib/operationalAttention";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
-import { listOperationalAlertViews, setOperationalAlertPreference } from "@/lib/server/operationalAlertPreferences";
+import type { OperationalAlertAction } from "@/lib/intelligence/operationalAttention";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { listOperationalAlertViews, setOperationalAlertPreference } from "@/lib/server/inbox/operationalAlertPreferences";
 import { recordCompletedAction } from "@/server/completedActions";
-import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

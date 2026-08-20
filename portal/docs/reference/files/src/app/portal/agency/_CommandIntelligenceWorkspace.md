@@ -15,9 +15,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (5)
 
 - [`src/app/portal/agency/_CommercialIntelligenceWorkspace.tsx`](./_CommercialIntelligenceWorkspace.md)
-- [`src/lib/commandIntelligence.ts`](../../../lib/commandIntelligence.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
-- [`src/lib/kpiRegistry.ts`](../../../lib/kpiRegistry.md)
+- [`src/lib/intelligence/commandIntelligence.ts`](../../../lib/intelligence/commandIntelligence.md)
+- [`src/lib/performance/kpiRegistry.ts`](../../../lib/performance/kpiRegistry.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
 ## Used by (2)

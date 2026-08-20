@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (4)
 
-- [`src/lib/hiringCapacity.ts`](../lib/hiringCapacity.md)
+- [`src/lib/performance/hiringCapacity.ts`](../lib/performance/hiringCapacity.md)
 - [`src/server/activity.ts`](./activity.md)
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
@@ -23,7 +23,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
 - [`src/app/portal/team/_data.ts`](../app/portal/team/_data.md)
 - [`src/built-ins/modules/agency-finance/src/pages/PlanningPage.tsx`](../built-ins/modules/agency-finance/src/pages/PlanningPage.md)
-- [`src/lib/server/brandPortfolio.ts`](../lib/server/brandPortfolio.md)
-- [`src/lib/server/companyHealthSnapshot.ts`](../lib/server/companyHealthSnapshot.md)
-- [`src/lib/server/showcaseMode.ts`](../lib/server/showcaseMode.md)
+- [`src/lib/server/auth/showcaseMode.ts`](../lib/server/auth/showcaseMode.md)
+- [`src/lib/server/brandPortfolioService.ts`](../lib/server/brandPortfolioService.md)
+- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../lib/server/kpi/companyHealthSnapshot.md)
 

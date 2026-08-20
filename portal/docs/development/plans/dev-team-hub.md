@@ -2,7 +2,9 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · reshapes [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
 
-**Status: ⤳ SUPERSEDED by [dev-team-portal.md](dev-team-portal.md)** (which expanded this hub into the full internal portal and was BUILT 2026-08-19). Kept for its reuse audit. A reshape + consolidation, not a from-scratch feature —
+**Status: ⤳ SUPERSEDED by [dev-team-portal.md](dev-team-portal.md)** (which expanded this hub into the full internal portal and was BUILT 2026-08-19). Kept for its reuse audit. **Nothing here is open** — the three browser bugs it carried are all fixed (verified in source 2026-08-20, see below), so this doc is a record, not a lane.
+
+> 📌 **Why this has NOT been moved to `plans/archive/`.** It was archived on 2026-08-20 and moved straight back: `scripts/smoke-dev-tasks-parse.test.ts:58` pins `dev-team-hub#3` as an existing, not-done task, and `scanTasks` reads only the top level of `plans/`, so archiving this file turns the suite red. Moving it needs that test updated in the same change — source, not docs. **Commander's call.** A reshape + consolidation, not a from-scratch feature —
 most of the substrate is already built. Ed's ask (2026-08-19): stop Dev Mode being
 scattered (a topbar toggle + cinematic POV hops + Dev Docs buried in the settings
 footer). Instead, **pressing Dev Mode drops you into a dedicated "Dev Team" workspace**
@@ -59,16 +61,23 @@ importable code (OB is a separate, simpler cookie-token auth model; AquaCRM re-m
   (`createDevSessionToken`, `getPortalSession().isDev`) + **`lib/dev-workspace-mode.ts`** — the
   "dev workspace mode" precedent for a gated internal surface.
 
-## The 3 open browser bugs to FIX in this reshape (from dev-mode-demo-profiles / state.md)
-1. 🔴 **"View as demo client" hop is broken** — plays the cinematic but stays the owner, and the
-   **overlay STICKS and blocks the top bar** (hard-reload to escape). Keeping the cinematic
-   (Ed's call) means this must be genuinely fixed — likely the React-19 strict-mode
-   one-shot-effect trap ([[aquacrm-react19-strictmode-oneshot-effect]]): split the flag-consume
-   from the timer, and `pointer-events:none` on the overlay.
-2. 🟠 **Demo-staff dead-end** — lands on a bare `/portal/account`, no switcher/Exit reachable.
-   In the hub the Inspection sidebar (Exit + profile list) is always present, which structurally
-   fixes this — verify it does.
-3. 🟡 **Load-in caption hardcoded "owner view"** — make it name the persona being entered.
+## The 3 browser bugs this reshape had to fix — ✅ ALL THREE CLOSED (verified in source 2026-08-20)
+
+_This section used to read as open work and is the reason this plan still looked live. It is not._
+
+1. ✅ **"View as demo client" hop / sticking overlay** — fixed exactly as predicted. The one-shot
+   flag consume and the dismissal timer are now **two separate effects**, the timer driven off
+   the stable `persona` state rather than the one-shot
+   (`src/components/chrome/DevModeLoadIn.tsx:85` and `:99`, whose own comment names the trap), and
+   the overlay carries `pointer-events: none` as a fail-safe
+   (`src/app/globals.css:3098–3100` — "it can NEVER intercept the switcher / Exit even if it
+   somehow lingers").
+2. ✅ **Demo-staff dead-end** — structurally fixed, and not by the hub. `DevModeSwitcher` is mounted
+   at **portal level** (`src/app/portal/layout.tsx:43`), so the persona list *and* the Exit control
+   (`mm-dev-mode-switcher-exit`, `DevModeSwitcher.tsx:85`) are present on a bare `/portal/account`.
+3. ✅ **Load-in caption** — no longer hardcoded. It names the persona being entered
+   (`DevModeLoadIn.tsx:66` → `` `${persona.label} view` ``, and the `aria-label` at `:120`), and
+   workspace entry gets its own honest copy rather than borrowing the persona wording.
 
 ## Phases (simple-first)
 1. ✅ **Hub shell + entry.** A new founder-only, `canUseDevMode()`-gated **Dev Team** workspace
@@ -104,7 +113,7 @@ plan in flight._
 - `src/app/portal/dev-team/layout.tsx`
 - `src/app/api/auth/dev-mode/route.ts`
 - `src/lib/chrome/sidebarLayout.ts`
-- `src/lib/server/devDocs.ts`
+- `src/lib/server/dev/devDocs.ts`
 
 ## Done when (runtime-verified)
 On a local dev server: owner flips **Dev Mode** → **cinematic load-in** → lands in the **Dev Team

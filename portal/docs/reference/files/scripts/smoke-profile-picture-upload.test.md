@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/avatarDataUrl.ts`](../src/lib/avatarDataUrl.md)
+- [`src/lib/shared/avatarDataUrl.ts`](../src/lib/shared/avatarDataUrl.md)
 
 ## Used by
 

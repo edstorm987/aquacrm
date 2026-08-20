@@ -1,4 +1,4 @@
-# `src/lib/server/nonceStore.ts`
+# `src/lib/server/auth/nonceStore.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -16,5 +16,5 @@
 
 - [`scripts/smoke-durable-nonce-store.test.ts`](../../../scripts/smoke-durable-nonce-store.test.md)
 - [`scripts/smoke-password-reset.test.ts`](../../../scripts/smoke-password-reset.test.md)
-- [`src/lib/server/magicLink.ts`](./magicLink.md)
+- [`src/lib/server/auth/magicLink.ts`](./magicLink.md)
 

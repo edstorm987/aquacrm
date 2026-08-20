@@ -64,7 +64,12 @@ const PORTAL_BLOCK_TYPES = [
  * client can see, and the entry must say why that is acceptable. An entry with
  * no reason is a bug someone hid.
  */
-const INTENDED_DIFFERENCES: Array<{ key: string; reason: string }> = [];
+const INTENDED_DIFFERENCES: Array<{ key: string; reason: string }> = [
+  // 2026-08-20 Aqua Engine rename (Ed): the media block's empty-state hint said
+  // "in the portal editor"; the editor's one name is now Aqua Engine, so the
+  // client-visible copy changed with it. Baseline re-captured for this reason.
+  { key: "media", reason: "empty-state hint copy: 'portal editor' → 'Aqua Engine'" },
+];
 
 interface Capture {
   blocks: Record<string, Record<string, unknown>>;

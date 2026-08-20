@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "../src/lib/publicUrl";
+import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "../src/lib/public/publicUrl";
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");

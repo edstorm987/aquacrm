@@ -231,7 +231,7 @@ Rotate or revoke a key immediately if it is ever shared accidentally.
 
 ---
 
-*Source of truth for this page: `src/lib/server/externalAssistantApi.ts`,
+*Source of truth for this page: `src/lib/server/assistants/externalAssistantApi.ts`,
 `externalAssistantKeys.ts`, `externalAssistantMcp.ts`,
 `externalAssistantProposals.ts`, `src/app/api/mcp/route.ts` and
 `src/app/api/v1/**`. The deep dossier is

@@ -1,4 +1,4 @@
-# `src/lib/server/customerPortalProvisioning.ts`
+# `src/lib/server/clients/customerPortalProvisioning.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/portalProducts.ts`](../portalProducts.md)
-- [`src/lib/server/clientTelemetry.ts`](./clientTelemetry.md)
+- [`src/lib/portal/portalProducts.ts`](../portalProducts.md)
+- [`src/lib/server/clients/clientTelemetryService.ts`](./clientTelemetry.md)
 
 ## Used by (2)
 

@@ -7,7 +7,7 @@ import {
   requireExternalAssistantModule,
   requireExternalAssistantPermission,
   ExternalAssistantApiError,
-} from "@/lib/server/externalAssistantApi";
+} from "@/lib/server/assistants/externalAssistantApi";
 import { ensureHydrated } from "@/server/storage";
 
 export async function GET(

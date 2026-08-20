@@ -183,7 +183,7 @@ test("the marketing workspace consumes the spine instead of assuming its numbers
   const spine = readFileSync(new URL("../src/lib/server/marketingIntelligence.ts", import.meta.url), "utf8");
   assert.match(spine, /getCachedBusinessIssueRadar/, "it reads the cached radar rather than rebuilding it");
   assert.ok(!/buildBusinessIssueRadar\(/.test(spine), "the spine must never build or edit the radar engine");
-  assert.match(spine, /import \{ describeCommandKpis[^}]*\} from "@\/lib\/kpiRegistry"/, "the KPI registry is consumed, not re-implemented");
+  assert.match(spine, /import \{ describeCommandKpis[^}]*\} from "@\/lib\/performance\/kpiRegistry"/, "the KPI registry is consumed, not re-implemented");
   assert.ok(!/function describeCommandKpi\b/.test(spine), "no local copy of the registry projection");
   assert.ok(!/applyKpiTargetOverride|clearKpiTargetOverride/.test(spine), "marketing reads KPI targets, it never writes them");
 });

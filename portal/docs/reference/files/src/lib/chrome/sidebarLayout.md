@@ -16,9 +16,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/built-ins/runtime/_types.ts`](../../built-ins/runtime/_types.md)
 - [`src/server/types.ts`](../../server/types.md)
 
-## Used by (9)
+## Used by (10)
 
 - [`scripts/smoke-dev-docs.test.ts`](../../../scripts/smoke-dev-docs.test.md)
+- [`scripts/smoke-nav-audit.test.ts`](../../../scripts/smoke-nav-audit.test.md)
 - [`src/app/portal/agency/layout.tsx`](../../app/portal/agency/layout.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 - [`src/app/portal/dev-team/layout.tsx`](../../app/portal/dev-team/layout.md)

@@ -12,7 +12,7 @@
 ## Depends on (2)
 
 - [`src/app/login/forgot/ForgotForm.tsx`](./ForgotForm.md)
-- [`src/lib/authBrand.ts`](../../../lib/authBrand.md)
+- [`src/lib/brands/authBrand.ts`](../../../lib/brands/authBrand.md)
 
 ## Used by
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import {
   createCommandCalendarEntry,
   deleteCommandCalendarEntry,
@@ -10,8 +10,8 @@ import {
 } from "@/server/commandCalendar";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import { invalidateBusinessIssueRadarCache } from "@/lib/server/businessIssueRadar";
-import { invalidateRadarSourceInspection } from "@/lib/server/radarSourceInspection";
+import { invalidateBusinessIssueRadarCache } from "@/lib/server/radar/businessIssueRadar";
+import { invalidateRadarSourceInspection } from "@/lib/server/radar/radarSourceInspection";
 
 function invalidateCalendarReadModels(agencyId: string) {
   invalidateBusinessIssueRadarCache(agencyId);

@@ -1,4 +1,4 @@
-# `src/lib/server/vercelDomain.impl.ts`
+# `src/lib/server/integrations/vercelDomain.impl.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -21,5 +21,5 @@
 ## Used by (2)
 
 - [`scripts/smoke-vercel-domain.test.ts`](../../../scripts/smoke-vercel-domain.test.md)
-- [`src/lib/server/vercelDomain.ts`](./vercelDomain.md)
+- [`src/lib/server/integrations/vercelDomain.ts`](./vercelDomain.md)
 

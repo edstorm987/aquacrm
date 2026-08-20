@@ -5,7 +5,7 @@ import { getState, mutate } from "./storage";
 import { logActivity } from "./activity";
 import type {
   AgencyTaskChecklistItem, AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus } from "./types";
-import type { BusinessIssueRadar } from "@/lib/businessRadar";
+import type { BusinessIssueRadar } from "@/lib/radar/businessRadar";
 import { builtInTemplateForSource } from "@/lib/tasks/taskTemplates";
 
 export interface CreateAgencyTaskInput {

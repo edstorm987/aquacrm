@@ -11,7 +11,7 @@
 
 ## Depends on (1)
 
-- [`src/lib/clientWorkspace.ts`](../../../../lib/clientWorkspace.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
 
 ## Used by (3)
 

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getSessionFromRequest } from "@/lib/server/auth";
-import { effectiveRole } from "@/lib/server/effectiveRole";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
+import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { applyPhaseToClient } from "@/server/phaseApplier";
 
 // POST /api/portal/phases/apply — apply a phase preset to a client.

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole, getActiveAgencyId } from "@/lib/server/auth";
+import { requireRole, getActiveAgencyId } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { effectiveRole } from "@/lib/server/effectiveRole";
+import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { getPhase } from "@/server/phases";
 import { PhaseEditorForm } from "./_PhaseEditorForm";
 

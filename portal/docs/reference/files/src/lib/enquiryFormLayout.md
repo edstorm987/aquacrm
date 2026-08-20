@@ -1,4 +1,4 @@
-# `src/lib/enquiryFormLayout.ts`
+# `src/lib/enquiries/enquiryFormLayout.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

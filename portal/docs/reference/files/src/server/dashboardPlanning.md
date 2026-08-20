@@ -39,5 +39,5 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
 - [`src/app/portal/team/_TeamWorkspace.tsx`](../app/portal/team/_TeamWorkspace.md)
 - [`src/app/portal/team/_data.ts`](../app/portal/team/_data.md)
-- [`src/lib/server/advisorContext.ts`](../lib/server/advisorContext.md)
+- [`src/lib/server/assistants/advisorContext.ts`](../lib/server/assistants/advisorContext.md)
 

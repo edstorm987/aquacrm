@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import type { RadarEvidenceSeriesSummary } from "../src/lib/businessRadar";
-import type { CommandIntelligenceSnapshot, CommandKpi, CommercialFormulaMetric } from "../src/lib/commandIntelligence";
+import type { RadarEvidenceSeriesSummary } from "../src/lib/radar/businessRadar";
+import type { CommandIntelligenceSnapshot, CommandKpi, CommercialFormulaMetric } from "../src/lib/intelligence/commandIntelligence";
 import type { KpiTargetsConfig } from "../src/server/types";
 import {
   applyKpiTargetOverride,
@@ -18,7 +18,7 @@ import {
   resolveKpiTarget,
   searchKpiDescriptors,
   suggestKpiTarget,
-} from "../src/lib/kpiRegistry";
+} from "../src/lib/performance/kpiRegistry";
 
 /** A fully-formed command KPI fixture; override just the fields a case cares about. */
 function makeKpi(overrides: Partial<CommandKpi> = {}): CommandKpi {

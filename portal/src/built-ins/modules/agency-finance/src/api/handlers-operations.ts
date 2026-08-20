@@ -9,7 +9,7 @@ import type {
   UpdateFinanceObligationPatch,
 } from "../lib/domain";
 import { containerFor } from "../server/foundationAdapter";
-import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

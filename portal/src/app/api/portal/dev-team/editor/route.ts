@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { runEdits } from "@/lib/editing/engine";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { appConfigEditAdapter, prepareAppConfigIntents } from "@/lib/server/editing/appConfigAdapter";
 import { getAgency } from "@/server/tenants";
 import { ensureHydrated } from "@/server/storage";

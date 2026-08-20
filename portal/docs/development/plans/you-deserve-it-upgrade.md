@@ -95,10 +95,10 @@ plan in flight._
 - `src/app/portal/agency/you-deserve-it/page.tsx`
 - `src/app/portal/agency/you-deserve-it/_YouDeserveItWorkspace.tsx`
 - `src/app/api/tenants/client-delight/route.ts`
-- `src/lib/server/clientDelightExpense.ts`
+- `src/lib/server/clients/clientDelightExpense.ts`
 - `scripts/smoke-finance-delight-expense.test.ts`
 - `src/server/persons.ts`
-- `src/lib/server/operationalAlerts.ts`
+- `src/lib/server/inbox/operationalAlerts.ts`
 - `src/app/portal/clients/[clientId]/_tabs.ts`
 - `src/app/portal/clients/[clientId]/_ClientRecordWorkspace.tsx`
 - `docs/development/plans/you-deserve-it-upgrade.md`

@@ -1,4 +1,4 @@
-# `src/lib/clientWorkspace.ts`
+# `src/lib/clients/clientWorkspace.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -32,11 +32,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/[clientId]/layout.tsx`](../app/portal/clients/[clientId]/layout.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
 - [`src/components/chrome/ClientRadarQuickLookButton.tsx`](../components/chrome/ClientRadarQuickLookButton.md)
-- [`src/lib/server/advisorSkillContext.ts`](./server/advisorSkillContext.md)
-- [`src/lib/server/commandIntelligence.ts`](./server/commandIntelligence.md)
-- [`src/lib/server/externalAssistantApi.ts`](./server/externalAssistantApi.md)
-- [`src/lib/server/operationalAlerts.ts`](./server/operationalAlerts.md)
-- [`src/lib/server/radarSyntheticProbes.ts`](./server/radarSyntheticProbes.md)
-- [`src/lib/server/radarTelemetry.ts`](./server/radarTelemetry.md)
+- [`src/lib/server/assistants/advisorSkillContext.ts`](./server/advisorSkillContext.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./server/commandIntelligence.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](./server/externalAssistantApi.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./server/operationalAlerts.md)
+- [`src/lib/server/radar/radarSyntheticProbes.ts`](./server/radarSyntheticProbes.md)
+- [`src/lib/server/radar/radarTelemetry.ts`](./server/radarTelemetry.md)
 - [`src/lib/server/resolutionPlans.ts`](./server/resolutionPlans.md)
 

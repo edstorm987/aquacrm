@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (3)
 
-- [`src/lib/portalProductModules.ts`](../src/lib/portalProductModules.md)
-- [`src/lib/productAssignments.ts`](../src/lib/productAssignments.md)
+- [`src/lib/portal/portalProductModules.ts`](../src/lib/portal/portalProductModules.md)
+- [`src/lib/products/productAssignments.ts`](../src/lib/products/productAssignments.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

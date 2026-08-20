@@ -926,7 +926,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
         <section className="mt-4 border-b border-black/10 pb-4">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-black/80">Extra details</h3>
-            <p className="mt-0.5 text-xs text-black/45">Fields managed in Portals → Portal editor.</p>
+            <p className="mt-0.5 text-xs text-black/45">Fields managed in Portals → Aqua Engine.</p>
           </div>
           {Array.from(new Set(customFields.map(field => field.section))).map(section => (
             <div key={section} className="mb-4 last:mb-0">

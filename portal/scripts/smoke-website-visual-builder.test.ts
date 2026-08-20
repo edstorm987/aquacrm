@@ -19,7 +19,7 @@ import {
 // the plugin package is `"type": "module"` while `src/lib` transpiles to CJS,
 // and the named-export link fails. Every other plugin already has this
 // property (`agency-finance/src/api/handlers-budgets.ts` fails the same way on
-// `@/lib/server/financeCurrency`), and every other test reaches plugin modules
+// `@/lib/server/finance/financeCurrency`), and every other test reaches plugin modules
 // this way. The assertions below are unchanged.
 import {
   BLOCK_REGISTRY,

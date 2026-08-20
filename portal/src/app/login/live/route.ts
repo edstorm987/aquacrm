@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { clearSessionCookie, getSessionFromRequest } from "@/lib/server/auth";
-import { getAuthBrand } from "@/lib/authBrand";
+import { clearSessionCookie, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { getAuthBrand } from "@/lib/brands/authBrand";
 
 export const dynamic = "force-dynamic";
 

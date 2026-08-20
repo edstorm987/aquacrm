@@ -13,7 +13,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/team/_TeamWorkspace.tsx`](../_TeamWorkspace.md)
 - [`src/app/portal/team/_data.ts`](../_data.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/people.ts`](../../../../server/people.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)

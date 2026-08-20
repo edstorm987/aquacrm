@@ -1,4 +1,4 @@
-# `src/lib/server/githubProjectPublisher.ts`
+# `src/lib/server/integrations/githubProjectPublisher.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -16,8 +16,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/server/clientProjectProvisioner.ts`](./clientProjectProvisioner.md)
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
+- [`src/lib/server/clients/clientProjectProvisioner.ts`](./clientProjectProvisioner.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrationConnections.md)
 
 ## Used by (3)
 

@@ -9,9 +9,9 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { formatPortalCopy } from "@/lib/clientPortalDesign";
-import { portalBlockMatchesProducts, portalCustomPage, portalPageBlocks } from "@/lib/clientPortalBuilder";
-import { portalProductModule } from "@/lib/portalProductModules";
+import { formatPortalCopy } from "@/lib/portal/clientPortalDesign";
+import { portalBlockMatchesProducts, portalCustomPage, portalPageBlocks } from "@/lib/portal/clientPortalBuilder";
+import { portalProductModule } from "@/lib/portal/portalProductModules";
 import type { ClientPortalMediaAspect, ClientPortalPageBlock, ClientPortalSectionId } from "@/server/types";
 import type { CustomerPortalData } from "./_portalData";
 import { PortalBuilderSelectionBridge } from "./_PortalBuilderSelectionBridge";
@@ -118,7 +118,7 @@ function MediaBlock({ block, title, dark }: { block: ClientPortalPageBlock; titl
   const embedUrl = block.type === "video" && valid ? videoEmbedUrl(media?.url ?? "") : undefined;
   return <figure className={`overflow-hidden rounded-md border ${surface}`}>
     <div className={`${frame} grid place-items-center overflow-hidden ${dark ? "bg-black/25" : "bg-black/[0.035]"}`}>
-      {!valid ? <div className={`px-6 text-center text-xs ${dark ? "text-white/35" : "text-black/35"}`}>Add a secure media URL in the portal editor.</div> : block.type === "image" ? <>
+      {!valid ? <div className={`px-6 text-center text-xs ${dark ? "text-white/35" : "text-black/35"}`}>Add a secure media URL in Aqua Engine.</div> : block.type === "image" ? <>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={media?.url} alt={media?.alt || title} className={`h-full w-full ${media?.fit === "contain" ? "object-contain" : "object-cover"}`} />
       </> : embedUrl ? <iframe src={embedUrl} title={media?.alt || title} loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation" referrerPolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="h-full w-full border-0" /> : <video src={media?.url} controls preload="metadata" aria-label={media?.alt || title} className={`h-full w-full ${media?.fit === "contain" ? "object-contain" : "object-cover"}`} />}

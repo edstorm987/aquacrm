@@ -4,7 +4,7 @@ import type { Currency } from "../lib/domain";
 import { normaliseCurrency, SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { summariseAging, type AgingSummary } from "../lib/aging";
 import { FinanceNav } from "../components/FinanceNav";
-import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import Link from "next/link";
 
 function money(cents: number, currency: Currency): string {

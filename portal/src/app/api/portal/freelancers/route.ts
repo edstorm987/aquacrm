@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createFreelancer, listAgencyFreelancers } from "@/server/freelancerAdmin";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";

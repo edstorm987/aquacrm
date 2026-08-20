@@ -1,15 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import {
   acceptPortalConnection,
   getPortalConnection,
   recordPortalConnectionCodeAttempt,
 } from "@/server/portalConnectionStore";
-import { refusalMessage } from "@/lib/server/portalConnections";
+import { refusalMessage } from "@/lib/server/portal/portalConnections";
 import { checkConfirmationCode } from "@/lib/server/connectionConfirmation";
-import { isDevModeEnabled } from "@/lib/server/devMode";
+import { isDevModeEnabled } from "@/lib/server/dev/devMode";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 
 // A ceiling on verify attempts from one source, on top of the per-code lockout.

@@ -8,7 +8,11 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `LiveWorkers()`
 
+## Depends on (1)
+
+- [`src/app/portal/dev-team/working/_liveWorkerView.ts`](./_liveWorkerView.md)
+
 ## Used by (1)
 
-- [`src/app/portal/dev-team/working/page.tsx`](./page.md)
+- [`src/app/portal/dev-team/working/_Board.tsx`](./_Board.md)
 

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { createSopCategory, deleteSopCategory, listSopCategories } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";

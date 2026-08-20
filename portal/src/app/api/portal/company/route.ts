@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { getCompanyProfile, updateCompanyProfile } from "@/server/company";
 import { ensureHydrated } from "@/server/storage";
 import type { CompanyProfile } from "@/server/types";

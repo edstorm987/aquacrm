@@ -16,8 +16,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `async sweepExpired(): Promise<SweepStats>`
 - `clientIpFromHeaders(headers: Headers): string`
 
-## Used by (16)
+## Used by (17)
 
+- [`scripts/smoke-mfa.test.ts`](../../../scripts/smoke-mfa.test.md)
 - [`src/app/api/assistant/route.ts`](../../app/api/assistant/route.md)
 - [`src/app/api/auth/end-customer/signup/route.ts`](../../app/api/auth/end-customer/signup/route.md)
 - [`src/app/api/auth/login/route.ts`](../../app/api/auth/login/route.md)
@@ -33,5 +34,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/public/contact/route.ts`](../../app/api/public/contact/route.md)
 - [`src/app/api/public/form-capture/route.ts`](../../app/api/public/form-capture/route.md)
 - [`src/app/api/telemetry/collect/route.ts`](../../app/api/telemetry/collect/route.md)
-- [`src/lib/server/externalAssistantApi.ts`](./externalAssistantApi.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](./assistants/externalAssistantApi.md)
 

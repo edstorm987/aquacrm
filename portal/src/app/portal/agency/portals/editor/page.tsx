@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, type ClientPortalMode } from "@/server/types";
 import { listClients } from "@/server/tenants";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { ensureProductPortalTemplates, ensureStunningPortalTemplate } from "@/server/clientPortalDesigns";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import { ClientPortalStudio, type PortalStudioClient, type PortalStudioTemplate } from "./_ClientPortalStudio";
 
 export default async function ClientPortalEditorPage({

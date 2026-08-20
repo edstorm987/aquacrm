@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, FilePlus2 } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { PageHeader } from "../../_ui";

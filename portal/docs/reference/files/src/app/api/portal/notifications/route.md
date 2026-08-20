@@ -11,10 +11,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/operationalAttention.ts`](../../../../lib/operationalAttention.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/operationalAlertPreferences.ts`](../../../../lib/server/operationalAlertPreferences.md)
-- [`src/lib/server/operationalAlerts.ts`](../../../../lib/server/operationalAlerts.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../../../../lib/intelligence/operationalAttention.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/inbox/operationalAlertPreferences.ts`](../../../../lib/server/inbox/operationalAlertPreferences.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](../../../../lib/server/inbox/operationalAlerts.md)
 - [`src/server/completedActions.ts`](../../../../server/completedActions.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)

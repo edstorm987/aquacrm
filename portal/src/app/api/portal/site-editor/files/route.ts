@@ -2,13 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { buildFileTree, describeFile, isHiddenPath } from "@/lib/server/siteEditor/fileTree";
 import { hashFile } from "@/lib/server/siteEditor/codeAdapter";
 import { GitHubNotConfigured, readRepoFile, readRepoTree } from "@/lib/server/siteEditor/githubSource";
-import { resolveIntegrationValues } from "@/lib/server/integrationConnections";
+import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 
 /**
  * The repository's files, for code mode.

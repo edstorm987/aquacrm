@@ -16,6 +16,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`scripts/smoke-evidence-steps.test.ts`](../../../scripts/smoke-evidence-steps.test.md)
 - [`src/components/attention/EvidenceCard.tsx`](../../components/attention/EvidenceCard.md)
-- [`src/lib/businessRecommendedActions.ts`](../businessRecommendedActions.md)
+- [`src/lib/intelligence/businessRecommendedActions.ts`](../intelligence/businessRecommendedActions.md)
 - [`src/lib/server/resolutionPlans.ts`](../server/resolutionPlans.md)
 

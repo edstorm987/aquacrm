@@ -2,15 +2,24 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-Everything new/changed in the current push, so nobody hunts for where a feature
+Everything new/changed in **that** push, so nobody hunts for where a feature
 landed. **All uncommitted.** Narrative version:
 [`SESSION-HANDOFF-2026-08-19.md`](../SESSION-HANDOFF-2026-08-19.md).
+
+> ## ⚠ THIS IS A HISTORICAL RECORD, NOT THE CURRENT STATE (banner added 2026-08-20)
+> It describes the session of **18–19 August**. Read the "What got built" list as
+> *what happened that day*, and **do not read "Still open / next" as a to-do
+> list** — four of its five items shipped within 24 hours of it being written.
+> Each is marked inline below with what the source now shows.
+> For where things actually stand, use `docs/development/checklist.md`.
 
 ## What got built (the arc)
 
 1. **Client-software → portal connections.** The `/connect/[id]` flow: dark
-   "cutscene" welcome → sign in → email code (`00000` in dev, **marked to
-   replace with real emailed codes**) → staged loader → portal. Agency side:
+   "cutscene" welcome → sign in → email code → staged loader → portal.
+   *(As written that day the code was a dev stand-in. **Real emailed 6-digit
+   codes shipped since** — `lib/server/connectionConfirmation.ts`; the dev
+   stand-in is `DEV_CONFIRMATION_CODE = "000000"` at `:53`, six zeros, dev-gated.)* Agency side:
    create/copy/reset/delete/disconnect + usage/health, in the client-workspace
    Portal tab. Customer self-disconnect from their account page.
 2. **Customer setup flow** at `/setup`: welcome (+ optional VSL video via
@@ -54,18 +63,23 @@ landed. **All uncommitted.** Narrative version:
 | **De-dup** | `lib/portalProducts.ts` `PORTAL_PHASE_LABELS` |
 | **Tests** | `scripts/smoke-{portal-connections,customer-setup,client-erasure,enquiry-dedupe,website-sources}.test.ts` |
 
-## Still open / next
-1. **The Aqua Tags wizard steps** — detect tag live on a domain + scan/count
-   forms (reuse `lib/server/aquaTagDetection.ts` + `safeSiteFetch.ts`), then
-   repo link → seed into the website editor → link/create a company. Dogfood on
-   Ed's own sites first. Add a Command Centre nav link.
-2. **Aqua Tag as a consent-gated tag manager** (GA/PostHog/Meta Pixel) — memory
-   note `aqua-tag-as-consent-tag-manager`.
-3. **Real emailed connect codes** — retire the `00000` dev bypass
-   (`connectionConfirmation.ts`).
-4. **Plugin-data erasure hooks** — erasure sweeps top-level `clientId` records
-   but not nested plugin data (e.g. leads-pipeline). Needed for fully complete
-   GDPR erasure.
+## Still open / next — **as of 19 Aug. Four of these five have since shipped.**
+1. **The Aqua Tags wizard steps** — ⚠ **partly done.** Steps 1–3 were already live
+   that day; steps 4–6 (repo link → seed into the website editor → link/create a
+   company) are the part still genuinely open.
+2. ~~**Aqua Tag as a consent-gated tag manager**~~ — ✅ **BUILT** (aqua-tag Phase 4,
+   2026-08-19): the consent-gated store + `app/api/public/aqua-tag-config/route.ts`
+   + tag injection (`server/websiteInjections.ts` `INJECTION_PROVIDERS`) + the UI.
+3. ~~**Real emailed connect codes**~~ — ✅ **SHIPPED.** `connectionConfirmation.ts`
+   generates + HMAC-hashes a 6-digit code, 15-min TTL, single-use, 5-attempt
+   lockout. The dev bypass is `DEV_CONFIRMATION_CODE` (`"000000"`, dev-gated) — it
+   was never `00000`.
+4. ~~**Plugin-data erasure hooks**~~ — ✅ **BUILT.** `onEraseClient` is a first-class
+   manifest hook (`built-ins/runtime/_types.ts:502-520`) with a declared default
+   disposition (incl. `"retain"` for legal hold), implemented by leads-pipeline,
+   ecommerce, agency-marketing, email-sender, memberships, affiliates and
+   public-funnel; `server/clientErasure.ts:22-57` drives the sweep. Plan:
+   `docs/development/plans/plugin-data-erasure.md`.
 5. **`scripts/cleanup-junk-enquiries.mjs`** still needs Ed to run it (removes
    ~33 junk live enquiries + stray `@bare-co.test` users; keeps Pranab H + Tom
    Innes; backs up first).

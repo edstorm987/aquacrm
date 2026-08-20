@@ -10,7 +10,7 @@
 
 ## Depends on (4)
 
-- [`src/lib/server/emailVerification.ts`](../../../../lib/server/emailVerification.md)
+- [`src/lib/server/auth/emailVerification.ts`](../../../../lib/server/auth/emailVerification.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/users.ts`](../../../../server/users.md)

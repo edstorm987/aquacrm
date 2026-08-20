@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
-import { cleanClientContacts, type ClientContact, type ClientEntityType } from "@/lib/clientContacts";
+import { cleanClientContacts, type ClientContact, type ClientEntityType } from "@/lib/clients/clientContacts";
 import { logActivity } from "@/server/activity";
 
 type Action = "save" | "delete" | "set-primary" | "set-entity-type";

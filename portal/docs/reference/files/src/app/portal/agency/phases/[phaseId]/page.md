@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (6)
 
 - [`src/app/portal/agency/phases/[phaseId]/_PhaseEditorForm.tsx`](./_PhaseEditorForm.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/effectiveRole.ts`](../../../../../lib/server/effectiveRole.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/effectiveRole.ts`](../../../../../lib/server/auth/effectiveRole.md)
 - [`src/server/phases.ts`](../../../../../server/phases.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../server/types.md)

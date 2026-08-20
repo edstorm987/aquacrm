@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (2)
 
-- [`src/lib/clientPaymentPlans.ts`](../../../../lib/clientPaymentPlans.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
+- [`src/lib/clients/clientPaymentPlans.ts`](../../../../lib/clients/clientPaymentPlans.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (2)
 

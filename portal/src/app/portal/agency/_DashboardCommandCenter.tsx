@@ -49,18 +49,18 @@ import {
   X,
 } from "lucide-react";
 
-import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
+import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
 import {
   ATTENTION_PROTECTION_EVENT,
   ATTENTION_PROTECTION_STORAGE_KEY,
   attentionProtectionEnabled,
   buildProtectedAttentionWindow,
   setAttentionProtectionEnabled,
-} from "@/lib/attentionProtection";
-import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedActions";
-import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus, RadarEvidenceInspectionIndex, RadarRuleLens } from "@/lib/businessRadar";
-import type { CommandIntelligenceSnapshot } from "@/lib/commandIntelligence";
-import { formatUkDate, isoDateTimeValue, timestampFromValue } from "@/lib/formatDateTime";
+} from "@/lib/intelligence/attentionProtection";
+import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessRecommendedActions";
+import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus, RadarEvidenceInspectionIndex, RadarRuleLens } from "@/lib/radar/businessRadar";
+import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandIntelligence";
+import { formatUkDate, isoDateTimeValue, timestampFromValue } from "@/lib/shared/formatDateTime";
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, CommandCalendarEntry, CommandCalendarExternalEvent, CommandCalendarSource, CompanyProfile, DashboardDayPlan, DashboardWeekPlan, DashboardWeeklyEvidenceSnapshot, DashboardWorkSession } from "@/server/types";
 import { ClockOutReviewDialog, type ClockOutReviewDraft } from "./_ClockOutReviewDialog";
 import { CommandCentreKpiTrajectory } from "./_CommandCentreKpiTrajectory";
@@ -68,7 +68,7 @@ import type { BattleTablePayload, BattleTableSection } from "./_BattleTableWorks
 import type { WarRoomIncident } from "./_battleWarRoom";
 import type { IntelligenceView } from "./_CommandIntelligenceWorkspace";
 import { ClientsNeedingAttention } from "./_ClientsNeedingAttention";
-import type { ClientAttentionItem } from "@/lib/server/clientAttention";
+import type { ClientAttentionItem } from "@/lib/server/clients/clientAttention";
 import { RadarPolicyPanel } from "./_RadarPolicyPanel";
 import { InfraHealthPanel } from "./_InfraHealthPanel";
 import { FindingGroupBar } from "./_FindingGroupBar";

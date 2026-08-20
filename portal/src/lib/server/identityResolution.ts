@@ -2,7 +2,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 
-import { cleanClientContacts } from "@/lib/clientContacts";
+import { cleanClientContacts } from "@/lib/clients/clientContacts";
 import { getState, mutate } from "@/server/storage";
 import { getClientForAgency, listClients } from "@/server/tenants";
 import type {

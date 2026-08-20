@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { ForgotForm } from "./ForgotForm";
-import { getAuthBrand } from "@/lib/authBrand";
+import { getAuthBrand } from "@/lib/brands/authBrand";
 import type { Metadata } from "next";
 
 export async function generateMetadata({

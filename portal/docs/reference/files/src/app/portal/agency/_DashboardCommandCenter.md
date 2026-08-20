@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `type DashboardPlanningPayload`
 - `DashboardCommandCenter({ planning, tasks, calendarEntries, externalCalendarEvents, externalCalendarSources, signals, businessRadar, radarEvidence, recommendedActions, advisorConfigured, counts, intelligenceSnapshot, clientsNeedingAttention…`
 
-## Depends on (22)
+## Depends on (23)
 
 - [`src/app/portal/agency/_BattleTableWorkspace.tsx`](./_BattleTableWorkspace.md)
 - [`src/app/portal/agency/_ClientsNeedingAttention.tsx`](./_ClientsNeedingAttention.md)
@@ -25,14 +25,15 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/agency/_InfraHealthPanel.tsx`](./_InfraHealthPanel.md)
 - [`src/app/portal/agency/_RadarPolicyPanel.tsx`](./_RadarPolicyPanel.md)
 - [`src/app/portal/agency/_WeeklyReviewWorkspace.tsx`](./_WeeklyReviewWorkspace.md)
+- [`src/app/portal/agency/_battleWarRoom.ts`](./_battleWarRoom.md)
 - [`src/app/portal/agency/radar/RadarInspectionWorkspace.tsx`](./radar/RadarInspectionWorkspace.md)
-- [`src/lib/advisorActions.ts`](../../../lib/advisorActions.md)
-- [`src/lib/attentionProtection.ts`](../../../lib/attentionProtection.md)
-- [`src/lib/businessRadar.ts`](../../../lib/businessRadar.md)
-- [`src/lib/businessRecommendedActions.ts`](../../../lib/businessRecommendedActions.md)
-- [`src/lib/commandIntelligence.ts`](../../../lib/commandIntelligence.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
-- [`src/lib/server/clientAttention.ts`](../../../lib/server/clientAttention.md)
+- [`src/lib/advisor/advisorActions.ts`](../../../lib/advisor/advisorActions.md)
+- [`src/lib/intelligence/attentionProtection.ts`](../../../lib/intelligence/attentionProtection.md)
+- [`src/lib/intelligence/businessRecommendedActions.ts`](../../../lib/intelligence/businessRecommendedActions.md)
+- [`src/lib/intelligence/commandIntelligence.ts`](../../../lib/intelligence/commandIntelligence.md)
+- [`src/lib/radar/businessRadar.ts`](../../../lib/radar/businessRadar.md)
+- [`src/lib/server/clients/clientAttention.ts`](../../../lib/server/clients/clientAttention.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
 ## Used by (1)

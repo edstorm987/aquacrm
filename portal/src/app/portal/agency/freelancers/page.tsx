@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Users, SlidersHorizontal } from "lucide-react";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { listAgencyFreelancers } from "@/server/freelancerAdmin";
 import { FreelancerManager } from "./_FreelancerManager";

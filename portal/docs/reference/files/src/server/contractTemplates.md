@@ -13,7 +13,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (3)
 
-- [`src/lib/clientContracts.ts`](../lib/clientContracts.md)
+- [`src/lib/clients/clientContracts.ts`](../lib/clients/clientContracts.md)
 - [`src/server/activity.ts`](./activity.md)
 - [`src/server/storage.ts`](./storage.md)
 

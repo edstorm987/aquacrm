@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
@@ -8,9 +8,9 @@ import { unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { del } from "@vercel/blob";
 import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { cleanClientPaymentPlans } from "@/lib/clientPaymentPlans";
-import { cleanClientRecordEntries } from "@/lib/clientRelationshipRecord";
-import { removeClientRecordLedgerEvent, upsertClientFileLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
+import { cleanClientRecordEntries } from "@/lib/clients/clientRelationshipRecord";
+import { removeClientRecordLedgerEvent, upsertClientFileLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 
 export const runtime = "nodejs";
 

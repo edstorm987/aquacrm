@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
-import { ACTIVE_WORKER_WINDOW_MS, devConsoleCore, devConsoleStatus } from "@/lib/server/devConsoleStatus";
-import { readCheckIns, isCheckInActive } from "@/lib/server/devTeamWorkers";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { ACTIVE_WORKER_WINDOW_MS, devConsoleCore, devConsoleStatus } from "@/lib/server/dev/devConsoleStatus";
+import { readCheckIns, isCheckInActive } from "@/lib/server/dev/devTeamWorkers";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

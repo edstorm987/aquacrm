@@ -40,9 +40,9 @@ import type {
   CommandKpi,
   CommandKpiFormat,
   CommandKpiStatus,
-} from "@/lib/commandIntelligence";
-import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
-import { describeCommandKpis, describeCommercialFormulas, describeCustomKpis, searchKpiDescriptors, suggestKpiTarget, type KpiDescriptor } from "@/lib/kpiRegistry";
+} from "@/lib/intelligence/commandIntelligence";
+import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { describeCommandKpis, describeCommercialFormulas, describeCustomKpis, searchKpiDescriptors, suggestKpiTarget, type KpiDescriptor } from "@/lib/performance/kpiRegistry";
 import type { CustomKpiDefinition, CustomKpiOp, KpiTargetsConfig } from "@/server/types";
 import { CommercialIntelligenceWorkspace } from "./_CommercialIntelligenceWorkspace";
 

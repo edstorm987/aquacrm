@@ -14,8 +14,9 @@ node_modules
 # testing
 coverage
 
-# next.js
+# next.js — including per-worker isolated build dirs (.next-verify, .next-alpha, ...)
 .next
+.next-*
 out
 
 # production

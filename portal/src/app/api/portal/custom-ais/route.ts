@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createCustomAI, deleteCustomAI, listCustomAIs, updateCustomAI, type SaveCustomAIInput } from "@/server/customAIs";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 

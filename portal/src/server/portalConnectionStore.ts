@@ -7,7 +7,7 @@ import {
   connectionUrl, createPortalConnection, resetPortalConnection,
   revokePortalConnection, type ConnectionAttempt, type ConnectionRefusal,
   type PortalConnection,
-} from "@/lib/server/portalConnections";
+} from "@/lib/server/portal/portalConnections";
 import {
   CONFIRMATION_CODE_TTL_MS, generateConfirmationCode, hashConfirmationCode,
 } from "@/lib/server/connectionConfirmation";
@@ -15,7 +15,7 @@ import {
 /**
  * Storage for portal connections.
  *
- * Kept apart from the rules in `@/lib/server/portalConnections` so the
+ * Kept apart from the rules in `@/lib/server/portal/portalConnections` so the
  * decisions — who may complete a connection, when a link is stale, whether a
  * colleague can take one over — are testable without a database. Those are the
  * parts where a mistake is a security hole rather than a bug.

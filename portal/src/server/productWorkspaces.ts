@@ -1,12 +1,12 @@
 import "server-only";
 
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import type { PortalProductMode, PortalProductSelection } from "@/lib/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import type { PortalProductMode, PortalProductSelection } from "@/lib/portal/portalProducts";
 import {
   cleanPortalProductWorkspaces,
   mergePortalProductWorkspaceStore,
   type PortalProductWorkspace,
-} from "@/lib/portalProductWorkspaces";
+} from "@/lib/portal/portalProductWorkspaces";
 import type { Client } from "./types";
 import { listAgencyProducts } from "./agencyProducts";
 import { updateClient } from "./tenants";

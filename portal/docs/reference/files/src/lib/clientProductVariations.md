@@ -1,4 +1,4 @@
-# `src/lib/clientProductVariations.ts`
+# `src/lib/clients/clientProductVariations.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/productInternalWorkspace.ts`](./productInternalWorkspace.md)
+- [`src/lib/products/productInternalWorkspace.ts`](./productInternalWorkspace.md)
 - [`src/server/types.ts`](../server/types.md)
 
 ## Used by (6)
@@ -24,5 +24,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/tenants/client-products/route.ts`](../app/api/tenants/client-products/route.md)
 - [`src/app/portal/agency/products/[productId]/page.tsx`](../app/portal/agency/products/[productId]/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
-- [`src/lib/productAssignments.ts`](./productAssignments.md)
+- [`src/lib/products/productAssignments.ts`](./productAssignments.md)
 

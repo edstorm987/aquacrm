@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/server/founderSeed.ts`](../../../../lib/server/founderSeed.md)
 - [`src/lib/server/privateUploadStorage.ts`](../../../../lib/server/privateUploadStorage.md)
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
+- [`src/lib/server/seeds/founderSeed.ts`](../../../../lib/server/seeds/founderSeed.md)
 - [`src/server/people.ts`](../../../../server/people.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../server/tenants.md)

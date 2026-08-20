@@ -4,15 +4,19 @@
 
 _No file-level doc-comment. Purpose inferred from its path (Components — src/components/) and its exports below._
 
-## Exports (1)
+## Exports (3)
 
+- `interface FindingDraft (5 members)`
+- `EMPTY_DRAFT: FindingDraft`
 - `DevConsoleButton({ initialBadge }: { initialBadge: DevConsoleBadge })`
 
-## Depends on (1)
+## Depends on (2)
 
-- [`src/lib/server/devConsoleStatus.ts`](../../lib/server/devConsoleStatus.md)
+- [`src/lib/server/dev/devConsoleStatus.ts`](../../lib/server/dev/devConsoleStatus.md)
+- [`src/lib/server/dev/devTeamFindings.ts`](../../lib/server/dev/devTeamFindings.md)
 
-## Used by (1)
+## Used by (2)
 
 - [`src/components/chrome/DevConsoleControl.tsx`](./DevConsoleControl.md)
+- [`src/components/chrome/DevConsolePanel.tsx`](./DevConsolePanel.md)
 

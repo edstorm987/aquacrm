@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/publicUrl";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/public/publicUrl";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";

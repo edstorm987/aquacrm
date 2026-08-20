@@ -12,8 +12,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/account/AvatarUploader.tsx`](../../account/AvatarUploader.md)
 - [`src/app/portal/customer/account/_ConnectedApps.tsx`](./_ConnectedApps.md)
-- [`src/lib/authBrand.ts`](../../../../lib/authBrand.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/brands/authBrand.ts`](../../../../lib/brands/authBrand.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/portalConnectionStore.ts`](../../../../server/portalConnectionStore.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/users.ts`](../../../../server/users.md)

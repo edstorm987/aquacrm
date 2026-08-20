@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 - [`src/built-ins/modules/agency-hr/src/components/NewStaffModal.tsx`](./NewStaffModal.md)
 - [`src/built-ins/modules/agency-hr/src/lib/domain.ts`](../lib/domain.md)
 
-## Used by (1)
+## Used by
 
-- [`src/built-ins/modules/agency-hr/src/pages/StaffPage.tsx`](../pages/StaffPage.md)
+_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
 

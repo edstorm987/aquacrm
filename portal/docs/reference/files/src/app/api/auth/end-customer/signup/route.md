@@ -10,7 +10,7 @@
 
 ## Depends on (6)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/rateLimit.ts`](../../../../../lib/server/rateLimit.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, HeartPulse } from "lucide-react";
 
-import type { ClientAttentionItem } from "@/lib/server/clientAttention";
+import type { ClientAttentionItem } from "@/lib/server/clients/clientAttention";
 
 /**
  * Command Centre roll-up: which clients need attention, how bad, and the single

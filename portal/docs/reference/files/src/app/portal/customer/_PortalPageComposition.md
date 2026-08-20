@@ -14,12 +14,13 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/customer/_PortalCustomExtension.tsx`](./_PortalCustomExtension.md)
 - [`src/app/portal/customer/_PortalInteractionBlocks.tsx`](./_PortalInteractionBlocks.md)
 - [`src/app/portal/customer/_portalData.ts`](./_portalData.md)
-- [`src/lib/clientPortalBuilder.ts`](../../../lib/clientPortalBuilder.md)
-- [`src/lib/clientPortalDesign.ts`](../../../lib/clientPortalDesign.md)
-- [`src/lib/portalProductModules.ts`](../../../lib/portalProductModules.md)
+- [`src/lib/portal/clientPortalBuilder.ts`](../../../lib/portal/clientPortalBuilder.md)
+- [`src/lib/portal/clientPortalDesign.ts`](../../../lib/portal/clientPortalDesign.md)
+- [`src/lib/portal/portalProductModules.ts`](../../../lib/portal/portalProductModules.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (1)
+## Used by (2)
 
+- [`scripts/smoke-portal-element-parity.harness.tsx`](../../../../scripts/smoke-portal-element-parity.harness.md)
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](./_CustomerPortalViews.md)
 

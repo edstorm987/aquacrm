@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/server/googleCalendar.ts`](../src/lib/server/googleCalendar.md)
+- [`src/lib/server/integrations/googleCalendar.ts`](../src/lib/server/integrations/googleCalendar.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

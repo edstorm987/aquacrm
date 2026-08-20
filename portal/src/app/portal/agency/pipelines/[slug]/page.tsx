@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import {
@@ -26,11 +26,11 @@ import { LeadsPipelineWorkspace } from "./_LeadsPipelineWorkspace";
 import { BoardSwitcher, PipelineBoard } from "./_PipelineBoard";
 import { FulfilmentProductSwitcher } from "./_FulfilmentProductSwitcher";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { agencyProductPipelineColumns, defaultAgencyProductPipelineStage } from "@/lib/fulfilmentProductPipelines";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { agencyProductPipelineColumns, defaultAgencyProductPipelineStage } from "@/lib/products/fulfilmentProductPipelines";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
+import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
 
 interface RouteProps {
   params: Promise<{ slug: string }>;

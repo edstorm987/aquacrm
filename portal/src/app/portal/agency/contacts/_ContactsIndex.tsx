@@ -7,7 +7,7 @@ import { Building2, CircleAlert, Search, UserRound } from "lucide-react";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
-} from "@/lib/enquiryClassification";
+} from "@/lib/enquiries/enquiryClassification";
 import type { PersonState } from "@/server/types";
 
 interface PersonRow {

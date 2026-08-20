@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (3)
 
-- [`src/lib/server/auth.ts`](../../../../../../lib/server/auth.md)
-- [`src/lib/server/radarSourceInspection.ts`](../../../../../../lib/server/radarSourceInspection.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/radar/radarSourceInspection.ts`](../../../../../../lib/server/radar/radarSourceInspection.md)
 - [`src/server/storage.ts`](../../../../../../server/storage.md)
 
 ## Used by

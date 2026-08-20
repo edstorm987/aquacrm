@@ -1,4 +1,4 @@
-# `src/lib/server/magicLink.ts`
+# `src/lib/server/auth/magicLink.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -19,8 +19,8 @@
 
 ## Depends on (2)
 
-- [`src/lib/server/nonceStore.ts`](./nonceStore.md)
-- [`src/lib/server/transactionalEmail.ts`](./transactionalEmail.md)
+- [`src/lib/server/auth/nonceStore.ts`](./nonceStore.md)
+- [`src/lib/server/email/transactionalEmail.ts`](./transactionalEmail.md)
 
 ## Used by (4)
 

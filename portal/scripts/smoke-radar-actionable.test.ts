@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { RadarFindingGroup } from "../src/lib/businessRadar";
-import { buildBusinessRecommendedActions } from "../src/lib/businessRecommendedActions";
+import type { RadarFindingGroup } from "../src/lib/radar/businessRadar";
+import { buildBusinessRecommendedActions } from "../src/lib/intelligence/businessRecommendedActions";
 import * as storage from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
-import { buildBusinessIssueRadar } from "../src/lib/server/businessIssueRadar";
+import { buildBusinessIssueRadar } from "../src/lib/server/radar/businessIssueRadar";
 
 // Radar upgrade — Stage 7: issues → actionable tasks (Part F).
 // Every recommended action now carries the resolution model — kind, expected

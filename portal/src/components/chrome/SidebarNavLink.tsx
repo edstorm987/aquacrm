@@ -49,7 +49,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { attentionTitle, useAttentionMatches, useNotificationAttention, useUnresolvedAttentionMatches } from "@/components/chrome/NotificationAttentionProvider";
-import type { OperationalAlertCategory } from "@/lib/operationalAttention";
+import type { OperationalAlertCategory } from "@/lib/intelligence/operationalAttention";
 
 const NAV_ICONS: Record<string, typeof Circle> = {
   home: Radar,

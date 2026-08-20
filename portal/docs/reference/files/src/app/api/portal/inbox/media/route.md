@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (9)
 
 - [`src/lib/inbox/media.ts`](../../../../../lib/inbox/media.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/inboxMedia.ts`](../../../../../lib/server/inboxMedia.md)
-- [`src/lib/server/inboxStore.ts`](../../../../../lib/server/inboxStore.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/inbox/inboxMedia.ts`](../../../../../lib/server/inbox/inboxMedia.md)
+- [`src/lib/server/inbox/inboxStore.ts`](../../../../../lib/server/inbox/inboxStore.md)
 - [`src/lib/server/privateUploadStorage.ts`](../../../../../lib/server/privateUploadStorage.md)
 - [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)

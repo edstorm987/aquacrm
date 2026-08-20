@@ -1,4 +1,4 @@
-# `src/lib/productInternalWorkspace.ts`
+# `src/lib/products/productInternalWorkspace.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -25,7 +25,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](../app/portal/agency/products/_ProductsWorkspace.md)
 - [`src/app/portal/clients/[clientId]/_ClientOperatingPlan.tsx`](../app/portal/clients/[clientId]/_ClientOperatingPlan.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
-- [`src/lib/clientProductVariations.ts`](./clientProductVariations.md)
-- [`src/lib/fulfilmentProductPipelines.ts`](./fulfilmentProductPipelines.md)
+- [`src/lib/clients/clientProductVariations.ts`](./clientProductVariations.md)
+- [`src/lib/products/fulfilmentProductPipelines.ts`](./fulfilmentProductPipelines.md)
 - [`src/server/agencyProducts.ts`](../server/agencyProducts.md)
 

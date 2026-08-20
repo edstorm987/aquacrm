@@ -1,14 +1,14 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
-import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
-import { fetchGoogleSearchConsoleEvents } from "@/lib/server/googleSearchConsole";
-import { getSessionFromRequest } from "@/lib/server/auth";
+import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
+import { fetchGoogleSearchConsoleEvents } from "@/lib/server/integrations/googleSearchConsole";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import {
   getIntegrationConnection,
   markIntegrationConnectionSynced,
   resolveIntegrationConnectionValues,
-} from "@/lib/server/integrationConnections";
+} from "@/lib/server/integrations/integrationConnections";
 import { logActivity } from "@/server/activity";
 import { replaceAgencyWebsiteSearchEvents } from "@/server/agencyWebsite";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";

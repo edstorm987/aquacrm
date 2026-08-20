@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/publicUrl.ts`](../src/lib/publicUrl.md)
+- [`src/lib/public/publicUrl.ts`](../src/lib/public/publicUrl.md)
 
 ## Used by
 

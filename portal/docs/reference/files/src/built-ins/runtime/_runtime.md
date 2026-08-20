@@ -38,9 +38,9 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 - [`src/app/portal/agency/pipelines/[slug]/page.tsx`](../../app/portal/agency/pipelines/[slug]/page.md)
 - [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](../modules/leads-pipeline/src/pages/CampaignsPage.md)
 - [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](./foundation-adapters/pluginRuntimeAdapter.md)
-- [`src/lib/server/demoSeed.ts`](../../lib/server/demoSeed.md)
+- [`src/lib/server/auth/showcaseMode.ts`](../../lib/server/auth/showcaseMode.md)
 - [`src/lib/server/embedAllowResolver.ts`](../../lib/server/embedAllowResolver.md)
-- [`src/lib/server/founderSeed.ts`](../../lib/server/founderSeed.md)
-- [`src/lib/server/showcaseMode.ts`](../../lib/server/showcaseMode.md)
+- [`src/lib/server/seeds/demoSeed.ts`](../../lib/server/seeds/demoSeed.md)
+- [`src/lib/server/seeds/founderSeed.ts`](../../lib/server/seeds/founderSeed.md)
 - [`src/server/agencyBootstrap.ts`](../../server/agencyBootstrap.md)
 

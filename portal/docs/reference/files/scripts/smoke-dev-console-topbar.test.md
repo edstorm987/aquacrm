@@ -8,9 +8,9 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (3)
 
-- [`src/lib/server/devConsoleStatus.ts`](../src/lib/server/devConsoleStatus.md)
-- [`src/lib/server/devDocs.ts`](../src/lib/server/devDocs.md)
-- [`src/lib/server/devTeamFindings.ts`](../src/lib/server/devTeamFindings.md)
+- [`src/lib/server/dev/devConsoleStatus.ts`](../src/lib/server/dev/devConsoleStatus.md)
+- [`src/lib/server/dev/devDocs.ts`](../src/lib/server/dev/devDocs.md)
+- [`src/lib/server/dev/devTeamFindings.ts`](../src/lib/server/dev/devTeamFindings.md)
 
 ## Used by
 

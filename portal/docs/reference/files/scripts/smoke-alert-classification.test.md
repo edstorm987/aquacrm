@@ -10,7 +10,7 @@ _No exported symbols (side-effect / internal module)._
 
 - [`src/lib/inbox/resolutionExplain.ts`](../src/lib/inbox/resolutionExplain.md)
 - [`src/lib/inbox/resolutionFocus.ts`](../src/lib/inbox/resolutionFocus.md)
-- [`src/lib/operationalAttention.ts`](../src/lib/operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../src/lib/intelligence/operationalAttention.md)
 
 ## Used by
 

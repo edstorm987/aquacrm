@@ -12,7 +12,7 @@
 ## Depends on (4)
 
 - [`src/app/portal/freelancer/_FreelancerJobActions.tsx`](./_FreelancerJobActions.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
 - [`src/server/freelancerWorkspace.ts`](../../../server/freelancerWorkspace.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 

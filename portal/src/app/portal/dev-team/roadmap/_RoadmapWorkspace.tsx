@@ -10,7 +10,7 @@ import {
 
 import type {
   Horizon, ItemStatus, Roadmap, RoadmapItemView,
-} from "@/lib/server/devTeamRoadmap";
+} from "@/lib/server/dev/devTeamRoadmap";
 
 // The roadmap, made touchable.
 //

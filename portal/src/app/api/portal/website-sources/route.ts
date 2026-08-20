@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
@@ -14,7 +14,7 @@ import {
   updateWebsiteSourceRouting,
 } from "@/server/websiteSources";
 import { importFormSchemasForSite, listSiteFormSchemas } from "@/server/websiteFormSchemas";
-import { connectionLinkOrigin } from "@/lib/server/portalConnections";
+import { connectionLinkOrigin } from "@/lib/server/portal/portalConnections";
 import { AGENCY_ROLES } from "@/server/types";
 
 /**

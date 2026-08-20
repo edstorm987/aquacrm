@@ -8,10 +8,10 @@
 
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole, authErrorResponse } from "@/lib/server/auth";
+import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
 import { sweepExpired } from "@/lib/server/rateLimit";
 import { processAutomationSweep } from "@/server/automations";
-import { processInboxWebhookQueue } from "@/lib/server/inboxService";
+import { processInboxWebhookQueue } from "@/lib/server/inbox/inboxService";
 
 export async function GET() {
   await ensureHydrated();

@@ -1,4 +1,4 @@
-import type { OperationalAlert } from "@/lib/operationalAttention";
+import type { OperationalAlert } from "@/lib/intelligence/operationalAttention";
 import { type ResolutionFocus, withResolutionContext } from "@/lib/inbox/resolutionContext";
 import { clearanceFor } from "@/lib/inbox/resolutionExplain";
 

@@ -142,7 +142,7 @@ describe("dev team portal — sidebar icons", () => {
 
 describe("dev team board — a parked worker is not a shipped plan", () => {
   it("hands the verdict back to the plan file when the worker row says PARKED", async () => {
-    const { parseWorkers, composeLanes } = await import("../src/lib/server/devTeamBoard");
+    const { parseWorkers, composeLanes } = await import("../src/lib/server/dev/devTeamBoard");
 
     // The real shape of the mfa-login row: a ✅ "Phase N complete" that is about
     // the worker's own slice, followed by PARKED — while the plan itself is not
@@ -203,7 +203,7 @@ describe("dev team board — a parked worker is not a shipped plan", () => {
   });
 
   it("keeps trouble winning over a parked row", async () => {
-    const { parseWorkers, composeLanes } = await import("../src/lib/server/devTeamBoard");
+    const { parseWorkers, composeLanes } = await import("../src/lib/server/dev/devTeamBoard");
     const state = [
       "## Workers in flight",
       "| Worker | Plan | Owns | Status |",
@@ -229,7 +229,7 @@ describe("dev team board — a parked worker is not a shipped plan", () => {
 
 describe("dev team auditor — open vs historical is evidence, not a guess", () => {
   it("labels a 🔴 closed only when a later ✅ names the same subject", async () => {
-    const { parseAuditFindings } = await import("../src/lib/server/devTeamAuditor");
+    const { parseAuditFindings } = await import("../src/lib/server/dev/devTeamAuditor");
 
     // Newest-first, exactly as the auditor writes it.
     const log = [
@@ -279,7 +279,7 @@ describe("dev team auditor — open vs historical is evidence, not a guess", () 
   });
 
   it("does not let a same-plan PASS on a different phase close a rework", async () => {
-    const { parseAuditFindings } = await import("../src/lib/server/devTeamAuditor");
+    const { parseAuditFindings } = await import("../src/lib/server/dev/devTeamAuditor");
     const log = [
       "# Audit log",
       "",

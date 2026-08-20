@@ -30,10 +30,10 @@ import {
   ShieldCheck, TriangleAlert, Users,
 } from "lucide-react";
 
-import { ACTIVE_WORKER_WINDOW_MS } from "@/lib/server/devConsoleStatus";
-import { composeLanes, scanDevTeamBoard } from "@/lib/server/devTeamBoard";
-import { listFindings, type Finding } from "@/lib/server/devTeamFindings";
-import { readCheckIns, isCheckInActive } from "@/lib/server/devTeamWorkers";
+import { ACTIVE_WORKER_WINDOW_MS } from "@/lib/server/dev/devConsoleStatus";
+import { composeLanes, scanDevTeamBoard } from "@/lib/server/dev/devTeamBoard";
+import { listFindings, type Finding } from "@/lib/server/dev/devTeamFindings";
+import { readCheckIns, isCheckInActive } from "@/lib/server/dev/devTeamWorkers";
 
 const MAX_ROWS = 4;
 

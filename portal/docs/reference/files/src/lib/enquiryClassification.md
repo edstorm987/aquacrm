@@ -1,4 +1,4 @@
-# `src/lib/enquiryClassification.ts`
+# `src/lib/enquiries/enquiryClassification.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -30,7 +30,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/pipelines/[slug]/page.tsx`](../app/portal/agency/pipelines/[slug]/page.md)
 - [`src/app/portal/clients/_PeopleHub.tsx`](../app/portal/clients/_PeopleHub.md)
 - [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
-- [`src/lib/server/businessIssueRadar.ts`](./server/businessIssueRadar.md)
-- [`src/lib/server/operationalAlerts.ts`](./server/operationalAlerts.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./server/businessIssueRadar.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./server/operationalAlerts.md)
 - [`src/lib/server/websiteEnquiries.ts`](./server/websiteEnquiries.md)
 

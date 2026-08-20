@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (6)
 
-- [`src/lib/advisorSkills.ts`](../../../../../lib/advisorSkills.md)
-- [`src/lib/server/advisorSkills.ts`](../../../../../lib/server/advisorSkills.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/advisor/advisorSkills.ts`](../../../../../lib/advisor/advisorSkills.md)
+- [`src/lib/server/assistants/advisorSkillsService.ts`](../../../../../lib/server/assistants/advisorSkillsService.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/rateLimit.ts`](../../../../../lib/server/rateLimit.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../server/types.md)

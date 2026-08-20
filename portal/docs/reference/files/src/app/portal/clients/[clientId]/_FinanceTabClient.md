@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/clients/[clientId]/_ContractsPanel.tsx`](./_ContractsPanel.md)
 - [`src/app/portal/clients/[clientId]/_PaymentPlansPanel.tsx`](./_PaymentPlansPanel.md)
-- [`src/lib/clientContracts.ts`](../../../../lib/clientContracts.md)
-- [`src/lib/clientPaymentPlans.ts`](../../../../lib/clientPaymentPlans.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
+- [`src/lib/clients/clientContracts.ts`](../../../../lib/clients/clientContracts.md)
+- [`src/lib/clients/clientPaymentPlans.ts`](../../../../lib/clients/clientPaymentPlans.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (2)
 

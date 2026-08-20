@@ -1,4 +1,4 @@
-import type { Thought } from "@/lib/server/devTeamThoughts";
+import type { Thought } from "@/lib/server/dev/devTeamThoughts";
 
 // The Tasks view used to seed client state from its server prop
 // (`useState(initialThoughts)`), which froze the inline notes at first mount.

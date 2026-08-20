@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (7)
 
 - [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](./_PortalsWorkspace.md)
-- [`src/lib/productAssignments.ts`](../../../../lib/productAssignments.md)
+- [`src/lib/products/productAssignments.ts`](../../../../lib/products/productAssignments.md)
 - [`src/server/agencyProducts.ts`](../../../../server/agencyProducts.md)
 - [`src/server/clientPortalDesigns.ts`](../../../../server/clientPortalDesigns.md)
 - [`src/server/phases.ts`](../../../../server/phases.md)

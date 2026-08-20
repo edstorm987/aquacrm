@@ -10,10 +10,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (4)
 
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
+- [`src/lib/enquiries/leadTiming.ts`](../../../../lib/enquiries/leadTiming.md)
 - [`src/lib/inbox/types.ts`](../../../../lib/inbox/types.md)
 - [`src/lib/integrations/catalog.ts`](../../../../lib/integrations/catalog.md)
-- [`src/lib/leadTiming.ts`](../../../../lib/leadTiming.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (1)
 

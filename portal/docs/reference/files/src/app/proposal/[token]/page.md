@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (3)
 
 - [`src/app/proposal/[token]/_ProposalActions.tsx`](./_ProposalActions.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
 - [`src/lib/server/commercialProposal.ts`](../../../lib/server/commercialProposal.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 
 ## Used by
 

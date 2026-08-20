@@ -34,15 +34,15 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface Viewport (3 members)`
 
 
-## `src/lib/`
+## `src/lib/advisor/`
 
-### `src/lib/advisorActions.ts`
+### `src/lib/advisor/advisorActions.ts`
 
 - `ADVISOR_CATEGORY_HREF: Record<AdvisorActionCategory, string>`
 - `type AdvisorActionCategory = | "company" | "client" | "sales" | "finance" | "delivery" | "support" | "development" | "marketing" | "operations"`
 - `interface AdvisorActionSuggestion (15 members)`
 
-### `src/lib/advisorSkills.ts`
+### `src/lib/advisor/advisorSkills.ts`
 
 - `advisorSkillSafetySummary(skills: AdvisorSkill[]): AdvisorSkillSafety`
 - `ADVISOR_SKILL_RECIPES: Record<AdvisorSkillRecipeId, AdvisorSkillRecipe>`
@@ -54,121 +54,33 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface AdvisorSkill (5 members)`
 - `interface AdvisorSkillSafety (8 members)`
 
-### `src/lib/agencyProductCategories.ts`
 
-- `AGENCY_PRODUCT_CATEGORIES = [`
+## `src/lib/brands/`
 
-### `src/lib/aquaExplorerBridge.ts`
-
-- `isAquaExplorerReadyMessage(value: unknown): value is AquaExplorerReadyMessage`
-- `isAquaExplorerDiagnosticsMessage(value: unknown): value is AquaExplorerDiagnosticsMessage`
-- `isAquaExplorerSelectedMessage(value: unknown): value is AquaExplorerSelectedMessage`
-- `explorerTargetOrigin(url: string): string`
-- `AQUA_EXPLORER_PROTOCOL_VERSION = 1 as const`
-- `AQUA_EXPLORER_MESSAGES = {`
-- `interface AquaExplorerCapabilities (3 members)`
-- `interface AquaExplorerElement (8 members)`
-- `interface AquaExplorerPatch (4 members)`
-- `interface AquaExplorerReadyMessage (7 members)`
-- `interface AquaExplorerDiagnostics (9 members)`
-- `interface AquaExplorerDiagnosticsMessage (4 members)`
-- `interface AquaExplorerSelectedMessage (3 members)`
-
-### `src/lib/aquaTagSource.ts`
-
-- `aquaTagResponse()`
-- `AQUA_TAG_SOURCE = String.raw`(() => {`
-
-### `src/lib/attentionProtection.ts`
-
-- `promoteForDeferrals(rank: number, deferrals?: number): number`
-- `buildProtectedAttentionWindow<T>(items: readonly T[], options: { groupKey: (item: T) => string; urgencyRank: (item: T) => number; focusLimit?: number; protectionThreshold?: number; enabled?: boolean; }): ProtectedAttent…`
-- `attentionProtectionEnabled(): boolean`
-- `setAttentionProtectionEnabled(enabled: boolean): void`
-- `buildOperationalAttentionWindow(alerts: readonly OperationalAlertView[], options: { enabled?: boolean } = {}): OperationalAttentionWindow`
-- `ATTENTION_PROTECTION_STORAGE_KEY = "aqua-attention-protection"`
-- `ATTENTION_PROTECTION_EVENT = "aqua-attention-protection:change"`
-- `DEFERRALS_BEFORE_PROMOTION = 3` — How far repeatedly-deferred work is promoted up the queue. The shield caps the focus window, which is what makes it useful — but it also means a job put off ten times can sit in t…
-- `type AttentionLoadLevel = "clear" | "steady" | "elevated" | "overload"`
-- `type AttentionReserveGroup = { key: string; count: number; }`
-- `type ProtectedAttentionWindow<T> = { level: AttentionLoadLevel; protected: boolean; total: number; focusLimit: number; focus: T[]; reserve: T[]; reserveCount: number; reserveGroups: AttentionReserveGroup[]; }`
-- `type OperationalAttentionReserveGroup = AttentionReserveGroup & { label: string; href: string; }`
-- `type OperationalAttentionWindow = ProtectedAttentionWindow<OperationalAlertView> & { criticalTotal: number; warningTotal: number; reserveDestinations: OperationalAttentionReserveGroup[]; }`
-
-### `src/lib/authBrand.ts`
+### `src/lib/brands/authBrand.ts`
 
 - `getAuthBrand(value: string | undefined): AuthBrand`
-- `type AuthBrandId = "milesymedia" | "aqua" | "aquacrm" | "zimante"`
+- `isKnownAuthBrandId(value: string): value is StaticAuthBrandId`
+- `matchAuthBrandAgency(value: string | undefined | null, agencies: readonly AuthBrandAgency[]): AuthBrandAgency | null` — Exact, active-only agency lookup for a `?brand=` value. Slug first, then id. Never partial, never case-sensitive-only, never archived/paused. SECURITY: callers that use the result…
+- `resolveAuthBrand(value: string | undefined | null, agencies: readonly AuthBrandAgency[] = []): ResolvedAuthBrand` — Brand front for a `?brand=` value, resolved against real agencies. Order: known static front → active agency (slug, then id) → AquaCRM. The static fronts win so the four hand-writ…
+- `KNOWN_AUTH_BRAND_IDS: readonly StaticAuthBrandId[]` — whole point of this function; do not "helpfully" fuzzy-match here.
+- `type StaticAuthBrandId = "milesymedia" | "aqua" | "aquacrm" | "zimante"` — will ever return, and the only ones with bespoke copy + CSS.
+- `type AuthBrandId = StaticAuthBrandId | (string & {})` — ids still autocomplete and still narrow in `brand.id === "aqua"` checks.
 - `interface AuthBrand (8 members)`
+- `interface AuthBrandAgency (4 members)` — The slice of an `Agency` this module needs. Declared structurally so `authBrand.ts` stays free of any server-only import and remains usable from a client component and from a plai…
+- `interface ResolvedAuthBrand (1 members)`
 
-### `src/lib/avatarDataUrl.ts`
-
-- `validateAvatarDataUrl(input: unknown): AvatarValidation`
-- `AVATAR_MAX_DATA_URL_BYTES = 50_000` — renders a static circular avatar — animation here is noise.
-- `type AllowedAvatarMime = (typeof ALLOWED_MIMES)[number]`
-- `type AvatarValidationError = | "missing" | "too_large" | "bad_shape" | "bad_mime" | "bad_base64"`
-- `type AvatarValidation = AvatarValidationOk | AvatarValidationFail`
-- `interface AvatarValidationOk (3 members)`
-- `interface AvatarValidationFail (2 members)`
-
-### `src/lib/brandPortfolio.ts`
+### `src/lib/brands/brandPortfolio.ts`
 
 - `interface BrandPortfolioRow (25 members)`
 - `interface BrandPortfolioSnapshot (6 members)`
 
-### `src/lib/businessRadar.ts`
+### `src/lib/brands/tradingBrands.ts`
 
-- `radarDigest(radar: BusinessIssueRadar): AdvisorRadarDigest`
-- `type AdvisorDomain = | "company" | "sales" | "inbox" | "clients" | "finance" | "delivery" | "marketing" | "operations" | "compliance" | "development" | "team" | "systems"`
-- `type BusinessIssueSeverity = "critical" | "warning" | "watch"`
-- `type BusinessSignalStatus = BusinessIssueSeverity | "healthy" | "unknown"`
-- `type AdvisorCoverageStatus = "connected" | "empty" | "disconnected" | "unavailable"`
-- `type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind" | "learning" | "inactive"`
-- `type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog" | "infra"`
-- `type RadarCheckTier = "instant" | "probe" | "rollup"` — Which sweep refreshes a check (radar upgrade Stage 2). `instant` = in-state derivation the Pulse assembles live; `probe` = a network/DB round-trip run by the Deep/Infra sweeps; `r…
-- `type RadarDataDependency = "in-state" | "derived" | "external"` — What a check's answer depends on. `in-state` = current PortalState only; `derived` = needs retained evidence history or another derived signal; `external` = needs data from outsid…
-- `type RadarFindingGroup = | "infrastructure" | "commercial" | "compliance" | "delivery" | "reliability" | "people"` — Top-level "what kind of problem" bucket above the {domain}:{category} grouping (radar upgrade Stage 5). The operator sees the kind of problem before drilling into domain detail. D…
-- `type RadarEntityType = "client" | "product" | "property"`
-- `type RadarCoverageEntityType = | "client" | "product" | "property" | "integration" | "portal-connection" | "trading-company"` — Entity types with a declared radar detector-pack template.
-- `type RadarCoverageState = "calibrating" | "active"` — `calibrating` = seeded but still accruing evidence; `active` = evidence-backed.
-- `type RadarInfraBackend = "file" | "memory" | "postgres" | "supabase" | "unknown"` — ─── Infra health (radar upgrade Stage 4 — DB & storage health) ─────────────
-- `type RadarInfraProbeStatus = "connected" | "down" | "untested"`
-- `type RadarRuleLens = | "connection" | "freshness" | "threshold" | "trend" | "anomaly" | "integrity" | "continuity" | "baseline" | "confidence" | "forecast" | "volatility" | "resilience"`
-- `type RadarSourceDatasetStatus = "available" | "empty" | "unavailable"`
-- `type AdvisorRadarDigest = BusinessIssueRadar["summary"] & { generatedAt: number; speedToLead: SpeedToLeadRadar; commercial: CommercialLifecycleSnapshot; topIssues: BusinessRadarIssue[]; topIncidents: BusinessRadarIncide…`
-- `interface RadarCoverageManifestEntry (6 members)`
-- `interface RadarCoverageManifest (6 members)` — Proof that every monitorable entity resolves to a radar pack (Part E).
-- `interface RadarInfraDatabaseHealth (8 members)` — One database's reachability + latency (+ row counts for the primary).
-- `interface RadarInfraStorageHealth (4 members)` — Storage health. Total Supabase Storage bytes is NOT available from the service-role client, so `measurable` is false and `bucketBytes` is null — shown honestly as "not available i…
-- `interface RadarInfraHealthSnapshot (4 members)` — The Infra sweep's latest snapshot; written to `radarInfraHealth`, read by the Pulse.
-- `interface BusinessRadarIssue (10 members)`
-- `interface RadarEntityReference (4 members)`
-- `interface BusinessMetricSignal (11 members)`
-- `interface AdvisorCoverageSource (7 members)`
-- `interface BusinessRadarCheck (28 members)`
-- `interface ClientRadarPackSummary (11 members)`
-- `interface ClientRadarSnapshot (13 members)`
-- `interface RadarDomainSummary (16 members)`
-- `interface BusinessRadarIncident (4 members)`
-- `interface RadarFindingGroupSummary (6 members)` — Per-bucket incident roll-up (radar upgrade Stage 5) — "what kind of problem" at a glance.
-- `interface BusinessRadarConclusion (6 members)`
-- `interface BusinessRadarAdaptiveState (11 members)`
-- `interface SpeedToLeadRadar (12 members)`
-- `interface RadarMemoryPoint (5 members)`
-- `interface RadarMemoryDigest (19 members)`
-- `interface RadarEvidenceMovement (8 members)`
-- `interface RadarEvidenceDigest (9 members)`
-- `interface RadarEvidenceSeriesSummary (16 members)`
-- `interface RadarEvidenceInspectionIndex (5 members)`
-- `interface RadarEvidenceSeriesInspection (2 members)`
-- `interface RadarSourceDatasetSummary (11 members)`
-- `interface RadarSourceDataIndex (6 members)`
-- `interface RadarSourceDatasetInspection (5 members)`
-- `interface BusinessIssueRadar (16 members)`
-
-### `src/lib/businessRecommendedActions.ts`
-
-- `buildBusinessRecommendedActions({ radar, alerts = [], existingTaskTitles = [], now = Date.now(), limit = 5, }: { radar: BusinessIssueRadar; alerts?: OperationalAlert[]; existingTaskTitles?: string[]; now?: number; limit…`
+- `isTradingBrandSlug(value: unknown): value is TradingBrandSlug`
+- `tradingBrandDefinition(slug: TradingBrandSlug)`
+- `TRADING_BRANDS = [`
+- `type TradingBrandSlug = (typeof TRADING_BRANDS)[number]["slug"]`
 
 
 ## `src/lib/chrome/`
@@ -227,9 +139,9 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface WorkspaceConfig (7 members)`
 
 
-## `src/lib/`
+## `src/lib/clients/`
 
-### `src/lib/clientAquaHealth.ts`
+### `src/lib/clients/clientAquaHealth.ts`
 
 - `calculateClientAquaHealth(input: ClientAquaHealthInput): ClientAquaHealth`
 - `clientTelemetryRiskSignals(events: ClientTelemetryEvent[] | undefined, now = Date.now()): ClientTelemetryRiskSignal[]` — The enquiry/traffic signals currently in the risk tier — the ones Phase 2 surfaces as specific Command Centre alerts. Empty when nothing is firing or there is no established basel…
@@ -242,25 +154,25 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ClientAquaHealthInput (8 members)`
 - `interface ClientTelemetryRiskSignal (4 members)` — A telemetry factor currently in the risk tier — the signals Phase 2 raises as Command Centre alerts. Derived from the same verdicts as the health factors, so an alert can never di…
 
-### `src/lib/clientCommercialIntelligence.ts`
+### `src/lib/clients/clientCommercialIntelligence.ts`
 
 - `summariseClientServiceExpansion(value: unknown): ClientServiceExpansionSummary`
 - `interface ClientServiceExpansionSummary (4 members)`
 
-### `src/lib/clientContacts.ts`
+### `src/lib/clients/clientContacts.ts`
 
 - `cleanClientContacts(value: unknown): ClientContact[]`
 - `type ClientEntityType = "company" | "person"`
 - `interface ClientContact (9 members)`
 
-### `src/lib/clientContracts.ts`
+### `src/lib/clients/clientContracts.ts`
 
 - `type ClientContractStatus = "draft" | "sent" | "accepted" | "declined"`
 - `interface ClientContractRevision (10 members)`
 - `interface ClientContract (17 members)`
 - `interface ClientContractTemplate (10 members)`
 
-### `src/lib/clientMarketingService.ts`
+### `src/lib/clients/clientMarketingService.ts`
 
 - `cleanClientMarketingService(value: unknown): ClientMarketingService`
 - `clientMarketingMetrics(service: ClientMarketingService)`
@@ -274,7 +186,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ClientPaidCampaign (18 members)`
 - `interface ClientMarketingService (12 members)`
 
-### `src/lib/clientOperations.ts`
+### `src/lib/clients/clientOperations.ts`
 
 - `cleanClientOperationsBrief(value: unknown): ClientOperationsBrief`
 - `clientOperationStateLabel(state: ClientOperationState): string`
@@ -283,7 +195,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ClientOperationsReview (5 members)`
 - `interface ClientOperationsBrief (12 members)`
 
-### `src/lib/clientPaymentPlans.ts`
+### `src/lib/clients/clientPaymentPlans.ts`
 
 - `cleanClientPaymentPlans(value: unknown): ClientPaymentPlan[]`
 - `reconcileClientPaymentPlan(plan: ClientPaymentPlan, invoices: readonly PaymentPlanInvoiceEvidence[]): ClientPaymentPlan`
@@ -301,35 +213,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PaymentPlanInvoiceEvidence (7 members)`
 - `interface ClientPaymentPosition (12 members)`
 
-### `src/lib/clientPortalBuilder.ts`
-
-- `createPortalBlock(type: ClientPortalBlockType, id = portalBuilderId("block")): ClientPortalPageBlock`
-- `createPortalCustomPage(label = "New page"): ClientPortalCustomPage`
-- `defaultPortalBuilder(sections: readonly ClientPortalSectionId[]): ClientPortalBuilderDocument`
-- `normalisePortalBuilder(value: unknown, sections: readonly ClientPortalSectionId[], fallback?: ClientPortalBuilderDocument): ClientPortalBuilderDocument`
-- `portalBuilder(document: ClientPortalDesignDocument): ClientPortalBuilderDocument`
-- `portalPageBlocks(document: ClientPortalDesignDocument, section: ClientPortalSectionId): ClientPortalPageBlock[]`
-- `portalCustomPage(document: ClientPortalDesignDocument, slug?: string): ClientPortalCustomPage | undefined`
-- `portalBlockMatchesProducts(block: ClientPortalPageBlock, assignedProductIds: readonly string[]): boolean`
-- `portalSlug(value: string): string`
-- `uniquePortalSlug(value: string, used: string[]): string`
-- `portalBuilderId(prefix: string): string`
-- `CLIENT_PORTAL_BLOCK_REGISTRY: Array<{ type: ClientPortalBlockType; label: string; description: string; category: "content" | "live-data" | "layout"; }>`
-
-### `src/lib/clientPortalDesign.ts`
-
-- `clonePortalDesign(document: ClientPortalDesignDocument = STUNNING_STANDARD_PORTAL): ClientPortalDesignDocument`
-- `normalisePortalDesign(value: unknown, fallback: ClientPortalDesignDocument = STUNNING_STANDARD_PORTAL): ClientPortalDesignDocument`
-- `portalCustomCode(document: ClientPortalDesignDocument): ClientPortalCustomCode`
-- `formatPortalCopy(value: string, tokens: Record<string, string>): string`
-- `CLIENT_PORTAL_TEMPLATE_ID = "stunning-standard"`
-- `CLIENT_PORTAL_TEMPLATE_NAME = "Stunning Standard"`
-- `CLIENT_PORTAL_MODES: ClientPortalMode[]`
-- `CLIENT_PORTAL_SECTIONS: ClientPortalSectionId[]`
-- `EMPTY_CLIENT_PORTAL_CUSTOM_CODE: ClientPortalCustomCode`
-- `STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument`
-
-### `src/lib/clientProductProcess.ts`
+### `src/lib/clients/clientProductProcess.ts`
 
 - `cleanClientProductProcessState(value: unknown): ClientProductProcessState`
 - `setClientProductStepCompletion(state: ClientProductProcessState, productId: string, stepId: string, completed: boolean, actor: string, now = Date.now()): ClientProductProcessState`
@@ -340,7 +224,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ClientProductStageHistoryEntry (4 members)`
 - `interface ClientProductProcessEntry (5 members)`
 
-### `src/lib/clientProductVariations.ts`
+### `src/lib/clients/clientProductVariations.ts`
 
 - `clientProductVariations(metadata: VariationMetadata): Record<string, ClientProductVariation>`
 - `clientVariationProductIds(metadata: VariationMetadata): string[]`
@@ -348,16 +232,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `buildClientProductVariation(base: AgencyProduct, input: Record<string, unknown>, updatedBy: string): ClientProductVariation`
 - `variationHasOverrides(variation: ClientProductVariation): boolean`
 
-### `src/lib/clientRadar.ts`
-
-- `buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSnapshot`
-- `interface ClientRadarProductInput (6 members)`
-- `interface ClientRadarPropertyInput (8 members)`
-- `interface ClientRadarMilestoneInput (5 members)`
-- `interface ClientRadarAlertInput (6 members)`
-- `interface ClientRadarInput (17 members)`
-
-### `src/lib/clientRelationshipRecord.ts`
+### `src/lib/clients/clientRelationshipRecord.ts`
 
 - `cleanClientRecordEntries(value: unknown): ClientRecordEntry[]`
 - `safeRecordUrl(value: unknown): string | undefined`
@@ -368,17 +243,17 @@ Every exported function, class, type and const in this area, with its real signa
 - `type ClientRecordVisibility = "internal" | "client"`
 - `interface ClientRecordEntry (11 members)`
 
-### `src/lib/clientRequests.ts`
+### `src/lib/clients/clientRequests.ts`
 
 - `cleanClientRequests(value: unknown): ClientRequest[]`
 
-### `src/lib/clientServiceWorkspace.ts`
+### `src/lib/clients/clientServiceWorkspace.ts`
 
 - `inheritedClientServiceKeys(products: PortalProductSelection[], catalogue: ServiceCatalogueRecord[]): PortalProductKey[]`
 - `clientServiceCapabilities(products: PortalProductSelection[], inheritedKeys: Array<PortalProductKey | undefined> = []): ClientServiceCapabilities`
 - `interface ClientServiceCapabilities (4 members)`
 
-### `src/lib/clientTelemetry.ts`
+### `src/lib/clients/clientTelemetry.ts`
 
 - `summarizeClientTelemetry(events: ClientTelemetryEvent[], now = Date.now()): ClientTelemetrySummary`
 - `TELEMETRY_EVENT_TYPES = [`
@@ -387,7 +262,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ClientTelemetrySnapshot (4 members)`
 - `interface ClientTelemetrySummary (5 members)`
 
-### `src/lib/clientWorkspace.ts`
+### `src/lib/clients/clientWorkspace.ts`
 
 - `clientWorkspaceDisplayName(client: { name: string; workspaceLabel?: string | null }): string`
 - `resolveClientWorkspaceTab(value: string | undefined): ClientWorkspaceTabId`
@@ -395,64 +270,10 @@ Every exported function, class, type and const in this area, with its real signa
 - `CLIENT_WORKSPACE_TABS = [`
 - `type ClientWorkspaceTabId = (typeof CLIENT_WORKSPACE_TABS)[number]["id"]`
 
-### `src/lib/commandIntelligence.ts`
 
-- `COMMAND_PRIMARY_KPI_STATIONS = [`
-- `type CommandKpiStatus = "critical" | "warning" | "healthy" | "learning" | "blind"`
-- `type CommandKpiFormat = "number" | "percent" | "currency" | "duration" | "score"`
-- `type CommandKpiTargetDirection = "higher" | "lower"`
-- `type CommandKpiPlanningCadence = "daily" | "weekly" | "monthly" | "quarterly" | "rolling" | "guardrail"`
-- `type CommandKpiScopeKind = "ecosystem" | "workspace" | "company" | "client" | "property"`
-- `type CommercialMetricCategory = "outcome" | "driver" | "efficiency" | "quality"`
-- `type CommercialMetricUnit = "count" | "percent" | "currency" | "duration" | "ratio"`
-- `type CommercialRecordState = "new" | "contacted" | "meeting" | "proposal" | "won" | "lost" | "client" | "churned"`
-- `interface CommandKpiPoint (2 members)`
-- `interface CommandKpiPlan (5 members)`
-- `interface CommandKpiMeasurement (4 members)`
-- `interface CommandKpiScopeRef (3 members)`
-- `interface CommandKpi (21 members)`
-- `interface CommandScopedKpiReading (14 members)`
-- `interface CommandIntelligenceScope (7 members)`
-- `interface CommandIntelligenceCampaign (18 members)`
-- `interface CommandAudienceLocation (7 members)`
-- `interface CommandAudienceSignal (5 members)`
-- `interface CommandAudienceDemographic (5 members)`
-- `interface CommandAudienceProfileSummary (32 members)`
-- `interface CommandSourceCohort (8 members)`
-- `interface CommandDemandFlow (5 members)`
-- `interface CommercialFormulaMetric (15 members)`
-- `interface CommercialPipelineStage (9 members)`
-- `interface CommercialPersonRow (25 members)`
-- `interface CommercialSourcePerformance (23 members)`
-- `interface CommercialIntelligenceSnapshot (7 members)`
-- `interface CommandIntelligenceSnapshot (13 members)`
+## `src/lib/compliance/`
 
-### `src/lib/commercialIntelligence.ts`
-
-- `buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency, pageviews, forms, pageviewsMeasured = true, formsMeasured = true, now = Date.now(), }: BuildCommercialIntelligenceInput): CommercialInt…`
-- `type CommercialLineage = CommercialIntelligenceSnapshot["lineage"] & { pageviewsMeasured: boolean; formsMeasured: boolean; }` — `CommercialIntelligenceSnapshot["lineage"]` plus the honesty flags. Additive on purpose: `lineage.pageviews` stays `number` so `marketingIntelligence.ts` (a different lane's file)…
-- `type CommercialIntelligenceSnapshotWithMeasurement = Omit<CommercialIntelligenceSnapshot, "lineage"> & { lineage: CommercialLineage }`
-
-### `src/lib/commercialLifecycle.ts`
-
-- `buildCommercialLifecycleSnapshot({ leads, clients, now = Date.now(), available = true, }: BuildCommercialLifecycleInput): CommercialLifecycleSnapshot`
-- `buildCommercialLifecycleChecks(snapshot: CommercialLifecycleSnapshot): BusinessRadarCheck[]`
-- `buildCommercialLifecycleIssues(snapshot: CommercialLifecycleSnapshot, checks: readonly BusinessRadarCheck[]): BusinessRadarIssue[]`
-- `buildCommercialLifecycleSignals(snapshot: CommercialLifecycleSnapshot): BusinessMetricSignal[]`
-- `interface CommercialLifecycleLead (9 members)`
-- `interface CommercialSourceCohort (15 members)`
-- `interface CommercialLifecycleSnapshot (27 members)`
-
-### `src/lib/companyHealth.ts`
-
-- `calculateCompanyHealth(input: CompanyHealthInput): CompanyHealthResult`
-- `calculateServiceBrandHealth(input: ServiceBrandHealthInput): ServiceBrandHealthResult`
-- `interface CompanyHealthInput (11 members)`
-- `interface CompanyHealthResult (6 members)`
-- `interface ServiceBrandHealthInput (7 members)`
-- `interface ServiceBrandHealthResult (6 members)`
-
-### `src/lib/compliancePosture.ts`
+### `src/lib/compliance/compliancePosture.ts`
 
 - `buildCompliancePosture(input: ComplianceEvidenceInput): CompliancePosture`
 - `assertPostureHonesty(posture: CompliancePosture): string[]` — Enforces the honesty rules as code. Exported so tests assert them over a real posture rather than trusting the builder. Returns the list of violations — empty means the posture is…
@@ -473,19 +294,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface LegalRecordEvidence (8 members)` — A legal-register record, narrowed to the fields the posture reads.
 - `interface ConsentEvidence (7 members)`
 - `interface ErasureEvidence (5 members)`
-
-### `src/lib/customerPortalAttention.ts`
-
-- `buildCustomerPortalAttention(data: CustomerPortalData): CustomerPortalAttention`
-- `interface CustomerPortalAttentionItem (2 members)`
-- `interface CustomerPortalAttention (3 members)`
-
-### `src/lib/customerProfileScope.ts`
-
-- `scopeProfiles(profiles: MarketingCustomerProfile[], companyId: string): MarketingCustomerProfile[]` — Scope profiles to one company; group-wide profiles (no companyIds) always show. `"all"` = the whole ecosystem.
-- `summariseProfileDimension(profiles: MarketingCustomerProfile[], dimension: ProfileDimension, companyNames?: Map<string, string>): ProfileBreakdownRow[]` — Count the profiles by a chosen dimension, most-common first. Array dimensions (location, company) count a profile once per value; empty values are labelled honestly rather than dr…
-- `type ProfileDimension = "segment" | "priority" | "status" | "confidence" | "location" | "company"` — Customer-intelligence scope + dimensions (KPI intelligence Phase 7). The people/audience workspace can run for **one business** or the **full ecosystem**, and break its profiles d…
-- `interface ProfileBreakdownRow (2 members)`
 
 
 ## `src/lib/editing/`
@@ -545,7 +353,171 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface EditingModeDefinition (4 members)`
 
 
+## `src/lib/elements/`
+
+### `src/lib/elements/AnimateOnScroll.tsx`
+
+- `default AnimateOnScroll({ animate, duration, delay, easing, children }: Props)`
+
+### `src/lib/elements/BlockRenderer.tsx`
+
+- `default BlockRenderer`
+- `BlockTreeRenderer({ blocks, editorMode, themeId, splitTestGroups, context }: BlockRendererProps)` — the storefront PortalPageRenderer expects.
+- `interface BlockRendererProps (5 members)`
+- `{ BlockRenderer }`
+
+### `src/lib/elements/block.ts`
+
+- `type BlockType = | "container" | "section" | "row" | "column" | "grid" | "spacer" | "divider" // content | "heading" | "text" | "button" | "hero" | "cta" | "testimonials" | "pricing-table" | "faq" | "quote" | "banner" |…`
+- `type ElementProductMatch = "any" | "all"` — How wide a product match has to be for a bound/gated element to apply.
+- `type Element = Block` — Forward-looking spelling. Identical type, not a second shape.
+- `type ElementType = BlockType`
+- `type ElementStyles = BlockStyles`
+- `type SplitTestStatus = "draft" | "running" | "paused" | "completed"`
+- `type BlockTreeJSON = Block[]`
+- `type ElementTreeJSON = BlockTreeJSON`
+- `interface BlockStyles (32 members)` — host site exactly without per-block CSS classes.
+- `interface BlockA11y (7 members)`
+- `interface BlockSeo (2 members)`
+- `interface BlockVariant (5 members)`
+- `interface ElementBinding (6 members)` — Where an element's live data comes from. Mirrors the fields the portal builder stores today on `ClientPortalPageBlock` (`dataSource` / `requestType` / `approvalType` / `uploadCate…
+- `interface ElementVisibility (3 members)` — Audience gating for an element. Portal-only by design (§3.4 of the element-engine design): a `visibility` rule on a public marketing page is a security smell, not a feature, so th…
+- `interface ElementContext (5 members)` — The live data channel handed to a renderer. NON-NEGOTIABLE part of P2 (design §2.2): without it, the 14 data-bound portal blocks become static placeholders the moment they join th…
+- `interface Block (11 members)`
+- `interface SplitTestGroup (13 members)`
+- `interface SplitTestResult (5 members)`
+
+### `src/lib/elements/blockSchemaMigrations.ts`
+
+- `blockVersion(block: Block): number` — to v1 — that matches the first published schema.
+- `treeNeedsMigration(tree: BlockTreeJSON): boolean`
+- `migrateTree(tree: BlockTreeJSON, fromVersion?: number): BlockTreeJSON`
+- `loadBlockTreeMigrated(tree: BlockTreeJSON): [BlockTreeJSON, boolean]` — reference with `didMigrate=false`.
+- `BLOCK_SCHEMA_VERSION = 3` — ─── Schema version + migration registry ─────────────────────────────
+- `MIGRATIONS: readonly BlockMigrationStep[]`
+- `interface BlockMigrationStep (3 members)`
+
+### `src/lib/elements/blockStyles.ts`
+
+- `blockStylesToCss(styles?: BlockStyles): CSSProperties`
+- `overridesToCssText(override?: Partial<BlockStyles>): string`
+- `STYLE_FIELD_GROUPS: Array<{ label: string; fields: Array<keyof BlockStyles> }>`
+
+### `src/lib/elements/blockTreeOps.ts`
+
+- `makeBlockId(): string`
+- `createBlock(type: BlockType): Block`
+- `findBlock(blocks: Block[], id: string, parent: Block | null = null): BlockLocation | null`
+- `updateBlock(blocks: Block[], id: string, patch: Partial<Block>): Block[]`
+- `removeBlock(blocks: Block[], id: string): Block[]`
+- `duplicateBlock(blocks: Block[], id: string): Block[]`
+- `insertSibling(blocks: Block[], targetId: string, newBlock: Block, position: "before" | "after"): Block[]`
+- `appendChild(blocks: Block[], parentId: string, newBlock: Block): Block[]`
+- `moveBlock(blocks: Block[], sourceId: string, targetId: string, position: "before" | "after" | "inside"): Block[]`
+- `isDescendant(block: Block, candidateId: string): boolean`
+- `cloneBlock(block: Block): Block`
+- `interface BlockLocation (3 members)` — traversal. Used by drop handlers to locate insertion targets.
+
+### `src/lib/elements/definition.ts`
+
+- `elementSurfaces(def: Pick<BlockDefinition, "surfaces">): readonly ElementSurface[]` — Surfaces this definition is offered on, with the website-only default.
+- `servesSurface(def: Pick<BlockDefinition, "surfaces">, surface: ElementSurface): boolean`
+- `DEFAULT_ELEMENT_SURFACES: readonly ElementSurface[]` — What every element defaults to when a definition says nothing.
+- `type ElementCategory = | "layout" | "content" | "media" | "commerce" | "auth" | "advanced"` — Palette grouping. This is the single declaration; the website-editor plugin's `BlockCategory` is an alias of it, so adding a category here adds it there.
+- `type ElementSurface = "website" | "portal" | "stage"` — Which surfaces an element may be placed on. The whole reason this exists is palette filtering (design §3.5): an operator editing a client portal must not be offered `checkout-summ…
+- `type BlockComponentType = ComponentType<BlockRenderProps>`
+- `type ElementRenderProps = BlockRenderProps`
+- `type ElementComponentType = BlockComponentType`
+- `type PropFieldType = | "text" | "textarea" | "url" | "color" | "select" | "number" | "boolean" | "image" | "richtext"` — machine-checkable `ElementSchema` an assistant can plan against.
+- `type ElementPropField = PropField`
+- `type ElementDefinition = BlockDefinition`
+- `interface BlockRenderProps (4 members)` — ─── The renderer ABI ─────────────────────────────────────────────────────
+- `interface PropField (16 members)`
+- `interface BlockDefinition (14 members)` — ─── The definition ───────────────────────────────────────────────────────
+
+### `src/lib/elements/ids.ts`
+
+- `makeId(prefix: string, length = 12): string`
+- `slugify(s: string): string`
+
+### `src/lib/elements/index.ts`
+
+- `{ Block, BlockA11y, BlockSeo, BlockStyles, BlockTreeJSON, BlockType, BlockVariant, Element, ElementBinding, ElementContext, ElementProductMatch, ElementStyles, ElementTreeJSON, ElementType, ElementVisibility, SplitTestGroup, SplitTestResult, SplitTestStatus } from "./block"`
+- `{ BlockComponentType, BlockDefinition, BlockRenderProps, ElementCategory, ElementComponentType, ElementDefinition, ElementPropField, ElementRenderProps, ElementSurface, PropField, PropFieldType } from "./definition"`
+- `{ DEFAULT_ELEMENT_SURFACES, elementSurfaces, servesSurface } from "./definition"`
+- `{ ElementPropProblem, ElementPropSchema, ElementSchema } from "./schema"`
+- `{ assertDefinitionConsistent, buildElementSchema, elementSchema, validateElementProps } from "./schema"`
+- `{ getElementDefinition, getElementRenderer, listElementDefinitions, listElementRendererIds, listElementTypes, registerElementDefinitions, registerElementRenderers } from "./registry"`
+- `{ STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "./blockStyles"`
+- `{ BlockLocation } from "./blockTreeOps"`
+- `{ appendChild, cloneBlock, createBlock, duplicateBlock, findBlock, insertSibling, isDescendant, makeBlockId, moveBlock, removeBlock, updateBlock } from "./blockTreeOps"`
+- `{ BlockMigrationStep } from "./blockSchemaMigrations"`
+- `{ BLOCK_SCHEMA_VERSION, MIGRATIONS, blockVersion, loadBlockTreeMigrated, migrateTree, treeNeedsMigration } from "./blockSchemaMigrations"`
+- `{ makeId, slugify } from "./ids"`
+
+### `src/lib/elements/portalElements.ts`
+
+- `portalElementPairing(type: ClientPortalBlockType): PortalElementPairing`
+- `portalElementDefinition(type: ClientPortalBlockType): BlockDefinition | undefined` — The shared element a portal type is a name for. `undefined` while unregistered.
+- `portalVocabularyProblems(): PortalVocabularyProblem[]` — Every way the merged vocabulary can be broken, as a list. This is the check that a single registry buys and two registries could not. Before P3, deleting the website `banner` defi…
+- `toElement(block: ClientPortalPageBlock): Block` — A stored portal block, seen as an element. Lossless: `fromElement` inverts it.
+- `fromElement(element: Block): ClientPortalPageBlock` — The inverse. Anything the element does not carry falls back to the type's defaults.
+- `createPortalBlockRecord(type: ClientPortalBlockType, id: string, makeItemId: () => string = () => "item"): ClientPortalPageBlock`
+- `PORTAL_ELEMENT_PAIRINGS = [` — Every portal type, in palette order. ORDER IS LOAD-BEARING — `CLIENT_PORTAL_BLOCK_REGISTRY` is derived from this and the portal studio renders the palette in array order. `system-…
+- `PORTAL_ELEMENT_BY_TYPE: Record<ClientPortalBlockType, PortalElementPairing>`
+- `type PortalElementCategory = "content" | "live-data" | "layout"` — ─── The pairing table ────────────────────────────────────────────────────
+- `interface PortalElementDefaults (13 members)` — The authoring defaults for one portal type — the stored record, minus its id.
+- `interface PortalElementPairing (7 members)`
+- `interface PortalVocabularyProblem (2 members)` — ─── Integrity ────────────────────────────────────────────────────────────
+
+### `src/lib/elements/registry.ts`
+
+- `registerElementDefinitions(defs: Record<string, BlockDefinition>): void`
+- `registerElementRenderers(renderers: Record<string, BlockComponentType>): void`
+- `getElementDefinition(type: string): BlockDefinition | undefined`
+- `getElementRenderer(type: string): BlockComponentType | undefined`
+- `listElementDefinitions(surface?: ElementSurface): BlockDefinition[]` — Every registered definition, in registration order. Pass a `surface` to get the palette for one editor. That filter is the whole reason `surfaces` exists (design §3.5): an operato…
+- `listElementTypes(surface?: ElementSurface): string[]`
+- `listElementRendererIds(): string[]` — Registered renderer ids, including external-plugin ones with no definition.
+
+### `src/lib/elements/schema.ts`
+
+- `buildElementSchema(def: Pick<BlockDefinition, "type" | "fields" | "defaultProps" | "isContainer" | "surfaces">): ElementSchema`
+- `elementSchema(def: BlockDefinition): ElementSchema` — The generated schema for a definition. Derives once, then returns it.
+- `validateElementProps(schema: ElementSchema, props: Record<string, unknown>): ElementPropProblem[]` — Every problem with `props` against `schema`. Empty array means valid.
+- `assertDefinitionConsistent(def: Pick<BlockDefinition, "type" | "fields" | "defaultProps" | "isContainer" | "surfaces">): ElementPropProblem[]` — The self-consistency check on a definition, separate from validating a *value* against it. Two declarations of one default is the failure mode this catches: a field's `default` is…
+- `interface ElementPropSchema (11 members)` — ─── Shape ────────────────────────────────────────────────────────────────
+- `interface ElementSchema (5 members)`
+- `interface ElementPropProblem (2 members)` — ─── Validation ───────────────────────────────────────────────────────────
+
+### `src/lib/elements/variantResolver.ts`
+
+- `visitorId(): string`
+- `sessionId(): string`
+- `resolveVariant({ block, groupId, trafficPercent = 100, stickyBy = "visitor" }: ResolveInput): ResolvedVariant`
+- `applyVariant(block: Block, variant: BlockVariant | null): Block`
+- `recordExposure(groupId: string, variantId: string)`
+- `recordConversion(groupId: string, variantId: string)`
+- `interface ResolvedVariant (2 members)`
+
+
 ## `src/lib/enquiries/`
+
+### `src/lib/enquiries/enquiryClassification.ts`
+
+- `isWebsiteEnquiryClassification(value: unknown): value is WebsiteEnquiryClassification`
+- `isSalesClassification(value: WebsiteEnquiryClassification): boolean`
+- `isLeadJourneyEligible(lead: { source: string; tags?: string[]; convertedAt?: number; convertedClientId?: string; customFields?: Record<string, unknown>; }): boolean`
+- `classificationContactType(classification: WebsiteEnquiryClassification): "account" | "vendor" | "other" | null`
+- `WEBSITE_ENQUIRY_CLASSIFICATIONS = [`
+- `WEBSITE_ENQUIRY_CLASSIFICATION_LABELS: Record<WebsiteEnquiryClassification, string>`
+- `type WebsiteEnquiryClassification = typeof WEBSITE_ENQUIRY_CLASSIFICATIONS[number]`
+
+### `src/lib/enquiries/enquiryFormLayout.ts`
+
+- `mergeFormLayout(capture: WebsiteEnquiryFormCapture, schema: AquaFormSchema): MergedFormLayout`
+- `interface MergedFormRow (5 members)` — Lay a submission out in the shape of its real form (enquiry-detail-card plan, Phase 3). Phase 1 rendered only the fields a visitor actually filled in. With the form's imported sch…
+- `interface MergedFormLayout (2 members)`
 
 ### `src/lib/enquiries/formCapture.ts`
 
@@ -559,57 +531,15 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface CapturedField (4 members)` — One answer, as the form labelled it.
 - `interface FormIdentity (5 members)`
 
+### `src/lib/enquiries/leadTiming.ts`
 
-## `src/lib/`
-
-### `src/lib/enquiryClassification.ts`
-
-- `isWebsiteEnquiryClassification(value: unknown): value is WebsiteEnquiryClassification`
-- `isSalesClassification(value: WebsiteEnquiryClassification): boolean`
-- `isLeadJourneyEligible(lead: { source: string; tags?: string[]; convertedAt?: number; convertedClientId?: string; customFields?: Record<string, unknown>; }): boolean`
-- `classificationContactType(classification: WebsiteEnquiryClassification): "account" | "vendor" | "other" | null`
-- `WEBSITE_ENQUIRY_CLASSIFICATIONS = [`
-- `WEBSITE_ENQUIRY_CLASSIFICATION_LABELS: Record<WebsiteEnquiryClassification, string>`
-- `type WebsiteEnquiryClassification = typeof WEBSITE_ENQUIRY_CLASSIFICATIONS[number]`
-
-### `src/lib/enquiryFormLayout.ts`
-
-- `mergeFormLayout(capture: WebsiteEnquiryFormCapture, schema: AquaFormSchema): MergedFormLayout`
-- `interface MergedFormRow (5 members)` — Lay a submission out in the shape of its real form (enquiry-detail-card plan, Phase 3). Phase 1 rendered only the fields a visitor actually filled in. With the form's imported sch…
-- `interface MergedFormLayout (2 members)`
-
-### `src/lib/externalAssistantSetup.ts`
-
-- `buildExternalAssistantSetupPrompt(options: ExternalAssistantSetupOptions): string`
-- `buildExternalAssistantSetupDocument(options: ExternalAssistantSetupOptions): string`
-- `externalAssistantSetupFilename(assistantName: string): string`
-- `interface ExternalAssistantSetupOptions (9 members)`
-
-### `src/lib/firstPartyDevelopmentProjects.ts`
-
-- `getFirstPartyDevelopmentProject(id: string)`
-- `FIRST_PARTY_DEVELOPMENT_PROJECTS: readonly FirstPartyDevelopmentProject[]`
-- `type FirstPartyProjectKind = | "website" | "client-portal" | "software" | "lead-magnet" | "template"`
-- `interface FirstPartyDevelopmentProject (15 members)`
-
-### `src/lib/formatDateTime.ts`
-
-- `dateFromValue(value: unknown): Date | null`
-- `timestampFromValue(value: unknown): number | undefined`
-- `formatUkDateTime(value: unknown, fallback = "Date needs review"): string`
-- `formatUkDate(value: unknown, options: Intl.DateTimeFormatOptions, fallback = "Date needs review"): string`
-- `isoDateTimeValue(value: unknown): string | undefined`
-- `dateInputValue(value: unknown): string`
-- `localDateTimeInputValue(value: unknown): string`
-- `relativeAge(mtimeMs: number, nowMs: number): string` — Compact relative age: "just now" / "3m ago" / "5h ago" / "2d ago" / "4mo ago" / "1y ago". Isomorphic (server + client) — pass `nowMs` so it's deterministic and usable from client …
-
-### `src/lib/fulfilmentProductPipelines.ts`
-
-- `defaultProductPipelineStage(productKey: PortalProductKey, clientStage: ClientStage): string`
-- `agencyProductPipelineColumns(product: Pick<AgencyProduct, "id" | "name" | "portalTemplateKey" | "internalWorkspace" | "sopIds">): ProductPipelineColumn[]` — The service workspace owns the stage names and their order. Legacy templates only lend colours.
-- `defaultAgencyProductPipelineStage(product: Pick<AgencyProduct, "id" | "name" | "portalTemplateKey" | "internalWorkspace" | "sopIds">, clientStage: ClientStage): string`
-- `PRODUCT_PIPELINE_COLUMNS: Record<PortalProductKey, ProductPipelineColumn[]>`
-- `interface ProductPipelineColumn (3 members)`
+- `leadTimingSnapshot(lead: LeadTimingInput, referenceNow = Date.now()): LeadTimingSnapshot`
+- `formatElapsed(milliseconds: number): string`
+- `averageElapsed(values: Array<number | undefined>): number | undefined`
+- `LEAD_WAIT_THRESHOLDS = {`
+- `type LeadWaitTone = "neutral" | "notice" | "warning" | "critical" | "complete"`
+- `interface LeadTimingInput (9 members)`
+- `interface LeadTimingSnapshot (12 members)`
 
 
 ## `src/lib/healthCheck/`
@@ -627,24 +557,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `type HCArea = { id: string; name: string; icon: string; blurb: string; tiers: { beginner: HCTier; intermediate: HCTier; professional: HCTier }; }`
 - `type HCPack = { areas: HCArea[] }`
 - `type HCSlot = { tier: "beginner" | "intermediate" | "professional"; raw: (number | number[] | string | null)[]; }`
-
-
-## `src/lib/`
-
-### `src/lib/hiringCapacity.ts`
-
-- `defaultCapacityAreas(): CompanyCapacityAreaPlan[]`
-- `emptyHiringCapacitySignals(): HiringCapacitySignals`
-- `buildHiringCapacitySignals(input: { tasks?: Array<{ title: string; notes?: string; sourceHref?: string; status?: string; priority?: string; dueAt?: number }>; people?: Array<{ title: string; department?: string; weeklyH…`
-- `buildHiringCapacityAnalysis(input: { capacity: CompanyCapacityPlan; actuals: HiringCapacityActuals; signals?: HiringCapacitySignals; }): HiringCapacityAnalysis`
-- `classifyCapacityArea(value: string): CompanyCapacityAreaId`
-- `HIRING_CAPACITY_AREA_META: ReadonlyArray<{ id: CompanyCapacityAreaId; label: string; demandBasis: string }>`
-- `type HiringCapacityState = "hire-now" | "prepare" | "watch" | "balanced"`
-- `type HiringCapacityConfidence = "high" | "medium" | "low"`
-- `interface HiringCapacitySignals (7 members)`
-- `interface HiringCapacityActuals (11 members)`
-- `interface HiringCapacityAreaAnalysis (24 members)`
-- `interface HiringCapacityAnalysis (8 members)`
 
 
 ## `src/lib/inbox/`
@@ -740,6 +652,27 @@ Every exported function, class, type and const in this area, with its real signa
 
 ## `src/lib/integrations/`
 
+### `src/lib/integrations/aquaExplorerBridge.ts`
+
+- `isAquaExplorerReadyMessage(value: unknown): value is AquaExplorerReadyMessage`
+- `isAquaExplorerDiagnosticsMessage(value: unknown): value is AquaExplorerDiagnosticsMessage`
+- `isAquaExplorerSelectedMessage(value: unknown): value is AquaExplorerSelectedMessage`
+- `explorerTargetOrigin(url: string): string`
+- `AQUA_EXPLORER_PROTOCOL_VERSION = 1 as const`
+- `AQUA_EXPLORER_MESSAGES = {`
+- `interface AquaExplorerCapabilities (3 members)`
+- `interface AquaExplorerElement (8 members)`
+- `interface AquaExplorerPatch (4 members)`
+- `interface AquaExplorerReadyMessage (7 members)`
+- `interface AquaExplorerDiagnostics (9 members)`
+- `interface AquaExplorerDiagnosticsMessage (4 members)`
+- `interface AquaExplorerSelectedMessage (3 members)`
+
+### `src/lib/integrations/aquaTagSource.ts`
+
+- `aquaTagResponse()`
+- `AQUA_TAG_SOURCE = String.raw`(() => {`
+
 ### `src/lib/integrations/catalog.ts`
 
 - `integrationDefinition(provider: IntegrationProvider): IntegrationDefinition`
@@ -749,20 +682,145 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface IntegrationFieldDefinition (7 members)`
 - `interface IntegrationDefinition (8 members)`
 
+### `src/lib/integrations/externalAssistantSetup.ts`
+
+- `buildExternalAssistantSetupPrompt(options: ExternalAssistantSetupOptions): string`
+- `buildExternalAssistantSetupDocument(options: ExternalAssistantSetupOptions): string`
+- `externalAssistantSetupFilename(assistantName: string): string`
+- `interface ExternalAssistantSetupOptions (9 members)`
+
 ### `src/lib/integrations/types.ts`
 
 - `type IntegrationConnectionStatus = "saved" | "connected" | "needs-attention"`
 - `interface PublicIntegrationConnection (13 members)`
 
 
-## `src/lib/`
+## `src/lib/intelligence/`
 
-### `src/lib/internalWorkspace.ts`
+### `src/lib/intelligence/attentionProtection.ts`
 
-- `INTERNAL_WORKSPACE_NAME = "AquaOasis-Web"`
-- `INTERNAL_WORKSPACE_SUBTITLE = "One business. Every service."`
+- `promoteForDeferrals(rank: number, deferrals?: number): number`
+- `buildProtectedAttentionWindow<T>(items: readonly T[], options: { groupKey: (item: T) => string; urgencyRank: (item: T) => number; focusLimit?: number; protectionThreshold?: number; enabled?: boolean; }): ProtectedAttent…`
+- `attentionProtectionEnabled(): boolean`
+- `setAttentionProtectionEnabled(enabled: boolean): void`
+- `buildOperationalAttentionWindow(alerts: readonly OperationalAlertView[], options: { enabled?: boolean } = {}): OperationalAttentionWindow`
+- `ATTENTION_PROTECTION_STORAGE_KEY = "aqua-attention-protection"`
+- `ATTENTION_PROTECTION_EVENT = "aqua-attention-protection:change"`
+- `DEFERRALS_BEFORE_PROMOTION = 3` — How far repeatedly-deferred work is promoted up the queue. The shield caps the focus window, which is what makes it useful — but it also means a job put off ten times can sit in t…
+- `type AttentionLoadLevel = "clear" | "steady" | "elevated" | "overload"`
+- `type AttentionReserveGroup = { key: string; count: number; }`
+- `type ProtectedAttentionWindow<T> = { level: AttentionLoadLevel; protected: boolean; total: number; focusLimit: number; focus: T[]; reserve: T[]; reserveCount: number; reserveGroups: AttentionReserveGroup[]; }`
+- `type OperationalAttentionReserveGroup = AttentionReserveGroup & { label: string; href: string; }`
+- `type OperationalAttentionWindow = ProtectedAttentionWindow<OperationalAlertView> & { criticalTotal: number; warningTotal: number; reserveDestinations: OperationalAttentionReserveGroup[]; }`
 
-### `src/lib/kpiRegistry.ts`
+### `src/lib/intelligence/businessRecommendedActions.ts`
+
+- `buildBusinessRecommendedActions({ radar, alerts = [], existingTaskTitles = [], now = Date.now(), limit = 5, }: { radar: BusinessIssueRadar; alerts?: OperationalAlert[]; existingTaskTitles?: string[]; now?: number; limit…`
+
+### `src/lib/intelligence/commandIntelligence.ts`
+
+- `COMMAND_PRIMARY_KPI_STATIONS = [`
+- `type CommandKpiStatus = "critical" | "warning" | "healthy" | "learning" | "blind"`
+- `type CommandKpiFormat = "number" | "percent" | "currency" | "duration" | "score"`
+- `type CommandKpiTargetDirection = "higher" | "lower"`
+- `type CommandKpiPlanningCadence = "daily" | "weekly" | "monthly" | "quarterly" | "rolling" | "guardrail"`
+- `type CommandKpiScopeKind = "ecosystem" | "workspace" | "company" | "client" | "property"`
+- `type CommercialMetricCategory = "outcome" | "driver" | "efficiency" | "quality"`
+- `type CommercialMetricUnit = "count" | "percent" | "currency" | "duration" | "ratio"`
+- `type CommercialRecordState = "new" | "contacted" | "meeting" | "proposal" | "won" | "lost" | "client" | "churned"`
+- `interface CommandKpiPoint (2 members)`
+- `interface CommandKpiPlan (5 members)`
+- `interface CommandKpiMeasurement (4 members)`
+- `interface CommandKpiScopeRef (3 members)`
+- `interface CommandKpi (21 members)`
+- `interface CommandScopedKpiReading (14 members)`
+- `interface CommandIntelligenceScope (7 members)`
+- `interface CommandIntelligenceCampaign (18 members)`
+- `interface CommandAudienceLocation (7 members)`
+- `interface CommandAudienceSignal (5 members)`
+- `interface CommandAudienceDemographic (5 members)`
+- `interface CommandAudienceProfileSummary (32 members)`
+- `interface CommandSourceCohort (8 members)`
+- `interface CommandDemandFlow (5 members)`
+- `interface CommercialFormulaMetric (15 members)`
+- `interface CommercialPipelineStage (9 members)`
+- `interface CommercialPersonRow (25 members)`
+- `interface CommercialSourcePerformance (23 members)`
+- `interface CommercialIntelligenceSnapshot (7 members)`
+- `interface CommandIntelligenceSnapshot (13 members)`
+
+### `src/lib/intelligence/commercialIntelligence.ts`
+
+- `buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency, pageviews, forms, pageviewsMeasured = true, formsMeasured = true, now = Date.now(), }: BuildCommercialIntelligenceInput): CommercialInt…`
+- `type CommercialLineage = CommercialIntelligenceSnapshot["lineage"] & { pageviewsMeasured: boolean; formsMeasured: boolean; }` — `CommercialIntelligenceSnapshot["lineage"]` plus the honesty flags. Additive on purpose: `lineage.pageviews` stays `number` so `marketingIntelligence.ts` (a different lane's file)…
+- `type CommercialIntelligenceSnapshotWithMeasurement = Omit<CommercialIntelligenceSnapshot, "lineage"> & { lineage: CommercialLineage }`
+
+### `src/lib/intelligence/commercialLifecycle.ts`
+
+- `buildCommercialLifecycleSnapshot({ leads, clients, now = Date.now(), available = true, }: BuildCommercialLifecycleInput): CommercialLifecycleSnapshot`
+- `buildCommercialLifecycleChecks(snapshot: CommercialLifecycleSnapshot): BusinessRadarCheck[]`
+- `buildCommercialLifecycleIssues(snapshot: CommercialLifecycleSnapshot, checks: readonly BusinessRadarCheck[]): BusinessRadarIssue[]`
+- `buildCommercialLifecycleSignals(snapshot: CommercialLifecycleSnapshot): BusinessMetricSignal[]`
+- `interface CommercialLifecycleLead (9 members)`
+- `interface CommercialSourceCohort (15 members)`
+- `interface CommercialLifecycleSnapshot (27 members)`
+
+### `src/lib/intelligence/operationalAttention.ts`
+
+- `destinationForOperationalAlert(alert: OperationalAlert): string`
+- `operationalAlertMatchesHref(alert: OperationalAlert, targetHref: string): boolean`
+- `operationalAlertMatchesHrefPrefix(alert: OperationalAlert, targetHref: string): boolean`
+- `operationalAlertBelongsToClient(alert: OperationalAlert, clientId: string): boolean`
+- `type OperationalAlertSeverity = "critical" | "warning" | "notice"`
+- `type OperationalAlertCategory = | "outage" | "support" | "money" | "meeting" | "client" | "marketing" | "task" | "compliance" | "contract" | "development"`
+- `type OperationalAlertViewState = "unread" | "read" | "parked"`
+- `type OperationalAlertAction = "read" | "unread" | "park" | "dismiss"`
+- `interface OperationalAlert (13 members)`
+- `interface OperationalAlertView (5 members)`
+
+
+## `src/lib/people/`
+
+### `src/lib/people/customerProfileScope.ts`
+
+- `scopeProfiles(profiles: MarketingCustomerProfile[], companyId: string): MarketingCustomerProfile[]` — Scope profiles to one company; group-wide profiles (no companyIds) always show. `"all"` = the whole ecosystem.
+- `summariseProfileDimension(profiles: MarketingCustomerProfile[], dimension: ProfileDimension, companyNames?: Map<string, string>): ProfileBreakdownRow[]` — Count the profiles by a chosen dimension, most-common first. Array dimensions (location, company) count a profile once per value; empty values are labelled honestly rather than dr…
+- `type ProfileDimension = "segment" | "priority" | "status" | "confidence" | "location" | "company"` — Customer-intelligence scope + dimensions (KPI intelligence Phase 7). The people/audience workspace can run for **one business** or the **full ecosystem**, and break its profiles d…
+- `interface ProfileBreakdownRow (2 members)`
+
+### `src/lib/people/personDestination.ts`
+
+- `personDestination(person: Pick<Person, "id" | "facets">, state: PersonState): string` — Where clicking a person should take you. The rule, stated once so every list obeys it: contact / enquiry → the contact card lead → the lead card client → their internal client wor…
+- `personCardHref(personId: string): string` — The card itself, regardless of state. Used where the destination must be the card specifically — resolving a classification, for instance, which happens there and nowhere else.
+
+
+## `src/lib/performance/`
+
+### `src/lib/performance/companyHealth.ts`
+
+- `calculateCompanyHealth(input: CompanyHealthInput): CompanyHealthResult`
+- `calculateServiceBrandHealth(input: ServiceBrandHealthInput): ServiceBrandHealthResult`
+- `interface CompanyHealthInput (11 members)`
+- `interface CompanyHealthResult (6 members)`
+- `interface ServiceBrandHealthInput (7 members)`
+- `interface ServiceBrandHealthResult (6 members)`
+
+### `src/lib/performance/hiringCapacity.ts`
+
+- `defaultCapacityAreas(): CompanyCapacityAreaPlan[]`
+- `emptyHiringCapacitySignals(): HiringCapacitySignals`
+- `buildHiringCapacitySignals(input: { tasks?: Array<{ title: string; notes?: string; sourceHref?: string; status?: string; priority?: string; dueAt?: number }>; people?: Array<{ title: string; department?: string; weeklyH…`
+- `buildHiringCapacityAnalysis(input: { capacity: CompanyCapacityPlan; actuals: HiringCapacityActuals; signals?: HiringCapacitySignals; }): HiringCapacityAnalysis`
+- `classifyCapacityArea(value: string): CompanyCapacityAreaId`
+- `HIRING_CAPACITY_AREA_META: ReadonlyArray<{ id: CompanyCapacityAreaId; label: string; demandBasis: string }>`
+- `type HiringCapacityState = "hire-now" | "prepare" | "watch" | "balanced"`
+- `type HiringCapacityConfidence = "high" | "medium" | "low"`
+- `interface HiringCapacitySignals (7 members)`
+- `interface HiringCapacityActuals (11 members)`
+- `interface HiringCapacityAreaAnalysis (24 members)`
+- `interface HiringCapacityAnalysis (8 members)`
+
+### `src/lib/performance/kpiRegistry.ts`
 
 - `describeCommandKpi(kpi: CommandKpi): KpiDescriptor` — Project one already-built {@link CommandKpi} into a registry descriptor. Pure and total — no recompute, no I/O.
 - `describeCommandKpis(snapshot: CommandIntelligenceSnapshot): KpiDescriptor[]` — Register every command KPI on a built snapshot as a descriptor, preserving the snapshot's rank order. This is the Phase 1 registry.
@@ -783,30 +841,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface KpiTargetSuggestion (5 members)` — A suggested target derived from a KPI's trailing history — a human accepts it.
 - `interface KpiDescriptorGroup (2 members)` — A descriptor set grouped under its category, categories in first-seen order.
 
-### `src/lib/leadTiming.ts`
-
-- `leadTimingSnapshot(lead: LeadTimingInput, referenceNow = Date.now()): LeadTimingSnapshot`
-- `formatElapsed(milliseconds: number): string`
-- `averageElapsed(values: Array<number | undefined>): number | undefined`
-- `LEAD_WAIT_THRESHOLDS = {`
-- `type LeadWaitTone = "neutral" | "notice" | "warning" | "critical" | "complete"`
-- `interface LeadTimingInput (9 members)`
-- `interface LeadTimingSnapshot (12 members)`
-
-### `src/lib/operationalAttention.ts`
-
-- `destinationForOperationalAlert(alert: OperationalAlert): string`
-- `operationalAlertMatchesHref(alert: OperationalAlert, targetHref: string): boolean`
-- `operationalAlertMatchesHrefPrefix(alert: OperationalAlert, targetHref: string): boolean`
-- `operationalAlertBelongsToClient(alert: OperationalAlert, clientId: string): boolean`
-- `type OperationalAlertSeverity = "critical" | "warning" | "notice"`
-- `type OperationalAlertCategory = | "outage" | "support" | "money" | "meeting" | "client" | "marketing" | "task" | "compliance" | "contract" | "development"`
-- `type OperationalAlertViewState = "unread" | "read" | "parked"`
-- `type OperationalAlertAction = "read" | "unread" | "park" | "dismiss"`
-- `interface OperationalAlert (13 members)`
-- `interface OperationalAlertView (5 members)`
-
-### `src/lib/performanceAnalytics.ts`
+### `src/lib/performance/performanceAnalytics.ts`
 
 - `buildPerformanceAnalytics(events: PerformanceEvent[], days: number, now = Date.now()): PerformanceAnalytics`
 - `buildPerformanceAnalyticsForRange(events: PerformanceEvent[], start: number, end: number): PerformanceAnalytics`
@@ -815,7 +850,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PerformanceMetricSet (9 members)`
 - `interface PerformanceAnalytics (11 members)`
 
-### `src/lib/performanceReports.ts`
+### `src/lib/performance/performanceReports.ts`
 
 - `cleanMonthlyPerformanceReports(value: unknown): MonthlyPerformanceReport[]`
 - `reportMonthRange(month: string): { start: number; end: number; label: string }`
@@ -824,16 +859,48 @@ Every exported function, class, type and const in this area, with its real signa
 - `type MonthlyPerformanceReportStatus = "draft" | "published"`
 - `interface MonthlyPerformanceReport (11 members)`
 
-### `src/lib/personDestination.ts`
 
-- `personDestination(person: Pick<Person, "id" | "facets">, state: PersonState): string` — Where clicking a person should take you. The rule, stated once so every list obeys it: contact / enquiry → the contact card lead → the lead card client → their internal client wor…
-- `personCardHref(personId: string): string` — The card itself, regardless of state. Used where the destination must be the card specifically — resolving a classification, for instance, which happens there and nowhere else.
+## `src/lib/portal/`
 
-### `src/lib/portalBespokeProductModules.ts`
+### `src/lib/portal/clientPortalBuilder.ts`
+
+- `createPortalBlock(type: ClientPortalBlockType, id = portalBuilderId("block")): ClientPortalPageBlock` — A freshly inserted portal block. The per-type defaults moved to `PORTAL_ELEMENT_PAIRINGS` in P3. They used to be an if-ladder here plus two more in `blockTitle`/`blockBody` — the …
+- `createPortalCustomPage(label = "New page"): ClientPortalCustomPage`
+- `defaultPortalBuilder(sections: readonly ClientPortalSectionId[]): ClientPortalBuilderDocument`
+- `normalisePortalBuilder(value: unknown, sections: readonly ClientPortalSectionId[], fallback?: ClientPortalBuilderDocument): ClientPortalBuilderDocument`
+- `portalBuilder(document: ClientPortalDesignDocument): ClientPortalBuilderDocument`
+- `portalPageBlocks(document: ClientPortalDesignDocument, section: ClientPortalSectionId): ClientPortalPageBlock[]`
+- `portalCustomPage(document: ClientPortalDesignDocument, slug?: string): ClientPortalCustomPage | undefined`
+- `portalBlockMatchesProducts(block: ClientPortalPageBlock, assignedProductIds: readonly string[]): boolean`
+- `portalSlug(value: string): string`
+- `uniquePortalSlug(value: string, used: string[]): string`
+- `portalBuilderId(prefix: string): string`
+- `CLIENT_PORTAL_BLOCK_REGISTRY: Array<{ type: ClientPortalBlockType; label: string; description: string; category: "content" | "live-data" | "layout"; }>` — The portal palette — 16 placeable things, in palette order. DERIVED since element-engine P3. This used to be a hand-written second block registry sitting alongside the website-edi…
+
+### `src/lib/portal/clientPortalDesign.ts`
+
+- `clonePortalDesign(document: ClientPortalDesignDocument = STUNNING_STANDARD_PORTAL): ClientPortalDesignDocument`
+- `normalisePortalDesign(value: unknown, fallback: ClientPortalDesignDocument = STUNNING_STANDARD_PORTAL): ClientPortalDesignDocument`
+- `portalCustomCode(document: ClientPortalDesignDocument): ClientPortalCustomCode`
+- `formatPortalCopy(value: string, tokens: Record<string, string>): string`
+- `CLIENT_PORTAL_TEMPLATE_ID = "stunning-standard"`
+- `CLIENT_PORTAL_TEMPLATE_NAME = "Stunning Standard"`
+- `CLIENT_PORTAL_MODES: ClientPortalMode[]`
+- `CLIENT_PORTAL_SECTIONS: ClientPortalSectionId[]`
+- `EMPTY_CLIENT_PORTAL_CUSTOM_CODE: ClientPortalCustomCode`
+- `STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument`
+
+### `src/lib/portal/customerPortalAttention.ts`
+
+- `buildCustomerPortalAttention(data: CustomerPortalData): CustomerPortalAttention`
+- `interface CustomerPortalAttentionItem (2 members)`
+- `interface CustomerPortalAttention (3 members)`
+
+### `src/lib/portal/portalBespokeProductModules.ts`
 
 - `BESPOKE_PRODUCT_MODULES: Record<string, PortalProductModule>`
 
-### `src/lib/portalProductModules.ts`
+### `src/lib/portal/portalProductModules.ts`
 
 - `portalProductModule(product: PortalProductSelection): PortalProductModule`
 - `portalProductModulePage(product: PortalProductSelection, pageId?: string): PortalProductModulePage`
@@ -845,7 +912,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PortalProductModule (4 members)`
 - `interface PortalProductLifecycleStage (10 members)`
 
-### `src/lib/portalProductWorkspaces.ts`
+### `src/lib/portal/portalProductWorkspaces.ts`
 
 - `createPortalProductWorkspace(product: PortalProductSelection, stage: PortalProductMode = "onboarding", now = Date.now()): PortalProductWorkspace`
 - `cleanPortalProductWorkspace(value: unknown, product: PortalProductSelection, fallbackStage: PortalProductMode = "onboarding", now = Date.now()): PortalProductWorkspace`
@@ -869,7 +936,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PortalProductWorkspace (10 members)`
 - `interface PortalWorkspaceFieldDefinition (4 members)`
 
-### `src/lib/portalProducts.ts`
+### `src/lib/portal/portalProducts.ts`
 
 - `cleanPortalProducts(value: unknown): PortalProductSelection[]`
 - `portalProductDefinition(product: PortalProductSelection): PortalProductDefinition | undefined`
@@ -884,7 +951,22 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PortalProductSelection (12 members)`
 - `interface PortalProductDefinition (4 members)`
 
-### `src/lib/productAssignments.ts`
+
+## `src/lib/products/`
+
+### `src/lib/products/agencyProductCategories.ts`
+
+- `AGENCY_PRODUCT_CATEGORIES = [`
+
+### `src/lib/products/fulfilmentProductPipelines.ts`
+
+- `defaultProductPipelineStage(productKey: PortalProductKey, clientStage: ClientStage): string`
+- `agencyProductPipelineColumns(product: Pick<AgencyProduct, "id" | "name" | "portalTemplateKey" | "internalWorkspace" | "sopIds">): ProductPipelineColumn[]` — The service workspace owns the stage names and their order. Legacy templates only lend colours.
+- `defaultAgencyProductPipelineStage(product: Pick<AgencyProduct, "id" | "name" | "portalTemplateKey" | "internalWorkspace" | "sopIds">, clientStage: ClientStage): string`
+- `PRODUCT_PIPELINE_COLUMNS: Record<PortalProductKey, ProductPipelineColumn[]>`
+- `interface ProductPipelineColumn (3 members)`
+
+### `src/lib/products/productAssignments.ts`
 
 - `cleanAssignedProductIds(value: unknown, limit = 48): string[]`
 - `resolveAgencyProductAssignment(catalogue: readonly AgencyProduct[], selectedProductIds: readonly string[]): AgencyProductAssignmentResolution`
@@ -895,7 +977,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface AgencyProductAssignmentResolution (6 members)`
 - `interface PortalProductAssignmentState (3 members)`
 
-### `src/lib/productInternalWorkspace.ts`
+### `src/lib/products/productInternalWorkspace.ts`
 
 - `isProductWorkspaceModule(value: unknown): value is AgencyProductWorkspaceModule`
 - `productWorkspaceModuleLabel(module: AgencyProductWorkspaceModule): string`
@@ -903,17 +985,40 @@ Every exported function, class, type and const in this area, with its real signa
 - `PRODUCT_WORKSPACE_MODULES: ReadonlyArray<{ id: AgencyProductWorkspaceModule; label: string; description: string; }>`
 - `PRODUCT_STAGE_PORTAL_MODES: ReadonlyArray<{ id: AgencyProductPortalMode; label: string }>`
 
-### `src/lib/projects.ts`
+
+## `src/lib/projects/`
+
+### `src/lib/projects/firstPartyDevelopmentProjects.ts`
+
+- `getFirstPartyDevelopmentProject(id: string)`
+- `FIRST_PARTY_DEVELOPMENT_PROJECTS: readonly FirstPartyDevelopmentProject[]`
+- `type FirstPartyProjectKind = | "website" | "client-portal" | "software" | "lead-magnet" | "template"`
+- `interface FirstPartyDevelopmentProject (15 members)`
+
+### `src/lib/projects/projects.ts`
 
 - `PROJECTS: Project[]`
 - `interface ProjectOutcome (3 members)` — outcomes honest: a metric you can defend, not marketing hype.
 - `interface Project (11 members)`
 
-### `src/lib/publicOrigin.ts`
+### `src/lib/projects/releases.ts`
+
+- `formatReleaseDate(value: string): string`
+- `APP_VERSION = "0.8.0"`
+- `RELEASE_STORAGE_KEY = "aquacrm:last-seen-release"`
+- `RELEASE_SEEN_EVENT = "aquacrm:release-seen"`
+- `PRODUCT_RELEASES: ProductRelease[]`
+- `LATEST_RELEASE = PRODUCT_RELEASES[0]`
+- `interface ProductRelease (5 members)`
+
+
+## `src/lib/public/`
+
+### `src/lib/public/publicOrigin.ts`
 
 - `isPubliclyReachableOrigin(origin: string): boolean` — Is an origin reachable from a stranger's browser? Anything we hand out to be pasted into someone else's website — the Aqua Tag snippet above all — is worthless if it points somewh…
 
-### `src/lib/publicSites.ts`
+### `src/lib/public/publicSites.ts`
 
 - `publicAquaSite(siteKey: string)`
 - `resolvePublicAquaSite(brand: string, origin?: string | null): ResolvedPublicAquaSite | null`
@@ -924,18 +1029,80 @@ Every exported function, class, type and const in this area, with its real signa
 - `type PublicAquaSiteKey = keyof typeof PUBLIC_AQUA_SITES`
 - `interface ResolvedPublicAquaSite (4 members)`
 
-### `src/lib/publicUrl.ts`
+### `src/lib/public/publicUrl.ts`
 
 - `normalizeWebsiteUrl(value: unknown): string | undefined`
 - `isLocalDevelopmentUrl(value: string): boolean`
 
-### `src/lib/radarCheckEngine.ts`
+
+## `src/lib/radar/`
+
+### `src/lib/radar/businessRadar.ts`
+
+- `radarDigest(radar: BusinessIssueRadar): AdvisorRadarDigest`
+- `type AdvisorDomain = | "company" | "sales" | "inbox" | "clients" | "finance" | "delivery" | "marketing" | "operations" | "compliance" | "development" | "team" | "systems"`
+- `type BusinessIssueSeverity = "critical" | "warning" | "watch"`
+- `type BusinessSignalStatus = BusinessIssueSeverity | "healthy" | "unknown"`
+- `type AdvisorCoverageStatus = "connected" | "empty" | "disconnected" | "unavailable"`
+- `type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind" | "learning" | "inactive"`
+- `type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog" | "infra"`
+- `type RadarCheckTier = "instant" | "probe" | "rollup"` — Which sweep refreshes a check (radar upgrade Stage 2). `instant` = in-state derivation the Pulse assembles live; `probe` = a network/DB round-trip run by the Deep/Infra sweeps; `r…
+- `type RadarDataDependency = "in-state" | "derived" | "external"` — What a check's answer depends on. `in-state` = current PortalState only; `derived` = needs retained evidence history or another derived signal; `external` = needs data from outsid…
+- `type RadarFindingGroup = | "infrastructure" | "commercial" | "compliance" | "delivery" | "reliability" | "people"` — Top-level "what kind of problem" bucket above the {domain}:{category} grouping (radar upgrade Stage 5). The operator sees the kind of problem before drilling into domain detail. D…
+- `type RadarEntityType = "client" | "product" | "property"`
+- `type RadarCoverageEntityType = | "client" | "product" | "property" | "integration" | "portal-connection" | "trading-company"` — Entity types with a declared radar detector-pack template.
+- `type RadarCoverageState = "calibrating" | "active"` — `calibrating` = seeded but still accruing evidence; `active` = evidence-backed.
+- `type RadarInfraBackend = "file" | "memory" | "postgres" | "supabase" | "unknown"` — ─── Infra health (radar upgrade Stage 4 — DB & storage health) ─────────────
+- `type RadarInfraProbeStatus = "connected" | "down" | "untested"`
+- `type RadarRuleLens = | "connection" | "freshness" | "threshold" | "trend" | "anomaly" | "integrity" | "continuity" | "baseline" | "confidence" | "forecast" | "volatility" | "resilience"`
+- `type RadarSourceDatasetStatus = "available" | "empty" | "unavailable"`
+- `type AdvisorRadarDigest = BusinessIssueRadar["summary"] & { generatedAt: number; speedToLead: SpeedToLeadRadar; commercial: CommercialLifecycleSnapshot; topIssues: BusinessRadarIssue[]; topIncidents: BusinessRadarIncide…`
+- `interface RadarCoverageManifestEntry (6 members)`
+- `interface RadarCoverageManifest (6 members)` — Proof that every monitorable entity resolves to a radar pack (Part E).
+- `interface RadarInfraDatabaseHealth (8 members)` — One database's reachability + latency (+ row counts for the primary).
+- `interface RadarInfraStorageHealth (4 members)` — Storage health. Total Supabase Storage bytes is NOT available from the service-role client, so `measurable` is false and `bucketBytes` is null — shown honestly as "not available i…
+- `interface RadarInfraHealthSnapshot (4 members)` — The Infra sweep's latest snapshot; written to `radarInfraHealth`, read by the Pulse.
+- `interface BusinessRadarIssue (10 members)`
+- `interface RadarEntityReference (4 members)`
+- `interface BusinessMetricSignal (11 members)`
+- `interface AdvisorCoverageSource (7 members)`
+- `interface BusinessRadarCheck (28 members)`
+- `interface ClientRadarPackSummary (11 members)`
+- `interface ClientRadarSnapshot (13 members)`
+- `interface RadarDomainSummary (16 members)`
+- `interface BusinessRadarIncident (4 members)`
+- `interface RadarFindingGroupSummary (6 members)` — Per-bucket incident roll-up (radar upgrade Stage 5) — "what kind of problem" at a glance.
+- `interface BusinessRadarConclusion (6 members)`
+- `interface BusinessRadarAdaptiveState (11 members)`
+- `interface SpeedToLeadRadar (12 members)`
+- `interface RadarMemoryPoint (5 members)`
+- `interface RadarMemoryDigest (19 members)`
+- `interface RadarEvidenceMovement (8 members)`
+- `interface RadarEvidenceDigest (9 members)`
+- `interface RadarEvidenceSeriesSummary (16 members)`
+- `interface RadarEvidenceInspectionIndex (5 members)`
+- `interface RadarEvidenceSeriesInspection (2 members)`
+- `interface RadarSourceDatasetSummary (11 members)`
+- `interface RadarSourceDataIndex (6 members)`
+- `interface RadarSourceDatasetInspection (5 members)`
+- `interface BusinessIssueRadar (16 members)`
+
+### `src/lib/radar/clientRadar.ts`
+
+- `buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSnapshot`
+- `interface ClientRadarProductInput (6 members)`
+- `interface ClientRadarPropertyInput (8 members)`
+- `interface ClientRadarMilestoneInput (5 members)`
+- `interface ClientRadarAlertInput (6 members)`
+- `interface ClientRadarInput (17 members)`
+
+### `src/lib/radar/radarCheckEngine.ts`
 
 - `buildRadarCheckMatrix(observations: readonly RadarObservation[], coverage: readonly AdvisorCoverageSource[], now = Date.now()): { checks: BusinessRadarCheck[]; domains: RadarDomainSummary[] }`
 - `summarizeRadarChecks(checks: readonly BusinessRadarCheck[], coverage: readonly AdvisorCoverageSource[]): RadarDomainSummary[]`
 - `interface RadarObservation (22 members)`
 
-### `src/lib/radarClassification.ts`
+### `src/lib/radar/radarClassification.ts`
 
 - `radarCheckTier(scope: RadarCheckScope): RadarCheckTier`
 - `radarDataDependency(check: RadarClassifiable): RadarDataDependency`
@@ -946,11 +1113,11 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface RadarClassifiable (2 members)` — The shape needed to classify — every RadarCheck and catalogue rule has these.
 - `interface RadarClassification (2 members)`
 
-### `src/lib/radarCorrelations.ts`
+### `src/lib/radar/radarCorrelations.ts`
 
 - `buildRadarCorrelationIssues(observations: readonly RadarObservation[], checks: readonly BusinessRadarCheck[], now: number): BusinessRadarIssue[]`
 
-### `src/lib/radarCoverageRegistry.ts`
+### `src/lib/radar/radarCoverageRegistry.ts`
 
 - `coverageTemplateFor(type: string): RadarCoverageTemplate` — Resolve an entity type to its template, falling back to the generic pack.
 - `resolveRadarCoverage(entities: readonly RadarCoverageInputEntity[]): RadarCoverageManifest` — Resolve every entity to its pack, producing the coverage manifest the watchdog uses to prove seeding worked. Unknown types resolve to the generic fallback (never a gap); a `gap` o…
@@ -958,11 +1125,11 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface RadarCoverageTemplate (6 members)` — Radar coverage registry + seeder (radar upgrade Stage 6, Part E). A declarative **detector-pack template per entity type** plus a **generic fallback**, so every monitorable entity…
 - `interface RadarCoverageInputEntity (4 members)`
 
-### `src/lib/radarInfraChecks.ts`
+### `src/lib/radar/radarInfraChecks.ts`
 
 - `buildInfraHealthChecks(snapshot: RadarInfraHealthSnapshot | undefined, now: number): BusinessRadarCheck[]` — Build the infra-scope checks from the latest Infra sweep snapshot. With no snapshot yet (sweep hasn't run), emit a single honest `learning` check rather than silence, so uninstrum…
 
-### `src/lib/radarPolicyEngine.ts`
+### `src/lib/radar/radarPolicyEngine.ts`
 
 - `resolveRadarPolicy(configuration: RadarPolicyConfiguration, domain: AdvisorDomain, familyId?: string, checkId?: string): ResolvedRadarPolicy`
 - `applyAdaptiveRadarPolicy(input: AdaptiveRadarInput): AdaptiveRadarResult`
@@ -970,7 +1137,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface AdaptiveRadarResult (5 members)`
 - `interface ResolvedRadarPolicy (10 members)`
 
-### `src/lib/radarRuleCatalog.ts`
+### `src/lib/radar/radarRuleCatalog.ts`
 
 - `radarRulesForDomain(domain: AdvisorDomain): readonly BusinessRadarRuleDefinition[]`
 - `RADAR_RULE_LENSES: ReadonlyArray<{ id: RadarRuleLens; label: string; description: string }>`
@@ -980,31 +1147,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface RadarSignalFamilyDefinition (3 members)`
 - `interface BusinessRadarRuleDefinition (9 members)`
 
-### `src/lib/radarSentinels.ts`
+### `src/lib/radar/radarSentinels.ts`
 
 - `buildSourceSentinelChecks(coverage: readonly AdvisorCoverageSource[], now: number): BusinessRadarCheck[]`
 - `buildPropertySentinelChecks(telemetry: RadarTelemetrySnapshot, now: number): BusinessRadarCheck[]`
 - `buildRadarWatchdogChecks(input: { checks: readonly BusinessRadarCheck[]; coverage: readonly AdvisorCoverageSource[]; telemetry: RadarTelemetrySnapshot; correlationIssues: readonly BusinessRadarIssue[]; evidence?: RadarE…`
 
-### `src/lib/radarSyntheticChecks.ts`
+### `src/lib/radar/radarSyntheticChecks.ts`
 
 - `buildSyntheticCanaryChecks(telemetry: RadarTelemetrySnapshot, probes: Record<string, RadarSyntheticProbeResult>, now: number): BusinessRadarCheck[]`
 - `buildSyntheticCanaryIssues(telemetry: RadarTelemetrySnapshot, probes: Record<string, RadarSyntheticProbeResult>, now: number): BusinessRadarIssue[]`
 
-### `src/lib/radarSyntheticSafety.ts`
+### `src/lib/radar/radarSyntheticSafety.ts`
 
 - `isReservedSyntheticHostname(hostname: string): boolean`
 - `isUnsafeSyntheticAddress(address: string): boolean`
-
-### `src/lib/releases.ts`
-
-- `formatReleaseDate(value: string): string`
-- `APP_VERSION = "0.8.0"`
-- `RELEASE_STORAGE_KEY = "aquacrm:last-seen-release"`
-- `RELEASE_SEEN_EVENT = "aquacrm:release-seen"`
-- `PRODUCT_RELEASES: ProductRelease[]`
-- `LATEST_RELEASE = PRODUCT_RELEASES[0]`
-- `interface ProductRelease (5 members)`
 
 
 ## `src/lib/resources/`
@@ -1025,15 +1182,27 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `RequirePermission({ session, requires, children, fallback, }: { session: SessionPayload | null | undefined; requires: readonly PermissionKey[]; children: ReactNode; fallback?: ReactNode; })`
 
-### `src/lib/server/advisorContext.ts`
+### `src/lib/server/aquaEmbedToken.ts`
+
+- `expectedEmbedApiToken()`
+- `matchesEmbedApiToken(candidate: string)`
+- `createAquaEmbedToken(input: { clientId: string; mode?: AquaEmbedMode; email?: string; name?: string; origin?: string; ttlSeconds?: number; now?: number; })`
+- `verifyAquaEmbedToken(token: string, now = Math.floor(Date.now() / 1000)): AquaEmbedPayload | null`
+- `type AquaEmbedMode = "client" | "admin"`
+- `interface AquaEmbedPayload (9 members)`
+
+
+## `src/lib/server/assistants/`
+
+### `src/lib/server/assistants/advisorContext.ts`
 
 - `async buildAdvisorContext(agencyId: string, now = Date.now())`
 
-### `src/lib/server/advisorSkillContext.ts`
+### `src/lib/server/assistants/advisorSkillContext.ts`
 
 - `async buildAdvisorSkillContext(agencyId: string, skill: AdvisorSkill, now = Date.now(), suppliedContext?: Awaited<ReturnType<typeof buildAdvisorContext>>)`
 
-### `src/lib/server/advisorSkills.ts`
+### `src/lib/server/assistants/advisorSkillsService.ts`
 
 - `listAdvisorSkills(agencyId: string): AdvisorSkill[]`
 - `advisorSkillState(agencyId: string)`
@@ -1044,40 +1213,12 @@ Every exported function, class, type and const in this area, with its real signa
 - `advisorSkillInstruction(skill: AdvisorSkill): string`
 - `enabledAdvisorSkillManifest(agencyId: string): string`
 
-### `src/lib/server/aquaEmbedToken.ts`
-
-- `expectedEmbedApiToken()`
-- `matchesEmbedApiToken(candidate: string)`
-- `createAquaEmbedToken(input: { clientId: string; mode?: AquaEmbedMode; email?: string; name?: string; origin?: string; ttlSeconds?: number; now?: number; })`
-- `verifyAquaEmbedToken(token: string, now = Math.floor(Date.now() / 1000)): AquaEmbedPayload | null`
-- `type AquaEmbedMode = "client" | "admin"`
-- `interface AquaEmbedPayload (9 members)`
-
-### `src/lib/server/aquaOasisSeed.ts`
-
-- `seedAquaOasisDemo(installedBy?: string): Promise<SeedResult>`
-- `addUserAgencyMembership(userId: string, agencyId: string): void` — seed to make Ed a master across Milesy Media + AquaOasis.
-- `_resetAquaOasisSeedForTests(): void` — Test helper — purely for the smoke to reset module-level cache.
-- `AQUA_OASIS_AGENCY_SLUG = "aquaoasis-demo"`
-- `AQUA_OASIS_AGENCY_NAME = "AquaOasis Demo"`
-- `AQUA_OASIS_PLUGIN_IDS = [`
-
-### `src/lib/server/aquaTagDetection.ts`
-
-- `scanFormsInHtml(html: string): AquaTagScanForms` — Count forms the way the tag decides what to capture, from static HTML. A form is capturable when the site explicitly marked it (`data-aqua-form` / `data-aqua-capture`) or it plain…
-- `scanFormSchemasInHtml(html: string): AquaFormSchema[]` — Extract each form's field layout from static HTML — the schema behind the "Import forms" step (plan Phase 2). Mirrors `scanFormsInHtml`'s form + capturable heuristic so "these 3 f…
-- `analyzeAquaTagHtml(html: string, masterSiteKey: string): AquaTagAnalysis` — Read a page's HTML for the tag and its forms. Pure — no network.
-- `async detectAquaTag(input: { rawUrl: string; masterSiteKey: string }): Promise<AquaTagDetection>` — Fetch a domain and report whether the master tag is live and how many forms it would capture. Network failures come back as a reachable:false result with a plain reason, not a thr…
-- `interface AquaTagScanForms (2 members)` — Prove the Aqua Tag is live on a domain, and count what it will capture. This is the first tangible step of the setup wizard: paste the tag on a site, then we fetch that site the w…
-- `interface AquaTagAnalysis (4 members)`
-- `interface AquaTagDetection (5 members)`
-
-### `src/lib/server/assistantBusinessContext.ts`
+### `src/lib/server/assistants/assistantBusinessContext.ts`
 
 - `buildAssistantBusinessContext(agencyId: string): { summary: AssistantContextSummary; serialized: string; truncated: boolean; }`
 - `interface AssistantContextSummary (9 members)`
 
-### `src/lib/server/assistantStore.ts`
+### `src/lib/server/assistants/assistantStore.ts`
 
 - `getAssistantWorkspace(agencyId: string, userId: string): AssistantWorkspaceState`
 - `createAssistantThread(agencyId: string, userId: string, title = "New conversation"): AssistantThread`
@@ -1088,7 +1229,68 @@ Every exported function, class, type and const in this area, with its real signa
 - `addAssistantMemory(agencyId: string, userId: string, content: string, sourceThreadId?: string): AssistantMemory`
 - `deleteAssistantMemory(agencyId: string, userId: string, memoryId: string)`
 
-### `src/lib/server/auth.ts`
+### `src/lib/server/assistants/externalAdvisorContext.ts`
+
+- `async buildExternalAdvisorContext(auth: ExternalAssistantAuth, now = Date.now())`
+- `externalAssistantDomains(modules: ExternalAssistantModule[]): AdvisorDomain[]`
+
+### `src/lib/server/assistants/externalAssistantApi.ts`
+
+- `async authenticateExternalAssistant(request: Request): Promise<ExternalAssistantAuth>`
+- `externalApiErrorResponse(error: unknown): Response`
+- `externalApiHeaders(): Headers`
+- `isExternalAssistantModule(value: string): value is ExternalAssistantModule`
+- `requireExternalAssistantPermission(auth: ExternalAssistantAuth, permission: ExternalAssistantApiPermission): void`
+- `requireExternalAssistantModule(auth: ExternalAssistantAuth, module: ExternalAssistantModule): void`
+- `listExternalAssistantRecords(agencyId: string, module: ExternalAssistantModule): ExternalAssistantRecord[]`
+- `buildExternalAssistantContext(agencyId: string, allowedModules: ExternalAssistantModule[] = [...EXTERNAL_ASSISTANT_MODULES], permissions: ExternalAssistantApiPermission[] = [...EXTERNAL_ASSISTANT_PERMISSIONS])`
+- `findExternalAssistantRecord(agencyId: string, module: ExternalAssistantModule, recordId: string): ExternalAssistantRecord | null`
+- `searchExternalAssistantRecords(agencyId: string, query: string, modules: ExternalAssistantModule[], limit: number): Array<ExternalAssistantRecord & { score: number }>`
+- `filterAndPaginateRecords(records: ExternalAssistantRecord[], options: { status?: string; updatedAfter?: string; cursor?: string; limit: number; })`
+- `recordsToCsv(records: ExternalAssistantRecord[]): string`
+- `sanitizeExternalData(value: unknown, depth = 0, key = ""): unknown`
+- `class ExternalAssistantApiError`
+    - `constructor(status: number, code: string, message: string, retryAfter?: number)`
+- `EXTERNAL_ASSISTANT_MODULES = [`
+- `type ExternalAssistantModule = (typeof EXTERNAL_ASSISTANT_MODULES)[number]`
+- `interface ExternalAssistantRecord (7 members)`
+- `interface ExternalAssistantAuth (7 members)`
+
+### `src/lib/server/assistants/externalAssistantKeys.ts`
+
+- `listExternalAssistantApiKeys(agencyId: string): ExternalAssistantApiKeySummary[]`
+- `createExternalAssistantApiKey(input: ApiKeyInput): { key: ExternalAssistantApiKeySummary; token: string; }`
+- `revokeExternalAssistantApiKey(input: { agencyId: string; keyId: string; revokedBy: string; }): ExternalAssistantApiKeySummary`
+- `rotateExternalAssistantApiKey(input: { agencyId: string; keyId: string; createdBy: string; }): { key: ExternalAssistantApiKeySummary; token: string }`
+- `findExternalAssistantApiKey(token: string): ExternalAssistantApiKey | null`
+- `touchExternalAssistantApiKey(keyId: string): void`
+- `EXTERNAL_ASSISTANT_PERMISSIONS = [`
+- `interface ExternalAssistantApiKeySummary (13 members)`
+
+### `src/lib/server/assistants/externalAssistantMcp.ts`
+
+- `listExternalAssistantMcpTools(auth: ExternalAssistantAuth): McpTool[]`
+- `async handleExternalAssistantMcpRequest(auth: ExternalAssistantAuth, message: unknown)`
+
+### `src/lib/server/assistants/externalAssistantProposals.ts`
+
+- `listExternalAssistantActionProposals(agencyId: string, statuses?: ExternalAssistantProposalStatus[]): ExternalAssistantActionProposal[]`
+- `listProposalsForExternalAssistant(agencyId: string, assistantFingerprint: string): ExternalAssistantActionProposal[]`
+- `submitExternalAssistantActionProposal(input: SubmitExternalAssistantProposalInput): ExternalAssistantActionProposal`
+- `decideExternalAssistantActionProposal(input: { agencyId: string; proposalId: string; decision: "accept" | "park" | "reject"; actorUserId: string; assigneeUserId?: string; dueAt?: number; parkedUntil?: number; note?: str…`
+- `interface SubmitExternalAssistantProposalInput (13 members)`
+
+### `src/lib/server/assistants/openaiAssistant.ts`
+
+- `isAssistantConfigured(agencyId?: string)`
+- `assistantModel(agencyId?: string)`
+- `async askMilesymediaAssistant(input: { agencyId: string; userName: string; memories: AssistantMemory[]; history: AssistantMessage[]; businessContext: string; contextTruncated: boolean; question: string; skill: AdvisorSk…`
+- `async suggestAdvisorActions(input: { agencyId: string; businessContext: string; alerts: OperationalAlert[]; radarIssues: BusinessRadarIssue[]; recommendedActions?: AdvisorActionSuggestion[]; existingTaskTitles: string[]…`
+
+
+## `src/lib/server/auth/`
+
+### `src/lib/server/auth/auth.ts`
 
 - `issueSession(input: IssueSessionInput): string`
 - `verifyToken(token: string | undefined): SessionPayload | null`
@@ -1111,39 +1313,136 @@ Every exported function, class, type and const in this area, with its real signa
 - `SESSION_COOKIE_NAME = COOKIE_NAME`
 - `SESSION_COOKIE_MAX_AGE = COOKIE_MAX_AGE`
 
-### `src/lib/server/brandPortfolio.ts`
+### `src/lib/server/auth/csrf.ts`
+
+- `signCsrfToken(): { token: string; payload: CsrfPayload }`
+- `verifyCsrfToken(token: string | undefined): CsrfPayload | null`
+- `requireCsrf(req: NextRequest): { ok: true } | { ok: false; error: string }` — a token here — that's the job of /api/auth/csrf (or the form pre-fetch).
+- `csrfCookie(token: string)`
+- `CSRF_COOKIE_NAME = "lk_csrf_v1"`
+- `CSRF_HEADER_NAME = "x-csrf-token"`
+
+### `src/lib/server/auth/effectiveRole.ts`
+
+- `effectiveRole(session: SessionPayload | null | undefined): EffectiveRole`
+- `hasAllPermissions(effective: EffectiveRole, requires: readonly PermissionKey[]): boolean` — `requires` (matches prompt's "Founder always sees everything").
+- `interface EffectiveRole (3 members)`
+- `{ PermissionKey }`
+- `{ ALL_PERMISSION_KEYS }`
+
+### `src/lib/server/auth/emailVerification.ts`
+
+- `signVerifyEmailToken(input: { userId: string; email: string }): { token: string; payload: VerifyEmailPayload; }`
+- `verifyVerifyEmailToken(token: string): { ok: true; payload: VerifyEmailPayload } | { ok: false; error: string }`
+- `async consumeVerifyNonce(nonce: string, expSec: number): Promise<boolean>` — check-then-mark race window — same pattern as magicLink.
+- `isVerifyNonceUsed(nonce: string): boolean` — Back-compat shims — prefer `consumeVerifyNonce`. NOT atomic.
+- `markVerifyNonceUsed(nonce: string, exp: number): void`
+- `interface VerifyEmailPayload (4 members)`
+
+### `src/lib/server/auth/founderAgency.ts`
+
+- `founderEmail(): string` — The founder account's email, from the environment or the built-in default.
+- `founderAgencyId(): string | undefined` — The agency the environment's credentials belong to — the founder's own. `undefined` when the founder account has not been seeded yet, which is the honest answer: callers must then…
+- `mayUseEnvironmentCredentials(agencyId: string | undefined): boolean` — May this agency use the credentials sitting in `process.env`? Only the founder's own. Everyone else must connect their own — and the "not configured" branch their caller already h…
+
+### `src/lib/server/auth/magicLink.ts`
+
+- `signMagicToken(input: Omit<MagicLinkPayload, "exp" | "nonce">): { token: string; payload: MagicLinkPayload; }`
+- `verifyMagicToken(token: string): { ok: true; payload: MagicLinkPayload } | { ok: false; error: string }`
+- `async consumeMagicNonce(nonce: string, expSec: number): Promise<boolean>` — the atomic helper.
+- `isUsed(nonce: string): boolean`
+- `markUsed(nonce: string, exp: number): void`
+- `_clearUsedForTests(): void` — scenarios in isolation. NOT exported via barrel.
+- `registerMagicLinkDelivery(fn: MagicLinkDelivery | null): void`
+- `async deliverMagicLink(input: { email: string; clientId: string; agencyId: string; magicUrl: string; }): Promise<{ delivered: boolean; via: "email-sender" | "resend" | "console" }>`
+- `interface MagicLinkPayload (5 members)`
+- `interface MagicLinkDelivery (1 members)` — ─── Email delivery hook ──────────────────────────────────────────────────
+
+### `src/lib/server/auth/mfa.ts`
+
+- `requireTwoFactor(state: AssuranceState): MfaRequirement` — Whether a session may perform an action that requires two factors. Connecting a client's software to their account is exactly such an action: it binds a piece of external software…
+- `readAssurance(value: unknown): AssuranceState` — Reads the assurance state from whatever Supabase returned. Tolerant of the shape rather than assuming it, and — critically — failing closed. An unreadable response yields no assur…
+- `hasVerifiedFactor(factors: Array<{ status?: string }> | null | undefined): boolean` — Whether the user has any verified factor at all.
+- `verifiedFactors(user: SignedInUser | null | undefined): ChallengeableFactor[]` — Every verified factor on the user, in the order Supabase listed them. Only `verified` counts. An enrolment somebody started and abandoned is not protection, and treating it as one…
+- `loginMfaStep(input: { user: SignedInUser | null | undefined; code: unknown }): LoginMfaStep` — What the login route must do next, given the user Supabase just returned and whatever the caller sent as a code. The property this exists to make unmissable: **an absent code is n…
+- `readTokenAssurance(accessToken: unknown): AssuranceLevel | "unstated" | null` — The `aal` claim inside a Supabase access token. Returns the level when the token carries one, `"unstated"` when the token reads fine but has no `aal` claim, and `null` when nothin…
+- `raisedToSecondFactor(accessToken: unknown): boolean` — Whether a factor verification actually *raised* the session. The point of the check: a verify call that answers "fine" without the assurance level moving is not a second factor, i…
+- `MFA_LOGIN_CHALLENGE_MESSAGE = "Enter the six-digit code from your authenticator app to finish signing in."` — The message shown when a code is needed. It is only ever reached *after* a correct password, so it cannot be used to discover whether an account exists — but it also says nothing …
+- `MFA_LOGIN_REJECTED_MESSAGE = "That code was not right. Try the current one."` — Same wording whether the code was wrong, expired or already used.
+- `MFA_LOGIN_UNAVAILABLE_MESSAGE = "Two-factor authentication is switched on for this account but could not be checked here. "` — A factor exists but Aqua has no way to challenge it — refuse, never skip.
+- `type AssuranceLevel = "aal1" | "aal2"` — Two-factor authentication, via Supabase. Aqua does not implement 2FA — Supabase Auth already has it, and a hand-rolled TOTP implementation is a liability with no upside. What live…
+- `type MfaRequirement = | { status: "satisfied" } /** Has a factor, has not been challenged on this session. */ | { status: "challenge-required"; message: string } /** No factor at all — must enrol before this action is p…`
+- `type LoginMfaStep = | { status: "not-required" } /** A factor exists and no code came with the request. Withhold the session. */ | { status: "code-required"; message: string } /** A code came with the request — check it…`
+- `interface AssuranceState (2 members)`
+- `interface SignedInUser (1 members)` — The shape of the user Supabase hands back from a password sign-in.
+- `interface ChallengeableFactor (2 members)` — A factor the login gate is able to challenge.
+
+### `src/lib/server/auth/nonceStore.ts`
+
+- `getNonceStore(): NonceStore`
+- `async _swapStoreForTests(adapter: NonceStore | null): Promise<void>` — adapter's internal state.
+- `_createMemoryAdapterForTests(): NonceStore` — adapters without going through the singleton.
+- `type NonceKind = "magic-link" | "email-verify" | "password-reset" | "csrf"`
+- `interface NonceStore (4 members)`
+
+### `src/lib/server/auth/passwordReset.ts`
+
+- `signPasswordResetToken(input: { userId: string; email: string }): { token: string; payload: PasswordResetPayload; }`
+- `verifyPasswordResetToken(token: string): { ok: true; payload: PasswordResetPayload } | { ok: false; error: string }`
+- `async consumeResetNonce(nonce: string, expSec: number): Promise<boolean>` — cross-pollinate.
+- `interface PasswordResetPayload (4 members)`
+
+### `src/lib/server/auth/postLoginRedirect.ts`
+
+- `resolvePostLoginPath(session: SessionPayload | null | undefined, user?: Pick<ServerUser, "role" | "clientId"> | null, opts: ResolveOptions = {}): string`
+- `interface ResolveOptions (1 members)`
+
+### `src/lib/server/auth/requireAgencyScope.ts`
+
+- `isAgencyScopedSession(session: SessionPayload): boolean`
+- `requireAgencyScope(session: SessionPayload): void`
+
+### `src/lib/server/auth/showcaseMode.ts`
+
+- `async ensureShowcaseWorkspace(): Promise<Agency>`
+- `async resetAndSeedShowcaseWorkspace(): Promise<Agency>`
+- `resetShowcaseWorkspace(): void`
+- `SHOWCASE_AGENCY_SLUG = "milesymedia-showcase"`
+- `SHOWCASE_AGENCY_NAME = "Milesymedia Showcase"`
+
+
+## `src/lib/server/`
+
+### `src/lib/server/brandPortfolioService.ts`
 
 - `async buildBrandPortfolioSnapshot(agencyId: string, now = Date.now()): Promise<BrandPortfolioSnapshot>`
-
-### `src/lib/server/businessIssueRadar.ts`
-
-- `invalidateBusinessIssueRadarCache(agencyId: string): void`
-- `getCachedBusinessIssueRadar(agencyId: string, now = Date.now()): Promise<BusinessIssueRadar>`
-- `async buildBusinessIssueRadar(agencyId: string, now = Date.now(), inputs: RadarInputs = {}): Promise<BusinessIssueRadar>`
 
 ### `src/lib/server/calendarVault.ts`
 
 - `encryptCalendarSecret(value: string): string`
 - `decryptCalendarSecret(value: string): string`
 
-### `src/lib/server/clientAttention.ts`
+
+## `src/lib/server/clients/`
+
+### `src/lib/server/clients/clientAttention.ts`
 
 - `async listClientsNeedingAttention(agencyId: string, now = Date.now()): Promise<ClientAttentionItem[]>` — The "clients needing attention" list behind the Command Centre panel — not a bare count, but which clients, how bad, and why. Rides the client-radar fleet (the canonical per-clien…
 - `interface ClientAttentionItem (6 members)` — One client that currently needs attention, compact enough for a Command Centre roll-up: who, how bad, the single top reason, and a link into their Fulfilment workspace where the f…
 
-### `src/lib/server/clientDelightExpense.ts`
+### `src/lib/server/clients/clientDelightExpense.ts`
 
 - `delightExpenseReference(delightId: string): string`
 - `async recordDelightExpenseInContainer(finance: AgencyFinanceContainer, input: DelightExpenseInput, actor: string): Promise<string | null>` — or null when there's nothing to record / no usable category.
 - `async recordDelightExpense(agencyId: string, input: DelightExpenseInput, actor: string): Promise<string | null>` — the delight flow.
 - `interface DelightExpenseInput (4 members)`
 
-### `src/lib/server/clientPortalProvider.ts`
+### `src/lib/server/clients/clientPortalProvider.ts`
 
 - `resolveClientPortalProvider(client: Client, fallback: { name: string; mark?: string } = { name: "AquaOasis-Web", mark: "A" }): ClientPortalProviderIdentity`
 - `interface ClientPortalProviderIdentity (3 members)`
 
-### `src/lib/server/clientProjectProvisioner.ts`
+### `src/lib/server/clients/clientProjectProvisioner.ts`
 
 - `slugifyProject(value: string): string`
 - `isProvisionedClientProjectPath(localPath: string): boolean`
@@ -1153,12 +1452,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ProvisionClientProjectInput (8 members)`
 - `interface ProvisionedClientProject (6 members)`
 
-### `src/lib/server/clientRadar.ts`
-
-- `async buildClientRadarFleet(agencyId: string, options: ClientRadarFleetOptions = {}): Promise<ClientRadarSnapshot[]>`
-- `async buildClientRadar(agencyId: string, clientId: string, options: Omit<ClientRadarFleetOptions, "clients"> = {}): Promise<ClientRadarSnapshot | null>`
-
-### `src/lib/server/clientRecordLedger.ts`
+### `src/lib/server/clients/clientRecordLedger.ts`
 
 - `synchroniseClientRecordLedger(input: SynchroniseClientRecordLedgerInput): ClientRecordLedgerEvent[]`
 - `removeClientRecordLedgerEvent(agencyId: string, clientId: string, sourceType: ClientRecordLedgerSource, sourceId: string): boolean`
@@ -1185,13 +1479,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface SynchroniseClientRecordLedgerInput (4 members)`
 - `interface QueryClientRecordLedgerInput (12 members)`
 
-### `src/lib/server/clientTelemetry.ts`
+### `src/lib/server/clients/clientTelemetryService.ts`
 
 - `newTelemetrySiteKey(): string`
 - `ensureClientTelemetry(agencyId: string, clientId: string): ClientTelemetrySnapshot | null`
 - `resetClientTelemetryKey(agencyId: string, clientId: string): ClientTelemetrySnapshot | null`
 - `clearClientTelemetry(agencyId: string, clientId: string): ClientTelemetrySnapshot | null`
 - `recordClientTelemetry(siteKey: string, input: Record<string, unknown>, userAgent?: string): { status: "recorded"; clientId: string; event: ClientTelemetryEvent } | { status: "rate-limited" } | null`
+
+### `src/lib/server/clients/customerPortalProvisioning.ts`
+
+- `customerPortalProvisioningMetadata(input: { clientName: string; contactName?: string; email?: string; servicePlan?: string; welcomeNote?: string; now?: number; })`
+- `clientDeliveryPackageMetadata(input: { clientName: string; servicePlan?: string; products?: unknown; productKeys?: unknown; projectValue?: string; billingCadence?: string; existingProperties?: unknown; now?: number; })`
+
+
+## `src/lib/server/`
 
 ### `src/lib/server/closeDeal.ts`
 
@@ -1200,20 +1502,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface CloseDealDeps (8 members)`
 - `interface CloseDealResult (6 members)`
 
-### `src/lib/server/commandIntelligence.ts`
+### `src/lib/server/commandIntelligenceService.ts`
 
 - `async buildCommandIntelligenceSnapshot({ agencyId, radar, evidence, now = Date.now(), brandPortfolio: suppliedBrandPortfolio, }: CommandIntelligenceInput): Promise<CommandIntelligenceSnapshot>`
 
 ### `src/lib/server/commercialProposal.ts`
 
 - `async findCommercialProposal(token: string): Promise<{ pack: CommercialPack; agencyName: string; accept: (acceptedBy: string) => Promise<CommercialPack | null>; } | null>`
-
-### `src/lib/server/companyHealthSnapshot.ts`
-
-- `async buildCompanyHealthSnapshot(agencyId: string, now = Date.now())`
-- `getRequestCompanyHealth = cache(` — collapses them to one build. The raw function below is unchanged.
-- `interface CompanyHealthActuals (13 members)`
-- `interface CompanyRevenueGrowthPoint (2 members)`
 
 ### `src/lib/server/compliancePostureSource.ts`
 
@@ -1234,63 +1529,15 @@ Every exported function, class, type and const in this area, with its real signa
 - `type ConfirmationOutcome = | { status: "confirmed" } /** A code was given and it was not right. */ | { status: "wrong-code"; message: string } /** The code was right once but has passed its expiry — a fresh one is neede…`
 - `interface PendingConfirmationCode (3 members)` — The stored side of an emailed code — hashed, expiring, single-use. Lives on the connection record. The raw code is never kept; only this hash, against which a typed code is checke…
 
-### `src/lib/server/csrf.ts`
-
-- `signCsrfToken(): { token: string; payload: CsrfPayload }`
-- `verifyCsrfToken(token: string | undefined): CsrfPayload | null`
-- `requireCsrf(req: NextRequest): { ok: true } | { ok: false; error: string }` — a token here — that's the job of /api/auth/csrf (or the form pre-fetch).
-- `csrfCookie(token: string)`
-- `CSRF_COOKIE_NAME = "lk_csrf_v1"`
-- `CSRF_HEADER_NAME = "x-csrf-token"`
-
-### `src/lib/server/customKpis.ts`
-
-- `listCustomKpis(agencyId: string): CustomKpiDefinition[]`
-- `createCustomKpi(agencyId: string, input: CreateCustomKpiInput, opts: { actorUserId: string; now?: number }): CustomKpiDefinition` — Create a custom KPI. Throws on an unknown op or a missing numerator id.
-- `deleteCustomKpi(agencyId: string, id: string, opts: { actorUserId: string }): CustomKpiDefinition[]` — Delete a custom KPI by id.
-- `interface CreateCustomKpiInput (6 members)`
-
-### `src/lib/server/customerPortalProvisioning.ts`
-
-- `customerPortalProvisioningMetadata(input: { clientName: string; contactName?: string; email?: string; servicePlan?: string; welcomeNote?: string; now?: number; })`
-- `clientDeliveryPackageMetadata(input: { clientName: string; servicePlan?: string; products?: unknown; productKeys?: unknown; projectValue?: string; billingCadence?: string; existingProperties?: unknown; now?: number; })`
-
 ### `src/lib/server/databaseStorageHealth.ts`
 
 - `async databaseStorageHealth(now = Date.now()): Promise<RadarInfraHealthSnapshot>` — Probe primary + external databases and storage. Called by the Infra sweep only.
 - `primaryDbProbeStatus(snapshot: RadarInfraHealthSnapshot): { ok: boolean; db: RadarInfraProbeStatus; error?: string }` — Compact single-line health for `healthz/full` (backwards-compatible with probeDb's shape).
 
-### `src/lib/server/demoSeed.ts`
 
-- `async seedDemoAgency(actor?: string): Promise<SeedDemoResult>`
-- `async resetDemo(): Promise<ResetDemoResult>`
-- `ensureDemoStaffEmployee(agencyId: string, actor?: string): void` — workspace redirects to `/portal/account`, trapping the demo staff persona.
-- `ensureDemoFreelancer(agencyId: string): void` — populated `/portal/freelancer`.
-- `ensureDemoCustomerReady(agencyId: string): void` — Idempotent + standalone (same reasoning as ensureDemoStaffEmployee).
-- `getDemoSnapshot(): DemoTenantSnapshot | null` — `/demo` + `/demo/toggle` to skip re-seeding when nothing changed.
-- `DEMO_AGENCY_SLUG = "demo-agency"` — the demo users by email when issuing the POV-specific cookie.
-- `DEMO_AGENCY_NAME = "Demo · Aqua"`
-- `DEMO_OWNER_EMAIL = "demo@aqua.dev"`
-- `DEMO_OWNER_PASSWORD = "demo-aqua-2026"`
-- `DEMO_STAFF_EMAIL = "staff@aqua.dev"` — sees in demo/sample data.
-- `DEMO_STAFF_PASSWORD = "staff-demo-2026"`
-- `DEMO_STAFF_NAME = "Demo Employee"`
-- `DEMO_CLIENT_SLUG = "luv-and-ker-demo"`
-- `DEMO_CLIENT_NAME = "Luv & Ker · Demo"`
-- `DEMO_CLIENT_EMAIL = "felicia@luvandker.demo"`
-- `DEMO_CLIENT_PASSWORD = "felicia-demo-2026"`
-- `DEMO_CUSTOMER_EMAIL = "demo-shopper@aqua.test"`
-- `DEMO_CUSTOMER_PASSWORD = "shopper-demo-2026"`
-- `DEMO_CUSTOMER_NAME = "Demo shopper"`
-- `DEMO_FREELANCER_EMAIL = "sky@aqua.freelance"` — jobs (the freelancer workspace), never the agency-side client workspace.
-- `DEMO_FREELANCER_PASSWORD = "freelancer-demo-2026"`
-- `DEMO_FREELANCER_NAME = "Demo Freelancer"`
-- `interface SeedDemoResult (10 members)`
-- `interface ResetDemoResult (3 members)` — nightly cron.
-- `interface DemoTenantSnapshot (5 members)` — ─── Read-only helper for the demo route handlers ────────────────────────
-- `{ listInstalledFor }`
+## `src/lib/server/dev/`
 
-### `src/lib/server/devConsoleStatus.ts`
+### `src/lib/server/dev/devConsoleStatus.ts`
 
 - `devConsoleCore(now = Date.now()): Promise<DevConsoleCore>` — Findings + blockers, with their lists. What the popover paints on first frame.
 - `async devConsoleBadge(now = Date.now()): Promise<DevConsoleBadge>` — The cheap count for the topbar badge — the same read as `devConsoleCore()`, so the icon and the panel can never disagree about how many things are open.
@@ -1304,7 +1551,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface DevConsoleCore (2 members)` — The fast half: everything readable from a few small files.
 - `interface DevConsoleStatus (2 members)` — The slow half, added on top: who is actually working right now.
 
-### `src/lib/server/devDocEdits.ts`
+### `src/lib/server/dev/devDocEdits.ts`
 
 - `async saveDevDoc(input: { session: SessionPayload; relPath: string; content: string; note?: string; authorName?: string; expectedMtimeMs?: number; }): Promise<{ mtimeMs: number; sizeBytes: number }>` — Save a doc's markdown and record who did it. `expectedMtimeMs` is an optimistic-concurrency guard: the caller passes the mtime it loaded, and the save is refused if the file moved…
 - `async docHistory(relPath: string): Promise<DocHistory>` — The edit history for one doc, plus whether it moved outside the app since.
@@ -1312,7 +1559,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface DocEdit (6 members)`
 - `interface DocHistory (3 members)`
 
-### `src/lib/server/devDocs.ts`
+### `src/lib/server/dev/devDocs.ts`
 
 - `devDocsAccessible(session: SessionPayload | null | undefined): boolean` — The one predicate every reachable Dev Docs surface asks. Dev Mode + founder.
 - `assertDevDocsAccess(session: SessionPayload | null | undefined): void`
@@ -1329,12 +1576,12 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface DevDocContent (5 members)`
 - `interface DevDocBlocker (3 members)` — hand-curated — so it self-updates as the shared brain does.
 
-### `src/lib/server/devLocalTime.ts`
+### `src/lib/server/dev/devLocalTime.ts`
 
 - `localDay(now: number = Date.now()): string` — `YYYY-MM-DD` in the server's timezone — for filenames and day stamps.
 - `localStamp(now: number = Date.now()): string` — `YYYY-MM-DD HH:MM` in the server's timezone — for "captured at" lines.
 
-### `src/lib/server/devMode.ts`
+### `src/lib/server/dev/devMode.ts`
 
 - `devAgencySlug(): string` — Which tenant dev mode signs into, when the clean room is not the point. Bare Co is empty by design, which is right for building but useless for anything that needs volume — Radar …
 - `usingDefaultDevAgency(): boolean`
@@ -1345,11 +1592,11 @@ Every exported function, class, type and const in this area, with its real signa
 - `DEV_OWNER_EMAIL = "dev-owner@bare-co.test"`
 - `interface DevModeStatus (2 members)`
 
-### `src/lib/server/devModeAccess.ts`
+### `src/lib/server/dev/devModeAccess.ts`
 
 - `canUseDevMode(): boolean`
 
-### `src/lib/server/devTeamAuditor.ts`
+### `src/lib/server/dev/devTeamAuditor.ts`
 
 - `parseAuditFindings(md: string): AuditFinding[]` — Parse audits.md into findings, newest-first. Two sources: • the loud banner ledger — blockquote groups ABOVE the first dated verdict entry (that region alone holds the curated ope…
 - `countStillOpenFindings(findings: AuditFinding[]): number` — Everything the auditor view treats as STILL OPEN: the auditor's own open banners PLUS every 🔴 ruling with no recorded resolution. One rule, exported, so the glanceable header cou…
@@ -1359,7 +1606,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface AuditFinding (7 members)` — ---- shapes ----------------------------------------------------------------
 - `interface DevTeamAudit (4 members)`
 
-### `src/lib/server/devTeamBoard.ts`
+### `src/lib/server/dev/devTeamBoard.ts`
 
 - `parseWorkers(markdown: string): DevTeamWorker[]` — Parse the `## Workers in flight` table from state.md. Rows may be separated by blank lines and the section ends at the next heading; the header + `---` separator + trailing `⚠ …` …
 - `async scanWorkers(): Promise<DevTeamWorker[]>` — Read state.md and parse its in-flight table. Gate-free (page gates).
@@ -1376,7 +1623,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface BoardItem (6 members)` — One card in a lane, already resolved to a Library link target.
 - `interface BoardLanes (4 members)`
 
-### `src/lib/server/devTeamFindings.ts`
+### `src/lib/server/dev/devTeamFindings.ts`
 
 - `renderFindingMarkdown(finding: Omit<Finding, "relPath">): string`
 - `async createFinding(input: { title: string; note: string; where?: string; severity?: FindingSeverity; images?: string[]; now?: number; }): Promise<Finding>`
@@ -1394,7 +1641,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface Finding (10 members)`
 - `interface PlanFromFindings (3 members)`
 
-### `src/lib/server/devTeamPlans.ts`
+### `src/lib/server/dev/devTeamPlans.ts`
 
 - `planSlug(title: string): string` — Filesystem-safe slug from a human title.
 - `renderPlanMarkdown(input: NewPlanInput, now = Date.now()): string` — Render the plan in the shape the rest of the system already understands: a title, the `**Status:` line the board parses, the goal, staged phases, and the "Done when" the worker co…
@@ -1402,7 +1649,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface NewPlanInput (5 members)`
 - `interface NewPlanResult (3 members)`
 
-### `src/lib/server/devTeamRoadmap.ts`
+### `src/lib/server/dev/devTeamRoadmap.ts`
 
 - `roadmapPath(): string` — The file. Read through a function, not a module-level const, so a test can point the REAL write path at a temp copy. Without that, the only way to exercise addItem/updateItem/remo…
 - `itemId(title: string): string`
@@ -1433,7 +1680,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface UpdateItemInput (11 members)`
 - `interface Collision (4 members)` — ---- collisions -------------------------------------------------------------
 
-### `src/lib/server/devTeamTasks.ts`
+### `src/lib/server/dev/devTeamTasks.ts`
 
 - `parsePhases(md: string): ParsedPhase[]` — Pull phases out of one plan's markdown. Handles all three formats in use.
 - `async scanTasks(opts: { onlyActive?: boolean } = {}): Promise<PlanTasks[]>` — Tasks for every plan that has phases, newest-touched first. `onlyActive` keeps it to plans a worker is actually on or that still have work left.
@@ -1443,7 +1690,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PlanTasks (7 members)`
 - `interface ParsedPhase (4 members)`
 
-### `src/lib/server/devTeamThoughts.ts`
+### `src/lib/server/dev/devTeamThoughts.ts`
 
 - `readersOf(t: Thought): string[]` — Who has picked a thought up, oldest read first.
 - `isRead(t: Thought): boolean`
@@ -1458,7 +1705,7 @@ Every exported function, class, type and const in this area, with its real signa
     - `constructor(public readonly file: string)`
 - `interface Thought (8 members)`
 
-### `src/lib/server/devTeamUpdates.ts`
+### `src/lib/server/dev/devTeamUpdates.ts`
 
 - `todayIsoDay(nowMs: number = Date.now()): string` — Today in Europe/London as `YYYY-MM-DD` — the heading format the doc uses.
 - `parseUpdates(markdown: string, limit: number = MAX_ENTRIES): DevUpdateEntry[]` — Parse `docs/development/updates.md` into entries, newest first (the file is already newest-first, so document order is kept as-is — no re-sorting, which would lie about same-day o…
@@ -1478,7 +1725,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface DevUpdateEntry (4 members)`
 - `interface NewUpdateInput (2 members)`
 
-### `src/lib/server/devTeamWorkers.ts`
+### `src/lib/server/dev/devTeamWorkers.ts`
 
 - `areaFor(relPath: string): string` — Which part of the app a path belongs to — used to group live activity.
 - `async readCheckIns(): Promise<WorkerCheckIn[]>` — Explicit worker check-ins, newest first.
@@ -1508,41 +1755,51 @@ Every exported function, class, type and const in this area, with its real signa
 - `prepareAppConfigIntents(raw: Array<{ targetId: string; expectedFingerprint: string; value: string }>, current?: EditDocument): { intents: EditIntent[]; invalid: AppConfigInvalidValue[]; skipped: AppConfigSkippedValue[] }` — Normalise then check every value, before the engine sees any of it. Two jobs, and the order matters. Normalising first means the plan's `after` is the value that will really be st…
 - `appConfigEditAdapter(input: { /** Always the session's agency. Never a value taken from a request body. */ agencyId: string; actorUserId: string; }): EditAdapter` — ─── The adapter ──────────────────────────────────────────────────────────
 - `APP_CONFIG_GROUPS: AppConfigGroup[]`
-- `type AppConfigControl = "color" | "text" | "url" | "textarea"` — How the editor should render a field. Presentation only — never a guard.
+- `type AppConfigControl = Extract<PropFieldType, "color" | "text" | "url" | "textarea">` — How the editor should render a field. Presentation only — never a guard. A subset of `PropFieldType`, not a parallel enum: this catalogue and the element properties panel now spea…
 - `type AppConfigGroup = "Brand" | "Identity" | "Workspace defaults" | "Client experience"`
 - `interface AppConfigFieldView (9 members)` — What the page renders: field metadata joined to the value it currently holds.
 - `interface AppConfigInvalidValue (3 members)` — ─── Preparing intents ────────────────────────────────────────────────────
 - `interface AppConfigSkippedValue (2 members)` — An edit that normalised back to the value already stored. Dropped, not refused.
 
 
+## `src/lib/server/email/`
+
+### `src/lib/server/email/enquiryNotifications.ts`
+
+- `async notifyBrandEnquiry(input: EnquiryEmailInput)`
+
+### `src/lib/server/email/outboundCommunications.ts`
+
+- `outboundCommunicationReadiness(agencyId: string): OutboundCommunicationReadiness`
+- `resolveCommunicationSender(agencyId: string, senderId: string, channel: OutboundCommunicationChannel): CommunicationSenderIdentity | null`
+- `async sendPhoneMessage(input: { agencyId: string; sender: CommunicationSenderIdentity; channel: "sms" | "whatsapp"; to: string; body: string; mediaUrls?: string[]; }): Promise<SendPhoneMessageResult>`
+- `async initiatePhoneCall(input: { agencyId: string; sender: CommunicationSenderIdentity; customerPhone: string; }): Promise<{ initiated: boolean; via: "device" | "twilio"; externalCallId?: string; reason?: string }>`
+- `normalisePhone(value: string): string | null`
+- `type OutboundCommunicationChannel = "email" | "sms" | "whatsapp" | "call"`
+- `interface CommunicationSenderIdentity (6 members)`
+- `interface OutboundCommunicationReadiness (4 members)`
+- `interface SendPhoneMessageResult (4 members)`
+
+### `src/lib/server/email/resendEmail.ts`
+
+- `async sendResendEmail(input: ResendEmailInput): Promise<ResendEmailResult>`
+- `type ResendEmailResult = | { ok: true; id?: string } | { ok: false; reason: string; unconfigured?: boolean }`
+
+### `src/lib/server/email/transactionalEmail.ts`
+
+- `transactionalEmailReadiness(agencyId: string, clientId?: string): TransactionalEmailReadiness`
+- `async sendTransactionalEmail(input: TransactionalEmailInput): Promise<TransactionalEmailResult>`
+- `interface TransactionalEmailResult (4 members)`
+- `interface TransactionalEmailReadiness (2 members)`
+
+
 ## `src/lib/server/`
-
-### `src/lib/server/effectiveRole.ts`
-
-- `effectiveRole(session: SessionPayload | null | undefined): EffectiveRole`
-- `hasAllPermissions(effective: EffectiveRole, requires: readonly PermissionKey[]): boolean` — `requires` (matches prompt's "Founder always sees everything").
-- `interface EffectiveRole (3 members)`
-- `{ PermissionKey }`
-- `{ ALL_PERMISSION_KEYS }`
-
-### `src/lib/server/emailVerification.ts`
-
-- `signVerifyEmailToken(input: { userId: string; email: string }): { token: string; payload: VerifyEmailPayload; }`
-- `verifyVerifyEmailToken(token: string): { ok: true; payload: VerifyEmailPayload } | { ok: false; error: string }`
-- `async consumeVerifyNonce(nonce: string, expSec: number): Promise<boolean>` — check-then-mark race window — same pattern as magicLink.
-- `isVerifyNonceUsed(nonce: string): boolean` — Back-compat shims — prefer `consumeVerifyNonce`. NOT atomic.
-- `markVerifyNonceUsed(nonce: string, exp: number): void`
-- `interface VerifyEmailPayload (4 members)`
 
 ### `src/lib/server/embedAllowResolver.ts`
 
 - `async resolveEmbedAllowList(slug: string): Promise<EmbedAllowResult>`
 - `frameAncestorsValue(origins: readonly string[]): string` — name (caller does the header.set).
 - `interface EmbedAllowResult (4 members)`
-
-### `src/lib/server/enquiryNotifications.ts`
-
-- `async notifyBrandEnquiry(input: EnquiryEmailInput)`
 
 ### `src/lib/server/env.ts`
 
@@ -1553,113 +1810,25 @@ Every exported function, class, type and const in this area, with its real signa
 - `ENV_ALLOWLIST: readonly string[]` — every framework's own surface) are ignored.
 - `interface EnvIssue (3 members)` — tsx --test.
 
-### `src/lib/server/externalAdvisorContext.ts`
 
-- `async buildExternalAdvisorContext(auth: ExternalAssistantAuth, now = Date.now())`
-- `externalAssistantDomains(modules: ExternalAssistantModule[]): AdvisorDomain[]`
+## `src/lib/server/finance/`
 
-### `src/lib/server/externalAssistantApi.ts`
-
-- `async authenticateExternalAssistant(request: Request): Promise<ExternalAssistantAuth>`
-- `externalApiErrorResponse(error: unknown): Response`
-- `externalApiHeaders(): Headers`
-- `isExternalAssistantModule(value: string): value is ExternalAssistantModule`
-- `requireExternalAssistantPermission(auth: ExternalAssistantAuth, permission: ExternalAssistantApiPermission): void`
-- `requireExternalAssistantModule(auth: ExternalAssistantAuth, module: ExternalAssistantModule): void`
-- `listExternalAssistantRecords(agencyId: string, module: ExternalAssistantModule): ExternalAssistantRecord[]`
-- `buildExternalAssistantContext(agencyId: string, allowedModules: ExternalAssistantModule[] = [...EXTERNAL_ASSISTANT_MODULES], permissions: ExternalAssistantApiPermission[] = [...EXTERNAL_ASSISTANT_PERMISSIONS])`
-- `findExternalAssistantRecord(agencyId: string, module: ExternalAssistantModule, recordId: string): ExternalAssistantRecord | null`
-- `searchExternalAssistantRecords(agencyId: string, query: string, modules: ExternalAssistantModule[], limit: number): Array<ExternalAssistantRecord & { score: number }>`
-- `filterAndPaginateRecords(records: ExternalAssistantRecord[], options: { status?: string; updatedAfter?: string; cursor?: string; limit: number; })`
-- `recordsToCsv(records: ExternalAssistantRecord[]): string`
-- `sanitizeExternalData(value: unknown, depth = 0, key = ""): unknown`
-- `class ExternalAssistantApiError`
-    - `constructor(status: number, code: string, message: string, retryAfter?: number)`
-- `EXTERNAL_ASSISTANT_MODULES = [`
-- `type ExternalAssistantModule = (typeof EXTERNAL_ASSISTANT_MODULES)[number]`
-- `interface ExternalAssistantRecord (7 members)`
-- `interface ExternalAssistantAuth (7 members)`
-
-### `src/lib/server/externalAssistantKeys.ts`
-
-- `listExternalAssistantApiKeys(agencyId: string): ExternalAssistantApiKeySummary[]`
-- `createExternalAssistantApiKey(input: ApiKeyInput): { key: ExternalAssistantApiKeySummary; token: string; }`
-- `revokeExternalAssistantApiKey(input: { agencyId: string; keyId: string; revokedBy: string; }): ExternalAssistantApiKeySummary`
-- `rotateExternalAssistantApiKey(input: { agencyId: string; keyId: string; createdBy: string; }): { key: ExternalAssistantApiKeySummary; token: string }`
-- `findExternalAssistantApiKey(token: string): ExternalAssistantApiKey | null`
-- `touchExternalAssistantApiKey(keyId: string): void`
-- `EXTERNAL_ASSISTANT_PERMISSIONS = [`
-- `interface ExternalAssistantApiKeySummary (13 members)`
-
-### `src/lib/server/externalAssistantMcp.ts`
-
-- `listExternalAssistantMcpTools(auth: ExternalAssistantAuth): McpTool[]`
-- `async handleExternalAssistantMcpRequest(auth: ExternalAssistantAuth, message: unknown)`
-
-### `src/lib/server/externalAssistantProposals.ts`
-
-- `listExternalAssistantActionProposals(agencyId: string, statuses?: ExternalAssistantProposalStatus[]): ExternalAssistantActionProposal[]`
-- `listProposalsForExternalAssistant(agencyId: string, assistantFingerprint: string): ExternalAssistantActionProposal[]`
-- `submitExternalAssistantActionProposal(input: SubmitExternalAssistantProposalInput): ExternalAssistantActionProposal`
-- `decideExternalAssistantActionProposal(input: { agencyId: string; proposalId: string; decision: "accept" | "park" | "reject"; actorUserId: string; assigneeUserId?: string; dueAt?: number; parkedUntil?: number; note?: str…`
-- `interface SubmitExternalAssistantProposalInput (13 members)`
-
-### `src/lib/server/financeBudgetCampaigns.ts`
+### `src/lib/server/finance/financeBudgetCampaigns.ts`
 
 - `async listAgencyCampaignBudgetRecords(agencyId: string): Promise<CampaignBudgetRecord[]>`
 
-### `src/lib/server/financeCurrency.ts`
+### `src/lib/server/finance/financeCurrency.ts`
 
 - `resolveFinanceDefaultCurrency(agencyId: string, configured: unknown): Currency`
 
-### `src/lib/server/financeWorkforce.ts`
+### `src/lib/server/finance/financeWorkforce.ts`
 
 - `async listFinanceWorkforceOptions(agencyId: string): Promise<{ staff: FinanceStaffOption[]; departments: FinanceDepartmentOption[]; hrEnabled: boolean; }>`
 - `interface FinanceStaffOption (8 members)`
 - `interface FinanceDepartmentOption (3 members)`
 
-### `src/lib/server/founderSeed.ts`
 
-- `checkFounderPolicy(input: { email: string; password: string | undefined; nodeEnv: string | undefined; }): PolicyCheck` — can drive every branch without process.env mutation.
-- `seedFounder(): Promise<void>`
-- `_resetFounderSeedForTests(): void` — between invocations. Not for prod use.
-- `FOUNDER_AGENCY_SLUG = "milesymedia"`
-- `DEFAULT_FOUNDER_EMAIL = "edwardhallam07@gmail.com"`
-- `DEFAULT_FOUNDER_AGENCY_NAME = INTERNAL_WORKSPACE_NAME`
-- `FOUNDER_NAME = "Ed Hallam"`
-- `FOUNDER_USERNAME = "Ed"`
-- `FOUNDER_EMAIL = (process.env.FOUNDER_EMAIL ?? DEFAULT_FOUNDER_EMAIL).trim()`
-
-### `src/lib/server/githubProjectPublisher.ts`
-
-- `isGitHubPublishingConfigured(env: NodeJS.ProcessEnv = process.env): boolean`
-- `isGitHubPublishingConfiguredForAgency(agencyId: string, clientId?: string): boolean`
-- `githubPublishingOwner(env: NodeJS.ProcessEnv = process.env): string | undefined`
-- `githubConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GitHubPublishingConfig`
-- `async publishProjectToGitHub(input: { agencyId?: string; clientId?: string; localPath: string; projectSlug: string; description: string; private?: boolean; config?: GitHubPublishingConfig; }, dependencies: PublishDepend…`
-- `interface GitHubPublishingConfig (2 members)`
-- `interface PublishedGitHubProject (5 members)`
-
-### `src/lib/server/googleCalendar.ts`
-
-- `readGoogleCalendarConfig(redirectFallback?: string): GoogleCalendarConfig | null`
-- `getCommandCalendarIntegrationSnapshot(agencyId: string, ownerUserId: string): CommandCalendarIntegrationSnapshot`
-- `buildGoogleCalendarAuthorizeUrl(config: GoogleCalendarConfig, input: { agencyId: string; userId: string; returnUrl?: string; secret: string }): string`
-- `verifyGoogleCalendarState(state: string, secret: string): { ok: true; value: OAuthState } | { ok: false; error: string }`
-- `async connectGoogleCalendarAccount(input: { agencyId: string; ownerUserId: string; code: string; config: GoogleCalendarConfig; fetchImpl?: typeof fetch; }): Promise<CommandCalendarIntegrationSnapshot>`
-- `async syncGoogleCalendars(agencyId: string, ownerUserId: string, connectionId?: string): Promise<CommandCalendarIntegrationSnapshot>`
-- `async createGoogleCalendarEvent(input: { agencyId: string; ownerUserId: string; sourceId: string; title: string; notes?: string; startsAt: number; endsAt?: number; allDay: boolean; fetchImpl?: typeof fetch; }): Promise<…`
-- `async syncGoogleCalendarConnection(agencyId: string, ownerUserId: string, connectionId: string, deps: { config: GoogleCalendarConfig; fetchImpl?: typeof fetch }): Promise<void>`
-- `updateCommandCalendarSourceSelection(agencyId: string, ownerUserId: string, selectedSourceIds: string[]): CommandCalendarIntegrationSnapshot`
-- `disconnectGoogleCalendar(agencyId: string, ownerUserId: string, connectionId: string): boolean`
-- `normaliseGoogleEvent(item: GoogleEventItem, connection: CommandCalendarConnection, source: CommandCalendarSource, now = Date.now()): CommandCalendarExternalEvent | null`
-- `type CommandCalendarConnectionView = Omit<CommandCalendarConnection, "encryptedAccessToken" | "encryptedRefreshToken"> & { canRefresh: boolean; }`
-- `interface CommandCalendarIntegrationSnapshot (4 members)`
-
-### `src/lib/server/googleSearchConsole.ts`
-
-- `async testGoogleSearchConsole(values: Record<string, string>, fetchImpl: typeof fetch = fetch, signal?: AbortSignal): Promise<string>`
-- `async fetchGoogleSearchConsoleEvents(values: Record<string, string>, options: { startDate: string; endDate: string; rowLimit?: number; fetchImpl?: typeof fetch; signal?: AbortSignal; }): Promise<PerformanceEvent[]>`
+## `src/lib/server/`
 
 ### `src/lib/server/identityResolution.ts`
 
@@ -1674,7 +1843,10 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface IdentityResolutionInput (13 members)`
 - `interface IdentityReviewDecision (7 members)`
 
-### `src/lib/server/inboxMedia.ts`
+
+## `src/lib/server/inbox/`
+
+### `src/lib/server/inbox/inboxMedia.ts`
 
 - `signInboxMediaToken(input: Omit<InboxMediaTokenPayload, "exp">, lifetimeMs = 30 * 24 * 60 * 60_000): string`
 - `verifyInboxMediaToken(token: string): InboxMediaTokenPayload | null`
@@ -1683,7 +1855,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `type InboxMediaTargetKind = "website" | "social" | "client"`
 - `interface InboxMediaTokenPayload (11 members)`
 
-### `src/lib/server/inboxService.ts`
+### `src/lib/server/inbox/inboxService.ts`
 
 - `async processInboxWebhookQueue(limit = 20): Promise<{ claimed: number; processed: number; failed: number; messages: number }>`
 - `async ingestMetaWebhookPayload(payload: MetaWebhookPayload): Promise<number>`
@@ -1691,7 +1863,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `async sendInboxReply(input: { agencyId: string; conversationId: string; text: string; actorUserId: string; actorEmail?: string; origin?: string; attachments?: InboxAttachment[]; }): Promise<InboxMessage>`
 - `async addInboxNote(input: { agencyId: string; conversationId: string; text: string; actorUserId: string; actorEmail?: string; }): Promise<InboxMessage>`
 
-### `src/lib/server/inboxStore.ts`
+### `src/lib/server/inbox/inboxStore.ts`
 
 - `async listInboxConnections(agencyId: string): Promise<InboxChannelConnection[]>`
 - `async getPrivateInboxConnection(agencyId: string, connectionId: string): Promise<PrivateInboxConnection | null>`
@@ -1718,12 +1890,68 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PrivateInboxConnection (1 members)`
 - `interface InboxWebhookEvent (12 members)`
 
-### `src/lib/server/inboxVault.ts`
+### `src/lib/server/inbox/inboxVault.ts`
 
 - `encryptInboxSecret(value: string): string`
 - `decryptInboxSecret(value: string): string`
 
-### `src/lib/server/integrationConnections.ts`
+### `src/lib/server/inbox/operationalAlertPreferences.ts`
+
+- `listOperationalAlertViews(agencyId: string, userId: string, alerts: OperationalAlert[], now = Date.now()): OperationalAlertView[]`
+- `setOperationalAlertPreference({ agencyId, userId, alert, action, parkedUntil, now = Date.now(), }: { agencyId: string; userId: string; alert: OperationalAlert; action: OperationalAlertAction; parkedUntil?: number; now?:…`
+
+### `src/lib/server/inbox/operationalAlerts.ts`
+
+- `async listOperationalAlerts(agencyId: string, now = Date.now()): Promise<OperationalAlert[]>`
+- `OPERATIONAL_ALERT_THRESHOLDS = {`
+- `getRequestOperationalAlerts = cache(` — so API routes, tests and any non-render caller keep the exact same behaviour.
+- `{ OperationalAlert, OperationalAlertSeverity } from "@/lib/intelligence/operationalAttention"`
+
+
+## `src/lib/server/integrations/`
+
+### `src/lib/server/integrations/aquaTagDetection.ts`
+
+- `scanFormsInHtml(html: string): AquaTagScanForms` — Count forms the way the tag decides what to capture, from static HTML. A form is capturable when the site explicitly marked it (`data-aqua-form` / `data-aqua-capture`) or it plain…
+- `scanFormSchemasInHtml(html: string): AquaFormSchema[]` — Extract each form's field layout from static HTML — the schema behind the "Import forms" step (plan Phase 2). Mirrors `scanFormsInHtml`'s form + capturable heuristic so "these 3 f…
+- `analyzeAquaTagHtml(html: string, masterSiteKey: string): AquaTagAnalysis` — Read a page's HTML for the tag and its forms. Pure — no network.
+- `async detectAquaTag(input: { rawUrl: string; masterSiteKey: string }): Promise<AquaTagDetection>` — Fetch a domain and report whether the master tag is live and how many forms it would capture. Network failures come back as a reachable:false result with a plain reason, not a thr…
+- `interface AquaTagScanForms (2 members)` — Prove the Aqua Tag is live on a domain, and count what it will capture. This is the first tangible step of the setup wizard: paste the tag on a site, then we fetch that site the w…
+- `interface AquaTagAnalysis (4 members)`
+- `interface AquaTagDetection (5 members)`
+
+### `src/lib/server/integrations/githubProjectPublisher.ts`
+
+- `isGitHubPublishingConfigured(env: NodeJS.ProcessEnv = process.env): boolean`
+- `isGitHubPublishingConfiguredForAgency(agencyId: string, clientId?: string): boolean`
+- `githubPublishingOwner(env: NodeJS.ProcessEnv = process.env): string | undefined`
+- `githubConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GitHubPublishingConfig`
+- `async publishProjectToGitHub(input: { agencyId?: string; clientId?: string; localPath: string; projectSlug: string; description: string; private?: boolean; config?: GitHubPublishingConfig; }, dependencies: PublishDepend…`
+- `interface GitHubPublishingConfig (2 members)`
+- `interface PublishedGitHubProject (5 members)`
+
+### `src/lib/server/integrations/googleCalendar.ts`
+
+- `readGoogleCalendarConfig(redirectFallback?: string): GoogleCalendarConfig | null`
+- `getCommandCalendarIntegrationSnapshot(agencyId: string, ownerUserId: string): CommandCalendarIntegrationSnapshot`
+- `buildGoogleCalendarAuthorizeUrl(config: GoogleCalendarConfig, input: { agencyId: string; userId: string; returnUrl?: string; secret: string }): string`
+- `verifyGoogleCalendarState(state: string, secret: string): { ok: true; value: OAuthState } | { ok: false; error: string }`
+- `async connectGoogleCalendarAccount(input: { agencyId: string; ownerUserId: string; code: string; config: GoogleCalendarConfig; fetchImpl?: typeof fetch; }): Promise<CommandCalendarIntegrationSnapshot>`
+- `async syncGoogleCalendars(agencyId: string, ownerUserId: string, connectionId?: string): Promise<CommandCalendarIntegrationSnapshot>`
+- `async createGoogleCalendarEvent(input: { agencyId: string; ownerUserId: string; sourceId: string; title: string; notes?: string; startsAt: number; endsAt?: number; allDay: boolean; fetchImpl?: typeof fetch; }): Promise<…`
+- `async syncGoogleCalendarConnection(agencyId: string, ownerUserId: string, connectionId: string, deps: { config: GoogleCalendarConfig; fetchImpl?: typeof fetch }): Promise<void>`
+- `updateCommandCalendarSourceSelection(agencyId: string, ownerUserId: string, selectedSourceIds: string[]): CommandCalendarIntegrationSnapshot`
+- `disconnectGoogleCalendar(agencyId: string, ownerUserId: string, connectionId: string): boolean`
+- `normaliseGoogleEvent(item: GoogleEventItem, connection: CommandCalendarConnection, source: CommandCalendarSource, now = Date.now()): CommandCalendarExternalEvent | null`
+- `type CommandCalendarConnectionView = Omit<CommandCalendarConnection, "encryptedAccessToken" | "encryptedRefreshToken"> & { canRefresh: boolean; }`
+- `interface CommandCalendarIntegrationSnapshot (4 members)`
+
+### `src/lib/server/integrations/googleSearchConsole.ts`
+
+- `async testGoogleSearchConsole(values: Record<string, string>, fetchImpl: typeof fetch = fetch, signal?: AbortSignal): Promise<string>`
+- `async fetchGoogleSearchConsoleEvents(values: Record<string, string>, options: { startDate: string; endDate: string; rowLimit?: number; fetchImpl?: typeof fetch; signal?: AbortSignal; }): Promise<PerformanceEvent[]>`
+
+### `src/lib/server/integrations/integrationConnections.ts`
 
 - `integrationVaultAvailable(): boolean`
 - `listIntegrationConnections(agencyId: string): PublicIntegrationConnection[]`
@@ -1739,35 +1967,101 @@ Every exported function, class, type and const in this area, with its real signa
 - `publicIntegrationConnection(connection: IntegrationConnection): PublicIntegrationConnection`
 - `MANAGED_INTEGRATION_PROVIDERS = INTEGRATION_CATALOG.map(item => item.id)`
 
-### `src/lib/server/kpiRegistry.ts`
+### `src/lib/server/integrations/metaMessaging.ts`
+
+- `metaInboxReadiness(agencyId: string, origin?: string): MetaInboxReadiness` — a per-agency credential).
+- `readMetaMessagingConfig(agencyId: string, origin?: string): MetaMessagingConfig | null`
+- `createMetaOAuthState(data: MetaOAuthStateData): string`
+- `verifyMetaOAuthState(value: string): { ok: true; data: MetaOAuthStateData } | { ok: false; error: string }`
+- `buildMetaAuthorizeUrl(config: MetaMessagingConfig, state: string, mode: InboxAuthMode): string`
+- `async exchangeMetaOAuthCode(config: MetaMessagingConfig, code: string, mode: InboxAuthMode, fetchImpl: typeof fetch = fetch): Promise<DiscoveredMetaAccount[]>`
+- `async subscribeMetaWebhooks(config: MetaMessagingConfig, account: DiscoveredMetaAccount, fetchImpl: typeof fetch = fetch): Promise<{ subscribed: boolean; message: string }>`
+- `async sendMetaTextMessage(config: MetaMessagingConfig, connection: PrivateInboxConnection, recipientId: string, text: string, fetchImpl: typeof fetch = fetch): Promise<{ messageId: string }>`
+- `async sendMetaAttachmentMessage(config: MetaMessagingConfig, connection: PrivateInboxConnection, recipientId: string, attachment: { type: "image" | "audio" | "video" | "file"; url: string }, fetchImpl: typeof fetch = fe…`
+- `verifyMetaWebhookSignature(rawBody: string, signatureHeader: string | null, appSecret: string): boolean`
+- `constantTimeSecretMatch(supplied: string, candidates: Iterable<string>): boolean` — doesn't reveal which one matched (or how many were tried).
+- `metaWebhookVerifyTokenAccepted(suppliedToken: string): boolean` — compare is constant-time so it matches the signature path.
+- `async verifyMetaWebhookRequest(rawBody: string, signatureHeader: string | null, payload: { entry?: Array<{ id?: unknown }> } | null): Promise<boolean>` — owns the target account(s) in the payload, plus the env secret as a fallback.
+- `interface MetaMessagingConfig (7 members)`
+- `interface MetaOAuthStateData (6 members)`
+- `interface DiscoveredMetaAccount (10 members)`
+
+### `src/lib/server/integrations/oauthGoogle.ts`
+
+- `readGoogleOAuthConfig(redirectFallback?: string): GoogleOAuthConfig | null`
+- `isGoogleOAuthConfigured(): boolean`
+- `buildAuthorizeUrl(config: GoogleOAuthConfig, opts: { returnUrl?: string; secret: string }): OAuthStartUrl` — state storage — survives serverless cold starts.
+- `verifyOAuthState(state: string, secret: string): { ok: true; returnUrl: string } | { ok: false; error: string }`
+- `async exchangeAndVerify(config: GoogleOAuthConfig, code: string, deps: ExchangeDeps = {}): Promise<{ ok: true; claims: GoogleIdTokenClaims } | { ok: false; error: string }>` — Google's tokeninfo endpoint. Returns normalised claims or an error.
+- `async verifyIdToken(idToken: string, expectedAudience: string, deps: ExchangeDeps = {}): Promise<{ ok: true; claims: GoogleIdTokenClaims } | { ok: false; error: string }>`
+- `interface GoogleOAuthConfig (3 members)`
+- `interface OAuthStartUrl (2 members)`
+- `interface GoogleIdTokenClaims (8 members)` — ─── Token exchange + ID-token verification ─────────────────────────────────
+- `interface ExchangeDeps (1 members)`
+
+### `src/lib/server/integrations/vercelDomain.impl.ts`
+
+- `readEnvToken(): string | null` — ─── Env helpers ─────────────────────────────────────────────────────────
+- `readEnvTeamId(): string | undefined`
+- `isVercelDomainConfigured(): boolean`
+- `configFromEnv(args: { projectId: string; teamId?: string; }): VercelDomainConfig` — Build a config from env + per-call project/team args. Throws if `VERCEL_TOKEN` is missing — callers should check `isVercelDomainConfigured()` first when the not-configured path ma…
+- `normaliseHostname(raw: string): string` — ─── Hostname normalisation (mirror of plugins/domains/src/lib/domain.ts) ─
+- `async attachDomain(cfg: VercelDomainConfig, rawHostname: string): Promise<VercelDomainResult>` — Attach a domain to a Vercel project. Returns ok+verified+pending DNS requirements on success; ok:false + error on failure. Idempotent: 409 `domain_already_in_use` is treated as su…
+- `async verifyDomain(cfg: VercelDomainConfig, rawHostname: string): Promise<VercelDomainResult>` — Re-verify a previously attached domain. Returns the same shape as attachDomain — `verified` flips true once Vercel sees the DNS records propagate.
+- `async removeDomain(cfg: VercelDomainConfig, rawHostname: string): Promise<{ ok: boolean; hostname: string; error?: string }>` — Remove a domain from a Vercel project. 200 on success; ok:false + error otherwise.
+- `interface VercelDomainConfig (3 members)`
+- `interface DnsRequirement (4 members)`
+- `interface VercelDomainResult (7 members)`
+
+### `src/lib/server/integrations/vercelDomain.ts`
+
+- `* from "@/lib/server/integrations/vercelDomain.impl"`
+
+### `src/lib/server/integrations/vercelProjectDeployer.ts`
+
+- `isVercelProjectDeploymentConfigured(env: NodeJS.ProcessEnv = process.env): boolean`
+- `isVercelProjectDeploymentConfiguredForAgency(agencyId: string, clientId?: string): boolean`
+- `vercelDeploymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): VercelDeploymentConfig`
+- `async deployProjectPreviewToVercel(input: { agencyId?: string; clientId?: string; localPath: string; projectSlug: string; config?: VercelDeploymentConfig; }, dependencies: DeployDependencies = {}): Promise<VercelPreview…`
+- `interface VercelDeploymentConfig (2 members)`
+- `interface VercelPreviewDeployment (6 members)`
+
+
+## `src/lib/server/kpi/`
+
+### `src/lib/server/kpi/companyHealthSnapshot.ts`
+
+- `async buildCompanyHealthSnapshot(agencyId: string, now = Date.now())`
+- `getRequestCompanyHealth = cache(` — collapses them to one build. The raw function below is unchanged.
+- `interface CompanyHealthActuals (13 members)`
+- `interface CompanyRevenueGrowthPoint (2 members)`
+
+### `src/lib/server/kpi/customKpis.ts`
+
+- `listCustomKpis(agencyId: string): CustomKpiDefinition[]`
+- `createCustomKpi(agencyId: string, input: CreateCustomKpiInput, opts: { actorUserId: string; now?: number }): CustomKpiDefinition` — Create a custom KPI. Throws on an unknown op or a missing numerator id.
+- `deleteCustomKpi(agencyId: string, id: string, opts: { actorUserId: string }): CustomKpiDefinition[]` — Delete a custom KPI by id.
+- `interface CreateCustomKpiInput (6 members)`
+
+### `src/lib/server/kpi/kpiRegistryService.ts`
 
 - `async buildKpiRegistry(input: KpiRegistryInput): Promise<KpiDescriptor[]>` — Build the KPI registry for an agency: run the command-intelligence snapshot and project its KPIs into descriptors. Phase 1 registers the 20 command KPIs; every descriptor carries …
 - `buildEvidenceDescriptors(agencyId: string): KpiDescriptor[]` — Register every retained radar-evidence series for an agency as an evidence-kind descriptor. This is the vault-backed series provider the plan anticipated — it reads the durable ti…
 - `type KpiRegistryInput = Parameters<typeof buildCommandIntelligenceSnapshot>[0]` — Same inputs as the command-intelligence builder (radar + evidence + scope).
 
-### `src/lib/server/kpiTargets.ts`
+### `src/lib/server/kpi/kpiTargets.ts`
 
 - `getKpiTargetsConfig(agencyId: string): KpiTargetsConfig` — The agency's persisted KPI targets config (empty if none set).
 - `setKpiTarget(agencyId: string, kpiId: string, patch: { baselineValue?: number | null; targetValue?: number | null }, opts: { companyId?: string; actorUserId: string; now?: number }): KpiTargetsConfig` — Set (or update) a KPI target/baseline override, versioned. Returns the new config.
 - `clearKpiTarget(agencyId: string, kpiId: string, opts: { companyId?: string; actorUserId: string; now?: number }): KpiTargetsConfig` — Clear a KPI override at the agency or company level. Returns the new config.
 
+
+## `src/lib/server/`
+
 ### `src/lib/server/leadsPipelinePorts.ts`
 
 - `emailEnqueuePort: EmailEnqueuePort` — ─── EmailEnqueuePort (adapter onto @aqua/plugin-email-sender) ────────────
 - `pipelinePort: PipelinePort`
-
-### `src/lib/server/magicLink.ts`
-
-- `signMagicToken(input: Omit<MagicLinkPayload, "exp" | "nonce">): { token: string; payload: MagicLinkPayload; }`
-- `verifyMagicToken(token: string): { ok: true; payload: MagicLinkPayload } | { ok: false; error: string }`
-- `async consumeMagicNonce(nonce: string, expSec: number): Promise<boolean>` — the atomic helper.
-- `isUsed(nonce: string): boolean`
-- `markUsed(nonce: string, exp: number): void`
-- `_clearUsedForTests(): void` — scenarios in isolation. NOT exported via barrel.
-- `registerMagicLinkDelivery(fn: MagicLinkDelivery | null): void`
-- `async deliverMagicLink(input: { email: string; clientId: string; agencyId: string; magicUrl: string; }): Promise<{ delivered: boolean; via: "email-sender" | "resend" | "console" }>`
-- `interface MagicLinkPayload (5 members)`
-- `interface MagicLinkDelivery (1 members)` — ─── Email delivery hook ──────────────────────────────────────────────────
 
 ### `src/lib/server/marketingIntelligence.ts`
 
@@ -1804,65 +2098,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface MarketingSourceConnection (8 members)`
 - `interface MarketingSourceInput (5 members)`
 
-### `src/lib/server/metaMessaging.ts`
-
-- `metaInboxReadiness(agencyId: string, origin?: string): MetaInboxReadiness` — a per-agency credential).
-- `readMetaMessagingConfig(agencyId: string, origin?: string): MetaMessagingConfig | null`
-- `createMetaOAuthState(data: MetaOAuthStateData): string`
-- `verifyMetaOAuthState(value: string): { ok: true; data: MetaOAuthStateData } | { ok: false; error: string }`
-- `buildMetaAuthorizeUrl(config: MetaMessagingConfig, state: string, mode: InboxAuthMode): string`
-- `async exchangeMetaOAuthCode(config: MetaMessagingConfig, code: string, mode: InboxAuthMode, fetchImpl: typeof fetch = fetch): Promise<DiscoveredMetaAccount[]>`
-- `async subscribeMetaWebhooks(config: MetaMessagingConfig, account: DiscoveredMetaAccount, fetchImpl: typeof fetch = fetch): Promise<{ subscribed: boolean; message: string }>`
-- `async sendMetaTextMessage(config: MetaMessagingConfig, connection: PrivateInboxConnection, recipientId: string, text: string, fetchImpl: typeof fetch = fetch): Promise<{ messageId: string }>`
-- `async sendMetaAttachmentMessage(config: MetaMessagingConfig, connection: PrivateInboxConnection, recipientId: string, attachment: { type: "image" | "audio" | "video" | "file"; url: string }, fetchImpl: typeof fetch = fe…`
-- `verifyMetaWebhookSignature(rawBody: string, signatureHeader: string | null, appSecret: string): boolean`
-- `constantTimeSecretMatch(supplied: string, candidates: Iterable<string>): boolean` — doesn't reveal which one matched (or how many were tried).
-- `metaWebhookVerifyTokenAccepted(suppliedToken: string): boolean` — compare is constant-time so it matches the signature path.
-- `async verifyMetaWebhookRequest(rawBody: string, signatureHeader: string | null, payload: { entry?: Array<{ id?: unknown }> } | null): Promise<boolean>` — owns the target account(s) in the payload, plus the env secret as a fallback.
-- `interface MetaMessagingConfig (7 members)`
-- `interface MetaOAuthStateData (6 members)`
-- `interface DiscoveredMetaAccount (10 members)`
-
-### `src/lib/server/mfa.ts`
-
-- `requireTwoFactor(state: AssuranceState): MfaRequirement` — Whether a session may perform an action that requires two factors. Connecting a client's software to their account is exactly such an action: it binds a piece of external software…
-- `readAssurance(value: unknown): AssuranceState` — Reads the assurance state from whatever Supabase returned. Tolerant of the shape rather than assuming it, and — critically — failing closed. An unreadable response yields no assur…
-- `hasVerifiedFactor(factors: Array<{ status?: string }> | null | undefined): boolean` — Whether the user has any verified factor at all.
-- `verifiedFactors(user: SignedInUser | null | undefined): ChallengeableFactor[]` — Every verified factor on the user, in the order Supabase listed them. Only `verified` counts. An enrolment somebody started and abandoned is not protection, and treating it as one…
-- `loginMfaStep(input: { user: SignedInUser | null | undefined; code: unknown }): LoginMfaStep` — What the login route must do next, given the user Supabase just returned and whatever the caller sent as a code. The property this exists to make unmissable: **an absent code is n…
-- `readTokenAssurance(accessToken: unknown): AssuranceLevel | "unstated" | null` — The `aal` claim inside a Supabase access token. Returns the level when the token carries one, `"unstated"` when the token reads fine but has no `aal` claim, and `null` when nothin…
-- `raisedToSecondFactor(accessToken: unknown): boolean` — Whether a factor verification actually *raised* the session. The point of the check: a verify call that answers "fine" without the assurance level moving is not a second factor, i…
-- `MFA_LOGIN_CHALLENGE_MESSAGE = "Enter the six-digit code from your authenticator app to finish signing in."` — The message shown when a code is needed. It is only ever reached *after* a correct password, so it cannot be used to discover whether an account exists — but it also says nothing …
-- `MFA_LOGIN_REJECTED_MESSAGE = "That code was not right. Try the current one."` — Same wording whether the code was wrong, expired or already used.
-- `MFA_LOGIN_UNAVAILABLE_MESSAGE = "Two-factor authentication is switched on for this account but could not be checked here. "` — A factor exists but Aqua has no way to challenge it — refuse, never skip.
-- `type AssuranceLevel = "aal1" | "aal2"` — Two-factor authentication, via Supabase. Aqua does not implement 2FA — Supabase Auth already has it, and a hand-rolled TOTP implementation is a liability with no upside. What live…
-- `type MfaRequirement = | { status: "satisfied" } /** Has a factor, has not been challenged on this session. */ | { status: "challenge-required"; message: string } /** No factor at all — must enrol before this action is p…`
-- `type LoginMfaStep = | { status: "not-required" } /** A factor exists and no code came with the request. Withhold the session. */ | { status: "code-required"; message: string } /** A code came with the request — check it…`
-- `interface AssuranceState (2 members)`
-- `interface SignedInUser (1 members)` — The shape of the user Supabase hands back from a password sign-in.
-- `interface ChallengeableFactor (2 members)` — A factor the login gate is able to challenge.
-
-### `src/lib/server/nonceStore.ts`
-
-- `getNonceStore(): NonceStore`
-- `async _swapStoreForTests(adapter: NonceStore | null): Promise<void>` — adapter's internal state.
-- `_createMemoryAdapterForTests(): NonceStore` — adapters without going through the singleton.
-- `type NonceKind = "magic-link" | "email-verify" | "password-reset" | "csrf"`
-- `interface NonceStore (4 members)`
-
-### `src/lib/server/oauthGoogle.ts`
-
-- `readGoogleOAuthConfig(redirectFallback?: string): GoogleOAuthConfig | null`
-- `isGoogleOAuthConfigured(): boolean`
-- `buildAuthorizeUrl(config: GoogleOAuthConfig, opts: { returnUrl?: string; secret: string }): OAuthStartUrl` — state storage — survives serverless cold starts.
-- `verifyOAuthState(state: string, secret: string): { ok: true; returnUrl: string } | { ok: false; error: string }`
-- `async exchangeAndVerify(config: GoogleOAuthConfig, code: string, deps: ExchangeDeps = {}): Promise<{ ok: true; claims: GoogleIdTokenClaims } | { ok: false; error: string }>` — Google's tokeninfo endpoint. Returns normalised claims or an error.
-- `async verifyIdToken(idToken: string, expectedAudience: string, deps: ExchangeDeps = {}): Promise<{ ok: true; claims: GoogleIdTokenClaims } | { ok: false; error: string }>`
-- `interface GoogleOAuthConfig (3 members)`
-- `interface OAuthStartUrl (2 members)`
-- `interface GoogleIdTokenClaims (8 members)` — ─── Token exchange + ID-token verification ─────────────────────────────────
-- `interface ExchangeDeps (1 members)`
-
 ### `src/lib/server/observability.ts`
 
 - `captureError(err: unknown, breadcrumb?: ObservabilityBreadcrumb): void` — Capture an exception with a per-tenant breadcrumb. Always returns synchronously; the Sentry call is best-effort and runs on the next microtask. Safe to invoke before Sentry is loa…
@@ -1886,44 +2121,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface Milestone (2 members)`
 - `interface MilestoneState (3 members)`
 
-### `src/lib/server/openaiAssistant.ts`
-
-- `isAssistantConfigured(agencyId?: string)`
-- `assistantModel(agencyId?: string)`
-- `async askMilesymediaAssistant(input: { agencyId: string; userName: string; memories: AssistantMemory[]; history: AssistantMessage[]; businessContext: string; contextTruncated: boolean; question: string; skill: AdvisorSk…`
-- `async suggestAdvisorActions(input: { agencyId: string; businessContext: string; alerts: OperationalAlert[]; radarIssues: BusinessRadarIssue[]; recommendedActions?: AdvisorActionSuggestion[]; existingTaskTitles: string[]…`
-
-### `src/lib/server/operationalAlertPreferences.ts`
-
-- `listOperationalAlertViews(agencyId: string, userId: string, alerts: OperationalAlert[], now = Date.now()): OperationalAlertView[]`
-- `setOperationalAlertPreference({ agencyId, userId, alert, action, parkedUntil, now = Date.now(), }: { agencyId: string; userId: string; alert: OperationalAlert; action: OperationalAlertAction; parkedUntil?: number; now?:…`
-
-### `src/lib/server/operationalAlerts.ts`
-
-- `async listOperationalAlerts(agencyId: string, now = Date.now()): Promise<OperationalAlert[]>`
-- `OPERATIONAL_ALERT_THRESHOLDS = {`
-- `getRequestOperationalAlerts = cache(` — so API routes, tests and any non-render caller keep the exact same behaviour.
-- `{ OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention"`
-
-### `src/lib/server/outboundCommunications.ts`
-
-- `outboundCommunicationReadiness(agencyId: string): OutboundCommunicationReadiness`
-- `resolveCommunicationSender(agencyId: string, senderId: string, channel: OutboundCommunicationChannel): CommunicationSenderIdentity | null`
-- `async sendPhoneMessage(input: { agencyId: string; sender: CommunicationSenderIdentity; channel: "sms" | "whatsapp"; to: string; body: string; mediaUrls?: string[]; }): Promise<SendPhoneMessageResult>`
-- `async initiatePhoneCall(input: { agencyId: string; sender: CommunicationSenderIdentity; customerPhone: string; }): Promise<{ initiated: boolean; via: "device" | "twilio"; externalCallId?: string; reason?: string }>`
-- `normalisePhone(value: string): string | null`
-- `type OutboundCommunicationChannel = "email" | "sms" | "whatsapp" | "call"`
-- `interface CommunicationSenderIdentity (6 members)`
-- `interface OutboundCommunicationReadiness (4 members)`
-- `interface SendPhoneMessageResult (4 members)`
-
-### `src/lib/server/passwordReset.ts`
-
-- `signPasswordResetToken(input: { userId: string; email: string }): { token: string; payload: PasswordResetPayload; }`
-- `verifyPasswordResetToken(token: string): { ok: true; payload: PasswordResetPayload } | { ok: false; error: string }`
-- `async consumeResetNonce(nonce: string, expSec: number): Promise<boolean>` — cross-pollinate.
-- `interface PasswordResetPayload (4 members)`
-
 ### `src/lib/server/personInteractions.ts`
 
 - `async personInteractions(agencyId: string, personId: string): Promise<PersonInteraction[]>`
@@ -1936,7 +2133,10 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `makePluginStorage(installId: string): PluginStorage`
 
-### `src/lib/server/portalConnections.ts`
+
+## `src/lib/server/portal/`
+
+### `src/lib/server/portal/portalConnections.ts`
 
 - `newConnectionId(): string`
 - `connectionUrl(origin: string, connectionId: string): string`
@@ -1953,7 +2153,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `type ConnectionAttempt = | { ok: true; connection: PortalConnection } | { ok: false; reason: ConnectionRefusal }`
 - `interface PortalConnection (16 members)`
 
-### `src/lib/server/portalHandoff.ts`
+### `src/lib/server/portal/portalHandoff.ts`
 
 - `safeDestination(value: string | undefined): string | undefined` — Only paths inside the portal. Without this the destination is an open redirect: a link that signs somebody in and then forwards them to an attacker's page, carrying Aqua's name an…
 - `mintHandoffToken(claims: HandoffClaims, now = Date.now()): string`
@@ -1964,12 +2164,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `type HandoffResult = | { ok: true; claims: HandoffPayload } | { ok: false; reason: HandoffFailure }`
 - `interface HandoffClaims (5 members)`
 
-### `src/lib/server/postLoginRedirect.ts`
-
-- `resolvePostLoginPath(session: SessionPayload | null | undefined, user?: Pick<ServerUser, "role" | "clientId"> | null, opts: ResolveOptions = {}): string`
-- `interface ResolveOptions (1 members)`
-
-### `src/lib/server/previewPhase.ts`
+### `src/lib/server/portal/previewPhase.ts`
 
 - `async getPreviewPhase(): Promise<PhaseDefinition | null>`
 - `previewPhaseCookie(phaseId: string | null): PreviewCookie`
@@ -1978,6 +2173,9 @@ Every exported function, class, type and const in this area, with its real signa
 - `PREVIEW_PHASE_COOKIE = "lk_preview_phase"`
 - `PREVIEW_PHASE_MAX_AGE = 60 * 60 * 4`
 - `interface PreviewCookie (3 members)`
+
+
+## `src/lib/server/`
 
 ### `src/lib/server/privateUploadStorage.ts`
 
@@ -2022,7 +2220,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface StorePublicUploadInput (5 members)`
 - `interface StoredPublicUpload (3 members)`
 
-### `src/lib/server/radarEvidenceVault.ts`
+
+## `src/lib/server/radar/`
+
+### `src/lib/server/radar/businessIssueRadar.ts`
+
+- `invalidateBusinessIssueRadarCache(agencyId: string): void`
+- `getCachedBusinessIssueRadar(agencyId: string, now = Date.now()): Promise<BusinessIssueRadar>`
+- `async buildBusinessIssueRadar(agencyId: string, now = Date.now(), inputs: RadarInputs = {}): Promise<BusinessIssueRadar>`
+
+### `src/lib/server/radar/clientRadarService.ts`
+
+- `async buildClientRadarFleet(agencyId: string, options: ClientRadarFleetOptions = {}): Promise<ClientRadarSnapshot[]>`
+- `async buildClientRadar(agencyId: string, clientId: string, options: Omit<ClientRadarFleetOptions, "clients"> = {}): Promise<ClientRadarSnapshot | null>`
+
+### `src/lib/server/radar/radarEvidenceVault.ts`
 
 - `applyRadarEvidenceBaselines(agencyId: string, observations: readonly RadarObservation[]): RadarObservation[]`
 - `buildRadarEvidenceLayer(agencyId: string, observations: readonly RadarObservation[], now: number, policy?: RadarPolicyConfiguration): RadarEvidenceLayer`
@@ -2031,23 +2243,23 @@ Every exported function, class, type and const in this area, with its real signa
 - `inspectRadarEvidenceSeries(agencyId: string, id: string): RadarEvidenceSeriesInspection | null` — A retained series, found by its own id or by the source it measures. The map is keyed by `series.id`, but a series also records the `sourceId` it was measured from, and for most o…
 - `interface RadarEvidenceLayer (3 members)`
 
-### `src/lib/server/radarMemory.ts`
+### `src/lib/server/radar/radarMemory.ts`
 
 - `buildRadarMemoryDigest(agencyId: string, radar: RadarWithoutMemory, now = radar.generatedAt, includeCurrentSweep = false): RadarMemoryDigest`
 - `recordRadarSweep(agencyId: string, radar: BusinessIssueRadar): RadarMemoryDigest`
 - `getRadarMemoryState(agencyId: string): RadarMemoryState | null`
 - `buildRadarMemoryIssues(memory: RadarMemoryDigest, now: number): BusinessRadarIssue[]`
 
-### `src/lib/server/radarObservations.ts`
+### `src/lib/server/radar/radarObservations.ts`
 
 - `buildRadarObservations(input: RadarObservationInputs): RadarObservation[]`
 - `interface RadarObservationInputs (15 members)`
 
-### `src/lib/server/radarSeeding.ts`
+### `src/lib/server/radar/radarSeeding.ts`
 
 - `ensureRadarSeedingRegistered(): void`
 
-### `src/lib/server/radarSourceInspection.ts`
+### `src/lib/server/radar/radarSourceInspection.ts`
 
 - `async inspectRadarSourceData(agencyId: string): Promise<RadarSourceDataIndex>`
 - `async listRadarSourceSearchDatasets(agencyId: string): Promise<RadarSourceSearchDataset[]>`
@@ -2056,7 +2268,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `invalidateRadarSourceInspection(agencyId: string): void`
 - `interface RadarSourceSearchDataset (1 members)`
 
-### `src/lib/server/radarSweeps.ts`
+### `src/lib/server/radar/radarSweeps.ts`
 
 - `radarSweepForTier(tier: RadarCheckTier): RadarSweepType`
 - `async runRadarDeepSweep(agencyId: string, options: { force?: boolean; now?: number } = {}): Promise<RadarSyntheticProbeResult[]>` — Deep / Synthetic sweep — run the network canaries. `force` runs every target now (the full-scan path); without it, the probe layer respects its own cadence and reuses recent resul…
@@ -2075,18 +2287,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface RadarScheduledSweepResult (5 members)`
 - `interface RadarProbeRefreshResult (4 members)`
 
-### `src/lib/server/radarSyntheticProbes.ts`
+### `src/lib/server/radar/radarSyntheticProbes.ts`
 
 - `async runAgencySyntheticProbes(agencyId: string, options: { force?: boolean; now?: number } = {}): Promise<RadarSyntheticProbeResult[]>`
 - `listAgencySyntheticProbes(agencyId: string): RadarSyntheticProbeResult[]`
 - `discoverRadarSyntheticTargets(agencyId: string): RadarSyntheticTarget[]`
 - `interface RadarSyntheticTarget (3 members)`
 
-### `src/lib/server/radarTelemetry.ts`
+### `src/lib/server/radar/radarTelemetry.ts`
 
 - `buildRadarTelemetrySnapshot(agencyWebsite: AgencyWebsiteProject | undefined, clients: Client[], syntheticProbes: Record<string, RadarSyntheticProbeResult> = {}, now = Date.now()): RadarTelemetrySnapshot`
 - `interface RadarTelemetryProperty (22 members)`
 - `interface RadarTelemetrySnapshot (3 members)`
+
+
+## `src/lib/server/`
 
 ### `src/lib/server/rateLimit.ts`
 
@@ -2111,16 +2326,6 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/lib/server/requestNow.ts`
 
 - `getRequestNow = cache((): number => Date.now())` — API routes, tests and any non-render caller).
-
-### `src/lib/server/requireAgencyScope.ts`
-
-- `isAgencyScopedSession(session: SessionPayload): boolean`
-- `requireAgencyScope(session: SessionPayload): void`
-
-### `src/lib/server/resendEmail.ts`
-
-- `async sendResendEmail(input: ResendEmailInput): Promise<ResendEmailResult>`
-- `type ResendEmailResult = | { ok: true; id?: string } | { ok: false; reason: string; unconfigured?: boolean }`
 
 ### `src/lib/server/resolutionPlans.ts`
 
@@ -2154,18 +2359,67 @@ Every exported function, class, type and const in this area, with its real signa
 - `googleOauthClientSecret(): string | undefined`
 - `googleOauthRedirectUri(): string | undefined`
 
-### `src/lib/server/seedClientFromPerson.ts`
+
+## `src/lib/server/seeds/`
+
+### `src/lib/server/seeds/aquaOasisSeed.ts`
+
+- `seedAquaOasisDemo(installedBy?: string): Promise<SeedResult>`
+- `addUserAgencyMembership(userId: string, agencyId: string): void` — seed to make Ed a master across Milesy Media + AquaOasis.
+- `_resetAquaOasisSeedForTests(): void` — Test helper — purely for the smoke to reset module-level cache.
+- `AQUA_OASIS_AGENCY_SLUG = "aquaoasis-demo"`
+- `AQUA_OASIS_AGENCY_NAME = "AquaOasis Demo"`
+- `AQUA_OASIS_PLUGIN_IDS = [`
+
+### `src/lib/server/seeds/demoSeed.ts`
+
+- `async seedDemoAgency(actor?: string): Promise<SeedDemoResult>`
+- `async resetDemo(): Promise<ResetDemoResult>`
+- `ensureDemoStaffEmployee(agencyId: string, actor?: string): void` — workspace redirects to `/portal/account`, trapping the demo staff persona.
+- `ensureDemoFreelancer(agencyId: string): void` — populated `/portal/freelancer`.
+- `ensureDemoCustomerReady(agencyId: string): void` — Idempotent + standalone (same reasoning as ensureDemoStaffEmployee).
+- `getDemoSnapshot(): DemoTenantSnapshot | null` — `/demo` + `/demo/toggle` to skip re-seeding when nothing changed.
+- `DEMO_AGENCY_SLUG = "demo-agency"` — the demo users by email when issuing the POV-specific cookie.
+- `DEMO_AGENCY_NAME = "Demo · Aqua"`
+- `DEMO_OWNER_EMAIL = "demo@aqua.dev"`
+- `DEMO_OWNER_PASSWORD = "demo-aqua-2026"`
+- `DEMO_STAFF_EMAIL = "staff@aqua.dev"` — sees in demo/sample data.
+- `DEMO_STAFF_PASSWORD = "staff-demo-2026"`
+- `DEMO_STAFF_NAME = "Demo Employee"`
+- `DEMO_CLIENT_SLUG = "luv-and-ker-demo"`
+- `DEMO_CLIENT_NAME = "Luv & Ker · Demo"`
+- `DEMO_CLIENT_EMAIL = "felicia@luvandker.demo"`
+- `DEMO_CLIENT_PASSWORD = "felicia-demo-2026"`
+- `DEMO_CUSTOMER_EMAIL = "demo-shopper@aqua.test"`
+- `DEMO_CUSTOMER_PASSWORD = "shopper-demo-2026"`
+- `DEMO_CUSTOMER_NAME = "Demo shopper"`
+- `DEMO_FREELANCER_EMAIL = "sky@aqua.freelance"` — jobs (the freelancer workspace), never the agency-side client workspace.
+- `DEMO_FREELANCER_PASSWORD = "freelancer-demo-2026"`
+- `DEMO_FREELANCER_NAME = "Demo Freelancer"`
+- `interface SeedDemoResult (10 members)`
+- `interface ResetDemoResult (3 members)` — nightly cron.
+- `interface DemoTenantSnapshot (5 members)` — ─── Read-only helper for the demo route handlers ────────────────────────
+- `{ listInstalledFor }`
+
+### `src/lib/server/seeds/founderSeed.ts`
+
+- `checkFounderPolicy(input: { email: string; password: string | undefined; nodeEnv: string | undefined; }): PolicyCheck` — can drive every branch without process.env mutation.
+- `seedFounder(): Promise<void>`
+- `_resetFounderSeedForTests(): void` — between invocations. Not for prod use.
+- `FOUNDER_AGENCY_SLUG = "milesymedia"`
+- `DEFAULT_FOUNDER_EMAIL = "edwardhallam07@gmail.com"`
+- `DEFAULT_FOUNDER_AGENCY_NAME = INTERNAL_WORKSPACE_NAME`
+- `FOUNDER_NAME = "Ed Hallam"`
+- `FOUNDER_USERNAME = "Ed"`
+- `FOUNDER_EMAIL = (process.env.FOUNDER_EMAIL ?? DEFAULT_FOUNDER_EMAIL).trim()`
+
+### `src/lib/server/seeds/seedClientFromPerson.ts`
 
 - `async seedClientFromPerson(agencyId: string, personId: string, clientId: string): Promise<SeedClientFromPersonResult>` — Seed the client's record with everything already known about the person. Idempotent: the ledger upserts on (sourceType, sourceId), so a second conversion — or a re-run after a fai…
 - `interface SeedClientFromPersonResult (2 members)`
 
-### `src/lib/server/showcaseMode.ts`
 
-- `async ensureShowcaseWorkspace(): Promise<Agency>`
-- `async resetAndSeedShowcaseWorkspace(): Promise<Agency>`
-- `resetShowcaseWorkspace(): void`
-- `SHOWCASE_AGENCY_SLUG = "milesymedia-showcase"`
-- `SHOWCASE_AGENCY_NAME = "Milesymedia Showcase"`
+## `src/lib/server/`
 
 ### `src/lib/server/sidebarAttention.ts`
 
@@ -2259,40 +2513,6 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `async getActiveTradingCompanyId(agencyId: string): Promise<string | null>`
 
-### `src/lib/server/transactionalEmail.ts`
-
-- `transactionalEmailReadiness(agencyId: string, clientId?: string): TransactionalEmailReadiness`
-- `async sendTransactionalEmail(input: TransactionalEmailInput): Promise<TransactionalEmailResult>`
-- `interface TransactionalEmailResult (4 members)`
-- `interface TransactionalEmailReadiness (2 members)`
-
-### `src/lib/server/vercelDomain.impl.ts`
-
-- `readEnvToken(): string | null` — ─── Env helpers ─────────────────────────────────────────────────────────
-- `readEnvTeamId(): string | undefined`
-- `isVercelDomainConfigured(): boolean`
-- `configFromEnv(args: { projectId: string; teamId?: string; }): VercelDomainConfig` — Build a config from env + per-call project/team args. Throws if `VERCEL_TOKEN` is missing — callers should check `isVercelDomainConfigured()` first when the not-configured path ma…
-- `normaliseHostname(raw: string): string` — ─── Hostname normalisation (mirror of plugins/domains/src/lib/domain.ts) ─
-- `async attachDomain(cfg: VercelDomainConfig, rawHostname: string): Promise<VercelDomainResult>` — Attach a domain to a Vercel project. Returns ok+verified+pending DNS requirements on success; ok:false + error on failure. Idempotent: 409 `domain_already_in_use` is treated as su…
-- `async verifyDomain(cfg: VercelDomainConfig, rawHostname: string): Promise<VercelDomainResult>` — Re-verify a previously attached domain. Returns the same shape as attachDomain — `verified` flips true once Vercel sees the DNS records propagate.
-- `async removeDomain(cfg: VercelDomainConfig, rawHostname: string): Promise<{ ok: boolean; hostname: string; error?: string }>` — Remove a domain from a Vercel project. 200 on success; ok:false + error otherwise.
-- `interface VercelDomainConfig (3 members)`
-- `interface DnsRequirement (4 members)`
-- `interface VercelDomainResult (7 members)`
-
-### `src/lib/server/vercelDomain.ts`
-
-- `* from "./vercelDomain.impl"`
-
-### `src/lib/server/vercelProjectDeployer.ts`
-
-- `isVercelProjectDeploymentConfigured(env: NodeJS.ProcessEnv = process.env): boolean`
-- `isVercelProjectDeploymentConfiguredForAgency(agencyId: string, clientId?: string): boolean`
-- `vercelDeploymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): VercelDeploymentConfig`
-- `async deployProjectPreviewToVercel(input: { agencyId?: string; clientId?: string; localPath: string; projectSlug: string; config?: VercelDeploymentConfig; }, dependencies: DeployDependencies = {}): Promise<VercelPreview…`
-- `interface VercelDeploymentConfig (2 members)`
-- `interface VercelPreviewDeployment (6 members)`
-
 ### `src/lib/server/websiteEnquiries.ts`
 
 - `async recordWebsiteEnquiryResponse(enquiryId: string, respondedAt: number, actorUserId: string): Promise<boolean>`
@@ -2322,6 +2542,35 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/lib/server/websiteEnquiryLeadSync.ts`
 
 - `async recordWebsiteEnquiryLeadContact(input: { agencyId: string; leadId?: string; actorUserId: string; channel: string; outcome: string; note?: string; at?: number; incrementSentCount?: boolean; }): Promise<boolean>`
+
+
+## `src/lib/shared/`
+
+### `src/lib/shared/avatarDataUrl.ts`
+
+- `validateAvatarDataUrl(input: unknown): AvatarValidation`
+- `AVATAR_MAX_DATA_URL_BYTES = 50_000` — renders a static circular avatar — animation here is noise.
+- `type AllowedAvatarMime = (typeof ALLOWED_MIMES)[number]`
+- `type AvatarValidationError = | "missing" | "too_large" | "bad_shape" | "bad_mime" | "bad_base64"`
+- `type AvatarValidation = AvatarValidationOk | AvatarValidationFail`
+- `interface AvatarValidationOk (3 members)`
+- `interface AvatarValidationFail (2 members)`
+
+### `src/lib/shared/formatDateTime.ts`
+
+- `dateFromValue(value: unknown): Date | null`
+- `timestampFromValue(value: unknown): number | undefined`
+- `formatUkDateTime(value: unknown, fallback = "Date needs review"): string`
+- `formatUkDate(value: unknown, options: Intl.DateTimeFormatOptions, fallback = "Date needs review"): string`
+- `isoDateTimeValue(value: unknown): string | undefined`
+- `dateInputValue(value: unknown): string`
+- `localDateTimeInputValue(value: unknown): string`
+- `relativeAge(mtimeMs: number, nowMs: number): string` — Compact relative age: "just now" / "3m ago" / "5h ago" / "2d ago" / "4mo ago" / "1y ago". Isomorphic (server + client) — pass `nowMs` so it's deterministic and usable from client …
+
+### `src/lib/shared/internalWorkspace.ts`
+
+- `INTERNAL_WORKSPACE_NAME = "AquaOasis-Web"`
+- `INTERNAL_WORKSPACE_SUBTITLE = "One business. Every service."`
 
 
 ## `src/lib/supabase/`
@@ -2364,14 +2613,4 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface TaskTemplateStep (4 members)` — Repeatable work, written down once. Jobs like onboarding a client are the same seven steps every time, and the cost of retyping them is not the typing — it is the step that gets f…
 - `interface TaskTemplateShape (6 members)`
 - `interface BuiltInTaskTemplate (2 members)`
-
-
-## `src/lib/`
-
-### `src/lib/tradingBrands.ts`
-
-- `isTradingBrandSlug(value: unknown): value is TradingBrandSlug`
-- `tradingBrandDefinition(slug: TradingBrandSlug)`
-- `TRADING_BRANDS = [`
-- `type TradingBrandSlug = (typeof TRADING_BRANDS)[number]["slug"]`
 

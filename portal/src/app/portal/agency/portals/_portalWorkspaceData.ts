@@ -5,7 +5,7 @@ import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agency
 import { ensureProductPortalTemplates } from "@/server/clientPortalDesigns";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import type { PortalTemplateProductRecord, PortalWorkspaceRecord } from "./_PortalsWorkspace";
 
 type PortalMode = PortalWorkspaceRecord["portalMode"];

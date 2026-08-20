@@ -13,13 +13,13 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (9)
 
 - [`src/components/editing/RepositoryPanel.tsx`](../../../../../components/editing/RepositoryPanel.md)
-- [`src/lib/clientPortalBuilder.ts`](../../../../../lib/clientPortalBuilder.md)
-- [`src/lib/clientPortalDesign.ts`](../../../../../lib/clientPortalDesign.md)
 - [`src/lib/editing/elementSource.ts`](../../../../../lib/editing/elementSource.md)
 - [`src/lib/editing/fileRelevance.ts`](../../../../../lib/editing/fileRelevance.md)
 - [`src/lib/editing/modes.ts`](../../../../../lib/editing/modes.md)
-- [`src/lib/formatDateTime.ts`](../../../../../lib/formatDateTime.md)
-- [`src/lib/portalProducts.ts`](../../../../../lib/portalProducts.md)
+- [`src/lib/portal/clientPortalBuilder.ts`](../../../../../lib/portal/clientPortalBuilder.md)
+- [`src/lib/portal/clientPortalDesign.ts`](../../../../../lib/portal/clientPortalDesign.md)
+- [`src/lib/portal/portalProducts.ts`](../../../../../lib/portal/portalProducts.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 
 ## Used by (1)

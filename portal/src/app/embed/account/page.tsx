@@ -5,8 +5,8 @@ import { ensureHydrated } from "@/server/storage";
 import { getClient } from "@/server/tenants";
 import { verifyAquaEmbedToken } from "@/lib/server/aquaEmbedToken";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
-import { formatUkDate } from "@/lib/formatDateTime";
-import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
 
 export const dynamic = "force-dynamic";
 

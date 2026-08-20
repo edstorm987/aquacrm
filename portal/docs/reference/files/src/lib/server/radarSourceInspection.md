@@ -1,4 +1,4 @@
-# `src/lib/server/radarSourceInspection.ts`
+# `src/lib/server/radar/radarSourceInspection.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -16,9 +16,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (12)
 
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
-- [`src/lib/businessRadar.ts`](../businessRadar.md)
-- [`src/lib/server/founderSeed.ts`](./founderSeed.md)
-- [`src/lib/server/inboxStore.ts`](./inboxStore.md)
+- [`src/lib/radar/businessRadar.ts`](../businessRadar.md)
+- [`src/lib/server/seeds/founderSeed.ts`](./founderSeed.md)
+- [`src/lib/server/inbox/inboxStore.ts`](./inboxStore.md)
 - [`src/lib/server/pluginStorage.ts`](./pluginStorage.md)
 - [`src/lib/server/websiteEnquiries.ts`](./websiteEnquiries.md)
 - [`src/server/commandCalendar.ts`](../../server/commandCalendar.md)

@@ -29,9 +29,9 @@ const stubContext = () => ({ Provider: null, Consumer: null, _currentValue: unde
 reactShim.createContext ??= stubContext;
 if (reactShim.default) reactShim.default.createContext ??= stubContext;
 
-import { issueSession } from "../src/lib/server/auth";
-import { EXTERNAL_ASSISTANT_MODULES } from "../src/lib/server/externalAssistantApi";
-import { createExternalAssistantApiKey } from "../src/lib/server/externalAssistantKeys";
+import { issueSession } from "../src/lib/server/auth/auth";
+import { EXTERNAL_ASSISTANT_MODULES } from "../src/lib/server/assistants/externalAssistantApi";
+import { createExternalAssistantApiKey } from "../src/lib/server/assistants/externalAssistantKeys";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";

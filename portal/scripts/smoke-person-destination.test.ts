@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { personCardHref, personDestination } from "../src/lib/personDestination";
+import { personCardHref, personDestination } from "../src/lib/people/personDestination";
 import type { Person } from "../src/server/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

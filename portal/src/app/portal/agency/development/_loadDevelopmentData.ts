@@ -1,6 +1,6 @@
 import "server-only";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import {
   ensureDefaultDevelopmentWorkflow,
   listDevelopmentWorkflows,

@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import {
   clearClientTelemetry,
   ensureClientTelemetry,
   resetClientTelemetryKey,
-} from "@/lib/server/clientTelemetry";
+} from "@/lib/server/clients/clientTelemetryService";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

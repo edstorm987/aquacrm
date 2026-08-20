@@ -19,8 +19,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ClientApproval, ClientApprovalType } from "@/app/api/tenants/client-approvals/route";
-import type { PortalProductSelection } from "@/lib/portalProducts";
-import { PORTAL_PHASE_LABELS } from "@/lib/portalProducts";
+import type { PortalProductSelection } from "@/lib/portal/portalProducts";
+import { PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -404,7 +404,7 @@ export function FulfilmentPortalPreview({
 
         <aside className="h-fit rounded-md border border-black/10 bg-white xl:sticky xl:top-20">
           <div className="border-b border-black/10 px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Portal editor</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Aqua Engine</p>
             <h3 className="mt-1 text-lg font-semibold text-black/85">Client experience</h3>
           </div>
 

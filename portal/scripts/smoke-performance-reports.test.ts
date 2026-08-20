@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPerformanceAnalyticsForRange } from "../src/lib/performanceAnalytics";
-import { cleanMonthlyPerformanceReports, reportHighlights, reportMonthRange, reportNextSteps } from "../src/lib/performanceReports";
+import { buildPerformanceAnalyticsForRange } from "../src/lib/performance/performanceAnalytics";
+import { cleanMonthlyPerformanceReports, reportHighlights, reportMonthRange, reportNextSteps } from "../src/lib/performance/performanceReports";
 
 test("monthly report helpers produce factual client copy", () => {
   const range = reportMonthRange("2026-07");

@@ -10,9 +10,9 @@ import {
   type ClientRecordEntry,
   type ClientRecordEntryKind,
   type ClientRecordVisibility,
-} from "@/lib/clientRelationshipRecord";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
-import { removeClientRecordLedgerEvent, upsertClientRecordLedgerEvent } from "@/lib/server/clientRecordLedger";
+} from "@/lib/clients/clientRelationshipRecord";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
+import { removeClientRecordLedgerEvent, upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";

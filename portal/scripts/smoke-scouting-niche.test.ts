@@ -156,7 +156,7 @@ test("sales and client surfaces keep scouting and niche connected", () => {
   const scouting = readFileSync(join(root, "src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx"), "utf8");
   const clients = readFileSync(join(root, "src/app/portal/clients/_PeopleHub.tsx"), "utf8");
   const conversion = readFileSync(join(root, "src/built-ins/modules/leads-pipeline/src/api/handlers.ts"), "utf8");
-  const alerts = readFileSync(join(root, "src/lib/server/operationalAlerts.ts"), "utf8");
+  const alerts = readFileSync(join(root, "src/lib/server/inbox/operationalAlerts.ts"), "utf8");
   const search = readFileSync(join(root, "src/app/api/portal/search/route.ts"), "utf8");
 
   assert.match(pipeline, /id:\s*"scouting",\s+label:\s*"Scouting"/);

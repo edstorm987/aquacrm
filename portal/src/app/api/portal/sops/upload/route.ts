@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { join } from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createFileSop } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";

@@ -7,9 +7,9 @@
 
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { devDocsAccessible, listDevDocs, readDevDoc, scanBlockers } from "@/lib/server/devDocs";
+import { devDocsAccessible, listDevDocs, readDevDoc, scanBlockers } from "@/lib/server/dev/devDocs";
 import { DevDocsIndexView } from "./_DevDocsIndex";
 import { DevDocViewer } from "./_DevDocViewer";
 

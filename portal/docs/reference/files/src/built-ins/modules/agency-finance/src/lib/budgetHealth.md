@@ -26,5 +26,5 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 - [`src/built-ins/modules/agency-finance/src/components/BudgetPotsWorkspace.tsx`](../components/BudgetPotsWorkspace.md)
 - [`src/built-ins/modules/agency-finance/src/pages/BudgetsPage.tsx`](../pages/BudgetsPage.md)
 - [`src/built-ins/modules/agency-finance/src/pages/FounderDashboardPage.tsx`](../pages/FounderDashboardPage.md)
-- [`src/lib/server/financeBudgetCampaigns.ts`](../../../../../lib/server/financeBudgetCampaigns.md)
+- [`src/lib/server/finance/financeBudgetCampaigns.ts`](../../../../../lib/server/finance/financeBudgetCampaigns.md)
 

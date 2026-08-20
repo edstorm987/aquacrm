@@ -1,22 +1,22 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import type { AdvisorDomain } from "../src/lib/businessRadar";
-import { buildRadarCheckMatrix } from "../src/lib/radarCheckEngine";
-import type { RadarObservation } from "../src/lib/radarCheckEngine";
-import { buildRadarCorrelationIssues } from "../src/lib/radarCorrelations";
-import { applyAdaptiveRadarPolicy } from "../src/lib/radarPolicyEngine";
-import { buildPropertySentinelChecks, buildRadarWatchdogChecks, buildSourceSentinelChecks } from "../src/lib/radarSentinels";
-import { buildSyntheticCanaryChecks } from "../src/lib/radarSyntheticChecks";
-import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "../src/lib/radarSyntheticSafety";
-import type { RadarTelemetrySnapshot } from "../src/lib/server/radarTelemetry";
+import type { AdvisorDomain } from "../src/lib/radar/businessRadar";
+import { buildRadarCheckMatrix } from "../src/lib/radar/radarCheckEngine";
+import type { RadarObservation } from "../src/lib/radar/radarCheckEngine";
+import { buildRadarCorrelationIssues } from "../src/lib/radar/radarCorrelations";
+import { applyAdaptiveRadarPolicy } from "../src/lib/radar/radarPolicyEngine";
+import { buildPropertySentinelChecks, buildRadarWatchdogChecks, buildSourceSentinelChecks } from "../src/lib/radar/radarSentinels";
+import { buildSyntheticCanaryChecks } from "../src/lib/radar/radarSyntheticChecks";
+import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "../src/lib/radar/radarSyntheticSafety";
+import type { RadarTelemetrySnapshot } from "../src/lib/server/radar/radarTelemetry";
 import type { RadarPolicyConfiguration } from "../src/server/types";
-import { BUSINESS_RADAR_RULE_CATALOG, RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES, RADAR_SIGNAL_FAMILIES } from "../src/lib/radarRuleCatalog";
+import { BUSINESS_RADAR_RULE_CATALOG, RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES, RADAR_SIGNAL_FAMILIES } from "../src/lib/radar/radarRuleCatalog";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("business radar measures speed to lead against configurable guardrails", () => {
-  const radar = read("src/lib/server/businessIssueRadar.ts");
+  const radar = read("src/lib/server/radar/businessIssueRadar.ts");
   const settings = read("src/server/agencySettings.ts");
   const settingsUi = read("src/app/portal/agency/settings/SettingsTabs.tsx");
   assert.match(radar, /firstRespondedAt/);
@@ -30,8 +30,8 @@ test("business radar measures speed to lead against configurable guardrails", ()
 });
 
 test("radar declares coverage and includes every installed module", () => {
-  const radar = read("src/lib/server/businessIssueRadar.ts");
-  const context = read("src/lib/server/advisorContext.ts");
+  const radar = read("src/lib/server/radar/businessIssueRadar.ts");
+  const context = read("src/lib/server/assistants/advisorContext.ts");
   const route = read("src/app/api/portal/advisor/radar/route.ts");
   assert.match(radar, /for \(const install of installs\)/);
   assert.match(radar, /module:\$\{install\.pluginId\}/);
@@ -42,8 +42,8 @@ test("radar declares coverage and includes every installed module", () => {
 });
 
 test("priority business signals are independently connected and inspectable", () => {
-  const radar = read("src/lib/server/businessIssueRadar.ts");
-  const sources = read("src/lib/server/radarSourceInspection.ts");
+  const radar = read("src/lib/server/radar/businessIssueRadar.ts");
+  const sources = read("src/lib/server/radar/radarSourceInspection.ts");
   const workspace = read("src/app/portal/agency/radar/RadarInspectionWorkspace.tsx");
   for (const sourceId of ["external:website-enquiries", "external:response-time-clocks", "core:website-telemetry", "external:inbox-messages", "core:calendar-commitments"]) {
     assert.match(radar, new RegExp(sourceId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -57,7 +57,7 @@ test("priority business signals are independently connected and inspectable", ()
 });
 
 test("critical radar findings survive model omission and reach visible Advisor UI", () => {
-  const advisor = read("src/lib/server/openaiAssistant.ts");
+  const advisor = read("src/lib/server/assistants/openaiAssistant.ts");
   const drawer = read("src/components/chrome/GlobalAdvisorDrawer.tsx");
   const quickLook = read("src/components/chrome/RadarQuickLookButton.tsx");
   const workspace = read("src/app/portal/agency/assistant/AssistantWorkspace.tsx");
@@ -94,7 +94,7 @@ test("the main dashboard exposes an active, actionable radar mode", () => {
 });
 
 test("the Command Centre exposes twenty source-backed decision KPIs and dedicated intelligence diagrams", () => {
-  const snapshot = read("src/lib/server/commandIntelligence.ts");
+  const snapshot = read("src/lib/server/commandIntelligenceService.ts");
   const workspace = read("src/app/portal/agency/_CommandIntelligenceWorkspace.tsx");
   const trajectory = read("src/app/portal/agency/_CommandCentreKpiTrajectory.tsx");
   const daySensor = read("src/app/portal/agency/_DayCommandSensorPanel.tsx");
@@ -160,7 +160,7 @@ test("the Command Centre exposes twenty source-backed decision KPIs and dedicate
   assert.match(snapshot, /id: "revenue-growth"/);
   assert.match(snapshot, /Formula: \(current month - previous month\) \/ previous month x 100/);
   assert.match(snapshot, /revenueGrowthStatus/);
-  const intelligenceTypes = read("src/lib/commandIntelligence.ts");
+  const intelligenceTypes = read("src/lib/intelligence/commandIntelligence.ts");
   for (const kpiId of ["revenue-growth", "traffic-7d", "revenue-target", "business-health", "client-attention"]) assert.match(intelligenceTypes, new RegExp(`kpiId: "${kpiId}"`));
   assert.match(read("src/built-ins/modules/agency-finance/src/pages/PlanningPage.tsx"), /"No baseline"/);
   assert.match(snapshot, /Configured .*minute first-response SLA/);
@@ -194,7 +194,7 @@ test("the command Radar shows its last full run and can force a complete persist
   const route = read("src/app/api/portal/advisor/radar/route.ts");
   // The full-scan orchestration lives in the sweep scheduler (radar upgrade Stage 1);
   // the route delegates to runRadarFullSweep. Same behaviour, relocated home.
-  const sweeps = read("src/lib/server/radarSweeps.ts");
+  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
   assert.match(page, /DynamicRadarConsole/);
   assert.match(console, /RadarScanControl/);
   assert.match(page, /initialLastRunAt=\{businessRadar\.memory\.lastSweepAt\}/);
@@ -214,7 +214,7 @@ test("the command Radar shows its last full run and can force a complete persist
   assert.match(route, /export async function GET\(\)/);
   assert.match(route, /export async function POST\(\)/);
   assert.match(read("src/app/portal/agency/_DashboardCommandCenter.tsx"), /method: showBusy \? "POST" : "GET"/);
-  assert.match(read("src/lib/server/radarMemory.ts"), /lastSweepAt: includeCurrentSweep \? now : memory\?\.lastSweepAt/);
+  assert.match(read("src/lib/server/radar/radarMemory.ts"), /lastSweepAt: includeCurrentSweep \? now : memory\?\.lastSweepAt/);
 });
 
 test("every radar domain carries at least 140 deterministic checks", () => {
@@ -360,12 +360,12 @@ test("radar adds source, property, and self-watchdog sentinel packs", () => {
 });
 
 test("radar actively probes every expected live property with SSRF-safe canaries", () => {
-  const probes = read("src/lib/server/radarSyntheticProbes.ts");
-  const checks = read("src/lib/radarSyntheticChecks.ts");
+  const probes = read("src/lib/server/radar/radarSyntheticProbes.ts");
+  const checks = read("src/lib/radar/radarSyntheticChecks.ts");
   const types = read("src/server/types.ts");
   const storage = read("src/server/storage.ts");
-  const radar = read("src/lib/server/businessIssueRadar.ts");
-  const sweeps = read("src/lib/server/radarSweeps.ts");
+  const radar = read("src/lib/server/radar/businessIssueRadar.ts");
+  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   assert.match(probes, /assertPublicDestination/);
   assert.match(probes, /isUnsafeSyntheticAddress/);
@@ -400,14 +400,14 @@ test("radar actively probes every expected live property with SSRF-safe canaries
 });
 
 test("radar retains temporal memory, recovery, and source-flapping evidence", () => {
-  const memory = read("src/lib/server/radarMemory.ts");
+  const memory = read("src/lib/server/radar/radarMemory.ts");
   const storage = read("src/server/storage.ts");
   const types = read("src/server/types.ts");
   const radarRoute = read("src/app/api/portal/advisor/radar/route.ts");
   const cron = read("src/app/api/cron/inbox/route.ts");
-  const sweeps = read("src/lib/server/radarSweeps.ts");
+  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
-  const advisor = read("src/lib/server/advisorSkillContext.ts");
+  const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
   assert.match(types, /RadarMemoryState/);
   assert.match(storage, /radarMemory: parsed\.radarMemory \?\? \{\}/);
   assert.match(memory, /recordRadarSweep/);
@@ -432,13 +432,13 @@ test("radar retains temporal memory, recovery, and source-flapping evidence", ()
 });
 
 test("radar retains every KPI in a durable evidence vault with historical detectors", () => {
-  const vault = read("src/lib/server/radarEvidenceVault.ts");
+  const vault = read("src/lib/server/radar/radarEvidenceVault.ts");
   const types = read("src/server/types.ts");
   const storage = read("src/server/storage.ts");
-  const radar = read("src/lib/server/businessIssueRadar.ts");
-  const sweeps = read("src/lib/server/radarSweeps.ts");
+  const radar = read("src/lib/server/radar/businessIssueRadar.ts");
+  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
-  const advisor = read("src/lib/server/advisorSkillContext.ts");
+  const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
   assert.match(types, /RadarEvidenceState/);
   assert.match(types, /RadarEvidenceHourlyRollup/);
   assert.match(storage, /radarEvidence: parsed\.radarEvidence \?\? \{\}/);
@@ -462,12 +462,12 @@ test("radar retains every KPI in a durable evidence vault with historical detect
 });
 
 test("radar wires property traffic, form, tag, server, and Advisor check context", () => {
-  const engine = read("src/lib/server/businessIssueRadar.ts");
-  const telemetry = read("src/lib/server/radarTelemetry.ts");
-  const observations = read("src/lib/server/radarObservations.ts");
-  const advisor = read("src/lib/server/advisorSkillContext.ts");
+  const engine = read("src/lib/server/radar/businessIssueRadar.ts");
+  const telemetry = read("src/lib/server/radar/radarTelemetry.ts");
+  const observations = read("src/lib/server/radar/radarObservations.ts");
+  const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
-  const sentinels = read("src/lib/radarSentinels.ts");
+  const sentinels = read("src/lib/radar/radarSentinels.ts");
   assert.match(engine, /metric:form-submissions/);
   assert.match(engine, /metric:aqua-tag-coverage/);
   assert.match(telemetry, /traffic is surging/);
@@ -559,8 +559,8 @@ test("grouped blind-spot incidents retain only their exact failing checks", () =
 test("adaptive Radar policy is persisted, editable, and uses business-grade learning windows", () => {
   const types = read("src/server/types.ts");
   const settings = read("src/server/agencySettings.ts");
-  const engine = read("src/lib/radarPolicyEngine.ts");
-  const vault = read("src/lib/server/radarEvidenceVault.ts");
+  const engine = read("src/lib/radar/radarPolicyEngine.ts");
+  const vault = read("src/lib/server/radar/radarEvidenceVault.ts");
   const route = read("src/app/api/portal/advisor/radar/route.ts");
   const panel = read("src/app/portal/agency/_RadarPolicyPanel.tsx");
   assert.match(types, /RadarPolicyConfiguration/);

@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { listNotepadFolders, listNotepadNotes } from "@/server/notepad";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";

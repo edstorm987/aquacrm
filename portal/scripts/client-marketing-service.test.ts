@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { cleanClientMarketingService, clientMarketingMetrics } from "../src/lib/clientMarketingService";
+import { cleanClientMarketingService, clientMarketingMetrics } from "../src/lib/clients/clientMarketingService";
 
 test("client marketing service cleans records and calculates precise paid-media metrics", () => {
   const service = cleanClientMarketingService({
@@ -25,11 +25,11 @@ test("client marketing service cleans records and calculates precise paid-media 
 });
 
 test("social and paid media is a canonical client lens and packaged portal product", () => {
-  const workspace = readFileSync("src/lib/clientWorkspace.ts", "utf8");
+  const workspace = readFileSync("src/lib/clients/clientWorkspace.ts", "utf8");
   const clientPage = readFileSync("src/app/portal/clients/[clientId]/page.tsx", "utf8");
   const marketingPage = readFileSync("src/app/portal/agency/marketing/page.tsx", "utf8");
-  const products = readFileSync("src/lib/portalProducts.ts", "utf8");
-  const alerts = readFileSync("src/lib/server/operationalAlerts.ts", "utf8");
+  const products = readFileSync("src/lib/portal/portalProducts.ts", "utf8");
+  const alerts = readFileSync("src/lib/server/inbox/operationalAlerts.ts", "utf8");
   assert.match(workspace, /id: "marketing", label: "Social & ads"/);
   assert.match(clientPage, /ClientMarketingServiceWorkspace/);
   assert.match(marketingPage, /view=client-services/);

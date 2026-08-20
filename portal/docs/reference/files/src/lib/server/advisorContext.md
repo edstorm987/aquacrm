@@ -1,4 +1,4 @@
-# `src/lib/server/advisorContext.ts`
+# `src/lib/server/assistants/advisorContext.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -10,16 +10,16 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (6)
 
-- [`src/lib/businessRecommendedActions.ts`](../businessRecommendedActions.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/companyHealthSnapshot.ts`](./companyHealthSnapshot.md)
-- [`src/lib/server/operationalAlerts.ts`](./operationalAlerts.md)
+- [`src/lib/intelligence/businessRecommendedActions.ts`](../businessRecommendedActions.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./businessIssueRadar.md)
+- [`src/lib/server/kpi/companyHealthSnapshot.ts`](./companyHealthSnapshot.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./operationalAlerts.md)
 - [`src/server/dashboardPlanning.ts`](../../server/dashboardPlanning.md)
 - [`src/server/tasks.ts`](../../server/tasks.md)
 
 ## Used by (3)
 
 - [`src/app/api/assistant/route.ts`](../../app/api/assistant/route.md)
-- [`src/lib/server/advisorSkillContext.ts`](./advisorSkillContext.md)
-- [`src/lib/server/externalAdvisorContext.ts`](./externalAdvisorContext.md)
+- [`src/lib/server/assistants/advisorSkillContext.ts`](./advisorSkillContext.md)
+- [`src/lib/server/assistants/externalAdvisorContext.ts`](./externalAdvisorContext.md)
 

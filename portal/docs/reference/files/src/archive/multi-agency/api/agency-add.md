@@ -10,9 +10,9 @@
 
 ## Depends on (8)
 
-- [`src/lib/server/aquaOasisSeed.ts`](../../../lib/server/aquaOasisSeed.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
-- [`src/lib/server/postLoginRedirect.ts`](../../../lib/server/postLoginRedirect.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/postLoginRedirect.ts`](../../../lib/server/auth/postLoginRedirect.md)
+- [`src/lib/server/seeds/aquaOasisSeed.ts`](../../../lib/server/seeds/aquaOasisSeed.md)
 - [`src/server/activity.ts`](../../../server/activity.md)
 - [`src/server/agencyBootstrap.ts`](../../../server/agencyBootstrap.md)
 - [`src/server/storage.ts`](../../../server/storage.md)

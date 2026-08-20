@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import {
   getPipelineBySlug,
@@ -11,9 +11,9 @@ import {
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { AGENCY_ROLES, type ClientStage } from "@/server/types";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
-import { agencyProductPipelineColumns } from "@/lib/fulfilmentProductPipelines";
+import { agencyProductPipelineColumns } from "@/lib/products/fulfilmentProductPipelines";
 
 export async function POST(req: Request) {
   try {

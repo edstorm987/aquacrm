@@ -15,7 +15,7 @@ import type { AgencyFinanceContainer } from "@/built-ins/modules/agency-finance/
 import type { Currency, Invoice } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import type { PaymentChannel } from "@/built-ins/modules/agency-finance/src/lib/channels";
 import { deriveRecordId, normaliseIdempotencyKey } from "@/built-ins/modules/agency-finance/src/lib/idempotency";
-import type { ClientContract } from "@/lib/clientContracts";
+import type { ClientContract } from "@/lib/clients/clientContracts";
 
 export interface CloseDealInput {
   title: string;

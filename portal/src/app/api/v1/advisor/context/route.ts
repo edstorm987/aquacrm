@@ -3,8 +3,8 @@ import {
   externalApiErrorResponse,
   externalApiHeaders,
   requireExternalAssistantPermission,
-} from "@/lib/server/externalAssistantApi";
-import { buildExternalAdvisorContext } from "@/lib/server/externalAdvisorContext";
+} from "@/lib/server/assistants/externalAssistantApi";
+import { buildExternalAdvisorContext } from "@/lib/server/assistants/externalAdvisorContext";
 import { ensureHydrated } from "@/server/storage";
 
 export async function GET(request: Request) {

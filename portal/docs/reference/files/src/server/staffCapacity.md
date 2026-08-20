@@ -15,8 +15,8 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (2)
 
-- [`src/lib/businessRadar.ts`](../lib/businessRadar.md)
-- [`src/lib/server/businessIssueRadar.ts`](../lib/server/businessIssueRadar.md)
+- [`src/lib/radar/businessRadar.ts`](../lib/radar/businessRadar.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](../lib/server/radar/businessIssueRadar.md)
 
 ## Used by (2)
 

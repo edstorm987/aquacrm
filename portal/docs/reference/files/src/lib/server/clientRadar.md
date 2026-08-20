@@ -1,4 +1,4 @@
-# `src/lib/server/clientRadar.ts`
+# `src/lib/server/radar/clientRadarService.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -12,20 +12,20 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (22)
 
 - [`src/built-ins/modules/agency-finance/src/server/index.ts`](../../built-ins/modules/agency-finance/src/server/index.md)
-- [`src/lib/businessRadar.ts`](../businessRadar.md)
-- [`src/lib/clientAquaHealth.ts`](../clientAquaHealth.md)
-- [`src/lib/clientContracts.ts`](../clientContracts.md)
-- [`src/lib/clientMarketingService.ts`](../clientMarketingService.md)
-- [`src/lib/clientPaymentPlans.ts`](../clientPaymentPlans.md)
-- [`src/lib/clientRadar.ts`](../clientRadar.md)
-- [`src/lib/clientRequests.ts`](../clientRequests.md)
-- [`src/lib/clientServiceWorkspace.ts`](../clientServiceWorkspace.md)
-- [`src/lib/clientTelemetry.ts`](../clientTelemetry.md)
-- [`src/lib/portalProductWorkspaces.ts`](../portalProductWorkspaces.md)
-- [`src/lib/productAssignments.ts`](../productAssignments.md)
-- [`src/lib/server/operationalAlerts.ts`](./operationalAlerts.md)
+- [`src/lib/radar/businessRadar.ts`](../businessRadar.md)
+- [`src/lib/clients/clientAquaHealth.ts`](../clientAquaHealth.md)
+- [`src/lib/clients/clientContracts.ts`](../clientContracts.md)
+- [`src/lib/clients/clientMarketingService.ts`](../clientMarketingService.md)
+- [`src/lib/clients/clientPaymentPlans.ts`](../clientPaymentPlans.md)
+- [`src/lib/radar/clientRadar.ts`](../clientRadar.md)
+- [`src/lib/clients/clientRequests.ts`](../clientRequests.md)
+- [`src/lib/clients/clientServiceWorkspace.ts`](../clientServiceWorkspace.md)
+- [`src/lib/clients/clientTelemetry.ts`](../clientTelemetry.md)
+- [`src/lib/portal/portalProductWorkspaces.ts`](../portalProductWorkspaces.md)
+- [`src/lib/products/productAssignments.ts`](../productAssignments.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./operationalAlerts.md)
 - [`src/lib/server/pluginStorage.ts`](./pluginStorage.md)
-- [`src/lib/server/radarTelemetry.ts`](./radarTelemetry.md)
+- [`src/lib/server/radar/radarTelemetry.ts`](./radarTelemetry.md)
 - [`src/server/agencyProducts.ts`](../../server/agencyProducts.md)
 - [`src/server/clientMilestones.ts`](../../server/clientMilestones.md)
 - [`src/server/pluginInstalls.ts`](../../server/pluginInstalls.md)
@@ -39,6 +39,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/clients/[clientId]/radar/route.ts`](../../app/api/portal/clients/[clientId]/radar/route.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
 - [`src/components/chrome/ClientRadarQuickLookControl.tsx`](../../components/chrome/ClientRadarQuickLookControl.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/clientAttention.ts`](./clientAttention.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./businessIssueRadar.md)
+- [`src/lib/server/clients/clientAttention.ts`](./clientAttention.md)
 

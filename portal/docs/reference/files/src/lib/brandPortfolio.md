@@ -1,4 +1,4 @@
-# `src/lib/brandPortfolio.ts`
+# `src/lib/brands/brandPortfolio.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -13,6 +13,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/app/portal/agency/_BrandPortfolioInstrument.tsx`](../app/portal/agency/_BrandPortfolioInstrument.md)
 - [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
-- [`src/lib/server/brandPortfolio.ts`](./server/brandPortfolio.md)
-- [`src/lib/server/commandIntelligence.ts`](./server/commandIntelligence.md)
+- [`src/lib/server/brandPortfolioService.ts`](./server/brandPortfolio.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./server/commandIntelligence.md)
 

@@ -8,9 +8,9 @@ import {
   clonePortalDesign,
   normalisePortalDesign,
   STUNNING_STANDARD_PORTAL,
-} from "@/lib/clientPortalDesign";
-import { PORTAL_PRODUCT_CATALOG, portalProductSelectionFromAgencyProduct } from "@/lib/portalProducts";
-import { portalProductLifecycle } from "@/lib/portalProductModules";
+} from "@/lib/portal/clientPortalDesign";
+import { PORTAL_PRODUCT_CATALOG, portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
+import { portalProductLifecycle } from "@/lib/portal/portalProductModules";
 import { getState, mutate } from "./storage";
 import type {
   AgencyProduct,

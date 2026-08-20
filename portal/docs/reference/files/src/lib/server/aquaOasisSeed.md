@@ -1,4 +1,4 @@
-# `src/lib/server/aquaOasisSeed.ts`
+# `src/lib/server/seeds/aquaOasisSeed.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

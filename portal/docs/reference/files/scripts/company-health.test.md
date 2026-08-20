@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/companyHealth.ts`](../src/lib/companyHealth.md)
+- [`src/lib/performance/companyHealth.ts`](../src/lib/performance/companyHealth.md)
 
 ## Used by
 

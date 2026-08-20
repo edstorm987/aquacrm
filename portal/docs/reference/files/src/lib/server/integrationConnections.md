@@ -1,4 +1,4 @@
-# `src/lib/server/integrationConnections.ts`
+# `src/lib/server/integrations/integrationConnections.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -24,7 +24,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/lib/integrations/catalog.ts`](../integrations/catalog.md)
 - [`src/lib/integrations/types.ts`](../integrations/types.md)
-- [`src/lib/server/googleSearchConsole.ts`](./googleSearchConsole.md)
+- [`src/lib/server/integrations/googleSearchConsole.ts`](./googleSearchConsole.md)
 - [`src/server/activity.ts`](../../server/activity.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/types.ts`](../../server/types.md)
@@ -36,12 +36,12 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/site-editor/files/route.ts`](../../app/api/portal/site-editor/files/route.md)
 - [`src/app/portal/agency/settings/page.tsx`](../../app/portal/agency/settings/page.md)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../../built-ins/modules/leads-pipeline/src/api/handlers.md)
-- [`src/lib/server/enquiryNotifications.ts`](./enquiryNotifications.md)
-- [`src/lib/server/githubProjectPublisher.ts`](./githubProjectPublisher.md)
+- [`src/lib/server/email/enquiryNotifications.ts`](./enquiryNotifications.md)
+- [`src/lib/server/integrations/githubProjectPublisher.ts`](./githubProjectPublisher.md)
 - [`src/lib/server/marketingIntelligence.ts`](./marketingIntelligence.md)
-- [`src/lib/server/metaMessaging.ts`](./metaMessaging.md)
-- [`src/lib/server/openaiAssistant.ts`](./openaiAssistant.md)
-- [`src/lib/server/outboundCommunications.ts`](./outboundCommunications.md)
-- [`src/lib/server/transactionalEmail.ts`](./transactionalEmail.md)
-- [`src/lib/server/vercelProjectDeployer.ts`](./vercelProjectDeployer.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](./metaMessaging.md)
+- [`src/lib/server/assistants/openaiAssistant.ts`](./openaiAssistant.md)
+- [`src/lib/server/email/outboundCommunications.ts`](./outboundCommunications.md)
+- [`src/lib/server/email/transactionalEmail.ts`](./transactionalEmail.md)
+- [`src/lib/server/integrations/vercelProjectDeployer.ts`](./vercelProjectDeployer.md)
 

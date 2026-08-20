@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import { SquarePen } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { appConfigEditAdapter, appConfigFieldViews } from "@/lib/server/editing/appConfigAdapter";
 import { getAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
@@ -53,7 +53,7 @@ export async function EditorSection({ tabs }: { tabs?: ReactNode }) {
       <PageHeader
         icon={<SquarePen size={20} />}
         title="Editor"
-        subtitle="Edit AquaCRM itself — the same edit-preview-publish loop as the site and portal editors."
+        subtitle="Edit AquaCRM itself — the same edit-preview-publish loop as Aqua Engine everywhere else."
         meta={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {tabs}

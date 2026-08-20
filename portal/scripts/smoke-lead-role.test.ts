@@ -22,9 +22,9 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const EFFECTIVE_ROLE = join(ROOT, "src", "lib", "server", "effectiveRole.ts");
-const REQUIRE_SCOPE = join(ROOT, "src", "lib", "server", "requireAgencyScope.ts");
-const RESOLVER = join(ROOT, "src", "lib", "server", "postLoginRedirect.ts");
+const EFFECTIVE_ROLE = join(ROOT, "src", "lib", "server", "auth", "effectiveRole.ts");
+const REQUIRE_SCOPE = join(ROOT, "src", "lib", "server", "auth", "requireAgencyScope.ts");
+const RESOLVER = join(ROOT, "src", "lib", "server", "auth", "postLoginRedirect.ts");
 const USERS = join(ROOT, "src", "server", "users.ts");
 
 describe("Lead role — type system (R023)", () => {

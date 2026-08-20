@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CircleCheck, Eye, TriangleAlert } from "lucide-react";
 
-import { getSession, getSessionAgencyIds } from "@/lib/server/auth";
+import { getSession, getSessionAgencyIds } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getPortalConnection } from "@/server/portalConnectionStore";
 import {
@@ -9,9 +9,9 @@ import {
   canCompleteConnection,
   refusalMessage,
   type PortalConnection,
-} from "@/lib/server/portalConnections";
+} from "@/lib/server/portal/portalConnections";
 import { DEV_CONFIRMATION_CODE } from "@/lib/server/connectionConfirmation";
-import { isDevModeEnabled } from "@/lib/server/devMode";
+import { isDevModeEnabled } from "@/lib/server/dev/devMode";
 import { getClientForAgency } from "@/server/tenants";
 import { isAgencyRole } from "@/server/types";
 

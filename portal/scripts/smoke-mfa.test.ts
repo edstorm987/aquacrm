@@ -9,7 +9,7 @@ import {
   MFA_LOGIN_UNAVAILABLE_MESSAGE,
   hasVerifiedFactor, loginMfaStep, raisedToSecondFactor, readAssurance,
   readTokenAssurance, requireTwoFactor, verifiedFactors,
-} from "../src/lib/server/mfa.ts";
+} from "../src/lib/server/auth/mfa.ts";
 
 // Memory backend before anything touches the state layer, exactly as
 // `smoke-auth-form-encoding.test.ts` does — the login route hydrates storage
@@ -21,7 +21,7 @@ import { GET as mfaStatus } from "../src/app/api/portal/mfa/enrol/route";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
-import { SESSION_COOKIE_NAME } from "../src/lib/server/auth";
+import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 import { isLoginLocked, recordLoginFailure } from "../src/lib/server/rateLimit";
 
 describe("deciding whether a session is strongly authenticated", () => {

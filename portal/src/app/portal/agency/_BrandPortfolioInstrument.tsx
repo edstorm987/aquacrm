@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Building2, Database, Package, UsersRound } from "lucide-react";
 
-import type { BrandPortfolioSnapshot } from "@/lib/brandPortfolio";
+import type { BrandPortfolioSnapshot } from "@/lib/brands/brandPortfolio";
 
 export function BrandPortfolioInstrument({ snapshot }: { snapshot: BrandPortfolioSnapshot }) {
   const financial = snapshot.financeConnected && snapshot.totalRevenueCents > 0;

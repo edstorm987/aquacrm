@@ -21,8 +21,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/company/page.tsx`](../../app/portal/agency/company/page.md)
 - [`src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx`](../../app/portal/agency/inbox/_SocialInboxWorkspace.md)
 - [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](../../app/portal/agency/settings/IntegrationConnectionsPanel.md)
-- [`src/app/portal/dev-team/api/page.tsx`](../../app/portal/dev-team/api/page.md)
+- [`src/app/portal/dev-team/api/_Section.tsx`](../../app/portal/dev-team/api/_Section.md)
 - [`src/lib/integrations/types.ts`](./types.md)
-- [`src/lib/server/integrationConnections.ts`](../server/integrationConnections.md)
-- [`src/lib/server/outboundCommunications.ts`](../server/outboundCommunications.md)
+- [`src/lib/server/email/outboundCommunications.ts`](../server/email/outboundCommunications.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](../server/integrations/integrationConnections.md)
 

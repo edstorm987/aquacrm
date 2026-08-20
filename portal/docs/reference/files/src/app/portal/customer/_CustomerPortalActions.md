@@ -20,8 +20,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/api/tenants/client-requests/route.ts`](../../api/tenants/client-requests/route.md)
 - [`src/app/api/tenants/customer-project-brief/route.ts`](../../api/tenants/customer-project-brief/route.md)
 - [`src/app/portal/customer/_portalData.ts`](./_portalData.md)
-- [`src/lib/clientContracts.ts`](../../../lib/clientContracts.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
+- [`src/lib/clients/clientContracts.ts`](../../../lib/clients/clientContracts.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 
 ## Used by (1)
 

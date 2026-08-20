@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { formatUkDate, formatUkDateTime } from "@/lib/formatDateTime";
+import { formatUkDate, formatUkDateTime } from "@/lib/shared/formatDateTime";
 
 interface InitialState {
   whatsappLink: string;

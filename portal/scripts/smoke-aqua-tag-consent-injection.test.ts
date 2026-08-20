@@ -22,7 +22,7 @@ import { webcrypto } from "node:crypto";
 import test from "node:test";
 import vm from "node:vm";
 
-import { AQUA_TAG_SOURCE } from "../src/lib/aquaTagSource";
+import { AQUA_TAG_SOURCE } from "../src/lib/integrations/aquaTagSource";
 
 interface Injection { kind: string; value: string; consentCategory?: string }
 
@@ -235,7 +235,7 @@ test("an injection with no (or an unknown) consent category is never injected", 
 // --- 5. Source guardrail — pin the fail-closed shape against regression -----
 test("runInjections has no fail-open category default", async () => {
   const { readFileSync } = await import("node:fs");
-  const src = readFileSync("src/lib/aquaTagSource.ts", "utf8");
+  const src = readFileSync("src/lib/integrations/aquaTagSource.ts", "utf8");
   assert.match(src, /if \(!permitted\(item\.consentCategory\)\) continue;/);
   assert.doesNotMatch(
     src,

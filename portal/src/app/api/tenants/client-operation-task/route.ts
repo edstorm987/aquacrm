@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { cleanRecordText } from "@/lib/clientRelationshipRecord";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { cleanRecordText } from "@/lib/clients/clientRelationshipRecord";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { canUsePeopleStation } from "@/server/people";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { createAgencyTask } from "@/server/tasks";

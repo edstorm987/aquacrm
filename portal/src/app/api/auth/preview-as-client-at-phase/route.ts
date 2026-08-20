@@ -5,17 +5,17 @@ import {
   issueSession,
   sessionCookie,
   getActiveAgencyId,
-} from "@/lib/server/auth";
-import { effectiveRole } from "@/lib/server/effectiveRole";
-import { canUseDevMode } from "@/lib/server/devModeAccess";
+} from "@/lib/server/auth/auth";
+import { effectiveRole } from "@/lib/server/auth/effectiveRole";
+import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
 import { getUser } from "@/server/users";
 import { getPhase } from "@/server/phases";
 import {
   seedDemoAgency,
   DEMO_CLIENT_EMAIL,
   DEMO_CLIENT_SLUG,
-} from "@/lib/server/demoSeed";
-import { previewPhaseCookie } from "@/lib/server/previewPhase";
+} from "@/lib/server/seeds/demoSeed";
+import { previewPhaseCookie } from "@/lib/server/portal/previewPhase";
 
 interface Body { phaseId?: string }
 

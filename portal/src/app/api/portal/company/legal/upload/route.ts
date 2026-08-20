@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createLegalDocument } from "@/server/legalDocuments";
 import { ensureHydrated } from "@/server/storage";

@@ -20,7 +20,7 @@ import { NextRequest } from "next/server";
 import { POST } from "../src/app/api/auth/dev-mode/route";
 import { POST as previewFreelancerPOST } from "../src/app/api/auth/preview-as-freelancer/route";
 import { createFreelancer, listAgencyFreelancers } from "../src/server/freelancerAdmin";
-import { assertTenantScope, issueSession, verifyToken, SESSION_COOKIE_NAME } from "../src/lib/server/auth";
+import { assertTenantScope, issueSession, verifyToken, SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency, getAgencyBySlug } from "../src/server/tenants";
 import { createUser, getUser, getUserById } from "../src/server/users";
@@ -29,7 +29,7 @@ import {
   freelancerWorkspace, getFreelancerAccessConfig, saveFreelancerAccessConfig, normaliseFreelancerAccess, DEFAULT_FREELANCER_ACCESS,
   submitFreelancerJob, resolveFreelancerAccess, setFreelancerJobOverride, getFreelancerJobOverride, clearFreelancerJobOverride, listFreelancerJobsForConfig,
 } from "../src/server/freelancerWorkspace";
-import { DEMO_OWNER_EMAIL, DEMO_STAFF_EMAIL, DEMO_CUSTOMER_EMAIL, DEMO_FREELANCER_EMAIL, DEMO_AGENCY_SLUG, getDemoSnapshot } from "../src/lib/server/demoSeed";
+import { DEMO_OWNER_EMAIL, DEMO_STAFF_EMAIL, DEMO_CUSTOMER_EMAIL, DEMO_FREELANCER_EMAIL, DEMO_AGENCY_SLUG, getDemoSnapshot } from "../src/lib/server/seeds/demoSeed";
 
 process.env.PORTAL_BACKEND ??= "memory";
 
@@ -366,7 +366,7 @@ describe("Dev Mode — isolation hardening (Phase 4)", () => {
   });
 
   it("demo sessions validate without a real identity, and demo POV shows no live enquiries", () => {
-    const auth = read("src/lib/server/auth.ts");
+    const auth = read("src/lib/server/auth/auth.ts");
     // getSession short-circuits for isDemo → no Supabase identity cross-check,
     // so a demo persona never needs (or touches) a real account.
     assert.match(auth, /if \(session\.isDemo \|\| session\.publicShowcase\) return session;/);
@@ -446,7 +446,7 @@ describe("Dev Mode — Commander browser-fix regressions", () => {
 
   it("devReturnWasDemo is threaded through types + auth", () => {
     assert.match(read("src/server/types.ts"), /devReturnWasDemo\?: boolean/);
-    assert.match(read("src/lib/server/auth.ts"), /devReturnWasDemo: input\.devReturnWasDemo/);
+    assert.match(read("src/lib/server/auth/auth.ts"), /devReturnWasDemo: input\.devReturnWasDemo/);
   });
 });
 
@@ -559,7 +559,7 @@ describe("Freelancer — mark-submitted action + per-job overrides (P3 + refinem
 
 describe("Dev Mode — the single gate + return field wiring", () => {
   it("canUseDevMode() is the one switch point (delegates to isDevModeEnabled today)", () => {
-    const src = read("src/lib/server/devModeAccess.ts");
+    const src = read("src/lib/server/dev/devModeAccess.ts");
     assert.match(src, /export function canUseDevMode/);
     assert.match(src, /isDevModeEnabled\(\)/);
   });
@@ -582,7 +582,7 @@ describe("Dev Mode — the single gate + return field wiring", () => {
 
   it("session carries devReturnAgencyId, mirroring showcaseReturnAgencyId", () => {
     assert.match(read("src/server/types.ts"), /devReturnAgencyId\?: string/);
-    assert.match(read("src/lib/server/auth.ts"), /devReturnAgencyId: input\.devReturnAgencyId/);
+    assert.match(read("src/lib/server/auth/auth.ts"), /devReturnAgencyId: input\.devReturnAgencyId/);
   });
 });
 
@@ -663,7 +663,7 @@ describe("Dev Mode — cinematic load-in (Phase 3)", () => {
     // is false in anything production-like — so outside dev this collapses back
     // to exactly `session.isDemo`. It cannot widen who sees the overlay.
     assert.match(layout, /session\.isDemo \|\| devDocsAccessible\(session\) \? <DevModeLoadIn \/> : null/);
-    assert.match(layout, /import \{ devDocsAccessible \} from "@\/lib\/server\/devDocs"/);
+    assert.match(layout, /import \{ devDocsAccessible \} from "@\/lib\/server\/dev\/devDocs"/);
     // The property that actually matters: it is never mounted unconditionally.
     assert.doesNotMatch(layout, /^\s*<DevModeLoadIn \/>\s*$/m, "must stay behind a gate");
   });
@@ -892,6 +892,6 @@ describe("Freelancer management — create + preview (real system)", () => {
     assert.match(flLayout, /ExitPreview/);
     // session type carries the preview-return markers
     assert.match(read("src/server/types.ts"), /previewReturnAgencyId\?: string/);
-    assert.match(read("src/lib/server/auth.ts"), /previewReturnAgencyId: input\.previewReturnAgencyId/);
+    assert.match(read("src/lib/server/auth/auth.ts"), /previewReturnAgencyId: input\.previewReturnAgencyId/);
   });
 });

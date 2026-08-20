@@ -92,37 +92,50 @@ export function updateTradingCompany(
 }
 
 /**
- * Tombstone a brand that has been promoted into its own agency.
+ * Record that a trading company has been given a PORTAL OF ITS OWN — the
+ * `Agency` row that backs its workspace.
  *
- * The brand record STAYS here, in the origin tenant, carrying the id of the
- * agency it became. That is deliberate and does three jobs:
+ * ⚠ THE MODEL, settled by the founder 2026-08-20. This is not a promotion out
+ * of the agency and the company does not become an agency. There are three
+ * permanent tiers:
  *
- *   • it makes promotion IDEMPOTENT — a second POST finds the tombstone,
- *     creates nothing and returns the agency that already exists;
- *   • it makes promotion RESUMABLE — later phases move records into the agency
- *     this one created, and they need to know which agency that is;
- *   • it keeps the origin agency's own history able to explain where a brand
- *     went, which a deleted record could not.
+ *     AGENCY (holding group) → TRADING COMPANY (the business) → CLIENTS
  *
- * Idempotent itself: an already-tombstoned company is returned unchanged, so
- * the first promotion's `promotedAt` is never overwritten by a later call.
- * Returns `null` when the company does not belong to this agency — the caller
- * must not distinguish that from "does not exist".
+ * The company STAYS a company in this holding group. It keeps its row here, it
+ * keeps its place in the portfolio, and it keeps owning its clients via
+ * `Client.companyId`. What changes is that it now also has a workspace, and
+ * `portalAgencyId` is the tenant backing it. The portal tenant carries
+ * `holdingAgencyId` pointing back here, so the link is two-way and neither
+ * tier can be reached without the other.
+ *
+ * Keeping the record here does three jobs:
+ *
+ *   • IDEMPOTENCE — a second POST finds `portalAgencyId`, creates nothing and
+ *     returns the tenant that already exists;
+ *   • RESUMABILITY — later phases move records into the tenant this one
+ *     created, and need to know which tenant that is;
+ *   • CONTINUITY — the holding group's own history can still explain when and
+ *     why a company got its own workspace.
+ *
+ * Idempotent itself: a company that already has a portal is returned
+ * unchanged, so the first `portalCreatedAt` is never overwritten by a later
+ * call. Returns `null` when the company does not belong to this agency — the
+ * caller must not distinguish that from "does not exist".
  */
-export function markTradingCompanyPromoted(
+export function markTradingCompanyPortalCreated(
   agencyId: string,
   companyId: string,
-  promotedAgencyId: string,
+  portalAgencyId: string,
   actorUserId: string,
 ): TradingCompany | null {
   const existing = getTradingCompany(agencyId, companyId);
   if (!existing) return null;
-  if (existing.promotedAgencyId) return existing;
+  if (existing.portalAgencyId) return existing;
   const now = Date.now();
   const updated: TradingCompany = {
     ...existing,
-    promotedAgencyId,
-    promotedAt: now,
+    portalAgencyId,
+    portalCreatedAt: now,
     updatedAt: now,
   };
   mutate(state => { state.tradingCompanies[companyId] = updated; });
@@ -130,22 +143,23 @@ export function markTradingCompanyPromoted(
     agencyId,
     actorUserId,
     category: "settings",
-    action: "trading_company.promoted",
-    message: `Promoted trading company \u201C${updated.name}\u201D into its own agency.`,
-    metadata: { companyId, promotedAgencyId },
+    action: "trading_company.portal_created",
+    message: `Gave trading company \u201C${updated.name}\u201D a portal of its own.`,
+    metadata: { companyId, portalAgencyId },
   });
   return updated;
 }
 
 /**
- * Has this brand already become its own agency? Phase 3 promotes nothing, so
- * the brand deliberately stays visible in the origin agency's portfolio — a
- * tombstoned company whose records have not moved yet must not vanish from the
- * list that still owns them. Callers use this to badge it, and to refuse a
- * second promotion.
+ * Does this company already have a portal of its own?
+ *
+ * Creating the portal moves NO records, so the company deliberately stays
+ * fully visible in the holding group's portfolio — it has not gone anywhere,
+ * and it still owns every record it owned before. Callers use this to badge
+ * it, to offer a way into its workspace, and to refuse creating a second one.
  */
-export function isTradingCompanyPromoted(agencyId: string, companyId: string): boolean {
-  return Boolean(getTradingCompany(agencyId, companyId)?.promotedAgencyId);
+export function tradingCompanyHasOwnPortal(agencyId: string, companyId: string): boolean {
+  return Boolean(getTradingCompany(agencyId, companyId)?.portalAgencyId);
 }
 
 export function recordBelongsToCompany(companyIds: string[] | undefined, activeCompanyId: string | null): boolean {

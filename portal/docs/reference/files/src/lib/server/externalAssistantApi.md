@@ -1,4 +1,4 @@
-# `src/lib/server/externalAssistantApi.ts`
+# `src/lib/server/assistants/externalAssistantApi.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -28,9 +28,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (7)
 
-- [`src/lib/clientWorkspace.ts`](../clientWorkspace.md)
-- [`src/lib/formatDateTime.ts`](../formatDateTime.md)
-- [`src/lib/server/externalAssistantKeys.ts`](./externalAssistantKeys.md)
+- [`src/lib/clients/clientWorkspace.ts`](../clientWorkspace.md)
+- [`src/lib/shared/formatDateTime.ts`](../formatDateTime.md)
+- [`src/lib/server/assistants/externalAssistantKeys.ts`](./externalAssistantKeys.md)
 - [`src/lib/server/rateLimit.ts`](./rateLimit.md)
 - [`src/server/activity.ts`](../../server/activity.md)
 - [`src/server/storage.ts`](../../server/storage.md)
@@ -49,6 +49,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/v1/records/route.ts`](../../app/api/v1/records/route.md)
 - [`src/app/api/v1/search/route.ts`](../../app/api/v1/search/route.md)
 - [`src/app/portal/dev-team/api/page.tsx`](../../app/portal/dev-team/api/page.md)
-- [`src/lib/server/externalAdvisorContext.ts`](./externalAdvisorContext.md)
-- [`src/lib/server/externalAssistantMcp.ts`](./externalAssistantMcp.md)
+- [`src/lib/server/assistants/externalAdvisorContext.ts`](./externalAdvisorContext.md)
+- [`src/lib/server/assistants/externalAssistantMcp.ts`](./externalAssistantMcp.md)
 

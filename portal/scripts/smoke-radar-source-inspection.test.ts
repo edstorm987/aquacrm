@@ -6,7 +6,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("Radar source records remain tenant scoped and owner or manager only", () => {
   const route = read("src/app/api/portal/advisor/radar/sources/route.ts");
-  const inspector = read("src/lib/server/radarSourceInspection.ts");
+  const inspector = read("src/lib/server/radar/radarSourceInspection.ts");
   assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
   assert.match(route, /session\.agencyId/);
   assert.match(route, /datasetId\.length > 240/);
@@ -27,7 +27,7 @@ test("Radar source records remain tenant scoped and owner or manager only", () =
 });
 
 test("Radar source records redact credentials before display or export", () => {
-  const inspector = read("src/lib/server/radarSourceInspection.ts");
+  const inspector = read("src/lib/server/radar/radarSourceInspection.ts");
   assert.match(inspector, /SECRET_KEY/);
   assert.match(inspector, /passwordhash/);
   assert.match(inspector, /accessToken/);
@@ -40,7 +40,7 @@ test("Radar source records redact credentials before display or export", () => {
 
 test("Radar source API supports bounded paging and complete JSON archives", () => {
   const route = read("src/app/api/portal/advisor/radar/sources/route.ts");
-  const inspector = read("src/lib/server/radarSourceInspection.ts");
+  const inspector = read("src/lib/server/radar/radarSourceInspection.ts");
   assert.match(route, /boundedInteger\(params\.get\("offset"\), 0, 1_000_000, 0\)/);
   assert.match(route, /boundedInteger\(params\.get\("limit"\), 1, 250, 100\)/);
   assert.match(route, /content-disposition/);
@@ -66,7 +66,7 @@ test("Radar audit room exposes underlying source datasets and raw records", () =
 });
 
 test("source catalogue spans the operational records Radar relies on", () => {
-  const inspector = read("src/lib/server/radarSourceInspection.ts");
+  const inspector = read("src/lib/server/radar/radarSourceInspection.ts");
   for (const dataset of [
     "core:clients",
     "core:tasks",

@@ -13,10 +13,11 @@
 
 - [`src/built-ins/modules/agency-finance/src/lib/ids.ts`](./ids.md)
 
-## Used by (8)
+## Used by (9)
 
 - [`scripts/smoke-finance-idempotency.test.ts`](../../../../../../scripts/smoke-finance-idempotency.test.md)
 - [`scripts/smoke-finance-stripe.test.ts`](../../../../../../scripts/smoke-finance-stripe.test.md)
+- [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](../server/expenses.md)
 - [`src/built-ins/modules/agency-finance/src/server/income.ts`](../server/income.md)
 - [`src/built-ins/modules/agency-finance/src/server/invoices.ts`](../server/invoices.md)
 - [`src/built-ins/modules/agency-finance/src/server/operations.ts`](../server/operations.md)

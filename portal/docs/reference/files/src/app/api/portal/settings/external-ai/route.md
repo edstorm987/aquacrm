@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (6)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/externalAssistantApi.ts`](../../../../../lib/server/externalAssistantApi.md)
-- [`src/lib/server/externalAssistantKeys.ts`](../../../../../lib/server/externalAssistantKeys.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](../../../../../lib/server/assistants/externalAssistantApi.md)
+- [`src/lib/server/assistants/externalAssistantKeys.ts`](../../../../../lib/server/assistants/externalAssistantKeys.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../server/types.md)

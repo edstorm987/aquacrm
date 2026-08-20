@@ -5,8 +5,10 @@ so edits land in the right place and nothing gets built twice. The detail lives
 in per-area **chapters** in [`docs/workspace/`](workspace/) — this page is the
 table of contents and the shared rules.
 
-~1,460 files in `src`, ~700 in plugins, ~200 test scripts. Big, but every
-concern has one owning place — the chapters tell you where.
+**1,640** `.ts`/`.tsx` files in `src` (720 of them in plugins), **242** `scripts/*.test.ts`.
+Big, but every concern has one owning place — the chapters tell you where.
+Counts re-taken 2026-08-20; re-take them rather than trusting them:
+`find src -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l`.
 
 ---
 
@@ -28,7 +30,7 @@ The owning layer, by kind of change:
 | Changing… | Lives in | Chapter |
 | --- | --- | --- |
 | State / data (the `PortalState` store) | `src/server/` | [State layer](workspace/state-layer.md) |
-| Logic / services / engines | `src/lib/`, `src/lib/server/` | [Shared logic](workspace/shared-logic.md) |
+| Logic / services / engines | `src/lib/<domain>/`, `src/lib/server/<family>/` — foldered by domain 2026-08-20, see chapter head | [Shared logic](workspace/shared-logic.md) |
 | An HTTP endpoint | `src/app/api/**/route.ts` | [API & routes](workspace/api-and-routes.md) |
 | A screen | `src/app/portal/**/page.tsx` + `_Component.tsx` | [Portal UI](workspace/portal-ui.md) |
 | A whole feature/module | `src/built-ins/modules/<plugin>/` | [Plugins](workspace/plugins.md) |
@@ -36,20 +38,30 @@ The owning layer, by kind of change:
 | Config / tests / docs | root, `scripts/`, `docs/` | [Scripts, config & docs](workspace/scripts-config-docs.md) |
 
 > **Two backends exist:** local **file/memory** state (`.data/portal-state.json`)
-> and **live Supabase** (auth + `brand_enquiries` + Storage). Anything touching
-> Supabase is real, un-sandboxed data — see the live-data hazards.
+> and **live Supabase** (auth + `brand_enquiries` + Storage). `.data/` is local,
+> but **it is not a sandbox for the whole app**: `PORTAL_BACKEND=file` guards the
+> state file only, while `lib/supabase/admin.ts` reads env directly and reaches the
+> **real** auth + `brand_enquiries` + Storage project even in local dev. Anything
+> touching Supabase is real, un-sandboxed data — see the
+> [live-data hazards](workspace/hazards-and-duplication.md#-live-data-hazards-real-un-sandboxed).
+>
+> **The DDL and the RLS policies are NOT in `portal/`** — they are a normal
+> Supabase CLI project one directory up, at `../supabase/migrations/` (14
+> migrations, 26 policies). An audit scoped to `portal/` will correctly find
+> nothing and incorrectly conclude nothing exists; that happened, and it sent a
+> work lane off on a false premise. See the [database chapter](workspace/database.md).
 
 ---
 
 ## The chapters
 
-1. **[State layer](workspace/state-layer.md)** — `src/server/` (49 files). The `PortalState` store and every CRUD/domain function over it. Start here to understand the data.
-2. **[Shared logic](workspace/shared-logic.md)** — `src/lib/` + `src/lib/server/` (~204). Services, the Radar engine, integrations, auth, the Aqua Tag, editing. The client-safe vs server-only split.
+1. **[State layer](workspace/state-layer.md)** — `src/server/` (57 files). The `PortalState` store and every CRUD/domain function over it. Start here to understand the data.
+2. **[Shared logic](workspace/shared-logic.md)** — `src/lib/` + `src/lib/server/` (256). Services, the Radar engine, integrations, auth, the Aqua Tag, editing, and **`lib/elements/` — the block vocabulary, moved out of the website-editor plugin 2026-08-20**. The client-safe vs server-only split.
 3. **[Portal UI](workspace/portal-ui.md)** — `src/app/portal/` (agency / clients / customer / team). Every screen, its tabs, and the load-bearing components.
 4. **[API & routes](workspace/api-and-routes.md)** — `src/app/api/**` + the non-portal routes, grouped by area with the **live-Supabase** ones flagged. For the exhaustive one-row-per-endpoint version (path · methods · purpose · scope · live), see the **[full API reference](workspace/api-reference.md)**.
-5. **[Plugins](workspace/plugins.md)** — `src/built-ins/` (~756). The 13 feature modules and the runtime that installs them, mapped internally.
-6. **[Components](workspace/components.md)** — `src/components/` (60). The app shell (chrome), attention surface, and reusable primitives.
-7. **[Scripts, config & docs](workspace/scripts-config-docs.md)** — root config, the ~200 test scripts, and the prose docs. Includes the canonical full-suite command.
+5. **[Plugins](workspace/plugins.md)** — `src/built-ins/` (720). The 13 feature modules and the runtime that installs them, mapped internally.
+6. **[Components](workspace/components.md)** — `src/components/` (68). The app shell (chrome), attention surface, and reusable primitives.
+7. **[Scripts, config & docs](workspace/scripts-config-docs.md)** — root config, the 242 test scripts, and the prose docs. Includes the canonical full-suite command.
 8. **[Feature → files index](workspace/feature-index.md)** — the conflict-avoider: "where does X live?" across all layers, per feature.
 9. **[Hazards & duplication](workspace/hazards-and-duplication.md)** — live-data risks, confirmed duplicates, drift-prone twins, dead/alias code, and the standing rules. **Read before editing.**
 10. **[Recent changes (Aug 2026)](workspace/session-changelog-2026-08.md)** — what the latest session built and where it landed.
@@ -100,23 +112,23 @@ adds purpose + scope + live-data flag per route.
 ```
 aquaCRM/portal/
 ├── src/
-│   ├── app/            Next.js App Router — routes, pages, API (432 files)
+│   ├── app/            Next.js App Router — routes, pages, API (534 files)
 │   │   ├── api/            HTTP endpoints (portal, public, tenants, auth, v1…)
 │   │   ├── portal/         Authenticated UI (agency / clients / customer / team)
 │   │   ├── connect/ setup/ login/ dev/ …   public + auth flows
 │   │   ├── (website)/      Public marketing site route group
 │   │   └── aqua-tag.js/    Serves the Aqua Tag script
-│   ├── lib/            Shared logic — client-safe + server-only (204 files)
+│   ├── lib/            Shared logic — client-safe + server-only (256 files)
 │   │   └── server/         server-only services (Supabase, radar, enquiries…)
-│   ├── server/         State/store layer — the source of truth (49 files)
-│   ├── components/     Shared UI (chrome, attention, editing, auth) (60 files)
-│   └── built-ins/      Plugin/module system (~756 files)
+│   ├── server/         State/store layer — the source of truth (57 files)
+│   ├── components/     Shared UI (chrome, attention, editing, auth) (68 files)
+│   └── built-ins/      Plugin/module system (720 files)
 │       ├── runtime/        registry + foundation adapters
 │       └── modules/        one folder per plugin (website-editor, finance…)
-├── scripts/            ~200 smoke tests + tooling
+├── scripts/            242 smoke tests + tooling
 ├── docs/               handoffs, architecture, this map
 │   └── workspace/          the chapters this page indexes
-└── .data/              local state file (git-ignored sandbox)
+└── .data/              local state file (git-ignored — NOT a sandbox: see below)
 ```
 
 ---

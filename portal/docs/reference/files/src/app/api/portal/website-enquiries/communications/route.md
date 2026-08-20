@@ -10,14 +10,14 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (10)
 
+- [`src/lib/brands/tradingBrands.ts`](../../../../../lib/brands/tradingBrands.md)
 - [`src/lib/inbox/media.ts`](../../../../../lib/inbox/media.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/inboxMedia.ts`](../../../../../lib/server/inboxMedia.md)
-- [`src/lib/server/outboundCommunications.ts`](../../../../../lib/server/outboundCommunications.md)
-- [`src/lib/server/transactionalEmail.ts`](../../../../../lib/server/transactionalEmail.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/email/outboundCommunications.ts`](../../../../../lib/server/email/outboundCommunications.md)
+- [`src/lib/server/email/transactionalEmail.ts`](../../../../../lib/server/email/transactionalEmail.md)
+- [`src/lib/server/inbox/inboxMedia.ts`](../../../../../lib/server/inbox/inboxMedia.md)
 - [`src/lib/server/websiteEnquiryLeadSync.ts`](../../../../../lib/server/websiteEnquiryLeadSync.md)
 - [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
-- [`src/lib/tradingBrands.ts`](../../../../../lib/tradingBrands.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 

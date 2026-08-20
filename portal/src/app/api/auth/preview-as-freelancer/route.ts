@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, getSessionFromRequest, issueSession, sessionCookie } from "@/lib/server/auth";
+import { authErrorResponse, getSessionFromRequest, issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import { freelancerLoginUserId } from "@/server/freelancerAdmin";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";

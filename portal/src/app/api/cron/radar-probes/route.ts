@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { runRadarInfraSweep, runRadarProbeRefresh, type RadarProbeRefreshResult } from "@/lib/server/radarSweeps";
+import { runRadarInfraSweep, runRadarProbeRefresh, type RadarProbeRefreshResult } from "@/lib/server/radar/radarSweeps";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listAgencies } from "@/server/tenants";
 

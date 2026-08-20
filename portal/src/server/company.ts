@@ -2,7 +2,7 @@ import "server-only";
 
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
-import { defaultCapacityAreas } from "@/lib/hiringCapacity";
+import { defaultCapacityAreas } from "@/lib/performance/hiringCapacity";
 import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyCapacityPlan, CompanyCapitalPlan, CompanyCapitalTransaction, CompanyDividendDistribution, CompanyGovernanceDecision, CompanyInvestmentHolding, CompanyObjective, CompanyPlan, CompanyProfile, CompanyProjectionPlan, CompanyQuarterlyReview, CompanyShareClass, CompanyShareholder } from "./types";
 
 const profileKey = (agencyId: string, companyId?: string | null) => companyId ? `${agencyId}:${companyId}` : agencyId;

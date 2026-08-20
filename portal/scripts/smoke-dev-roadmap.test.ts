@@ -11,7 +11,7 @@ import {
   buildRoadmap,
   roadmapPath,
   ROADMAP_REL_PATH,
-} from "../src/lib/server/devTeamRoadmap";
+} from "../src/lib/server/dev/devTeamRoadmap";
 
 /**
  * Drive the REAL write path against a temp copy.
@@ -47,7 +47,7 @@ async function withTempRoadmap<T>(
 async function realRoadmap(): Promise<{ path: string; text: string }> {
   const { readFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   const path = join(PROJECT_ROOT, "docs", "development", "roadmap.md");
   return { path, text: await readFile(path, "utf8") };
 }
@@ -187,7 +187,7 @@ test("the real roadmap loads, and progress is COMPUTED from tasks not typed", as
 test("add → update → ship writes real markdown, and never touches the shared file", async () => {
   const { readFile } = await import("node:fs/promises");
   const { addItem, updateItem, linkPlan, readItems } =
-    await import("../src/lib/server/devTeamRoadmap");
+    await import("../src/lib/server/dev/devTeamRoadmap");
 
   const real = await realRoadmap();
   const before = real.text;
@@ -261,7 +261,7 @@ test("add → update → ship writes real markdown, and never touches the shared
 });
 
 test("an unknown item is refused, not silently created", async () => {
-  const { updateItem } = await import("../src/lib/server/devTeamRoadmap");
+  const { updateItem } = await import("../src/lib/server/dev/devTeamRoadmap");
   await assert.rejects(() => updateItem({ id: "no-such-item", status: "shipped" }), /no longer exists/i);
 });
 
@@ -272,7 +272,7 @@ test("an unknown item is refused, not silently created", async () => {
 // its `###` sub-sections and swallowed every later numbered list in the plan.
 
 test("a Phases section stops at the next heading of ANY level", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "# Plan — X",
     "## Phases",
@@ -288,7 +288,7 @@ test("a Phases section stops at the next heading of ANY level", async () => {
 });
 
 test("no plan produces two tasks with the same id", async () => {
-  const { scanTasks } = await import("../src/lib/server/devTeamTasks");
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
   for (const plan of await scanTasks()) {
     const ids = plan.tasks.map(t => t.id);
     assert.equal(new Set(ids).size, ids.length, `${plan.planName} has duplicate task ids`);
@@ -302,7 +302,7 @@ test("no plan produces two tasks with the same id", async () => {
 // toISOString(). Caught by browser-verifying findings capture at 01:28 local.
 
 test("day and minute stamps follow the server's timezone, not UTC", async () => {
-  const { localDay, localStamp } = await import("../src/lib/server/devLocalTime");
+  const { localDay, localStamp } = await import("../src/lib/server/dev/devLocalTime");
   // 00:28 BST on the 20th is 23:28 UTC on the 19th — the exact case that broke.
   const justAfterMidnightBst = Date.parse("2026-08-19T23:28:00Z");
   const d = new Date(justAfterMidnightBst);
@@ -321,11 +321,11 @@ test("day and minute stamps follow the server's timezone, not UTC", async () => 
 test("nothing in the Dev Console stamps a human-facing date in UTC", async () => {
   const { readFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   for (const rel of [
-    "src/lib/server/devTeamFindings.ts",
-    "src/lib/server/devTeamPlans.ts",
-    "src/lib/server/devTeamRoadmap.ts",
+    "src/lib/server/dev/devTeamFindings.ts",
+    "src/lib/server/dev/devTeamPlans.ts",
+    "src/lib/server/dev/devTeamRoadmap.ts",
   ]) {
     const source = await readFile(join(PROJECT_ROOT, rel), "utf8");
     assert.doesNotMatch(source, /toISOString\(\)\.slice/, `${rel} still stamps a date in UTC — use devLocalTime`);
@@ -333,7 +333,7 @@ test("nothing in the Dev Console stamps a human-facing date in UTC", async () =>
 });
 
 test("markdown emphasis never leaks into a parsed title", async () => {
-  const { parsePhases } = await import("../src/lib/server/devTeamTasks");
+  const { parsePhases } = await import("../src/lib/server/dev/devTeamTasks");
   const md = [
     "## Phases",
     "1. _(First slice — the placeholder a UI-authored plan ships with.)_",
@@ -350,7 +350,7 @@ test("markdown emphasis never leaks into a parsed title", async () => {
 // ---- the two defects the Dev Console audit proved ---------------------------
 
 test("two simultaneous writes BOTH land — neither is silently lost", async () => {
-  const { addItem, readItems, removeItem } = await import("../src/lib/server/devTeamRoadmap");
+  const { addItem, readItems, removeItem } = await import("../src/lib/server/dev/devTeamRoadmap");
 
   const before = (await realRoadmap()).text;
   const startCount = parseRoadmap(before).length;
@@ -370,7 +370,7 @@ test("two simultaneous writes BOTH land — neither is silently lost", async () 
 
     // A concurrent update and delete must both take effect, not clobber.
     const [, removed] = await Promise.all([
-      (async () => (await import("../src/lib/server/devTeamRoadmap")).updateItem({ id: a.id, status: "building" }))(),
+      (async () => (await import("../src/lib/server/dev/devTeamRoadmap")).updateItem({ id: a.id, status: "building" }))(),
       removeItem(b.id),
     ]);
     const settled = await readItems();
@@ -426,7 +426,7 @@ test("an item's file map round-trips through parse and render", () => {
 });
 
 test("two items claiming the same file collide, and a glob counts as a claim", async () => {
-  const { findCollisions } = await import("../src/lib/server/devTeamRoadmap");
+  const { findCollisions } = await import("../src/lib/server/dev/devTeamRoadmap");
   const base = { planLinks: [], done: 0, total: 0, pct: 0, workers: [], plans: [], horizon: "now" as const };
   const items = [
     { ...base, id: "one", title: "One", status: "building" as const, files: ["src/server/storage.ts", "src/app/portal/dev-team/**"] },
@@ -488,7 +488,7 @@ test("a hand-written header survives — the parser captures it, the renderer em
 
 test("a real add/update/delete preserves the header the file already had", async () => {
   const { readFile } = await import("node:fs/promises");
-  const { addItem, updateItem, removeItem } = await import("../src/lib/server/devTeamRoadmap");
+  const { addItem, updateItem, removeItem } = await import("../src/lib/server/dev/devTeamRoadmap");
 
   const source = (await realRoadmap()).text.replace(
     "# Roadmap\n",
@@ -568,8 +568,8 @@ test("a month target sorts by when it is due, not by its string", async () => {
 // ---- plan links --------------------------------------------------------------
 
 test("a plan named twice is stored once — a repeat used to multiply the task count", async () => {
-  const { addItem, updateItem, linkPlan, readItems } = await import("../src/lib/server/devTeamRoadmap");
-  const { scanTasks } = await import("../src/lib/server/devTeamTasks");
+  const { addItem, updateItem, linkPlan, readItems } = await import("../src/lib/server/dev/devTeamRoadmap");
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
 
   // A real plan with real phases, so the multiplication is measurable.
   const [plan] = (await scanTasks()).filter(p => p.total > 0);
@@ -620,8 +620,8 @@ test("a duplicate in the FILE is collapsed on read, not summed", () => {
 // ---- a plan name that matches nothing ----------------------------------------
 
 test("a plan that does not exist is carried as missing, not silently dropped", async () => {
-  const { addItem } = await import("../src/lib/server/devTeamRoadmap");
-  const { scanTasks } = await import("../src/lib/server/devTeamTasks");
+  const { addItem } = await import("../src/lib/server/dev/devTeamRoadmap");
+  const { scanTasks } = await import("../src/lib/server/dev/devTeamTasks");
   const [plan] = (await scanTasks()).filter(p => p.total > 0 && p.done === p.total);
 
   await withTempRoadmap("# Roadmap\n\n---\n\n## Now\n_In flight._\n", async () => {
@@ -650,7 +650,7 @@ test("a plan that does not exist is carried as missing, not silently dropped", a
 test("the roadmap UI never draws a progress bar for an item with an unresolved plan", async () => {
   const { readFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   const source = await readFile(
     join(PROJECT_ROOT, "src/app/portal/dev-team/roadmap/_RoadmapWorkspace.tsx"), "utf8",
   );
@@ -675,7 +675,7 @@ test("a '·' inside a value does not truncate it on the next write", () => {
 });
 
 test("the write path stores the value it will be able to read back", async () => {
-  const { addItem, readItems } = await import("../src/lib/server/devTeamRoadmap");
+  const { addItem, readItems } = await import("../src/lib/server/dev/devTeamRoadmap");
   await withTempRoadmap("# Roadmap\n\n---\n\n## Now\n_In flight._\n", async () => {
     const added = await addItem({ title: "Separator probe", horizon: "now", owner: "alice · bob" });
     // What the API hands back must be what is on disk — not a value the file
@@ -696,7 +696,7 @@ test("the write path stores the value it will be able to read back", async () =>
 test("every verb on the roadmap API gates before it reads or writes", async () => {
   const { readFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
 
   const source = await readFile(
     join(PROJECT_ROOT, "src/app/api/portal/dev-team/roadmap/route.ts"), "utf8",

@@ -154,7 +154,7 @@ describe("worker:checkin — the name the board will show", () => {
   });
 
   it("--done is the check-OUT the channel was missing", async () => {
-    const { isCheckInActive } = await import("../src/lib/server/devTeamWorkers");
+    const { isCheckInActive } = await import("../src/lib/server/dev/devTeamWorkers");
     const root = tempRoot();
     run(CHECKIN, ["alpha", "suite green, handing back", "--done"], root);
 

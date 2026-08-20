@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireRoleForClient } from "@/lib/server/auth";
+import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { previewClientErasure } from "@/server/clientErasure";
@@ -9,7 +9,7 @@ import { phaseLabel } from "@/server/phases";
 import { ClientStatusActions } from "./_ClientStatusActions";
 import { ClientDangerZone } from "./_ClientDangerZone";
 import { ClientDomainSettings } from "./_ClientDomainSettings";
-import { formatUkDateTime } from "@/lib/formatDateTime";
+import { formatUkDateTime } from "@/lib/shared/formatDateTime";
 
 export default async function ClientSettingsPage({
   params,

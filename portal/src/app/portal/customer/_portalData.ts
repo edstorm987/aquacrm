@@ -9,23 +9,23 @@ import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
 import type { Invoice, InvoiceLineItem, InvoiceStatus } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import type { ClientRequest } from "@/app/api/tenants/client-requests/route";
-import { cleanClientRequests } from "@/lib/clientRequests";
-import type { ClientContract } from "@/lib/clientContracts";
+import { cleanClientRequests } from "@/lib/clients/clientRequests";
+import type { ClientContract } from "@/lib/clients/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
-import { portalProductSelectionFromAgencyProduct, type PortalProductSelection } from "@/lib/portalProducts";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle } from "@/lib/portalProductModules";
-import { cleanPortalProductWorkspaces, type PortalProductWorkspace } from "@/lib/portalProductWorkspaces";
-import { cleanClientRecordEntries, type ClientRecordEntryKind } from "@/lib/clientRelationshipRecord";
-import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import { portalProductSelectionFromAgencyProduct, type PortalProductSelection } from "@/lib/portal/portalProducts";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle } from "@/lib/portal/portalProductModules";
+import { cleanPortalProductWorkspaces, type PortalProductWorkspace } from "@/lib/portal/portalProductWorkspaces";
+import { cleanClientRecordEntries, type ClientRecordEntryKind } from "@/lib/clients/clientRelationshipRecord";
+import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
 import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
 import {
   cleanClientPaymentPlans,
   customerVisiblePaymentPlans,
   reconcileClientPaymentPlan,
   type ClientPaymentPlan,
-} from "@/lib/clientPaymentPlans";
+} from "@/lib/clients/clientPaymentPlans";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 

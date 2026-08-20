@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import {
   ACTIVE_CHECK_IN_WINDOW_MS,
   groupActivity,
   isCheckInActive,
   scanWorkerSignals,
-} from "@/lib/server/devTeamWorkers";
+} from "@/lib/server/dev/devTeamWorkers";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

@@ -32,7 +32,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * refuses to construct. Import order is load-bearing in this file.
  */
 async function sessionCookieName(): Promise<string> {
-  return (await import("../src/lib/server/auth")).SESSION_COOKIE_NAME;
+  return (await import("../src/lib/server/auth/auth")).SESSION_COOKIE_NAME;
 }
 
 interface CookieEntry { name: string; value: string }

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { signCsrfToken, verifyCsrfToken } from "../src/lib/server/csrf";
+import { signCsrfToken, verifyCsrfToken } from "../src/lib/server/auth/csrf";
 
 // rateLimit.ts has `import "server-only"` so we can't import it from a
 // node:test smoke. We exercise its logic indirectly by verifying the
@@ -103,7 +103,7 @@ describe("File structure (R021)", () => {
   });
 
   it("auth.ts exports isSessionFresh + threads sessionRev through issueSession", () => {
-    const p = join(ROOT, "src", "lib", "server", "auth.ts");
+    const p = join(ROOT, "src", "lib", "server", "auth", "auth.ts");
     const src = readFileSync(p, "utf8");
     assert.ok(src.includes("export function isSessionFresh"));
     assert.ok(src.includes("sessionRev: input.sessionRev"));

@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/clientRelationshipRecord.ts`](../../../../lib/clientRelationshipRecord.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/clients/clientRelationshipRecord.ts`](../../../../lib/clients/clientRelationshipRecord.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/people.ts`](../../../../server/people.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/tasks.ts`](../../../../server/tasks.md)

@@ -1,4 +1,4 @@
-# `src/lib/server/radarTelemetry.ts`
+# `src/lib/server/radar/radarTelemetry.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -12,20 +12,20 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (5)
 
-- [`src/lib/businessRadar.ts`](../businessRadar.md)
-- [`src/lib/clientTelemetry.ts`](../clientTelemetry.md)
-- [`src/lib/clientWorkspace.ts`](../clientWorkspace.md)
-- [`src/lib/formatDateTime.ts`](../formatDateTime.md)
+- [`src/lib/radar/businessRadar.ts`](../businessRadar.md)
+- [`src/lib/clients/clientTelemetry.ts`](../clientTelemetry.md)
+- [`src/lib/clients/clientWorkspace.ts`](../clientWorkspace.md)
+- [`src/lib/shared/formatDateTime.ts`](../formatDateTime.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (8)
 
 - [`scripts/smoke-business-radar.test.ts`](../../../scripts/smoke-business-radar.test.md)
 - [`scripts/smoke-radar-coverage-seeding.test.ts`](../../../scripts/smoke-radar-coverage-seeding.test.md)
-- [`src/lib/radarSentinels.ts`](../radarSentinels.md)
-- [`src/lib/radarSyntheticChecks.ts`](../radarSyntheticChecks.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/clientRadar.ts`](./clientRadar.md)
-- [`src/lib/server/commandIntelligence.ts`](./commandIntelligence.md)
-- [`src/lib/server/radarObservations.ts`](./radarObservations.md)
+- [`src/lib/radar/radarSentinels.ts`](../radarSentinels.md)
+- [`src/lib/radar/radarSyntheticChecks.ts`](../radarSyntheticChecks.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./businessIssueRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./clientRadar.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./commandIntelligence.md)
+- [`src/lib/server/radar/radarObservations.ts`](./radarObservations.md)
 

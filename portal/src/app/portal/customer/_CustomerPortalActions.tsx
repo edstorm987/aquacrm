@@ -4,10 +4,10 @@ import { ArrowRight, ArrowUpRight, Check, CheckCircle2, Circle, ExternalLink, Fi
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ClientRequest, ClientRequestType } from "@/app/api/tenants/client-requests/route";
-import type { ClientContract } from "@/lib/clientContracts";
+import type { ClientContract } from "@/lib/clients/clientContracts";
 import type { CustomerProjectBrief } from "@/app/api/tenants/customer-project-brief/route";
 import type { ClientApproval } from "@/app/api/tenants/client-approvals/route";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type { CustomerPortalMode } from "./_portalData";
 import type { CustomerProperty } from "./_portalData";
 

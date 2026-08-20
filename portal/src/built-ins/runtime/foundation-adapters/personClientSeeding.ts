@@ -12,7 +12,7 @@ import "server-only";
 import { on } from "@/server/eventBus";
 import { getClientForAgency } from "@/server/tenants";
 import { findPersonByIdentity } from "@/server/persons";
-import { seedClientFromPerson } from "@/lib/server/seedClientFromPerson";
+import { seedClientFromPerson } from "@/lib/server/seeds/seedClientFromPerson";
 
 let registered = false;
 

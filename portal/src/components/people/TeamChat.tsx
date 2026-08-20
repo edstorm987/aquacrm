@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { Hash, Loader2, MessageSquare, Send, Users } from "lucide-react";
 
 import type { PeopleChannel, PeopleMessage } from "@/server/types";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type RosterEntry = { userId: string; name: string; presence: { state: "online" | "idle" | "offline"; lastSeenAt?: number }; workingToday: boolean };
 type ChatSnapshot = { channels: PeopleChannel[]; activeChannelId: string; messages: PeopleMessage[]; roster: RosterEntry[]; selfUserId: string };

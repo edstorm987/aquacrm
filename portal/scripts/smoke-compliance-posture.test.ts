@@ -9,7 +9,7 @@ import {
   type ComplianceControl,
   type ComplianceEvidenceInput,
   type CompliancePosture,
-} from "../src/lib/compliancePosture";
+} from "../src/lib/compliance/compliancePosture";
 
 let storage: typeof import("../src/server/storage");
 let tenants: typeof import("../src/server/tenants");

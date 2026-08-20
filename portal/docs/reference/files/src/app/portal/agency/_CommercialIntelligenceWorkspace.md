@@ -8,9 +8,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `CommercialIntelligenceWorkspace({ snapshot, currency, initialMetricId = "", initialRecordId = "", initialSourceId = "", initialStageId = "" }: { snapshot: CommercialIntelligenceSnapshot; currency: string; initialMetricId?: string; initialR…`
 
-## Depends on (1)
+## Depends on (2)
 
-- [`src/lib/commandIntelligence.ts`](../../../lib/commandIntelligence.md)
+- [`src/lib/intelligence/commandIntelligence.ts`](../../../lib/intelligence/commandIntelligence.md)
+- [`src/lib/intelligence/commercialIntelligence.ts`](../../../lib/intelligence/commercialIntelligence.md)
 
 ## Used by (1)
 

@@ -1,4 +1,4 @@
-# `src/lib/performanceReports.ts`
+# `src/lib/performance/performanceReports.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -15,7 +15,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/performanceAnalytics.ts`](./performanceAnalytics.md)
+- [`src/lib/performance/performanceAnalytics.ts`](./performanceAnalytics.md)
 
 ## Used by (6)
 

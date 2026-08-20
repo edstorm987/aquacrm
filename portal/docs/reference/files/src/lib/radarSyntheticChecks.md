@@ -1,4 +1,4 @@
-# `src/lib/radarSyntheticChecks.ts`
+# `src/lib/radar/radarSyntheticChecks.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,13 +11,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
-- [`src/lib/formatDateTime.ts`](./formatDateTime.md)
-- [`src/lib/server/radarTelemetry.ts`](./server/radarTelemetry.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/shared/formatDateTime.ts`](./formatDateTime.md)
+- [`src/lib/server/radar/radarTelemetry.ts`](./server/radarTelemetry.md)
 - [`src/server/types.ts`](../server/types.md)
 
 ## Used by (2)
 
 - [`scripts/smoke-business-radar.test.ts`](../../scripts/smoke-business-radar.test.md)
-- [`src/lib/server/businessIssueRadar.ts`](./server/businessIssueRadar.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./server/businessIssueRadar.md)
 

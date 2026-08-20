@@ -21,7 +21,9 @@ back, and update the docs. State lives in files, so any chat can be re-spun.**
 1. **[orchestration-model.md](orchestration-model.md)** — the commander + workers model: roles, how work flows, and the rules that stop two workers colliding on one repo.
 2. **[worker-brief.md](worker-brief.md)** — the paste-ready template to spin a worker chat on a plan, plus the conventions every worker follows.
 3. **[auditor-brief.md](auditor-brief.md)** — the paste-ready template for the **looping auditor** that independently verifies shipped work before it's trusted as done (writes verdicts to [audits.md](../development/audits.md)).
-4. **[state.md](state.md)** — the **live work log**: what's in flight, who's on what, what's done, what's next. *This is the thing that replaces the context window — keep it current.*
+4. **[state.md](state.md)** — the **live work log**: what's in flight, who's on what, what's done, what's next. *This is the thing that replaces the context window — keep it current.* Its `## Blockers` section is **parsed by the app** and drives the Dev Console's launch-blocker badges, so an error there shows up on screen.
+4b. **[next-wave-briefs.md](next-wave-briefs.md)** — paste-ready worker briefs + Ed's launch checklist. ⚠ **Strike a brief out the moment its fix lands**, with the `file:line` that proves it; a stale brief sends a worker to re-break working code.
+4c. **[archive/](archive/)** — finished worker debriefs, kept for the record. Historical only.
 5. **[commander-handoff.md](commander-handoff.md)** — how to re-spin **me** (the commander) with full context, so orchestration survives a fresh chat.
 
 ## How to use it (the loop)
@@ -33,6 +35,7 @@ back, and update the docs. State lives in files, so any chat can be re-spun.**
 ## The golden rules (so the multi-chat setup doesn't melt down)
 1. **One plan owns its files.** Assign non-overlapping areas to avoid two workers editing the same files. [state.md](state.md) is the source of truth for who owns what.
 2. **State is written, not remembered.** Every assignment, completion, and blocker goes in [state.md](state.md) — never only in a chat.
-3. **The development.md discipline still holds** — run the full suite, update the docs after every change, don't commit/deploy without Ed. (See [development.md](../development.md).)
+3. **The development.md discipline still holds** — run the full suite, update the docs after every change, and **never touch git at all** (a push triggers Vercel → production; the tree is uncommitted so `git checkout` deletes other workers' work). (See [development.md](../development.md).)
+3b. **The SOURCE is the truth.** A doc records what someone believed the day they wrote it. When a doc and the code disagree, read the code, then fix the doc — never the other way round.
 4. **The commander doesn't have to build.** My default job is orchestration; I build only when Ed asks or a task is too small to spin a worker for.
 5. **Verify before "done".** A builder's green suite is a claim, not proof. The independent [auditor](auditor-brief.md) confirms it (or sends it back) — and it's read-only on source, so it never collides with a live worker.

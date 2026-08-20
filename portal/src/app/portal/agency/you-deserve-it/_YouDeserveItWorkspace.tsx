@@ -40,7 +40,7 @@ import type {
   ExperiencePackage,
   ExperiencePackageAudience,
 } from "@/server/types";
-import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
+import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
 type ClientOption = { id: string; name: string; companyId?: string; stageLabel: string; source: string; health: "healthy" | "attention"; healthNotes: string[] };
 type StaffOption = { id: string; name: string; email: string; companyIds: string[] };

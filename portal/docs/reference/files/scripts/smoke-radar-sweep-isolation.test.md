@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (4)
 
-- [`src/lib/server/businessIssueRadar.ts`](../src/lib/server/businessIssueRadar.md)
-- [`src/lib/server/radarSweeps.ts`](../src/lib/server/radarSweeps.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](../src/lib/server/radar/businessIssueRadar.md)
+- [`src/lib/server/radar/radarSweeps.ts`](../src/lib/server/radar/radarSweeps.md)
 - [`src/server/storage.ts`](../src/server/storage.md)
 - [`src/server/tenants.ts`](../src/server/tenants.md)
 

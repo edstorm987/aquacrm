@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
-import { applyClientProductVariations, buildClientProductVariation, clientProductVariations, variationHasOverrides } from "@/lib/clientProductVariations";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
+import { applyClientProductVariations, buildClientProductVariation, clientProductVariations, variationHasOverrides } from "@/lib/clients/clientProductVariations";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { getAgencyProduct, ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { logActivity } from "@/server/activity";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";

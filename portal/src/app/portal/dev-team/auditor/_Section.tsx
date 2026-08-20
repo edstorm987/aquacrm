@@ -2,16 +2,16 @@ import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import { ShieldCheck, CheckCircle2, AlertTriangle, CircleDot } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { ensureHydrated } from "@/server/storage";
 import {
   scanDevTeamAudit,
   readinessContextForAgency,
   countStillOpenFindings,
   type AuditFinding,
-} from "@/lib/server/devTeamAuditor";
+} from "@/lib/server/dev/devTeamAuditor";
 import type { ReadinessGroup, ReadinessItem } from "@/lib/server/productionReadiness";
 import { PageHeader, Panel, Pill, EmptyState } from "../_ui";
 

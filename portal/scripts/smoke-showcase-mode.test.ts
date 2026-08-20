@@ -8,7 +8,7 @@ import { proxy } from "../src/proxy";
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("showcase mode uses a separate hardcoded tenant and never copies live records", () => {
-  const seed = read("src/lib/server/showcaseMode.ts");
+  const seed = read("src/lib/server/auth/showcaseMode.ts");
   assert.match(seed, /SHOWCASE_AGENCY_SLUG = "milesymedia-showcase"/);
   assert.match(seed, /Northstar Studio/);
   assert.match(seed, /Harbour & Pine/);
@@ -28,7 +28,7 @@ test("showcase mode uses a separate hardcoded tenant and never copies live recor
 
 test("entering and exiting showcase mode rotates the signed tenant session", () => {
   const route = read("src/app/api/auth/showcase-mode/route.ts");
-  const auth = read("src/lib/server/auth.ts");
+  const auth = read("src/lib/server/auth/auth.ts");
   const types = read("src/server/types.ts");
   assert.match(route, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
   assert.match(route, /invalid_origin/);
@@ -62,7 +62,7 @@ test("settings and top bar make showcase state and exit unmistakable", () => {
 });
 
 test("showcase reset removes every tenant-owned data collection", () => {
-  const seed = read("src/lib/server/showcaseMode.ts");
+  const seed = read("src/lib/server/auth/showcaseMode.ts");
   for (const collection of [
     "clients",
     "pluginInstalls",

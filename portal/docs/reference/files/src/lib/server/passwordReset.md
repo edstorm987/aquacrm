@@ -1,4 +1,4 @@
-# `src/lib/server/passwordReset.ts`
+# `src/lib/server/auth/passwordReset.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

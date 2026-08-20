@@ -11,8 +11,8 @@
 
 ## Depends on (4)
 
-- [`src/lib/avatarDataUrl.ts`](../../../../../lib/avatarDataUrl.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/shared/avatarDataUrl.ts`](../../../../../lib/shared/avatarDataUrl.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/users.ts`](../../../../../server/users.md)
 

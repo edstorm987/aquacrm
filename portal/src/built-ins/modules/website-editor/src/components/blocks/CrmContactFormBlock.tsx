@@ -4,16 +4,31 @@
 // either:
 //   (1) Renders a forms-plugin-published form when `props.formId` is
 //       set (delegates to FormRenderBlock).
-//   (2) Renders a hard-coded name+email+message form that POSTs to
-//       client-CRM's public ingest. Default flow.
+//   (2) Renders a hard-coded name+email+message form that POSTs to the
+//       public enquiry ingest. Default flow.
 //
-// **Round-5 status**: option (2) hits a hypothetical
-// `/api/portal/client-crm/public/contact` endpoint which T2's
-// @aqua/plugin-client-crm hasn't yet exposed (the existing /contacts
-// route is admin-only). Q-ASSUMED: T2 R10 follow-up adds the public
-// ingest. Until then, the block falls back to /api/portal/forms/public/
-// submit/:formId via the forms plugin when an admin has wired one — or
-// a "Form unavailable" placeholder otherwise.
+// ─── Q-ASSUMED endpoint, resolved 2026-08-20 ─────────────────────────────
+//
+// Option (2) used to POST to `/api/portal/client-crm/public/contact`, an
+// endpoint the block's own comment described as hypothetical ("Q-ASSUMED: T2
+// R10 follow-up adds the public ingest"). It was never built. Worse than
+// missing: the block treated the resulting 404 as SUCCESS — it showed the
+// visitor "Thanks, we'll be in touch shortly" and dropped the message on the
+// floor, with only a `console.warn` nobody reads. Every enquiry through this
+// block since it shipped was lost silently.
+//
+// It now posts to `/api/public/contact`, which exists, is public, is
+// rate-limited and honeypotted, and deposits the enquiry as a LEAD in
+// leads-pipeline via `leads.upsert` — the same machinery
+// `/api/public/brand-enquiry` and the signup block's form branch use. No new
+// endpoint was built for this, and a failure is now shown to the visitor
+// instead of being dressed up as a success.
+//
+// KNOWN LIMIT, worth an operator's attention: `/api/public/contact` files the
+// lead against the founder agency (`FOUNDER_AGENCY_SLUG`), not against a
+// per-client CRM install. That is today's behaviour of the app's public
+// contact ingest, and it is honest capture rather than silent loss. When
+// per-client public ingest lands, point `ENDPOINT` at it.
 
 import { useState } from "react";
 import type { BlockRenderProps } from "../blockRegistry";
@@ -32,15 +47,21 @@ export default function CrmContactFormBlock({ block, editorMode, renderChildren 
   }
 
   // Otherwise render a built-in name+email+message form that posts
-  // directly to the (R5) client-CRM public ingest endpoint.
+  // directly to the app's public enquiry ingest.
   return <BuiltInContactForm block={block} editorMode={editorMode} renderChildren={renderChildren} />;
 }
+
+/** The real, existing public ingest. See the note at the top of this file. */
+const ENDPOINT = "/api/public/contact";
 
 function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
   const heading = (block.props.heading as string | undefined) ?? "Get in touch";
   const subheading = (block.props.subheading as string | undefined) ?? "We'll reply within 1 business day.";
   const submitLabel = (block.props.submitLabel as string | undefined) ?? "Send message";
-  const tag = (block.props.tag as string | undefined) ?? "contact-form";
+  // NOTE: the block's `tag` prop is not forwarded. `/api/public/contact` sets
+  // its own tags (`website-enquiry`, `contact:<method>`) and takes no custom
+  // ones; inventing a field it ignores would be the same fiction this change
+  // removed. Wire it through when the ingest accepts tags.
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -55,31 +76,25 @@ function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
     setSubmitting(true);
     setError(null);
     try {
-      // Q-ASSUMED endpoint — T2 R10 follow-up. Until it ships, 404 is
-      // expected and the block surfaces a friendly fallback.
-      const res = await fetch("/api/portal/client-crm/public/contact", {
+      const res = await fetch(ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name,
           email,
-          attributes: { message },
-          tags: [tag],
-          source: "crm-contact-form",
+          // The ingest requires a stated contact preference; this form only
+          // ever collects an email address, so that is the honest answer.
+          contactMethod: "email",
+          note: message,
+          // Honeypot field the ingest checks. Always empty from a real person.
+          website: "",
         }),
       });
-      if (res.status === 404) {
-        // Plugin or endpoint not yet wired — log a console hint for
-        // the operator and surface a soft "we'll get back to you" UX.
-        if (typeof console !== "undefined") {
-          console.warn("[crm-contact-form] CRM public/contact endpoint missing — submission not persisted.");
-        }
-        setSubmitted(true);
-        return;
-      }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error ?? "Couldn't send — please try again.");
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      // Success is ONLY a confirmed write. A 404, a 500 or an `ok:false` used
+      // to be shown to the visitor as "Thanks!" while the message was lost.
+      if (!res.ok || data.ok !== true) {
+        setError(data.error ?? "Couldn't send — please try again, or email us directly.");
         return;
       }
       setSubmitted(true);

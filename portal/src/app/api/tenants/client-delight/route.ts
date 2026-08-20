@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createClientDelight, deleteClientDelight, listClientDelight, updateClientDelight } from "@/server/clientDelight";
-import { recordDelightExpense } from "@/lib/server/clientDelightExpense";
+import { recordDelightExpense } from "@/lib/server/clients/clientDelightExpense";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type ClientDelightOccasion, type ClientDelightStatus, type ExperienceAudience, type ExperienceDeliveryMethod, type ExperienceFulfilmentStep } from "@/server/types";
 

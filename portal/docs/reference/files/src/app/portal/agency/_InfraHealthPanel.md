@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/businessRadar.ts`](../../../lib/businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](../../../lib/radar/businessRadar.md)
 
 ## Used by (1)
 

@@ -16,7 +16,7 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 - [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](../lib/domain.md)
 - [`src/built-ins/modules/agency-finance/src/lib/safeDate.ts`](../lib/safeDate.md)
 - [`src/built-ins/modules/agency-finance/src/lib/workforceCosts.ts`](../lib/workforceCosts.md)
-- [`src/lib/server/financeWorkforce.ts`](../../../../../lib/server/financeWorkforce.md)
+- [`src/lib/server/finance/financeWorkforce.ts`](../../../../../lib/server/finance/financeWorkforce.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 
 ## Used by (1)

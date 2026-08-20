@@ -6,7 +6,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { getAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";

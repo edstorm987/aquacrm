@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (7)
 
 - [`src/app/portal/agency/contacts/_ContactsIndex.tsx`](./_ContactsIndex.md)
-- [`src/lib/personDestination.ts`](../../../../lib/personDestination.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/people/personDestination.ts`](../../../../lib/people/personDestination.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/organisations.ts`](../../../../server/organisations.md)
 - [`src/server/persons.ts`](../../../../server/persons.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)

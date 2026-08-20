@@ -10,8 +10,8 @@
 
 ## Depends on (5)
 
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/inboxService.ts`](../../../../lib/server/inboxService.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/inbox/inboxService.ts`](../../../../lib/server/inbox/inboxService.md)
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
 - [`src/server/automations.ts`](../../../../server/automations.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)

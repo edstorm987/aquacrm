@@ -3,7 +3,7 @@ import "server-only";
 import { getState, mutate } from "./storage";
 import { getWebsiteSource, listWebsiteSources, normalizeHost } from "./websiteSources";
 import { fetchPublicSiteHtml, SafeFetchError } from "@/lib/server/safeSiteFetch";
-import { scanFormSchemasInHtml } from "@/lib/server/aquaTagDetection";
+import { scanFormSchemasInHtml } from "@/lib/server/integrations/aquaTagDetection";
 import type { AquaFormSchema } from "./types";
 
 /**

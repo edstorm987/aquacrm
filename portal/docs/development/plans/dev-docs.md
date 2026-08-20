@@ -2,7 +2,9 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
-**Status: ✅ SHIPPED — all 3 phases (2026-08-19), browser- and bundle-verified.** The `:3032` walk and the react-markdown webpack confirmation are CLOSED: `_DocMarkdown.tsx` was split into a lazy `_DocMarkdownBody.tsx` (`next/dynamic ssr:false`) and the doc render was verified in a real `next build` + browser pass. Absorbed into the Dev Team Library, but the standalone `/portal/agency/dev-docs` route + settings-footer entry BOTH still exist.
+**Status: ✅ SHIPPED — all 3 phases (2026-08-19), browser- and bundle-verified.**
+
+> 📌 **Qualifies for `plans/archive/` but has NOT been moved.** Tried on 2026-08-20 and reverted: `scripts/smoke-dev-docs.test.ts:171–172` looks this file up by its exact path, `docs/development/plans/dev-docs.md`, and asserts the Dev Docs plan is indexed. Moving it breaks two Dev Docs suites. The move needs that path updated in the same change — source, not docs. **Commander's call.** The `:3032` walk and the react-markdown webpack confirmation are CLOSED: `_DocMarkdown.tsx` was split into a lazy `_DocMarkdownBody.tsx` (`next/dynamic ssr:false`) and the doc render was verified in a real `next build` + browser pass. Absorbed into the Dev Team Library, but the standalone `/portal/agency/dev-docs` route + settings-footer entry BOTH still exist.
 gated sidebar item, in-app viewer (`react-markdown` + `remark-gfm`), and the
 overview blocker strip (parsed live from state.md) all landed; suite-green +
 behaviourally proven + SSR render-proofed. Pending only the Commander's `:3032`
@@ -59,7 +61,7 @@ Codex workers in ONE uncommitted tree, two agents in the same file destroys work
 no git to recover from. Before assigning this plan, check these paths against every other
 plan in flight._
 
-- `src/lib/server/devDocs.ts`
+- `src/lib/server/dev/devDocs.ts`
 - `src/app/portal/agency/dev-docs/page.tsx`
 - `src/app/portal/agency/dev-docs/_DevDocsIndex.tsx`
 - `src/app/portal/agency/dev-docs/_DevDocViewer.tsx`
@@ -70,7 +72,7 @@ plan in flight._
 - `scripts/smoke-dev-docs.test.ts`
 - `src/lib/chrome/sidebarLayout.ts`
 - `src/app/portal/agency/layout.tsx`
-- `src/lib/formatDateTime.ts`
+- `src/lib/shared/formatDateTime.ts`
 - `package.json`
 - `docs/development/plans/dev-docs.md`
 

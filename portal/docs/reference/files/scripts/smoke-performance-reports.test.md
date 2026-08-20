@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/performanceAnalytics.ts`](../src/lib/performanceAnalytics.md)
-- [`src/lib/performanceReports.ts`](../src/lib/performanceReports.md)
+- [`src/lib/performance/performanceAnalytics.ts`](../src/lib/performance/performanceAnalytics.md)
+- [`src/lib/performance/performanceReports.ts`](../src/lib/performance/performanceReports.md)
 
 ## Used by
 

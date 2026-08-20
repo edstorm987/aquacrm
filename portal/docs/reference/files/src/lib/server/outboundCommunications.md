@@ -1,4 +1,4 @@
-# `src/lib/server/outboundCommunications.ts`
+# `src/lib/server/email/outboundCommunications.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -19,7 +19,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (2)
 
 - [`src/lib/integrations/catalog.ts`](../integrations/catalog.md)
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrationConnections.md)
 
 ## Used by (7)
 

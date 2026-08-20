@@ -1,7 +1,7 @@
-# Checklist — 2026-08-20
+# Checklist — 2026-08-20 (refreshed, evening)
 
-← [roadmap.md](roadmap.md) · Generated at the end of the parallel-agent session.
-Suite **2317 pass / 0 fail**, typecheck **0**, sandbox intact.
+← [roadmap.md](roadmap.md) · Refreshed after the reorg + Aqua Engine + three-lane session.
+Suite **2458 pass / 0 fail** (stable across four full runs), typecheck **0**, sandbox intact.
 
 ---
 
@@ -9,8 +9,9 @@ Suite **2317 pass / 0 fail**, typecheck **0**, sandbox intact.
 
 - [ ] **First git commit.** The only open launch blocker left. Months uncommitted;
       a push triggers Vercel → production, which is why it has waited.
-- [ ] **Is a "company" an Agency or a TradingCompany?** I built the switcher on
-      **Agency**. Say if you want it the other way *before* anything builds on it.
+- [x] ~~Is a "company" an Agency or a TradingCompany?~~ **SETTLED 2026-08-20:**
+      agency = holding group, trading companies stay companies and gain portals.
+      Company-promotion phases 1–3 are built on exactly this model.
 - [ ] **Walk the onboarding chain** once, on your own data: client → connection
       link → they sign in → they see their portal. Everything is built; only the
       code step has never been clicked. This is what stands between you and the
@@ -22,9 +23,9 @@ Suite **2317 pass / 0 fail**, typecheck **0**, sandbox intact.
 
 ## 🟠 Next up — mine, in order
 
-- [ ] **Element engine, phases 1–3.** One vocabulary: lift `Block` out of the
-      plugin, add the additive ABI, bring portal blocks onto the registry.
-      ~6.5 days. Unlocks everything below it.
+- [x] ~~Element engine, phases 1–3~~ **DONE 2026-08-20** — vocabulary in
+      `src/lib/elements/`, additive ABI, portal blocks on the registry with a
+      byte-parity harness guarding client-visible HTML.
 - [ ] **Engine widening + assistant proposals** (P5, P6). ~5 days. After this an
       assistant can compose real sites and portal pages. **Do not start P6 first.**
 - [ ] **Stages hold elements** — retires the four-mode enum. This IS the
@@ -39,8 +40,10 @@ Suite **2317 pass / 0 fail**, typecheck **0**, sandbox intact.
       ship in a sellable product. `inspectProductionReadiness` reads its verdict
       from env, so a sold instance would read as permanently unready. That list
       is the true scope of "sellable" and nobody has it yet.
-- [ ] **RLS as repo SQL.** Policies live only in the dashboard; nothing
-      reproduces them if the project is rebuilt.
+- [x] ~~RLS as repo SQL~~ **Already true** — 14 migrations in
+      `aquaCRM/supabase/migrations/` (the earlier "none exist" claim looked in
+      `portal/` only). Open residue: `brand_enquiries` has no `agency_id`; ~30
+      service-role call sites bypass RLS (count disputed — measure first).
 - [ ] **~12 docs still call RLS an open 🔴 blocker** in prose. Low value to you,
       high value to the next agent — stale docs are how tonight's three phantom
       blockers happened.

@@ -31,9 +31,9 @@ import {
 } from "lucide-react";
 
 import type { InboxConversationThread, InboxSnapshot } from "@/lib/inbox/types";
-import { formatElapsed } from "@/lib/leadTiming";
-import { formatUkDate } from "@/lib/formatDateTime";
-import type { OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
+import { formatElapsed } from "@/lib/enquiries/leadTiming";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
+import type { OutboundCommunicationReadiness } from "@/lib/server/email/outboundCommunications";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { EnquiryCommunications } from "./_EnquiryCommunications";

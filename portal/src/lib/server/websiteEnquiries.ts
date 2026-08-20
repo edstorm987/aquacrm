@@ -2,16 +2,16 @@ import "server-only";
 import { cache } from "react";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isWebsiteEnquiryClassification, type WebsiteEnquiryClassification } from "@/lib/enquiryClassification";
-import { publicAquaSite, publicAquaSiteName, resolvePublicAquaSite } from "@/lib/publicSites";
-import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
+import { isWebsiteEnquiryClassification, type WebsiteEnquiryClassification } from "@/lib/enquiries/enquiryClassification";
+import { publicAquaSite, publicAquaSiteName, resolvePublicAquaSite } from "@/lib/public/publicSites";
+import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import {
   resolveContactIdentity,
   upsertIdentityResolutionReview,
   type IdentityResolutionInput,
 } from "@/lib/server/identityResolution";
-import { synchroniseClientRecordLedger } from "@/lib/server/clientRecordLedger";
+import { synchroniseClientRecordLedger } from "@/lib/server/clients/clientRecordLedger";
 import { upsertPerson } from "@/server/persons";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import type { IdentityResolutionResult, IdentityResolutionStatus } from "@/server/types";

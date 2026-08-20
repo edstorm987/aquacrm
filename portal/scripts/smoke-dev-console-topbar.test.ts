@@ -25,9 +25,9 @@ import {
   devConsoleCore,
   devConsoleStatus,
   invalidateDevConsoleBadge,
-} from "../src/lib/server/devConsoleStatus";
-import { scanBlockers } from "../src/lib/server/devDocs";
-import { listFindings } from "../src/lib/server/devTeamFindings";
+} from "../src/lib/server/dev/devConsoleStatus";
+import { scanBlockers } from "../src/lib/server/dev/devDocs";
+import { listFindings } from "../src/lib/server/dev/devTeamFindings";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");

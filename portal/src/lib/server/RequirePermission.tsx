@@ -18,7 +18,7 @@ import "server-only";
 
 import type { ReactNode } from "react";
 import type { SessionPayload } from "@/server/types";
-import { effectiveRole, hasAllPermissions, type PermissionKey } from "./effectiveRole";
+import { effectiveRole, hasAllPermissions, type PermissionKey } from "@/lib/server/auth/effectiveRole";
 
 export function RequirePermission({
   session,

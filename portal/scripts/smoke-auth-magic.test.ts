@@ -17,7 +17,7 @@ import {
   _clearUsedForTests,
   registerMagicLinkDelivery,
   deliverMagicLink,
-} from "../src/lib/server/magicLink";
+} from "../src/lib/server/auth/magicLink";
 
 test("signMagicToken → verifyMagicToken round-trip", () => {
   const { token, payload } = signMagicToken({ email: "Jane@Example.COM", clientId: "cl_1", agencyId: "ag_1" });

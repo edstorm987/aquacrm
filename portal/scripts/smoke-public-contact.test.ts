@@ -12,12 +12,12 @@ const starter = readFileSync(join(ROOT, "../github-templates/starters/luxury-ser
 const inboxPage = readFileSync(join(ROOT, "src/app/portal/agency/inbox/page.tsx"), "utf8");
 const inboxUi = readFileSync(join(ROOT, "src/app/portal/agency/inbox/_MasterInbox.tsx"), "utf8");
 const inboxDetailCard = readFileSync(join(ROOT, "src/app/portal/agency/inbox/_EnquiryDetailCard.tsx"), "utf8");
-const alerts = readFileSync(join(ROOT, "src/lib/server/operationalAlerts.ts"), "utf8");
+const alerts = readFileSync(join(ROOT, "src/lib/server/inbox/operationalAlerts.ts"), "utf8");
 const repairRoute = readFileSync(join(ROOT, "src/app/api/portal/website-enquiries/lead/route.ts"), "utf8");
 const enquiryReader = readFileSync(join(ROOT, "src/lib/server/websiteEnquiries.ts"), "utf8");
 const enquiryStatusRoute = readFileSync(join(ROOT, "src/app/api/portal/website-enquiries/status/route.ts"), "utf8");
 const clientRequestRoute = readFileSync(join(ROOT, "src/app/api/tenants/client-requests/route.ts"), "utf8");
-const publicSites = readFileSync(join(ROOT, "src/lib/publicSites.ts"), "utf8");
+const publicSites = readFileSync(join(ROOT, "src/lib/public/publicSites.ts"), "utf8");
 const aquaChatbot = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/ChatBot.tsx"), "utf8");
 const aquaSupport = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/SupportForm.tsx"), "utf8");
 

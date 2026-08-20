@@ -1,4 +1,4 @@
-# `src/lib/aquaExplorerBridge.ts`
+# `src/lib/integrations/aquaExplorerBridge.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

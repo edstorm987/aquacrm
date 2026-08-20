@@ -15,10 +15,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/clients/[clientId]/_ClientOperationTaskButton.tsx`](./_ClientOperationTaskButton.md)
 - [`src/app/portal/clients/[clientId]/_ClientOperationsControl.tsx`](./_ClientOperationsControl.md)
 - [`src/app/portal/clients/[clientId]/_ClientRadarPanel.tsx`](./_ClientRadarPanel.md)
-- [`src/lib/businessRadar.ts`](../../../../lib/businessRadar.md)
-- [`src/lib/clientAquaHealth.ts`](../../../../lib/clientAquaHealth.md)
-- [`src/lib/clientOperations.ts`](../../../../lib/clientOperations.md)
-- [`src/lib/clientWorkspace.ts`](../../../../lib/clientWorkspace.md)
+- [`src/lib/clients/clientAquaHealth.ts`](../../../../lib/clients/clientAquaHealth.md)
+- [`src/lib/clients/clientOperations.ts`](../../../../lib/clients/clientOperations.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
+- [`src/lib/radar/businessRadar.ts`](../../../../lib/radar/businessRadar.md)
 
 ## Used by (1)
 

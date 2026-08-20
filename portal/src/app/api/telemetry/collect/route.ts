@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { recordClientTelemetry } from "@/lib/server/clientTelemetry";
+import { recordClientTelemetry } from "@/lib/server/clients/clientTelemetryService";
 import { recordAgencyWebsiteTelemetry } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isAllowedPublicSiteOrigin, publicAquaPropertyId, publicAquaSite } from "@/lib/publicSites";
+import { isAllowedPublicSiteOrigin, publicAquaPropertyId, publicAquaSite } from "@/lib/public/publicSites";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 
 function corsHeaders(origin: string | null): HeadersInit {

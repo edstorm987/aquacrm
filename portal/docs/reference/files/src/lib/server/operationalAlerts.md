@@ -1,4 +1,4 @@
-# `src/lib/server/operationalAlerts.ts`
+# `src/lib/server/inbox/operationalAlerts.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -13,18 +13,18 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (27)
 
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
-- [`src/lib/clientAquaHealth.ts`](../clientAquaHealth.md)
-- [`src/lib/clientContracts.ts`](../clientContracts.md)
-- [`src/lib/clientMarketingService.ts`](../clientMarketingService.md)
-- [`src/lib/clientPaymentPlans.ts`](../clientPaymentPlans.md)
-- [`src/lib/clientTelemetry.ts`](../clientTelemetry.md)
-- [`src/lib/clientWorkspace.ts`](../clientWorkspace.md)
-- [`src/lib/enquiryClassification.ts`](../enquiryClassification.md)
-- [`src/lib/formatDateTime.ts`](../formatDateTime.md)
+- [`src/lib/clients/clientAquaHealth.ts`](../clientAquaHealth.md)
+- [`src/lib/clients/clientContracts.ts`](../clientContracts.md)
+- [`src/lib/clients/clientMarketingService.ts`](../clientMarketingService.md)
+- [`src/lib/clients/clientPaymentPlans.ts`](../clientPaymentPlans.md)
+- [`src/lib/clients/clientTelemetry.ts`](../clientTelemetry.md)
+- [`src/lib/clients/clientWorkspace.ts`](../clientWorkspace.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../enquiryClassification.md)
+- [`src/lib/shared/formatDateTime.ts`](../formatDateTime.md)
 - [`src/lib/inbox/resolutionContext.ts`](../inbox/resolutionContext.md)
 - [`src/lib/inbox/resolutionFocus.ts`](../inbox/resolutionFocus.md)
-- [`src/lib/operationalAttention.ts`](../operationalAttention.md)
-- [`src/lib/server/externalAssistantProposals.ts`](./externalAssistantProposals.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../operationalAttention.md)
+- [`src/lib/server/assistants/externalAssistantProposals.ts`](./externalAssistantProposals.md)
 - [`src/lib/server/pluginStorage.ts`](./pluginStorage.md)
 - [`src/lib/server/requestNow.ts`](./requestNow.md)
 - [`src/lib/server/websiteEnquiries.ts`](./websiteEnquiries.md)
@@ -50,11 +50,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/page.tsx`](../../app/portal/agency/page.md)
 - [`src/app/portal/clients/[clientId]/layout.tsx`](../../app/portal/clients/[clientId]/layout.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
-- [`src/lib/server/advisorContext.ts`](./advisorContext.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/clientRadar.ts`](./clientRadar.md)
-- [`src/lib/server/openaiAssistant.ts`](./openaiAssistant.md)
-- [`src/lib/server/radarObservations.ts`](./radarObservations.md)
+- [`src/lib/server/assistants/advisorContext.ts`](./advisorContext.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./businessIssueRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./clientRadar.md)
+- [`src/lib/server/assistants/openaiAssistant.ts`](./openaiAssistant.md)
+- [`src/lib/server/radar/radarObservations.ts`](./radarObservations.md)
 - [`src/lib/server/resolutionPlans.ts`](./resolutionPlans.md)
 - [`src/lib/server/sidebarAttention.ts`](./sidebarAttention.md)
 

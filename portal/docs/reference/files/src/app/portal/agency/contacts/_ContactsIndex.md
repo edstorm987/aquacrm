@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (2)
 
-- [`src/lib/enquiryClassification.ts`](../../../../lib/enquiryClassification.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../../../../lib/enquiries/enquiryClassification.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 
 ## Used by (1)

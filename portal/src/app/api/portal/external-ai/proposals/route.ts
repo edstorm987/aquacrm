@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import {
   decideExternalAssistantActionProposal,
   listExternalAssistantActionProposals,
-} from "@/lib/server/externalAssistantProposals";
+} from "@/lib/server/assistants/externalAssistantProposals";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 
 const ALLOWED_ROLES = new Set(["agency-owner", "agency-manager", "agency-staff"]);

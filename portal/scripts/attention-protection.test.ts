@@ -5,8 +5,8 @@ import test from "node:test";
 import {
   buildOperationalAttentionWindow,
   buildProtectedAttentionWindow,
-} from "../src/lib/attentionProtection";
-import type { OperationalAlertView } from "../src/lib/operationalAttention";
+} from "../src/lib/intelligence/attentionProtection";
+import type { OperationalAlertView } from "../src/lib/intelligence/operationalAttention";
 
 type Work = { id: string; source: string; urgency: number };
 

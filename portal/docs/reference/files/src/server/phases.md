@@ -36,7 +36,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/clients/[clientId]/settings/page.tsx`](../app/portal/clients/[clientId]/settings/page.md)
 - [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
 - [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](../built-ins/runtime/foundation-adapters/phaseStoreAdapter.md)
-- [`src/lib/server/demoSeed.ts`](../lib/server/demoSeed.md)
-- [`src/lib/server/previewPhase.ts`](../lib/server/previewPhase.md)
+- [`src/lib/server/portal/previewPhase.ts`](../lib/server/portal/previewPhase.md)
+- [`src/lib/server/seeds/demoSeed.ts`](../lib/server/seeds/demoSeed.md)
 - [`src/server/phaseApplier.ts`](./phaseApplier.md)
 

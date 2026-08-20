@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/server/auth";
-import { buildCompanyHealthSnapshot } from "@/lib/server/companyHealthSnapshot";
+import { requireRole } from "@/lib/server/auth/auth";
+import { buildCompanyHealthSnapshot } from "@/lib/server/kpi/companyHealthSnapshot";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
@@ -11,7 +11,7 @@ import { listTradingCompanies } from "@/server/tradingCompanies";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { listSops } from "@/server/sops";
 import { listUsersForAgency } from "@/server/users";
-import { calculateServiceBrandHealth } from "@/lib/companyHealth";
+import { calculateServiceBrandHealth } from "@/lib/performance/companyHealth";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { INTEGRATION_CATALOG, type IntegrationProvider } from "@/lib/integrations/catalog";
 

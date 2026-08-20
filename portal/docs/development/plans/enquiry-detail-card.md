@@ -74,8 +74,8 @@ plan in flight._
 - `src/app/portal/agency/inbox/_WebsiteSourcesConfig.tsx`
 - `src/server/websiteFormSchemas.ts`
 - `src/server/enquiryContactDetails.ts`
-- `src/lib/enquiryFormLayout.ts`
-- `src/lib/server/aquaTagDetection.ts`
+- `src/lib/enquiries/enquiryFormLayout.ts`
+- `src/lib/server/integrations/aquaTagDetection.ts`
 - `src/app/api/portal/website-enquiries/form-template/route.ts`
 - `src/app/api/portal/website-enquiries/contact-details/route.ts`
 - `src/app/api/portal/website-sources/route.ts`

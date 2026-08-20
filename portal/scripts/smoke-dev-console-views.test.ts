@@ -51,7 +51,7 @@ describe("Logs — the changes pill", () => {
   });
 
   it("agrees with the scanner it describes — recentFiles is not truncated", () => {
-    const scanner = read("src/lib/server/devTeamWorkers.ts");
+    const scanner = read("src/lib/server/dev/devTeamWorkers.ts");
     assert.match(
       scanner,
       /NOT truncated/,

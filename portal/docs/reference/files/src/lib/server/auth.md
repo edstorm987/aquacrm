@@ -1,4 +1,4 @@
-# `src/lib/server/auth.ts`
+# `src/lib/server/auth/auth.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -282,5 +282,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/archive/multi-agency/api/agency-add.ts`](../../archive/multi-agency/api/agency-add.md)
 - [`src/archive/multi-agency/api/agency-switch.ts`](../../archive/multi-agency/api/agency-switch.md)
 - [`src/built-ins/runtime/foundation-adapters/leadFunnelPorts.ts`](../../built-ins/runtime/foundation-adapters/leadFunnelPorts.md)
-- [`src/lib/server/requireAgencyScope.ts`](./requireAgencyScope.md)
+- [`src/lib/server/auth/requireAgencyScope.ts`](./requireAgencyScope.md)
 

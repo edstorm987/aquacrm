@@ -8,10 +8,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole, getActiveAgencyId } from "@/lib/server/auth";
+import { requireRole, getActiveAgencyId } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { listPhasesForAgency } from "@/server/phases";
-import { effectiveRole } from "@/lib/server/effectiveRole";
+import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { AddCustomPhaseForm } from "./_AddCustomPhaseForm";
 import { PreviewAsClientButton, DeletePhaseButton } from "./_PhaseCardActions";
 

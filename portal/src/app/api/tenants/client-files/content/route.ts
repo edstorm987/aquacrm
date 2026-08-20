@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";

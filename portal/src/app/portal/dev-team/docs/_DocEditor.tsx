@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, LoaderCircle, Save, UserRound, Bot } from "lucide-react";
 
-import type { DocEdit } from "@/lib/server/devDocEdits";
+import type { DocEdit } from "@/lib/server/dev/devDocEdits";
 
 function ago(ms: number, now: number): string {
   if (!ms) return "—";

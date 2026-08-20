@@ -52,11 +52,11 @@ require.cache[headersId] = {
 
 // Required after the stub: this file transpiles to CJS, where `import` hoists.
 const { GET } = require("../src/app/api/portal/dev-team/workers/route") as typeof import("../src/app/api/portal/dev-team/workers/route");
-const { issueSession } = require("../src/lib/server/auth") as typeof import("../src/lib/server/auth");
+const { issueSession } = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
 const { createAgency } = require("../src/server/tenants") as typeof import("../src/server/tenants");
-const workers = require("../src/lib/server/devTeamWorkers") as typeof import("../src/lib/server/devTeamWorkers");
-const { ACTIVE_WORKER_WINDOW_MS } = require("../src/lib/server/devConsoleStatus") as typeof import("../src/lib/server/devConsoleStatus");
+const workers = require("../src/lib/server/dev/devTeamWorkers") as typeof import("../src/lib/server/dev/devTeamWorkers");
+const { ACTIVE_WORKER_WINDOW_MS } = require("../src/lib/server/dev/devConsoleStatus") as typeof import("../src/lib/server/dev/devConsoleStatus");
 const view = require("../src/app/portal/dev-team/working/_liveWorkerView") as typeof import("../src/app/portal/dev-team/working/_liveWorkerView");
 
 const { ACTIVE_CHECK_IN_WINDOW_MS, areaFor, groupActivity, isCheckInActive, readActiveCheckIns, readCheckIns, scanWorkerSignals } = workers;
@@ -190,7 +190,7 @@ describe("areaFor — which part of the app a path belongs to", () => {
     assert.equal(areaFor("src/app/portal/clients/page.tsx"), "app/portal/clients");
     assert.equal(areaFor("src/app/api/portal/dev-team/workers/route.ts"), "app/api/portal");
     assert.equal(areaFor("src/built-ins/modules/agency-finance/src/x.ts"), "built-ins/modules/agency-finance");
-    assert.equal(areaFor("src/lib/server/devTeamWorkers.ts"), "lib/server");
+    assert.equal(areaFor("src/lib/server/dev/devTeamWorkers.ts"), "lib/server");
     assert.equal(areaFor("docs/development/plans/x.md"), "docs/development");
     // A file sitting directly in docs/ is "docs", not an area of its own.
     assert.equal(areaFor("docs/README.md"), "docs");

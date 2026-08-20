@@ -26,7 +26,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (8)
 
-- [`src/lib/server/transactionalEmail.ts`](../lib/server/transactionalEmail.md)
+- [`src/lib/server/email/transactionalEmail.ts`](../lib/server/email/transactionalEmail.md)
 - [`src/lib/server/websiteEnquiries.ts`](../lib/server/websiteEnquiries.md)
 - [`src/server/activity.ts`](./activity.md)
 - [`src/server/storage.ts`](./storage.md)
@@ -44,5 +44,5 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/api/tenants/client-requests/route.ts`](../app/api/tenants/client-requests/route.md)
 - [`src/app/portal/agency/automations/_automationWorkspaceData.ts`](../app/portal/agency/automations/_automationWorkspaceData.md)
 - [`src/app/portal/agency/marketing/page.tsx`](../app/portal/agency/marketing/page.md)
-- [`src/lib/server/inboxService.ts`](../lib/server/inboxService.md)
+- [`src/lib/server/inbox/inboxService.ts`](../lib/server/inbox/inboxService.md)
 

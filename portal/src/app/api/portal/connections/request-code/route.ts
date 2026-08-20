@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getPortalConnection, issuePortalConnectionCode } from "@/server/portalConnectionStore";
-import { refusalMessage } from "@/lib/server/portalConnections";
+import { refusalMessage } from "@/lib/server/portal/portalConnections";
 import { connectionCodeEmail } from "@/lib/server/connectionConfirmation";
-import { sendTransactionalEmail, transactionalEmailReadiness } from "@/lib/server/transactionalEmail";
-import { isDevModeEnabled } from "@/lib/server/devMode";
+import { sendTransactionalEmail, transactionalEmailReadiness } from "@/lib/server/email/transactionalEmail";
+import { isDevModeEnabled } from "@/lib/server/dev/devMode";
 import { rateLimit } from "@/lib/server/rateLimit";
 
 // A cap on how many codes one connection can be sent in a window — a real

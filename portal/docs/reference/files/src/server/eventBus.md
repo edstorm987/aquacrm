@@ -22,7 +22,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](../built-ins/runtime/foundation-adapters/eventBusAdapter.md)
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
 - [`src/built-ins/runtime/foundation-adapters/personClientSeeding.ts`](../built-ins/runtime/foundation-adapters/personClientSeeding.md)
-- [`src/lib/server/radarSeeding.ts`](../lib/server/radarSeeding.md)
+- [`src/lib/server/radar/radarSeeding.ts`](../lib/server/radar/radarSeeding.md)
 - [`src/server/completedActions.ts`](./completedActions.md)
 - [`src/server/organisations.ts`](./organisations.md)
 - [`src/server/persons.ts`](./persons.md)

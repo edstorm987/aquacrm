@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBusiness, Building2, CalendarCheck2, CalendarDays, CalendarRange, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CirclePause, Clock3, Cloud, CloudOff, ExternalLink, Flag, Inbox, Info, Layers3, List, LoaderCircle, NotebookPen, Pencil, Plus, Radar, RefreshCw, Repeat2, Save, Search, Settings2, ShieldCheck, Sparkles, Target, Trash2, UserRound, Workflow, X } from "lucide-react";
-import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
+import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
 import {
   buildProtectedAttentionWindow,
   promoteForDeferrals,
   type ProtectedAttentionWindow,
-} from "@/lib/attentionProtection";
+} from "@/lib/intelligence/attentionProtection";
 import { AttentionControls } from "@/components/attention/AttentionControls";
 import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
 import { EvidenceCard } from "@/components/attention/EvidenceCard";
@@ -20,7 +20,7 @@ import { TaskChecklist } from "@/components/attention/TaskChecklist";
 import { TaskTemplateModal } from "@/components/attention/TaskTemplates";
 
 import { TodayView } from "./_TodayView";
-import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
+import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, ExternalAssistantActionProposal, SopDocument } from "@/server/types";
 import { useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
 

@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Building2, CircleAlert, UserRound } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
-import { WEBSITE_ENQUIRY_CLASSIFICATION_LABELS, type WebsiteEnquiryClassification } from "@/lib/enquiryClassification";
+import { requireRole } from "@/lib/server/auth/auth";
+import { WEBSITE_ENQUIRY_CLASSIFICATION_LABELS, type WebsiteEnquiryClassification } from "@/lib/enquiries/enquiryClassification";
 import { getClientForAgency } from "@/server/tenants";
 import {
   derivePersonState,

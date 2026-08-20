@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole, authErrorResponse } from "@/lib/server/auth";
-import { addInboxNote, sendInboxReply } from "@/lib/server/inboxService";
+import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { addInboxNote, sendInboxReply } from "@/lib/server/inbox/inboxService";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inboxMedia";
+import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
 
 export async function POST(request: NextRequest) {
   await ensureHydrated();

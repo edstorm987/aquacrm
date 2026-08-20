@@ -4,12 +4,8 @@
 
 **What it is:** Block registry for the visual editor.  Faithful port of `02/src/components/editor/blockRegistry.ts`, with the auth category preserved (login/signup/social/theme-selector/ member-gate are surfaced under "auth" in the editor's block-library sidebar even though 02 grouped some of them under "content").  Maps each BlockType to: - the React component that renders it - the default props for newly inserted blocks - a property-panel schema (which fields the editor exposes) - an icon + label for the block library sidebar  Adding a new block type: add it to BlockType in `../types/block.ts`, add the component file under `./blocks/`, and append a registry entry here. The plugin manifest derives `BlockDescriptor[]` from this map via `BLOCK_DESCRIPTORS`.
 
-## Exports (18)
+## Exports (13)
 
-- `interface BlockRenderProps (3 members)`
-- `type PropFieldType`
-- `interface PropField (7 members)`
-- `interface BlockDefinition (12 members)`
 - `BLOCK_REGISTRY: Record<string, BlockDefinition>`
 - `getBlockDefinition(type: string): BlockDefinition | undefined`
 - `listBlockDefinitions(): BlockDefinition[]`
@@ -17,22 +13,26 @@
 - `BLOCK_DESCRIPTORS: BlockDescriptor[]`
 - `BLOCK_TYPES`
 - `getBlockDescriptor(type: string): BlockDescriptor | undefined`
-- `interface BlockComponentProps (3 members)`
+- `type BlockComponentProps`
 - `interface BlockRegistryEntry (2 members)`
 - `getBlockEntry(type: string): BlockRegistryEntry | undefined`
-- `type BlockComponentType`
 - `RENDERER_REGISTRATIONS: Record<string, BlockComponentType>`
 - `getBlockRenderer(type: string): BlockComponentType | undefined`
 - `registerExternalBlockRenderers(plugins: PluginWithBlocks[]): string[]`
 
-## Depends on (3)
+## Depends on (5)
 
 - [`src/built-ins/modules/website-editor/src/components/lazyBlock.tsx`](./lazyBlock.md)
 - [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](../lib/aquaPluginTypes.md)
 - [`src/built-ins/modules/website-editor/src/types/block.ts`](../types/block.md)
+- [`src/lib/elements/definition.ts`](../../../../../lib/elements/definition.md)
+- [`src/lib/elements/registry.ts`](../../../../../lib/elements/registry.md)
 
-## Used by (97)
+## Used by (100)
 
+- [`scripts/smoke-element-engine.test.ts`](../../../../../../scripts/smoke-element-engine.test.md)
+- [`scripts/smoke-portal-elements.test.ts`](../../../../../../scripts/smoke-portal-elements.test.md)
+- [`scripts/smoke-website-visual-builder.test.ts`](../../../../../../scripts/smoke-website-visual-builder.test.md)
 - [`src/built-ins/modules/website-editor/index.ts`](../../index.md)
 - [`src/built-ins/modules/website-editor/src/__smoke__/blocks.test.ts`](../__smoke__/blocks.test.md)
 - [`src/built-ins/modules/website-editor/src/__smoke__/cross-plugin-renderers.test.ts`](../__smoke__/cross-plugin-renderers.test.md)

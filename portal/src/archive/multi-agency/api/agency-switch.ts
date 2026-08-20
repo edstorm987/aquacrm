@@ -16,8 +16,8 @@ import {
   sessionCookie,
   assertTenantScope,
   getSessionAgencyIds,
-} from "@/lib/server/auth";
-import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
+} from "@/lib/server/auth/auth";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { getUserById } from "@/server/users";
 import { getAgency } from "@/server/tenants";
 import { logActivity } from "@/server/activity";

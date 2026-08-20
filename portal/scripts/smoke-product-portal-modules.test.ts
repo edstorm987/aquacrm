@@ -2,9 +2,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { PORTAL_PRODUCT_CATALOG, type PortalProductSelection } from "../src/lib/portalProducts";
-import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle, portalProductModule } from "../src/lib/portalProductModules";
-import { BESPOKE_PRODUCT_MODULES } from "../src/lib/portalBespokeProductModules";
+import { PORTAL_PRODUCT_CATALOG, type PortalProductSelection } from "../src/lib/portal/portalProducts";
+import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle, portalProductModule } from "../src/lib/portal/portalProductModules";
+import { BESPOKE_PRODUCT_MODULES } from "../src/lib/portal/portalBespokeProductModules";
 
 const BESPOKE_PRODUCT_NAMES = [
   "Combined group project",

@@ -1,4 +1,4 @@
-# `src/lib/server/founderSeed.ts`
+# `src/lib/server/seeds/founderSeed.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -19,7 +19,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (6)
 
 - [`src/built-ins/runtime/_runtime.ts`](../../built-ins/runtime/_runtime.md)
-- [`src/lib/internalWorkspace.ts`](../internalWorkspace.md)
+- [`src/lib/shared/internalWorkspace.ts`](../internalWorkspace.md)
 - [`src/server/agencyBootstrap.ts`](../../server/agencyBootstrap.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/tenants.ts`](../../server/tenants.md)
@@ -31,5 +31,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/public/brand-enquiry/route.ts`](../../app/api/public/brand-enquiry/route.md)
 - [`src/app/api/public/careers/route.ts`](../../app/api/public/careers/route.md)
 - [`src/app/api/public/contact/route.ts`](../../app/api/public/contact/route.md)
-- [`src/lib/server/radarSourceInspection.ts`](./radarSourceInspection.md)
+- [`src/lib/server/radar/radarSourceInspection.ts`](./radarSourceInspection.md)
 

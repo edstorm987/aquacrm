@@ -11,12 +11,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (8)
 
-- [`src/lib/server/auth.ts`](../../../../../../lib/server/auth.md)
-- [`src/lib/server/businessIssueRadar.ts`](../../../../../../lib/server/businessIssueRadar.md)
-- [`src/lib/server/clientRadar.ts`](../../../../../../lib/server/clientRadar.md)
-- [`src/lib/server/radarEvidenceVault.ts`](../../../../../../lib/server/radarEvidenceVault.md)
-- [`src/lib/server/radarMemory.ts`](../../../../../../lib/server/radarMemory.md)
-- [`src/lib/server/radarSyntheticProbes.ts`](../../../../../../lib/server/radarSyntheticProbes.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](../../../../../../lib/server/radar/businessIssueRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](../../../../../../lib/server/radar/clientRadarService.md)
+- [`src/lib/server/radar/radarEvidenceVault.ts`](../../../../../../lib/server/radar/radarEvidenceVault.md)
+- [`src/lib/server/radar/radarMemory.ts`](../../../../../../lib/server/radar/radarMemory.md)
+- [`src/lib/server/radar/radarSyntheticProbes.ts`](../../../../../../lib/server/radar/radarSyntheticProbes.md)
 - [`src/server/storage.ts`](../../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../../server/types.md)
 

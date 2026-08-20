@@ -45,5 +45,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/tenants/client-files/content/route.ts`](../../app/api/tenants/client-files/content/route.md)
 - [`src/app/api/tenants/client-files/route.ts`](../../app/api/tenants/client-files/route.md)
 - [`src/app/api/tenants/client-files/upload/route.ts`](../../app/api/tenants/client-files/upload/route.md)
-- [`src/lib/server/inboxMedia.ts`](./inboxMedia.md)
+- [`src/lib/server/inbox/inboxMedia.ts`](./inbox/inboxMedia.md)
 

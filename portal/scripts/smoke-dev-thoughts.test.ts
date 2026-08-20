@@ -43,7 +43,7 @@ function worker(file: string, args: string[]) {
 
 test("a thought round-trips: post, list, group by task", async () => {
   const file = await ledger();
-  const { addThought, listThoughts, thoughtsByTask } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, listThoughts, thoughtsByTask } = await import("../src/lib/server/dev/devTeamThoughts");
 
   const posted = await addThought({ text: "  check the  gate ", author: "Ed", taskId: "plan-a#2", planName: "plan-a" });
   assert.equal(posted.text, "check the gate");
@@ -67,7 +67,7 @@ test("a thought round-trips: post, list, group by task", async () => {
 
 test("a general note stays unread for the workers who have not read it", async () => {
   await ledger();
-  const { addThought, acknowledge, unreadFor } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, acknowledge, unreadFor } = await import("../src/lib/server/dev/devTeamThoughts");
 
   const t = await addThought({ text: "everyone: stop using pnpm", author: "Ed" });
   assert.equal((await unreadFor("alpha")).length, 1);
@@ -81,7 +81,7 @@ test("a general note stays unread for the workers who have not read it", async (
 
 test("a thought aimed at one worker reaches only that worker", async () => {
   await ledger();
-  const { addThought, unreadFor } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, unreadFor } = await import("../src/lib/server/dev/devTeamThoughts");
   await addThought({ text: "yours alone", author: "Ed", worker: "Alpha" });
   assert.equal((await unreadFor("alpha")).length, 1, "case-insensitive match on the worker name");
   assert.equal((await unreadFor("bravo")).length, 0);
@@ -89,7 +89,7 @@ test("a thought aimed at one worker reaches only that worker", async () => {
 
 test("acknowledging twice as the same worker does not double-count", async () => {
   await ledger();
-  const { addThought, acknowledge } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, acknowledge } = await import("../src/lib/server/dev/devTeamThoughts");
   const t = await addThought({ text: "once", author: "Ed" });
   assert.equal(await acknowledge([t.id], "alpha"), 1);
   assert.equal(await acknowledge([t.id], "alpha"), 0);
@@ -97,7 +97,7 @@ test("acknowledging twice as the same worker does not double-count", async () =>
 
 test("the badge counts thoughts NOBODY has picked up", async () => {
   await ledger();
-  const { addThought, acknowledge, unacknowledgedCount } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, acknowledge, unacknowledgedCount } = await import("../src/lib/server/dev/devTeamThoughts");
   const a = await addThought({ text: "one", author: "Ed" });
   await addThought({ text: "two", author: "Ed" });
   assert.equal(await unacknowledgedCount(), 2);
@@ -111,7 +111,7 @@ test("a ledger written before per-reader acknowledgement still reads correctly",
     { id: "th_old", at: 1, author: "Ed", text: "legacy", acknowledgedBy: "alpha", acknowledgedAt: 2 },
     { id: "th_new", at: 3, author: "Ed", text: "unread" },
   ]);
-  const { unreadFor, unacknowledgedCount } = await import("../src/lib/server/devTeamThoughts");
+  const { unreadFor, unacknowledgedCount } = await import("../src/lib/server/dev/devTeamThoughts");
   assert.deepEqual((await unreadFor("alpha")).map(t => t.id), ["th_new"]);
   assert.equal(await unacknowledgedCount(), 1);
 });
@@ -120,7 +120,7 @@ test("a ledger written before per-reader acknowledgement still reads correctly",
 
 test("concurrent posts ALL land — none is overwritten by the next", async () => {
   const file = await ledger();
-  const { addThought } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought } = await import("../src/lib/server/dev/devTeamThoughts");
 
   const posted = await Promise.all(
     Array.from({ length: 25 }, (_, i) => addThought({ text: `note ${i}`, author: "Ed" })),
@@ -136,7 +136,7 @@ test("ids stay unique when the ledger is already at the cap", async () => {
   await seed(file, Array.from({ length: 500 }, (_, i) => ({
     id: `seed${i}`, at: i, author: "Ed", text: `seed ${i}`, readBy: { alpha: 1 },
   })));
-  const { addThought } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought } = await import("../src/lib/server/dev/devTeamThoughts");
   const posted = await Promise.all(
     Array.from({ length: 5 }, (_, i) => addThought({ text: `late ${i}`, author: "Ed" })),
   );
@@ -146,7 +146,7 @@ test("ids stay unique when the ledger is already at the cap", async () => {
 
 test("the worker script and the console never leave the ledger unparseable", async () => {
   const file = await ledger();
-  const { addThought } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought } = await import("../src/lib/server/dev/devTeamThoughts");
 
   // A ledger big enough that a write takes several flushes. The corruption
   // this pins needs exactly that: a shorter write truncating the file while a
@@ -176,7 +176,7 @@ test("a damaged ledger is left alone, not replaced with one row", async () => {
   const file = await ledger();
   const damaged = '[\n  {\n    "id": "th_1", "at": 1, "author": "Ed", "text": "keep me"\n  }\n]\n  }\n]\n';
   await writeFile(file, damaged, "utf8");
-  const { addThought, unreadFor } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, unreadFor } = await import("../src/lib/server/dev/devTeamThoughts");
 
   await assert.rejects(() => addThought({ text: "this must not land", author: "Ed" }), /not readable JSON/i);
   await assert.rejects(() => unreadFor("alpha"), /not readable JSON/i);
@@ -185,7 +185,7 @@ test("a damaged ledger is left alone, not replaced with one row", async () => {
 
 test("a missing ledger is a legitimate empty, not an error", async () => {
   await ledger(); // the file is never created
-  const { listThoughts, unacknowledgedCount, unreadFor } = await import("../src/lib/server/devTeamThoughts");
+  const { listThoughts, unacknowledgedCount, unreadFor } = await import("../src/lib/server/dev/devTeamThoughts");
   assert.deepEqual(await listThoughts(), []);
   assert.equal(await unacknowledgedCount(), 0);
   assert.deepEqual(await unreadFor("alpha"), []);
@@ -198,7 +198,7 @@ test("at the cap, an UNREAD thought is kept and a read one is archived", async (
   await seed(file, Array.from({ length: 500 }, (_, i) => ({
     id: `seed${i}`, at: 1000 - i, author: "Ed", text: `seed ${i}`, worker: "alpha",
   })));
-  const { addThought, unreadFor } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, unreadFor } = await import("../src/lib/server/dev/devTeamThoughts");
 
   await addThought({ text: "the newest", author: "Ed", worker: "alpha" });
 
@@ -216,7 +216,7 @@ test("read rows are the ones evicted at the cap, and they are archived", async (
     // The three oldest have been picked up; everything newer has not.
     readBy: i >= 497 ? { alpha: 5 } : undefined,
   })));
-  const { addThought } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought } = await import("../src/lib/server/dev/devTeamThoughts");
   await addThought({ text: "the newest", author: "Ed" });
 
   const rows = await rowsOf(file);
@@ -230,7 +230,7 @@ test("read rows are the ones evicted at the cap, and they are archived", async (
 
 test("ledgerPressure reports the backlog honestly", async () => {
   await ledger();
-  const { addThought, acknowledge, ledgerPressure } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, acknowledge, ledgerPressure } = await import("../src/lib/server/dev/devTeamThoughts");
   const a = await addThought({ text: "one", author: "Ed" });
   await addThought({ text: "two", author: "Ed" });
   await acknowledge([a.id], "alpha");
@@ -245,7 +245,7 @@ test("ledgerPressure reports the backlog honestly", async () => {
 
 test("the worker script picks up exactly what unreadFor says it should", async () => {
   const file = await ledger();
-  const { addThought, unreadFor } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, unreadFor } = await import("../src/lib/server/dev/devTeamThoughts");
   await addThought({ text: "for alpha only", author: "Ed", worker: "alpha" });
   await addThought({ text: "for everybody", author: "Ed" });
   await addThought({ text: "for bravo only", author: "Ed", worker: "bravo" });
@@ -258,7 +258,7 @@ test("the worker script picks up exactly what unreadFor says it should", async (
 
 test("the worker script acknowledges per reader, like the module does", async () => {
   const file = await ledger();
-  const { addThought, unreadFor, unacknowledgedCount } = await import("../src/lib/server/devTeamThoughts");
+  const { addThought, unreadFor, unacknowledgedCount } = await import("../src/lib/server/dev/devTeamThoughts");
   await addThought({ text: "for everybody", author: "Ed" });
 
   await worker(file, ["bravo", "--ack"]);
@@ -285,7 +285,7 @@ test("the worker script refuses to write over a damaged ledger", async () => {
 // ---- the route stays behind the founder gate --------------------------------
 
 test("the thoughts route keeps the founder + Dev Mode gate", async () => {
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   const source = await readFile(join(PROJECT_ROOT, "src/app/api/portal/dev-team/thoughts/route.ts"), "utf8");
   assert.match(source, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/, "the route must require an agency role");
   assert.match(source, /devDocsAccessible\(session\)/, "the route must check Dev Mode access");

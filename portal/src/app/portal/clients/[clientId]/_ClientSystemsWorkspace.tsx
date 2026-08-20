@@ -21,7 +21,7 @@ import {
   summarizeClientTelemetry,
   type ClientTelemetryEvent,
   type ClientTelemetrySnapshot,
-} from "@/lib/clientTelemetry";
+} from "@/lib/clients/clientTelemetry";
 
 interface SystemProperty {
   id: string;

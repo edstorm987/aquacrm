@@ -1,7 +1,7 @@
 // Shared route helpers for the Dev Team Library.
 //
 // The Library reuses the dev-docs BACKEND wholesale (`listDevDocs`/`readDevDoc`/
-// `scanBlockers` in `@/lib/server/devDocs`), but the dev-docs *view* components
+// `scanBlockers` in `@/lib/server/dev/devDocs`), but the dev-docs *view* components
 // hardcode `/portal/agency/dev-docs` in their links via a module-local `docHref`
 // and can't be parameterised without editing them (off-limits). So the Library
 // re-implements only the link-generating views (index, tree, viewer) against

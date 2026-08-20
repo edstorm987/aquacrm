@@ -1,4 +1,4 @@
-# `src/lib/server/inboxMedia.ts`
+# `src/lib/server/inbox/inboxMedia.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (8)
 
 - [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](./_ClientPortalStudio.md)
-- [`src/lib/clientWorkspace.ts`](../../../../../lib/clientWorkspace.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../../lib/clients/clientWorkspace.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/server/agencyProducts.ts`](../../../../../server/agencyProducts.md)
 - [`src/server/clientPortalDesigns.ts`](../../../../../server/clientPortalDesigns.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)

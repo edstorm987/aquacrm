@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (4)
 
-- [`src/lib/server/inboxService.ts`](../../../../lib/server/inboxService.md)
-- [`src/lib/server/inboxStore.ts`](../../../../lib/server/inboxStore.md)
-- [`src/lib/server/metaMessaging.ts`](../../../../lib/server/metaMessaging.md)
+- [`src/lib/server/inbox/inboxService.ts`](../../../../lib/server/inbox/inboxService.md)
+- [`src/lib/server/inbox/inboxStore.ts`](../../../../lib/server/inbox/inboxStore.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](../../../../lib/server/integrations/metaMessaging.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 
 ## Used by

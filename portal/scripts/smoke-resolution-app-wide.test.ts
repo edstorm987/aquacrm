@@ -7,7 +7,7 @@ import {
   type ResolutionPlan,
 } from "../src/lib/inbox/resolutionContext";
 import { inferResolutionFocus, withResolutionContexts } from "../src/lib/inbox/resolutionFocus";
-import type { OperationalAlert } from "../src/lib/operationalAttention";
+import type { OperationalAlert } from "../src/lib/intelligence/operationalAttention";
 
 function alert(id: string, href: string): OperationalAlert {
   return {

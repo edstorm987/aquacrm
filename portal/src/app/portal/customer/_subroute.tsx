@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { getInstall } from "@/server/pluginInstalls";
 
 export interface SubrouteConfig {

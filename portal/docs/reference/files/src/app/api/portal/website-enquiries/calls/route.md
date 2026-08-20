@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/outboundCommunications.ts`](../../../../../lib/server/outboundCommunications.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/email/outboundCommunications.ts`](../../../../../lib/server/email/outboundCommunications.md)
 - [`src/lib/server/websiteEnquiries.ts`](../../../../../lib/server/websiteEnquiries.md)
 - [`src/lib/server/websiteEnquiryLeadSync.ts`](../../../../../lib/server/websiteEnquiryLeadSync.md)
 - [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)

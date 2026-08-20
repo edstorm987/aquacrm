@@ -7,12 +7,12 @@ import { IntegrationConnectionsPanel } from "@/app/portal/agency/settings/Integr
 import { useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
-import type { OperationalAlertView } from "@/lib/operationalAttention";
+import type { OperationalAlertView } from "@/lib/intelligence/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
-import { formatElapsed, LEAD_WAIT_THRESHOLDS } from "@/lib/leadTiming";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatElapsed, LEAD_WAIT_THRESHOLDS } from "@/lib/enquiries/leadTiming";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type { InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
-import type { OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
+import type { OutboundCommunicationReadiness } from "@/lib/server/email/outboundCommunications";
 import { SocialInboxWorkspace } from "./_SocialInboxWorkspace";
 import { EnquiryDetailCard } from "./_EnquiryDetailCard";
 import { UnifiedInboxWorkspace, type UnifiedClientProfile } from "./_UnifiedInboxWorkspace";
@@ -23,7 +23,7 @@ import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
-} from "@/lib/enquiryClassification";
+} from "@/lib/enquiries/enquiryClassification";
 
 type Conversation = {
   id: string;

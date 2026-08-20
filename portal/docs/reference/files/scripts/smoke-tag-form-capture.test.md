@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/aquaTagSource.ts`](../src/lib/aquaTagSource.md)
+- [`src/lib/integrations/aquaTagSource.ts`](../src/lib/integrations/aquaTagSource.md)
 
 ## Used by
 

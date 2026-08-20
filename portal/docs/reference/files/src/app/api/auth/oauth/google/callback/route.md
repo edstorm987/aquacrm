@@ -10,9 +10,9 @@
 
 ## Depends on (8)
 
-- [`src/lib/server/auth.ts`](../../../../../../lib/server/auth.md)
-- [`src/lib/server/oauthGoogle.ts`](../../../../../../lib/server/oauthGoogle.md)
-- [`src/lib/server/postLoginRedirect.ts`](../../../../../../lib/server/postLoginRedirect.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/postLoginRedirect.ts`](../../../../../../lib/server/auth/postLoginRedirect.md)
+- [`src/lib/server/integrations/oauthGoogle.ts`](../../../../../../lib/server/integrations/oauthGoogle.md)
 - [`src/server/activity.ts`](../../../../../../server/activity.md)
 - [`src/server/agencyBootstrap.ts`](../../../../../../server/agencyBootstrap.md)
 - [`src/server/storage.ts`](../../../../../../server/storage.md)

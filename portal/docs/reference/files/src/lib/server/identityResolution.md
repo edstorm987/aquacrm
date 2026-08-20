@@ -19,7 +19,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
-- [`src/lib/clientContacts.ts`](../clientContacts.md)
+- [`src/lib/clients/clientContacts.ts`](../clients/clientContacts.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/tenants.ts`](../../server/tenants.md)
 - [`src/server/types.ts`](../../server/types.md)
@@ -32,7 +32,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/inbox/page.tsx`](../../app/portal/agency/inbox/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
-- [`src/lib/server/inboxService.ts`](./inboxService.md)
+- [`src/lib/server/inbox/inboxService.ts`](./inbox/inboxService.md)
 - [`src/lib/server/websiteEnquiries.ts`](./websiteEnquiries.md)
 - [`src/server/persons.ts`](../../server/persons.md)
 

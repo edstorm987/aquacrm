@@ -3,11 +3,11 @@ import { ArrowLeft, KeyRound, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { AvatarUploader } from "@/app/portal/account/AvatarUploader";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { listOwnPortalConnections } from "@/server/portalConnectionStore";
-import { getAuthBrand } from "@/lib/authBrand";
+import { getAuthBrand } from "@/lib/brands/authBrand";
 import { ConnectedApps } from "./_ConnectedApps";
 
 function initials(seed: string): string {

@@ -13,8 +13,8 @@
 
 - [`src/app/portal/agency/dev-docs/_DevDocViewer.tsx`](./_DevDocViewer.md)
 - [`src/app/portal/agency/dev-docs/_DevDocsIndex.tsx`](./_DevDocsIndex.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/devDocs.ts`](../../../../lib/server/devDocs.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../../lib/server/dev/devDocs.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

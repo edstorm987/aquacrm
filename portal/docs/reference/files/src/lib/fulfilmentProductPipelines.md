@@ -1,4 +1,4 @@
-# `src/lib/fulfilmentProductPipelines.ts`
+# `src/lib/products/fulfilmentProductPipelines.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -14,8 +14,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/portalProducts.ts`](./portalProducts.md)
-- [`src/lib/productInternalWorkspace.ts`](./productInternalWorkspace.md)
+- [`src/lib/portal/portalProducts.ts`](./portalProducts.md)
+- [`src/lib/products/productInternalWorkspace.ts`](./productInternalWorkspace.md)
 - [`src/server/types.ts`](../server/types.md)
 
 ## Used by (3)

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { dateFromValue, formatUkDate } from "@/lib/formatDateTime";
+import { dateFromValue, formatUkDate } from "@/lib/shared/formatDateTime";
 import type { NotepadFolder, NotepadNote, NotepadNoteStatus } from "@/server/types";
 
 type NotebookView = "all" | "pinned" | "archived" | "trashed" | `folder:${string}`;

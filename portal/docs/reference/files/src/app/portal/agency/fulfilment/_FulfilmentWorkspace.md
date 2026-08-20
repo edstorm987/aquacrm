@@ -21,7 +21,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](../portals/_PortalsWorkspace.md)
 - [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](../products/_ProductsWorkspace.md)
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](../../../../components/chrome/NotificationAttentionProvider.md)
-- [`src/lib/clientWorkspace.ts`](../../../../lib/clientWorkspace.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 
 ## Used by (1)

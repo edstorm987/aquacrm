@@ -5,11 +5,11 @@ import {
   getSessionFromRequest,
   issueSession,
   sessionCookie,
-} from "@/lib/server/auth";
-import { canUseDevMode } from "@/lib/server/devModeAccess";
-import { devModeStatus } from "@/lib/server/devMode";
-import { effectiveRole } from "@/lib/server/effectiveRole";
-import { seedDemoAgency, ensureDemoStaffEmployee, ensureDemoCustomerReady, ensureDemoFreelancer, DEMO_STAFF_EMAIL, DEMO_FREELANCER_EMAIL, type SeedDemoResult } from "@/lib/server/demoSeed";
+} from "@/lib/server/auth/auth";
+import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
+import { devModeStatus } from "@/lib/server/dev/devMode";
+import { effectiveRole } from "@/lib/server/auth/effectiveRole";
+import { seedDemoAgency, ensureDemoStaffEmployee, ensureDemoCustomerReady, ensureDemoFreelancer, DEMO_STAFF_EMAIL, DEMO_FREELANCER_EMAIL, type SeedDemoResult } from "@/lib/server/seeds/demoSeed";
 import type { ServerUser, SessionPayload } from "@/server/types";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getAgency } from "@/server/tenants";

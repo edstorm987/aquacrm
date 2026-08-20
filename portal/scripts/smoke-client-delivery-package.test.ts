@@ -18,7 +18,7 @@ before(() => {
 
 describe("client delivery package", () => {
   it("turns the agreed sale into a ready portal and planned development work", async () => {
-    const { clientDeliveryPackageMetadata } = await import("../src/lib/server/customerPortalProvisioning");
+    const { clientDeliveryPackageMetadata } = await import("../src/lib/server/clients/customerPortalProvisioning");
     const existingProperty = {
       id: "prop_existing",
       label: "North & Pine photography gallery",
@@ -57,7 +57,7 @@ describe("client delivery package", () => {
   });
 
   it("preserves existing work and does not create a duplicate planned build", async () => {
-    const { clientDeliveryPackageMetadata } = await import("../src/lib/server/customerPortalProvisioning");
+    const { clientDeliveryPackageMetadata } = await import("../src/lib/server/clients/customerPortalProvisioning");
     const existingWebsite = {
       id: "prop_existing_site",
       label: "North & Pine website",

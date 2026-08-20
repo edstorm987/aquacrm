@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (6)
 
-- [`src/lib/portalProductWorkspaces.ts`](../lib/portalProductWorkspaces.md)
-- [`src/lib/portalProducts.ts`](../lib/portalProducts.md)
-- [`src/lib/productAssignments.ts`](../lib/productAssignments.md)
+- [`src/lib/portal/portalProductWorkspaces.ts`](../lib/portal/portalProductWorkspaces.md)
+- [`src/lib/portal/portalProducts.ts`](../lib/portal/portalProducts.md)
+- [`src/lib/products/productAssignments.ts`](../lib/products/productAssignments.md)
 - [`src/server/agencyProducts.ts`](./agencyProducts.md)
 - [`src/server/tenants.ts`](./tenants.md)
 - [`src/server/types.ts`](./types.md)
@@ -30,6 +30,6 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/api/tenants/product-workspaces/route.ts`](../app/api/tenants/product-workspaces/route.md)
 - [`src/app/portal/agency/fulfilment/page.tsx`](../app/portal/agency/fulfilment/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
-- [`src/lib/server/clientRadar.ts`](../lib/server/clientRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](../lib/server/radar/clientRadarService.md)
 - [`src/server/clientPortalSetup.ts`](./clientPortalSetup.md)
 

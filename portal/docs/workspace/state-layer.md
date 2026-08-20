@@ -3,7 +3,7 @@
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
 The source of truth: the in-memory `PortalState` singleton plus all CRUD/domain
-functions that read and `mutate` it. **49 files, all flat** (no subdirs). Nearly
+functions that read and `mutate` it. **57 files, all flat** (re-counted 2026-08-20) (no subdirs). Nearly
 every module is a set of pure functions operating on one `PortalState`
 collection, gated by `agencyId`.
 

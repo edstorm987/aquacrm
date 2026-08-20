@@ -286,7 +286,7 @@ describe("dashboard command centre surface", () => {
       readFile(new URL("../src/components/chrome/PortalRouteCanvas.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/components/chrome/SmartWorkSessionMonitor.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/layout.tsx", import.meta.url), "utf8"),
-      readFile(new URL("../src/lib/server/advisorSkillContext.ts", import.meta.url), "utf8"),
+      readFile(new URL("../src/lib/server/assistants/advisorSkillContext.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/globals.css", import.meta.url), "utf8"),
     ]);
     const [clockOutReview, weeklyReview, daySensor] = await Promise.all([

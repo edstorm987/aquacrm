@@ -1,4 +1,4 @@
-# `src/lib/businessRecommendedActions.ts`
+# `src/lib/intelligence/businessRecommendedActions.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -10,12 +10,12 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (6)
 
-- [`src/lib/advisorActions.ts`](./advisorActions.md)
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/advisor/advisorActions.ts`](./advisorActions.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
 - [`src/lib/inbox/evidenceSteps.ts`](./inbox/evidenceSteps.md)
 - [`src/lib/inbox/resolutionExplain.ts`](./inbox/resolutionExplain.md)
-- [`src/lib/operationalAttention.ts`](./operationalAttention.md)
-- [`src/lib/radarClassification.ts`](./radarClassification.md)
+- [`src/lib/intelligence/operationalAttention.ts`](./operationalAttention.md)
+- [`src/lib/radar/radarClassification.ts`](./radarClassification.md)
 
 ## Used by (6)
 
@@ -24,5 +24,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/_DashboardCommandCenter.tsx`](../app/portal/agency/_DashboardCommandCenter.md)
 - [`src/app/portal/agency/actions/_ActionsPage.tsx`](../app/portal/agency/actions/_ActionsPage.md)
 - [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
-- [`src/lib/server/advisorContext.ts`](./server/advisorContext.md)
+- [`src/lib/server/assistants/advisorContext.ts`](./server/advisorContext.md)
 

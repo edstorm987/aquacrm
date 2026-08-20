@@ -43,11 +43,11 @@ Codex workers in ONE uncommitted tree, two agents in the same file destroys work
 no git to recover from. Before assigning this plan, check these paths against every other
 plan in flight._
 
-- `src/lib/advisorSkills.ts`
-- `src/lib/advisorActions.ts`
-- `src/lib/server/advisorSkills.ts`
-- `src/lib/server/advisorSkillContext.ts`
-- `src/lib/server/openaiAssistant.ts`
+- `src/lib/advisor/advisorSkills.ts`
+- `src/lib/advisor/advisorActions.ts`
+- `src/lib/server/assistants/advisorSkillsService.ts`
+- `src/lib/server/assistants/advisorSkillContext.ts`
+- `src/lib/server/assistants/openaiAssistant.ts`
 - `src/app/api/portal/advisor/skills/route.ts`
 - `src/app/api/assistant/route.ts`
 - `src/app/portal/agency/assistant/AssistantWorkspace.tsx`

@@ -17,5 +17,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/app/portal/agency/performance/_AquaTagDashboard.tsx`](../../app/portal/agency/performance/_AquaTagDashboard.md)
 - [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](../../app/portal/agency/settings/IntegrationConnectionsPanel.md)
-- [`src/lib/server/integrationConnections.ts`](../server/integrationConnections.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](../server/integrations/integrationConnections.md)
 

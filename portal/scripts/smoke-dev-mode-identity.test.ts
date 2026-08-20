@@ -28,7 +28,7 @@ import { NextRequest } from "next/server";
 import { POST } from "../src/app/api/auth/dev-mode/route";
 import { POST as previewFreelancerPOST } from "../src/app/api/auth/preview-as-freelancer/route";
 import { createFreelancer, listAgencyFreelancers } from "../src/server/freelancerAdmin";
-import { issueSession, verifyToken, SESSION_COOKIE_NAME } from "../src/lib/server/auth";
+import { issueSession, verifyToken, SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";

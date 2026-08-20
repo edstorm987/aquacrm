@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Building2, Mail, Pencil, Phone, Plus, Star, Trash2, UserRound } from "lucide-react";
-import type { ClientContact, ClientEntityType } from "@/lib/clientContacts";
+import type { ClientContact, ClientEntityType } from "@/lib/clients/clientContacts";
 
 const EMPTY = { id: "", name: "", email: "", phone: "", role: "", notes: "", primary: false };
 

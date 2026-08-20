@@ -1,4 +1,4 @@
-# `src/lib/server/clientAttention.ts`
+# `src/lib/server/clients/clientAttention.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/server/clientRadar.ts`](./clientRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./clientRadar.md)
 - [`src/server/tenants.ts`](../../server/tenants.md)
 
 ## Used by (3)

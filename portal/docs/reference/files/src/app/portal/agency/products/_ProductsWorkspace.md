@@ -18,9 +18,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (4)
 
-- [`src/lib/agencyProductCategories.ts`](../../../../lib/agencyProductCategories.md)
-- [`src/lib/portalProducts.ts`](../../../../lib/portalProducts.md)
-- [`src/lib/productInternalWorkspace.ts`](../../../../lib/productInternalWorkspace.md)
+- [`src/lib/portal/portalProducts.ts`](../../../../lib/portal/portalProducts.md)
+- [`src/lib/products/agencyProductCategories.ts`](../../../../lib/products/agencyProductCategories.md)
+- [`src/lib/products/productInternalWorkspace.ts`](../../../../lib/products/productInternalWorkspace.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 
 ## Used by (4)

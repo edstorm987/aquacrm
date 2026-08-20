@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Used by (3)
 
-- [`src/lib/server/auth.ts`](../server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../server/auth/auth.md)
 - [`src/lib/supabase/route.ts`](./route.md)
 - [`src/lib/supabase/server.ts`](./server.md)
 

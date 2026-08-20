@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { PUBLIC_AQUA_SITES, publicAquaSiteName } from "@/lib/publicSites";
+import { PUBLIC_AQUA_SITES, publicAquaSiteName } from "@/lib/public/publicSites";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { resolveAgencyByMasterSiteKey, resolveWebsiteSourceRouting } from "@/server/websiteSources";
-import { upsertClientRecordLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import {
   additionalFields, derivePurpose, describeForm, type CapturedField,
 } from "@/lib/enquiries/formCapture";

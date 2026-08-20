@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { listActivity } from "@/server/activity";
-import { getSessionFromRequest } from "@/lib/server/auth";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 
 export async function GET(req: NextRequest) {

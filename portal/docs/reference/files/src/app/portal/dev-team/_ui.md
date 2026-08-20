@@ -4,7 +4,7 @@
 
 _No file-level doc-comment. Purpose inferred from its path (App routes & UI — src/app/) and its exports below._
 
-## Exports (14)
+## Exports (17)
 
 - `ACCENT`
 - `ACCENT_SOFT`
@@ -20,24 +20,29 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `NavCard({ href, icon, label, hint, accent, badge, }: { href: string; icon?: ReactNode; label: string; hint?: string; /** Key into ACCENTS — gives the card its meaning-colour. */ accent?: string; badge?: ReactNode; })`
 - `Pill({ children, tone = "muted", }: { children: ReactNode; tone?: "muted" | "danger" | "ok" | "accent" | "warn"; })`
 - `EmptyState({ children }: { children: ReactNode })`
+- `interface SectionView (3 members)`
+- `SECTION_VIEWS: Record<string, SectionView[]>`
+- `ViewTabs({ section, active }: { section: keyof typeof SECTION_VIEWS | string; active: string })`
 
-## Used by (17)
+## Used by (19)
 
-- [`src/app/portal/dev-team/api/page.tsx`](./api/page.md)
-- [`src/app/portal/dev-team/auditor/page.tsx`](./auditor/page.md)
+- [`src/app/portal/dev-team/api/_Section.tsx`](./api/_Section.md)
+- [`src/app/portal/dev-team/auditor/_Section.tsx`](./auditor/_Section.md)
 - [`src/app/portal/dev-team/docs/page.tsx`](./docs/page.md)
 - [`src/app/portal/dev-team/editor/_AppConfigEditor.tsx`](./editor/_AppConfigEditor.md)
-- [`src/app/portal/dev-team/editor/page.tsx`](./editor/page.md)
+- [`src/app/portal/dev-team/editor/_Section.tsx`](./editor/_Section.md)
+- [`src/app/portal/dev-team/findings/_Section.tsx`](./findings/_Section.md)
 - [`src/app/portal/dev-team/findings/page.tsx`](./findings/page.md)
 - [`src/app/portal/dev-team/inspector/InspectorClient.tsx`](./inspector/InspectorClient.md)
-- [`src/app/portal/dev-team/inspector/page.tsx`](./inspector/page.md)
+- [`src/app/portal/dev-team/inspector/_Section.tsx`](./inspector/_Section.md)
 - [`src/app/portal/dev-team/layout.tsx`](./layout.md)
 - [`src/app/portal/dev-team/library/_LibraryIndex.tsx`](./library/_LibraryIndex.md)
-- [`src/app/portal/dev-team/logs/page.tsx`](./logs/page.md)
+- [`src/app/portal/dev-team/library/page.tsx`](./library/page.md)
+- [`src/app/portal/dev-team/logs/_Section.tsx`](./logs/_Section.md)
 - [`src/app/portal/dev-team/page.tsx`](./page.md)
 - [`src/app/portal/dev-team/plans/new/page.tsx`](./plans/new/page.md)
-- [`src/app/portal/dev-team/tasks/page.tsx`](./tasks/page.md)
+- [`src/app/portal/dev-team/roadmap/page.tsx`](./roadmap/page.md)
+- [`src/app/portal/dev-team/tools/page.tsx`](./tools/page.md)
+- [`src/app/portal/dev-team/updates/_Section.tsx`](./updates/_Section.md)
 - [`src/app/portal/dev-team/updates/_UpdateComposer.tsx`](./updates/_UpdateComposer.md)
-- [`src/app/portal/dev-team/updates/page.tsx`](./updates/page.md)
-- [`src/app/portal/dev-team/working/page.tsx`](./working/page.md)
 

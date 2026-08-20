@@ -1,7 +1,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import type { ClientContractTemplate } from "@/lib/clientContracts";
+import type { ClientContractTemplate } from "@/lib/clients/clientContracts";
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
 

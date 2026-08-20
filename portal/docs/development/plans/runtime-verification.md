@@ -2,16 +2,17 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
-**Status: BUILDING — Phase 1 cleared (isolated sandboxes exist); 3 of the 5 critical flows in Phase 2 remain unverified.** Actually run the app and confirm the launch-critical flows work end-to-end — turning "coded + static-tested" into "verified", per [status.md](../status.md).
+**Status: BUILDING — Phase 1 cleared (isolated sandboxes); Phase 2: the route sweep (60/60 clean) and the CONNECT-CODE CHAIN are browser-verified 2026-08-20 late evening. Remaining unwalked: staff team, freelancer workspace, internal chat, public bucket, Meta inbox (blocked on Ed's Meta app).
 flows work end-to-end — turning "coded + static-tested" into "verified", per
 [status.md](../status.md). ("A passing test ≠ working.")
 
-## Where we are
-- Nothing has been runtime-verified; most features are coded + static-source-tested only.
-- **Blocked on a runnable server** — another session holds port 3032 and the preview system won't start a second server for this dir. `npm run dev:verify` (file backend, added) is ready but needs a free port.
+## Where we are (corrected 2026-08-20)
+- **Not "nothing" any more.** The earlier text here said nothing had been runtime-verified and that this plan was blocked on a free port. Both statements are stale: on 2026-08-20 alone, workers browser-verified the Dev Console topbar on `:3047`, the element-block render on `:3043` and finance double-click idempotency on `:3051` — three sandboxes at once.
+- **The port blocker is SOLVED, not waiting on Ed.** `npm run sandbox:fork` ([`package.json:85`](../../../package.json) → `scripts/fork-sandbox.mjs`) gives each worker its own state file, build dir and port, so "another session holds 3032" no longer stops anyone. `npm run dev:verify` ([`package.json:9`](../../../package.json)) still exists for a file-backed run.
+- **What remains is the walk, not the runway.** Most features are coded + static-source-tested; the named critical flows below are the ones still to be driven by hand.
 
 ## Phases
-1. **Server access.** Free 3032 (stop the idle session) *or* run `npm run dev:verify` on an assigned port. Confirm it boots against the seeded `.data` sandbox (milesymedia + 13 clients).
+1. ✅ **Server access.** Cleared — `npm run sandbox:fork` gives every worker an isolated sandbox (own `PORTAL_DATA_FILE`, `NEXT_DIST_DIR` and port), so no one waits on 3032. This is no longer a decision for Ed.
 2. **Verify the critical flows** (as the real roles):
    - Enquiry ingestion: Aqua Tag / `POST /api/public/brand-enquiry` → dedupe → inbox (⚠ writes live Supabase — use clearly-labelled test data).
    - Customer portal actually loads for an `end-customer`.
@@ -25,8 +26,8 @@ flows work end-to-end — turning "coded + static-tested" into "verified", per
 `npm run dev:verify` (file backend — keeps state off live Supabase), the `.mjs` HTTP harnesses (`smoke.mjs`, `smoke-ux.mjs`), the browser preview tools.
 
 ## Decisions (Ed)
-- How to free a server (stop the other session, or dedicate one).
-- Whether a single labelled test enquiry to live Supabase is OK (else verify the validation/negative paths only).
+- ~~How to free a server (stop the other session, or dedicate one).~~ **Moot — `sandbox:fork` gives each worker its own.**
+- Whether a single labelled test enquiry to live Supabase is OK (else verify the validation/negative paths only). **Still open.**
 
 ## Done when
 The critical-flow rows in [status.md](../status.md) are `runtime-verified` with dates and what was checked — and any breakage found is fixed + covered by a behavioural test.

@@ -14,7 +14,7 @@
 - [`src/built-ins/modules/agency-hr/src/lib/aquaPluginTypes.ts`](./src/lib/aquaPluginTypes.md)
 - [`src/built-ins/modules/agency-hr/src/server/foundationAdapter.ts`](./src/server/foundationAdapter.md)
 
-## Used by
+## Used by (1)
 
-_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+- [`scripts/smoke-nav-audit.test.ts`](../../../../scripts/smoke-nav-audit.test.md)
 

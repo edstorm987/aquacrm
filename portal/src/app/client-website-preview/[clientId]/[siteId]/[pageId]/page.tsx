@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { PortalPageRenderer } from "@/built-ins/modules/website-editor/src/components/storefront/PortalPageRenderer";
 import { getPage } from "@/built-ins/modules/website-editor/src/server/pages";
 import { getDefaultTheme, getTheme } from "@/built-ins/modules/website-editor/src/server/themes";
-import { requireRoleForClient } from "@/lib/server/auth";
+import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ensureHydrated } from "@/server/storage";
 import { listInstalledForClientOnly } from "@/server/pluginInstalls";

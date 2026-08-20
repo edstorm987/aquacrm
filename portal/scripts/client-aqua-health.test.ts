@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateClientAquaHealth, clientTelemetryRiskSignals } from "../src/lib/clientAquaHealth";
-import type { ClientTelemetryEvent } from "../src/lib/clientTelemetry";
+import { calculateClientAquaHealth, clientTelemetryRiskSignals } from "../src/lib/clients/clientAquaHealth";
+import type { ClientTelemetryEvent } from "../src/lib/clients/clientTelemetry";
 
 const DAY = 86_400_000;
 

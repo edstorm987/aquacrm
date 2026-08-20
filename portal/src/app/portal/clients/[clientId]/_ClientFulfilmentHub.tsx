@@ -14,7 +14,7 @@ import {
   UserRoundSearch,
 } from "lucide-react";
 
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 export function ClientFulfilmentHub({
   clientId,

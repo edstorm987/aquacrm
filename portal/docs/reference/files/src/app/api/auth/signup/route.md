@@ -2,25 +2,31 @@
 
 ← [File index](../../../../../../files-index.md) · Area: App routes & UI — src/app/
 
-**What it is:** POST /api/auth/signup — create new agency + Founder user + auto-login. R020.  Different from /api/auth/login first-run bootstrap: that path only fires when there are zero agencies. /signup creates a NEW agency for any visitor — the marketing-site Demo CTA + future Sign-up CTA route here.  Flow: 1. IP rate-limit (5/min) — slows scripted signup floods. 2. Validate email + password (≥8) + companyName. 3. `getUser(email)` collision → 409 (existing account → redirect to /login). 4. `bootstrapAgency` (creates Agency + auto-installs core plugins — kanban / sops / agency-hr / fulfillment seed defaults via their onInstall hooks). 5. `createUser(role:"agency-owner")`. 6. Sign verification token (HMAC, 24h TTL); dev-mode includes the verify URL in the response body and console-logs it. Production response just hands back the auto-login session cookie. 7. `issueSession` → `lk_session_v1` cookie set on response → user is auto-logged-in. Client-side form redirects to /portal/agency.
+**What it is:** POST /api/auth/signup — TWO callers, two completely different outcomes.  ─── 1. A native form post from a published website (the visitor path) ────  `SignupFormBlock` renders a plain `<form method="POST">` with no JS, so a visitor's browser full-page-navigates here with an `application/x-www-form-urlencoded` body. Two bugs met at that point:  (a) ENCODING. This route parsed with `req.json()` only, the parse threw, and the visitor landed on a raw `{"ok":false,"error":"Invalid request."}` blob with no way back. Same failure `api/auth/login` had (issues.md #14) and the fix is the same shape: branch on content-type, answer a browser with a 303 back to the page it came from, and put nothing about the submission in the URL.  (b) WHAT IT DID. Far worse than the blob. A visitor to a CLIENT's website who filled in "create account" was run through `bootstrapAgency()` — a whole new AGENCY, with core plugins installed and an owner login, created by a stranger from a contact form. Ed's decision (2026-08-20): "it creates a website lead not a client, key distinction... then we manually talk with the customer, book them a meeting, and then we have the create-customer button to turn them."  So the form path creates a LEAD and nothing else. It never calls `bootstrapAgency`, never calls `createUser`, never issues a session, and never reads a password. The lead lands in `leads-pipeline` — the same service `api/public/contact` and `api/public/brand-enquiry` already deposit website enquiries into — and an operator promotes it with the existing convert-to-client button when the conversation is real. No second capture mechanism was built for this.  ─── 2. A JSON post (the product path) ───────────────────────────────────  Unchanged, deliberately. AquaCRM's own product signup — somebody choosing to create an AquaCRM workspace — is a real thing and still bootstraps an agency + owner + verification email + auto-login. Every byte of that handler below is as it was; the form branch is in front of it, not around it.  The two are told apart by content-type, exactly as `api/auth/login` tells a browser post from a fetch caller. A published-site block can only ever produce the form-encoded kind, so a website visitor can no longer reach the agency-creating path at all.
 
 ## Exports (1)
 
 - `async POST(req: NextRequest)`
 
-## Depends on (9)
+## Depends on (15)
 
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/emailVerification.ts`](../../../../lib/server/emailVerification.md)
-- [`src/lib/server/postLoginRedirect.ts`](../../../../lib/server/postLoginRedirect.md)
+- [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/emailVerification.ts`](../../../../lib/server/auth/emailVerification.md)
+- [`src/lib/server/auth/postLoginRedirect.ts`](../../../../lib/server/auth/postLoginRedirect.md)
+- [`src/lib/server/email/transactionalEmail.ts`](../../../../lib/server/email/transactionalEmail.md)
+- [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
-- [`src/lib/server/transactionalEmail.ts`](../../../../lib/server/transactionalEmail.md)
+- [`src/lib/server/seeds/founderSeed.ts`](../../../../lib/server/seeds/founderSeed.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/agencyBootstrap.ts`](../../../../server/agencyBootstrap.md)
+- [`src/server/pluginInstalls.ts`](../../../../server/pluginInstalls.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
+- [`src/server/tenants.ts`](../../../../server/tenants.md)
 - [`src/server/users.ts`](../../../../server/users.md)
+- [`src/server/websiteSources.ts`](../../../../server/websiteSources.md)
 
-## Used by
+## Used by (1)
 
-_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+- [`scripts/smoke-website-signup-lead.test.ts`](../../../../../scripts/smoke-website-signup-lead.test.md)
 

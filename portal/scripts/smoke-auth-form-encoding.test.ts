@@ -33,7 +33,7 @@ import { POST } from "../src/app/api/auth/login/route";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
-import { SESSION_COOKIE_NAME } from "../src/lib/server/auth";
+import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");

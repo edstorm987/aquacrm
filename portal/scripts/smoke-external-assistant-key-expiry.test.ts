@@ -33,8 +33,8 @@ require.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type Keys = typeof import("../src/lib/server/externalAssistantKeys");
-type Gateway = typeof import("../src/lib/server/externalAssistantApi");
+type Keys = typeof import("../src/lib/server/assistants/externalAssistantKeys");
+type Gateway = typeof import("../src/lib/server/assistants/externalAssistantApi");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -51,8 +51,8 @@ before(async () => {
   delete process.env.AQUACRM_ASSISTANT_API_TOKEN;
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  keys = await import("../src/lib/server/externalAssistantKeys");
-  gateway = await import("../src/lib/server/externalAssistantApi");
+  keys = await import("../src/lib/server/assistants/externalAssistantKeys");
+  gateway = await import("../src/lib/server/assistants/externalAssistantApi");
   await storage.ensureHydrated();
   agencyId = tenants.createAgency({ name: "Key expiry smoke", slug: "key-expiry-smoke" }).id;
   process.env.AQUACRM_ASSISTANT_AGENCY_ID = agencyId;

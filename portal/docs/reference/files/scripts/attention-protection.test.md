@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/attentionProtection.ts`](../src/lib/attentionProtection.md)
-- [`src/lib/operationalAttention.ts`](../src/lib/operationalAttention.md)
+- [`src/lib/intelligence/attentionProtection.ts`](../src/lib/intelligence/attentionProtection.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../src/lib/intelligence/operationalAttention.md)
 
 ## Used by
 

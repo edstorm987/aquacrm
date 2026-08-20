@@ -9,7 +9,7 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (2)
 
 - [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](../src/built-ins/modules/agency-marketing/src/lib/domain.md)
-- [`src/lib/customerProfileScope.ts`](../src/lib/customerProfileScope.md)
+- [`src/lib/people/customerProfileScope.ts`](../src/lib/people/customerProfileScope.md)
 
 ## Used by
 

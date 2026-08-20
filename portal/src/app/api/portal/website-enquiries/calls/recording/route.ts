@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { logActivity } from "@/server/activity";

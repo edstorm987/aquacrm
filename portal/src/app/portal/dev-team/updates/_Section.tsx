@@ -3,9 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { Megaphone } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { formatUkDate } from "@/lib/formatDateTime";
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import {
   MAX_ENTRIES,
   UPDATES_DOC_REL,
@@ -13,7 +13,7 @@ import {
   scanUpdates,
   todayIsoDay,
   type DevUpdateEntry,
-} from "@/lib/server/devTeamUpdates";
+} from "@/lib/server/dev/devTeamUpdates";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

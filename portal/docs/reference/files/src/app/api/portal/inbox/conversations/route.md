@@ -11,10 +11,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (5)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/clientRecordLedger.ts`](../../../../../lib/server/clientRecordLedger.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](../../../../../lib/server/clients/clientRecordLedger.md)
 - [`src/lib/server/identityResolution.ts`](../../../../../lib/server/identityResolution.md)
-- [`src/lib/server/inboxStore.ts`](../../../../../lib/server/inboxStore.md)
+- [`src/lib/server/inbox/inboxStore.ts`](../../../../../lib/server/inbox/inboxStore.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 
 ## Used by

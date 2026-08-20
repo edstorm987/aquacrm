@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/aquaTagSource.ts`](../../lib/aquaTagSource.md)
+- [`src/lib/integrations/aquaTagSource.ts`](../../lib/integrations/aquaTagSource.md)
 
 ## Used by
 

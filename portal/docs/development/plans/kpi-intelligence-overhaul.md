@@ -2,7 +2,11 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · reference: [KPI dossier](../../workspace/kpi-intelligence.md)
 
-**Status: ✅ SHIPPED — 100% complete, phases 1/3/4/5A/5B/6/7 (2026-08-19); auditor PASSED (no eval surface, targets agency-scoped).** _(Was mislabelled "PLAN (not built)" after it shipped.)_ Ed's verdict: *"a pile of shit with a few good
+**Status: ✅ ALL 7 PHASES SHIPPED (2026-08-19); auditor PASSED (no eval surface, targets agency-scoped). ONE recorded decision is still unbuilt — see below — so this is not "100% complete".** _(Corrected 2026-08-20. Two things were wrong here: the status enumerated "phases 1/3/4/5A/5B/6/7" and silently dropped **Phase 2**, which did ship — the plan/target/forecast mode and the line/area/bar switch are in `_CommandIntelligenceWorkspace.tsx:348`, `:368`, `:619`, `:667`. And "100% complete" did not survive a source check.)_
+
+> ⚠ **Not built: shared saved views.** Ed decided saved views should be **BOTH** per-user private *and* shared agency-wide, carried on a new `kpiViews` collection. `kpiViews` **does not exist anywhere in `src/`** (grepped 2026-08-20, zero hits), and saved views are still browser-only `localStorage` under `SAVED_COMPARISON_KEY` (`_CommandIntelligenceWorkspace.tsx:382`, `:473`, `:494`). The plan itself calls this "a follow-on slice once the explorer exists" — the explorer exists, so the slice is now simply open. **This is why this plan stays on the board rather than moving to `archive/`.**
+
+Verified in source 2026-08-20, so nobody re-does it: registry (`src/lib/performance/kpiRegistry.ts`) · custom-KPI builder (`api/portal/kpi-registry/custom/route.ts` + `src/lib/server/kpi/customKpis.ts`) · **server-persisted** targets (`api/portal/kpi-registry/targets/route.ts`, read at `_CommandIntelligenceWorkspace.tsx:394`, written at `:504`/`:512`) · adaptive suggestions (`suggestKpiTarget`, `kpiRegistry.ts:283`, wired to the Sparkles button at `:659`). Ed's verdict: *"a pile of shit with a few good
 bits and a few awesome UIs."* Keep + extend the great bits (the trajectory graph,
 the people-map); replace the rigidity (few KPIs, fixed formulas, one-size targets)
 with something **explorable, tunable, target-tracked, and adaptive** — without
@@ -100,7 +104,7 @@ Behavioural: registry lists every metric with a valid series; explorer plots + s
 - ✅ **Custom KPIs** — a **guided builder** (numerator/denominator/op), not a formula language; lands in Phase 6.
 - ✅ **Customer intelligence** — configurable + scoped first; **real geo optional/later** (honest fallback meanwhile).
 - ✅ **Saved views — BOTH** (Ed, 2026-08-19): support **per-user private** *and* **shared agency-wide** views → the new `kpiViews` collection carries a visibility field (`private`|`shared`), owner-stamped. Lands as a follow-on slice once the explorer exists.
-- ⏳ Still open — **confirm at Phase 5**: which metrics get **adaptive** baselines first (revenue/leads/traffic are the obvious ones).
+- ~~⏳ Still open — confirm at Phase 5: which metrics get **adaptive** baselines first.~~ **Moot — Phase 5 shipped without needing the pick.** `suggestKpiTarget` (`src/lib/performance/kpiRegistry.ts:283`) derives a suggestion from **any** descriptor's own trailing history and returns `null` ("Learning") under three finite points, so every KPI gets adaptive treatment or an honest refusal. There was no first-tranche to choose.
 
 ## Reality check — the explorer already largely exists (verified 2026-08-19)
 Building against source showed `KpiComparisonWorkspace` (`_CommandIntelligenceWorkspace.tsx:353`,
@@ -117,10 +121,15 @@ add **line/area/bar chart types**, and **surface it in the executive view**.
 [state.md](../../context/state.md)); the `_CommandCentreKpiTrajectory` refactor is dropped from Phase 1
 (not needed for the repurpose path, and it lowers regression risk to leave the trajectory alone).
 
-Real remaining gaps by phase: **P1** registry + chart-types + discoverability · **P3** pour in the 40
-commercial + evidence series (the registry's payoff) · **P4** **server-persisted, layered, versioned**
-targets (today's overrides are browser-only) · **P5** adaptive · **P6** custom KPIs · **P7** customer-
-intelligence scope.
+~~Real remaining gaps by phase: P1 registry + chart-types · P3 the 40 commercial + evidence series ·
+P4 server-persisted targets · P5 adaptive · P6 custom KPIs · P7 customer-intelligence scope.~~
+
+**Stale — this was the mid-build snapshot and every item on it has since landed.** Corrected
+2026-08-20: in particular P4's "today's overrides are browser-only" is **no longer true** —
+targets round-trip through `GET`/`POST /api/portal/kpi-registry/targets`
+(`_CommandIntelligenceWorkspace.tsx:394`, `:504`, `:512`), with `localStorage` kept only as a
+local mirror. The one thing genuinely still browser-only is **saved views** (`kpiViews` was never
+built) — see the warning under Status.
 
 ## Non-goals (v1)
 - Not a full BI tool (no arbitrary SQL/joins) — a curated explorer over the app's own metrics.
@@ -137,11 +146,11 @@ Codex workers in ONE uncommitted tree, two agents in the same file destroys work
 no git to recover from. Before assigning this plan, check these paths against every other
 plan in flight._
 
-- `src/lib/kpiRegistry.ts`
-- `src/lib/server/kpiRegistry.ts`
-- `src/lib/server/kpiTargets.ts`
-- `src/lib/server/customKpis.ts`
-- `src/lib/customerProfileScope.ts`
+- `src/lib/performance/kpiRegistry.ts`
+- `src/lib/server/kpi/kpiRegistryService.ts`
+- `src/lib/server/kpi/kpiTargets.ts`
+- `src/lib/server/kpi/customKpis.ts`
+- `src/lib/people/customerProfileScope.ts`
 - `src/app/api/portal/kpi-registry/targets/route.ts`
 - `src/app/api/portal/kpi-registry/custom/route.ts`
 - `src/app/api/portal/kpi-registry/evidence/route.ts`

@@ -130,7 +130,7 @@ describe("Client lifecycle and portal generation", () => {
   it("has client workspace tabs and systems language", () => {
     const clientPage = read(join(PORTAL, "clients", "[clientId]", "page.tsx"));
     const tabs = read(join(PORTAL, "clients", "[clientId]", "_tabs.ts"));
-    const workspaceTabs = read(join(SRC, "lib", "clientWorkspace.ts"));
+    const workspaceTabs = read(join(SRC, "lib", "clients", "clientWorkspace.ts"));
     const picker = read(join(PORTAL, "clients", "[clientId]", "_ToolsPicker.tsx"));
 
     assert.ok(tabs.includes("CLIENT_WORKSPACE_TABS"));

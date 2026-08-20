@@ -10,17 +10,18 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (9)
 
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/demoSeed.ts`](../../../../lib/server/demoSeed.md)
-- [`src/lib/server/devMode.ts`](../../../../lib/server/devMode.md)
-- [`src/lib/server/devModeAccess.ts`](../../../../lib/server/devModeAccess.md)
-- [`src/lib/server/effectiveRole.ts`](../../../../lib/server/effectiveRole.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/effectiveRole.ts`](../../../../lib/server/auth/effectiveRole.md)
+- [`src/lib/server/dev/devMode.ts`](../../../../lib/server/dev/devMode.md)
+- [`src/lib/server/dev/devModeAccess.ts`](../../../../lib/server/dev/devModeAccess.md)
+- [`src/lib/server/seeds/demoSeed.ts`](../../../../lib/server/seeds/demoSeed.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../server/tenants.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 - [`src/server/users.ts`](../../../../server/users.md)
 
-## Used by (1)
+## Used by (2)
 
+- [`scripts/smoke-dev-mode-identity.test.ts`](../../../../../scripts/smoke-dev-mode-identity.test.md)
 - [`scripts/smoke-dev-mode.test.ts`](../../../../../scripts/smoke-dev-mode.test.md)
 

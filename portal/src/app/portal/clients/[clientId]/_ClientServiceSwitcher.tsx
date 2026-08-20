@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 interface ServiceOption {
   id: string;

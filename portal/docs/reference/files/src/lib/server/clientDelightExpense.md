@@ -1,4 +1,4 @@
-# `src/lib/server/clientDelightExpense.ts`
+# `src/lib/server/clients/clientDelightExpense.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

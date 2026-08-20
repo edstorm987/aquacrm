@@ -22,5 +22,5 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 - [`src/app/api/portal/performance/experiments/route.ts`](../app/api/portal/performance/experiments/route.md)
 - [`src/app/portal/agency/performance/page.tsx`](../app/portal/agency/performance/page.md)
-- [`src/lib/server/showcaseMode.ts`](../lib/server/showcaseMode.md)
+- [`src/lib/server/auth/showcaseMode.ts`](../lib/server/auth/showcaseMode.md)
 

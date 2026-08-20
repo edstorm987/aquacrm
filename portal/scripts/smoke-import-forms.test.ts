@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { scanFormSchemasInHtml } from "../src/lib/server/aquaTagDetection";
-import { mergeFormLayout } from "../src/lib/enquiryFormLayout";
+import { scanFormSchemasInHtml } from "../src/lib/server/integrations/aquaTagDetection";
+import { mergeFormLayout } from "../src/lib/enquiries/enquiryFormLayout";
 
 // Import forms (enquiry-detail-card plan, Phase 2) — read a tagged site's real
 // forms so the enquiry card can mirror them. These prove the extraction logic

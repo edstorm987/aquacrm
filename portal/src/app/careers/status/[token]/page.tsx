@@ -4,7 +4,7 @@ import { ArrowLeft, Check, Clock3, FileCheck2, LockKeyhole, Mail, Sparkles } fro
 import { getPeopleApplicationByToken } from "@/server/people";
 import { ensureHydrated } from "@/server/storage";
 import type { PeopleApplicationStage } from "@/server/types";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export const dynamic = "force-dynamic";
 

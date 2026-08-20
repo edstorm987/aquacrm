@@ -10,8 +10,8 @@
 
 ## Depends on (9)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/customerPortalProvisioning.ts`](../../../../../lib/server/customerPortalProvisioning.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/clients/customerPortalProvisioning.ts`](../../../../../lib/server/clients/customerPortalProvisioning.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/clientDelight.ts`](../../../../../server/clientDelight.md)
 - [`src/server/clientPortalSetup.ts`](../../../../../server/clientPortalSetup.md)

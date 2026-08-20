@@ -16,10 +16,10 @@ import { normaliseCurrency } from "@/built-ins/modules/agency-finance/src/lib/cu
 import type { Invoice } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import { normaliseChannel } from "@/built-ins/modules/agency-finance/src/lib/channels";
 import { createInvoiceCheckout, readStripeKeysFromInstall, stripeConfigured } from "@/built-ins/modules/agency-finance/src/lib/stripe";
-import type { ClientContract } from "@/lib/clientContracts";
+import type { ClientContract } from "@/lib/clients/clientContracts";
 import { closeDealForClient } from "@/lib/server/closeDeal";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";

@@ -30,7 +30,7 @@ import type {
   TenantPort,
   UserPort,
 } from "../src/built-ins/modules/agency-finance/src/server/ports";
-import type { ClientContract } from "../src/lib/clientContracts";
+import type { ClientContract } from "../src/lib/clients/clientContracts";
 import { containerWithDeps } from "../src/built-ins/modules/agency-finance/src/server/foundationAdapter";
 import { closeDealForClient, type CloseDealDeps } from "../src/lib/server/closeDeal";
 

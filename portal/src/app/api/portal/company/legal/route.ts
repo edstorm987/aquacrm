@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { del } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { deleteLegalDocument, listLegalDocuments, updateLegalDocument } from "@/server/legalDocuments";
 import { ensureHydrated } from "@/server/storage";

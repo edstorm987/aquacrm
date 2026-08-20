@@ -2,7 +2,7 @@
 
 import { Check, FolderGit2, Globe2, LoaderCircle, LockKeyhole, Pencil, Plus, Sparkles, Trash2, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export type ClientPropertyKind = "website" | "client-portal" | "dev-portal" | "software" | "lead-magnet" | "repo" | "template" | "tag";
 export type ClientPropertyStatus = "planning" | "building" | "review" | "live" | "redirected" | "archived";

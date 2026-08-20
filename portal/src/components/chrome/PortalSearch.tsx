@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { dateFromValue, formatUkDate, isoDateTimeValue } from "@/lib/formatDateTime";
+import { dateFromValue, formatUkDate, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 export interface PortalSearchItem {
   label: string;

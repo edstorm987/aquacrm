@@ -72,7 +72,7 @@ describe("meetings, calls and notes live on the person", () => {
 
 describe("conversion carries the history into the client workspace", () => {
   it("copies rather than moves, so the person keeps its own history", () => {
-    const seeder = read("src", "lib", "server", "seedClientFromPerson.ts");
+    const seeder = read("src", "lib", "server", "seeds", "seedClientFromPerson.ts");
     assert.match(seeder, /Copied into the client record ledger rather than moved/);
     assert.doesNotMatch(seeder, /deletePersonRecord|delete .*person\.record/);
   });
@@ -80,17 +80,17 @@ describe("conversion carries the history into the client workspace", () => {
   it("seeds pre-conversion history as internal, not client-visible", () => {
     // These are the agency's candid working notes; publishing them into the
     // customer portal on conversion would leak them.
-    const seeder = read("src", "lib", "server", "seedClientFromPerson.ts");
+    const seeder = read("src", "lib", "server", "seeds", "seedClientFromPerson.ts");
     assert.match(seeder, /visibility: "internal"/);
   });
 
   it("is idempotent, so a re-run does not duplicate the history", () => {
-    const seeder = read("src", "lib", "server", "seedClientFromPerson.ts");
+    const seeder = read("src", "lib", "server", "seeds", "seedClientFromPerson.ts");
     assert.match(seeder, /upsertClientRecordLedgerEvent/, "the ledger upserts on source id");
   });
 
   it("survives one malformed entry instead of losing the whole history", () => {
-    const seeder = read("src", "lib", "server", "seedClientFromPerson.ts");
+    const seeder = read("src", "lib", "server", "seeds", "seedClientFromPerson.ts");
     assert.match(seeder, /skipped \+= 1/, "a partial history beats none");
   });
 

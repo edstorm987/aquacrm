@@ -6,8 +6,8 @@ import { ArrowLeft, BookOpen, Check, CircleDollarSign, FileCheck2, LayoutDashboa
 import { useState } from "react";
 
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
-import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
-import { defaultProductInternalWorkspace, productWorkspaceModuleLabel } from "@/lib/productInternalWorkspace";
+import { PORTAL_PRODUCT_CATALOG } from "@/lib/portal/portalProducts";
+import { defaultProductInternalWorkspace, productWorkspaceModuleLabel } from "@/lib/products/productInternalWorkspace";
 import { ProductEditor, catalogueStatus, linkedSopCount, portalLabel, priceLabel, toDraft } from "../_ProductsWorkspace";
 import { ProductRolloutCentre, type ProductRolloutClient } from "./_ProductRolloutCentre";
 

@@ -10,7 +10,7 @@ import {
   paymentPlanTotal,
   reconcileClientPaymentPlan,
   summariseClientPaymentPosition,
-} from "../src/lib/clientPaymentPlans";
+} from "../src/lib/clients/clientPaymentPlans";
 
 const ROOT = process.cwd();
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");

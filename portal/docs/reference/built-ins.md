@@ -4110,7 +4110,7 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/AnimateOnScroll.tsx`
 
-- `default AnimateOnScroll({ animate, duration, delay, easing, children }: Props)`
+- `{ default } from "@/lib/elements/AnimateOnScroll"`
 
 ### `src/built-ins/modules/website-editor/src/components/AssetPicker.tsx`
 
@@ -4118,10 +4118,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`
 
-- `default BlockRenderer`
-- `BlockTreeRenderer({ blocks, editorMode, themeId, splitTestGroups }: BlockRendererProps)` — the storefront PortalPageRenderer expects.
-- `interface BlockRendererProps (4 members)`
-- `{ BlockRenderer }`
+- `{ BlockRenderer, BlockTreeRenderer, default } from "@/lib/elements/BlockRenderer"`
+- `{ BlockRendererProps } from "@/lib/elements/BlockRenderer"`
 
 ### `src/built-ins/modules/website-editor/src/components/EditorLivePreview.tsx`
 
@@ -4141,7 +4139,7 @@ _No exported symbols (internal/side-effect module)._
 ### `src/built-ins/modules/website-editor/src/components/blockRegistry.ts`
 
 - `getBlockDefinition(type: string): BlockDefinition | undefined` — ─── Public selectors ──────────────────────────────────────────────────────
-- `listBlockDefinitions(): BlockDefinition[]`
+- `listBlockDefinitions(): BlockDefinition[]` — this list is unchanged at 70.
 - `listBlocksByCategory(category: BlockCategory): BlockDefinition[]`
 - `getBlockDescriptor(type: string): BlockDescriptor | undefined`
 - `getBlockEntry(type: string): BlockRegistryEntry | undefined`
@@ -4151,19 +4149,14 @@ _No exported symbols (internal/side-effect module)._
 - `BLOCK_DESCRIPTORS: BlockDescriptor[]` — and the foundation editor.
 - `BLOCK_TYPES = Object.keys(BLOCK_REGISTRY)`
 - `RENDERER_REGISTRATIONS: Record<string, BlockComponentType>`
-- `type PropFieldType = | "text" | "textarea" | "url" | "color" | "select" | "number" | "boolean" | "image" | "richtext"`
-- `type BlockComponentType = ComponentType<BlockRenderProps>` — log a clear warning so the operator notices in dev.
-- `interface BlockRenderProps (3 members)` — ─── Registry shape ────────────────────────────────────────────────────────
-- `interface PropField (7 members)`
-- `interface BlockDefinition (12 members)`
-- `interface BlockComponentProps (3 members)` — from blockRegistry. Keep them as re-exports so imports don't break.
+- `type BlockComponentProps = BlockRenderProps` — declaration, so `context` (P2) is on both.
 - `interface BlockRegistryEntry (2 members)`
+- `{ BlockDefinition, BlockRenderProps, PropField, PropFieldType } from "@/lib/elements/definition"`
+- `{ BlockComponentType } from "@/lib/elements/definition"`
 
 ### `src/built-ins/modules/website-editor/src/components/blockStyles.ts`
 
-- `blockStylesToCss(styles?: BlockStyles): CSSProperties`
-- `overridesToCssText(override?: Partial<BlockStyles>): string`
-- `STYLE_FIELD_GROUPS: Array<{ label: string; fields: Array<keyof BlockStyles> }>`
+- `{ STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "@/lib/elements/blockStyles"`
 
 
 ## `src/built-ins/modules/website-editor/src/components/blocks/`
@@ -4503,18 +4496,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`
 
-- `makeBlockId(): string`
-- `createBlock(type: BlockType): Block`
-- `findBlock(blocks: Block[], id: string, parent: Block | null = null): BlockLocation | null`
-- `updateBlock(blocks: Block[], id: string, patch: Partial<Block>): Block[]`
-- `removeBlock(blocks: Block[], id: string): Block[]`
-- `duplicateBlock(blocks: Block[], id: string): Block[]`
-- `insertSibling(blocks: Block[], targetId: string, newBlock: Block, position: "before" | "after"): Block[]`
-- `appendChild(blocks: Block[], parentId: string, newBlock: Block): Block[]`
-- `moveBlock(blocks: Block[], sourceId: string, targetId: string, position: "before" | "after" | "inside"): Block[]`
-- `isDescendant(block: Block, candidateId: string): boolean`
-- `cloneBlock(block: Block): Block`
-- `interface BlockLocation (3 members)` — traversal. Used by drop handlers to locate insertion targets.
+- `{ appendChild, cloneBlock, createBlock, duplicateBlock, findBlock, insertSibling, isDescendant, makeBlockId, moveBlock, removeBlock, updateBlock } from "@/lib/elements/blockTreeOps"`
+- `{ BlockLocation } from "@/lib/elements/blockTreeOps"`
 
 ### `src/built-ins/modules/website-editor/src/components/canvas/touchDnd.ts`
 
@@ -4788,13 +4771,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/variantResolver.ts`
 
-- `visitorId(): string`
-- `sessionId(): string`
-- `resolveVariant({ block, groupId, trafficPercent = 100, stickyBy = "visitor" }: ResolveInput): ResolvedVariant`
-- `applyVariant(block: Block, variant: BlockVariant | null): Block`
-- `recordExposure(groupId: string, variantId: string)`
-- `recordConversion(groupId: string, variantId: string)`
-- `interface ResolvedVariant (2 members)`
+- `{ applyVariant, recordConversion, recordExposure, resolveVariant, sessionId, visitorId } from "@/lib/elements/variantResolver"`
+- `{ ResolvedVariant } from "@/lib/elements/variantResolver"`
 
 
 ## `src/built-ins/modules/website-editor/src/lib/`
@@ -4815,7 +4793,7 @@ _No exported symbols (internal/side-effect module)._
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops"` — ─── Plugin identity ───────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
 - `type PluginRoleVisibility = | "agency-owner" | "agency-manager" | "agency-staff" | "client-owner" | "client-staff" | "freelancer" | "end-customer"`
-- `type BlockCategory = | "layout" | "content" | "media" | "commerce" | "auth" | "advanced"`
+- `type BlockCategory = ElementCategory` — is part of the shared element vocabulary now, not a plugin-local enum.
 - `interface PluginCtx (6 members)` — ─── Runtime context ───────────────────────────────────────────────────────
 - `interface PluginStorage (4 members)`
 - `interface PublicMediaStoreInput (5 members)` — mirror of the foundation `PublicMediaPort` (`built-ins/runtime/_types.ts`).
@@ -4859,13 +4837,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/lib/blockSchemaMigrations.ts`
 
-- `blockVersion(block: Block): number` — to v1 — that matches the first published schema.
-- `treeNeedsMigration(tree: BlockTreeJSON): boolean`
-- `migrateTree(tree: BlockTreeJSON, fromVersion?: number): BlockTreeJSON`
-- `loadBlockTreeMigrated(tree: BlockTreeJSON): [BlockTreeJSON, boolean]` — reference with `didMigrate=false`.
-- `BLOCK_SCHEMA_VERSION = 3` — ─── Schema version + migration registry ─────────────────────────────
-- `MIGRATIONS: readonly BlockMigrationStep[]`
-- `interface BlockMigrationStep (3 members)`
+- `{ BLOCK_SCHEMA_VERSION, MIGRATIONS, blockVersion, loadBlockTreeMigrated, migrateTree, treeNeedsMigration } from "@/lib/elements/blockSchemaMigrations"`
+- `{ BlockMigrationStep } from "@/lib/elements/blockSchemaMigrations"`
 
 ### `src/built-ins/modules/website-editor/src/lib/blockTreeDiff.ts`
 
@@ -5193,14 +5166,13 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/lib/ids.ts`
 
-- `makeId(prefix: string, length = 12): string`
-- `slugify(s: string): string`
 - `blockId(type: string)`
 - `pageId()`
 - `siteId()`
 - `themeId()`
 - `variantId()`
 - `assetId()`
+- `{ makeId, slugify } from "@/lib/elements/ids"`
 
 ### `src/built-ins/modules/website-editor/src/lib/jsonLdInjection.ts`
 
@@ -5944,16 +5916,7 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/types/block.ts`
 
-- `type BlockType = | "container" | "section" | "row" | "column" | "grid" | "spacer" | "divider" // content | "heading" | "text" | "button" | "hero" | "cta" | "testimonials" | "pricing-table" | "faq" | "quote" | "banner" |…` — in-tree references.
-- `type SplitTestStatus = "draft" | "running" | "paused" | "completed"`
-- `type BlockTreeJSON = Block[]`
-- `interface BlockStyles (32 members)` — host site exactly without per-block CSS classes.
-- `interface BlockA11y (7 members)`
-- `interface BlockSeo (2 members)`
-- `interface BlockVariant (5 members)`
-- `interface Block (9 members)`
-- `interface SplitTestGroup (13 members)`
-- `interface SplitTestResult (5 members)`
+- `{ Block, BlockA11y, BlockSeo, BlockStyles, BlockTreeJSON, BlockType, BlockVariant, SplitTestGroup, SplitTestResult, SplitTestStatus, ElementBinding, ElementContext, ElementProductMatch, ElementVisibility } from "@/lib/elements/block"`
 
 ### `src/built-ins/modules/website-editor/src/types/content.ts`
 

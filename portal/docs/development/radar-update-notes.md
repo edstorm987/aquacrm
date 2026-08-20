@@ -68,11 +68,11 @@ Several existing Radar tests assert the *exact source text* of route/cron/probe 
 ---
 
 ## Where things live (pickup map)
-- **Scheduler + sweeps:** `src/lib/server/radarSweeps.ts` (+ route `api/portal/advisor/radar`, cron `api/cron/inbox`)
-- **Classification + grouping:** `src/lib/radarClassification.ts`
-- **Infra probe + checks:** `src/lib/server/databaseStorageHealth.ts`, `src/lib/radarInfraChecks.ts`
-- **Coverage seeding:** `src/lib/radarCoverageRegistry.ts`, `src/lib/server/radarSeeding.ts`, watchdog in `src/lib/radarSentinels.ts`
-- **Actionable findings:** `src/lib/businessRecommendedActions.ts`, `src/lib/advisorActions.ts`
+- **Scheduler + sweeps:** `src/lib/server/radar/radarSweeps.ts` (+ route `api/portal/advisor/radar`, cron `api/cron/inbox`)
+- **Classification + grouping:** `src/lib/radar/radarClassification.ts`
+- **Infra probe + checks:** `src/lib/server/databaseStorageHealth.ts`, `src/lib/radar/radarInfraChecks.ts`
+- **Coverage seeding:** `src/lib/radar/radarCoverageRegistry.ts`, `src/lib/server/radar/radarSeeding.ts`, watchdog in `src/lib/radar/radarSentinels.ts`
+- **Actionable findings:** `src/lib/intelligence/businessRecommendedActions.ts`, `src/lib/advisor/advisorActions.ts`
 - **UI panels:** `src/app/portal/agency/_InfraHealthPanel.tsx`, `_FindingGroupBar.tsx` (both in the Command Centre → Radar Workspace → **Live Radar feed**)
 - **Tests:** `scripts/smoke-radar-*.test.ts` (sweeps, classification, golden-sweep, sweep-isolation, infra-health, finding-groups, coverage-seeding, actionable, external-db)
-- **The big builder** everything folds into: `src/lib/server/businessIssueRadar.ts`
+- **The big builder** everything folds into: `src/lib/server/radar/businessIssueRadar.ts`

@@ -4,12 +4,13 @@
 
 _No file-level doc-comment. Purpose inferred from its path (Plugins — src/built-ins/) and its exports below._
 
-## Exports (1)
+_No exported symbols (side-effect / internal module)._
 
-- `default AnimateOnScroll({ animate, duration, delay, easing, children }: Props)`
+## Depends on (1)
 
-## Used by (2)
+- [`src/lib/elements/AnimateOnScroll.tsx`](../../../../../lib/elements/AnimateOnScroll.md)
 
-- [`src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`](./BlockRenderer.md)
+## Used by (1)
+
 - [`src/built-ins/modules/website-editor/src/components/index.ts`](./index.md)
 

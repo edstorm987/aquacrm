@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { findCommercialProposal } from "@/lib/server/commercialProposal";
 import { ProposalActions } from "./_ProposalActions";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 function money(cents: number, currency: string) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);

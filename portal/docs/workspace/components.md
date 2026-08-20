@@ -2,11 +2,11 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-60 files of cross-cutting React UI — the app shell and reusable pieces the
+68 files of cross-cutting React UI (re-counted 2026-08-20; was 60) — the app shell and reusable pieces the
 [portal screens](portal-ui.md) mount. **Reuse from here before writing new
 UI** (especially the `ui/` primitives).
 
-## `chrome/` (38 files) — the app shell (busiest edit zone)
+## `chrome/` (42 files) — the app shell (busiest edit zone)
 The frame every authenticated screen sits in:
 - **Nav:** Sidebar, Topbar, MobileNav.
 - **Notifications/attention:** `NotificationBell`, `NotificationCentre`, `NotificationAttentionProvider` (the context that feeds the bell).
@@ -39,7 +39,9 @@ Visibility is decided SERVER-side (`devDocsAccessible(session)`) and passed to
 `Topbar` as one boolean, `devConsole`. It is never a client decision, and Dev
 Mode off removes the icon everywhere at once. Mounted by `agency/layout.tsx`,
 `dev-team/layout.tsx`, `clients/page.tsx` and `clients/[clientId]/layout.tsx`;
-deliberately NOT by `team/layout.tsx` (not a founder surface).
+deliberately NOT by `team/layout.tsx` (not a founder surface). The console it peeks
+into is now **six sections with `?view=` tabs**, not twelve screens — see
+[portal-ui](portal-ui.md#dev-team--the-internal-dev-team-workspace-founder--dev-mode-only).
 
 **Cost split, and why it matters:** `devConsoleBadge()` (open findings + open
 blockers, TTL-cached) is the only thing on the render path. `devConsoleStatus()`
@@ -66,6 +68,7 @@ in-page editing chrome the website-editor plugin uses.
 `CollapsibleSection`, `SkipToContent`.
 
 ## Singletons
-- `auth/TwoFactorSetup.tsx`.
+- `auth/TwoFactorSetup.tsx` — the TOTP enrolment UI over `api/portal/mfa/{enrol,verify}`. (The *login* code step is not here — it lives in `app/login/LoginForm.tsx`.)
+- `people/TeamChat.tsx` — the shared internal-chat component, mounted by **both** the agency "Team chat" tab and the staff `chat` station. Its own store (`server/people.ts` `peopleChannels`/`peopleMessages`), **not** the client inbox.
 - `marketing/ClientMarketingServiceWorkspace.tsx` — the client "Social & ads" tab body (mounted by `clients/[clientId]` marketing tab).
 - `workspaces/PluginWorkspaceNav.tsx`.

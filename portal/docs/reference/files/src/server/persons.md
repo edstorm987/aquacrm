@@ -57,10 +57,10 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/contacts/companies/[organisationId]/page.tsx`](../app/portal/agency/contacts/companies/[organisationId]/page.md)
 - [`src/app/portal/agency/contacts/page.tsx`](../app/portal/agency/contacts/page.md)
 - [`src/built-ins/runtime/foundation-adapters/personClientSeeding.ts`](../built-ins/runtime/foundation-adapters/personClientSeeding.md)
-- [`src/lib/server/operationalAlerts.ts`](../lib/server/operationalAlerts.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](../lib/server/inbox/operationalAlerts.md)
 - [`src/lib/server/personInteractions.ts`](../lib/server/personInteractions.md)
 - [`src/lib/server/resolutionPlans.ts`](../lib/server/resolutionPlans.md)
-- [`src/lib/server/seedClientFromPerson.ts`](../lib/server/seedClientFromPerson.md)
+- [`src/lib/server/seeds/seedClientFromPerson.ts`](../lib/server/seeds/seedClientFromPerson.md)
 - [`src/lib/server/websiteEnquiries.ts`](../lib/server/websiteEnquiries.md)
 - [`src/server/organisations.ts`](./organisations.md)
 

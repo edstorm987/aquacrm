@@ -8,15 +8,15 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (10)
 
-- [`src/lib/businessRadar.ts`](../src/lib/businessRadar.md)
-- [`src/lib/radarCheckEngine.ts`](../src/lib/radarCheckEngine.md)
-- [`src/lib/radarCorrelations.ts`](../src/lib/radarCorrelations.md)
-- [`src/lib/radarPolicyEngine.ts`](../src/lib/radarPolicyEngine.md)
-- [`src/lib/radarRuleCatalog.ts`](../src/lib/radarRuleCatalog.md)
-- [`src/lib/radarSentinels.ts`](../src/lib/radarSentinels.md)
-- [`src/lib/radarSyntheticChecks.ts`](../src/lib/radarSyntheticChecks.md)
-- [`src/lib/radarSyntheticSafety.ts`](../src/lib/radarSyntheticSafety.md)
-- [`src/lib/server/radarTelemetry.ts`](../src/lib/server/radarTelemetry.md)
+- [`src/lib/radar/businessRadar.ts`](../src/lib/radar/businessRadar.md)
+- [`src/lib/radar/radarCheckEngine.ts`](../src/lib/radar/radarCheckEngine.md)
+- [`src/lib/radar/radarCorrelations.ts`](../src/lib/radar/radarCorrelations.md)
+- [`src/lib/radar/radarPolicyEngine.ts`](../src/lib/radar/radarPolicyEngine.md)
+- [`src/lib/radar/radarRuleCatalog.ts`](../src/lib/radar/radarRuleCatalog.md)
+- [`src/lib/radar/radarSentinels.ts`](../src/lib/radar/radarSentinels.md)
+- [`src/lib/radar/radarSyntheticChecks.ts`](../src/lib/radar/radarSyntheticChecks.md)
+- [`src/lib/radar/radarSyntheticSafety.ts`](../src/lib/radar/radarSyntheticSafety.md)
+- [`src/lib/server/radar/radarTelemetry.ts`](../src/lib/server/radar/radarTelemetry.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

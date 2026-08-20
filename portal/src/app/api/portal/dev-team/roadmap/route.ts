@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
-import { createPlan } from "@/lib/server/devTeamPlans";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { createPlan } from "@/lib/server/dev/devTeamPlans";
 import {
   addItem, updateItem, removeItem, linkPlan, buildRoadmap,
   type Horizon, type ItemStatus, type ItemSize,
-} from "@/lib/server/devTeamRoadmap";
+} from "@/lib/server/dev/devTeamRoadmap";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

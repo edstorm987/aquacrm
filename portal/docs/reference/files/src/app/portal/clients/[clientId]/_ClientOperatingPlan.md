@@ -14,9 +14,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (4)
 
-- [`src/lib/clientProductProcess.ts`](../../../../lib/clientProductProcess.md)
-- [`src/lib/clientWorkspace.ts`](../../../../lib/clientWorkspace.md)
-- [`src/lib/productInternalWorkspace.ts`](../../../../lib/productInternalWorkspace.md)
+- [`src/lib/clients/clientProductProcess.ts`](../../../../lib/clients/clientProductProcess.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
+- [`src/lib/products/productInternalWorkspace.ts`](../../../../lib/products/productInternalWorkspace.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 
 ## Used by (1)

@@ -1,4 +1,4 @@
-# `src/lib/server/devMode.ts`
+# `src/lib/server/dev/devMode.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -26,5 +26,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/connections/request-code/route.ts`](../../app/api/portal/connections/request-code/route.md)
 - [`src/app/connect/[connectionId]/page.tsx`](../../app/connect/[connectionId]/page.md)
 - [`src/app/dev/route.ts`](../../app/dev/route.md)
-- [`src/lib/server/devModeAccess.ts`](./devModeAccess.md)
+- [`src/lib/server/dev/devModeAccess.ts`](./devModeAccess.md)
 

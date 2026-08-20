@@ -15,7 +15,7 @@ import {
   exchangeAndVerify,
   isGoogleOAuthConfigured,
   readGoogleOAuthConfig,
-} from "../src/lib/server/oauthGoogle";
+} from "../src/lib/server/integrations/oauthGoogle";
 
 const SECRET = "smoke-secret-1";
 const CFG = {

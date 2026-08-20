@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Activity, Check, Copy, Link2, Plug, RotateCw, ShieldCheck, Trash2 } from "lucide-react";
 
 import type { PortalConnectionView } from "@/server/portalConnectionStore";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 /**
  * Connecting a client's own software to their portal, from Ed's side.

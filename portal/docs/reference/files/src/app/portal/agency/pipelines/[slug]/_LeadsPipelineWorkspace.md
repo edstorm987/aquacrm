@@ -15,9 +15,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](./_PipelineBoard.md)
 - [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](./_ScoutingCommand.md)
 - [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](../../../../../built-ins/modules/leads-pipeline/src/lib/domain.md)
-- [`src/lib/enquiryClassification.ts`](../../../../../lib/enquiryClassification.md)
-- [`src/lib/formatDateTime.ts`](../../../../../lib/formatDateTime.md)
-- [`src/lib/leadTiming.ts`](../../../../../lib/leadTiming.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../../../../../lib/enquiries/enquiryClassification.md)
+- [`src/lib/enquiries/leadTiming.ts`](../../../../../lib/enquiries/leadTiming.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../../lib/shared/formatDateTime.md)
 
 ## Used by (2)
 

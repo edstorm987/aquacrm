@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getActiveAgencyId, requireRole } from "@/lib/server/auth";
+import { getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
 import { peopleSnapshot } from "@/server/people";
 import { staffCapacitySnapshot } from "@/server/staffCapacity";
 import { ensureHydrated } from "@/server/storage";

@@ -4,7 +4,7 @@
 
 import { redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { getSession } from "@/lib/server/auth";
+import { getSession } from "@/lib/server/auth/auth";
 import { isAgencyRole, isClientRole } from "@/server/types";
 
 export default async function PortalIndex() {

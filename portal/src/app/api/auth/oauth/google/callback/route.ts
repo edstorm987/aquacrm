@@ -7,17 +7,17 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { issueSession, sessionCookie } from "@/lib/server/auth";
+import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import {
   exchangeAndVerify,
   readGoogleOAuthConfig,
   verifyOAuthState,
-} from "@/lib/server/oauthGoogle";
+} from "@/lib/server/integrations/oauthGoogle";
 import { listAgencies, getAgency } from "@/server/tenants";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { createUser, getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
-import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import crypto from "crypto";
 
 function err(req: NextRequest, code: string, status = 400) {

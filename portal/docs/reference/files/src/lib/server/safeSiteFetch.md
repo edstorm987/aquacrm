@@ -16,10 +16,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/radarSyntheticSafety.ts`](../radarSyntheticSafety.md)
+- [`src/lib/radar/radarSyntheticSafety.ts`](../radar/radarSyntheticSafety.md)
 
 ## Used by (2)
 
-- [`src/lib/server/aquaTagDetection.ts`](./aquaTagDetection.md)
+- [`src/lib/server/integrations/aquaTagDetection.ts`](./integrations/aquaTagDetection.md)
 - [`src/server/websiteFormSchemas.ts`](../../server/websiteFormSchemas.md)
 

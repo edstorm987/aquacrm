@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/enquiryFormLayout.ts`](../src/lib/enquiryFormLayout.md)
-- [`src/lib/server/aquaTagDetection.ts`](../src/lib/server/aquaTagDetection.md)
+- [`src/lib/enquiries/enquiryFormLayout.ts`](../src/lib/enquiries/enquiryFormLayout.md)
+- [`src/lib/server/integrations/aquaTagDetection.ts`](../src/lib/server/integrations/aquaTagDetection.md)
 
 ## Used by
 

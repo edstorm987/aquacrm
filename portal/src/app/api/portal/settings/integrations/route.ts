@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { INTEGRATION_CATALOG, type IntegrationProvider } from "@/lib/integrations/catalog";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   integrationVaultAvailable,
   listIntegrationConnections,
   revokeIntegrationConnection,
   saveIntegrationConnection,
   testIntegrationConnection,
-} from "@/lib/server/integrationConnections";
+} from "@/lib/server/integrations/integrationConnections";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 

@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](./_PortalsWorkspace.md)
 - [`src/app/portal/agency/portals/_portalWorkspaceData.ts`](./_portalWorkspaceData.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

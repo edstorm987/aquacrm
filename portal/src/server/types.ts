@@ -41,6 +41,33 @@ export interface Agency {
   status: AgencyStatus;
   createdAt: number;
   updatedAt: number;
+  /**
+   * ─── THE THIRD TIER ───────────────────────────────────────────────────
+   *
+   * Settled by the founder 2026-08-20: *"it's both — agency as a holding
+   * group, trading companies as companies, and then each company has
+   * clients."* Three permanent tiers, not two:
+   *
+   *     AGENCY (holding group) → TRADING COMPANY (the business) → CLIENTS
+   *
+   * A trading company therefore NEVER "becomes an agency". It stays a company
+   * under its holding group and gains a portal — a workspace of its own. That
+   * workspace needs a tenant row, which is what this `Agency` record is when
+   * these two fields are set.
+   *
+   * WITHOUT this link the tenant created for a company portal is an ordinary
+   * SIBLING of the holding group, indistinguishable from a wholly separate
+   * business, and the top tier evaporates — the holding group cannot list the
+   * companies it holds. That is the two-tier model the founder rejected, so
+   * the link is what keeps the settled model representable at all.
+   *
+   * Unset on an ordinary top-level agency (a holding group itself, or a
+   * standalone signup). Set together or not at all.
+   */
+  /** The holding group this portal tenant belongs to. */
+  holdingAgencyId?: string;
+  /** The `TradingCompany.id` in that holding group this tenant is the portal for. */
+  companyId?: string;
 }
 
 export type TradingCompanyStatus = "active" | "paused" | "archived";
@@ -57,18 +84,24 @@ export interface TradingCompany {
   createdAt: number;
   updatedAt: number;
   /**
-   * Set once this brand has been promoted into its own agency — the id of the
-   * agency it became. See `server/promotion/promoteCompany`.
+   * Set once this company has been given a portal of its own — the id of the
+   * `Agency` row that BACKS that portal. See `server/companyPortal`.
    *
-   * The brand record deliberately STAYS here in the origin tenant rather than
-   * being deleted, because the tombstone is what makes promotion idempotent (a
-   * second POST creates nothing and returns this id) and resumable (later
-   * phases move records into the agency the first phase created). It is also
-   * what lets the origin agency's own history still explain where a brand went.
+   * ⚠ This is NOT "the agency this brand became". The company does not leave
+   * and does not change tier: it stays a `TradingCompany` in this holding
+   * group, still listed in the portfolio, still owning its clients. The tenant
+   * named here is its workspace, and it carries `holdingAgencyId` pointing
+   * back at `this.agencyId` — the link is deliberately two-way so neither tier
+   * can be reached without the other.
+   *
+   * Keeping the company record here (rather than deleting it) is what makes
+   * portal creation idempotent — a second POST finds this id, creates nothing
+   * and returns it — and resumable, since later phases move records into the
+   * tenant the first phase created and need to know which one that is.
    */
-  promotedAgencyId?: string;
-  /** When the promotion happened. Written once, never overwritten. */
-  promotedAt?: number;
+  portalAgencyId?: string;
+  /** When the company's portal was created. Written once, never overwritten. */
+  portalCreatedAt?: number;
 }
 
 /**
@@ -3127,7 +3160,7 @@ export interface PortalState {
   // Saved task sequences. See AgencyTaskTemplate.
   taskTemplates: Record<string, AgencyTaskTemplate>;
   // A client's own software connected to their portal. See portalConnections.
-  portalConnections: Record<string, import("@/lib/server/portalConnections").PortalConnection>;
+  portalConnections: Record<string, import("@/lib/server/portal/portalConnections").PortalConnection>;
   // Where each Aqua-tagged website's submissions route. See server/websiteSources.
   websiteSources?: Record<string, import("@/server/websiteSources").WebsiteSource>;
   // Operator-added contact details for an enquiry (Phase 4), keyed by enquiry id.
@@ -3164,7 +3197,7 @@ export interface PortalState {
   clientPortalInstances: Record<string, ClientPortalInstanceRecord>;
   companyProfiles: Record<string, CompanyProfile>;
   legalDocuments: Record<string, LegalDocument>;
-  contractTemplates: Record<string, import("@/lib/clientContracts").ClientContractTemplate>;
+  contractTemplates: Record<string, import("@/lib/clients/clientContracts").ClientContractTemplate>;
   developmentResources: Record<string, DevelopmentResource>;
   developmentWorkflows: Record<string, DevelopmentWorkflow>;
   agencyWebsites: Record<string, AgencyWebsiteProject>;
@@ -3174,7 +3207,7 @@ export interface PortalState {
   /** Per-agency guided custom KPIs (Phase 6 — KPI intelligence). Additive. */
   customKpis: Record<string, CustomKpiDefinition[]>;
   /** Latest Infra sweep snapshot (radar upgrade Stage 4). App-wide DB/storage health — one probe, not per-agency. */
-  radarInfraHealth?: import("@/lib/businessRadar").RadarInfraHealthSnapshot;
+  radarInfraHealth?: import("@/lib/radar/businessRadar").RadarInfraHealthSnapshot;
   operationalAlertPreferences: Record<string, OperationalAlertPreference>;
   peopleApplications: Record<string, PeopleApplication>;
   peopleEmployees: Record<string, PeopleEmployee>;

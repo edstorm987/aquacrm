@@ -26,8 +26,8 @@ import {
   type ClientPaymentMilestone,
   type ClientPaymentPlan,
   type PaymentPlanInvoiceEvidence,
-} from "@/lib/clientPaymentPlans";
-import { formatUkDate } from "@/lib/formatDateTime";
+} from "@/lib/clients/clientPaymentPlans";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 interface ProductOption {
   id: string;

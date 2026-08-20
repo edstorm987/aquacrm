@@ -1,4 +1,4 @@
-# `src/lib/productAssignments.ts`
+# `src/lib/products/productAssignments.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -17,8 +17,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/clientProductVariations.ts`](./clientProductVariations.md)
-- [`src/lib/portalProducts.ts`](./portalProducts.md)
+- [`src/lib/clients/clientProductVariations.ts`](./clientProductVariations.md)
+- [`src/lib/portal/portalProducts.ts`](./portalProducts.md)
 - [`src/server/types.ts`](../server/types.md)
 
 ## Used by (23)
@@ -43,7 +43,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
 - [`src/app/portal/customer/_portalData.ts`](../app/portal/customer/_portalData.md)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../built-ins/modules/leads-pipeline/src/api/handlers.md)
-- [`src/lib/server/clientRadar.ts`](./server/clientRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./server/clientRadar.md)
 - [`src/server/clientPortalSetup.ts`](../server/clientPortalSetup.md)
 - [`src/server/productWorkspaces.ts`](../server/productWorkspaces.md)
 

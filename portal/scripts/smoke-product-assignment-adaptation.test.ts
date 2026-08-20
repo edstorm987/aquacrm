@@ -4,8 +4,8 @@ import { describe, it } from "node:test";
 import {
   resolveAgencyProductAssignment,
   resolvePortalProductAssignment,
-} from "../src/lib/productAssignments";
-import { portalProductLifecycle, portalProductModule } from "../src/lib/portalProductModules";
+} from "../src/lib/products/productAssignments";
+import { portalProductLifecycle, portalProductModule } from "../src/lib/portal/portalProductModules";
 import type { AgencyProduct } from "../src/server/types";
 
 function product(

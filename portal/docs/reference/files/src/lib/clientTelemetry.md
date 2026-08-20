@@ -1,4 +1,4 @@
-# `src/lib/clientTelemetry.ts`
+# `src/lib/clients/clientTelemetry.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -25,14 +25,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../app/portal/customer/_CustomerPortalViews.md)
-- [`src/lib/clientAquaHealth.ts`](./clientAquaHealth.md)
-- [`src/lib/server/brandPortfolio.ts`](./server/brandPortfolio.md)
-- [`src/lib/server/clientRadar.ts`](./server/clientRadar.md)
-- [`src/lib/server/clientTelemetry.ts`](./server/clientTelemetry.md)
-- [`src/lib/server/companyHealthSnapshot.ts`](./server/companyHealthSnapshot.md)
-- [`src/lib/server/operationalAlerts.ts`](./server/operationalAlerts.md)
-- [`src/lib/server/radarTelemetry.ts`](./server/radarTelemetry.md)
-- [`src/lib/server/showcaseMode.ts`](./server/showcaseMode.md)
+- [`src/lib/clients/clientAquaHealth.ts`](./clientAquaHealth.md)
+- [`src/lib/server/brandPortfolioService.ts`](./server/brandPortfolio.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./server/clientRadar.md)
+- [`src/lib/server/clients/clientTelemetryService.ts`](./server/clientTelemetry.md)
+- [`src/lib/server/kpi/companyHealthSnapshot.ts`](./server/companyHealthSnapshot.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./server/operationalAlerts.md)
+- [`src/lib/server/radar/radarTelemetry.ts`](./server/radarTelemetry.md)
+- [`src/lib/server/auth/showcaseMode.ts`](./server/showcaseMode.md)
 - [`src/server/agencyWebsite.ts`](../server/agencyWebsite.md)
 - [`src/server/clientMilestones.ts`](../server/clientMilestones.md)
 

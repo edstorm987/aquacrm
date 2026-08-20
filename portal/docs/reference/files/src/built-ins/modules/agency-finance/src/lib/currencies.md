@@ -27,5 +27,5 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 - [`src/built-ins/modules/agency-finance/src/pages/BudgetsPage.tsx`](../pages/BudgetsPage.md)
 - [`src/built-ins/modules/agency-finance/src/pages/PlanningPage.tsx`](../pages/PlanningPage.md)
 - [`src/built-ins/modules/agency-finance/src/pages/ReportsPage.tsx`](../pages/ReportsPage.md)
-- [`src/lib/server/financeCurrency.ts`](../../../../../lib/server/financeCurrency.md)
+- [`src/lib/server/finance/financeCurrency.ts`](../../../../../lib/server/finance/financeCurrency.md)
 

@@ -30,5 +30,5 @@
 ## Used by (2)
 
 - [`src/built-ins/modules/agency-hr/src/server/index.ts`](./index.md)
-- [`src/lib/server/effectiveRole.ts`](../../../../../lib/server/effectiveRole.md)
+- [`src/lib/server/auth/effectiveRole.ts`](../../../../../lib/server/auth/effectiveRole.md)
 

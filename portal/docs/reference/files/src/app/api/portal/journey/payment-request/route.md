@@ -12,10 +12,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../../../../../built-ins/modules/agency-finance/src/server/foundationAdapter.md)
 - [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](../../../../../built-ins/runtime/foundation-adapters/agencyFinanceFoundation.md)
-- [`src/lib/formatDateTime.ts`](../../../../../lib/formatDateTime.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/email/transactionalEmail.ts`](../../../../../lib/server/email/transactionalEmail.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../../lib/server/pluginStorage.md)
-- [`src/lib/server/transactionalEmail.ts`](../../../../../lib/server/transactionalEmail.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../../lib/shared/formatDateTime.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/pluginInstalls.ts`](../../../../../server/pluginInstalls.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)

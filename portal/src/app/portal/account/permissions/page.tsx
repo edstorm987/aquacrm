@@ -1,6 +1,6 @@
 import { ensureHydrated } from "@/server/storage";
-import { requireSession } from "@/lib/server/auth";
-import { effectiveRole } from "@/lib/server/effectiveRole";
+import { requireSession } from "@/lib/server/auth/auth";
+import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";

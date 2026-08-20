@@ -10,9 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/server/devTeamFindings.ts`](../../../../lib/server/devTeamFindings.md)
+- [`src/lib/server/dev/devTeamFindings.ts`](../../../../lib/server/dev/devTeamFindings.md)
 
 ## Used by (1)
 
-- [`src/app/portal/dev-team/findings/page.tsx`](./page.md)
+- [`src/app/portal/dev-team/findings/_Section.tsx`](./_Section.md)
 

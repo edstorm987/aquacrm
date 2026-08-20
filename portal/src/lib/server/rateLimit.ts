@@ -125,7 +125,7 @@ export async function sweepExpired(): Promise<SweepStats> {
   // forced to load the adapter.
   let nonceDeleted = 0;
   try {
-    const { getNonceStore } = await import("./nonceStore");
+    const { getNonceStore } = await import("@/lib/server/auth/nonceStore");
     nonceDeleted = await getNonceStore().gcExpiredNonces(now);
   } catch (e) {
     // GC is best-effort — surface failures via the warn channel.

@@ -16,8 +16,8 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 - [`src/built-ins/modules/agency-finance/src/lib/budgetHealth.ts`](../lib/budgetHealth.md)
 - [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](../lib/currencies.md)
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../server/foundationAdapter.md)
-- [`src/lib/server/financeBudgetCampaigns.ts`](../../../../../lib/server/financeBudgetCampaigns.md)
-- [`src/lib/server/financeCurrency.ts`](../../../../../lib/server/financeCurrency.md)
+- [`src/lib/server/finance/financeBudgetCampaigns.ts`](../../../../../lib/server/finance/financeBudgetCampaigns.md)
+- [`src/lib/server/finance/financeCurrency.ts`](../../../../../lib/server/finance/financeCurrency.md)
 - [`src/server/tradingCompanies.ts`](../../../../../server/tradingCompanies.md)
 
 ## Used by

@@ -11,10 +11,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/clientTelemetry.ts`](../../../../../lib/clientTelemetry.md)
-- [`src/lib/performanceAnalytics.ts`](../../../../../lib/performanceAnalytics.md)
-- [`src/lib/performanceReports.ts`](../../../../../lib/performanceReports.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/clients/clientTelemetry.ts`](../../../../../lib/clients/clientTelemetry.md)
+- [`src/lib/performance/performanceAnalytics.ts`](../../../../../lib/performance/performanceAnalytics.md)
+- [`src/lib/performance/performanceReports.ts`](../../../../../lib/performance/performanceReports.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../../server/tenants.md)

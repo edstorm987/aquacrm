@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
 
 import { AssistantWorkspace } from "./AssistantWorkspace";
-import { buildAssistantBusinessContext } from "@/lib/server/assistantBusinessContext";
-import { getAssistantWorkspace } from "@/lib/server/assistantStore";
+import { buildAssistantBusinessContext } from "@/lib/server/assistants/assistantBusinessContext";
+import { getAssistantWorkspace } from "@/lib/server/assistants/assistantStore";
 import {
   assistantModel,
   isAssistantConfigured,
-} from "@/lib/server/openaiAssistant";
-import { requireRole } from "@/lib/server/auth";
+} from "@/lib/server/assistants/openaiAssistant";
+import { requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
-import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
-import { radarDigest } from "@/lib/businessRadar";
+import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import { radarDigest } from "@/lib/radar/businessRadar";
 
 export default async function AssistantPage() {
   await ensureHydrated();

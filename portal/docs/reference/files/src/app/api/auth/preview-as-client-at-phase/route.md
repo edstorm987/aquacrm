@@ -8,12 +8,13 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `async POST(req: NextRequest)`
 
-## Depends on (7)
+## Depends on (8)
 
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/demoSeed.ts`](../../../../lib/server/demoSeed.md)
-- [`src/lib/server/effectiveRole.ts`](../../../../lib/server/effectiveRole.md)
-- [`src/lib/server/previewPhase.ts`](../../../../lib/server/previewPhase.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/effectiveRole.ts`](../../../../lib/server/auth/effectiveRole.md)
+- [`src/lib/server/dev/devModeAccess.ts`](../../../../lib/server/dev/devModeAccess.md)
+- [`src/lib/server/portal/previewPhase.ts`](../../../../lib/server/portal/previewPhase.md)
+- [`src/lib/server/seeds/demoSeed.ts`](../../../../lib/server/seeds/demoSeed.md)
 - [`src/server/phases.ts`](../../../../server/phases.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/users.ts`](../../../../server/users.md)

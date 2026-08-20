@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   exportRadarSourceData,
   invalidateRadarSourceInspection,
   inspectRadarSourceData,
   inspectRadarSourceDataset,
-} from "@/lib/server/radarSourceInspection";
+} from "@/lib/server/radar/radarSourceInspection";
 import { ensureHydrated } from "@/server/storage";
 
 export async function GET(request: Request) {

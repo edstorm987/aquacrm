@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { cleanRecordText } from "@/lib/clientRelationshipRecord";
-import { cleanClientProductProcessState, setClientProductStage, setClientProductStepCompletion } from "@/lib/clientProductProcess";
-import { defaultProductInternalWorkspace } from "@/lib/productInternalWorkspace";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { cleanRecordText } from "@/lib/clients/clientRelationshipRecord";
+import { cleanClientProductProcessState, setClientProductStage, setClientProductStepCompletion } from "@/lib/clients/clientProductProcess";
+import { defaultProductInternalWorkspace } from "@/lib/products/productInternalWorkspace";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { clientProductWorkspaces, saveClientProductWorkspaces } from "@/server/productWorkspaces";

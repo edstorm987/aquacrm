@@ -23,7 +23,7 @@ async function main() {
   const { ensureHydrated, getState, mutate, flushPendingWrites, getBackendInfo } = await import("@/server/storage");
   const { createAgency } = await import("@/server/tenants");
   const { ensureClientPortalInstance, ensureStunningPortalTemplate } = await import("@/server/clientPortalDesigns");
-  const { DEV_AGENCY_NAME, DEV_AGENCY_SLUG } = await import("@/lib/server/devMode");
+  const { DEV_AGENCY_NAME, DEV_AGENCY_SLUG } = await import("@/lib/server/dev/devMode");
 
   await ensureHydrated();
 

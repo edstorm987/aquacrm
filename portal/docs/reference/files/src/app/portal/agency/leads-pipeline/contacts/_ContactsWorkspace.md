@@ -15,8 +15,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/agency/leads-pipeline/contacts/_CommercialPackModal.tsx`](./_CommercialPackModal.md)
 - [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](../../../../../built-ins/modules/leads-pipeline/src/lib/domain.md)
 - [`src/components/ui/CollapsibleSection.tsx`](../../../../../components/ui/CollapsibleSection.md)
-- [`src/lib/formatDateTime.ts`](../../../../../lib/formatDateTime.md)
-- [`src/lib/leadTiming.ts`](../../../../../lib/leadTiming.md)
+- [`src/lib/enquiries/leadTiming.ts`](../../../../../lib/enquiries/leadTiming.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../../lib/shared/formatDateTime.md)
 
 ## Used by (1)
 

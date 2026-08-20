@@ -20,10 +20,10 @@ import {
   Phone,
   ReceiptText,
 } from "lucide-react";
-import type { AquaHealthState } from "@/lib/clientAquaHealth";
-import type { ClientOperationsBrief } from "@/lib/clientOperations";
-import type { ClientRadarSnapshot } from "@/lib/businessRadar";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import type { AquaHealthState } from "@/lib/clients/clientAquaHealth";
+import type { ClientOperationsBrief } from "@/lib/clients/clientOperations";
+import type { ClientRadarSnapshot } from "@/lib/radar/businessRadar";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import { ClientOperationTaskButton } from "./_ClientOperationTaskButton";
 import { ClientAdvancedControls } from "./_ClientAdvancedControls";
 import { ClientOperatingPlan, type ClientAccountPlanStep, type ClientProductPlan } from "./_ClientOperatingPlan";

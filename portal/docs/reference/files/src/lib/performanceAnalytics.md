@@ -1,4 +1,4 @@
-# `src/lib/performanceAnalytics.ts`
+# `src/lib/performance/performanceAnalytics.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -15,7 +15,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/formatDateTime.ts`](./formatDateTime.md)
+- [`src/lib/shared/formatDateTime.ts`](./formatDateTime.md)
 
 ## Used by (10)
 
@@ -25,8 +25,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](../app/portal/agency/performance/_PerformanceWorkspace.md)
 - [`src/app/portal/agency/performance/page.tsx`](../app/portal/agency/performance/page.md)
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../app/portal/customer/_CustomerPortalViews.md)
-- [`src/lib/performanceReports.ts`](./performanceReports.md)
-- [`src/lib/server/googleSearchConsole.ts`](./server/googleSearchConsole.md)
+- [`src/lib/performance/performanceReports.ts`](./performanceReports.md)
+- [`src/lib/server/integrations/googleSearchConsole.ts`](./server/googleSearchConsole.md)
 - [`src/server/agencyWebsite.ts`](../server/agencyWebsite.md)
 - [`src/server/clientMilestones.ts`](../server/clientMilestones.md)
 

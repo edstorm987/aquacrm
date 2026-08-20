@@ -108,7 +108,7 @@ const ORDER_DETAIL_PAGE = join(ROOT, "src", "built-ins", "modules", "ecommerce",
 const TENANTS = join(ROOT, "src", "server", "tenants.ts");
 const FINANCE_MANIFEST = join(ROOT, "src", "built-ins", "modules", "agency-finance", "index.ts");
 const LEADS_MANIFEST = join(ROOT, "src", "built-ins", "modules", "leads-pipeline", "index.ts");
-const FOUNDER_SEED = join(ROOT, "src", "lib", "server", "founderSeed.ts");
+const FOUNDER_SEED = join(ROOT, "src", "lib", "server", "seeds", "founderSeed.ts");
 
 function read(path: string): string {
   return readFileSync(path, "utf8");
@@ -319,7 +319,7 @@ describe("standalone portal nav audit", () => {
 
   it("presents client capabilities as built-in systems", () => {
     const clientHome = read(CLIENT_HOME);
-    const clientTabs = read(join(ROOT, "src", "lib", "clientWorkspace.ts"));
+    const clientTabs = read(join(ROOT, "src", "lib", "clients", "clientWorkspace.ts"));
     const clientLayout = read(join(ROOT, "src", "app", "portal", "clients", "[clientId]", "layout.tsx"));
     const picker = read(join(ROOT, "src", "app", "portal", "clients", "[clientId]", "_ToolsPicker.tsx"));
 

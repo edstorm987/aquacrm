@@ -34,8 +34,8 @@
 - [`src/components/attention/ResolutionSpotlight.tsx`](../../components/attention/ResolutionSpotlight.md)
 - [`src/components/attention/TaskChecklist.tsx`](../../components/attention/TaskChecklist.md)
 - [`src/lib/inbox/resolutionFocus.ts`](./resolutionFocus.md)
-- [`src/lib/operationalAttention.ts`](../operationalAttention.md)
-- [`src/lib/server/operationalAlerts.ts`](../server/operationalAlerts.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../intelligence/operationalAttention.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](../server/inbox/operationalAlerts.md)
 - [`src/lib/server/resolutionPlans.ts`](../server/resolutionPlans.md)
 - [`src/lib/tasks/taskTemplates.ts`](../tasks/taskTemplates.md)
 

@@ -1,4 +1,4 @@
-# `src/lib/radarRuleCatalog.ts`
+# `src/lib/radar/radarRuleCatalog.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -16,15 +16,15 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
-- [`src/lib/radarClassification.ts`](./radarClassification.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/radar/radarClassification.ts`](./radarClassification.md)
 
 ## Used by (6)
 
 - [`scripts/generate-radar-rules-reference.ts`](../../scripts/generate-radar-rules-reference.md)
 - [`scripts/smoke-business-radar.test.ts`](../../scripts/smoke-business-radar.test.md)
 - [`scripts/smoke-radar-classification.test.ts`](../../scripts/smoke-radar-classification.test.md)
-- [`src/lib/radarCheckEngine.ts`](./radarCheckEngine.md)
-- [`src/lib/server/businessIssueRadar.ts`](./server/businessIssueRadar.md)
-- [`src/lib/server/radarObservations.ts`](./server/radarObservations.md)
+- [`src/lib/radar/radarCheckEngine.ts`](./radarCheckEngine.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./server/businessIssueRadar.md)
+- [`src/lib/server/radar/radarObservations.ts`](./server/radarObservations.md)
 

@@ -15,11 +15,11 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (12)
 
 - [`src/app/api/tenants/client-properties/route.ts`](../client-properties/route.md)
-- [`src/lib/clientRequests.ts`](../../../../lib/clientRequests.md)
+- [`src/lib/clients/clientRequests.ts`](../../../../lib/clients/clientRequests.md)
 - [`src/lib/inbox/media.ts`](../../../../lib/inbox/media.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/clientRecordLedger.ts`](../../../../lib/server/clientRecordLedger.md)
-- [`src/lib/server/inboxMedia.ts`](../../../../lib/server/inboxMedia.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](../../../../lib/server/clients/clientRecordLedger.md)
+- [`src/lib/server/inbox/inboxMedia.ts`](../../../../lib/server/inbox/inboxMedia.md)
 - [`src/lib/server/websiteEnquiries.ts`](../../../../lib/server/websiteEnquiries.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/automations.ts`](../../../../server/automations.md)
@@ -35,5 +35,5 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/customer/_CustomerPortalActions.tsx`](../../../portal/customer/_CustomerPortalActions.md)
 - [`src/app/portal/customer/_PortalInteractionBlocks.tsx`](../../../portal/customer/_PortalInteractionBlocks.md)
 - [`src/app/portal/customer/_portalData.ts`](../../../portal/customer/_portalData.md)
-- [`src/lib/clientRequests.ts`](../../../../lib/clientRequests.md)
+- [`src/lib/clients/clientRequests.ts`](../../../../lib/clients/clientRequests.md)
 

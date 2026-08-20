@@ -27,7 +27,7 @@
 > ```
 > `PORTAL_BACKEND=memory` keeps stateful tests off Ed's live sandbox.
 
-## `scripts/` (~200 files)
+## `scripts/` (277 entries, 242 of them `*.test.ts`)
 
 **Test convention:** `node:test` files run through `tsx` (no Jest/Vitest),
 mostly **static-source contract tests** (`readFileSync` a module + assert on its
@@ -38,7 +38,7 @@ content). `scripts/` is excluded from tsconfig — they only run under tsx.
 > `client-aqua-health`, `client-marketing-service`, `client-workspace-navigation`,
 > `hiring-capacity`, `attention-protection`, `inbox-attention-thread`.
 
-**~180 `*.test.ts`, grouped by domain** — there's a smoke test for almost
+**242 `*.test.ts`, grouped by domain** (re-counted 2026-08-20) — there's a smoke test for almost
 everything, so **check for an existing one before changing behaviour** (a
 contract test may pin the behaviour you're about to change):
 radar/monitoring · inbox/attention/actions · products/portals/client-workspaces ·

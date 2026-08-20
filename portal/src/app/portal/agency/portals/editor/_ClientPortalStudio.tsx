@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { PORTAL_PHASE_LABELS } from "@/lib/portalProducts";
+import { PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
 import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/clientPortalDesign";
+import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/portal/clientPortalDesign";
 import {
   CLIENT_PORTAL_BLOCK_REGISTRY,
   createPortalBlock,
@@ -14,12 +14,12 @@ import {
   portalBuilderId,
   portalSlug,
   uniquePortalSlug,
-} from "@/lib/clientPortalBuilder";
+} from "@/lib/portal/clientPortalBuilder";
 import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/lib/editing/modes";
 import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
 import { elementSource, repoRelativePath } from "@/lib/editing/elementSource";
 import { PORTAL_SCOPE, scopeForSection } from "@/lib/editing/fileRelevance";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type {
   ClientPortalDesignDocument,
   ClientPortalDesignVersion,
@@ -652,7 +652,7 @@ export function ClientPortalStudio({
 
         <button type="button" onClick={() => setMobileInspectorOpen(true)} aria-expanded={mobileInspectorOpen} className="fixed bottom-4 right-4 z-30 inline-flex min-h-11 items-center gap-2 rounded-md bg-cyan-300 px-4 text-xs font-bold text-[#102124] shadow-lg lg:hidden"><FileText size={16} /> Edit portal</button>
         {mobileInspectorOpen ? (
-          <aside className="fixed inset-0 z-50 flex flex-col bg-[#141614] lg:hidden" aria-label="Portal editor inspector">
+          <aside className="fixed inset-0 z-50 flex flex-col bg-[#141614] lg:hidden" aria-label="Aqua Engine inspector">
             <div className="grid shrink-0 border-b border-white/10" style={{ gridTemplateColumns: `repeat(${allowedTabs.length}, 1fr) 44px` }}>
               {allowedTabs.map(item => {
                 const Icon = item.icon;

@@ -1,4 +1,4 @@
-# `src/lib/server/externalAssistantKeys.ts`
+# `src/lib/server/assistants/externalAssistantKeys.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -26,5 +26,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/settings/external-ai/route.ts`](../../app/api/portal/settings/external-ai/route.md)
 - [`src/app/portal/agency/settings/page.tsx`](../../app/portal/agency/settings/page.md)
 - [`src/app/portal/dev-team/api/page.tsx`](../../app/portal/dev-team/api/page.md)
-- [`src/lib/server/externalAssistantApi.ts`](./externalAssistantApi.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](./externalAssistantApi.md)
 

@@ -192,6 +192,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   divider: {
     type: "divider", label: "Divider", icon: "—", category: "layout", isContainer: false,
+    // P3 — also the portal `divider` — same name, same element. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: DividerBlock, defaultProps: { color: "rgba(255,255,255,0.1)" },
     fields: [{ key: "color", label: "Colour", type: "color", default: "rgba(255,255,255,0.1)" }],
   },
@@ -212,6 +214,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   text: {
     type: "text", label: "Text", icon: "T", category: "content", isContainer: false,
+    // P3 — also the portal `rich-text`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: TextBlock, defaultProps: { text: "Add your copy here. Click to edit." },
     fields: [{ key: "text", label: "Text", type: "richtext", default: "Add your copy here. Click to edit." }],
   },
@@ -233,6 +237,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   hero: {
     type: "hero", label: "Hero", icon: "★", category: "content", isContainer: false,
+    // P3 — also the portal `hero` — same name, same element. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: HeroBlock,
     defaultProps: {
       eyebrow: "Welcome",
@@ -302,6 +308,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   banner: {
     type: "banner", label: "Banner", icon: "▬", category: "content", isContainer: false,
+    // P3 — also the portal `callout`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: BannerBlock,
     defaultProps: { text: "Free UK shipping over £40", tone: "promo", dismissible: true, sticky: false },
     fields: [
@@ -418,6 +426,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   "blog-feed": {
     type: "blog-feed", label: "Blog feed", icon: "📰", category: "content", isContainer: false,
+    // P3 — also the portal `file-list`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: BlogFeedBlock,
     defaultProps: { count: 6, layout: "grid" },
     fields: [
@@ -472,6 +482,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   "stats-bar": {
     type: "stats-bar", label: "Stats bar", icon: "📊", category: "content", isContainer: false,
+    // P3 — also the portal `metrics`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: StatsBarBlock, defaultProps: {}, fields: [],
   },
   "logo-grid": {
@@ -481,6 +493,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   "feature-grid": {
     type: "feature-grid", label: "Feature grid", icon: "▥", category: "content", isContainer: false,
+    // P3 — also the portal `service-grid`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: FeatureGridBlock, defaultProps: { heading: "What's included", columns: 3 },
     fields: [
       { key: "heading", label: "Heading", type: "text" },
@@ -498,6 +512,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   "card-grid": {
     type: "card-grid", label: "Card grid", icon: "▥", category: "content", isContainer: false,
+    // P3 — also the portal `link-list` and `product-hub`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: CardGridBlock, defaultProps: { columns: 3, cards: [] },
     fields: [
       { key: "heading", label: "Heading", type: "text" },
@@ -555,6 +571,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   timeline: {
     type: "timeline", label: "Timeline", icon: "│", category: "content", isContainer: false,
+    // P3 — also the portal `activity`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: TimelineBlock, defaultProps: { heading: "Our story" },
     fields: [{ key: "heading", label: "Heading", type: "text" }],
   },
@@ -577,6 +595,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   "contact-form": {
     type: "contact-form", label: "Contact form", icon: "✉", category: "content", isContainer: false,
+    // P3 — also the portal `request-form`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: ContactFormBlock,
     defaultProps: {
       heading: "Get in touch",
@@ -595,6 +615,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   // ── Media ──────────────────────────────────────────────────────────────
   image: {
     type: "image", label: "Image", icon: "🖼", category: "media", isContainer: false,
+    // P3 — also the portal `image` — same name, same element. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: ImageBlock,
     defaultProps: { src: "", alt: "", width: "100%", filenameForSeo: true },
     fields: [
@@ -617,6 +639,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
   "video-embed": {
     type: "video-embed", label: "Video embed", icon: "▶︎", category: "media", isContainer: false,
+    // P3 — also the portal `video`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: VideoEmbedBlock,
     defaultProps: { provider: "raw", url: "", aspectRatio: 16 / 9, autoplay: false, controls: true },
     fields: [
@@ -898,6 +922,8 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   // ── Advanced ───────────────────────────────────────────────────────────
   html: {
     type: "html", label: "Raw HTML", icon: "</>", category: "advanced", isContainer: false,
+    // P3 — also the portal `custom-extension`. One entry, two surfaces.
+    surfaces: ["website", "portal"],
     Component: HtmlBlock, defaultProps: { html: "<p>Custom HTML here</p>" },
     fields: [{ key: "html", label: "HTML", type: "textarea", default: "<p>Custom HTML here</p>" }],
   },
@@ -984,12 +1010,21 @@ export function getBlockDefinition(type: string): BlockDefinition | undefined {
   return getElementDefinition(type);
 }
 
+// SURFACE-FILTERED since P3. The shared lookup now also holds the client
+// portal's two genuinely new elements (`approval-panel`, `file-upload`,
+// registered by `src/lib/elements/portalElements.ts` with `surfaces:
+// ["portal"]`). Filtering here is the whole reason `surfaces` exists: an
+// operator building a public marketing site must never be offered a decision
+// panel bound to a signed-in client's approvals. The 14 portal types that are
+// aliases of an element this library already declares carry BOTH surfaces, so
+// this list is unchanged at 70.
+
 export function listBlockDefinitions(): BlockDefinition[] {
-  return listElementDefinitions();
+  return listElementDefinitions("website");
 }
 
 export function listBlocksByCategory(category: BlockCategory): BlockDefinition[] {
-  return listElementDefinitions().filter(d => d.category === category);
+  return listElementDefinitions("website").filter(d => d.category === category);
 }
 
 // ─── Plugin manifest derivative ────────────────────────────────────────────

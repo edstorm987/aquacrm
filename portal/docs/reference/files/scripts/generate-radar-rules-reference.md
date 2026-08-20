@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/radarRuleCatalog.ts`](../src/lib/radarRuleCatalog.md)
+- [`src/lib/radar/radarRuleCatalog.ts`](../src/lib/radar/radarRuleCatalog.md)
 
 ## Used by
 

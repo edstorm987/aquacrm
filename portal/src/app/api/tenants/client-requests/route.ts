@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
@@ -8,9 +8,9 @@ import type { ClientProperty } from "@/app/api/tenants/client-properties/route";
 import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/websiteEnquiries";
 import { triggerAutomations } from "@/server/automations";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
-import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inboxMedia";
-import { cleanClientRequests } from "@/lib/clientRequests";
-import { synchroniseClientRequestLedgerEvents } from "@/lib/server/clientRecordLedger";
+import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
+import { cleanClientRequests } from "@/lib/clients/clientRequests";
+import { synchroniseClientRequestLedgerEvents } from "@/lib/server/clients/clientRecordLedger";
 
 export type ClientRequestType = "suggestion" | "design-feedback" | "support-ticket" | "cancel" | "move-provider";
 

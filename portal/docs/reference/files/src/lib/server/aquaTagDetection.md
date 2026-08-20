@@ -1,4 +1,4 @@
-# `src/lib/server/aquaTagDetection.ts`
+# `src/lib/server/integrations/aquaTagDetection.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

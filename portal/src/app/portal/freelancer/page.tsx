@@ -5,7 +5,7 @@
 import { redirect } from "next/navigation";
 import { Briefcase, CalendarClock, CheckCircle2 } from "lucide-react";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { freelancerWorkspace } from "@/server/freelancerWorkspace";
 import { FreelancerJobActions } from "./_FreelancerJobActions";
 

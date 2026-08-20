@@ -5,14 +5,14 @@ import { Bell, Check, CheckCheck, ChevronRight, Clock3, RotateCcw, ShieldCheck, 
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
-import { formatUkDate } from "@/lib/formatDateTime";
-import type { OperationalAlertView } from "@/lib/operationalAttention";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
+import type { OperationalAlertView } from "@/lib/intelligence/operationalAttention";
 import {
   LATEST_RELEASE,
   RELEASE_SEEN_EVENT,
   RELEASE_STORAGE_KEY,
   formatReleaseDate,
-} from "@/lib/releases";
+} from "@/lib/projects/releases";
 
 type CentreView = "attention" | "parked" | "read";
 

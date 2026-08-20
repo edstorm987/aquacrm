@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
-import { addThought, listThoughts } from "@/lib/server/devTeamThoughts";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { addThought, listThoughts } from "@/lib/server/dev/devTeamThoughts";
 import { ensureHydrated } from "@/server/storage";
 import { getUser } from "@/server/users";
 import { AGENCY_ROLES } from "@/server/types";

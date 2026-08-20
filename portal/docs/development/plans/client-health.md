@@ -2,11 +2,22 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · ties to [aqua-tag-system](aqua-tag-system.md)
 
-**Status: ✅ SHIPPED — all 4 phases + browser-verified (2026-08-19); auditor PASSED the thin-data honesty contract.** _(Was mislabelled "PLAN (not finished)" after it shipped.)_ The "client health thing" Ed started — meant to
+**Status: ✅ SHIPPED — all 4 phases + browser-verified on `:3032` (2026-08-19); auditor PASSED the thin-data honesty contract. Every Ed decision resolved — nothing here is open.**
+
+> 📌 **Why this has NOT been moved to `plans/archive/` despite qualifying.** It was archived on 2026-08-20 and moved straight back. `scripts/smoke-dev-tasks-parse.test.ts:71` pins `client-health#1` and `client-health#4` as existing, done tasks, and `scanTasks` reads the **top level of `plans/` only** — so archiving this plan deletes those two tasks and turns the suite red. Archiving it is a two-part change (move the file *and* update that test) and the test is source, not docs. **Commander's call.** _(Was mislabelled "PLAN (not finished)" after it shipped.)_
+
+Re-verified in source 2026-08-20 before archiving:
+- `enquiry` and `traffic` are real factors on the health model (`src/lib/clients/clientAquaHealth.ts:24`, built at `:75–76`), with the absent-tag blind spot handled at `:51`.
+- The telemetry risk verdicts the alerts share are exported as `ClientTelemetryRiskKind` — `enquiry-none` · `traffic-silent` · `traffic-drop` (`:146`) — so an alert cannot disagree with the health chip.
+- The roll-up ships and is **mounted**: `listClientsNeedingAttention` is called in `src/app/portal/agency/page.tsx:101` and the panel renders at `src/app/portal/agency/_DashboardCommandCenter.tsx:1330`.
+- ⚠ **One path in this plan was wrong** and is corrected below: the module is `src/lib/server/clients/clientAttention.ts`, **not** `server/clientAttention.ts`.
+
+The "client health thing" Ed started — meant to
 surface per-client alerts in Command Centre ("XYZ had no enquiries this month",
 "XYZ traffic dropped") so you know which client needs attention *without opening
-each one*. It's built but a rabbit hole: **unfinished and unconnected.** This is
-what actually solves the "tell me in Command Centre" problem.
+each one*. This is what actually solves the "tell me in Command Centre" problem.
+
+> 📎 **The two sections immediately below — "Where we are" and "The gap" — are the ORIGINAL 2026-08-19 audit, written before the build.** They describe the roll-up as missing and the factors as relationship-only. Both were fixed by phases 1–4. Kept for the record; do not read them as current.
 
 ## Why
 Clients' full detail lives in **Fulfilment**; Command Centre should only get the
@@ -21,7 +32,7 @@ needing attention, not *which* or *why*.
 - **`companyHealth` / `companyHealthSnapshot`** compute `clientsNeedingAttention` — a **count** (feeds the `client-attention` command KPI); `brandPortfolio.clientNeedsAttention()` flags per-client attention (no owner / last contact >14d / telemetry errors / open requests / blocked milestones).
 - Radar [auto-seeding](radar-upgrade.md) now covers each client's properties.
 
-## The gap (why it still feels like a rabbit hole)
+## The gap (why it felt like a rabbit hole) — CLOSED by phases 1–4
 Built **at client-scope**, but not **rolled up + fed** — so it doesn't yet do the "tell me in Command Centre" job:
 1. **Built at client-scope, not rolled up.** You see a client's health by *opening the client* (the Client Radar panel). It doesn't aggregate into **Command Centre** as **per-client alerts** — so you must open each client to know something's off. The roll-up + alerting is the **"connecting"** gap.
 2. **Missing the tag-fed factors.** `clientAquaHealth`'s factors are relationship-only (payment / contact / terms). It doesn't yet ingest the **enquiry flow** ("none this month" / drop) and **traffic** (drop / surge / silence) signals from the client's tagged sites — the ones Ed named. The **"finishing"** gap.
@@ -30,7 +41,7 @@ Built **at client-scope**, but not **rolled up + fed** — so it doesn't yet do 
 1. ✅ **Finish the factors — SHIPPED (2026-08-19).** Added `enquiry` (form/conversion telemetry) and `traffic` (pageview telemetry) factors to `clientAquaHealth`, threaded telemetry through all 3 call sites (`clients/page.tsx`, `clients/[clientId]/page.tsx`, `server/clientRadar.ts`). **Evolving monthly baseline, ±10% band, two-tier watch/risk** (see Decisions). Folded `clientNeedsAttention`'s telemetry-error check into the traffic factor as a cap. Honest `learning` until a baseline exists. Weights rebalanced to sum to 100 across six factors (no-site clients cap at ~70% confidence — a visible blind spot). Suite 1555 green, files `tsc`-clean, server path runtime-proved in memory. 6 behavioural tests. Radar consumed read-only; `operationalAlerts.ts` untouched.
 2. ✅ **Connect to Command Centre alerts — SHIPPED (2026-08-19).** A firing enquiry/traffic risk factor → a specific `operationalAlert` ("XYZ: no enquiries this month", "XYZ: traffic down 80%", "XYZ: site traffic has gone silent") with a Fulfilment resolution path (`?tab=systems`), exact baseline evidence, and client identity. Exported `clientTelemetryRiskSignals` from `clientAquaHealth` (shared verdicts — alert can't disagree with the health chip); `operationalAlerts` consumes it, gated by `clientAlerts`. Classified **off-system** with a `clearsWhen` (metric returns to baseline); registered the `client-health-` family in the inbox `CLEARS_WHEN` + `FOCUS_BY_PREFIX` tables (additive — flagged to commander) so the "every action classified" guarantee stays green. `traffic-silent` = critical, else warning. Suite 1588 green; runtime-proved via the real `listOperationalAlerts`.
 3. ✅ **Radar integration — SHIPPED (2026-08-19).** Client health rides `buildClientRadarFleet` (the canonical per-client rollup that already folds in the Phase-1 enquiry/traffic factors) — the Phase-4 roll-up reads the fleet, so health rolls up from monitored signals with no second source of truth.
-4. ✅ **Command Centre surface — SHIPPED + BROWSER-VERIFIED (2026-08-19).** `listClientsNeedingAttention` (`server/clientAttention.ts`) + the `ClientsNeedingAttention` panel (`agency/_ClientsNeedingAttention.tsx`) give the compact list — each client + state + top reason + Fulfilment link, "All clear" empty state. Behavioural test (`smoke-client-attention.test.ts`, 3 cases). **Mounted** in the Command Centre Day Command station (`page.tsx` fetch + `_DashboardCommandCenter.tsx` render, Ed-approved shared-file edit) and **verified live on `:3032`** — renders "1 to review → Northlight Studio · watch · reason · 91/100 · Fulfilment link".
+4. ✅ **Command Centre surface — SHIPPED + BROWSER-VERIFIED (2026-08-19).** `listClientsNeedingAttention` (`src/lib/server/clients/clientAttention.ts` — this plan originally wrote the path as `server/clientAttention.ts`, which does not exist) + the `ClientsNeedingAttention` panel (`agency/_ClientsNeedingAttention.tsx`) give the compact list — each client + state + top reason + Fulfilment link, "All clear" empty state. Behavioural test (`smoke-client-attention.test.ts`, 3 cases). **Mounted** in the Command Centre Day Command station (`page.tsx` fetch + `_DashboardCommandCenter.tsx` render, Ed-approved shared-file edit) and **verified live on `:3032`** — renders "1 to review → Northlight Studio · watch · reason · 91/100 · Fulfilment link".
 
 **PLAN COMPLETE** — all four phases shipped, tested, and browser-verified.
 
@@ -60,17 +71,17 @@ Codex workers in ONE uncommitted tree, two agents in the same file destroys work
 no git to recover from. Before assigning this plan, check these paths against every other
 plan in flight._
 
-- `src/lib/clientAquaHealth.ts`
-- `src/lib/server/clientAttention.ts`
+- `src/lib/clients/clientAquaHealth.ts`
+- `src/lib/server/clients/clientAttention.ts`
 - `src/app/portal/agency/_ClientsNeedingAttention.tsx`
 - `scripts/smoke-client-attention.test.ts`
 - `scripts/client-aqua-health.test.ts`
 - `docs/development/plans/client-health.md`
-- `src/lib/server/clientRadar.ts`
-- `src/lib/server/operationalAlerts.ts`
+- `src/lib/server/radar/clientRadarService.ts`
+- `src/lib/server/inbox/operationalAlerts.ts`
 - `src/lib/inbox/resolutionFocus.ts`
 - `src/lib/inbox/resolutionExplain.ts`
-- `src/lib/businessRecommendedActions.ts`
+- `src/lib/intelligence/businessRecommendedActions.ts`
 - `src/app/portal/agency/page.tsx`
 - `src/app/portal/agency/_DashboardCommandCenter.tsx`
 - `src/app/portal/clients/page.tsx`

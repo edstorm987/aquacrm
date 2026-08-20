@@ -4,14 +4,14 @@ import Link from "next/link";
 import { Building2, ChartPie, Check, ChevronRight, CircleAlert, Compass, Flag, Gauge, HeartPulse, Package, Pencil, PlugZap, Plus, Save, ShieldCheck, Sparkles, Trash2, TrendingUp, UsersRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, SopDocument, TradingCompany } from "@/server/types";
-import { calculateCompanyHealth } from "@/lib/companyHealth";
+import { calculateCompanyHealth } from "@/lib/performance/companyHealth";
 import { LegalCompliancePanel } from "./_LegalCompliancePanel";
 import { CompliancePosturePanel } from "./_CompliancePosturePanel";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import { CompanyConnectionsWorkspace } from "./_CompanyConnectionsWorkspace";
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 interface Actuals {
   monthRevenueCents: number;

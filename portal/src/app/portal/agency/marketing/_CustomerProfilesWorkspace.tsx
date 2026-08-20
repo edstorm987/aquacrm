@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { scopeProfiles, summariseProfileDimension, type ProfileDimension } from "@/lib/customerProfileScope";
+import { scopeProfiles, summariseProfileDimension, type ProfileDimension } from "@/lib/people/customerProfileScope";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, BriefcaseBusiness, Building2, Pencil, Plus, Search, Trash2, UserRoundSearch, X } from "lucide-react";
 

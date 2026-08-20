@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (4)
 
 - [`src/app/(website)/WebsitePageUpdating.tsx`](../WebsitePageUpdating.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
 - [`src/server/agencyWebsite.ts`](../../../server/agencyWebsite.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 

@@ -325,12 +325,22 @@ describe("P2 — surface scoping", () => {
     assert.ok(portal.includes("probe-approval-panel"));
     assert.ok(!portal.includes("checkout-summary"), "a commerce element was offered in a client portal");
 
-    // The 70 shipped definitions carry no `surfaces` key at all — the default
-    // is what keeps them website-only, which is why P2 needed no edit to any
-    // of them.
+    // Adding portal-surface elements did not shrink the website palette.
     assert.equal(website.length, nativeCount);
-    assert.equal(BLOCK_REGISTRY.hero!.surfaces, undefined);
-    assert.deepEqual(elementsBarrel.elementSurfaces(BLOCK_REGISTRY.hero!), ["website"]);
+
+    // The `["website"]` default is still what an untouched definition gets —
+    // which is why P2 needed no edit to any of the 70. `checkout-summary` is a
+    // deliberate pick: it is one of the definitions P3 did NOT widen, so it
+    // still carries no `surfaces` key at all.
+    assert.equal(BLOCK_REGISTRY["checkout-summary"]!.surfaces, undefined);
+    assert.deepEqual(elementsBarrel.elementSurfaces(BLOCK_REGISTRY["checkout-summary"]!), ["website"]);
+
+    // P3 UPDATE — `hero` is no longer website-only. The client portal's `hero`
+    // was the same element under the same name, so the merge widened this one
+    // entry rather than registering a second one. Two surfaces, one definition;
+    // that is the whole shape of the phase.
+    assert.deepEqual(BLOCK_REGISTRY.hero!.surfaces, ["website", "portal"]);
+    assert.deepEqual(elementsBarrel.elementSurfaces(BLOCK_REGISTRY.hero!), ["website", "portal"]);
   });
 });
 

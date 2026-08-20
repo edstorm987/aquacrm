@@ -9,8 +9,8 @@ import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMe
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { FileSpreadsheet, Plus, SlidersHorizontal, Tags, Trash2, Upload } from "lucide-react";
 import { CommercialPackModal } from "./_CommercialPackModal";
-import { formatElapsed } from "@/lib/leadTiming";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatElapsed } from "@/lib/enquiries/leadTiming";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import {
   LEAD_RELATIONSHIP_CATEGORIES,
   LEAD_RELATIONSHIP_CATEGORY_LABELS,

@@ -8,9 +8,9 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (3)
 
-- [`src/lib/portalBespokeProductModules.ts`](../src/lib/portalBespokeProductModules.md)
-- [`src/lib/portalProductModules.ts`](../src/lib/portalProductModules.md)
-- [`src/lib/portalProducts.ts`](../src/lib/portalProducts.md)
+- [`src/lib/portal/portalBespokeProductModules.ts`](../src/lib/portal/portalBespokeProductModules.md)
+- [`src/lib/portal/portalProductModules.ts`](../src/lib/portal/portalProductModules.md)
+- [`src/lib/portal/portalProducts.ts`](../src/lib/portal/portalProducts.md)
 
 ## Used by
 

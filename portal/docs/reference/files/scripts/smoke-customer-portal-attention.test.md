@@ -9,7 +9,7 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (2)
 
 - [`src/app/portal/customer/_portalData.ts`](../src/app/portal/customer/_portalData.md)
-- [`src/lib/customerPortalAttention.ts`](../src/lib/customerPortalAttention.md)
+- [`src/lib/portal/customerPortalAttention.ts`](../src/lib/portal/customerPortalAttention.md)
 
 ## Used by
 

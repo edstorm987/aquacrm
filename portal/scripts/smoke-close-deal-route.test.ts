@@ -83,7 +83,7 @@ require.cache[pluginStorageId]!.exports = {
 // `import` statements hoist to the top and would beat them).
 const { NextRequest } = require("next/server") as typeof import("next/server");
 const { POST } = require("../src/app/api/tenants/close-deal/route") as typeof import("../src/app/api/tenants/close-deal/route");
-const { issueSession } = require("../src/lib/server/auth") as typeof import("../src/lib/server/auth");
+const { issueSession } = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
 const { createAgency, createClient, getClientForAgency } = require("../src/server/tenants") as typeof import("../src/server/tenants");
 const { upsertInstall, deleteInstall } = require("../src/server/pluginInstalls") as typeof import("../src/server/pluginInstalls");

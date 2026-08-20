@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { requireRoleForClient } from "@/lib/server/auth";
+import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, type ClientStage } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import {

@@ -20,9 +20,9 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { formatUkDate } from "@/lib/formatDateTime";
-import type { PortalProductSelection, PortalProductMode } from "@/lib/portalProducts";
-import type { PortalProductModulePage } from "@/lib/portalProductModules";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
+import type { PortalProductSelection, PortalProductMode } from "@/lib/portal/portalProducts";
+import type { PortalProductModulePage } from "@/lib/portal/portalProductModules";
 import {
   portalWorkspaceIsMedia,
   portalWorkspacePageFields,
@@ -32,7 +32,7 @@ import {
   type PortalWorkspaceCollection,
   type PortalWorkspaceCollectionStatus,
   type PortalWorkspaceOutputStatus,
-} from "@/lib/portalProductWorkspaces";
+} from "@/lib/portal/portalProductWorkspaces";
 import type { CustomerFile } from "./_portalData";
 
 export type ProductWorkspaceRole = "agency" | "customer" | "preview";

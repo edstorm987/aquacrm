@@ -6,9 +6,9 @@ import {
   classificationContactType,
   isWebsiteEnquiryClassification,
   type WebsiteEnquiryClassification,
-} from "@/lib/enquiryClassification";
-import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+} from "@/lib/enquiries/enquiryClassification";
+import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { pipelinePort } from "@/lib/server/leadsPipelinePorts";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";

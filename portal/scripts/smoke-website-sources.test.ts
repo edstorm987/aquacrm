@@ -174,8 +174,8 @@ describe("the agency routing panel is company-aware", () => {
 
 describe("the tag feeds Radar — routing intelligence (Phase 5)", () => {
   const read = (relative: string) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", relative), "utf-8") as string;
-  const catalogue = read("src/lib/radarRuleCatalog.ts");
-  const observations = read("src/lib/server/radarObservations.ts");
+  const catalogue = read("src/lib/radar/radarRuleCatalog.ts");
+  const observations = read("src/lib/server/radar/radarObservations.ts");
 
   it("registers a sales:enquiry-routing family fed by websiteSources routing", () => {
     // A new 12-lens family in the catalogue (the golden-sweep count test pins the 2,052 total).

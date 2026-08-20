@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (5)
 
-- [`src/lib/server/inboxService.ts`](../../../../lib/server/inboxService.md)
-- [`src/lib/server/inboxStore.ts`](../../../../lib/server/inboxStore.md)
-- [`src/lib/server/radarSweeps.ts`](../../../../lib/server/radarSweeps.md)
+- [`src/lib/server/inbox/inboxService.ts`](../../../../lib/server/inbox/inboxService.md)
+- [`src/lib/server/inbox/inboxStore.ts`](../../../../lib/server/inbox/inboxStore.md)
+- [`src/lib/server/radar/radarSweeps.ts`](../../../../lib/server/radar/radarSweeps.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../server/tenants.md)
 

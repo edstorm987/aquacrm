@@ -6,14 +6,14 @@ import {
   NotebookPen, Route, ScanEye, Wrench,
 } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { devDocsAccessible, scanBlockers } from "@/lib/server/devDocs";
+import { devDocsAccessible, scanBlockers } from "@/lib/server/dev/devDocs";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
-import { listFindings } from "@/lib/server/devTeamFindings";
-import { buildRoadmap } from "@/lib/server/devTeamRoadmap";
-import { unacknowledgedCount } from "@/lib/server/devTeamThoughts";
-import { scanWorkerSignals } from "@/lib/server/devTeamWorkers";
+import { listFindings } from "@/lib/server/dev/devTeamFindings";
+import { buildRoadmap } from "@/lib/server/dev/devTeamRoadmap";
+import { unacknowledgedCount } from "@/lib/server/dev/devTeamThoughts";
+import { scanWorkerSignals } from "@/lib/server/dev/devTeamWorkers";
 import { ensureHydrated } from "@/server/storage";
 import { PageHeader, Panel, NavCard, Pill, EmptyState } from "./_ui";
 

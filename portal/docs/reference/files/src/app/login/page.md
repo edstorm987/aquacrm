@@ -10,12 +10,14 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `async generateMetadata({ searchParams, }: { searchParams: Promise<{ brand?: string }>; }): Promise<Metadata>`
 - `default async LoginPage({ searchParams, }: { searchParams: Promise<{ brand?: string; next?: string }>; })`
 
-## Depends on (4)
+## Depends on (6)
 
-- [`src/lib/authBrand.ts`](../../lib/authBrand.md)
-- [`src/lib/server/auth.ts`](../../lib/server/auth.md)
-- [`src/lib/server/oauthGoogle.ts`](../../lib/server/oauthGoogle.md)
-- [`src/lib/server/postLoginRedirect.ts`](../../lib/server/postLoginRedirect.md)
+- [`src/lib/brands/authBrand.ts`](../../lib/brands/authBrand.md)
+- [`src/lib/server/auth/auth.ts`](../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/postLoginRedirect.ts`](../../lib/server/auth/postLoginRedirect.md)
+- [`src/lib/server/integrations/oauthGoogle.ts`](../../lib/server/integrations/oauthGoogle.md)
+- [`src/server/storage.ts`](../../server/storage.md)
+- [`src/server/tenants.ts`](../../server/tenants.md)
 
 ## Used by
 

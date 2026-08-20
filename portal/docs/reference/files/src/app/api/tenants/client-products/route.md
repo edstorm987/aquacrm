@@ -10,10 +10,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (10)
 
-- [`src/lib/clientProductVariations.ts`](../../../../lib/clientProductVariations.md)
-- [`src/lib/portalProducts.ts`](../../../../lib/portalProducts.md)
-- [`src/lib/productAssignments.ts`](../../../../lib/productAssignments.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/clients/clientProductVariations.ts`](../../../../lib/clients/clientProductVariations.md)
+- [`src/lib/portal/portalProducts.ts`](../../../../lib/portal/portalProducts.md)
+- [`src/lib/products/productAssignments.ts`](../../../../lib/products/productAssignments.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/agencyProducts.ts`](../../../../server/agencyProducts.md)
 - [`src/server/productWorkspaces.ts`](../../../../server/productWorkspaces.md)

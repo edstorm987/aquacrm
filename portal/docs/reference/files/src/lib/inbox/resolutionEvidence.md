@@ -17,7 +17,7 @@
 
 - [`src/components/attention/EvidenceCard.tsx`](../../components/attention/EvidenceCard.md)
 - [`src/components/attention/MetricSparkline.tsx`](../../components/attention/MetricSparkline.md)
-- [`src/lib/advisorActions.ts`](../advisorActions.md)
+- [`src/lib/advisor/advisorActions.ts`](../advisor/advisorActions.md)
 - [`src/lib/inbox/evidenceSteps.ts`](./evidenceSteps.md)
 - [`src/lib/server/resolutionPlans.ts`](../server/resolutionPlans.md)
 

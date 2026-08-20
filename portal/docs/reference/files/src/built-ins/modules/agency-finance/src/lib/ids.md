@@ -9,12 +9,11 @@
 - `makeId(prefix: string, length = 12): string`
 - `formatInvoiceNumber(year: number, seq: number): string`
 
-## Used by (6)
+## Used by (5)
 
 - [`src/built-ins/modules/agency-finance/src/lib/idempotency.ts`](./idempotency.md)
 - [`src/built-ins/modules/agency-finance/src/server/budgets.ts`](../server/budgets.md)
 - [`src/built-ins/modules/agency-finance/src/server/categories.ts`](../server/categories.md)
-- [`src/built-ins/modules/agency-finance/src/server/expenses.ts`](../server/expenses.md)
 - [`src/built-ins/modules/agency-finance/src/server/invoices.ts`](../server/invoices.md)
 - [`src/built-ins/modules/agency-finance/src/server/operations.ts`](../server/operations.md)
 

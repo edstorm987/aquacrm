@@ -1,4 +1,4 @@
-# `src/lib/formatDateTime.ts`
+# `src/lib/shared/formatDateTime.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -101,14 +101,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/components/chrome/PortalSearch.tsx`](../components/chrome/PortalSearch.md)
 - [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](../components/marketing/ClientMarketingServiceWorkspace.md)
 - [`src/components/people/TeamChat.tsx`](../components/people/TeamChat.md)
-- [`src/lib/clientAquaHealth.ts`](./clientAquaHealth.md)
-- [`src/lib/performanceAnalytics.ts`](./performanceAnalytics.md)
-- [`src/lib/radarCheckEngine.ts`](./radarCheckEngine.md)
-- [`src/lib/radarSentinels.ts`](./radarSentinels.md)
-- [`src/lib/radarSyntheticChecks.ts`](./radarSyntheticChecks.md)
-- [`src/lib/server/businessIssueRadar.ts`](./server/businessIssueRadar.md)
-- [`src/lib/server/externalAssistantApi.ts`](./server/externalAssistantApi.md)
-- [`src/lib/server/inboxStore.ts`](./server/inboxStore.md)
-- [`src/lib/server/operationalAlerts.ts`](./server/operationalAlerts.md)
-- [`src/lib/server/radarTelemetry.ts`](./server/radarTelemetry.md)
+- [`src/lib/clients/clientAquaHealth.ts`](./clientAquaHealth.md)
+- [`src/lib/performance/performanceAnalytics.ts`](./performanceAnalytics.md)
+- [`src/lib/radar/radarCheckEngine.ts`](./radarCheckEngine.md)
+- [`src/lib/radar/radarSentinels.ts`](./radarSentinels.md)
+- [`src/lib/radar/radarSyntheticChecks.ts`](./radarSyntheticChecks.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./server/businessIssueRadar.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](./server/externalAssistantApi.md)
+- [`src/lib/server/inbox/inboxStore.ts`](./server/inboxStore.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./server/operationalAlerts.md)
+- [`src/lib/server/radar/radarTelemetry.ts`](./server/radarTelemetry.md)
 

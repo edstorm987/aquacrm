@@ -15,7 +15,10 @@ ORIENT (read in this order):
 1. docs/development.md — the project law (map, discipline, workflow).
 2. <PLAN> — YOUR plan. This is your whole job. Build its phases, simple-first.
 3. docs/context/worker-brief.md (this file's "Conventions" below) — how workers behave.
-4. docs/context/state.md — confirm your assignment + the files you own (don't touch files another worker owns).
+4. docs/context/state.md — confirm your assignment + the files you own (don't touch files another
+   worker owns). Trust its "Verified ground truth" table; treat its "🗄 HISTORICAL" sections as
+   dated belief, not fact — re-read the source before acting on any 🔴 you find there.
+5. docs/development/checklist.md — the most reliable current summary of where the project stands.
 
 YOUR JOB: execute <PLAN>'s phases in order, simple-first. Don't re-design the plan;
 if it needs a decision Ed hasn't made (the plan flags them), surface it — don't guess.
@@ -37,8 +40,13 @@ HARD RULES:
      Own state file · own build dir · own port → cannot collide with the Commander or another worker.
      (Pick a port no one else is using: 3041, 3042, 3043… ask the Commander if unsure.)
   3. **Sign in with NO login** — go to `http://localhost:<port>/dev`: it mints an owner session instantly.
-     Append `?client=<slug>` for a client view, or use Dev Mode → the **Dev Team portal** (`/portal/dev-team`)
-     → **Profiles** to become owner / staff / customer / freelancer.
+     Append `?client=<slug>` for a client view, or use the **Dev Console** (`/portal/dev-team`)
+     → **Tools → Inspector** (`/portal/dev-team/tools?view=inspector`) to become owner / staff /
+     customer / freelancer. (Corrected 2026-08-20: "Profiles" was RENAMED to **Inspector** — it
+     collided with client/customer/user profiles — and it now lives as a `?view=` of Tools, not as
+     its own sidebar item. `/portal/dev-team/inspector` still redirects there.)
+     ⚠ Entering the Dev Console is plain navigation and does NOT change who you are. Identity
+     changes ONLY via Inspector, and exiting an inspection restores the exact person who started it.
   4. **Drive it** — read_page / computer (click+type) / screenshot to actually exercise your change;
      read_console_messages + preview_logs for errors. Screenshot the working result as proof and record the
      honest level in docs/development/status.md.
@@ -52,7 +60,10 @@ HARD RULES:
 - Live Supabase is NOT sandboxed — the admin client hits real data even in dev. Don't write junk.
 - Do NOT touch files another worker owns (see state.md). Don't edit shared foundations
   without flagging it to the commander.
-- Do NOT commit/push/deploy or touch git unless Ed asks.
+- ⛔ **NEVER TOUCH GIT.** Not `commit`, not `push`, not `checkout`, not `restore`. A push triggers
+  Vercel → **production**. And the whole tree is uncommitted, so `git checkout <file>` deletes other
+  workers' unshipped work — this has actually happened. Rollback = copy the file to the scratchpad
+  first, restore with `cp`.
 
 AFTER EACH SHIPPED PHASE (this is the report — nothing lives only in chat):
 - Update the relevant chapter in docs/workspace/ if behaviour changed.
@@ -66,7 +77,8 @@ Confirm you've read <PLAN> and outline Phase 1 before writing code.
 ```
 
 ## Check in so Ed can see you (30 seconds, do it)
-Ed watches a **live board** at `/portal/dev-team/working`. Make yourself visible:
+Ed watches a **live board** at `/portal/dev-team/roadmap?view=now` (corrected 2026-08-20 — the old
+`/portal/dev-team/working` route is now a redirect stub to it). Make yourself visible:
 
 ```
 npm run worker:checkin -- <your-name> "<what you're doing>" --plan <plan-slug> --phase "<phase>"
@@ -83,9 +95,9 @@ The board also shows **raw file activity**, so you're visible either way — but
 - **One plan, staged.** Build your plan's phases in order; ship + verify each before the next.
 - **Own your files.** state.md lists the files/areas you own. Stay in them. Need a shared file? Flag the commander.
 - **Docs are part of "done."** A phase isn't done until the tests pass *and* the docs reflect it (chapter, reference, todo tick, updates.md entry). This is how the next chat knows what happened.
-- **Honest status — and self-verify now.** Green tests prove shape, not that it works. You can now browser-verify your OWN UI: spin `dev:verify` → open `<your-server>/dev` (signs you in with **no credentials**) → drive the browser tools → screenshot the proof. Do that before calling a UI phase done — don't just defer it to the Commander. Record the real level in status.md; only say "not browser-verified" if the server was genuinely unreachable/too busy.
+- **Honest status — and self-verify now.** Green tests prove shape, not that it works. You can now browser-verify your OWN UI: **`npm run sandbox:fork -- <name> <port>`** (NOT bare `dev:verify` — that shares the sandbox state file with everyone else) → open `<your-server>/dev` (signs you in with **no credentials**) → drive the browser tools → screenshot the proof. Do that before calling a UI phase done — don't just defer it to the Commander. Record the real level in status.md; only say "not browser-verified" if the server was genuinely unreachable/too busy.
 - **Surface, don't guess.** A decision the plan flags for Ed → surface it to the commander/Ed, don't invent an answer.
-- **Never commit.** Ever, without Ed.
+- **Never touch git.** Ever. See the hard rule above — this is not "ask Ed first", it is "don't".
 
 ## What the commander fills in per assignment
 - `<PLAN>` path.

@@ -28,10 +28,10 @@ import type {
   AssistantThread,
   AssistantWorkspaceState,
 } from "@/server/types";
-import type { AdvisorRadarDigest, BusinessRadarIssue } from "@/lib/businessRadar";
-import { formatElapsed } from "@/lib/leadTiming";
-import { formatUkDate } from "@/lib/formatDateTime";
-import type { AdvisorSkill, AdvisorSkillRecipe, AdvisorSkillSafety } from "@/lib/advisorSkills";
+import type { AdvisorRadarDigest, BusinessRadarIssue } from "@/lib/radar/businessRadar";
+import { formatElapsed } from "@/lib/enquiries/leadTiming";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
+import type { AdvisorSkill, AdvisorSkillRecipe, AdvisorSkillSafety } from "@/lib/advisor/advisorSkills";
 
 interface Coverage {
   clients: number;

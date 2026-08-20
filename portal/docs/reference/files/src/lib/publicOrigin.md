@@ -1,4 +1,4 @@
-# `src/lib/publicOrigin.ts`
+# `src/lib/public/publicOrigin.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

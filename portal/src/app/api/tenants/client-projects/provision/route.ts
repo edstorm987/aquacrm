@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import {
   CLIENT_PROJECT_STARTERS,
   provisionClientProject,
   type ClientProjectStarterId,
-} from "@/lib/server/clientProjectProvisioner";
+} from "@/lib/server/clients/clientProjectProvisioner";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createExperiencePackage, deleteExperiencePackage, listExperiencePackages, updateExperiencePackage } from "@/server/experiencePackages";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type ExperienceDeliveryMethod, type ExperiencePackageAudience } from "@/server/types";

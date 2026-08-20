@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { ensureDefaultAgencyProducts, getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { listSops } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";
@@ -9,9 +9,9 @@ import { ProductDetailWorkspace } from "./_ProductDetailWorkspace";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { listClients } from "@/server/tenants";
 import { ensureProductPortalTemplate, getClientPortalInstance } from "@/server/clientPortalDesigns";
-import { productSelectionFingerprint, resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { portalProductSelectionFromAgencyProduct } from "@/lib/portalProducts";
-import { clientProductVariations } from "@/lib/clientProductVariations";
+import { productSelectionFingerprint, resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
+import { clientProductVariations } from "@/lib/clients/clientProductVariations";
 import type { ProductRolloutClient } from "./_ProductRolloutCentre";
 
 export default async function ProductDetailPage({ params, searchParams }: { params: Promise<{ productId: string }>; searchParams: Promise<{ edit?: string }> }) {

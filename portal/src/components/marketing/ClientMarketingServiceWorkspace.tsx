@@ -27,8 +27,8 @@ import {
   clientMarketingMetrics,
   type ClientMarketingApproval,
   type ClientMarketingService,
-} from "@/lib/clientMarketingService";
-import { formatUkDate, localDateTimeInputValue } from "@/lib/formatDateTime";
+} from "@/lib/clients/clientMarketingService";
+import { formatUkDate, localDateTimeInputValue } from "@/lib/shared/formatDateTime";
 
 type View = "overview" | "content" | "campaigns" | "profiles";
 type Editor = { kind: "settings" | "profile" | "content" | "campaign"; id?: string } | null;

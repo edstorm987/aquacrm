@@ -4,22 +4,9 @@
 
 _No file-level doc-comment. Purpose inferred from its path (App routes & UI — src/app/) and its exports below._
 
-## Exports (2)
+## Exports (1)
 
-- `dynamic`
-- `default async DevTeamUpdatesPage()`
-
-## Depends on (9)
-
-- [`src/app/portal/dev-team/_ui.tsx`](../_ui.md)
-- [`src/app/portal/dev-team/library/_paths.ts`](../library/_paths.md)
-- [`src/app/portal/dev-team/updates/_UpdateComposer.tsx`](./_UpdateComposer.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/devDocs.ts`](../../../../lib/server/devDocs.md)
-- [`src/lib/server/devTeamUpdates.ts`](../../../../lib/server/devTeamUpdates.md)
-- [`src/server/storage.ts`](../../../../server/storage.md)
-- [`src/server/types.ts`](../../../../server/types.md)
+- `default DevTeamupdatesRedirect()`
 
 ## Used by
 

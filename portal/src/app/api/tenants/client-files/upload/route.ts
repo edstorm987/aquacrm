@@ -1,14 +1,14 @@
 import crypto from "node:crypto";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
 import type { ClientFileRef, FileCategory } from "../route";
-import { upsertClientFileLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { upsertClientFileLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 
 export const runtime = "nodejs";
 

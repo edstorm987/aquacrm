@@ -12,6 +12,11 @@ Ed runs this on a **loop** (e.g. `/loop 20m <paste>`), so it self-manages throug
 the docs: each tick it finds shipped-but-unaudited work, audits the oldest, logs a
 verdict. No relay needed until something fails.
 
+> ⏸ **The recurring loop is currently STOPPED (Ed, 2026-08-19) — re-audits are ON-REQUEST.**
+> It does not auto-fire. When a fix lands, someone must re-run `/loop` in a fresh Auditor chat.
+> Verdicts also surface in the Dev Console at **Findings → `?view=auditor`** (the Findings and
+> Auditor sections were combined on Ed's call — "same thing, one manual one automated").
+
 ## The paste-ready template
 ```
 You're the AUDITOR for AquaCRM (Next.js 16 / React 19 / TypeScript),
@@ -45,12 +50,17 @@ HARD RULES:
   from colliding with a live builder.)
 - Re-run the FULL suite yourself — don't trust the reported count:
   PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
-- A green suite ≠ working. Actually run it in the app on YOUR OWN server
-  (npm run dev:verify — file backend, autoPort; never assume the commander's :3032).
+- A green suite ≠ working. Actually run it in the app on YOUR OWN ISOLATED server:
+  npm run sandbox:fork -- auditor <port>   (then run the command it prints)
+  That gives you your own state file + build dir + port. Do NOT use bare `dev:verify` —
+  it writes the SHARED sandbox and clobbers whoever else is running. Never assume :3032.
+  Sign in with no credentials at http://localhost:<port>/dev .
 - Live Supabase is NOT sandboxed. If you verify anything against the admin client,
   read-only — never write junk.
 - Report findings; do NOT fix them. The builder reworks. You only write audits.md.
-- Never commit/push/deploy or touch git. Ever.
+- NEVER TOUCH GIT. Not commit, not push, not checkout, not restore. The tree is entirely
+  uncommitted, so a `git checkout <file>` deletes a live worker's unshipped work; a push
+  triggers Vercel -> production. There is no git step in your job.
 
 Confirm you've read the law + the checklist, then run your first sweep.
 ```
@@ -102,8 +112,13 @@ Finding severity: 🔴 blocker (contract broken / launch-blocker regressed / dat
   what's pending. State lives in files, so the loop survives a re-spin.
 - **Loud on failure.** A REWORK or 🔴 goes to the top of audits.md so the commander
   sees it and routes it — the auditor can't relay to the builder itself (Ed is the bus).
-- **Own server.** Spin your own `dev:verify` on a free port for runtime checks.
-- **Never commit.** Ever.
+- **Own server.** Fork your own isolated sandbox (`npm run sandbox:fork -- auditor <port>`) for
+  runtime checks — never the shared one, never someone else's port.
+- **Never touch git.** Ever — not even `checkout`.
+- **Doc claims are audit-able too.** A doc that says a blocker is open when the source shows it
+  fixed is a 🟠 finding: on 2026-08-20 three already-fixed "🔴 launch blockers" were still briefed
+  as open and one would have sent a worker back into a hardened auth route. Check claim ↔ source
+  both ways.
 
 ## The handoff loop
 ```

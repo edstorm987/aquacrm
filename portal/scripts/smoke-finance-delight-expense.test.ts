@@ -28,7 +28,7 @@ import type {
   UserPort,
 } from "../src/built-ins/modules/agency-finance/src/server/ports";
 import { containerWithDeps } from "../src/built-ins/modules/agency-finance/src/server/foundationAdapter";
-import { recordDelightExpenseInContainer } from "../src/lib/server/clientDelightExpense";
+import { recordDelightExpenseInContainer } from "../src/lib/server/clients/clientDelightExpense";
 
 const AGENCY_ID: AgencyId = "agency_delight_smoke";
 const CLIENT_ID: ClientId = "client_delight_smoke";

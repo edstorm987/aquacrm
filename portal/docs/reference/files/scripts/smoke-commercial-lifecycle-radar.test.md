@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/commercialLifecycle.ts`](../src/lib/commercialLifecycle.md)
+- [`src/lib/intelligence/commercialLifecycle.ts`](../src/lib/intelligence/commercialLifecycle.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

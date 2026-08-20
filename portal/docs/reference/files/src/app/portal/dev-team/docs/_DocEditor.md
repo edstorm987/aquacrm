@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/server/devDocEdits.ts`](../../../../lib/server/devDocEdits.md)
+- [`src/lib/server/dev/devDocEdits.ts`](../../../../lib/server/dev/devDocEdits.md)
 
 ## Used by (1)
 

@@ -30,8 +30,8 @@ import {
   X,
 } from "lucide-react";
 
-import type { ClientRecordEntry, ClientRecordEntryKind, ClientRecordVisibility } from "@/lib/clientRelationshipRecord";
-import { formatUkDateTime } from "@/lib/formatDateTime";
+import type { ClientRecordEntry, ClientRecordEntryKind, ClientRecordVisibility } from "@/lib/clients/clientRelationshipRecord";
+import { formatUkDateTime } from "@/lib/shared/formatDateTime";
 import type { ClientRecordLedgerEvent, ClientRecordLedgerPage } from "@/server/types";
 
 export interface ClientRecordMessage {

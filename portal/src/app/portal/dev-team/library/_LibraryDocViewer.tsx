@@ -8,8 +8,8 @@
 
 import Link from "next/link";
 import { ArrowLeft, Clock, FileEdit } from "lucide-react";
-import type { DevDocContent } from "@/lib/server/devDocs";
-import { relativeAge, formatUkDateTime } from "@/lib/formatDateTime";
+import type { DevDocContent } from "@/lib/server/dev/devDocs";
+import { relativeAge, formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { DocMarkdown } from "@/app/portal/agency/dev-docs/_DocMarkdown";
 import { LIBRARY_BASE } from "./_paths";
 

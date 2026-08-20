@@ -114,9 +114,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/team/[section]/page.tsx`](../app/portal/team/[section]/page.md)
 - [`src/app/portal/team/_data.ts`](../app/portal/team/_data.md)
 - [`src/app/portal/team/layout.tsx`](../app/portal/team/layout.md)
-- [`src/lib/server/demoSeed.ts`](../lib/server/demoSeed.md)
-- [`src/lib/server/financeWorkforce.ts`](../lib/server/financeWorkforce.md)
-- [`src/lib/server/operationalAlerts.ts`](../lib/server/operationalAlerts.md)
+- [`src/lib/server/finance/financeWorkforce.ts`](../lib/server/finance/financeWorkforce.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](../lib/server/inbox/operationalAlerts.md)
+- [`src/lib/server/seeds/demoSeed.ts`](../lib/server/seeds/demoSeed.md)
 - [`src/server/freelancerAdmin.ts`](./freelancerAdmin.md)
 - [`src/server/freelancerWorkspace.ts`](./freelancerWorkspace.md)
 

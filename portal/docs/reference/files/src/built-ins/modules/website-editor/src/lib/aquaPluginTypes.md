@@ -33,10 +33,11 @@
 - `interface StorefrontContributions (2 members)`
 - `interface AquaPlugin (25 members)`
 
-## Depends on (2)
+## Depends on (3)
 
 - [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](./tenancy.md)
 - [`src/built-ins/modules/website-editor/src/server/ports.ts`](../server/ports.md)
+- [`src/lib/elements/definition.ts`](../../../../../lib/elements/definition.md)
 
 ## Used by (64)
 

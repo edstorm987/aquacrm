@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Briefcase } from "lucide-react";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { getFreelancerAccessConfig, listFreelancerJobsForConfig } from "@/server/freelancerWorkspace";
 import { FreelancerAccessConfigPanel } from "./_FreelancerAccessConfigPanel";

@@ -26,6 +26,6 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`scripts/verify-marketing-runtime.ts`](../../scripts/verify-marketing-runtime.md)
 - [`src/app/api/portal/website-injections/route.ts`](../app/api/portal/website-injections/route.md)
 - [`src/app/api/public/aqua-tag-config/route.ts`](../app/api/public/aqua-tag-config/route.md)
-- [`src/app/portal/dev-team/api/page.tsx`](../app/portal/dev-team/api/page.md)
+- [`src/app/portal/dev-team/api/_Section.tsx`](../app/portal/dev-team/api/_Section.md)
 - [`src/lib/server/marketingIntelligence.ts`](../lib/server/marketingIntelligence.md)
 

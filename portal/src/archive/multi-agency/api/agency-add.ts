@@ -18,12 +18,12 @@ import {
   issueSession,
   sessionCookie,
   getSessionAgencyIds,
-} from "@/lib/server/auth";
-import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
+} from "@/lib/server/auth/auth";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { getUserById } from "@/server/users";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { getAgencyBySlug } from "@/server/tenants";
-import { addUserAgencyMembership } from "@/lib/server/aquaOasisSeed";
+import { addUserAgencyMembership } from "@/lib/server/seeds/aquaOasisSeed";
 import { logActivity } from "@/server/activity";
 
 interface Body {

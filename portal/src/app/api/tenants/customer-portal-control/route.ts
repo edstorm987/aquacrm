@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getSessionFromRequest } from "@/lib/server/auth";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import { deliverMagicLink, signMagicToken } from "@/lib/server/magicLink";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { deliverMagicLink, signMagicToken } from "@/lib/server/auth/magicLink";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { ensureClientPortalInstance, ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";

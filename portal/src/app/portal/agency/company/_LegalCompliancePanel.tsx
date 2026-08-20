@@ -3,7 +3,7 @@
 import { Download, Eye, FileUp, Pencil, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { LegalDocument, LegalDocumentCategory, LegalDocumentStatus } from "@/server/types";
-import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
+import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
 const categories: Array<{ id: LegalDocumentCategory; label: string }> = [
   { id: "contract", label: "Contracts" },

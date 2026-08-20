@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { ClientTelemetrySummary } from "@/lib/clientTelemetry";
+import type { ClientTelemetrySummary } from "@/lib/clients/clientTelemetry";
 import type {
   AgencyWebsitePageStatus,
   AgencyWebsiteProject,

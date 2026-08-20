@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { Thought } from "../src/lib/server/devTeamThoughts";
+import type { Thought } from "../src/lib/server/dev/devTeamThoughts";
 
 // The inline thoughts in the Tasks view. The component itself pulls in
 // next/link, which cannot be imported under the suite's react-server
@@ -46,7 +46,7 @@ test("re-syncing on every refresh cannot loop", async () => {
 });
 
 test("the Tasks view never seeds its thought state from the server prop", async () => {
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   const source = await readFile(
     join(PROJECT_ROOT, "src/app/portal/dev-team/tasks/_TasksWorkspace.tsx"), "utf8");
   assert.doesNotMatch(source, /useState\(\s*initialThoughts\s*\)/,
@@ -55,7 +55,7 @@ test("the Tasks view never seeds its thought state from the server prop", async 
 });
 
 test("the placeholder does not promise a worker that isn't there", async () => {
-  const { PROJECT_ROOT } = await import("../src/lib/server/devDocs");
+  const { PROJECT_ROOT } = await import("../src/lib/server/dev/devDocs");
   const source = await readFile(
     join(PROJECT_ROOT, "src/app/portal/dev-team/tasks/_TasksWorkspace.tsx"), "utf8");
   // Most tasks carry no worker (one is only set while a check-in names that

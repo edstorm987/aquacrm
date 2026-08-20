@@ -1,6 +1,6 @@
 import "server-only";
 
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { getClientForAgency, updateClient } from "./tenants";
 import { getAgencyProduct, listAgencyProducts } from "./agencyProducts";
 import { ensureClientPortalInstance, ensureProductPortalTemplate } from "./clientPortalDesigns";

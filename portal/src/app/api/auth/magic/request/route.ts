@@ -12,7 +12,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { getClient } from "@/server/tenants";
-import { signMagicToken, deliverMagicLink } from "@/lib/server/magicLink";
+import { signMagicToken, deliverMagicLink } from "@/lib/server/auth/magicLink";
 
 interface Body { email?: unknown; clientId?: unknown; returnUrl?: unknown; }
 

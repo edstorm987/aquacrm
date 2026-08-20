@@ -19,9 +19,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (6)
 
-- [`src/lib/clientTelemetry.ts`](../lib/clientTelemetry.md)
-- [`src/lib/performanceAnalytics.ts`](../lib/performanceAnalytics.md)
-- [`src/lib/publicSites.ts`](../lib/publicSites.md)
+- [`src/lib/clients/clientTelemetry.ts`](../lib/clients/clientTelemetry.md)
+- [`src/lib/performance/performanceAnalytics.ts`](../lib/performance/performanceAnalytics.md)
+- [`src/lib/public/publicSites.ts`](../lib/public/publicSites.md)
 - [`src/server/activity.ts`](./activity.md)
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
@@ -38,6 +38,6 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/development/website/page.tsx`](../app/portal/agency/development/website/page.md)
 - [`src/app/portal/agency/marketing/page.tsx`](../app/portal/agency/marketing/page.md)
 - [`src/app/portal/agency/performance/page.tsx`](../app/portal/agency/performance/page.md)
+- [`src/lib/server/auth/showcaseMode.ts`](../lib/server/auth/showcaseMode.md)
 - [`src/lib/server/editing/adapters.ts`](../lib/server/editing/adapters.md)
-- [`src/lib/server/showcaseMode.ts`](../lib/server/showcaseMode.md)
 

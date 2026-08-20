@@ -15,7 +15,7 @@
 // all of you. (It used to be one global stamp, so the first worker to --ack
 // consumed everyone else's copy.)
 //
-// The rules below MUST match `src/lib/server/devTeamThoughts.ts` — this script
+// The rules below MUST match `src/lib/server/dev/devTeamThoughts.ts` — this script
 // runs under plain `node`, so it cannot import that TypeScript module.
 // `scripts/smoke-dev-thoughts.test.ts` drives BOTH against one ledger and
 // fails if they ever disagree.

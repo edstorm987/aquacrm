@@ -24,7 +24,7 @@ it says out loud what it cannot see.
 
 | Piece | Where |
 |---|---|
-| The control model + the honesty rules, enforced as code | `src/lib/compliancePosture.ts` |
+| The control model + the honesty rules, enforced as code | `src/lib/compliance/compliancePosture.ts` |
 | Evidence gathering from real state | `src/lib/server/compliancePostureSource.ts` |
 | Read the posture | `GET /api/portal/compliance/posture?companyId=` |
 | Flip the HIPAA track | `POST /api/portal/compliance/frameworks` |
@@ -153,7 +153,7 @@ is real, avoidable exposure.
   count as the blind-spot, never a healthy pass.
 - **Docs map rows** (`docs/workspace/feature-index.md`, `docs/workspace/api-reference.md`)
   are outside the file map. Rows to add:
-  `Compliance posture | src/lib/compliancePosture.ts + lib/server/compliancePostureSource.ts | /portal/agency/company?view=legal`
+  `Compliance posture | src/lib/compliance/compliancePosture.ts + lib/server/compliancePostureSource.ts | /portal/agency/company?view=legal`
   `GET /api/portal/compliance/posture` · `POST /api/portal/compliance/frameworks`.
 
 ## File map — what this plan owns
@@ -170,10 +170,10 @@ plan in flight._
 - `src/server/clientErasure.ts`
 - `src/app/api/portal/clients/[clientId]/erase/route.ts`
 - `src/server/contractTemplates.ts`
-- `src/lib/clientContracts.ts`
+- `src/lib/clients/clientContracts.ts`
 - `src/app/api/portal/contracts/templates/route.ts`
 - `docs/compliance/erasure-dpo-pack.md`
 - `docs/development/plans/compliance-legal.md`
 - `src/app/portal/agency/company/_CompanyWorkspace.tsx`
-- `src/lib/radarRuleCatalog.ts`
-- `src/lib/server/radarObservations.ts`
+- `src/lib/radar/radarRuleCatalog.ts`
+- `src/lib/server/radar/radarObservations.ts`

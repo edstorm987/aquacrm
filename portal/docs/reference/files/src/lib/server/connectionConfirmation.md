@@ -22,6 +22,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/connections/accept/route.ts`](../../app/api/portal/connections/accept/route.md)
 - [`src/app/api/portal/connections/request-code/route.ts`](../../app/api/portal/connections/request-code/route.md)
 - [`src/app/connect/[connectionId]/page.tsx`](../../app/connect/[connectionId]/page.md)
-- [`src/lib/server/portalConnections.ts`](./portalConnections.md)
+- [`src/lib/server/portal/portalConnections.ts`](./portal/portalConnections.md)
 - [`src/server/portalConnectionStore.ts`](../../server/portalConnectionStore.md)
 

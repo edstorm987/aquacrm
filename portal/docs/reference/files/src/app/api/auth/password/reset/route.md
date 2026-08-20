@@ -10,7 +10,7 @@
 
 ## Depends on (5)
 
-- [`src/lib/server/passwordReset.ts`](../../../../../lib/server/passwordReset.md)
+- [`src/lib/server/auth/passwordReset.ts`](../../../../../lib/server/auth/passwordReset.md)
 - [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)

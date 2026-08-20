@@ -13,7 +13,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/lib/inbox/resolutionContext.ts`](./resolutionContext.md)
 - [`src/lib/inbox/resolutionExplain.ts`](./resolutionExplain.md)
-- [`src/lib/operationalAttention.ts`](../operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../intelligence/operationalAttention.md)
 
 ## Used by (6)
 
@@ -22,5 +22,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`scripts/smoke-resolution-app-wide.test.ts`](../../../scripts/smoke-resolution-app-wide.test.md)
 - [`scripts/smoke-resolution-explain.test.ts`](../../../scripts/smoke-resolution-explain.test.md)
 - [`src/app/portal/agency/actions/_ActionsPage.tsx`](../../app/portal/agency/actions/_ActionsPage.md)
-- [`src/lib/server/operationalAlerts.ts`](../server/operationalAlerts.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](../server/inbox/operationalAlerts.md)
 

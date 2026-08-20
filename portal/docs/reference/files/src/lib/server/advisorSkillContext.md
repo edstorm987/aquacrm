@@ -1,4 +1,4 @@
-# `src/lib/server/advisorSkillContext.ts`
+# `src/lib/server/assistants/advisorSkillContext.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -10,9 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
-- [`src/lib/advisorSkills.ts`](../advisorSkills.md)
-- [`src/lib/clientWorkspace.ts`](../clientWorkspace.md)
-- [`src/lib/server/advisorContext.ts`](./advisorContext.md)
+- [`src/lib/advisor/advisorSkills.ts`](../advisorSkills.md)
+- [`src/lib/clients/clientWorkspace.ts`](../clientWorkspace.md)
+- [`src/lib/server/assistants/advisorContext.ts`](./advisorContext.md)
 - [`src/server/tenants.ts`](../../server/tenants.md)
 
 ## Used by (1)

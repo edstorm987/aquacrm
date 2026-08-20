@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
-import { isWebsiteEnquiryClassification } from "@/lib/enquiryClassification";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { isWebsiteEnquiryClassification } from "@/lib/enquiries/enquiryClassification";
 import {
   addPersonEmail,
   addPersonPhone,
@@ -21,7 +21,7 @@ import {
   updatePerson,
 } from "@/server/persons";
 import { createClient } from "@/server/tenants";
-import { seedClientFromPerson } from "@/lib/server/seedClientFromPerson";
+import { seedClientFromPerson } from "@/lib/server/seeds/seedClientFromPerson";
 import { getOrganisation, upsertOrganisation } from "@/server/organisations";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 

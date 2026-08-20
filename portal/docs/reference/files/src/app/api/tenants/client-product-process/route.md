@@ -10,11 +10,11 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (11)
 
-- [`src/lib/clientProductProcess.ts`](../../../../lib/clientProductProcess.md)
-- [`src/lib/clientRelationshipRecord.ts`](../../../../lib/clientRelationshipRecord.md)
-- [`src/lib/productAssignments.ts`](../../../../lib/productAssignments.md)
-- [`src/lib/productInternalWorkspace.ts`](../../../../lib/productInternalWorkspace.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/clients/clientProductProcess.ts`](../../../../lib/clients/clientProductProcess.md)
+- [`src/lib/clients/clientRelationshipRecord.ts`](../../../../lib/clients/clientRelationshipRecord.md)
+- [`src/lib/products/productAssignments.ts`](../../../../lib/products/productAssignments.md)
+- [`src/lib/products/productInternalWorkspace.ts`](../../../../lib/products/productInternalWorkspace.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/agencyProducts.ts`](../../../../server/agencyProducts.md)
 - [`src/server/productWorkspaces.ts`](../../../../server/productWorkspaces.md)

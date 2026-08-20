@@ -12,8 +12,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/products/[productId]/_ProductRolloutCentre.tsx`](./_ProductRolloutCentre.md)
 - [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](../_ProductsWorkspace.md)
-- [`src/lib/portalProducts.ts`](../../../../../lib/portalProducts.md)
-- [`src/lib/productInternalWorkspace.ts`](../../../../../lib/productInternalWorkspace.md)
+- [`src/lib/portal/portalProducts.ts`](../../../../../lib/portal/portalProducts.md)
+- [`src/lib/products/productInternalWorkspace.ts`](../../../../../lib/products/productInternalWorkspace.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 
 ## Used by (1)

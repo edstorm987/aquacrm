@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { calculateCompanyHealth, calculateServiceBrandHealth } from "../src/lib/companyHealth";
+import { calculateCompanyHealth, calculateServiceBrandHealth } from "../src/lib/performance/companyHealth";
 
 describe("company health", () => {
   it("scores a healthy company from live operating signals", () => {

@@ -5,15 +5,15 @@
 // design kit palette. The dev-docs original hardcodes `/portal/agency/dev-docs`
 // in a module-local `docHref` and can't be parameterised without editing it
 // (off-limits), so the tree body is re-implemented here; the data + types come
-// straight from `@/lib/server/devDocs`. Lazy: a folder's children only MOUNT
+// straight from `@/lib/server/dev/devDocs`. Lazy: a folder's children only MOUNT
 // when it's expanded — so the ~1,800-file tree never puts more than the open
 // branches in the DOM.
 
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
-import { relativeAge, formatUkDateTime } from "@/lib/formatDateTime";
-import type { DevDocTreeNode } from "@/lib/server/devDocs";
+import { relativeAge, formatUkDateTime } from "@/lib/shared/formatDateTime";
+import type { DevDocTreeNode } from "@/lib/server/dev/devDocs";
 import { libraryDocHref } from "./_paths";
 
 // Folders this big (the generated reference/ tree) start collapsed; every

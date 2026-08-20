@@ -17,7 +17,7 @@ test("attention resolution sends each issue to its authoritative workspace", () 
 
 test("Needs Attention exposes visible resolve, reminder, and dismissal controls", () => {
   const inbox = readFileSync("src/app/portal/agency/inbox/_MasterInbox.tsx", "utf8");
-  const alerts = readFileSync("src/lib/server/operationalAlerts.ts", "utf8");
+  const alerts = readFileSync("src/lib/server/inbox/operationalAlerts.ts", "utf8");
   const actions = readFileSync("src/app/portal/agency/actions/_ActionsWorkspace.tsx", "utf8");
   assert.match(inbox, />Resolve</);
   assert.match(inbox, /Remind later/);

@@ -19,7 +19,7 @@ import type { ServerUser } from "../src/server/types";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const USERS = join(ROOT, "src", "server", "users.ts");
-const AUTH = join(ROOT, "src", "lib", "server", "auth.ts");
+const AUTH = join(ROOT, "src", "lib", "server", "auth", "auth.ts");
 const TYPES = join(ROOT, "src", "server", "types.ts");
 const STORAGE = join(ROOT, "src", "server", "storage.ts");
 

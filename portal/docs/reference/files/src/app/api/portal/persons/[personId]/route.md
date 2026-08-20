@@ -10,9 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/enquiryClassification.ts`](../../../../../lib/enquiryClassification.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/seedClientFromPerson.ts`](../../../../../lib/server/seedClientFromPerson.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../../../../../lib/enquiries/enquiryClassification.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/seeds/seedClientFromPerson.ts`](../../../../../lib/server/seeds/seedClientFromPerson.md)
 - [`src/server/organisations.ts`](../../../../../server/organisations.md)
 - [`src/server/persons.ts`](../../../../../server/persons.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)

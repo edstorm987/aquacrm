@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildPerformanceAnalytics, buildPerformanceAnalyticsForRange, performanceMetricValue } from "../src/lib/performanceAnalytics";
+import { buildPerformanceAnalytics, buildPerformanceAnalyticsForRange, performanceMetricValue } from "../src/lib/performance/performanceAnalytics";
 
 test("performance analytics joins views, forms, search and experiments", () => {
   const now = Date.parse("2026-07-27T12:00:00Z");
@@ -53,8 +53,8 @@ test("performance milestones use the same metric definitions", () => {
 test("performance workspace exposes agency, customer, experiments and automated tag capture", () => {
   const workspace = readFileSync("src/app/portal/agency/performance/_PerformanceWorkspace.tsx", "utf8");
   const customer = readFileSync("src/app/portal/customer/_CustomerPortalViews.tsx", "utf8");
-  const portalDesign = readFileSync("src/lib/clientPortalDesign.ts", "utf8");
-  const tag = readFileSync("src/lib/aquaTagSource.ts", "utf8");
+  const portalDesign = readFileSync("src/lib/portal/clientPortalDesign.ts", "utf8");
+  const tag = readFileSync("src/lib/integrations/aquaTagSource.ts", "utf8");
   const api = readFileSync("src/app/api/portal/performance/experiments/route.ts", "utf8");
   const dashboard = readFileSync("src/app/portal/agency/performance/_AquaTagDashboard.tsx", "utf8");
   const reports = readFileSync("src/app/api/portal/performance/reports/route.ts", "utf8");

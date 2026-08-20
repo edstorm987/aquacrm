@@ -1,4 +1,4 @@
-# `src/lib/server/previewPhase.ts`
+# `src/lib/server/portal/previewPhase.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

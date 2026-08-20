@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyAquaEmbedToken } from "@/lib/server/aquaEmbedToken";
-import { issueSession, sessionCookie } from "@/lib/server/auth";
+import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getClient } from "@/server/tenants";
 import {

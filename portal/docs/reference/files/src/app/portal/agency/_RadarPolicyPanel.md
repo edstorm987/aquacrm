@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (3)
 
-- [`src/lib/businessRadar.ts`](../../../lib/businessRadar.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
+- [`src/lib/radar/businessRadar.ts`](../../../lib/radar/businessRadar.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
 ## Used by (1)

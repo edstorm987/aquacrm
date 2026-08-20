@@ -16,7 +16,7 @@ planned.
 ---
 
 ## 1. The tag script
-- **`src/lib/aquaTagSource.ts`** — the tag source; `aquaTagResponse()` builds it.
+- **`src/lib/integrations/aquaTagSource.ts`** — the tag source; `aquaTagResponse()` builds it.
 - Served at **`/aqua-tag.js`** (`src/app/aqua-tag.js/route.ts`). Legacy alias **`/milesy-tag.js`** (deprecation headers; keeps old installs alive).
 - **Consent-aware:** reads the visitor's choice from `aqua-cookie-preferences` (the same key the website-editor's `CookieConsentBlock` writes) and the `aqua:consent-updated` event, and **gates its own analytics** until consent is given. This is the foundation for the future tag-manager idea (§9).
 - Keyed by a **`data-site-key`** on the script tag — that key is what ties a submission back to an agency or client.
@@ -79,7 +79,10 @@ per-client telemetry + monthly performance reports (`MonthlyPerformanceReport`)
 over a period. ⚠ This overlaps the Aqua Tags Command Centre screen conceptually
 (both are "the tag" surfaces) — see the [hazards chapter](hazards-and-duplication.md).
 
-### e. Dev Team → **API & MCP** — `src/app/portal/dev-team/api/_MasterTagPanel.tsx`
+### e. Dev Console → Tools → **API & MCP** — `src/app/portal/dev-team/api/_MasterTagPanel.tsx`
+*(URL: `/portal/dev-team/tools?view=api`. The section moved into Tools on
+2026-08-20; `/portal/dev-team/api` is now a redirect stub, but the files —
+`_Section.tsx`, `_MasterTagPanel.tsx`, `_McpConnectPanel.tsx` — did not move.)*
 **Read-only, and deliberately not a fifth workflow.** The tag seen as what it is
 alongside the API keys and the vault: a machine surface with a permanent
 credential. Shows the site key, the paste snippet (`masterTagSnippet`), the
@@ -113,7 +116,7 @@ The step-2/3 logic is real, not stubbed:
 
 ## 6. Embed (tag-adjacent)
 `src/lib/server/aquaEmbedToken.ts`, `embedAllowResolver.ts`,
-`src/lib/aquaExplorerBridge.ts`; endpoints `/api/v1/embed/sessions` (mint) +
+`src/lib/integrations/aquaExplorerBridge.ts`; endpoints `/api/v1/embed/sessions` (mint) +
 `/api/v1/embed/consume` (redeem → end-customer session). Lets a tagged site drop
 a visitor straight into their portal.
 

@@ -1,4 +1,4 @@
-# `src/lib/portalBespokeProductModules.ts`
+# `src/lib/portal/portalBespokeProductModules.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -10,11 +10,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/portalProductModules.ts`](./portalProductModules.md)
+- [`src/lib/portal/portalProductModules.ts`](./portalProductModules.md)
 
 ## Used by (3)
 
 - [`scripts/smoke-product-portal-modules.test.ts`](../../scripts/smoke-product-portal-modules.test.md)
 - [`scripts/smoke-product-workspace-application.test.ts`](../../scripts/smoke-product-workspace-application.test.md)
-- [`src/lib/portalProductModules.ts`](./portalProductModules.md)
+- [`src/lib/portal/portalProductModules.ts`](./portalProductModules.md)
 

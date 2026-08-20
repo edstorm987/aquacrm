@@ -1,7 +1,7 @@
 import { extname, resolve, sep } from "node:path";
 import { readFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES, CLIENT_ROLES } from "@/server/types";

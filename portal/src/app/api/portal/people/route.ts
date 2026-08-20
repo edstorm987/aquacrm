@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getActiveAgencyId, requireRole } from "@/lib/server/auth";
+import { getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
 import { provisionSupabaseIdentity } from "@/lib/supabase/admin";
 import {
   acknowledgePeopleContract,

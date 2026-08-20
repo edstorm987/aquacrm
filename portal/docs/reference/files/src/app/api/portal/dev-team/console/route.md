@@ -7,13 +7,14 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Exports (2)
 
 - `dynamic`
-- `async GET()`
+- `async GET(request: NextRequest)`
 
-## Depends on (5)
+## Depends on (6)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/devConsoleStatus.ts`](../../../../../lib/server/devConsoleStatus.md)
-- [`src/lib/server/devDocs.ts`](../../../../../lib/server/devDocs.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/dev/devConsoleStatus.ts`](../../../../../lib/server/dev/devConsoleStatus.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../../../lib/server/dev/devDocs.md)
+- [`src/lib/server/dev/devTeamWorkers.ts`](../../../../../lib/server/dev/devTeamWorkers.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 

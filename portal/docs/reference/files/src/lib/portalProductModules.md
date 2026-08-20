@@ -1,4 +1,4 @@
-# `src/lib/portalProductModules.ts`
+# `src/lib/portal/portalProductModules.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -18,8 +18,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/portalBespokeProductModules.ts`](./portalBespokeProductModules.md)
-- [`src/lib/portalProducts.ts`](./portalProducts.md)
+- [`src/lib/portal/portalBespokeProductModules.ts`](./portalBespokeProductModules.md)
+- [`src/lib/portal/portalProducts.ts`](./portalProducts.md)
 
 ## Used by (12)
 
@@ -32,7 +32,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/customer/_PortalPageComposition.tsx`](../app/portal/customer/_PortalPageComposition.md)
 - [`src/app/portal/customer/_ProductWorkspaceApplication.tsx`](../app/portal/customer/_ProductWorkspaceApplication.md)
 - [`src/app/portal/customer/_portalData.ts`](../app/portal/customer/_portalData.md)
-- [`src/lib/portalBespokeProductModules.ts`](./portalBespokeProductModules.md)
-- [`src/lib/portalProductWorkspaces.ts`](./portalProductWorkspaces.md)
+- [`src/lib/portal/portalBespokeProductModules.ts`](./portalBespokeProductModules.md)
+- [`src/lib/portal/portalProductWorkspaces.ts`](./portalProductWorkspaces.md)
 - [`src/server/clientPortalDesigns.ts`](../server/clientPortalDesigns.md)
 

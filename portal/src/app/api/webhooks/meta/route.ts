@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import { after, NextResponse, type NextRequest } from "next/server";
 
-import { processInboxWebhookQueue } from "@/lib/server/inboxService";
-import { enqueueInboxWebhookEvent } from "@/lib/server/inboxStore";
-import { metaWebhookVerifyTokenAccepted, verifyMetaWebhookRequest } from "@/lib/server/metaMessaging";
+import { processInboxWebhookQueue } from "@/lib/server/inbox/inboxService";
+import { enqueueInboxWebhookEvent } from "@/lib/server/inbox/inboxStore";
+import { metaWebhookVerifyTokenAccepted, verifyMetaWebhookRequest } from "@/lib/server/integrations/metaMessaging";
 import { ensureHydrated } from "@/server/storage";
 
 export const runtime = "nodejs";

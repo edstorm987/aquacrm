@@ -34,13 +34,13 @@ import {
   matchAuthBrandAgency,
   resolveAuthBrand,
   type AuthBrandAgency,
-} from "../src/lib/authBrand";
+} from "../src/lib/brands/authBrand";
 import { GET, POST } from "../src/app/api/auth/switch-agency/route";
-import { SESSION_COOKIE_NAME, issueSession, verifyToken } from "../src/lib/server/auth";
+import { SESSION_COOKIE_NAME, issueSession, verifyToken } from "../src/lib/server/auth/auth";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency, getAgency, updateAgency } from "../src/server/tenants";
 import { createUser, getUserById, updateUser } from "../src/server/users";
-import { addUserAgencyMembership } from "../src/lib/server/aquaOasisSeed";
+import { addUserAgencyMembership } from "../src/lib/server/seeds/aquaOasisSeed";
 import type { SessionPayload } from "../src/server/types";
 
 process.env.PORTAL_BACKEND ??= "memory";

@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole, authErrorResponse } from "@/lib/server/auth";
-import { listInboxSnapshot, updateInboxConversation, updateInboxIdentityLinks } from "@/lib/server/inboxStore";
-import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { listInboxSnapshot, updateInboxConversation, updateInboxIdentityLinks } from "@/lib/server/inbox/inboxStore";
+import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
 

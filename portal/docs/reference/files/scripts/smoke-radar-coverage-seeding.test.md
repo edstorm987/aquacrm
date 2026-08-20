@@ -8,10 +8,10 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (6)
 
-- [`src/lib/radarCoverageRegistry.ts`](../src/lib/radarCoverageRegistry.md)
-- [`src/lib/radarSentinels.ts`](../src/lib/radarSentinels.md)
-- [`src/lib/server/businessIssueRadar.ts`](../src/lib/server/businessIssueRadar.md)
-- [`src/lib/server/radarTelemetry.ts`](../src/lib/server/radarTelemetry.md)
+- [`src/lib/radar/radarCoverageRegistry.ts`](../src/lib/radar/radarCoverageRegistry.md)
+- [`src/lib/radar/radarSentinels.ts`](../src/lib/radar/radarSentinels.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](../src/lib/server/radar/businessIssueRadar.md)
+- [`src/lib/server/radar/radarTelemetry.ts`](../src/lib/server/radar/radarTelemetry.md)
 - [`src/server/storage.ts`](../src/server/storage.md)
 - [`src/server/tenants.ts`](../src/server/tenants.md)
 

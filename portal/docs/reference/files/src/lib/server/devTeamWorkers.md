@@ -1,4 +1,4 @@
-# `src/lib/server/devTeamWorkers.ts`
+# `src/lib/server/dev/devTeamWorkers.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -17,12 +17,12 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/server/devDocs.ts`](./devDocs.md)
+- [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
 
 ## Used by (4)
 
 - [`src/app/api/portal/dev-team/workers/route.ts`](../../app/api/portal/dev-team/workers/route.md)
 - [`src/app/portal/dev-team/logs/page.tsx`](../../app/portal/dev-team/logs/page.md)
-- [`src/lib/server/devConsoleStatus.ts`](./devConsoleStatus.md)
-- [`src/lib/server/devTeamTasks.ts`](./devTeamTasks.md)
+- [`src/lib/server/dev/devConsoleStatus.ts`](./devConsoleStatus.md)
+- [`src/lib/server/dev/devTeamTasks.ts`](./devTeamTasks.md)
 

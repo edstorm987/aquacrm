@@ -17,6 +17,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/inbox/_EnquiryCommunications.tsx`](../../app/portal/agency/inbox/_EnquiryCommunications.md)
 - [`src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx`](../../app/portal/agency/inbox/_UnifiedInboxWorkspace.md)
 - [`src/app/portal/agency/inbox/page.tsx`](../../app/portal/agency/inbox/page.md)
-- [`src/lib/server/inboxMedia.ts`](../server/inboxMedia.md)
+- [`src/lib/server/inbox/inboxMedia.ts`](../server/inbox/inboxMedia.md)
 - [`src/lib/server/websiteEnquiries.ts`](../server/websiteEnquiries.md)
 

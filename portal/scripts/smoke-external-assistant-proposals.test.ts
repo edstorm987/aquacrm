@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { before, test } from "node:test";
-import type { BusinessIssueRadar } from "../src/lib/businessRadar";
+import type { BusinessIssueRadar } from "../src/lib/radar/businessRadar";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -16,10 +16,10 @@ require.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type Keys = typeof import("../src/lib/server/externalAssistantKeys");
-type Gateway = typeof import("../src/lib/server/externalAssistantApi");
-type Mcp = typeof import("../src/lib/server/externalAssistantMcp");
-type Proposals = typeof import("../src/lib/server/externalAssistantProposals");
+type Keys = typeof import("../src/lib/server/assistants/externalAssistantKeys");
+type Gateway = typeof import("../src/lib/server/assistants/externalAssistantApi");
+type Mcp = typeof import("../src/lib/server/assistants/externalAssistantMcp");
+type Proposals = typeof import("../src/lib/server/assistants/externalAssistantProposals");
 type Tasks = typeof import("../src/server/tasks");
 
 let storage: Storage;
@@ -36,10 +36,10 @@ before(async () => {
   process.env.NODE_ENV = "test";
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  keys = await import("../src/lib/server/externalAssistantKeys");
-  gateway = await import("../src/lib/server/externalAssistantApi");
-  mcp = await import("../src/lib/server/externalAssistantMcp");
-  proposals = await import("../src/lib/server/externalAssistantProposals");
+  keys = await import("../src/lib/server/assistants/externalAssistantKeys");
+  gateway = await import("../src/lib/server/assistants/externalAssistantApi");
+  mcp = await import("../src/lib/server/assistants/externalAssistantMcp");
+  proposals = await import("../src/lib/server/assistants/externalAssistantProposals");
   tasks = await import("../src/server/tasks");
   await storage.ensureHydrated();
   agencyId = tenants.createAgency({ name: "Proposal boundary smoke", slug: "proposal-boundary-smoke" }).id;

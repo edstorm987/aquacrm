@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 ## Depends on (2)
 
 - [`src/components/chrome/DevConsoleButton.tsx`](./DevConsoleButton.md)
-- [`src/lib/server/devConsoleStatus.ts`](../../lib/server/devConsoleStatus.md)
+- [`src/lib/server/dev/devConsoleStatus.ts`](../../lib/server/dev/devConsoleStatus.md)
 
 ## Used by (1)
 

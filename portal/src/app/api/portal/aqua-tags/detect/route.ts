@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { ensureAgencyMasterSiteKey } from "@/server/websiteSources";
-import { detectAquaTag } from "@/lib/server/aquaTagDetection";
+import { detectAquaTag } from "@/lib/server/integrations/aquaTagDetection";
 import { AGENCY_ROLES } from "@/server/types";
 
 /**

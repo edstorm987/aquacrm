@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import {
   derivePersonState,
   listPersons,
@@ -15,7 +15,7 @@ import {
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 
-import { personDestination } from "@/lib/personDestination";
+import { personDestination } from "@/lib/people/personDestination";
 
 import { ContactsIndex } from "./_ContactsIndex";
 

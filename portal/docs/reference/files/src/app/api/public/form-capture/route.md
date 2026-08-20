@@ -12,8 +12,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (6)
 
 - [`src/lib/enquiries/formCapture.ts`](../../../../lib/enquiries/formCapture.md)
-- [`src/lib/publicSites.ts`](../../../../lib/publicSites.md)
-- [`src/lib/server/clientRecordLedger.ts`](../../../../lib/server/clientRecordLedger.md)
+- [`src/lib/public/publicSites.ts`](../../../../lib/public/publicSites.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](../../../../lib/server/clients/clientRecordLedger.md)
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
 - [`src/lib/supabase/admin.ts`](../../../../lib/supabase/admin.md)
 - [`src/server/websiteSources.ts`](../../../../server/websiteSources.md)

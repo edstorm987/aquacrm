@@ -10,10 +10,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (8)
 
-- [`src/lib/clientContracts.ts`](../../../../lib/clientContracts.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/clientRecordLedger.ts`](../../../../lib/server/clientRecordLedger.md)
-- [`src/lib/server/transactionalEmail.ts`](../../../../lib/server/transactionalEmail.md)
+- [`src/lib/clients/clientContracts.ts`](../../../../lib/clients/clientContracts.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](../../../../lib/server/clients/clientRecordLedger.md)
+- [`src/lib/server/email/transactionalEmail.ts`](../../../../lib/server/email/transactionalEmail.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../server/tenants.md)

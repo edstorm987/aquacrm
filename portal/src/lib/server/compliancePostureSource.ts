@@ -7,7 +7,7 @@ import {
   type ConsentEvidence,
   type ErasureEvidence,
   type LegalRecordEvidence,
-} from "@/lib/compliancePosture";
+} from "@/lib/compliance/compliancePosture";
 import { isHipaaTrackEnabled, listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
 import { listTradingCompanies, recordBelongsToCompany } from "@/server/tradingCompanies";

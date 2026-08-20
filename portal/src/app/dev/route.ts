@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 
-import { issueSession, sessionCookie } from "@/lib/server/auth";
+import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import {
   DEV_AGENCY_NAME,
   DEV_AGENCY_SLUG,
@@ -9,7 +9,7 @@ import {
   devModeStatus,
   devAgencySlug,
   usingDefaultDevAgency,
-} from "@/lib/server/devMode";
+} from "@/lib/server/dev/devMode";
 import { createAgency, getClientForAgency, listClients } from "@/server/tenants";
 import { createUser, getUser, listUsersForAgency, listUsersForClient } from "@/server/users";
 import { ensureHydrated, flushPendingWrites, getState } from "@/server/storage";

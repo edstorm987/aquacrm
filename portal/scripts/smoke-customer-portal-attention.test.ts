@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CustomerPortalData } from "../src/app/portal/customer/_portalData";
-import { buildCustomerPortalAttention } from "../src/lib/customerPortalAttention";
+import { buildCustomerPortalAttention } from "../src/lib/portal/customerPortalAttention";
 
 function portalData(patch: Partial<CustomerPortalData> = {}): CustomerPortalData {
   return {

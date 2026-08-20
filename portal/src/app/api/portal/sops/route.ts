@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { del } from "@vercel/blob";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";

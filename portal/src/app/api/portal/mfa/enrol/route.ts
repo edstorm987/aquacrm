@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
-import { hasVerifiedFactor } from "@/lib/server/mfa";
+import { hasVerifiedFactor } from "@/lib/server/auth/mfa";
 
 /**
  * Whether this account already has an authenticator.

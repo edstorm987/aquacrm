@@ -5,11 +5,11 @@ import {
   externalApiHeaders,
   requireExternalAssistantModule,
   requireExternalAssistantPermission,
-} from "@/lib/server/externalAssistantApi";
+} from "@/lib/server/assistants/externalAssistantApi";
 import {
   listProposalsForExternalAssistant,
   submitExternalAssistantActionProposal,
-} from "@/lib/server/externalAssistantProposals";
+} from "@/lib/server/assistants/externalAssistantProposals";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type { AgencyTaskPriority, ExternalAssistantProposalCategory } from "@/server/types";
 

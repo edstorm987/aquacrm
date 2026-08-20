@@ -2,7 +2,24 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · supersedes/absorbs [dev-team-hub.md](dev-team-hub.md) + [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md) + the built dev-docs work
 
-**Status: ✅ BUILT — core shipped + browser-verified (2026-08-19): own portal scope + sidebar, Home, Working-on board (live worker panel), Library, Auditor, Profiles, Editor, Updates, Notes, plan composer, and a 4th Command Centre station. Finishing work tracked in [dev-team-finish.md](dev-team-finish.md).** Reuse-heavy — recon (4 parallel read-only agents, 2026-08-19)
+**Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](dev-console-topbar.md).**
+
+> ⚠ **The section list below is the ORIGINAL twelve-item shape and is no longer what ships.** Corrected 2026-08-20 after this status kept briefing workers on sidebar rows that are now redirect stubs.
+>
+> **The portal today is SIX sidebar sections** ([`src/app/portal/dev-team/layout.tsx:68–75`](../../../src/app/portal/dev-team/layout.tsx)): **Home** · **Roadmap** · **Findings** · **Library** · **Tools** · **Notes** (plus "← Leave Dev Team" and "My profile"). The rest became `?view=` tabs inside those six, and every old route is a redirect stub, so no link died:
+>
+> | Old route | Now |
+> | --------- | --- |
+> | `/portal/dev-team/working` | `/portal/dev-team/roadmap?view=now` |
+> | `/portal/dev-team/tasks` | `/portal/dev-team/roadmap?view=tasks` |
+> | `/portal/dev-team/auditor` | `/portal/dev-team/findings?view=auditor` |
+> | `/portal/dev-team/logs` | `/portal/dev-team/library?view=logs` |
+> | `/portal/dev-team/updates` | `/portal/dev-team/library?view=updates` |
+> | `/portal/dev-team/inspector` | `/portal/dev-team/tools` |
+> | `/portal/dev-team/editor` | `/portal/dev-team/tools?view=editor` |
+> | `/portal/dev-team/api` | `/portal/dev-team/tools?view=api` |
+>
+> There is **no Profiles section** — the POV switcher lives at Tools → Inspector (see [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)). The Working-on board, live worker panel, plan composer and the 4th Command Centre station all still exist; they just live inside the six. Reuse-heavy — recon (4 parallel read-only agents, 2026-08-19)
 confirms ~80% is already built; the real new work is one AI retrieval bridge + one
 updates→inbox flow + the portal shell. Ed's ask (2026-08-19, verbatim intent): he's lost
 track of the sprawl and is past deadlines; he needs ONE founder/dev-only place that surfaces
@@ -152,17 +169,17 @@ plan in flight._
 
 - `src/app/portal/dev-team/`
 - `src/app/api/portal/dev-team/`
-- `src/lib/server/devTeamBoard.ts`
-- `src/lib/server/devTeamAuditor.ts`
-- `src/lib/server/devTeamFindings.ts`
-- `src/lib/server/devTeamPlans.ts`
-- `src/lib/server/devTeamRoadmap.ts`
-- `src/lib/server/devTeamTasks.ts`
-- `src/lib/server/devTeamThoughts.ts`
-- `src/lib/server/devTeamUpdates.ts`
-- `src/lib/server/devTeamWorkers.ts`
-- `src/lib/server/devDocs.ts`
-- `src/lib/server/devModeAccess.ts`
+- `src/lib/server/dev/devTeamBoard.ts`
+- `src/lib/server/dev/devTeamAuditor.ts`
+- `src/lib/server/dev/devTeamFindings.ts`
+- `src/lib/server/dev/devTeamPlans.ts`
+- `src/lib/server/dev/devTeamRoadmap.ts`
+- `src/lib/server/dev/devTeamTasks.ts`
+- `src/lib/server/dev/devTeamThoughts.ts`
+- `src/lib/server/dev/devTeamUpdates.ts`
+- `src/lib/server/dev/devTeamWorkers.ts`
+- `src/lib/server/dev/devDocs.ts`
+- `src/lib/server/dev/devModeAccess.ts`
 - `src/app/api/auth/dev-mode/route.ts`
 - `src/lib/chrome/sidebarLayout.ts`
 - `src/app/portal/agency/_DevTeamStation.tsx`

@@ -19,7 +19,7 @@ type Companies = typeof import("../src/server/tradingCompanies");
 type Products = typeof import("../src/server/agencyProducts");
 type CompanyProfiles = typeof import("../src/server/company");
 type Legal = typeof import("../src/server/legalDocuments");
-type PortalProviders = typeof import("../src/lib/server/clientPortalProvider");
+type PortalProviders = typeof import("../src/lib/server/clients/clientPortalProvider");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -37,7 +37,7 @@ before(async () => {
   products = await import("../src/server/agencyProducts");
   profiles = await import("../src/server/company");
   legal = await import("../src/server/legalDocuments");
-  portalProviders = await import("../src/lib/server/clientPortalProvider");
+  portalProviders = await import("../src/lib/server/clients/clientPortalProvider");
   await storage.ensureHydrated();
 });
 

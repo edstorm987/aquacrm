@@ -2,7 +2,7 @@
 
 import { ChevronDown, Download, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { formatUkDateTime, isoDateTimeValue } from "@/lib/formatDateTime";
+import { formatUkDateTime, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 interface ActivityEntry {
   id: string;

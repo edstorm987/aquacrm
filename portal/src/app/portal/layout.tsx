@@ -6,8 +6,8 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
-import { getSession } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { getSession } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { CommandCenterTransition } from "@/components/chrome/CommandCenterTransition";
 import { ClientWorkspaceTransition } from "@/components/chrome/ClientWorkspaceTransition";
 import { DevModeLoadIn } from "@/components/chrome/DevModeLoadIn";

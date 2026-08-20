@@ -9,7 +9,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { createAgency, createClient, listAgencies } from "@/server/tenants";
 import { createUser, listUsersForAgency } from "@/server/users";
-import { getSession } from "@/lib/server/auth";
+import { getSession } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 
 export async function POST(req: NextRequest) {

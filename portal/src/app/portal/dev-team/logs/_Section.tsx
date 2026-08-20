@@ -3,13 +3,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ScrollText, UserRound, Bot, FileCode2, CircleDot } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
-import { recentDocEdits } from "@/lib/server/devDocEdits";
-import { scanWorkerSignals, groupActivity } from "@/lib/server/devTeamWorkers";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { recentDocEdits } from "@/lib/server/dev/devDocEdits";
+import { scanWorkerSignals, groupActivity } from "@/lib/server/dev/devTeamWorkers";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import { relativeAge } from "@/lib/formatDateTime";
+import { relativeAge } from "@/lib/shared/formatDateTime";
 import { PageHeader, Panel, Pill, EmptyState } from "../_ui";
 import { changesPillLabel, changesPillTitle } from "./_changesLabel";
 

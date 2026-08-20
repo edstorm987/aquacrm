@@ -1,8 +1,71 @@
-# Plan — Promote a trading company into its own agency
+# Plan — Give a trading company a portal of its own
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · related: [rls-enable.md](./rls-enable.md) · [plugin-data-erasure.md](./plugin-data-erasure.md)
 
-**Status: PLAN (not built).** Nothing in `src/server/tradingCompanies.ts` or `src/server/agencyBootstrap.ts` turns a company into an agency, and no route exists. The ownership modelling this needs is already done and verified below — what is missing is the promotion itself, one decision from Ed, and a short list of live-wiring fixes that only become visible the moment a second agency exists.
+**Status: BUILDING — phases 1–3 landed 2026-08-20 and were re-framed the same day onto the founder's settled model; phases 4–10 open.**
+
+## ⚠ THE MODEL — settled by the founder, 2026-08-20. Read this first.
+
+This plan was originally written as *"promote a trading company INTO its own agency"*. **That framing
+is superseded.** The founder settled the model in his own words:
+
+> "It's both — agency as a holding group, trading companies as companies, and then each company has
+> clients."
+
+**Three permanent tiers, not two:**
+
+```
+AGENCY  (holding group)
+  └── TRADING COMPANY  (the actual business)
+        └── CLIENTS
+```
+
+A company therefore **does NOT become an agency**. It is not promoted out, it is not tombstoned, and
+it does not change tier. **It stays a company under its holding group and gains a portal** — a
+workspace of its own. `Client.companyId` already exists (`src/server/types.ts`), so clients already
+belong to companies: the model was always half-built.
+
+**What that changed in the code (2026-08-20, this lane):**
+
+| Was (superseded) | Now | Why it mattered |
+| --- | --- | --- |
+| `TradingCompany.promotedAgencyId` / `promotedAt` | `portalAgencyId` / `portalCreatedAt` | The old names say the company left and became something else. It did not. |
+| `markTradingCompanyPromoted` / `isTradingCompanyPromoted` | `markTradingCompanyPortalCreated` / `tradingCompanyHasOwnPortal` | Same. |
+| `src/server/promotion/` | `src/server/companyPortal/` | "Promotion" means moving up a tier. Nothing moves up a tier. |
+| `…/[companyId]/promote` | `…/[companyId]/portal` | Ditto. No UI called it, so the URL was free to fix. |
+| *(nothing)* | **`Agency.holdingAgencyId` + `Agency.companyId`** | **The third tier was not representable at all.** See below. |
+| activity `company.promoted` | `company.portal_created` | |
+
+**The substantive fix, not just naming: the holding-group link.** Before this run, the tenant created
+for a company portal was an ordinary **sibling** of the holding group, with nothing recording that it
+was a company's portal or whose. The top tier simply evaporated — a group could not list the
+companies it holds, and a portal tenant was indistinguishable from a wholly unrelated business. That
+is the two-tier model the founder rejected. `Agency.holdingAgencyId` + `Agency.companyId` are now
+stamped by `bootstrapAgency` (optional third argument, so its eight other callers are untouched), and
+`listHeldCompanyPortals()` / `getCompanyPortalAgency()` in `src/server/agencyBootstrap.ts` are the
+queries the third tier exists to make answerable. The link is deliberately **two-way** — the company
+names its portal, the portal names its company and its group — so neither tier is reachable without
+the other.
+
+This failure mode was *quiet*: without the stamp everything still worked, every test still passed,
+and only the model silently collapsed. `scripts/smoke-company-portal.test.ts` ("the third tier") now
+pins it.
+
+**Everything else in this plan still stands.** The record ownership, the dependency chains, the
+security analysis, the disposition thinking and the "what must NOT break" list were hard-won and are
+unaffected by the correction — read "move" below as *"into the company's own portal tenant"*, never
+*"out of the group"*.
+
+---
+
+Verified in source rather than assumed:
+- **Phase 1** — `src/server/companyPortal/disposition.ts` exists (the 78-collection map + exhaustiveness guard).
+- **Phase 2** — `previewCompanyPortal` exists in `src/server/companyPortal/companyPortal.ts` and is imported by the route.
+- **Phase 3** — the endpoint exists: `src/app/api/portal/agency/companies/[companyId]/portal/route.ts`, `GET` = read-only preview, `POST` = create the portal tenant (stamped with its holding group + company) + grant membership + re-mint cookie + stamp the company, **moving no records**, with the switcher's guards (`isBorrowedIdentity`, `isSessionFresh`, origin check) imported rather than re-implemented. Idempotency is real: `markTradingCompanyPortalCreated` never overwrites the first `portalCreatedAt`.
+- **Tests** — `scripts/smoke-company-portal.test.ts` exists (48 tests, including the third-tier section).
+- **Phases 4–10 are genuinely open**, and `tradingCompanies.ts` still says so in its own comments (creating a portal moves nothing).
+
+The ownership modelling this needs was already done and is verified below — what remains is moving the records, one decision from Ed, and the live-wiring fixes that only become visible the moment a second agency exists.
 
 ## The goal
 
@@ -18,7 +81,7 @@ A **trading company** is the cheap start: a brand that lives inside Ed's agency,
 - **Creating a tenant already works.** `bootstrapAgency` (`src/server/agencyBootstrap.ts:18-41`) calls `createAgency`, seeds default pipelines, migrates clients to fulfilment, installs core plugins and logs `agency.bootstrap`. It touches `state.users` not at all — so "create the tenant" and "grant somebody membership of it" are already two separable steps. `createAgency` derives the id from the slug and de-duplicates with `-2`/`-3` (`src/server/tenants.ts:44-53`), so the returned `agency.id` is the only safe key to write anywhere.
 - **The company switcher shipped and its rule is sound.** `allowed = session.agencyIds ∩ liveUser.agencyIds` (`src/app/api/auth/switch-agency/route.ts:118-123`, refusal at `:199-205`), with a ready-made `isBorrowedIdentity` predicate covering isDemo / publicShowcase / devReturn / previewReturn / showcaseReturn (`:105-113`) and an origin check at `:87-101`. Contract tests pin that a membership added since sign-in does **not** widen a session, and that a re-mint narrows only (`scripts/smoke-company-switcher.test.ts:338-375`, borrowed-identity cases at `:406-452`).
 - **A create-tenant skeleton is sitting in the archive** with exactly the right four-line mechanism and none of the right guards: `addUserAgencyMembership` → re-read the user → `issueSession` with `agencyIds = session ∪ new` → set cookie (`src/archive/multi-agency/api/agency-add.ts:96-113`). It has no origin check, no freshness check, a `founder_only` label over an owner-**or**-manager gate (`:53-56`), and it forwards `isDemo` while dropping the `devReturn*`/`previewReturn*` markers (`:107`). Take the mechanism; import the switcher's guards rather than copying them.
-- **`PortalState` has exactly 78 collections** (`src/server/types.ts:3085-3184`, `agencies` first, `peopleTrainingModules` last). The only existing "everything belonging to a tenant" code hand-lists **25 of them** (`src/lib/server/showcaseMode.ts:477-519`) and the demo teardown lists **7** (`src/lib/server/demoSeed.ts:430-463`). Both are the wrong pattern to copy here. The right pattern already exists: `clientErasure` iterates `Object.entries(state)` generically (`src/server/clientErasure.ts:625-680`).
+- **`PortalState` has exactly 78 collections** (`src/server/types.ts:3085-3184`, `agencies` first, `peopleTrainingModules` last). The only existing "everything belonging to a tenant" code hand-lists **25 of them** (`src/lib/server/auth/showcaseMode.ts:477-519`) and the demo teardown lists **7** (`src/lib/server/seeds/demoSeed.ts:430-463`). Both are the wrong pattern to copy here. The right pattern already exists: `clientErasure` iterates `Object.entries(state)` generically (`src/server/clientErasure.ts:625-680`).
 - **A trading company is not yet a security boundary** — it is attribution. `getActiveTradingCompanyId()` is hardcoded `return null` (`src/lib/server/tradingCompanyContext.ts:3-9`) and `recordBelongsToCompany` returns `true` for everything when the active company is null (`src/server/tradingCompanies.ts:94-97`). `ServerUser.companyIds` is read for display and assignment only (`src/app/api/portal/agency/users/route.ts:95, 110, 139-142`). Promotion does not *move* a boundary — **it creates the first real one.**
 
 ## The decision — ANSWERED by Ed, 2026-08-20
@@ -57,14 +120,14 @@ records move, the activity log and `clientRecordLedger` stay with the origin age
 Why that is the honest answer:
 
 - **"This company's history" is not a query that can be written.** None of `ActivityEntry` (`types.ts:449-461`), `ClientRecordLedgerEvent` (`:467-484`) or `IdentityResolutionReview` (`:761-783`) carries a `companyId` — only `agencyId` and an optional `clientId`. Of 352 `logActivity(` call sites, roughly 200 pass no `clientId` at all, so that portion is unattributable to any company by any means. Even the trading company's own creation entry is one of them.
-- **Ids are hashed off `agencyId`.** `makeEventId` is `sha256(agencyId\0clientId\0sourceType\0sourceId)` (`src/lib/server/clientRecordLedger.ts:123-129`); `reviewId` is `sha256(agencyId\0sourceType\0sourceId)` (`src/lib/server/identityResolution.ts:327-330`). A naive `UPDATE agencyId` duplicates a client's entire timeline on the next sync and makes the delete path unable to find anything.
+- **Ids are hashed off `agencyId`.** `makeEventId` is `sha256(agencyId\0clientId\0sourceType\0sourceId)` (`src/lib/server/clients/clientRecordLedger.ts:123-129`); `reviewId` is `sha256(agencyId\0sourceType\0sourceId)` (`src/lib/server/identityResolution.ts:327-330`). A naive `UPDATE agencyId` duplicates a client's entire timeline on the next sync and makes the delete path unable to find anything.
 - **The `agencyId` on a history row *is* the access-control boundary** — `queryClientRecordLedger` filters `event.agencyId === input.agencyId` (`clientRecordLedger.ts:498`), `listActivity` filters `a.agencyId !== filter.agencyId` (`src/server/activity.ts:72-77`). Rewriting it in a migration is rewriting tenant isolation.
 - **The switcher already supplies the continuity** a history move would otherwise exist to provide.
 
 Two consequences to accept out loud, both handled in the phases:
 
 1. **The ledger is derived, so it is re-synchronised, never re-stamped.** At promotion, delete the origin tenant's `clientRecordLedger` rows for moved clients and let `synchroniseClientRecordLedger` rebuild them under the new agency. Nobody rewrites an event's `agencyId`, ever. `activity` is append-only and stays exactly as written.
-2. **A fresh tenant must report itself honestly.** `gdpr.audit-trail` flips to "met" at one activity entry (`src/lib/compliancePosture.ts:540-547`) and `bootstrapAgency` writes exactly one (`agencyBootstrap.ts:29-37`). A promoted tenant would claim an audit trail containing only its own creation. Phase 10 excludes `agency.bootstrap` from the tally so it reads **blind** until it earns otherwise.
+2. **A fresh tenant must report itself honestly.** `gdpr.audit-trail` flips to "met" at one activity entry (`src/lib/compliance/compliancePosture.ts:540-547`) and `bootstrapAgency` writes exactly one (`agencyBootstrap.ts:29-37`). A promoted tenant would claim an audit trail containing only its own creation. Phase 10 excludes `agency.bootstrap` from the tally so it reads **blind** until it earns otherwise.
 
 **Clients move — they are never copied.** This is not negotiable regardless of the history answer: `clientErasure`'s generic sweep matches on `clientId` alone with no agency predicate (`src/server/clientErasure.ts:625-680`), so the same `clientId` living in two tenants means erasing it in one destroys the other. One clientId, one tenant, ever.
 
@@ -115,9 +178,9 @@ deliver what promotion already delivers properly. Not worth it — promote inste
 
 6. **Plugin split hook `onPromoteCompany`,** mirroring the existing `onEraseClient` contract (`clientErasure.ts:398-410`). Client-scoped installs move with their client; **agency-scoped installs are shared** and must be split by each plugin against its own company fields — the core must never guess at opaque `Record<string, unknown>` values. *Proven by:* promote with one invoice for the promoted company and one for another brand; the new tenant holds exactly one, the origin keeps exactly one, and no finance row exists in both.
 
-7. **Reference closure and fresh-tenant seeding, so the result is sellable.** Walk the id links out of every moved record — `AgencyProduct.sopIds` and `includedProductIds`, `ClientPortalInstanceRecord.templateId`, `DevelopmentResource.workflowStageIds`, `ClientDelightRecord.packageId`, and the product variations hidden inside `Client.metadata` (`src/lib/clientProductVariations.ts:21-36`) — and copy each referenced record in. Seed `phases` so a moved Client's `stage` resolves against a real `PhaseDefinition`. Copy `agencySettings` **with reset**: structural preferences carry, `invoicePrefix` is regenerated from the new slug, and a fresh master tag key is minted. Credential-shaped collections are LEAVE, never copy — `externalAssistantApiKeys`, `commandCalendarConnections`, agency-scoped `integrationConnections`. Radar (`radarMemory`, `radarSyntheticProbes`, `radarEvidence`) is LEAVE by design; the new business starts with no health history rather than inheriting a baseline it never earned, and the confirmation UI says so. *Proven by:* a validator re-walks every id in the new tenant and fails on any dangling reference; the two tenants' `invoicePrefix` and master tag key differ; the new tenant contains nothing radar-shaped.
+7. **Reference closure and fresh-tenant seeding, so the result is sellable.** Walk the id links out of every moved record — `AgencyProduct.sopIds` and `includedProductIds`, `ClientPortalInstanceRecord.templateId`, `DevelopmentResource.workflowStageIds`, `ClientDelightRecord.packageId`, and the product variations hidden inside `Client.metadata` (`src/lib/clients/clientProductVariations.ts:21-36`) — and copy each referenced record in. Seed `phases` so a moved Client's `stage` resolves against a real `PhaseDefinition`. Copy `agencySettings` **with reset**: structural preferences carry, `invoicePrefix` is regenerated from the new slug, and a fresh master tag key is minted. Credential-shaped collections are LEAVE, never copy — `externalAssistantApiKeys`, `commandCalendarConnections`, agency-scoped `integrationConnections`. Radar (`radarMemory`, `radarSyntheticProbes`, `radarEvidence`) is LEAVE by design; the new business starts with no health history rather than inheriting a baseline it never earned, and the confirmation UI says so. *Proven by:* a validator re-walks every id in the new tenant and fails on any dangling reference; the two tenants' `invoicePrefix` and master tag key differ; the new tenant contains nothing radar-shaped.
 
-8. **Live wiring — move the websites and the tag together, atomically.** The tag in a customer's page HTML carries the *old* master key, and both `resolveWebsiteSourceRouting` and `listEnabledInjectionsForHost` re-derive the agency from that key, so there is **no ordering of a naive move that keeps routing intact**. Extend `agencyMasterTagKeys` from `Record<agencyId, key>` into a key→agencyId index that supports aliases, so the retired key resolves to the new agency; move `websiteSources` and their `websiteSiteConfigs` in one mutate (never delete-and-re-add — `removeWebsiteSource` cascades the injection config away, `src/server/websiteSources.ts:206-216`); give `listWebsiteEnquiries` an `agencyId` parameter and an actual filter (`src/lib/server/websiteEnquiries.ts:514-524` currently returns **every row in the table** to every caller); make `ensureZimanteTradingCompanies` skip tombstoned brands so `/api/public/brand-enquiry` stops re-minting the company it just gave away (`src/server/zimanteTradingCompanies.ts:12-33`); drop the founder-slug gate in `src/lib/server/radarSourceInspection.ts:122`. *Proven by:* fetching `/api/public/aqua-tag-config?key=<newKey>&host=<movedHost>` returns a non-empty `injections` array, and the promotion refuses to report success on an empty one; a POST to `/api/public/brand-enquiry` for a promoted brand mints no duplicate company in the founder agency; agency A's inbox contains zero of agency B's enquiries.
+8. **Live wiring — move the websites and the tag together, atomically.** The tag in a customer's page HTML carries the *old* master key, and both `resolveWebsiteSourceRouting` and `listEnabledInjectionsForHost` re-derive the agency from that key, so there is **no ordering of a naive move that keeps routing intact**. Extend `agencyMasterTagKeys` from `Record<agencyId, key>` into a key→agencyId index that supports aliases, so the retired key resolves to the new agency; move `websiteSources` and their `websiteSiteConfigs` in one mutate (never delete-and-re-add — `removeWebsiteSource` cascades the injection config away, `src/server/websiteSources.ts:206-216`); give `listWebsiteEnquiries` an `agencyId` parameter and an actual filter (`src/lib/server/websiteEnquiries.ts:514-524` currently returns **every row in the table** to every caller); make `ensureZimanteTradingCompanies` skip tombstoned brands so `/api/public/brand-enquiry` stops re-minting the company it just gave away (`src/server/zimanteTradingCompanies.ts:12-33`); drop the founder-slug gate in `src/lib/server/radar/radarSourceInspection.ts:122`. *Proven by:* fetching `/api/public/aqua-tag-config?key=<newKey>&host=<movedHost>` returns a non-empty `injections` array, and the promotion refuses to report success on an empty one; a POST to `/api/public/brand-enquiry` for a promoted brand mints no duplicate company in the founder agency; agency A's inbox contains zero of agency B's enquiries.
 
 9. **Ambiguity as a proposal, not a guess.** Five classes have no data-level answer — shared records with empty `companyIds`, persons and organisations whose `facets.clientIds` straddle both tenants, live enquiries with no `agency_id` column, `agencyWebsites` (one per agency, with no company record to move), and the sixteen `people*` collections which have no company dimension at all. Promotion produces a proposal listing each with a suggested disposition and the reason; **nothing ambiguous is written until Ed confirms**, and every default is LEAVE, the reversible direction. Staff tagged with `companyIds` are *proposed*, never auto-granted — `companyIds` was a display label and must not become a retroactive tenancy grant. Persons are never split automatically: a straddling person stops for a human decision. *Proven by:* a promotion run with unconfirmed ambiguities writes none of them; the resulting `company.promoted` activity entry records every confirmed decision.
 
@@ -130,20 +193,20 @@ deliver what promotion already delivers properly. Not worth it — promote inste
 - **Enquiry routing.** A miss in `resolveWebsiteSourceRouting` degrades to `{kind:"inbox"}` — the "safe default" that here means enquiries silently stop carrying `routedCompanyId`.
 - **Erasure's one-clientId-one-tenant invariant.** Never copy a Client. Never leave a promotion half-finished such that a clientId straddles two agencies.
 - **Audit stamps.** No code in this plan rewrites `ActivityEntry.agencyId` or `ClientRecordLedgerEvent.agencyId`. The ledger is rebuilt, not re-stamped; activity is left alone.
-- **Credentials.** `externalAssistantApiKeys`, `commandCalendarConnections` and `integrationConnections` are never copied across tenants. Decide explicitly whether social connections transfer or are revoked-and-reconnected — two live connections to one Meta page is not an acceptable outcome (`src/lib/server/inboxStore.ts:397, 437-454`).
+- **Credentials.** `externalAssistantApiKeys`, `commandCalendarConnections` and `integrationConnections` are never copied across tenants. Decide explicitly whether social connections transfer or are revoked-and-reconnected — two live connections to one Meta page is not an acceptable outcome (`src/lib/server/inbox/inboxStore.ts:397, 437-454`).
 - **`radarInfraHealth`** is app-wide with no tenant key (`types.ts:3168-3169`). Leave it strictly alone.
-- **Client telemetry**, which works after a move precisely *because* it is not tenanted (`src/lib/server/clientTelemetry.ts:123-131`). Do not "fix" it in passing.
+- **Client telemetry**, which works after a move precisely *because* it is not tenanted (`src/lib/server/clients/clientTelemetryService.ts:123-131`). Do not "fix" it in passing.
 - **`.data/portal-state.json`** — untouched by hand at every stage.
 
 ## File map — what this plan owns
 
-- `src/server/promotion/disposition.ts` — **NEW**, the 78-collection map + exhaustiveness guard
-- `src/server/promotion/promoteCompany.ts` — **NEW**, preview + execute
-- `src/server/promotion/referenceClosure.ts` — **NEW**, id-walk + dangling-reference validator
-- `src/app/api/portal/agency/companies/[companyId]/promote/route.ts` — **NEW**
-- `scripts/smoke-company-promotion.test.ts` — **NEW**
-- `src/server/tradingCompanies.ts` — tombstone fields, promotion refusal on an already-promoted company
-- `src/server/agencyBootstrap.ts` — reused as-is; phase 7 adds the seeding it lacks
+- `src/server/companyPortal/disposition.ts` — **NEW**, the 78-collection map + exhaustiveness guard
+- `src/server/companyPortal/companyPortal.ts` — **NEW**, preview + execute
+- `src/server/companyPortal/referenceClosure.ts` — **NEW** (phase 7), id-walk + dangling-reference validator
+- `src/app/api/portal/agency/companies/[companyId]/portal/route.ts` — **NEW**
+- `scripts/smoke-company-portal.test.ts` — **NEW**
+- `src/server/tradingCompanies.ts` — `portalAgencyId`/`portalCreatedAt` stamp, refusal of a second portal
+- `src/server/agencyBootstrap.ts` — the holding-group stamp + `listHeldCompanyPortals`/`getCompanyPortalAgency`; phase 7 adds the seeding it lacks
 - `src/server/company.ts` — the `${agencyId}:${companyId}` → bare-`${agencyId}` re-key
 - `src/server/clientPortalDesigns.ts` — `${agencyId}:${clientId}` re-key
 - `src/server/pluginInstalls.ts` — `makeInstallId` re-key
@@ -154,20 +217,20 @@ deliver what promotion already delivers properly. Not worth it — promote inste
 - `src/server/zimanteTradingCompanies.ts` — skip tombstoned brands
 - `src/app/api/public/brand-enquiry/route.ts` — stop hardcoding the founder agency
 - `src/app/api/public/aqua-tag-config/route.ts` — alias-aware key resolution
-- `src/lib/server/radarSourceInspection.ts` — remove the founder-slug gate
-- `src/lib/server/clientRecordLedger.ts` — origin-tenant cleanup + re-synchronise
+- `src/lib/server/radar/radarSourceInspection.ts` — remove the founder-slug gate
+- `src/lib/server/clients/clientRecordLedger.ts` — origin-tenant cleanup + re-synchronise
 - `src/server/clientErasure.ts` — skip foreign-agency installs instead of deleting them
 - `src/lib/server/compliancePostureSource.ts` — exclude `agency.bootstrap` from the audit tally
 - `src/server/users.ts` — move client-tier users' `agencyId` with their client
-- `src/lib/server/aquaOasisSeed.ts` — reuse `addUserAgencyMembership`
+- `src/lib/server/seeds/aquaOasisSeed.ts` — reuse `addUserAgencyMembership`
 - `src/built-ins/modules/agency-finance/src/lib/domain.ts` — `onPromoteCompany` split
 - `src/built-ins/modules/leads-pipeline/src/lib/domain.ts` — `onPromoteCompany` split
 - `src/built-ins/modules/agency-marketing/src/lib/domain.ts` — `onPromoteCompany` split
-- `src/server/types.ts` — **shared chokepoint, see below**
+- `src/server/types.ts` — **shared chokepoint, see below**. Additive only: `Agency.holdingAgencyId`, `Agency.companyId`, `TradingCompany.portalAgencyId`, `TradingCompany.portalCreatedAt`
 - `docs/compliance/erasure-dpo-pack.md` — §7 gains the divestment question
 - `docs/development/plans/promote-trading-company.md` — this file
 
-**Read-only for this plan** (relied on, never edited): `src/app/api/auth/switch-agency/route.ts` (import its guards, do not fork them), `src/lib/server/auth.ts`, `src/server/tenants.ts`, `src/lib/server/showcaseMode.ts` (the anti-pattern, not the pattern).
+**Read-only for this plan** (relied on, never edited): `src/app/api/auth/switch-agency/route.ts` (import its guards, do not fork them), `src/lib/server/auth/auth.ts`, `src/server/tenants.ts`, `src/lib/server/auth/showcaseMode.ts` (the anti-pattern, not the pattern).
 
 ## Collision note
 
@@ -177,7 +240,7 @@ deliver what promotion already delivers properly. Not worth it — promote inste
 - Any new migrations/SQL directory, and `docs/workspace/database.md` — **RLS lane**. This matters directly: the real fix for `brand_enquiries` is an `agency_id` column, and that column is theirs to add ([rls-enable.md](./rls-enable.md) gap 3). Phase 8 therefore filters in app code off `metadata.agencyId` with legacy rows defaulting to the founder agency, and records the column as a **dependency on the RLS lane**, not as work this plan does.
 - `docs/workspace/env-and-sellability.md`, `docs/workspace/feature-index.md` — **env audit lane**.
 
-⚠ **`src/server/types.ts` is the worst chokepoint in the codebase — currently claimed by ten plans, and this plan needs it too.** The edits required here are small and additive, and should be batched into a single pass rather than dribbled across phases: `promotedAgencyId?` / `promotedAt?` on `TradingCompany` (`:47-59`), and the `agencyMasterTagKeys` type change from `Record<agencyId, key>` to the alias index (`:3125`). The disposition map's exhaustiveness guard *reads* `keyof PortalState` and does not modify it — deliberately, so that a collection added by another lane produces a clean compile error in **this** plan's file rather than a merge conflict in theirs.
+⚠ **`src/server/types.ts` is the worst chokepoint in the codebase — currently claimed by ten plans, and this plan needs it too.** The edits required here are small and additive, and should be batched into a single pass rather than dribbled across phases: `portalAgencyId?` / `portalCreatedAt?` on `TradingCompany`, plus `holdingAgencyId?` / `companyId?` on `Agency` (the third tier), and the `agencyMasterTagKeys` type change from `Record<agencyId, key>` to the alias index (`:3125`). The disposition map's exhaustiveness guard *reads* `keyof PortalState` and does not modify it — deliberately, so that a collection added by another lane produces a clean compile error in **this** plan's file rather than a merge conflict in theirs.
 
 ## Done when (runtime-verified)
 

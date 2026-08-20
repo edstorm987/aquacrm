@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, File as FileIcon, Mail, MessageCircle, Mic, MicOff, Paperclip, Phone, Radio, Send, Square, StopCircle, Trash2, type LucideIcon } from "lucide-react";
 
-import type { CommunicationSenderIdentity, OutboundCommunicationChannel, OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
+import type { CommunicationSenderIdentity, OutboundCommunicationChannel, OutboundCommunicationReadiness } from "@/lib/server/email/outboundCommunications";
 import type { WebsiteEnquiry, WebsiteEnquiryCall, WebsiteEnquiryReply } from "@/lib/server/websiteEnquiries";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type MessageChannel = Exclude<OutboundCommunicationChannel, "call">;
 type CallOutcome = NonNullable<WebsiteEnquiryCall["outcome"]>;

@@ -8,7 +8,7 @@ import {
   buildCommercialLifecycleIssues,
   buildCommercialLifecycleSnapshot,
   type CommercialLifecycleLead,
-} from "../src/lib/commercialLifecycle";
+} from "../src/lib/intelligence/commercialLifecycle";
 import type { Client } from "../src/server/types";
 
 const ROOT = process.cwd();
@@ -77,9 +77,9 @@ test("commercial lifecycle joins lead sources to conversion, churn, and cancella
 });
 
 test("business radar, Advisor, and command centre consume the same lifecycle snapshot", () => {
-  const radar = read("src/lib/server/businessIssueRadar.ts");
-  const observations = read("src/lib/server/radarObservations.ts");
-  const advisor = read("src/lib/server/advisorSkillContext.ts");
+  const radar = read("src/lib/server/radar/businessIssueRadar.ts");
+  const observations = read("src/lib/server/radar/radarObservations.ts");
+  const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   const tenants = read("src/server/tenants.ts");
 

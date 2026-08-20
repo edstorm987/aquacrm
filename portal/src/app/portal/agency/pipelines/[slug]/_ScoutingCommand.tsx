@@ -27,8 +27,8 @@ import {
   Tag,
   Upload,
 } from "lucide-react";
-import { formatElapsed } from "@/lib/leadTiming";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatElapsed } from "@/lib/enquiries/leadTiming";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export type ProspectQualificationState = "unreviewed" | "researching" | "ready" | "outreach" | "engaged" | "not-now";
 export type ProspectOutreachChannel = "call" | "email" | "sms" | "whatsapp" | "dm" | "in-person";

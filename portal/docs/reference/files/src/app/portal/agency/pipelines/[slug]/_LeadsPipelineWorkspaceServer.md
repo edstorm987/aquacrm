@@ -12,8 +12,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](./_LeadsPipelineWorkspace.md)
 - [`src/built-ins/runtime/_runtime.ts`](../../../../../built-ins/runtime/_runtime.md)
-- [`src/lib/enquiryClassification.ts`](../../../../../lib/enquiryClassification.md)
-- [`src/lib/productAssignments.ts`](../../../../../lib/productAssignments.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../../../../../lib/enquiries/enquiryClassification.md)
+- [`src/lib/products/productAssignments.ts`](../../../../../lib/products/productAssignments.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../../lib/server/pluginStorage.md)
 - [`src/server/agencyProducts.ts`](../../../../../server/agencyProducts.md)
 - [`src/server/pipelines.ts`](../../../../../server/pipelines.md)

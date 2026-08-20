@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth";
-import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/githubProjectPublisher";
-import { getFirstPartyDevelopmentProject } from "@/lib/firstPartyDevelopmentProjects";
+import { requireRole } from "@/lib/server/auth/auth";
+import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/integrations/githubProjectPublisher";
+import { getFirstPartyDevelopmentProject } from "@/lib/projects/firstPartyDevelopmentProjects";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { DevelopmentNav } from "../../_DevelopmentNav";

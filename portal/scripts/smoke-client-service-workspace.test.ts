@@ -6,12 +6,12 @@ import { join } from "node:path";
 import {
   clientServiceCapabilities,
   inheritedClientServiceKeys,
-} from "../src/lib/clientServiceWorkspace";
-import type { PortalProductKey, PortalProductSelection } from "../src/lib/portalProducts";
-import { cleanClientOperationsBrief } from "../src/lib/clientOperations";
-import { defaultProductInternalWorkspace } from "../src/lib/productInternalWorkspace";
-import { clientProductStageElapsedMs, cleanClientProductProcessState, setClientProductStage, setClientProductStepCompletion } from "../src/lib/clientProductProcess";
-import { applyClientProductVariations, buildClientProductVariation } from "../src/lib/clientProductVariations";
+} from "../src/lib/clients/clientServiceWorkspace";
+import type { PortalProductKey, PortalProductSelection } from "../src/lib/portal/portalProducts";
+import { cleanClientOperationsBrief } from "../src/lib/clients/clientOperations";
+import { defaultProductInternalWorkspace } from "../src/lib/products/productInternalWorkspace";
+import { clientProductStageElapsedMs, cleanClientProductProcessState, setClientProductStage, setClientProductStepCompletion } from "../src/lib/clients/clientProductProcess";
+import { applyClientProductVariations, buildClientProductVariation } from "../src/lib/clients/clientProductVariations";
 import type { AgencyProduct } from "../src/server/types";
 
 function service(id: string, catalogKey?: PortalProductKey): PortalProductSelection {

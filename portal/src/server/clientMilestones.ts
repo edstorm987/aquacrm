@@ -5,12 +5,12 @@ import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
 import { getClientForAgency } from "./tenants";
 import type { ClientMilestone, ClientMilestoneStatus } from "./types";
-import { performanceMetricValue } from "@/lib/performanceAnalytics";
-import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
+import { performanceMetricValue } from "@/lib/performance/performanceAnalytics";
+import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import {
   removeClientRecordLedgerEvent,
   upsertClientMilestoneLedgerEvent,
-} from "@/lib/server/clientRecordLedger";
+} from "@/lib/server/clients/clientRecordLedger";
 
 export interface ClientMilestoneInput {
   title: string;

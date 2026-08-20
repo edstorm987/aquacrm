@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { buildAssistantBusinessContext } from "@/lib/server/assistantBusinessContext";
-import { buildAdvisorContext } from "@/lib/server/advisorContext";
+import { buildAssistantBusinessContext } from "@/lib/server/assistants/assistantBusinessContext";
+import { buildAdvisorContext } from "@/lib/server/assistants/advisorContext";
 import {
   addAssistantMemory,
   appendAssistantMessage,
@@ -11,21 +11,21 @@ import {
   getAssistantThread,
   getAssistantWorkspace,
   renameAssistantThread,
-} from "@/lib/server/assistantStore";
+} from "@/lib/server/assistants/assistantStore";
 import {
   askMilesymediaAssistant,
   assistantModel,
   isAssistantConfigured,
   suggestAdvisorActions,
-} from "@/lib/server/openaiAssistant";
-import { getSessionFromRequest } from "@/lib/server/auth";
+} from "@/lib/server/assistants/openaiAssistant";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { listAgencyTasks } from "@/server/tasks";
-import { buildAdvisorSkillContext } from "@/lib/server/advisorSkillContext";
-import { resolveAdvisorSkill } from "@/lib/server/advisorSkills";
+import { buildAdvisorSkillContext } from "@/lib/server/assistants/advisorSkillContext";
+import { resolveAdvisorSkill } from "@/lib/server/assistants/advisorSkillsService";
 
 const ASSISTANT_ROLES = new Set(["agency-owner", "agency-manager"]);
 

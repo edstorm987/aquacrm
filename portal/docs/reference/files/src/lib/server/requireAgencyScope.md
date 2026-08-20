@@ -1,4 +1,4 @@
-# `src/lib/server/requireAgencyScope.ts`
+# `src/lib/server/auth/requireAgencyScope.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,7 +11,7 @@
 
 ## Depends on (2)
 
-- [`src/lib/server/auth.ts`](./auth.md)
+- [`src/lib/server/auth/auth.ts`](./auth.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by

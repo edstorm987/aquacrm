@@ -10,8 +10,8 @@ _No exported symbols (side-effect / internal module)._
 
 - [`src/app/api/auth/dev-mode/route.ts`](../src/app/api/auth/dev-mode/route.md)
 - [`src/app/api/auth/preview-as-freelancer/route.ts`](../src/app/api/auth/preview-as-freelancer/route.md)
-- [`src/lib/server/auth.ts`](../src/lib/server/auth.md)
-- [`src/lib/server/demoSeed.ts`](../src/lib/server/demoSeed.md)
+- [`src/lib/server/auth/auth.ts`](../src/lib/server/auth/auth.md)
+- [`src/lib/server/seeds/demoSeed.ts`](../src/lib/server/seeds/demoSeed.md)
 - [`src/server/freelancerAdmin.ts`](../src/server/freelancerAdmin.md)
 - [`src/server/freelancerWorkspace.ts`](../src/server/freelancerWorkspace.md)
 - [`src/server/people.ts`](../src/server/people.md)

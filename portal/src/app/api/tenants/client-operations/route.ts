@@ -5,11 +5,11 @@ import {
   CLIENT_OPERATION_STATES,
   cleanClientOperationsBrief,
   type ClientOperationState,
-} from "@/lib/clientOperations";
-import { cleanRecordText } from "@/lib/clientRelationshipRecord";
-import { cleanClientRecordEntries } from "@/lib/clientRelationshipRecord";
-import { timestampFromValue } from "@/lib/formatDateTime";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+} from "@/lib/clients/clientOperations";
+import { cleanRecordText } from "@/lib/clients/clientRelationshipRecord";
+import { cleanClientRecordEntries } from "@/lib/clients/clientRelationshipRecord";
+import { timestampFromValue } from "@/lib/shared/formatDateTime";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { canUsePeopleStation, listPeopleEmployees } from "@/server/people";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";

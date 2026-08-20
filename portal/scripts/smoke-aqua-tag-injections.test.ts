@@ -140,7 +140,7 @@ describe("the public config endpoint serves the tag (real route handler)", () =>
 
 describe("the tag script injects configured tools (source contract)", () => {
   let source: string;
-  before(async () => { source = (await import("../src/lib/aquaTagSource")).AQUA_TAG_SOURCE; });
+  before(async () => { source = (await import("../src/lib/integrations/aquaTagSource")).AQUA_TAG_SOURCE; });
 
   it("stays syntactically valid JavaScript after the injection edit", () => {
     // The tag is a String.raw template served byte-identical to every visitor; a
@@ -192,8 +192,8 @@ describe("the injection management route + workspace UI are wired", () => {
 
 describe("injections feed Radar — coverage (Phase 5)", () => {
   const read = (relative: string) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", relative), "utf-8") as string;
-  const catalogue = read("src/lib/radarRuleCatalog.ts");
-  const observations = read("src/lib/server/radarObservations.ts");
+  const catalogue = read("src/lib/radar/radarRuleCatalog.ts");
+  const observations = read("src/lib/server/radar/radarObservations.ts");
 
   it("registers a development:injection-coverage family fed by websiteSiteConfigs", () => {
     assert.match(catalogue, /"injection-coverage", "Tag injection coverage"/);
@@ -217,7 +217,7 @@ describe("the master tag as surfaced on the Dev Team API page", () => {
   const readPanel = () => require("node:fs").readFileSync("src/app/portal/dev-team/api/_MasterTagPanel.tsx", "utf8");
 
   it("surfaces every endpoint the tag script actually calls — no more, no less", async () => {
-    const { AQUA_TAG_SOURCE } = await import("../src/lib/aquaTagSource");
+    const { AQUA_TAG_SOURCE } = await import("../src/lib/integrations/aquaTagSource");
 
     // What the deployed tag really talks to, read out of the tag's own source.
     const called = [...new Set([...AQUA_TAG_SOURCE.matchAll(/\/api\/[a-zA-Z0-9/_-]+/g)].map(m => m[0]))].sort();
@@ -271,7 +271,7 @@ describe("the master tag as surfaced on the Dev Team API page", () => {
     // http://localhost:3032, so the warning stayed silent on a snippet that
     // pointed at a dev server. The question that actually matters is whether a
     // stranger's browser could reach the origin at all.
-    const { isPubliclyReachableOrigin } = await import("../src/lib/publicOrigin");
+    const { isPubliclyReachableOrigin } = await import("../src/lib/public/publicOrigin");
 
     for (const unreachable of [
       "http://localhost:3032",          // the exact value that slipped through

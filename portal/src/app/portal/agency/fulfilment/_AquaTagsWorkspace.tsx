@@ -86,7 +86,7 @@ export function AquaTagsWorkspace({ snippet, siteKey }: { snippet: string; siteK
     { icon: <Radio size={16} aria-hidden />, title: "Detect it on the domain", detail: "Paste the tag on a site, then we fetch the domain and confirm the tag is actually live.", status: "done" },
     { icon: <ScanLine size={16} aria-hidden />, title: "Scan for forms", detail: "We read the page and count every form we can capture, so nothing goes unwatched.", status: "done" },
     { icon: <Code2 size={16} aria-hidden />, title: "Link the repo", detail: "Connect the site's code so edits can publish back to it.", status: "next" },
-    { icon: <PencilRuler size={16} aria-hidden />, title: "Seed the site into the editor", detail: "Pull the site into the website editor we built, so it's editable right here.", status: "planned" },
+    { icon: <PencilRuler size={16} aria-hidden />, title: "Seed the site into the editor", detail: "Pull the site into Aqua Engine, so it's editable right here.", status: "planned" },
     { icon: <Building2 size={16} aria-hidden />, title: "Link the site to a company", detail: "Route a tagged site to one of your companies (above) so its enquiries are attributed there, not left in the agency inbox.", status: "done" },
   ];
 

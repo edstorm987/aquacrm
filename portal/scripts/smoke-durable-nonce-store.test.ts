@@ -16,11 +16,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   _createMemoryAdapterForTests,
-} from "../src/lib/server/nonceStore";
+} from "../src/lib/server/auth/nonceStore";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const STORE = join(ROOT, "src", "lib", "server", "nonceStore.ts");
+const STORE = join(ROOT, "src", "lib", "server", "auth", "nonceStore.ts");
 const RATE_LIMIT = join(ROOT, "src", "lib", "server", "rateLimit.ts");
 const MAGIC_VERIFY = join(ROOT, "src", "app", "api", "auth", "magic", "verify", "route.ts");
 const VERIFY_EMAIL = join(ROOT, "src", "app", "api", "auth", "verify-email", "route.ts");
@@ -132,7 +132,7 @@ describe("Durable nonce store — Postgres adapter wiring (R028, source-marker)"
 describe("Durable nonce store — sweepExpired wires nonce GC (R028)", () => {
   it("rateLimit.sweepExpired calls getNonceStore().gcExpiredNonces + reports `nonces.deleted`", () => {
     const src = readFileSync(RATE_LIMIT, "utf8");
-    assert.ok(src.includes('await import("./nonceStore")'));
+    assert.ok(src.includes('await import("@/lib/server/auth/nonceStore")'));
     assert.ok(src.includes("gcExpiredNonces(now)"));
     assert.ok(src.includes("nonces: { deleted: number }"));
     assert.ok(src.includes("nonces: { deleted: nonceDeleted }"));

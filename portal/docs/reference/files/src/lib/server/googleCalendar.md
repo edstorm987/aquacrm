@@ -1,4 +1,4 @@
-# `src/lib/server/googleCalendar.ts`
+# `src/lib/server/integrations/googleCalendar.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -23,7 +23,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (5)
 
 - [`src/lib/server/calendarVault.ts`](./calendarVault.md)
-- [`src/lib/server/oauthGoogle.ts`](./oauthGoogle.md)
+- [`src/lib/server/integrations/oauthGoogle.ts`](./oauthGoogle.md)
 - [`src/server/activity.ts`](../../server/activity.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/types.ts`](../../server/types.md)

@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 ## Depends on (3)
 
 - [`src/components/chrome/RadarQuickLookButton.tsx`](./RadarQuickLookButton.md)
-- [`src/lib/businessRadar.ts`](../../lib/businessRadar.md)
-- [`src/lib/server/businessIssueRadar.ts`](../../lib/server/businessIssueRadar.md)
+- [`src/lib/radar/businessRadar.ts`](../../lib/radar/businessRadar.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](../../lib/server/radar/businessIssueRadar.md)
 
 ## Used by (2)
 

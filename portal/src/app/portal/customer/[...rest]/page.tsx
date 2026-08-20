@@ -7,7 +7,7 @@
 
 import { notFound } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { resolveCustomerPluginPage } from "@/built-ins/runtime/_routeResolver";
 import { FOUNDATION_SERVICES } from "@/built-ins/runtime/foundation-adapters";
 import { pluginPageAllowedRoles } from "@/built-ins/runtime/_types";

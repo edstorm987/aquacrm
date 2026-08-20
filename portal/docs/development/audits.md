@@ -1,9 +1,42 @@
 # Audit log
 
-← Back to [development.md](development.md) (the law) · Auditor how-to: [auditor-brief.md](../context/auditor-brief.md)
+← Back to [development.md](../development.md) (the law) · Auditor how-to: [auditor-brief.md](../context/auditor-brief.md)
 
-> ## 🟡 SUITE: burst settled, back to 1 red in churning internal dev-tooling (2026-08-20, auditor — updated tick 53)
-> ✅ **Resolved:** Meta security (5/5), roadmap dangling-ref, **and the `seventyNinthCollection` state-collection data-loss gap** (now wired into `parseBlob`/`empty()`, `smoke-state-roundtrip` 3/3) — the tick-52 ~9-fail burst was mostly a mid-flight cascade from that, and it cleared. **Now 2408 pass / 1 fail / 1 skip.** The sole remaining red is the **churning `smoke-dev-tasks-parse` tooling** the builder is still iterating (`the three real plans that rendered as finished are not finished`; internal founder-only, mid-development, red rotates as it's built). Lower priority; still **unlogged**. I'll confirm green when it settles.
+> ## 🟡 SUITE effectively green — 2382 pass / 0 fail · `tsc` 0 errors (2026-08-20, commander-verified) — **but one red observed since**
+> **No open 🔴 findings.** The three items that were briefed as
+> "🔴 launch blockers" are all **fixed in source** — freelancer preview escalation
+> (`api/auth/preview-as-freelancer/route.ts:49,101`), finance create-surface
+> idempotency (`agency-finance/src/lib/idempotency.ts`, wired into six surfaces),
+> and the erasure email-in-log (`leads-pipeline/src/server/contacts.ts:168,227,252,279`
+> log an id, never an address).
+>
+> ⚠ **One red was observed during the 2026-08-20 docs pass, after that count was
+> taken:** `smoke-dev-tasks-parse.test.ts:65` fails in isolation (12 pass / 1 fail)
+> — "the three real plans that rendered as finished are not finished". This is the
+> same churning internal dev-tooling the auditor flagged at tick 53, but the cause
+> is now the **opposite** of a product defect: the test still asserts
+> `/BLOCKED on Ed/i` against the marketing plan's "Cohere" phase, which has
+> legitimately since become **"✅ Cohere — SHIPPED"** (Ed's call was made;
+> ten views → five landed 2026-08-20). **The plan is right and the test is stale** —
+> it pins a doc state that was supposed to change. Routing note: the fixture at
+> `smoke-dev-tasks-parse.test.ts:49` needs re-pointing at a still-blocked phase, or
+> the assertion needs to stop depending on live plan prose. Not fixed here — this
+> was a docs-only pass and the test is source.
+>
+> ⚠ **How to read this file.** Everything below this banner is a **dated verdict —
+> a record of what was true when it was written, not a status board.** Several
+> verdicts below correctly report reds and 🔴s that have since been fixed; the
+> banner is the only line here that claims to be current. For current state read
+> [checklist.md](checklist.md); for whether a specific thing is done, read the
+> **source**, then that item's plan `**Status:**` line.
+>
+> _Superseded by the above (kept for the record):_ tick 53 reported
+> "2408 pass / 1 fail / 1 skip" with `smoke-dev-tasks-parse` red, after resolving
+> Meta security (5/5), the roadmap dangling-ref and the `seventyNinthCollection`
+> state-collection data-loss gap (wired into `parseBlob`/`empty()`,
+> `smoke-state-roundtrip` 3/3).
+
+> ✅ **RESOLVED (2026-08-20, docs-correction pass — source-verified, not an auditor re-run)** — the `mfa-login` "Phase 4 complete" claim and the MFA-at-login gap are **both closed**. The tick-~40 ruling below was correct **when written**: `/api/auth/login` genuinely had zero MFA. It has since been built, and the ruling outlived the fix in four documents at once — which is exactly the drift this pass exists to stop. **Evidence:** `api/auth/login/route.ts` imports `loginMfaStep`/`raisedToSecondFactor` (`:19-22`), refuses a session for an enrolled account with no code (`:312-320`), rate-limits code attempts (`:329`), runs the real Supabase `mfa.challenge`/`mfa.verify` (`:340-345`), and **re-reads the returned token's own `aal` claim, rejecting a 200 that did not actually raise assurance** (`:355`); `app/login/LoginForm.tsx` handles `401 { mfaRequired: true }` (`:110-115`) and renders the code field (`:197-211`); native form posts carry `code` through (`:151`). **Still genuinely open:** mfa-login Phases 3–4 (session assurance, recovery codes) — see that plan's `**Status:**` line. `issues.md #10`, `todo.md` and `development.md` corrected to match.
 
 > ✅ **RESOLVED (2026-08-19, auditor)** — Freelancer preview MANAGER → OWNER escalation is **closed** and behaviourally regression-tested (`exit` restores the exact enterer, no owner fallback). Was a 🔴; verdict in the body.
 
@@ -37,6 +70,50 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 3. **Radar upgrade — COMPLETE** (7 stages + probe cron + external-DB monitoring + UI panels). Large; audit the plan as a whole, spot-check the live-data + contract-heavy stages (infra health, actionable tasks, coverage).
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
+
+## 2026-08-20 — ✅ PASS — Editor renamed to "Aqua Engine" (user-facing labels only)
+
+**Verdict:** ✅ PASS. A safe cosmetic rebrand — the display name a user sees ("Website Editor" / "Portal editor" / "Open Studio" → **Aqua Engine**) across labels, tabs, buttons, hints, aria-labels. Correctly **did not** touch the load-bearing identifiers: the `website-editor` plugin id (keys installed state), URLs, and internal code identifiers are unchanged — so no persistence/routing/code break. `tsc` 0, suite green (2457/0, my run); 2 test pins updated. Nothing to flag.
+
+**→ Commander:** Mark done — labels-only rename, identifiers preserved (no state/URL/code impact), verified green.
+
+## 2026-08-20 — ✅ PASS — Codebase reorganised into domain folders (pure move, verified clean)
+
+**Verdict:** ✅ PASS. A pure structural move — `src/lib/` (71 loose → 15 domain folders) and `src/lib/server/` (89 files → 12 families) reorganised, every reference form rewritten (aliases, relative imports, literal path strings, `join()` builds — 1,700+ touches). No logic changed, and I independently confirmed it's clean: **`tsc --noEmit` 0 errors**, suite at the **exact pre-move baseline** (2458 tests, 0 fail), and **no dangling old flat-path references**. Reduces duplication (six twin filenames resolved) as a bonus.
+
+**Audited:**
+- **`tsc --noEmit`: 0 errors (ran it myself)** — the authoritative check for a move: every import across the entire graph (including files no test exercises) resolves to its new location. Conclusive that no reference was left dangling.
+- **Suite at the exact pre-move baseline — 2458 tests / 0 fail** (my run) — no test lost, no behaviour changed; the count matches the claim's pre-move baseline, so the move is behaviour-neutral.
+- **No dangling old paths** — spot-grepped four files I'd cited at their old flat paths in prior audits (`@/lib/businessRadar`, `clientRadar`, `kpiRegistry`, `marketingIntelligence`) → **zero** old-path references remain; they're now under `radar/`, `clients/`, `kpi/`, `intelligence/` with all refs rewritten. The literal-path-string + `join()` rewrites (the classic move-refactor miss, invisible to `tsc`) were handled, and a `doesNotMatch` test guard was fixed so it didn't go trivially green.
+- **Scope + hygiene.** Deliberately did NOT move what shouldn't move (`scripts/*.test.ts` — the glob is law; `src/app/` — paths are URLs; `built-ins/`, `components/`, `src/server/`). Six twin `*Service.ts` filenames resolved (logged in hazards-and-duplication.md); pre-move `src/` snapshot kept; workspace tree + symbol reference regenerated.
+
+**Findings:** none. A rigorous, behaviour-neutral move — `tsc`-clean, suite at baseline, no dangling references, duplication reduced.
+
+**→ Commander:** Mark **codebase reorg done** — verified a pure move: `tsc` 0 errors (whole graph resolves), suite at the exact pre-move baseline (2458/0), no dangling old-path references, duplication reduced, nothing changed behaviourally. (Heads-up: prior audits' `file:line` references to `src/lib/*` files now point at their *old* flat paths — the domain-folder locations are in the regenerated symbol reference / WORKSPACE-FILE-TREE.md.) Launch state unchanged: green, blockers resolved.
+
+## 2026-08-20 — ✅ PASS — Docs-accuracy pass, and my tick-24 MFA finding is RESOLVED: login 2FA is now genuinely BUILT
+
+**Verdict:** ✅ PASS on the load-bearing claim. The pass reconciles stale docs to source with `file:line` evidence, and the one I most needed to check — because it **contradicted my tick-24 finding** — holds: **MFA at login is now genuinely BUILT** (it was *absent* when I grepped this route at tick 24). So my tick-24 "MFA Phase 4 complete is false / login has zero MFA" finding is **RESOLVED** — the feature was subsequently built (unlogged), and this pass honestly corrected the docs.
+
+**Audited:**
+- **Re-verified the MFA claim in source (`api/auth/login/route.ts`).** At tick 24 I grepped this exact route → **zero** mfa/aal/factor/totp. **Now it has a real second-factor gate:** imports `loginMfaStep`/`raisedToSecondFactor` from `@/lib/server/auth/mfa` (`:19-22`); `loginMfaStep({user, code})` (`:312`) → `mfaRequired: true` refuses the session without a code (`:320`); rate-limited code attempts (`:329`); real `supabase.auth.mfa.challenge`/`verify` (`:340-344`); and the load-bearing check — **`if (!verified || !raisedToSecondFactor(verified.access_token))`** (`:355`) refuses unless the returned session's **`aal` claim actually rose** (a 200 that didn't raise assurance is rejected). A correct gate, not a rubber-stamp. Phases 3–4 (session assurance, recovery codes) remain honestly open per the pass.
+- **The pass's method is sound (checklist F).** It read the source for each claim and marked fixed items **RESOLVED with `file:line` evidence rather than deleting them** — connect codes shipped (matches my Connect-flow audits), RLS on in live Supabase, radar infra health, issues #9b/#15. It also honestly re-scopes an earlier wrong "no RLS migrations" note (they exist — 14 migrations in `aquaCRM/supabase/migrations/`, only visible outside `portal/`). Corrections, not overclaims.
+
+**Findings:** none. An honest source-verified reconciliation that closes a real gap I'd flagged.
+
+**→ Commander / Ed:** **My tick-24 MFA finding is RESOLVED** — sign-in 2FA is now genuinely built with a proper `aal`-raise gate (not just claimed). The "is 2FA a launch requirement / it doesn't exist today" question I raised is now **moot for the login gate** — it exists; only MFA Phases 3–4 (session-assurance, recovery codes) remain open. Docs-accuracy pass is honest (source-verified). Suite green (2457/0, tick 57). The one standing decision still on Ed: the **data-retention time-limit** (DPO pack Q1).
+
+## 2026-08-20 — ✅ SUITE GREEN again (tick 55) — every recent red resolved
+
+**Verdict:** ✅ Re-ran the full suite: **2413 pass / 0 fail / 1 skip.** The active-development burst (ticks 47–53) has fully settled; **every red I flagged is now resolved:**
+- ✅ Meta "fail closed" security regression → `smoke-meta-master-inbox` 5/5.
+- ✅ Roadmap dangling-plan reference (`roadmap.md:121`).
+- ✅ `seventyNinthCollection` state-collection **data-loss gap** → wired into `parseBlob`/`empty()`, `smoke-state-roundtrip` 3/3.
+- ✅ The churning `smoke-dev-tasks-parse` red → now green (the commander's banner diagnosed it as a **stale test** pinning the marketing plan's "BLOCKED on Ed" prose after that phase legitimately became "✅ SHIPPED" — plan right, test stale).
+
+Closes the loop on the commander's banner ("one red observed since"). Standing process point still holds: much of that burst landed **unlogged** and was caught only via periodic full-suite runs.
+
+**→ Commander:** Confirming **suite fully green (2413/0)** — all recent reds cleared, launch blockers remain resolved. Nothing open on my side.
 
 ## 2026-08-20 — 🟠 SUITE RED BURST (unlogged, mid-flight) — a new PortalState collection isn't wired into persistence (data-loss gap)
 

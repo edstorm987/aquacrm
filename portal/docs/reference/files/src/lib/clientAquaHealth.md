@@ -1,4 +1,4 @@
-# `src/lib/clientAquaHealth.ts`
+# `src/lib/clients/clientAquaHealth.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -19,9 +19,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/clientContracts.ts`](./clientContracts.md)
-- [`src/lib/clientTelemetry.ts`](./clientTelemetry.md)
-- [`src/lib/formatDateTime.ts`](./formatDateTime.md)
+- [`src/lib/clients/clientContracts.ts`](./clientContracts.md)
+- [`src/lib/clients/clientTelemetry.ts`](./clientTelemetry.md)
+- [`src/lib/shared/formatDateTime.ts`](./formatDateTime.md)
 
 ## Used by (10)
 
@@ -32,7 +32,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](../app/portal/clients/_JourneyCommercialWorkspace.md)
 - [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
-- [`src/lib/clientRadar.ts`](./clientRadar.md)
-- [`src/lib/server/clientRadar.ts`](./server/clientRadar.md)
-- [`src/lib/server/operationalAlerts.ts`](./server/operationalAlerts.md)
+- [`src/lib/radar/clientRadar.ts`](./clientRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./server/clientRadar.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./server/operationalAlerts.md)
 

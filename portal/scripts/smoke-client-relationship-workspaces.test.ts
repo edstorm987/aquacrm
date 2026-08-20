@@ -8,7 +8,7 @@ test("one client relationship can own isolated company and project workspaces", 
   const { ensureHydrated } = await import("../src/server/storage");
   const { createAgency, createClient } = await import("../src/server/tenants");
   const { createLinkedClientWorkspace, listClientRelationshipWorkspaces } = await import("../src/server/clientRelationships");
-  const { clientWorkspaceDisplayName } = await import("../src/lib/clientWorkspace");
+  const { clientWorkspaceDisplayName } = await import("../src/lib/clients/clientWorkspace");
   await ensureHydrated();
   const agency = createAgency({ name: "Relationship workspace agency" });
   const original = createClient(agency.id, {
@@ -81,7 +81,7 @@ test("customer portal switching requires an explicit relationship and exact port
 test("relationship record view aggregates linked workspaces without changing record ownership", async () => {
   const { createAgency, createClient } = await import("../src/server/tenants");
   const { linkClientWorkspaces } = await import("../src/server/clientRelationships");
-  const { queryClientRecordLedger, upsertClientRecordLedgerEvent } = await import("../src/lib/server/clientRecordLedger");
+  const { queryClientRecordLedger, upsertClientRecordLedgerEvent } = await import("../src/lib/server/clients/clientRecordLedger");
   const agency = createAgency({ name: "Relationship record agency" });
   const first = createClient(agency.id, { name: "First operating company" });
   const second = createClient(agency.id, { name: "Second operating company" });
@@ -148,14 +148,14 @@ test("Journey and Fulfilment identify linked buyers without merging project oper
   const fulfilmentPage = readFileSync("src/app/portal/agency/fulfilment/page.tsx", "utf8");
   const fulfilment = readFileSync("src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx", "utf8");
   const search = readFileSync("src/app/api/portal/search/route.ts", "utf8");
-  const telemetry = readFileSync("src/lib/server/radarTelemetry.ts", "utf8");
-  const intelligence = readFileSync("src/lib/server/commandIntelligence.ts", "utf8");
-  const probes = readFileSync("src/lib/server/radarSyntheticProbes.ts", "utf8");
+  const telemetry = readFileSync("src/lib/server/radar/radarTelemetry.ts", "utf8");
+  const intelligence = readFileSync("src/lib/server/commandIntelligenceService.ts", "utf8");
+  const probes = readFileSync("src/lib/server/radar/radarSyntheticProbes.ts", "utf8");
   const inbox = readFileSync("src/app/portal/agency/inbox/page.tsx", "utf8");
   const marketing = readFileSync("src/app/portal/agency/marketing/page.tsx", "utf8");
   const development = readFileSync("src/app/portal/agency/development/page.tsx", "utf8");
-  const externalAssistant = readFileSync("src/lib/server/externalAssistantApi.ts", "utf8");
-  const advisor = readFileSync("src/lib/server/advisorSkillContext.ts", "utf8");
+  const externalAssistant = readFileSync("src/lib/server/assistants/externalAssistantApi.ts", "utf8");
+  const advisor = readFileSync("src/lib/server/assistants/advisorSkillContext.ts", "utf8");
 
   assert.match(clientsPage, /relationshipWorkspaceCounts/);
   assert.match(people, /Linked buyer · \{count\} workspaces/);

@@ -1,4 +1,4 @@
-# `src/lib/server/transactionalEmail.ts`
+# `src/lib/server/email/transactionalEmail.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -13,8 +13,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
-- [`src/lib/server/resendEmail.ts`](./resendEmail.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrationConnections.md)
+- [`src/lib/server/email/resendEmail.ts`](./resendEmail.md)
 
 ## Used by (9)
 
@@ -25,6 +25,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/website-enquiries/communications/route.ts`](../../app/api/portal/website-enquiries/communications/route.md)
 - [`src/app/api/portal/website-enquiries/reply/route.ts`](../../app/api/portal/website-enquiries/reply/route.md)
 - [`src/app/api/tenants/client-contracts/route.ts`](../../app/api/tenants/client-contracts/route.md)
-- [`src/lib/server/magicLink.ts`](./magicLink.md)
+- [`src/lib/server/auth/magicLink.ts`](./magicLink.md)
 - [`src/server/automations.ts`](../../server/automations.md)
 

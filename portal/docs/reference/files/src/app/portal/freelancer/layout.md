@@ -14,7 +14,7 @@
 - [`src/components/chrome/PortalRouteCanvas.tsx`](../../../components/chrome/PortalRouteCanvas.md)
 - [`src/components/chrome/ThemeInjector.tsx`](../../../components/chrome/ThemeInjector.md)
 - [`src/components/ui/ErrorBoundary.tsx`](../../../components/ui/ErrorBoundary.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)
 - [`src/server/users.ts`](../../../server/users.md)

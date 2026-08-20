@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import {
   disconnectGoogleCalendar,
   getCommandCalendarIntegrationSnapshot,
   updateCommandCalendarSourceSelection,
-} from "@/lib/server/googleCalendar";
+} from "@/lib/server/integrations/googleCalendar";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

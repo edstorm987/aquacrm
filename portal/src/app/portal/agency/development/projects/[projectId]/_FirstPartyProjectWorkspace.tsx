@@ -52,8 +52,8 @@ import {
   type AquaExplorerDiagnostics,
   type AquaExplorerElement,
   type AquaExplorerPatch,
-} from "@/lib/aquaExplorerBridge";
-import type { FirstPartyDevelopmentProject } from "@/lib/firstPartyDevelopmentProjects";
+} from "@/lib/integrations/aquaExplorerBridge";
+import type { FirstPartyDevelopmentProject } from "@/lib/projects/firstPartyDevelopmentProjects";
 
 type WorkspaceMode = "preview" | "explorer" | "dev";
 type EnvironmentMode = "preview" | "public";

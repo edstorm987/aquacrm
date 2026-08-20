@@ -6,7 +6,7 @@ import {
   buildGoogleCalendarAuthorizeUrl,
   normaliseGoogleEvent,
   verifyGoogleCalendarState,
-} from "../src/lib/server/googleCalendar";
+} from "../src/lib/server/integrations/googleCalendar";
 import type { CommandCalendarConnection, CommandCalendarSource } from "../src/server/types";
 
 const connection: CommandCalendarConnection = {
@@ -100,7 +100,7 @@ test("all-day Google events use an inclusive final instant and cancelled events 
 });
 
 test("calendar API and client surface never expose encrypted grants", () => {
-  const service = readFileSync("src/lib/server/googleCalendar.ts", "utf8");
+  const service = readFileSync("src/lib/server/integrations/googleCalendar.ts", "utf8");
   const route = readFileSync("src/app/api/portal/calendar/connections/route.ts", "utf8");
   const workspace = readFileSync("src/app/portal/agency/actions/_ActionsWorkspace.tsx", "utf8");
   assert.match(service, /safeConnection/);

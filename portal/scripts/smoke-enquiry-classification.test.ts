@@ -6,7 +6,7 @@ import {
   classificationContactType,
   isLeadJourneyEligible,
   isWebsiteEnquiryClassification,
-} from "../src/lib/enquiryClassification";
+} from "../src/lib/enquiries/enquiryClassification";
 
 test("website enquiry classification separates sales from every other relationship", () => {
   assert.equal(isWebsiteEnquiryClassification("sales"), true);
@@ -47,8 +47,8 @@ test("classification routing retains history and keeps precise destinations", ()
   const inbox = readFileSync("src/app/portal/agency/inbox/_MasterInbox.tsx", "utf8");
   const detailCard = readFileSync("src/app/portal/agency/inbox/_EnquiryDetailCard.tsx", "utf8");
   const journey = readFileSync("src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx", "utf8");
-  const radar = readFileSync("src/lib/server/businessIssueRadar.ts", "utf8");
-  const alerts = readFileSync("src/lib/server/operationalAlerts.ts", "utf8");
+  const radar = readFileSync("src/lib/server/radar/businessIssueRadar.ts", "utf8");
+  const alerts = readFileSync("src/lib/server/inbox/operationalAlerts.ts", "utf8");
 
   assert.match(route, /classification === "sales"/);
   assert.doesNotMatch(route, /leads\.delete\(/,

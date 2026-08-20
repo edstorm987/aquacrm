@@ -39,6 +39,6 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/contacts/[personId]/page.tsx`](../app/portal/agency/contacts/[personId]/page.md)
 - [`src/app/portal/agency/contacts/companies/[organisationId]/page.tsx`](../app/portal/agency/contacts/companies/[organisationId]/page.md)
 - [`src/app/portal/agency/contacts/page.tsx`](../app/portal/agency/contacts/page.md)
-- [`src/lib/server/operationalAlerts.ts`](../lib/server/operationalAlerts.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](../lib/server/inbox/operationalAlerts.md)
 - [`src/lib/server/resolutionPlans.ts`](../lib/server/resolutionPlans.md)
 

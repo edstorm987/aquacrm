@@ -23,15 +23,15 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, FileText, LifeBuoy, MessageCircle, X } from "lucide-react";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-import { formatElapsed } from "@/lib/leadTiming";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatElapsed } from "@/lib/enquiries/leadTiming";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
-} from "@/lib/enquiryClassification";
-import { mergeFormLayout, type MergedFormRow } from "@/lib/enquiryFormLayout";
+} from "@/lib/enquiries/enquiryClassification";
+import { mergeFormLayout, type MergedFormRow } from "@/lib/enquiries/enquiryFormLayout";
 import type { WebsiteEnquiry, WebsiteEnquiryFormCapture } from "@/lib/server/websiteEnquiries";
-import type { OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
+import type { OutboundCommunicationReadiness } from "@/lib/server/email/outboundCommunications";
 import type { AquaFormSchema } from "@/server/types";
 import type { EnquiryContactDetails } from "@/server/enquiryContactDetails";
 import { EnquiryCommunications } from "./_EnquiryCommunications";

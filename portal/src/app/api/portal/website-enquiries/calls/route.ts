@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
-import { initiatePhoneCall, resolveCommunicationSender } from "@/lib/server/outboundCommunications";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { initiatePhoneCall, resolveCommunicationSender } from "@/lib/server/email/outboundCommunications";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { logActivity } from "@/server/activity";

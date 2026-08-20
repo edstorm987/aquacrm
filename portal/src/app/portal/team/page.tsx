@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { TeamWorkspace } from "./_TeamWorkspace";
 import { teamWorkspaceData } from "./_data";

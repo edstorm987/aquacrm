@@ -5,7 +5,7 @@ import { test } from "node:test";
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("Advisor skills are deny-by-default recipes with no destructive database access", () => {
-  const catalogue = read("src/lib/advisorSkills.ts");
+  const catalogue = read("src/lib/advisor/advisorSkills.ts");
   assert.match(catalogue, /rawDatabaseAccess: false/);
   assert.match(catalogue, /destructiveMutations: false/);
   assert.match(catalogue, /allowedMutations: \["task\.create"\]/);
@@ -15,7 +15,7 @@ test("Advisor skills are deny-by-default recipes with no destructive database ac
 });
 
 test("custom skills can only compose a fixed safe recipe", () => {
-  const service = read("src/lib/server/advisorSkills.ts");
+  const service = read("src/lib/server/assistants/advisorSkillsService.ts");
   const settings = read("src/server/agencySettings.ts");
   const route = read("src/app/api/portal/advisor/skills/route.ts");
   assert.match(service, /ADVISOR_SKILL_RECIPES\[input\.recipeId\]/);
@@ -29,10 +29,10 @@ test("custom skills can only compose a fixed safe recipe", () => {
 });
 
 test("model calls receive skill-scoped projections instead of raw workspace storage", () => {
-  const scoped = read("src/lib/server/advisorSkillContext.ts");
+  const scoped = read("src/lib/server/assistants/advisorSkillContext.ts");
   const assistantRoute = read("src/app/api/assistant/route.ts");
-  const model = read("src/lib/server/openaiAssistant.ts");
-  const skills = read("src/lib/server/advisorSkills.ts");
+  const model = read("src/lib/server/assistants/openaiAssistant.ts");
+  const skills = read("src/lib/server/assistants/advisorSkillsService.ts");
   assert.match(scoped, /scopedIssues/);
   assert.match(scoped, /scopedSignals/);
   assert.match(scoped, /skill\.maxRecords/);

@@ -10,15 +10,16 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `type BattleTableActuals`
 - `type BattleTablePayload`
 - `type BattleTableScopePayload`
-- `BattleTableWorkspace({ payload, intelligence, onOpenIntelligence, initialSection = "overview", initialScopeId = "ecosystem" }: { payload: BattleTablePayload; intelligence: CommandIntelligenceSnapshot; onOpenIntelligence: (kpiIds?: string[]…`
+- `BattleTableWorkspace({ payload, intelligence, onOpenIntelligence, radarIncidents = [], initialSection = "warroom", initialScopeId = "ecosystem" }: { payload: BattleTablePayload; intelligence: CommandIntelligenceSnapshot; onOpenIntelligence…`
 
-## Depends on (6)
+## Depends on (7)
 
 - [`src/app/portal/agency/_CapitalOwnershipWorkspace.tsx`](./_CapitalOwnershipWorkspace.md)
 - [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](./_CommandIntelligenceWorkspace.md)
 - [`src/app/portal/agency/_QuarterlyStrategyReview.tsx`](./_QuarterlyStrategyReview.md)
-- [`src/lib/commandIntelligence.ts`](../../../lib/commandIntelligence.md)
-- [`src/lib/hiringCapacity.ts`](../../../lib/hiringCapacity.md)
+- [`src/app/portal/agency/_battleWarRoom.ts`](./_battleWarRoom.md)
+- [`src/lib/intelligence/commandIntelligence.ts`](../../../lib/intelligence/commandIntelligence.md)
+- [`src/lib/performance/hiringCapacity.ts`](../../../lib/performance/hiringCapacity.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
 ## Used by (2)

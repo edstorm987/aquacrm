@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { AuthError, authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
-import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/lib/server/businessIssueRadar";
-import { buildClientRadar } from "@/lib/server/clientRadar";
-import { recordRadarEvidence } from "@/lib/server/radarEvidenceVault";
-import { recordRadarSweep } from "@/lib/server/radarMemory";
-import { runAgencySyntheticProbes } from "@/lib/server/radarSyntheticProbes";
+import { AuthError, authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
+import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/lib/server/radar/businessIssueRadar";
+import { buildClientRadar } from "@/lib/server/radar/clientRadarService";
+import { recordRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
+import { recordRadarSweep } from "@/lib/server/radar/radarMemory";
+import { runAgencySyntheticProbes } from "@/lib/server/radar/radarSyntheticProbes";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

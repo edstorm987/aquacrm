@@ -2,15 +2,15 @@ import { NextResponse } from "next/server";
 
 import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
 import { containerFor as financeContainerFor } from "@/built-ins/modules/agency-finance/src/server/foundationAdapter";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
-import { sendTransactionalEmail } from "@/lib/server/transactionalEmail";
+import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { logActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export async function POST(request: Request) {
   try {

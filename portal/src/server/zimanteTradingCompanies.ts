@@ -1,6 +1,6 @@
 import "server-only";
 
-import { TRADING_BRANDS, type TradingBrandSlug } from "@/lib/tradingBrands";
+import { TRADING_BRANDS, type TradingBrandSlug } from "@/lib/brands/tradingBrands";
 import { createAgencyProduct, listAgencyProducts } from "./agencyProducts";
 import { createTradingCompany, listTradingCompanies } from "./tradingCompanies";
 import type { TradingCompany } from "./types";

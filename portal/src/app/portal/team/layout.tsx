@@ -7,7 +7,7 @@ import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Topbar } from "@/components/chrome/Topbar";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import { getPeopleEmployeeByUserId, PEOPLE_STATIONS } from "@/server/people";
 import { ensureHydrated } from "@/server/storage";

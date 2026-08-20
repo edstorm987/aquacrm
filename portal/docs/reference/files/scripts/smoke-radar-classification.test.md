@@ -8,9 +8,9 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (3)
 
-- [`src/lib/businessRadar.ts`](../src/lib/businessRadar.md)
-- [`src/lib/radarClassification.ts`](../src/lib/radarClassification.md)
-- [`src/lib/radarRuleCatalog.ts`](../src/lib/radarRuleCatalog.md)
+- [`src/lib/radar/businessRadar.ts`](../src/lib/radar/businessRadar.md)
+- [`src/lib/radar/radarClassification.ts`](../src/lib/radar/radarClassification.md)
+- [`src/lib/radar/radarRuleCatalog.ts`](../src/lib/radar/radarRuleCatalog.md)
 
 ## Used by
 

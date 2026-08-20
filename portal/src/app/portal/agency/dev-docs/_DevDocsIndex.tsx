@@ -4,8 +4,8 @@
 // presentational; the tree collapses natively via <details> (no client JS).
 
 import Link from "next/link";
-import type { DevDocsIndex, DevDocEntry, DevDocBlocker } from "@/lib/server/devDocs";
-import { relativeAge, formatUkDateTime } from "@/lib/formatDateTime";
+import type { DevDocsIndex, DevDocEntry, DevDocBlocker } from "@/lib/server/dev/devDocs";
+import { relativeAge, formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { DocTree } from "./_DocTree";
 
 const HERO_LIMIT = 24;

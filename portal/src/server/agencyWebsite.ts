@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import {
   TELEMETRY_EVENT_TYPES,
   type ClientTelemetrySummary,
-} from "@/lib/clientTelemetry";
+} from "@/lib/clients/clientTelemetry";
 import { logActivity } from "@/server/activity";
 import { getState, mutate } from "@/server/storage";
 import type {
@@ -14,8 +14,8 @@ import type {
   AgencyWebsiteReleaseStatus,
   AgencyWebsiteTelemetryEvent,
 } from "@/server/types";
-import { publicAquaPropertyId, publicAquaSite } from "@/lib/publicSites";
-import type { PerformanceEvent } from "@/lib/performanceAnalytics";
+import { publicAquaPropertyId, publicAquaSite } from "@/lib/public/publicSites";
+import type { PerformanceEvent } from "@/lib/performance/performanceAnalytics";
 
 const MAX_EVENTS = 5_000;
 const MAX_EVENTS_PER_MINUTE = 120;

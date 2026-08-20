@@ -1,4 +1,4 @@
-# `src/lib/advisorActions.ts`
+# `src/lib/advisor/advisorActions.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
 - [`src/lib/inbox/resolutionEvidence.ts`](./inbox/resolutionEvidence.md)
 - [`src/lib/inbox/resolutionExplain.ts`](./inbox/resolutionExplain.md)
 - [`src/server/types.ts`](../server/types.md)
@@ -22,7 +22,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/_DashboardCommandCenter.tsx`](../app/portal/agency/_DashboardCommandCenter.md)
 - [`src/app/portal/agency/_DayBriefingPanel.tsx`](../app/portal/agency/_DayBriefingPanel.md)
 - [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](../app/portal/agency/actions/_ActionsWorkspace.md)
-- [`src/lib/businessRecommendedActions.ts`](./businessRecommendedActions.md)
-- [`src/lib/server/externalAdvisorContext.ts`](./server/externalAdvisorContext.md)
-- [`src/lib/server/openaiAssistant.ts`](./server/openaiAssistant.md)
+- [`src/lib/intelligence/businessRecommendedActions.ts`](./businessRecommendedActions.md)
+- [`src/lib/server/assistants/externalAdvisorContext.ts`](./server/externalAdvisorContext.md)
+- [`src/lib/server/assistants/openaiAssistant.ts`](./server/openaiAssistant.md)
 

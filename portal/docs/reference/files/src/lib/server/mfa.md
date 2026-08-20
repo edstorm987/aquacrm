@@ -1,4 +1,4 @@
-# `src/lib/server/mfa.ts`
+# `src/lib/server/auth/mfa.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

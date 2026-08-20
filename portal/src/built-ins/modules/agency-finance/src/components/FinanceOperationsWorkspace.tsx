@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, BadgePoundSterling, BriefcaseBusiness, Building2, CalendarClock, Check, CircleDollarSign, FileCheck2, Landmark, Pencil, Plus, ReceiptPoundSterling, ShieldCheck, Users, X } from "lucide-react";
 
 import { LegalCompliancePanel } from "@/app/portal/agency/company/_LegalCompliancePanel";
-import type { FinanceDepartmentOption, FinanceStaffOption } from "@/lib/server/financeWorkforce";
+import type { FinanceDepartmentOption, FinanceStaffOption } from "@/lib/server/finance/financeWorkforce";
 import type { LegalDocument } from "@/server/types";
 
 // One key per opened form, so a double-clicked "Save" records the payroll

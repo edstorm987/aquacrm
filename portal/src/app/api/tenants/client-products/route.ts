@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
-import { resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { portalProductSelectionFromAgencyProduct, type PortalProductMode } from "@/lib/portalProducts";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
+import { resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { portalProductSelectionFromAgencyProduct, type PortalProductMode } from "@/lib/portal/portalProducts";
 import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { logActivity } from "@/server/activity";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getAgency, getClientForAgency, updateClient } from "@/server/tenants";
 import { getTradingCompany } from "@/server/tradingCompanies";
-import { applyClientProductVariations } from "@/lib/clientProductVariations";
+import { applyClientProductVariations } from "@/lib/clients/clientProductVariations";
 import { productStatus } from "@/server/agencyProducts";
 
 interface Body {

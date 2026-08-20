@@ -2,19 +2,19 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   normalisePhone,
   resolveCommunicationSender,
   sendPhoneMessage,
   type OutboundCommunicationChannel,
-} from "@/lib/server/outboundCommunications";
-import { sendTransactionalEmail } from "@/lib/server/transactionalEmail";
+} from "@/lib/server/email/outboundCommunications";
+import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
-import { inboxMediaUrl, readInboxMedia, verifyInboxMediaToken } from "@/lib/server/inboxMedia";
+import { inboxMediaUrl, readInboxMedia, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
+import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 

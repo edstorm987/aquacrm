@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildHiringCapacityAnalysis, buildHiringCapacitySignals, defaultCapacityAreas } from "../src/lib/hiringCapacity";
+import { buildHiringCapacityAnalysis, buildHiringCapacitySignals, defaultCapacityAreas } from "../src/lib/performance/hiringCapacity";
 
 test("area capacity ranks the highest-impact constrained role and retains exact evidence", () => {
   const analysis = buildHiringCapacityAnalysis({

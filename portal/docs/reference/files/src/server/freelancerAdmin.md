@@ -18,8 +18,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/types.ts`](./types.md)
 - [`src/server/users.ts`](./users.md)
 
-## Used by (4)
+## Used by (5)
 
+- [`scripts/smoke-dev-mode-identity.test.ts`](../../scripts/smoke-dev-mode-identity.test.md)
 - [`scripts/smoke-dev-mode.test.ts`](../../scripts/smoke-dev-mode.test.md)
 - [`src/app/api/auth/preview-as-freelancer/route.ts`](../app/api/auth/preview-as-freelancer/route.md)
 - [`src/app/api/portal/freelancers/route.ts`](../app/api/portal/freelancers/route.md)

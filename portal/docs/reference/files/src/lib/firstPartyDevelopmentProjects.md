@@ -1,4 +1,4 @@
-# `src/lib/firstPartyDevelopmentProjects.ts`
+# `src/lib/projects/firstPartyDevelopmentProjects.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/operationalAttention.ts`](../src/lib/operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../src/lib/intelligence/operationalAttention.md)
 
 ## Used by
 

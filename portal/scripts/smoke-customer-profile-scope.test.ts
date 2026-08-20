@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { MarketingCustomerProfile } from "../src/built-ins/modules/agency-marketing/src/lib/domain";
-import { scopeProfiles, summariseProfileDimension } from "../src/lib/customerProfileScope";
+import { scopeProfiles, summariseProfileDimension } from "../src/lib/people/customerProfileScope";
 
 function makeProfile(overrides: Partial<MarketingCustomerProfile>): MarketingCustomerProfile {
   return {

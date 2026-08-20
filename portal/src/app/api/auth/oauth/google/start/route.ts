@@ -3,7 +3,7 @@
 // callback's expectations. 404 when env not configured.
 
 import { NextResponse, type NextRequest } from "next/server";
-import { buildAuthorizeUrl, readGoogleOAuthConfig } from "@/lib/server/oauthGoogle";
+import { buildAuthorizeUrl, readGoogleOAuthConfig } from "@/lib/server/integrations/oauthGoogle";
 
 export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;

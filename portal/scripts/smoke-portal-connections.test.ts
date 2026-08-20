@@ -5,7 +5,7 @@ import {
   PENDING_CONNECTION_TTL_MS, canCompleteConnection, completeConnection,
   connectionUrl, createPortalConnection, newConnectionId, refusalMessage,
   revokePortalConnection, type PortalConnection,
-} from "../src/lib/server/portalConnections.ts";
+} from "../src/lib/server/portal/portalConnections.ts";
 
 const NOW = 1_000_000_000;
 const base = () => createPortalConnection({
@@ -226,7 +226,7 @@ describe("where the link points", () => {
   before(async () => { saved = process.env[ENV_KEY]; });
 
   const linkOrigin = async (): Promise<(requestOrigin?: string) => string> =>
-    (await import("../src/lib/server/portalConnections.ts")).connectionLinkOrigin;
+    (await import("../src/lib/server/portal/portalConnections.ts")).connectionLinkOrigin;
 
   it("prefers the public address over the host the request arrived on", async () => {
     // The link is for the client, not for whoever generated it. One reading
@@ -855,7 +855,7 @@ describe("the accept endpoint guards guessing", () => {
 
 describe("the radar scans portal connections", () => {
   it("carries a portal-connections family in the systems domain", async () => {
-    const { RADAR_SIGNAL_FAMILIES } = await import("../src/lib/radarRuleCatalog.ts");
+    const { RADAR_SIGNAL_FAMILIES } = await import("../src/lib/radar/radarRuleCatalog.ts");
     const families = RADAR_SIGNAL_FAMILIES.systems.map(family => family.id);
     assert.ok(families.includes("portal-connections"), "the radar has no portal-connections family");
   });
@@ -863,7 +863,7 @@ describe("the radar scans portal connections", () => {
   it("adds an observation the radar can read, so it is scanned like any other source", () => {
     // The comment quotes what this looks for, so strip comments before matching.
     const source = (require("node:fs").readFileSync(
-      require("node:path").join(__dirname, "..", "src", "lib", "server", "radarObservations.ts"), "utf-8") as string)
+      require("node:path").join(__dirname, "..", "src", "lib", "server", "radar", "radarObservations.ts"), "utf-8") as string)
       .replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     assert.match(source, /add\("systems", "portal-connections"/);
     // Freshness must be able to go blind: the measured-at comes from the

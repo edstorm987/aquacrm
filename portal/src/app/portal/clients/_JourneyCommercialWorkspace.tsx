@@ -14,9 +14,9 @@ import {
   WalletCards,
 } from "lucide-react";
 
-import type { ClientAquaHealth, AquaHealthState } from "@/lib/clientAquaHealth";
-import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
-import type { ClientPaymentPlan } from "@/lib/clientPaymentPlans";
+import type { ClientAquaHealth, AquaHealthState } from "@/lib/clients/clientAquaHealth";
+import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
+import type { ClientPaymentPlan } from "@/lib/clients/clientPaymentPlans";
 import { ContractsPanel } from "./[clientId]/_ContractsPanel";
 import { FinanceTabClient } from "./[clientId]/_FinanceTabClient";
 import type { PaymentPlanEvidenceFile } from "./[clientId]/_PaymentPlansPanel";

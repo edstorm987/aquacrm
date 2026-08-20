@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (2)
 
 - [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](../../../../built-ins/modules/agency-marketing/src/lib/domain.md)
-- [`src/lib/customerProfileScope.ts`](../../../../lib/customerProfileScope.md)
+- [`src/lib/people/customerProfileScope.ts`](../../../../lib/people/customerProfileScope.md)
 
 ## Used by (1)
 

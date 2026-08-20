@@ -10,7 +10,7 @@
 
 ## Depends on (4)
 
-- [`src/lib/server/magicLink.ts`](../../../../../lib/server/magicLink.md)
+- [`src/lib/server/auth/magicLink.ts`](../../../../../lib/server/auth/magicLink.md)
 - [`src/lib/server/rateLimit.ts`](../../../../../lib/server/rateLimit.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../../server/tenants.md)

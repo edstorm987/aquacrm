@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 
 import type { DashboardPlanningSnapshot } from "@/server/dashboardPlanning";
-import { formatUkDate, timestampFromValue } from "@/lib/formatDateTime";
+import { formatUkDate, timestampFromValue } from "@/lib/shared/formatDateTime";
 import { TeamChat } from "@/components/people/TeamChat";
 import type {
   AgencyTask,

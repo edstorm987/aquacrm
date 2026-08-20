@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/enquiryClassification.ts`](../src/lib/enquiryClassification.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../src/lib/enquiries/enquiryClassification.md)
 
 ## Used by
 

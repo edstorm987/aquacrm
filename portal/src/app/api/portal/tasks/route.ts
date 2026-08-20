@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
+import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { createAgencyTask, deleteAgencyTask, listAgencyTasks, updateAgencyTask } from "@/server/tasks";
 import { recordCompletedAction } from "@/server/completedActions";

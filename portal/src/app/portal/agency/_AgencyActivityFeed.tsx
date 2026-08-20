@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { describeActivityChip } from "@/lib/chrome/activityCategoryStyle";
-import { formatUkDate, timestampFromValue } from "@/lib/formatDateTime";
+import { formatUkDate, timestampFromValue } from "@/lib/shared/formatDateTime";
 
 interface InboxEntry {
   id: string;

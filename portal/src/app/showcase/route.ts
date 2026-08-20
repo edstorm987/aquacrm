@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 
-import { issueSession, sessionCookie } from "@/lib/server/auth";
-import { ensureShowcaseWorkspace } from "@/lib/server/showcaseMode";
+import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { ensureShowcaseWorkspace } from "@/lib/server/auth/showcaseMode";
 import { ensureHydrated } from "@/server/storage";
 import { createUser, getUserByLogin } from "@/server/users";
 

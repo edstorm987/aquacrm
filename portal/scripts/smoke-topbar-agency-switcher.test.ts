@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const INTERNAL_WORKSPACE = join(ROOT, "src", "lib", "internalWorkspace.ts");
+const INTERNAL_WORKSPACE = join(ROOT, "src", "lib", "shared", "internalWorkspace.ts");
 const AGENCY_LAYOUT = join(ROOT, "src", "app", "portal", "agency", "layout.tsx");
-const FOUNDER = join(ROOT, "src", "lib", "server", "founderSeed.ts");
+const FOUNDER = join(ROOT, "src", "lib", "server", "seeds", "founderSeed.ts");
 const COMPANY_CONTEXT = join(ROOT, "src", "lib", "server", "tradingCompanyContext.ts");
 const SIDEBAR = join(ROOT, "src", "components", "chrome", "Sidebar.tsx");
 const ARCHIVED_SWITCHER = join(ROOT, "src", "archive", "multi-agency", "components", "AgencySwitcher.tsx");

@@ -4,8 +4,8 @@ import dynamic from "next/dynamic";
 import { Hammer } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { DevConsoleBadge } from "@/lib/server/devConsoleStatus";
-import type { FindingSeverity } from "@/lib/server/devTeamFindings";
+import type { DevConsoleBadge } from "@/lib/server/dev/devConsoleStatus";
+import type { FindingSeverity } from "@/lib/server/dev/devTeamFindings";
 
 // The topbar Dev Console — the ambient half of the Dev Team workspace.
 //

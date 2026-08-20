@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import {
   deletePortalConnection,
@@ -10,7 +10,7 @@ import {
   resetPortalConnectionLink,
   withdrawPortalConnection,
 } from "@/server/portalConnectionStore";
-import { connectionLinkOrigin, type PortalConnection } from "@/lib/server/portalConnections";
+import { connectionLinkOrigin, type PortalConnection } from "@/lib/server/portal/portalConnections";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";

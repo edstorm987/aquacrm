@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { deletePortalEditorField, getPortalEditorState, savePortalEditorField } from "@/server/portalEditor";
 import { ensureHydrated } from "@/server/storage";
 import type { PortalFormEntity, PortalFormFieldDefinition } from "@/server/types";

@@ -44,7 +44,7 @@ import type {
   CustomAIRecord,
   CustomAIStatus,
 } from "@/server/types";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type WorkspaceTab = "flows" | "runs" | "ais";
 export type BuilderNodeData = AutomationNodeConfig & { kind: AutomationNodeKind; [key: string]: unknown };

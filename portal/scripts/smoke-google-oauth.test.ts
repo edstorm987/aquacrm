@@ -22,7 +22,7 @@ import {
   readGoogleOAuthConfig,
   buildAuthorizeUrl,
   verifyOAuthState,
-} from "../src/lib/server/oauthGoogle";
+} from "../src/lib/server/integrations/oauthGoogle";
 import { ENV_ALLOWLIST } from "../src/lib/server/env";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

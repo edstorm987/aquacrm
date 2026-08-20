@@ -10,7 +10,7 @@ require.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type Attention = typeof import("../src/lib/server/clientAttention");
+type Attention = typeof import("../src/lib/server/clients/clientAttention");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -22,7 +22,7 @@ before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  attention = await import("../src/lib/server/clientAttention");
+  attention = await import("../src/lib/server/clients/clientAttention");
   await storage.ensureHydrated();
 });
 

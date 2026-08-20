@@ -4,8 +4,8 @@ import { AlertTriangle, Check, Gauge, Layers3, LoaderCircle, Plus, Save, Search,
 import type React from "react";
 import { useMemo, useState } from "react";
 
-import type { AdvisorDomain, BusinessIssueRadar } from "@/lib/businessRadar";
-import { formatUkDate } from "@/lib/formatDateTime";
+import type { AdvisorDomain, BusinessIssueRadar } from "@/lib/radar/businessRadar";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type {
   RadarActivationCondition,
   RadarBaselineStrategy,

@@ -1,4 +1,4 @@
-# `src/lib/server/oauthGoogle.ts`
+# `src/lib/server/integrations/oauthGoogle.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -24,5 +24,5 @@
 - [`src/app/api/auth/oauth/google/callback/route.ts`](../../app/api/auth/oauth/google/callback/route.md)
 - [`src/app/api/auth/oauth/google/start/route.ts`](../../app/api/auth/oauth/google/start/route.md)
 - [`src/app/login/page.tsx`](../../app/login/page.md)
-- [`src/lib/server/googleCalendar.ts`](./googleCalendar.md)
+- [`src/lib/server/integrations/googleCalendar.ts`](./googleCalendar.md)
 

@@ -51,7 +51,7 @@ const renderToStaticMarkup = (ReactDomServer as { renderToStaticMarkup: (node: u
 // @ts-expect-error — internal shared-runtime module, no public d.ts
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
-import { createPortalBlock, normalisePortalBuilder } from "../src/lib/clientPortalBuilder";
+import { createPortalBlock, normalisePortalBuilder } from "../src/lib/portal/clientPortalBuilder";
 import { PortalPageComposition } from "../src/app/portal/customer/_PortalPageComposition";
 import type { CustomerPortalData } from "../src/app/portal/customer/_portalData";
 import type { ClientPortalPageBlock, ClientPortalSectionId } from "../src/server/types";

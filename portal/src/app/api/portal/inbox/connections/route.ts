@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole, authErrorResponse } from "@/lib/server/auth";
-import { disconnectInboxConnection, listInboxConnections, updateInboxConnection } from "@/lib/server/inboxStore";
-import { metaInboxReadiness } from "@/lib/server/metaMessaging";
+import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { disconnectInboxConnection, listInboxConnections, updateInboxConnection } from "@/lib/server/inbox/inboxStore";
+import { metaInboxReadiness } from "@/lib/server/integrations/metaMessaging";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 

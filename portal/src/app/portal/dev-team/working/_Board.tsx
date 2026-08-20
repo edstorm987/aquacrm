@@ -5,7 +5,7 @@ import {
   scanDevTeamBoard,
   type BoardItem,
   type BoardLanes,
-} from "@/lib/server/devTeamBoard";
+} from "@/lib/server/dev/devTeamBoard";
 import { LiveWorkers } from "./_LiveWorkers";
 
 // The "right now" board — live worker status plus every plan sorted into lanes,

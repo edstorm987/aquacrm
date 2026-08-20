@@ -24,7 +24,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 ## Depends on (4)
 
 - [`src/lib/server/connectionConfirmation.ts`](../lib/server/connectionConfirmation.md)
-- [`src/lib/server/portalConnections.ts`](../lib/server/portalConnections.md)
+- [`src/lib/server/portal/portalConnections.ts`](../lib/server/portal/portalConnections.md)
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/users.ts`](./users.md)
 

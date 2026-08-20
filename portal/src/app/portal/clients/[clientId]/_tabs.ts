@@ -7,7 +7,7 @@
 import {
   CLIENT_WORKSPACE_TABS,
   type ClientWorkspaceTabId,
-} from "@/lib/clientWorkspace";
+} from "@/lib/clients/clientWorkspace";
 
 export const TABS = CLIENT_WORKSPACE_TABS;
 export type TabId = ClientWorkspaceTabId;

@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Bot, CheckCircle2, ClipboardCheck, Compass, Gauge, History, Save, ShieldAlert, Sparkles, Target } from "lucide-react";
 
 import type { CompanyProfile, CompanyQuarterlyEvidenceSnapshot, CompanyQuarterlyReview, CompanyQuarterlyScorecard } from "@/server/types";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type ReviewStage = "evidence" | "diagnosis" | "strategy" | "commitment" | "history";
 type SaveCompany = (next: CompanyProfile, success?: string) => Promise<boolean>;

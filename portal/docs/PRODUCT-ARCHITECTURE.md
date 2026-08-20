@@ -180,7 +180,7 @@ surfaced inside that client's Fulfilment workspace with client scope.
 
 Canonical route: `/portal/clients/[clientId]`
 
-The standard client lenses are defined in `src/lib/clientWorkspace.ts`:
+The standard client lenses are defined in `src/lib/clients/clientWorkspace.ts`:
 
 - Overview
 - Relationship

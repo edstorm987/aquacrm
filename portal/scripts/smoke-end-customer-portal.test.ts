@@ -66,7 +66,7 @@ describe("End-customer portal sub-routes (R019)", () => {
     const chrome = readFileSync(join(CUSTOMER, "_CustomerPortalChrome.tsx"), "utf8");
     const views = readFileSync(join(CUSTOMER, "_CustomerPortalViews.tsx"), "utf8");
     const catchAll = readFileSync(join(CUSTOMER, "[...rest]", "page.tsx"), "utf8");
-    const design = readFileSync(join(ROOT, "src", "lib", "clientPortalDesign.ts"), "utf8");
+    const design = readFileSync(join(ROOT, "src", "lib", "portal", "clientPortalDesign.ts"), "utf8");
 
     assert.ok(chrome.includes('section: "resources"'));
     assert.ok(chrome.includes('section: "details"'));

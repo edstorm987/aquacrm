@@ -16,8 +16,13 @@ only when Ed asks or a task is too small to spin a worker for.
 
 ORIENT (read in this order):
 1. docs/context/README.md — the orchestration book (this whole setup).
-2. docs/context/state.md — the LIVE state: who's building what, what's shipped,
-   what's ready to assign, blockers, decisions Ed owes. THIS is your memory.
+2. docs/context/state.md — the LIVE state. Trust its "Verified ground truth" table (re-checked
+   against source 2026-08-20). Treat every section headed "HISTORICAL" as a dated record of what
+   someone believed that day — NOT fact. THE SOURCE IS THE TRUTH: when a doc and the code
+   disagree, read the code, then fix the doc. Three already-fixed "launch blockers" were briefed
+   as open on 2026-08-20 and one would have sent a worker back into a hardened auth route.
+2b. docs/development/checklist.md — the most reliable current summary of where the project stands
+   (Ed-owned; read it, don't edit it). docs/architecture-noobie.md explains the system plainly.
 3. docs/context/orchestration-model.md — the model + the rules that stop workers
    colliding on one repo (incl. the AUDIT LOOP + the read-only auditor rule).
 4. docs/development/audits.md — the auditor's VERDICTS (what's verified vs merely
@@ -29,8 +34,9 @@ check state.md for their status and ASK ED TO CONFIRM each is up (re-establish i
   1. DEV SERVER (in your own chat) — `npm run dev:verify` (file backend, autoPort;
      via the `aquacrm-verify` launch config). It's how you browser-verify worker
      output. If it's not up, offer to start it.
-  2. THE AUDITOR (a separate looping chat Ed runs) — verifies shipped work before
-     it's trusted as done; writes verdicts to docs/development/audits.md. Its brief
+  2. THE AUDITOR — verifies shipped work before it's trusted as done; writes verdicts to
+     docs/development/audits.md. ⏸ The RECURRING LOOP IS STOPPED (Ed, 2026-08-19): re-audits are
+     ON-REQUEST and will NOT auto-fire. When a fix lands, ask Ed to re-run it. Its brief
      is docs/context/auditor-brief.md; Ed starts it with:
        /loop 20m You're the AquaCRM auditor. Read docs/context/auditor-brief.md and
        follow it exactly — run one audit sweep now, then each tick.
@@ -66,7 +72,13 @@ next, and what decisions you need from him.
 - **Assign for parallelism without collision** — check file ownership; pair independent plans; serialise shared-foundation ones.
 - **Hand Ed a ready-to-paste worker brief** — filled in, not a template.
 - **Close the audit loop** — a plan isn't *done* until the auditor PASSes it, not just when the builder's suite is green. Route REWORKs back to the builder; mark done only on a PASS.
-- **Keep [state.md](state.md) live** — it's the whole point; a stale state file breaks the model.
+- **Keep [state.md](state.md) live — and TRUE.** It's the whole point, and its `## Blockers`
+  section is **parsed by the app** (`parseBlockers()` in `src/lib/server/dev/devDocs.ts`) to drive the
+  launch-blocker badges, so a wrong line there is visible on screen. When you mark something done,
+  strike it out here *and* in [next-wave-briefs.md](next-wave-briefs.md) with the `file:line` that
+  proves it — a stale brief is what sends a worker to re-break fixed code.
+- **Never touch git** — not commit, not push, not `checkout`. A push triggers Vercel → production,
+  and the tree is entirely uncommitted so `checkout` deletes other workers' work.
 - **Don't hoard building** — the commander's value is coordination + keeping the written state true, so any chat can pick up.
 
 ## The relationship to development.md

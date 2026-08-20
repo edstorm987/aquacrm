@@ -8,7 +8,7 @@ import {
   RotateCcw, Sparkles, Upload, Wrench, X,
 } from "lucide-react";
 
-import type { Finding, FindingSeverity } from "@/lib/server/devTeamFindings";
+import type { Finding, FindingSeverity } from "@/lib/server/dev/devTeamFindings";
 
 const SEVERITIES: { value: FindingSeverity; label: string; hint: string }[] = [
   { value: "blocker", label: "Blocker", hint: "Can't ship" },

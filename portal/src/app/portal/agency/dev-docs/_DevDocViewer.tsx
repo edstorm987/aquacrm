@@ -3,8 +3,8 @@
 // component; the markdown itself renders in the client `DocMarkdown`.
 
 import Link from "next/link";
-import type { DevDocContent } from "@/lib/server/devDocs";
-import { relativeAge, formatUkDateTime } from "@/lib/formatDateTime";
+import type { DevDocContent } from "@/lib/server/dev/devDocs";
+import { relativeAge, formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { DocMarkdown } from "./_DocMarkdown";
 
 export function DevDocViewer({ doc, nowMs }: { doc: DevDocContent; nowMs: number }) {

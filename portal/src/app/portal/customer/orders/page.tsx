@@ -4,11 +4,11 @@ import { Download, PackageCheck, ShoppingBag, Truck } from "lucide-react";
 import { ensureEcommerceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/ecommerceFoundation";
 import { formatPrice } from "@aqua/plugin-ecommerce/lib/admin/orders";
 import { containerFor } from "@aqua/plugin-ecommerce/server";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated } from "@/server/storage";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export default async function OrdersPage() {
   await ensureHydrated();

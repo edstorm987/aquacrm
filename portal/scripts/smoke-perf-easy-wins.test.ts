@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const FOUNDER_SEED = readFileSync(join(ROOT, "src/lib/server/founderSeed.ts"), "utf8");
+const FOUNDER_SEED = readFileSync(join(ROOT, "src/lib/server/seeds/founderSeed.ts"), "utf8");
 
 describe("Perf — AquaCRM guards", () => {
   it("founderSeed.ts keeps idempotent seeding memoized", () => {

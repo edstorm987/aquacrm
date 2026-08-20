@@ -4,7 +4,7 @@ import { AlertTriangle, Check, LoaderCircle, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type RadarScanResponse = {
   ok?: boolean;

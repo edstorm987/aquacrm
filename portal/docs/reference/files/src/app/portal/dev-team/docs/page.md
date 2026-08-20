@@ -13,10 +13,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/dev-team/_ui.tsx`](../_ui.md)
 - [`src/app/portal/dev-team/docs/_DocEditor.tsx`](./_DocEditor.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/devDocEdits.ts`](../../../../lib/server/devDocEdits.md)
-- [`src/lib/server/devDocs.ts`](../../../../lib/server/devDocs.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/dev/devDocEdits.ts`](../../../../lib/server/dev/devDocEdits.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../../lib/server/dev/devDocs.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

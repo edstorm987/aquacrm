@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/development/_DevelopmentNav.tsx`](../../_DevelopmentNav.md)
 - [`src/app/portal/agency/development/projects/[projectId]/_FirstPartyProjectWorkspace.tsx`](./_FirstPartyProjectWorkspace.md)
-- [`src/lib/firstPartyDevelopmentProjects.ts`](../../../../../../lib/firstPartyDevelopmentProjects.md)
-- [`src/lib/server/auth.ts`](../../../../../../lib/server/auth.md)
-- [`src/lib/server/githubProjectPublisher.ts`](../../../../../../lib/server/githubProjectPublisher.md)
+- [`src/lib/projects/firstPartyDevelopmentProjects.ts`](../../../../../../lib/projects/firstPartyDevelopmentProjects.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/integrations/githubProjectPublisher.ts`](../../../../../../lib/server/integrations/githubProjectPublisher.md)
 - [`src/server/storage.ts`](../../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../../server/types.md)
 

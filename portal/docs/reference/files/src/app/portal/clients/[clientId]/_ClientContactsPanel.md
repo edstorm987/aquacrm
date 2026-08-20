@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/clientContacts.ts`](../../../../lib/clientContacts.md)
+- [`src/lib/clients/clientContacts.ts`](../../../../lib/clients/clientContacts.md)
 
 ## Used by (1)
 

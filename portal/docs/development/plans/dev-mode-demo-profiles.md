@@ -23,16 +23,16 @@ Ocean Boulevard build Ed made:
 - **Sessions already carry `isDemo`** (`src/server/types.ts` `SessionPayload`), and the
   chrome already renders a demo/POV banner + exit pill (`src/components/chrome/Topbar.tsx`,
   `ShowcaseModeControl.tsx`).
-- **The demo personas are already seeded** — `src/lib/server/demoSeed.ts`: a fenced
+- **The demo personas are already seeded** — `src/lib/server/seeds/demoSeed.ts`: a fenced
   `demo-agency` with **demo owner** (`demo@aqua.dev`), **demo staff** (`staff@aqua.dev`,
   `agency-staff`), **demo client** (`felicia@luvandker.demo`, `client-owner`), **demo
   customer** (`demo-shopper@aqua.test`, `end-customer`) + `resetDemo()`. Its header comment
   literally names the intended-but-**missing** switcher files (`/demo/page.tsx`,
   `/demo/toggle/route.ts`). **That missing seam is this plan.**
-- **The "local/dev only" gate already exists** — `src/lib/server/devMode.ts`
+- **The "local/dev only" gate already exists** — `src/lib/server/dev/devMode.ts`
   `isDevModeEnabled()` = `PORTAL_DEV_MODE==="true"` **AND** `NODE_ENV!=="production"`
   **AND** no `VERCEL_ENV` **AND** backend `file|memory`. Exactly Ed's "local only" scope.
-- **The mint primitive + return-to-real pattern exist** — `src/lib/server/auth.ts`
+- **The mint primitive + return-to-real pattern exist** — `src/lib/server/auth/auth.ts`
   `issueSession({… isDemo:true})` + `sessionCookie()`; the session already has
   `showcaseReturnAgencyId` to pop back to your real agency. Three impersonation routes
   already mint the clean way (`app/dev/route.ts`, `api/auth/preview-as-client-at-phase`,
@@ -47,7 +47,7 @@ Ocean Boulevard build Ed made:
 - **There's an existing cinematic-loading-screen system** — that's exactly what "Performance
   mode → Skip cinematic loading screens" turns off. The Dev Mode **full load-in screen
   reuses it**.
-- **Role→view resolver to impersonate** — `src/lib/server/effectiveRole.ts`
+- **Role→view resolver to impersonate** — `src/lib/server/auth/effectiveRole.ts`
   (`effectiveRole`, `isFounder`) drives sidebar/page visibility. The POV switch just
   changes which persona's session is active; the resolver does the rest.
 
@@ -109,9 +109,9 @@ no git to recover from. Before assigning this plan, check these paths against ev
 plan in flight._
 
 - `src/app/api/auth/dev-mode/route.ts`
-- `src/lib/server/devModeAccess.ts`
-- `src/lib/server/devMode.ts`
-- `src/lib/server/demoSeed.ts`
+- `src/lib/server/dev/devModeAccess.ts`
+- `src/lib/server/dev/devMode.ts`
+- `src/lib/server/seeds/demoSeed.ts`
 - `src/components/chrome/DevModeSwitcher.tsx`
 - `src/components/chrome/DevModeLoadIn.tsx`
 - `src/components/chrome/ProfileMenu.tsx`

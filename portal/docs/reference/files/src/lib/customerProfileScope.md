@@ -1,4 +1,4 @@
-# `src/lib/customerProfileScope.ts`
+# `src/lib/people/customerProfileScope.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

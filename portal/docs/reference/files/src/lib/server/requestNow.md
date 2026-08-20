@@ -10,6 +10,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Used by (2)
 
-- [`src/lib/server/companyHealthSnapshot.ts`](./companyHealthSnapshot.md)
-- [`src/lib/server/operationalAlerts.ts`](./operationalAlerts.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./inbox/operationalAlerts.md)
+- [`src/lib/server/kpi/companyHealthSnapshot.ts`](./kpi/companyHealthSnapshot.md)
 

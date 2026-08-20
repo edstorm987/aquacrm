@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ClientRequest, ClientRequestType } from "@/app/api/tenants/client-requests/route";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 const TYPE_LABELS: Record<ClientRequestType, string> = {
   suggestion: "Suggestion",

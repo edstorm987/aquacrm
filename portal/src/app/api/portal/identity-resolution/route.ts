@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   decideIdentityResolutionReview,
   getIdentityResolutionReview,
   listIdentityResolutionReviews,
 } from "@/lib/server/identityResolution";
-import { listInboxSnapshot, updateInboxIdentityLinks } from "@/lib/server/inboxStore";
-import { synchroniseInboxIdentityResolutions } from "@/lib/server/inboxService";
+import { listInboxSnapshot, updateInboxIdentityLinks } from "@/lib/server/inbox/inboxStore";
+import { synchroniseInboxIdentityResolutions } from "@/lib/server/inbox/inboxService";
 import {
   listWebsiteEnquiries,
   recordWebsiteEnquiryIdentityResolution,
   synchroniseWebsiteEnquiryIdentities,
   synchroniseWebsiteEnquiryLedgerEvents,
 } from "@/lib/server/websiteEnquiries";
-import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 

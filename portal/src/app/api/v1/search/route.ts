@@ -8,7 +8,7 @@ import {
   searchExternalAssistantRecords,
   ExternalAssistantApiError,
   type ExternalAssistantModule,
-} from "@/lib/server/externalAssistantApi";
+} from "@/lib/server/assistants/externalAssistantApi";
 import { ensureHydrated } from "@/server/storage";
 
 export async function POST(request: Request) {

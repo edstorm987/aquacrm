@@ -8,8 +8,9 @@
 
 - `default async AgencyPluginCatchAll({ params, searchParams }: RouteProps)`
 
-## Depends on (12)
+## Depends on (13)
 
+- [`src/app/portal/agency/[...rest]/_retiredStaffRoute.ts`](./_retiredStaffRoute.md)
 - [`src/built-ins/runtime/_registry.ts`](../../../../built-ins/runtime/_registry.md)
 - [`src/built-ins/runtime/_routeResolver.ts`](../../../../built-ins/runtime/_routeResolver.md)
 - [`src/built-ins/runtime/_runtime.ts`](../../../../built-ins/runtime/_runtime.md)
@@ -17,7 +18,7 @@
 - [`src/built-ins/runtime/foundation-adapters/index.ts`](../../../../built-ins/runtime/foundation-adapters/index.md)
 - [`src/components/ui/ErrorBoundary.tsx`](../../../../components/ui/ErrorBoundary.md)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](../../../../components/workspaces/PluginWorkspaceNav.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
 - [`src/server/pluginInstalls.ts`](../../../../server/pluginInstalls.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)

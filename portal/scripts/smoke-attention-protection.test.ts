@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildProtectedAttentionWindow } from "../src/lib/attentionProtection";
+import { buildProtectedAttentionWindow } from "../src/lib/intelligence/attentionProtection";
 
 type QueueItem = { id: string; group: string; urgency: number };
 

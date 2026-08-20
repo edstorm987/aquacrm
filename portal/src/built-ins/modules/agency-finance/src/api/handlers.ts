@@ -16,7 +16,7 @@ import type {
   UpdateInvoicePatch,
 } from "../lib/domain";
 import { normaliseCurrency } from "../lib/currencies";
-import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

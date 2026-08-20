@@ -1,4 +1,4 @@
-# `src/lib/kpiRegistry.ts`
+# `src/lib/performance/kpiRegistry.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -27,8 +27,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
-- [`src/lib/commandIntelligence.ts`](./commandIntelligence.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/intelligence/commandIntelligence.ts`](./commandIntelligence.md)
 - [`src/server/types.ts`](../server/types.md)
 
 ## Used by (6)
@@ -36,7 +36,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`scripts/smoke-kpi-registry.test.ts`](../../scripts/smoke-kpi-registry.test.md)
 - [`scripts/smoke-kpi-targets.test.ts`](../../scripts/smoke-kpi-targets.test.md)
 - [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](../app/portal/agency/_CommandIntelligenceWorkspace.md)
-- [`src/lib/server/kpiRegistry.ts`](./server/kpiRegistry.md)
-- [`src/lib/server/kpiTargets.ts`](./server/kpiTargets.md)
+- [`src/lib/server/kpi/kpiRegistryService.ts`](./server/kpiRegistry.md)
+- [`src/lib/server/kpi/kpiTargets.ts`](./server/kpiTargets.md)
 - [`src/lib/server/marketingIntelligence.ts`](./server/marketingIntelligence.md)
 

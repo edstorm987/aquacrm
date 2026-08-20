@@ -6,12 +6,16 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Exports (1)
 
-- `DevConsolePanel({ onAttentionChange, onClose, }: { onAttentionChange: (attention: number) => void; onClose: () => void; })`
+- `DevConsolePanel({ draft, onDraftChange, onAttentionChange, onClose, }: { draft: FindingDraft; /** A setState updater, not a value — several screenshots can resolve at once * and a closed-over draft would drop all but the last. */ onDraftCh…`
 
-## Depends on (2)
+## Depends on (6)
 
-- [`src/lib/formatDateTime.ts`](../../lib/formatDateTime.md)
-- [`src/lib/server/devConsoleStatus.ts`](../../lib/server/devConsoleStatus.md)
+- [`src/components/chrome/DevConsoleButton.tsx`](./DevConsoleButton.md)
+- [`src/components/chrome/devConsoleLoad.ts`](./devConsoleLoad.md)
+- [`src/lib/chrome/devModeLoadIn.ts`](../../lib/chrome/devModeLoadIn.md)
+- [`src/lib/server/dev/devConsoleStatus.ts`](../../lib/server/dev/devConsoleStatus.md)
+- [`src/lib/server/dev/devTeamFindings.ts`](../../lib/server/dev/devTeamFindings.md)
+- [`src/lib/shared/formatDateTime.ts`](../../lib/shared/formatDateTime.md)
 
 ## Used by
 

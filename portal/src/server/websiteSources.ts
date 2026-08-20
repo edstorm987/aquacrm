@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { getState, mutate } from "./storage";
 import { getClientForAgency } from "./tenants";
 import { getTradingCompany } from "./tradingCompanies";
-import { newTelemetrySiteKey } from "@/lib/server/clientTelemetry";
+import { newTelemetrySiteKey } from "@/lib/server/clients/clientTelemetryService";
 import type { WebsiteSourceDestination } from "./types";
 
 /**

@@ -79,7 +79,7 @@ writeFileSync(join(SANDBOX, DOC_REL), seedDoc(), "utf8");
 process.chdir(SANDBOX);
 
 // Required (not imported) so the chdir above is already in effect.
-const updates = require_("../src/lib/server/devTeamUpdates") as typeof import("../src/lib/server/devTeamUpdates");
+const updates = require_("../src/lib/server/dev/devTeamUpdates") as typeof import("../src/lib/server/dev/devTeamUpdates");
 const {
   parseUpdates,
   insertUpdateBlock,

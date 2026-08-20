@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (10)
 
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
-- [`src/lib/server/founderSeed.ts`](../../../../lib/server/founderSeed.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
+- [`src/lib/server/seeds/founderSeed.ts`](../../../../lib/server/seeds/founderSeed.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/agencyWebsite.ts`](../../../../server/agencyWebsite.md)
 - [`src/server/pluginInstalls.ts`](../../../../server/pluginInstalls.md)

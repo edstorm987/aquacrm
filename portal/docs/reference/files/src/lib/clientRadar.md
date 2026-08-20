@@ -1,4 +1,4 @@
-# `src/lib/clientRadar.ts`
+# `src/lib/radar/clientRadar.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -15,13 +15,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
-- [`src/lib/clientAquaHealth.ts`](./clientAquaHealth.md)
-- [`src/lib/clientPaymentPlans.ts`](./clientPaymentPlans.md)
-- [`src/lib/portalProducts.ts`](./portalProducts.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/clients/clientAquaHealth.ts`](./clientAquaHealth.md)
+- [`src/lib/clients/clientPaymentPlans.ts`](./clientPaymentPlans.md)
+- [`src/lib/portal/portalProducts.ts`](./portalProducts.md)
 
 ## Used by (2)
 
 - [`scripts/smoke-client-radar.test.ts`](../../scripts/smoke-client-radar.test.md)
-- [`src/lib/server/clientRadar.ts`](./server/clientRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./server/clientRadar.md)
 

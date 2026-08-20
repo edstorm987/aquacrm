@@ -65,11 +65,11 @@ require_.cache[headersId] = {
 const { NextRequest } = require_("next/server") as typeof import("next/server");
 const docsRoute = require_("../src/app/api/portal/dev-team/docs/route") as typeof import("../src/app/api/portal/dev-team/docs/route");
 const updatesRoute = require_("../src/app/api/portal/dev-team/updates/route") as typeof import("../src/app/api/portal/dev-team/updates/route");
-const { issueSession } = require_("../src/lib/server/auth") as typeof import("../src/lib/server/auth");
+const { issueSession } = require_("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require_("../src/server/storage") as typeof import("../src/server/storage");
 const { createAgency } = require_("../src/server/tenants") as typeof import("../src/server/tenants");
 const { createUser } = require_("../src/server/users") as typeof import("../src/server/users");
-const { UPDATES_DOC_REL } = require_("../src/lib/server/devTeamUpdates") as typeof import("../src/lib/server/devTeamUpdates");
+const { UPDATES_DOC_REL } = require_("../src/lib/server/dev/devTeamUpdates") as typeof import("../src/lib/server/dev/devTeamUpdates");
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 

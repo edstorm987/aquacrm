@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { clearSessionCookie, getSessionFromRequest } from "@/lib/server/auth";
-import { getAuthBrand } from "@/lib/authBrand";
+import { clearSessionCookie, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { getAuthBrand } from "@/lib/brands/authBrand";
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
 
 export async function POST(_req: NextRequest) {

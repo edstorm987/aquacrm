@@ -13,14 +13,14 @@ require.cache[serverOnlyPath] = {
   children: [],
 } as never;
 
-type TransactionalEmail = typeof import("../src/lib/server/transactionalEmail");
+type TransactionalEmail = typeof import("../src/lib/server/email/transactionalEmail");
 
 let sendTransactionalEmail: TransactionalEmail["sendTransactionalEmail"];
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   process.env.PORTAL_VAULT_ENCRYPTION_KEY = "transactional-email-smoke-vault-key-longer-than-thirty-two-characters";
-  ({ sendTransactionalEmail } = await import("../src/lib/server/transactionalEmail"));
+  ({ sendTransactionalEmail } = await import("../src/lib/server/email/transactionalEmail"));
 });
 
 const input = {

@@ -5,7 +5,7 @@ import { test } from "node:test";
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("contracts support writing, private uploads, reusable templates, and amendments", () => {
-  const model = read("src/lib/clientContracts.ts");
+  const model = read("src/lib/clients/clientContracts.ts");
   const route = read("src/app/api/tenants/client-contracts/route.ts");
   const panel = read("src/app/portal/clients/[clientId]/_ContractsPanel.tsx");
 

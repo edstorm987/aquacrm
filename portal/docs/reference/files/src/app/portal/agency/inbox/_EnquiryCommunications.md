@@ -10,10 +10,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (4)
 
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
 - [`src/lib/inbox/media.ts`](../../../../lib/inbox/media.md)
-- [`src/lib/server/outboundCommunications.ts`](../../../../lib/server/outboundCommunications.md)
+- [`src/lib/server/email/outboundCommunications.ts`](../../../../lib/server/email/outboundCommunications.md)
 - [`src/lib/server/websiteEnquiries.ts`](../../../../lib/server/websiteEnquiries.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (2)
 

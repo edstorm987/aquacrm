@@ -1,4 +1,4 @@
-# `src/lib/server/enquiryNotifications.ts`
+# `src/lib/server/email/enquiryNotifications.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
-- [`src/lib/server/resendEmail.ts`](./resendEmail.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrationConnections.md)
+- [`src/lib/server/email/resendEmail.ts`](./resendEmail.md)
 
 ## Used by (1)
 

@@ -5,11 +5,11 @@ import {
   issueSession,
   requireRole,
   sessionCookie,
-} from "@/lib/server/auth";
+} from "@/lib/server/auth/auth";
 import {
   resetAndSeedShowcaseWorkspace,
   SHOWCASE_AGENCY_SLUG,
-} from "@/lib/server/showcaseMode";
+} from "@/lib/server/auth/showcaseMode";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";
 import { getUserById, getUserByLogin } from "@/server/users";

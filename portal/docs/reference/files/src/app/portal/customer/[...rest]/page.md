@@ -15,7 +15,7 @@
 - [`src/built-ins/runtime/_types.ts`](../../../../built-ins/runtime/_types.md)
 - [`src/built-ins/runtime/foundation-adapters/index.ts`](../../../../built-ins/runtime/foundation-adapters/index.md)
 - [`src/components/ui/ErrorBoundary.tsx`](../../../../components/ui/ErrorBoundary.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 

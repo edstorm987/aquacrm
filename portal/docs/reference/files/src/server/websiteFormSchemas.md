@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (5)
 
-- [`src/lib/server/aquaTagDetection.ts`](../lib/server/aquaTagDetection.md)
+- [`src/lib/server/integrations/aquaTagDetection.ts`](../lib/server/integrations/aquaTagDetection.md)
 - [`src/lib/server/safeSiteFetch.ts`](../lib/server/safeSiteFetch.md)
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)

@@ -6,9 +6,16 @@ _No file-level doc-comment. Purpose inferred from its path (Scripts — scripts/
 
 _No exported symbols (side-effect / internal module)._
 
-## Depends on (1)
+## Depends on (8)
 
-- [`src/lib/server/mfa.ts`](../src/lib/server/mfa.md)
+- [`src/app/api/auth/login/route.ts`](../src/app/api/auth/login/route.md)
+- [`src/app/api/portal/mfa/enrol/route.ts`](../src/app/api/portal/mfa/enrol/route.md)
+- [`src/lib/server/auth/auth.ts`](../src/lib/server/auth/auth.md)
+- [`src/lib/server/auth/mfa.ts`](../src/lib/server/auth/mfa.md)
+- [`src/lib/server/rateLimit.ts`](../src/lib/server/rateLimit.md)
+- [`src/server/storage.ts`](../src/server/storage.md)
+- [`src/server/tenants.ts`](../src/server/tenants.md)
+- [`src/server/users.ts`](../src/server/users.md)
 
 ## Used by
 

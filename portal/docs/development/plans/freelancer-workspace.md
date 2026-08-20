@@ -157,8 +157,8 @@ plan in flight._
 - `src/app/portal/page.tsx`
 - `src/server/types.ts`
 - `src/server/storage.ts`
-- `src/lib/server/auth.ts`
-- `src/lib/server/demoSeed.ts`
+- `src/lib/server/auth/auth.ts`
+- `src/lib/server/seeds/demoSeed.ts`
 - `src/app/api/auth/dev-mode/route.ts`
 - `src/lib/chrome/sidebarLayout.ts`
 - `scripts/smoke-dev-mode.test.ts`

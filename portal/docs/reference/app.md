@@ -261,7 +261,15 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/api/auth/signup/route.ts`
 
-- `async POST(req: NextRequest)`
+- `async POST(req: NextRequest)` — ─── Entry point ─────────────────────────────────────────────────────────
+
+
+## `src/app/api/auth/switch-agency/`
+
+### `src/app/api/auth/switch-agency/route.ts`
+
+- `async GET(request: NextRequest)`
+- `async POST(request: NextRequest)`
 
 
 ## `src/app/api/auth/verify-email/`
@@ -350,6 +358,14 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `async GET()`
 - `async POST(req: NextRequest)`
+
+
+## `src/app/api/portal/agency/companies/[companyId]/portal/`
+
+### `src/app/api/portal/agency/companies/[companyId]/portal/route.ts`
+
+- `async GET(request: NextRequest, context: PromoteRouteContext)`
+- `async POST(request: NextRequest, context: PromoteRouteContext)`
 
 
 ## `src/app/api/portal/agency/users/`
@@ -868,6 +884,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/api/portal/mfa/enrol/route.ts`
 
+- `async GET(request: NextRequest)` — Whether this account already has an authenticator. A read, so it is a GET and not the enrolment POST below — asking "is it on?" must never have the side effect of clearing a half-…
 - `async POST(request: NextRequest)` — Starting two-factor enrolment. Supabase mints the secret and the QR code; Aqua only passes them through. Nothing about the factor is stored here — a copy of somebody's TOTP secret…
 
 
@@ -1829,6 +1846,10 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `AvatarUploader({ initialAvatarUrl, displayInitials }: Props)`
 
+### `src/app/portal/account/TwoFactorPanel.tsx`
+
+- `TwoFactorPanel()` — Switching two-factor authentication on, from the account page. Enrolment and verification themselves already exist — `TwoFactorSetup` owns the QR code, the setup key and the six-d…
+
 ### `src/app/portal/account/page.tsx`
 
 - `default async AccountPage()`
@@ -2098,6 +2119,11 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/portal/agency/company/_CompanyWorkspace.tsx`
 
 - `CompanyWorkspace({ initial, companyName, actuals, staffCount, canEdit, legalDocuments, initialProducts, sops, tradingCompanies, serviceBrands, productDefaults, clients, workspaceWebsite, initialView, initialIntegration …`
+
+### `src/app/portal/agency/company/_CompliancePosturePanel.tsx`
+
+- `CompliancePosturePanel({ canEdit }: { canEdit: boolean })`
+- `CompliancePostureIcon = ShieldCheck`
 
 ### `src/app/portal/agency/company/_LegalCompliancePanel.tsx`
 
@@ -3328,9 +3354,8 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/dev-team/logs/_changesLabel.ts`
 
-- `changesPillLabel(shown: number, windowLabel = "2h"): string` — Label for the changes pill. `shown` is the length of the (possibly capped) list; when it has hit the cap the real number is unknown and only a lower bound can honestly be printed.
-- `changesPillTitle(shown: number): string` — Tooltip that says why the number is a lower bound. Empty when it isn't one.
-- `RECENT_FILES_CAP = 200` — The cap `scanWorkerSignals` applies to `recentFiles`. Mirrored, not owned.
+- `changesPillLabel(count: number, windowLabel = "2h"): string` — Label for the changes pill. `count` is the number of files that changed in the window — the whole truth, since `scanWorkerSignals` no longer truncates.
+- `changesPillTitle(_count: number): string` — Tooltip. Empty: there is nothing to caveat now that the number is exact. Kept as a function so the call site does not have to change if a caveat ever becomes necessary again.
 
 ### `src/app/portal/dev-team/logs/page.tsx`
 

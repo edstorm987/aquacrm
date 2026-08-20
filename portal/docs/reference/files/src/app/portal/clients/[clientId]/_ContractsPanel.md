@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (2)
 
-- [`src/lib/clientContracts.ts`](../../../../lib/clientContracts.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
+- [`src/lib/clients/clientContracts.ts`](../../../../lib/clients/clientContracts.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (2)
 

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
-import { UpdateInputError, appendUpdateEntry } from "@/lib/server/devTeamUpdates";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { UpdateInputError, appendUpdateEntry } from "@/lib/server/dev/devTeamUpdates";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

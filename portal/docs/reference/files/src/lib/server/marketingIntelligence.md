@@ -23,7 +23,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `emptyMarketingSpine(generatedAt = Date.now()): MarketingDataSpine`
 - `interface MarketingDataSpineOptions (3 members)`
 - `async marketingDataSpine(agencyId: string, options: MarketingDataSpineOptions = {}): Promise<MarketingDataSpine>`
-- `interface MarketingPulseMetric (20 members)`
+- `interface MarketingPulseMetric (21 members)`
 - `shapeMarketingPulse(descriptors: readonly KpiDescriptor[]): MarketingPulseMetric[]`
 - `interface MarketingFunnelStage (8 members)`
 - `interface MarketingFunnelInput (9 members)`
@@ -41,13 +41,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (9)
 
-- [`src/lib/businessRadar.ts`](../businessRadar.md)
-- [`src/lib/commandIntelligence.ts`](../commandIntelligence.md)
-- [`src/lib/kpiRegistry.ts`](../kpiRegistry.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/commandIntelligence.ts`](./commandIntelligence.md)
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
-- [`src/lib/server/radarEvidenceVault.ts`](./radarEvidenceVault.md)
+- [`src/lib/intelligence/commandIntelligence.ts`](../intelligence/commandIntelligence.md)
+- [`src/lib/performance/kpiRegistry.ts`](../performance/kpiRegistry.md)
+- [`src/lib/radar/businessRadar.ts`](../radar/businessRadar.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./commandIntelligenceService.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrations/integrationConnections.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./radar/businessIssueRadar.md)
+- [`src/lib/server/radar/radarEvidenceVault.ts`](./radar/radarEvidenceVault.md)
 - [`src/server/websiteInjections.ts`](../../server/websiteInjections.md)
 - [`src/server/websiteSources.ts`](../../server/websiteSources.md)
 

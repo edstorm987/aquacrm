@@ -47,5 +47,5 @@
 - [`src/built-ins/modules/agency-hr/src/server/leave.ts`](../server/leave.md)
 - [`src/built-ins/modules/agency-hr/src/server/roles.ts`](../server/roles.md)
 - [`src/built-ins/modules/agency-hr/src/server/staff.ts`](../server/staff.md)
-- [`src/lib/server/effectiveRole.ts`](../../../../../lib/server/effectiveRole.md)
+- [`src/lib/server/auth/effectiveRole.ts`](../../../../../lib/server/auth/effectiveRole.md)
 

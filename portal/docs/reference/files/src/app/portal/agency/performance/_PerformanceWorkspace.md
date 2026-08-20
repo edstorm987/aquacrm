@@ -16,9 +16,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/performance/_AquaTagDashboard.tsx`](./_AquaTagDashboard.md)
 - [`src/app/portal/agency/performance/_ExperimentsPanel.tsx`](./_ExperimentsPanel.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/performanceAnalytics.ts`](../../../../lib/performanceAnalytics.md)
-- [`src/lib/performanceReports.ts`](../../../../lib/performanceReports.md)
+- [`src/lib/performance/performanceAnalytics.ts`](../../../../lib/performance/performanceAnalytics.md)
+- [`src/lib/performance/performanceReports.ts`](../../../../lib/performance/performanceReports.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 
 ## Used by (2)

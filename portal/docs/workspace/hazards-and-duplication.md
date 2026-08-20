@@ -41,6 +41,51 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 ### Aqua-tag analytics twice
 - `agency/aqua-tags/_AquaTagsWorkspace.tsx` **[new]** vs `agency/performance/_AquaTagDashboard.tsx`.
 
+### Two block registries — and the copies the element engine exists to delete
+The **element vocabulary was lifted out of the website-editor plugin into
+`src/lib/elements/`** by element-engine P1+P2 (2026-08-20). `src/lib/elements/index.ts:1-12`
+names the duplication it was built to remove, in its own words: *"two block
+registries with 14 of 16 types duplicated, three `BlockStyles`→CSS mappers, two
+prop-schema vocabularies."* Nothing has been deleted yet — the lift is what makes
+deleting possible — so all of it is still live and still drifts.
+
+⚠ **Treat that "14 of 16" as the author's shorthand, not a measurement.** Comparing
+the two registries by *exact type name* on 2026-08-20 gives an overlap of **4**
+(`hero`, `image`, `video`, `divider`), not 14 — the other twelve client-portal
+types are portal-specific live-data blocks (`metrics`, `service-grid`,
+`product-hub`, `file-list`, `activity`, `request-form`, `approval-panel`,
+`file-upload`, `link-list`, `custom-extension`, `callout`, `rich-text`) whose
+website counterparts, where they exist, are named differently. The duplication is
+real; the number is not one to plan a deletion against. **Re-measure before you
+delete anything.**
+
+| The twins | Where | Status |
+| --- | --- | --- |
+| **Block registry A** — 70 website element definitions + their lazy loaders | `built-ins/modules/website-editor/src/components/blockRegistry.ts:157` (`BLOCK_REGISTRY`) | live; **stays there on purpose** (`lazyBlock` is a hand-rolled `React.lazy` because `next/dynamic` throws under `--conditions react-server`). It now *pushes* into the shared lookup via `registerElementDefinitions` |
+| **Block registry B** — 16 client-portal block types | `src/lib/portal/clientPortalBuilder.ts:18` (`CLIENT_PORTAL_BLOCK_REGISTRY`) | live, **independent**, its own `ClientPortalBlockType` union and its own `BLOCK_TYPES`/`BLOCK_TONES`/`BLOCK_WIDTHS`/`BLOCK_SPACING`/`BLOCK_ALIGNMENT` sets (`clientPortalBuilder.ts:42-52`). Exactly 4 of its 16 types share a type name with registry A — see the caveat above |
+| **The shared lookup** (not a third registry) | `src/lib/elements/registry.ts` | the surface-filtered `getElementDefinition`/`getElementRenderer` both sides are meant to converge on. `ElementSurface` is `"website" \| "portal" \| "stage"` (`definition.ts:37`) — **`"stage"` has no consumer yet**; the stage builder it was designed for is not built, so don't read its presence as a third live surface |
+
+**Styles→CSS mappers, three of them:** `blockStylesToCss` (`src/lib/elements/blockStyles.ts:11`, canonical) ·
+`styleString` (`built-ins/modules/website-editor/src/server/staticExport.ts:64`, the static-export path) ·
+the client-portal tone/width/spacing/alignment mapping inside `clientPortalBuilder.ts`.
+`built-ins/modules/website-editor/src/components/blockStyles.ts` is **no longer a
+mapper** — it is a 9-line re-export of the canonical one, kept so every block
+component's `../blockStyles` import still resolves.
+
+**Prop-schema vocabularies:** `PropField` (the *form-widget* descriptor) and the
+**generated** `ElementSchema`/`ElementPropSchema` (the *validity* contract) both
+live in `src/lib/elements/{definition,schema}.ts` — and there is deliberately no
+way to hand-write an `ElementSchema` (`schema.ts:5-13`), because a second
+declaration of the same contract is exactly the drift being deleted. The plugin
+system's own field vocabularies (`SetupField`/`SettingsField`,
+`built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts:101,187`) are a
+**different** contract for install/settings forms — don't fold them together, and
+don't add a fourth.
+
+**So, before you add an element:** extend `src/lib/elements` + register into it.
+Do **not** add a type to `CLIENT_PORTAL_BLOCK_REGISTRY` and a near-twin to
+`BLOCK_REGISTRY` — that is how 14 of 16 got duplicated the first time.
+
 ### Two inbox surfaces
 - `agency/inbox/` (`_MasterInbox`) vs `agency/activity-inbox/`. Verify they're not redundant before extending either.
 
@@ -81,6 +126,30 @@ Plus overlapping "intelligence" builders that are easy to confuse:
 - **A Radar `value: 0` is not automatically a measurement.** `blind` (no data source), `learning` (not enough evidence yet) and `inactive` (doesn't apply) checks still carry `value: 0`, so an agency with **nothing monitored** looks identical to a tracked-but-quiet one. `marketingIntelligence.ts` only accepts a reading from a lens whose own status is `pass`/`critical`/`warning`/`watch` (`ASSESSED_STATUSES`); everything else reads `null` → "—". **Any surface reading `check.value` directly needs the same guard** — this was a live bug in the marketing funnel (it would have reported "0 pageviews" for an untracked agency) and it was invisible to the smoke tests, which feed synthetic checks. Caught only by `scripts/verify-marketing-runtime.ts` driving a real Radar build.
 - **Marketing metrics have ONE owner: `lib/server/marketingIntelligence.ts`.** Traffic, forms, conversions, conversion rate, tag coverage, enquiry counts, the KPI pulse and the funnel are all reshaped there from engines that already computed them (the Radar `marketing` domain, `lib/kpiRegistry`, `commercialIntelligence.lineage`, `server/websiteSources`, `lib/server/websiteEnquiries`). **Do not recompute any of them inside `agency/marketing/page.tsx` or a workspace component** — that is how marketing ended up half-fed the first time (the old overview showed `ownWebsiteSummary.pageviews24h`, the agency's own site only, next to Radar-derived numbers elsewhere; that field is now gone). Marketing is a **consumer**: it must never edit `lib/kpiRegistry.ts`, the aqua-tag files, or the Radar engine — flag it to the commander instead. Note `agency/marketing` is also the redirect target for `agency/automations`.
 
+- **Never put PII in an activity message — the erasure sweep is keyed by `clientId`.** `clientErasure` sweeps `state.activity` by `clientId` only, and an **agency-scoped plugin install writes activity entries with no `clientId` at all** — so an email in one of those messages survives a client erasure forever. Every message in `built-ins/modules/leads-pipeline/src/server/contacts.ts` names the contact by **id**, with `contactId` in the metadata for the UI to resolve a label from (the rule is written into the file header, `contacts.ts:10-15`). **This was one of tonight's three "🔴 launch blockers" and it is FIXED.** Apply the same rule to any new agency-scoped plugin activity.
+
+## ✅ Fixed 2026-08-20 — verified in source, do NOT send a worker to re-fix
+All three of the "🔴 launch blockers" that were still being briefed as open are
+closed. Each was re-read from source during the 2026-08-20 docs pass:
+
+| Was briefed as open | Actually |
+| --- | --- |
+| **Freelancer-preview privilege escalation** | Fixed. `app/api/auth/preview-as-freelancer/route.ts` stashes the enterer's own id as `previewReturnUserId` (`:101`) and `exit` re-mints **that** user (`:49`), instead of restoring "an owner it found". `previewReturnUserId` is a first-class session field (`lib/server/auth.ts:72,104`). `api/auth/switch-agency/route.ts` was built into the same shape and cites it. |
+| **Finance create-surface idempotency** | Fixed. `built-ins/modules/agency-finance/src/lib/idempotency.ts` (`deriveRecordId`) is wired into six create surfaces + expenses — see the money-CREATE bullet above. |
+| **Erasure logging an email** | Fixed. See the bullet directly above. |
+
+**Also settled, and repeatedly mis-briefed:** **MFA on login is BUILT and WIRED** — the
+server gate is `app/api/auth/login/route.ts:320-360` (it imports `loginMfaStep` from
+`lib/server/mfa.ts`, rate-limits code attempts, then calls `supabase.auth.mfa.challenge`
++ `.verify`) and the browser code step is in `app/login/LoginForm.tsx`. Any doc saying
+"`/api/auth/login` has no MFA step" or "`mfa.ts` built, unwired" is describing a state
+that ended. **What is genuinely NOT built is Phases 3–4**: the login gate proves aal2 once
+(`raisedToSecondFactor(verified.access_token)`, `login/route.ts:355`) and then the app
+mints its **own** HMAC cookie — no later request re-checks assurance, so `requireTwoFactor`
+and `readTokenAssurance` (`mfa.ts:46,201`) still have **no app consumers at all**, only
+`scripts/smoke-mfa.test.ts`. `requireTwoFactor` is described there (`smoke-mfa.test.ts:87`)
+as "the intended long-term mechanism". There are no recovery codes.
+
 ## ⚪ Dead / stale / alias (don't mistake for live code)
 
 - **`lib/server/editing/adapters.ts`** — **zero importers**, orphaned. The live editor uses `lib/server/siteEditor/*`. Deletion candidate. (Careful: `lib/editing/{leases,modes}.ts` ARE used by `components/editing/*`.)
@@ -89,7 +158,7 @@ Plus overlapping "intelligence" builders that are easy to confuse:
   - `agency/fulfilment/technical/*` → re-export `agency/development/*`.
   - `agency/command-center` → re-exports `agency/page.tsx`.
 - **Redirect-only (no UI of their own):** `agency/automations`→marketing, `agency/products`→fulfilment, `account/preferences`, `portal/preview`.
-- **Empty placeholders:** `app/client-site-preview/`, `app/client-website-preview/`.
+- ~~**Empty placeholders:** `app/client-site-preview/`, `app/client-website-preview/`.~~ **WRONG — corrected 2026-08-20.** Both are real, authenticated routes: `client-site-preview/[clientId]/[propertyId]/[[...assetPath]]/route.ts` is a path-confined, content-typed file server (`requireRoleForClient`, agency **or** client role), and `client-website-preview/[clientId]/[siteId]/[pageId]/page.tsx` (39L) renders a website-editor page through `PortalPageRenderer` for agency roles. Don't delete either as dead weight.
 - **`milesy-tag.js/`** — legacy alias of `aqua-tag.js/`.
 
 ## ✅ Expected pairs (NOT bugs — the macro/micro model)
@@ -114,5 +183,40 @@ Three things describe "what's next", and only one is canonical now:
   from the Dev Console (`/portal/dev-team/roadmap`, `lib/server/devTeamRoadmap.ts`). Progress is
   derived from each item's plans → phases → tasks, so it cannot drift.
 - **`docs/development/phases.md` — superseded**, kept for history. Do not add items.
-- **The board** (`/portal/dev-team/working`, `devTeamBoard.ts`) is a different altitude: it shows
+- **The board** (`devTeamBoard.ts`) is a different altitude: it shows
   PLANS and WORKERS in flight, not outcomes. It is not a duplicate — do not merge them.
+  It now lives at **`/portal/dev-team/roadmap?view=now`**; `/portal/dev-team/working` is a
+  redirect stub onto it (see below).
+
+## 🟠 The Dev Console moved (2026-08-20) — old routes are stubs, not deletions
+Twelve sidebar items became **six sections with `?view=` tabs**
+(`app/portal/dev-team/layout.tsx:68-75`): Home · Roadmap · Findings · Library ·
+Tools · Notes. **Every old route still exists as a one-line `redirect()`**, so a
+bookmark or a doc link still lands:
+
+| Old route | Now |
+| --- | --- |
+| `/portal/dev-team/auditor` | `findings?view=auditor` |
+| `/portal/dev-team/logs` | `library?view=logs` |
+| `/portal/dev-team/updates` | `library?view=updates` |
+| `/portal/dev-team/inspector` | `tools` (its default view) |
+| `/portal/dev-team/editor` | `tools?view=editor` |
+| `/portal/dev-team/api` | `tools?view=api` |
+| `/portal/dev-team/working` | `roadmap?view=now` |
+| `/portal/dev-team/tasks` | `roadmap?view=tasks` |
+
+**The hazard:** the old directories still hold the *real* code — `auditor/_Section.tsx`,
+`editor/_AppConfigEditor.tsx`, `api/_MasterTagPanel.tsx`, `working/_Board.tsx`,
+`tasks/_TasksWorkspace.tsx` and so on are imported by the new section pages. Only
+`page.tsx` became a stub. **Edit the `_Section.tsx` / workspace file; never
+"restore" a stub page.tsx thinking the screen was lost.**
+
+## Twin filenames across the lib halves — RESOLVED 2026-08-20
+
+Six modules existed twice with the SAME filename — a client-safe half in
+`src/lib/<domain>/` and a server half in `src/lib/server/` — making it easy to
+import the wrong one. The server halves are now suffixed `Service`:
+`clientRadarService` · `kpiRegistryService` · `clientTelemetryService` ·
+`commandIntelligenceService` · `advisorSkillsService` · `brandPortfolioService`.
+Rule going forward: a server counterpart of a client-safe module carries the
+`Service` suffix, never the bare twin name.

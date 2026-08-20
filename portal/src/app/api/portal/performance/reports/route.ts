@@ -1,16 +1,16 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
-import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
-import { buildPerformanceAnalyticsForRange } from "@/lib/performanceAnalytics";
+import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
+import { buildPerformanceAnalyticsForRange } from "@/lib/performance/performanceAnalytics";
 import {
   cleanMonthlyPerformanceReports,
   reportHighlights,
   reportMonthRange,
   reportNextSteps,
   type MonthlyPerformanceReport,
-} from "@/lib/performanceReports";
-import { getSessionFromRequest } from "@/lib/server/auth";
+} from "@/lib/performance/performanceReports";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";

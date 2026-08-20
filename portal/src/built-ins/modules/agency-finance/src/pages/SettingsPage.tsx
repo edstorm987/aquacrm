@@ -1,6 +1,6 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
-import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import { FinanceNav } from "../components/FinanceNav";
 
 export default async function SettingsPage(props: PluginPageProps) {

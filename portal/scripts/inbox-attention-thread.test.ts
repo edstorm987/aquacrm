@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { resolveAttentionThreadKey, type AttentionThreadCandidate } from "../src/lib/inbox/attentionThread";
-import type { OperationalAlert } from "../src/lib/operationalAttention";
+import type { OperationalAlert } from "../src/lib/intelligence/operationalAttention";
 
 const candidates: AttentionThreadCandidate[] = [
   { key: "website:form_1", formId: "form_1", name: "Alex Stone", email: "alex@example.com" },

@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import type { MarketingAsset } from "@/built-ins/modules/agency-marketing/src/lib/domain";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";

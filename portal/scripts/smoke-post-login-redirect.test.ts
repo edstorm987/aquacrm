@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
-const RESOLVER = join(ROOT, "src", "lib", "server", "postLoginRedirect.ts");
+const RESOLVER = join(ROOT, "src", "lib", "server", "auth", "postLoginRedirect.ts");
 const LOGIN_ROUTE = join(ROOT, "src", "app", "api", "auth", "login", "route.ts");
 const SIGNUP_ROUTE = join(ROOT, "src", "app", "api", "auth", "signup", "route.ts");
 const MAGIC_ROUTE = join(ROOT, "src", "app", "api", "auth", "magic", "verify", "route.ts");

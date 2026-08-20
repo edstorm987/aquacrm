@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { TABS, type TabId } from "./_tabs";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 export type { TabId };
 

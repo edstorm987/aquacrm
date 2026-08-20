@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowUpRight, BarChart3, RadioTower, ShieldCheck } from "lucide-react";
 
-import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/commandIntelligence";
+import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/intelligence/commandIntelligence";
 
 type CommandKpiStation = {
   id: string;

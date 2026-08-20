@@ -21,7 +21,7 @@ import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
-} from "@/lib/enquiryClassification";
+} from "@/lib/enquiries/enquiryClassification";
 import type { PersonInteraction } from "@/lib/inbox/personInteractions";
 import type { Person, PersonState } from "@/server/types";
 

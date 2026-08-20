@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getSessionFromRequest, getActiveAgencyId } from "@/lib/server/auth";
-import { effectiveRole } from "@/lib/server/effectiveRole";
+import { getSessionFromRequest, getActiveAgencyId } from "@/lib/server/auth/auth";
+import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { upsertPhase, getPhase, listPhasesForAgency } from "@/server/phases";
 import type { ClientStage, PhaseDefinition } from "@/server/types";
 

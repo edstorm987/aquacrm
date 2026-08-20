@@ -22,10 +22,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/components/attention/TaskChecklist.tsx`](../../../../components/attention/TaskChecklist.md)
 - [`src/components/attention/TaskTemplates.tsx`](../../../../components/attention/TaskTemplates.md)
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](../../../../components/chrome/NotificationAttentionProvider.md)
-- [`src/lib/advisorActions.ts`](../../../../lib/advisorActions.md)
-- [`src/lib/attentionProtection.ts`](../../../../lib/attentionProtection.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
+- [`src/lib/advisor/advisorActions.ts`](../../../../lib/advisor/advisorActions.md)
 - [`src/lib/inbox/resolutionExplain.ts`](../../../../lib/inbox/resolutionExplain.md)
+- [`src/lib/intelligence/attentionProtection.ts`](../../../../lib/intelligence/attentionProtection.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 
 ## Used by (1)

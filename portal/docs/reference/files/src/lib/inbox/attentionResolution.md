@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/operationalAttention.ts`](../operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../intelligence/operationalAttention.md)
 
 ## Used by (2)
 

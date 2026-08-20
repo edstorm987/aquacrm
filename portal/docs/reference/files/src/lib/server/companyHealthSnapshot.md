@@ -1,4 +1,4 @@
-# `src/lib/server/companyHealthSnapshot.ts`
+# `src/lib/server/kpi/companyHealthSnapshot.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -16,8 +16,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../../built-ins/modules/agency-finance/src/server/foundationAdapter.md)
 - [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](../../built-ins/runtime/foundation-adapters/agencyFinanceFoundation.md)
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
-- [`src/lib/clientTelemetry.ts`](../clientTelemetry.md)
-- [`src/lib/companyHealth.ts`](../companyHealth.md)
+- [`src/lib/clients/clientTelemetry.ts`](../clientTelemetry.md)
+- [`src/lib/performance/companyHealth.ts`](../companyHealth.md)
 - [`src/lib/server/pluginStorage.ts`](./pluginStorage.md)
 - [`src/lib/server/requestNow.ts`](./requestNow.md)
 - [`src/server/clientMilestones.ts`](../../server/clientMilestones.md)
@@ -30,8 +30,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/app/portal/agency/company/page.tsx`](../../app/portal/agency/company/page.md)
 - [`src/app/portal/agency/page.tsx`](../../app/portal/agency/page.md)
-- [`src/lib/server/advisorContext.ts`](./advisorContext.md)
-- [`src/lib/server/businessIssueRadar.ts`](./businessIssueRadar.md)
-- [`src/lib/server/commandIntelligence.ts`](./commandIntelligence.md)
-- [`src/lib/server/radarObservations.ts`](./radarObservations.md)
+- [`src/lib/server/assistants/advisorContext.ts`](./advisorContext.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./businessIssueRadar.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./commandIntelligence.md)
+- [`src/lib/server/radar/radarObservations.ts`](./radarObservations.md)
 

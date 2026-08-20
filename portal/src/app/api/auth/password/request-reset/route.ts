@@ -24,9 +24,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { getUser } from "@/server/users";
-import { signPasswordResetToken } from "@/lib/server/passwordReset";
-import { sendTransactionalEmail } from "@/lib/server/transactionalEmail";
-import { getAuthBrand } from "@/lib/authBrand";
+import { signPasswordResetToken } from "@/lib/server/auth/passwordReset";
+import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
+import { getAuthBrand } from "@/lib/brands/authBrand";
 
 interface Body {
   email?: unknown;

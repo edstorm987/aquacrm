@@ -151,8 +151,8 @@ plan in flight._
 - `src/server/websiteSources.ts`
 - `src/server/websiteInjections.ts`
 - `src/server/websiteFormSchemas.ts`
-- `src/lib/aquaTagSource.ts`
-- `src/lib/server/aquaTagDetection.ts`
+- `src/lib/integrations/aquaTagSource.ts`
+- `src/lib/server/integrations/aquaTagDetection.ts`
 - `src/lib/server/safeSiteFetch.ts`
 - `src/app/api/public/aqua-tag-config/route.ts`
 - `src/app/api/portal/website-injections/route.ts`
@@ -170,8 +170,8 @@ plan in flight._
 - `scripts/smoke-website-sources.test.ts`
 - `scripts/smoke-aqua-tag-injections.test.ts`
 - `src/server/types.ts`
-- `src/lib/radarRuleCatalog.ts`
-- `src/lib/server/radarObservations.ts`
+- `src/lib/radar/radarRuleCatalog.ts`
+- `src/lib/server/radar/radarObservations.ts`
 - `scripts/smoke-radar-classification.test.ts`
 - `scripts/smoke-radar-golden-sweep.test.ts`
 - `docs/development/plans/aqua-tag-system.md`

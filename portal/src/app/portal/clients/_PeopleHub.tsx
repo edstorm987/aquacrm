@@ -9,8 +9,8 @@ import { NewClientButton, type NewClientBrandOption, type NewClientDefaults, typ
 import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
-} from "@/lib/enquiryClassification";
-import { formatUkDateTime } from "@/lib/formatDateTime";
+} from "@/lib/enquiries/enquiryClassification";
+import { formatUkDateTime } from "@/lib/shared/formatDateTime";
 import type { IdentityResolutionReview } from "@/server/types";
 import { IdentityReviewWorkspace } from "./_IdentityReviewWorkspace";
 import {

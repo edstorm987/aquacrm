@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (2)
 
-- [`src/lib/clientAquaHealth.ts`](../../../../lib/clientAquaHealth.md)
-- [`src/lib/clientWorkspace.ts`](../../../../lib/clientWorkspace.md)
+- [`src/lib/clients/clientAquaHealth.ts`](../../../../lib/clients/clientAquaHealth.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
 
 ## Used by (1)
 

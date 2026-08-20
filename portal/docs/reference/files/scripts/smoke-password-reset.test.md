@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/server/nonceStore.ts`](../src/lib/server/nonceStore.md)
-- [`src/lib/server/passwordReset.ts`](../src/lib/server/passwordReset.md)
+- [`src/lib/server/auth/nonceStore.ts`](../src/lib/server/auth/nonceStore.md)
+- [`src/lib/server/auth/passwordReset.ts`](../src/lib/server/auth/passwordReset.md)
 
 ## Used by
 

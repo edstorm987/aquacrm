@@ -6,7 +6,7 @@ import { createAgencyTask } from "./tasks";
 import { getState, mutate } from "./storage";
 import { getAgency } from "./tenants";
 import { listUsersForAgency } from "./users";
-import { sendTransactionalEmail } from "@/lib/server/transactionalEmail";
+import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
 import type {
   AgencyTaskPriority,

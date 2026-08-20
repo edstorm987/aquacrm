@@ -2,8 +2,27 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-~204 files. The layer between the [state store](state-layer.md) and the
+~256 files (was ~204 — re-counted 2026-08-20:
+`find src/lib -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l`).
+The layer between the [state store](state-layer.md) and the
 [UI](portal-ui.md)/[API](api-and-routes.md): services, engines, domain helpers.
+
+> **REORGANISED 2026-08-20 (Ed's call: "organise the codebase into folders").**
+> Both halves are now foldered by domain — nothing sits loose except genuine
+> one-offs in `lib/server/`:
+> - `src/lib/` → 15 domain folders: `radar/` `clients/` `portal/` `intelligence/`
+>   `performance/` `products/` `enquiries/` `brands/` `public/` `projects/`
+>   `integrations/` `advisor/` `people/` `compliance/` `shared/` (+ the pre-existing
+>   `server/ elements/ inbox/ chrome/ editing/ a11y/ supabase/ healthCheck/ tasks/ resources/`).
+> - `src/lib/server/` → 12 families: `dev/`(15) `auth/`(12) `assistants/`(11)
+>   `radar/`(10) `integrations/`(10) `clients/`(7) `inbox/`(6) `email/`(4) `kpi/`(4)
+>   `seeds/`(4) `finance/`(3) `portal/`(3); ~44 one-offs stay loose at the root.
+> - **Twin names resolved:** the six server halves that shared a filename with a
+>   client-safe module are renamed `*Service.ts` (`clientRadarService`,
+>   `kpiRegistryService`, `clientTelemetryService`, `commandIntelligenceService`,
+>   `advisorSkillsService`, `brandPortfolioService`) so an import can never
+>   silently hit the wrong half.
+> The decision table for where NEW code goes lives on the contents page.
 
 > **The split that matters:** files at `src/lib/*` are **client-safe** (pure,
 > importable by React components). Files under `src/lib/server/*` are
@@ -13,23 +32,37 @@
 > see the drift flags at the bottom.
 
 ## Auth, session & security  (`lib/server/`)
-`auth.ts` (session read/verify), `csrf.ts`, `mfa.ts` (TOTP — **built, not yet
-wired to login**), `magicLink.ts`, `emailVerification.ts`, `passwordReset.ts`,
+`auth.ts` (session read/verify), `csrf.ts`, `mfa.ts` **[TOTP — WIRED TO LOGIN
+(corrected 2026-08-20; the old "built, not yet wired" line here was briefed to
+workers as fact). `loginMfaStep` (`mfa.ts:177`) is called by
+`app/api/auth/login/route.ts:320-360`, which rate-limits code tries 5/min, runs
+`supabase.auth.mfa.challenge` + `.verify`, and refuses unless
+`raisedToSecondFactor(access_token)` (`mfa.ts:230`) says the new token is aal2;
+the browser code step is in `app/login/LoginForm.tsx`. **Still unbuilt (Phases
+3–4):** the app mints its own HMAC cookie after that one check, so no later
+request re-verifies assurance — `requireTwoFactor` (`mfa.ts:46`) and
+`readTokenAssurance` (`mfa.ts:201`) have **no app consumers**, only
+`scripts/smoke-mfa.test.ts`, which calls `requireTwoFactor` "the intended
+long-term mechanism". No recovery codes.]**, `magicLink.ts`, `emailVerification.ts`, `passwordReset.ts`,
 `nonceStore.ts`, `rateLimit.ts`, `effectiveRole.ts` (role resolution),
 `requireAgencyScope.ts` (the scope gate used by mutations), `secrets.ts`,
 `env.ts`, `postLoginRedirect.ts`, `portalHandoff.ts`, `previewPhase.ts`,
 `connectionConfirmation.ts` **[real 6-digit emailed code: generate +
 HMAC-hash + 15-min TTL + single-use, stored on the connection record's
 `pendingCode`; `connectionCodeEmail` builds the (magic-link-styled) email;
-`00000` stand-in kept only behind the dev-mode gate. Store fns in
+`DEV_CONFIRMATION_CODE` (`connectionConfirmation.ts:53`) is **`"000000"` — six
+zeros, `"0".repeat(CONFIRMATION_CODE_LENGTH)`, not five** — and is kept only
+behind the dev-mode gate. Store fns in
 `server/portalConnectionStore.ts` (`issuePortalConnectionCode`,
 `recordPortalConnectionCodeAttempt`). Sent via `POST /connections/request-code`
 (also resend, capped 5/15min per connection); verified in `/connections/accept`
 (capped 20/15min per IP+user). Per-code **lockout** after `MAX_CODE_ATTEMPTS`
 (5) wrong guesses (→ `locked`), reset by a resend. `_ConnectFlow` shows a live
 expiry countdown, disables a spent code, and makes resend the next move.
-**Code-complete (all 4 phases); needs a mail sender connected + a code-step
-browser walk to be user-reachable**]**,
+**SHIPPED — all 4 phases code-complete, and the Resend mail sender IS connected
+(`inspectProductionReadiness()` reports email `ready`; `productionReadiness.ts:86`
+looks for a managed `resend` provider). The only thing outstanding is a code-step
+browser walk.**]**,
 `sopsAccess.ts`. Client-safe: `authBrand.ts` (login-screen branding).
 
 ## Supabase clients  (`lib/supabase/`)
@@ -132,6 +165,26 @@ Client: `editing/{engine,elementSource,fileRelevance,leases,modes}.ts`. Server:
 `server/siteEditor/*` (**the LIVE code/source adapters, patch, publish,
 registry, githubSource** — what the website-editor plugin drives).
 `server/editing/adapters.ts` is **orphaned** (see flags).
+
+## Element / block vocabulary  (`lib/elements/`) — **NEW 2026-08-20**
+Client-safe, 12 files. The block vocabulary **moved here out of the
+website-editor plugin** (element-engine P1+P2), because website pages, client
+portal pages and product lifecycle stages are all trees of the same thing:
+`block.ts` (tree types) · `definition.ts` (`BlockDefinition`, `PropField`,
+`ElementSurface`) · `registry.ts` (the surface-filtered lookup) · `schema.ts`
+(`ElementSchema`, **generated** from `fields` — hand-writing one is deliberately
+impossible) · `blockStyles.ts` (`blockStylesToCss`, the canonical styles→CSS
+mapper) · `blockTreeOps.ts` · `blockSchemaMigrations.ts` · `variantResolver.ts` ·
+`BlockRenderer.tsx` · `AnimateOnScroll.tsx` · `ids.ts` · `index.ts`.
+
+**Two rules here are load-bearing** (`elements/index.ts:14-27`): nothing in this
+directory may `import "server-only"` (client components and the react-server
+smoke build import it), and nothing here may import a plugin. The 70 website
+definitions and the hand-rolled `lazyBlock` stay in
+`built-ins/modules/website-editor/src/components/blockRegistry.ts` and *push*
+themselves in via `registerElementDefinitions`; this side never reaches back.
+The copies this exists to delete are listed in
+[hazards](hazards-and-duplication.md) — they are still live.
 
 ## Infra & seeds  (`lib/server/`)
 `observability.ts`, `requestLog.ts`, `pluginStorage.ts` (**writes the

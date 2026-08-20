@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { getClientForAgency } from "@/server/tenants";
 import {
   derivePersonState,

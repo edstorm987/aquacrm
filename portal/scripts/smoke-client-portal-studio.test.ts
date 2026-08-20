@@ -18,7 +18,7 @@ type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Designs = typeof import("../src/server/clientPortalDesigns");
 type AgencyProducts = typeof import("../src/server/agencyProducts");
-type PortalBuilder = typeof import("../src/lib/clientPortalBuilder");
+type PortalBuilder = typeof import("../src/lib/portal/clientPortalBuilder");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -32,7 +32,7 @@ before(async () => {
   tenants = await import("../src/server/tenants");
   designs = await import("../src/server/clientPortalDesigns");
   agencyProducts = await import("../src/server/agencyProducts");
-  portalBuilderTools = await import("../src/lib/clientPortalBuilder");
+  portalBuilderTools = await import("../src/lib/portal/clientPortalBuilder");
 });
 
 async function fresh() {
@@ -473,7 +473,7 @@ describe("client portal studio surface", () => {
       readFile(new URL("../src/app/portal/customer/_PortalCustomExtension.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_PortalPageComposition.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_PortalInteractionBlocks.tsx", import.meta.url), "utf8"),
-      readFile(new URL("../src/lib/clientPortalBuilder.ts", import.meta.url), "utf8"),
+      readFile(new URL("../src/lib/portal/clientPortalBuilder.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_CustomerPortalViews.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/[...rest]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/portals/_PortalsWorkspace.tsx", import.meta.url), "utf8"),
@@ -523,17 +523,27 @@ describe("client portal studio surface", () => {
     assert.match(interactions, /\/api\/tenants\/client-files\/upload/);
     assert.match(interactions, /Available in the live client portal/);
     assert.match(builder, /CLIENT_PORTAL_BLOCK_REGISTRY/);
-    assert.match(builder, /system-content/);
-    assert.match(builder, /product-hub/);
-    assert.match(builder, /custom-extension/);
     assert.match(builder, /multiple-products/);
     assert.match(builder, /specific-products/);
     assert.match(builder, /productMatch/);
     assert.match(builder, /landscape/);
     assert.match(builder, /hideOnMobile/);
-    assert.match(builder, /request-form/);
-    assert.match(builder, /approval-panel/);
-    assert.match(builder, /file-upload/);
+
+    // The block TYPES used to be grepped for out of this file's source text.
+    // Element-engine P3 moved the per-type vocabulary into
+    // `src/lib/elements/portalElements.ts` — the portal's 16 types now declare
+    // which shared element each one is a name for, instead of being a second
+    // registry — so a source grep here was asserting the location of a table
+    // rather than the existence of a block type. These read the exported
+    // vocabulary instead, which is what the studio palette actually renders and
+    // what survives the table moving again.
+    const paletteTypes = portalBuilderTools.CLIENT_PORTAL_BLOCK_REGISTRY.map(entry => entry.type);
+    for (const type of ["product-hub", "custom-extension", "request-form", "approval-panel", "file-upload"]) {
+      assert.ok(paletteTypes.includes(type as typeof paletteTypes[number]), `the portal palette lost "${type}"`);
+    }
+    // The system shim stays a known stored type without being in the palette.
+    assert.ok(!paletteTypes.includes("system-content"));
+    assert.equal(portalBuilderTools.createPortalBlock("system-content", "sys").type, "system-content");
     assert.match(studio, /For multi-product bundles/);
     assert.match(studio, /For selected products/);
     assert.match(studio, /Every selected product/);
@@ -548,7 +558,7 @@ describe("client portal studio surface", () => {
     assert.match(views, /data\.presentation\.stages/);
     assert.match(workspace, /Stunning Standard/);
     assert.match(workspace, /> View portal/);
-    assert.match(workspace, /> Portal editor/);
+    assert.match(workspace, /> Aqua Engine/);
     assert.match(workspace, /> View template/);
     assert.match(workspace, /> Edit template/);
     assert.match(workspace, /productId=/);

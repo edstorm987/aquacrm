@@ -9,11 +9,16 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `dynamic`
 - `default async DevTeamHomePage()`
 
-## Depends on (5)
+## Depends on (10)
 
 - [`src/app/portal/dev-team/_ui.tsx`](./_ui.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
-- [`src/lib/server/devDocs.ts`](../../../lib/server/devDocs.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../lib/server/dev/devDocs.md)
+- [`src/lib/server/dev/devTeamFindings.ts`](../../../lib/server/dev/devTeamFindings.md)
+- [`src/lib/server/dev/devTeamRoadmap.ts`](../../../lib/server/dev/devTeamRoadmap.md)
+- [`src/lib/server/dev/devTeamThoughts.ts`](../../../lib/server/dev/devTeamThoughts.md)
+- [`src/lib/server/dev/devTeamWorkers.ts`](../../../lib/server/dev/devTeamWorkers.md)
+- [`src/lib/server/productionReadiness.ts`](../../../lib/server/productionReadiness.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/types.ts`](../../../server/types.md)
 

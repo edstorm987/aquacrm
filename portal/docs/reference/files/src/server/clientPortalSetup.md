@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (5)
 
-- [`src/lib/productAssignments.ts`](../lib/productAssignments.md)
+- [`src/lib/products/productAssignments.ts`](../lib/products/productAssignments.md)
 - [`src/server/agencyProducts.ts`](./agencyProducts.md)
 - [`src/server/clientPortalDesigns.ts`](./clientPortalDesigns.md)
 - [`src/server/productWorkspaces.ts`](./productWorkspaces.md)

@@ -30,7 +30,7 @@ import {
   type IntegrationProvider,
 } from "@/lib/integrations/catalog";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 interface Props {
   clients: Array<{ id: string; name: string }>;

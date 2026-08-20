@@ -6,9 +6,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Exports (1)
 
-- `default async MarketingPage({ searchParams, }: { searchParams: Promise<{ view?: string; brand?: string; compose?: string; client?: string }>; })`
+- `default async MarketingPage({ searchParams, }: { searchParams: Promise<{ view?: string; brand?: string; compose?: string; client?: string; channel?: string; section?: string }>; })`
 
-## Depends on (31)
+## Depends on (32)
 
 - [`src/app/portal/agency/automations/_AutomationsWorkspace.tsx`](../automations/_AutomationsWorkspace.md)
 - [`src/app/portal/agency/automations/_automationWorkspaceData.ts`](../automations/_automationWorkspaceData.md)
@@ -17,6 +17,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/agency/marketing/_FunnelsWorkspace.tsx`](./_FunnelsWorkspace.md)
 - [`src/app/portal/agency/marketing/_MarketingChannelsWorkspace.tsx`](./_MarketingChannelsWorkspace.md)
 - [`src/app/portal/agency/marketing/_MarketingCommandSurfaces.tsx`](./_MarketingCommandSurfaces.md)
+- [`src/app/portal/agency/marketing/_marketingViews.ts`](./_marketingViews.md)
 - [`src/built-ins/modules/agency-finance/src/lib/budgetHealth.ts`](../../../../built-ins/modules/agency-finance/src/lib/budgetHealth.md)
 - [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](../../../../built-ins/modules/agency-marketing/src/lib/domain.md)
 - [`src/built-ins/runtime/_runtime.ts`](../../../../built-ins/runtime/_runtime.md)
@@ -24,13 +25,13 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](../../../../components/chrome/NotificationAttentionProvider.md)
 - [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](../../../../components/marketing/ClientMarketingServiceWorkspace.md)
-- [`src/lib/clientMarketingService.ts`](../../../../lib/clientMarketingService.md)
-- [`src/lib/clientWorkspace.ts`](../../../../lib/clientWorkspace.md)
-- [`src/lib/firstPartyDevelopmentProjects.ts`](../../../../lib/firstPartyDevelopmentProjects.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/inboxStore.ts`](../../../../lib/server/inboxStore.md)
+- [`src/lib/clients/clientMarketingService.ts`](../../../../lib/clients/clientMarketingService.md)
+- [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
+- [`src/lib/projects/firstPartyDevelopmentProjects.ts`](../../../../lib/projects/firstPartyDevelopmentProjects.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/inbox/inboxStore.ts`](../../../../lib/server/inbox/inboxStore.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](../../../../lib/server/integrations/metaMessaging.md)
 - [`src/lib/server/marketingIntelligence.ts`](../../../../lib/server/marketingIntelligence.md)
-- [`src/lib/server/metaMessaging.ts`](../../../../lib/server/metaMessaging.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
 - [`src/lib/server/websiteEnquiries.ts`](../../../../lib/server/websiteEnquiries.md)
 - [`src/server/agencyWebsite.ts`](../../../../server/agencyWebsite.md)

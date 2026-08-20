@@ -1,4 +1,4 @@
-# `src/lib/clientPortalBuilder.ts`
+# `src/lib/portal/clientPortalBuilder.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -29,5 +29,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/customer/_CustomerPortalChrome.tsx`](../app/portal/customer/_CustomerPortalChrome.md)
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../app/portal/customer/_CustomerPortalViews.md)
 - [`src/app/portal/customer/_PortalPageComposition.tsx`](../app/portal/customer/_PortalPageComposition.md)
-- [`src/lib/clientPortalDesign.ts`](./clientPortalDesign.md)
+- [`src/lib/portal/clientPortalDesign.ts`](./clientPortalDesign.md)
 

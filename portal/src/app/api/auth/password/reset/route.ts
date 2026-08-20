@@ -19,7 +19,7 @@ import { ensureHydrated } from "@/server/storage";
 import {
   verifyPasswordResetToken,
   consumeResetNonce,
-} from "@/lib/server/passwordReset";
+} from "@/lib/server/auth/passwordReset";
 import { getUserById, setUserPassword, validatePassword } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { updateSupabasePassword } from "@/lib/supabase/admin";

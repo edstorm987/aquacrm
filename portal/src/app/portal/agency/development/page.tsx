@@ -1,6 +1,6 @@
-import { summarizeClientTelemetry, type ClientTelemetryEvent } from "@/lib/clientTelemetry";
-import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/firstPartyDevelopmentProjects";
-import { requireRole } from "@/lib/server/auth";
+import { summarizeClientTelemetry, type ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
+import { FIRST_PARTY_DEVELOPMENT_PROJECTS } from "@/lib/projects/firstPartyDevelopmentProjects";
+import { requireRole } from "@/lib/server/auth/auth";
 import { ensureAgencyWebsite } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
@@ -8,7 +8,7 @@ import { listInstalledFor } from "@/server/pluginInstalls";
 import { ensureDefaultDevelopmentWorkflow, listDevelopmentWorkflows, listVisibleDevelopmentResources } from "@/server/developmentToolkit";
 import { listSops } from "@/server/sops";
 import { AGENCY_ROLES } from "@/server/types";
-import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import {
   DevelopmentPortfolio,
   type DevelopmentProjectKind,

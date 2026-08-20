@@ -7,17 +7,13 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Exports (2)
 
 - `dynamic`
-- `default async FindingsPage()`
+- `default async FindingsPage({ searchParams }: { searchParams: SearchParams })`
 
-## Depends on (7)
+## Depends on (3)
 
 - [`src/app/portal/dev-team/_ui.tsx`](../_ui.md)
-- [`src/app/portal/dev-team/findings/_FindingsWorkspace.tsx`](./_FindingsWorkspace.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/devDocs.ts`](../../../../lib/server/devDocs.md)
-- [`src/lib/server/devTeamFindings.ts`](../../../../lib/server/devTeamFindings.md)
-- [`src/server/storage.ts`](../../../../server/storage.md)
-- [`src/server/types.ts`](../../../../server/types.md)
+- [`src/app/portal/dev-team/auditor/_Section.tsx`](../auditor/_Section.md)
+- [`src/app/portal/dev-team/findings/_Section.tsx`](./_Section.md)
 
 ## Used by
 

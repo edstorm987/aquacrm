@@ -10,9 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (4)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/inboxMedia.ts`](../../../../../lib/server/inboxMedia.md)
-- [`src/lib/server/inboxService.ts`](../../../../../lib/server/inboxService.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/inbox/inboxMedia.ts`](../../../../../lib/server/inbox/inboxMedia.md)
+- [`src/lib/server/inbox/inboxService.ts`](../../../../../lib/server/inbox/inboxService.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 
 ## Used by

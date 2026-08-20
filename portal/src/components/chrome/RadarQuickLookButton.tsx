@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Database, LoaderCircle, Radar, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { radarDigest, type AdvisorRadarDigest, type BusinessIssueRadar } from "@/lib/businessRadar";
+import { radarDigest, type AdvisorRadarDigest, type BusinessIssueRadar } from "@/lib/radar/businessRadar";
 
 export function RadarQuickLookButton({ initialRadar }: { initialRadar: AdvisorRadarDigest }) {
   const router = useRouter();

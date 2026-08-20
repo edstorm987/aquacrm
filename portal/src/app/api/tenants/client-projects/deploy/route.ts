@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
-import { deployProjectPreviewToVercel } from "@/lib/server/vercelProjectDeployer";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
+import { deployProjectPreviewToVercel } from "@/lib/server/integrations/vercelProjectDeployer";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency, updateClient } from "@/server/tenants";

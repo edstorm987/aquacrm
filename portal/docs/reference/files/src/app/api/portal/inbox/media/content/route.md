@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/server/inboxMedia.ts`](../../../../../../lib/server/inboxMedia.md)
+- [`src/lib/server/inbox/inboxMedia.ts`](../../../../../../lib/server/inbox/inboxMedia.md)
 
 ## Used by
 

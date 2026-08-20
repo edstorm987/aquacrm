@@ -11,10 +11,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (9)
 
 - [`src/app/connect/[connectionId]/_ConnectFlow.tsx`](./_ConnectFlow.md)
-- [`src/lib/server/auth.ts`](../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
 - [`src/lib/server/connectionConfirmation.ts`](../../../lib/server/connectionConfirmation.md)
-- [`src/lib/server/devMode.ts`](../../../lib/server/devMode.md)
-- [`src/lib/server/portalConnections.ts`](../../../lib/server/portalConnections.md)
+- [`src/lib/server/dev/devMode.ts`](../../../lib/server/dev/devMode.md)
+- [`src/lib/server/portal/portalConnections.ts`](../../../lib/server/portal/portalConnections.md)
 - [`src/server/portalConnectionStore.ts`](../../../server/portalConnectionStore.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

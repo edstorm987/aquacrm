@@ -3,7 +3,7 @@
 // on subsequent state-changing requests.
 
 import { NextResponse } from "next/server";
-import { signCsrfToken, csrfCookie } from "@/lib/server/csrf";
+import { signCsrfToken, csrfCookie } from "@/lib/server/auth/csrf";
 
 export async function GET() {
   const { token } = signCsrfToken();

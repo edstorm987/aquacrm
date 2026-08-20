@@ -1,4 +1,4 @@
-# `src/lib/server/clientProjectProvisioner.ts`
+# `src/lib/server/clients/clientProjectProvisioner.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -17,6 +17,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Used by (3)
 
 - [`src/app/api/tenants/client-projects/provision/route.ts`](../../app/api/tenants/client-projects/provision/route.md)
-- [`src/lib/server/githubProjectPublisher.ts`](./githubProjectPublisher.md)
-- [`src/lib/server/vercelProjectDeployer.ts`](./vercelProjectDeployer.md)
+- [`src/lib/server/integrations/githubProjectPublisher.ts`](./githubProjectPublisher.md)
+- [`src/lib/server/integrations/vercelProjectDeployer.ts`](./vercelProjectDeployer.md)
 

@@ -158,7 +158,7 @@ Reused the **ecommerce plugin's Stripe pattern**, per-plugin.
 A delivered client delight with a cost becomes an **approval-gated ("pending")
 finance expense**. Hook in
 [`api/tenants/client-delight/route.ts`](../../src/app/api/tenants/client-delight/route.ts);
-bridge [`clientDelightExpense.ts`](../../src/lib/server/clientDelightExpense.ts).
+bridge [`clientDelightExpense.ts`](../../src/lib/server/clients/clientDelightExpense.ts).
 **`server/clientDelight.ts` and `server/types.ts` are untouched.** Idempotent via
 the expense `reference` (`delight:<id>`); a **no-op when Finance isn't
 connected** (never fails the delight save).

@@ -1,8 +1,8 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
-import { defaultProductInternalWorkspace, isProductWorkspaceModule } from "@/lib/productInternalWorkspace";
+import { PORTAL_PRODUCT_CATALOG } from "@/lib/portal/portalProducts";
+import { defaultProductInternalWorkspace, isProductWorkspaceModule } from "@/lib/products/productInternalWorkspace";
 import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
 import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule } from "./types";

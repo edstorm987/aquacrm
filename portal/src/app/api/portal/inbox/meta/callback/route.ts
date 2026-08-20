@@ -1,14 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole } from "@/lib/server/auth";
-import { encryptInboxSecret } from "@/lib/server/inboxVault";
-import { saveInboxConnection } from "@/lib/server/inboxStore";
+import { requireRole } from "@/lib/server/auth/auth";
+import { encryptInboxSecret } from "@/lib/server/inbox/inboxVault";
+import { saveInboxConnection } from "@/lib/server/inbox/inboxStore";
 import {
   exchangeMetaOAuthCode,
   readMetaMessagingConfig,
   subscribeMetaWebhooks,
   verifyMetaOAuthState,
-} from "@/lib/server/metaMessaging";
+} from "@/lib/server/integrations/metaMessaging";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 

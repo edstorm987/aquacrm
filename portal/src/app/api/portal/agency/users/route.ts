@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getActiveAgencyId, requireRole } from "@/lib/server/auth";
+import { getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
 import { createUser, getUser, getUserById, listUsersForAgency, updateUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import type { Role, ServerUser } from "@/server/types";

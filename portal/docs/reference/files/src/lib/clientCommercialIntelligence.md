@@ -1,4 +1,4 @@
-# `src/lib/clientCommercialIntelligence.ts`
+# `src/lib/clients/clientCommercialIntelligence.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

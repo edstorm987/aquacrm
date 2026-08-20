@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
-import { isTradingBrandSlug, tradingBrandDefinition, type TradingBrandSlug } from "@/lib/tradingBrands";
+import { isTradingBrandSlug, tradingBrandDefinition, type TradingBrandSlug } from "@/lib/brands/tradingBrands";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/founderSeed";
+import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { logActivity } from "@/server/activity";
@@ -12,11 +12,11 @@ import { getAgencyBySlug } from "@/server/tenants";
 import { getUser } from "@/server/users";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { notifyBrandEnquiry } from "@/lib/server/enquiryNotifications";
-import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/publicSites";
+import { notifyBrandEnquiry } from "@/lib/server/email/enquiryNotifications";
+import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/public/publicSites";
 import { triggerAutomations } from "@/server/automations";
 import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
-import { upsertClientRecordLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { resolveWebsiteSourceRouting } from "@/server/websiteSources";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

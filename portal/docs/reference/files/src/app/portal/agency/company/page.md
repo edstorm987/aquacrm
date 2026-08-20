@@ -12,10 +12,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/company/_CompanyWorkspace.tsx`](./_CompanyWorkspace.md)
 - [`src/app/portal/agency/company/_TradingCompaniesPanel.tsx`](./_TradingCompaniesPanel.md)
-- [`src/lib/companyHealth.ts`](../../../../lib/companyHealth.md)
 - [`src/lib/integrations/catalog.ts`](../../../../lib/integrations/catalog.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/companyHealthSnapshot.ts`](../../../../lib/server/companyHealthSnapshot.md)
+- [`src/lib/performance/companyHealth.ts`](../../../../lib/performance/companyHealth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../../../../lib/server/kpi/companyHealthSnapshot.md)
 - [`src/server/agencyProducts.ts`](../../../../server/agencyProducts.md)
 - [`src/server/agencySettings.ts`](../../../../server/agencySettings.md)
 - [`src/server/legalDocuments.ts`](../../../../server/legalDocuments.md)

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSession } from "@/lib/server/auth";
+import { getSession } from "@/lib/server/auth/auth";
 import { ensurePrimaryAgencyWebsite, websitePageIsUpdating } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { WebsitePageUpdating } from "../WebsitePageUpdating";

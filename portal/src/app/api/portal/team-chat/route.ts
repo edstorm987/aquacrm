@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getActiveAgencyId, requireRole } from "@/lib/server/auth";
+import { getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
 import { ensureDirectChannel, markChannelRead, postPeopleMessage, teamChatSnapshot } from "@/server/people";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 

@@ -13,8 +13,8 @@ import type { ReactNode } from "react";
 
 import Link from "next/link";
 import { Library, FileText, Clock, Folder as FolderIcon, ArrowRight, ArrowLeft } from "lucide-react";
-import type { DevDocsIndex, DevDocEntry } from "@/lib/server/devDocs";
-import { relativeAge, formatUkDateTime } from "@/lib/formatDateTime";
+import type { DevDocsIndex, DevDocEntry } from "@/lib/server/dev/devDocs";
+import { relativeAge, formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { PageHeader, Panel, Pill } from "../_ui";
 import { libraryDocHref } from "./_paths";
 import { LibraryTree } from "./_LibraryTree";

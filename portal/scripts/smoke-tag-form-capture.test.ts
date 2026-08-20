@@ -3,7 +3,7 @@ import test from "node:test";
 import { webcrypto } from "node:crypto";
 import vm from "node:vm";
 
-import { AQUA_TAG_SOURCE } from "../src/lib/aquaTagSource";
+import { AQUA_TAG_SOURCE } from "../src/lib/integrations/aquaTagSource";
 
 /**
  * What the tag does to a real form, run rather than read.

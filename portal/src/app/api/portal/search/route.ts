@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { listClients } from "@/server/tenants";
 import { getState, ensureHydrated } from "@/server/storage";
@@ -12,25 +12,25 @@ import { listLegalDocuments } from "@/server/legalDocuments";
 import { getCompanyProfile } from "@/server/company";
 import { listVisibleDevelopmentResources } from "@/server/developmentToolkit";
 import type { Role } from "@/server/types";
-import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { listNotepadFolders, listNotepadNotes } from "@/server/notepad";
 import { listWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
-import { listInboxSnapshot } from "@/lib/server/inboxStore";
+import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
 import type { InboxSnapshot } from "@/lib/inbox/types";
-import type { BusinessIssueRadar, RadarEvidenceInspectionIndex } from "@/lib/businessRadar";
-import type { CommandIntelligenceSnapshot } from "@/lib/commandIntelligence";
-import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
-import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligence";
-import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
-import { listRadarSourceSearchDatasets, type RadarSourceSearchDataset } from "@/lib/server/radarSourceInspection";
+import type { BusinessIssueRadar, RadarEvidenceInspectionIndex } from "@/lib/radar/businessRadar";
+import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandIntelligence";
+import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligenceService";
+import { inspectRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
+import { listRadarSourceSearchDatasets, type RadarSourceSearchDataset } from "@/lib/server/radar/radarSourceInspection";
 import { listPeopleApplications, listPeopleEmployees, listPeopleLeaveRequests, listPeopleTraining } from "@/server/people";
-import { cleanClientMarketingService } from "@/lib/clientMarketingService";
+import { cleanClientMarketingService } from "@/lib/clients/clientMarketingService";
 import { getInstall } from "@/server/pluginInstalls";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
-import { formatUkDate } from "@/lib/formatDateTime";
-import { cleanClientPaymentPlans, paymentPlanPaid, paymentPlanTotal } from "@/lib/clientPaymentPlans";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { cleanClientPaymentPlans, paymentPlanPaid, paymentPlanTotal } from "@/lib/clients/clientPaymentPlans";
 import { clientRelationshipId } from "@/server/clientRelationships";
 
 export interface GlobalSearchResult {

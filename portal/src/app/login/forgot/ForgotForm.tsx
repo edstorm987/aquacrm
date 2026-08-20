@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AuthBrandId } from "@/lib/authBrand";
+import type { AuthBrandId } from "@/lib/brands/authBrand";
 
 export function ForgotForm({ brand }: { brand: AuthBrandId }) {
   const [email, setEmail] = useState("");

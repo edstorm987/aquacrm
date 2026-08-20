@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { before, test } from "node:test";
 
 import type { Campaign, Lead } from "../src/built-ins/modules/leads-pipeline/src/lib/domain";
-import { buildCommercialIntelligence } from "../src/lib/commercialIntelligence";
+import { buildCommercialIntelligence } from "../src/lib/intelligence/commercialIntelligence";
 import type { Client, Pipeline, PipelineCard } from "../src/server/types";
 
 const now = Date.UTC(2026, 7, 13, 12);
@@ -127,7 +127,7 @@ test("callers that supply no honesty flag keep today's behaviour", () => {
 
 // ── The same honesty, driven through the real server path ────────────────────
 // The `?? 0` that destroyed the distinction lives in
-// `src/lib/server/commandIntelligence.ts`, not in the pure builder above, so
+// `src/lib/server/commandIntelligenceService.ts`, not in the pure builder above, so
 // these run the actual snapshot builder against a real Radar. A source grep
 // would not have caught the original bug and does not prove this fix.
 
@@ -139,9 +139,9 @@ require_.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type RadarModule = typeof import("../src/lib/server/businessIssueRadar");
-type EvidenceVault = typeof import("../src/lib/server/radarEvidenceVault");
-type CommandIntelligence = typeof import("../src/lib/server/commandIntelligence");
+type RadarModule = typeof import("../src/lib/server/radar/businessIssueRadar");
+type EvidenceVault = typeof import("../src/lib/server/radar/radarEvidenceVault");
+type CommandIntelligence = typeof import("../src/lib/server/commandIntelligenceService");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -153,9 +153,9 @@ before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  radarModule = await import("../src/lib/server/businessIssueRadar");
-  evidenceVault = await import("../src/lib/server/radarEvidenceVault");
-  commandIntelligence = await import("../src/lib/server/commandIntelligence");
+  radarModule = await import("../src/lib/server/radar/businessIssueRadar");
+  evidenceVault = await import("../src/lib/server/radar/radarEvidenceVault");
+  commandIntelligence = await import("../src/lib/server/commandIntelligenceService");
   await storage.ensureHydrated();
 });
 

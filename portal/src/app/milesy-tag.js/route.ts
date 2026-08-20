@@ -1,4 +1,4 @@
-import { aquaTagResponse } from "@/lib/aquaTagSource";
+import { aquaTagResponse } from "@/lib/integrations/aquaTagSource";
 
 // Compatibility URL for existing installations. New properties should load
 // /aqua-tag.js; keeping this route avoids losing telemetry during migration.

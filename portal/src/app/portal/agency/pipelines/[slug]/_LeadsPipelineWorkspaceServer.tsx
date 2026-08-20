@@ -1,13 +1,13 @@
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { getInstall } from "@/server/pluginInstalls";
 import { getPipelineBySlug, listCards, listPipelines } from "@/server/pipelines";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
+import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
 
 import { LeadsPipelineWorkspace } from "./_LeadsPipelineWorkspace";
 

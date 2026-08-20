@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getSession } from "@/lib/server/auth";
+import { getSession } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { getClientForAgency } from "@/server/tenants";

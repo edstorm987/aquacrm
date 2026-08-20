@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { seedFounder } from "@/lib/server/founderSeed";
-import { issueSession, sessionCookie } from "@/lib/server/auth";
+import { seedFounder } from "@/lib/server/seeds/founderSeed";
+import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import {
   clientIpFromHeaders,
   isLoginLocked,
@@ -13,13 +13,13 @@ import {
 import { getAgency, listAgencies } from "@/server/tenants";
 import { getUserByLogin } from "@/server/users";
 import { logActivity } from "@/server/activity";
-import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
-import { getAuthBrand, matchAuthBrandAgency } from "@/lib/authBrand";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
+import { getAuthBrand, matchAuthBrandAgency } from "@/lib/brands/authBrand";
 import {
   MFA_LOGIN_REJECTED_MESSAGE,
   loginMfaStep,
   raisedToSecondFactor,
-} from "@/lib/server/mfa";
+} from "@/lib/server/auth/mfa";
 
 interface Body {
   email?: unknown;

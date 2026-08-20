@@ -8,8 +8,8 @@ import { redirect, notFound } from "next/navigation";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
-import { requireRoleForClient } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { requireRoleForClient } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { ALL_ROLES } from "@/server/types";
 import { getClientForAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
@@ -20,20 +20,20 @@ import { NotificationCentreButton } from "@/components/chrome/NotificationCentre
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
 import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
-import { getPreviewPhase, escapeStyleContent, escapeScriptContent } from "@/lib/server/previewPhase";
+import { getPreviewPhase, escapeStyleContent, escapeScriptContent } from "@/lib/server/portal/previewPhase";
 import { getPhaseForClientStage } from "@/server/phases";
 import { resolvePhaseTokens } from "@/server/phaseTokens";
 import { getAgency } from "@/server/tenants";
 import { WelcomeGate } from "@/components/chrome/WelcomeGate";
 import { cookies } from "next/headers";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
-import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
-import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
+import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
+import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPreferences";
 import { ClientRadarQuickLookControl } from "@/components/chrome/ClientRadarQuickLookControl";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { listAgencyProducts } from "@/server/agencyProducts";
-import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
+import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
 
 export default async function ClientLayout({
   children,

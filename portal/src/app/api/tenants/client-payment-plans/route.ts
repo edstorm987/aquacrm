@@ -9,15 +9,15 @@ import {
   type ClientPaymentMilestone,
   type ClientPaymentPlan,
   type ClientPaymentPlanStatus,
-} from "@/lib/clientPaymentPlans";
-import { resolvePortalProductAssignment } from "@/lib/productAssignments";
+} from "@/lib/clients/clientPaymentPlans";
+import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import {
   clientPaymentPlanLedgerEvent,
   synchroniseClientRecordLedger,
   upsertClientInvoiceLedgerEvent,
-} from "@/lib/server/clientRecordLedger";
+} from "@/lib/server/clients/clientRecordLedger";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { ensureDefaultAgencyProducts } from "@/server/agencyProducts";
 import { logActivity } from "@/server/activity";
 import { getInstall } from "@/server/pluginInstalls";

@@ -1,4 +1,4 @@
-# `src/lib/server/csrf.ts`
+# `src/lib/server/auth/csrf.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

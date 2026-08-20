@@ -20,7 +20,7 @@ describe("needs-attention alerts reach the Actions queue", () => {
     // company-membership alerts are `notice` by design, so a recommender that
     // skips notices could never surface them.
     const recommender = readFileSync(
-      join(ROOT, "src", "lib", "businessRecommendedActions.ts"), "utf-8",
+      join(ROOT, "src", "lib", "intelligence", "businessRecommendedActions.ts"), "utf-8",
     );
     assert.match(recommender, /severity === "notice"\) continue/,
       "if this filter is ever removed, revisit the dedupe in _ActionsPage");

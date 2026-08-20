@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 ## Depends on (2)
 
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](./NotificationAttentionProvider.md)
-- [`src/lib/operationalAttention.ts`](../../lib/operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../../lib/intelligence/operationalAttention.md)
 
 ## Used by (1)
 

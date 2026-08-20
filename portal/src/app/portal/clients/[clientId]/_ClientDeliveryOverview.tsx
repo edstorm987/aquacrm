@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Check, CircleAlert, Clock3, FolderKanban, PackageCheck, PanelTop, SlidersHorizontal } from "lucide-react";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { ClientServiceSwitcher } from "./_ClientServiceSwitcher";
 
 export interface ClientDeliveryProduct {

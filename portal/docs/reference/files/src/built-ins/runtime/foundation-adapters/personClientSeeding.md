@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 
 ## Depends on (4)
 
-- [`src/lib/server/seedClientFromPerson.ts`](../../../lib/server/seedClientFromPerson.md)
+- [`src/lib/server/seeds/seedClientFromPerson.ts`](../../../lib/server/seeds/seedClientFromPerson.md)
 - [`src/server/eventBus.ts`](../../../server/eventBus.md)
 - [`src/server/persons.ts`](../../../server/persons.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

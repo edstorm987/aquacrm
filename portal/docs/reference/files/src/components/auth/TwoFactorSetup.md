@@ -8,7 +8,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 - `TwoFactorSetup({ mode, onVerified, }: { /** `enrol` shows the QR first; `challenge` goes straight to the code box. */ mode: "enrol" | "challenge"; onVerified: () => void; })`
 
-## Used by
+## Used by (1)
 
-_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+- [`src/app/portal/account/TwoFactorPanel.tsx`](../../app/portal/account/TwoFactorPanel.md)
 

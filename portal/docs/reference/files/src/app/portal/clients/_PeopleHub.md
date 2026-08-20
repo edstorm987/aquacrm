@@ -17,8 +17,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/clients/_IdentityReviewWorkspace.tsx`](./_IdentityReviewWorkspace.md)
 - [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](../../../built-ins/modules/leads-pipeline/src/lib/domain.md)
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](../../../components/chrome/NotificationAttentionProvider.md)
-- [`src/lib/enquiryClassification.ts`](../../../lib/enquiryClassification.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
+- [`src/lib/enquiries/enquiryClassification.ts`](../../../lib/enquiries/enquiryClassification.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
 ## Used by (1)

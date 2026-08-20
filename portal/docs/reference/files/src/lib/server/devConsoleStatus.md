@@ -1,4 +1,4 @@
-# `src/lib/server/devConsoleStatus.ts`
+# `src/lib/server/dev/devConsoleStatus.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -20,9 +20,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/server/devDocs.ts`](./devDocs.md)
-- [`src/lib/server/devTeamFindings.ts`](./devTeamFindings.md)
-- [`src/lib/server/devTeamWorkers.ts`](./devTeamWorkers.md)
+- [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
+- [`src/lib/server/dev/devTeamFindings.ts`](./devTeamFindings.md)
+- [`src/lib/server/dev/devTeamWorkers.ts`](./devTeamWorkers.md)
 
 ## Used by (5)
 

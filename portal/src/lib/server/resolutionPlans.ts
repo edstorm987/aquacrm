@@ -15,8 +15,8 @@ import "server-only";
 // bar just names the task. That is the common case and needs no ceremony.
 
 import { getClientForAgency } from "@/server/tenants";
-import type { ClientContract } from "@/lib/clientContracts";
-import { cleanClientPaymentPlans } from "@/lib/clientPaymentPlans";
+import type { ClientContract } from "@/lib/clients/clientContracts";
+import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
 import { listPersons } from "@/server/persons";
 import { getOrganisation } from "@/server/organisations";
 import { listAgencyTasks } from "@/server/tasks";
@@ -26,10 +26,10 @@ import type {
   EvidenceRecord,
   ResolutionEvidence,
 } from "@/lib/inbox/resolutionEvidence";
-import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
-import { inspectRadarEvidenceSeries } from "@/lib/server/radarEvidenceVault";
+import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import { inspectRadarEvidenceSeries } from "@/lib/server/radar/radarEvidenceVault";
 import { organisationCandidatesForPerson } from "@/server/organisations";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import type { ResolutionPlan, ResolutionStep } from "@/lib/inbox/resolutionContext";
 import { completionsFor } from "@/server/completedActions";
 import { stepsFor } from "@/lib/inbox/evidenceSteps";
@@ -40,7 +40,7 @@ import {
   type ResolutionExplain,
   type ResolutionRecordLink,
 } from "@/lib/inbox/resolutionExplain";
-import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { getRequestWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
 
 /**

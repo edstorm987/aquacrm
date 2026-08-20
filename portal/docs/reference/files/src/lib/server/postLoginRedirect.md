@@ -1,4 +1,4 @@
-# `src/lib/server/postLoginRedirect.ts`
+# `src/lib/server/auth/postLoginRedirect.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

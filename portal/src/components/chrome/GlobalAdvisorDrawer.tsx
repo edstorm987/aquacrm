@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { BellRing, Sparkles, X } from "lucide-react";
 
 import type { AssistantWorkspaceState } from "@/server/types";
-import type { AdvisorRadarDigest } from "@/lib/businessRadar";
+import type { AdvisorRadarDigest } from "@/lib/radar/businessRadar";
 
 // Lazy-load the Advisor chat. It's a heavy client workspace (~880 lines) that
 // used to be always-mounted (hidden with a CSS transform) on EVERY agency page,

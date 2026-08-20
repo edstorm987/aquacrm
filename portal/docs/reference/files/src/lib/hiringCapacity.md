@@ -1,4 +1,4 @@
-# `src/lib/hiringCapacity.ts`
+# `src/lib/performance/hiringCapacity.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -28,6 +28,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`scripts/hiring-capacity.test.ts`](../../scripts/hiring-capacity.test.md)
 - [`src/app/portal/agency/_BattleTableWorkspace.tsx`](../app/portal/agency/_BattleTableWorkspace.md)
 - [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
-- [`src/lib/server/radarObservations.ts`](./server/radarObservations.md)
+- [`src/lib/server/radar/radarObservations.ts`](./server/radarObservations.md)
 - [`src/server/company.ts`](../server/company.md)
 

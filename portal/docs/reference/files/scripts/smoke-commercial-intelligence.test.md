@@ -9,7 +9,7 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (3)
 
 - [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](../src/built-ins/modules/leads-pipeline/src/lib/domain.md)
-- [`src/lib/commercialIntelligence.ts`](../src/lib/commercialIntelligence.md)
+- [`src/lib/intelligence/commercialIntelligence.ts`](../src/lib/intelligence/commercialIntelligence.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

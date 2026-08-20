@@ -20,9 +20,9 @@ import {
   Settings2,
   SlidersHorizontal,
 } from "lucide-react";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
-import { clientProductStageElapsedMs, type ClientProductProcessEntry, type ClientProductStageHistoryEntry } from "@/lib/clientProductProcess";
-import { productWorkspaceModuleLabel } from "@/lib/productInternalWorkspace";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
+import { clientProductStageElapsedMs, type ClientProductProcessEntry, type ClientProductStageHistoryEntry } from "@/lib/clients/clientProductProcess";
+import { productWorkspaceModuleLabel } from "@/lib/products/productInternalWorkspace";
 import type { AgencyProductWorkspaceModule, AgencyProductWorkspaceStage } from "@/server/types";
 
 export type ClientPlanState = "attention" | "setup" | "active" | "done";

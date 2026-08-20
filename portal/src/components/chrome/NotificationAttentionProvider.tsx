@@ -10,7 +10,7 @@ import {
   type OperationalAlertAction,
   type OperationalAlertCategory,
   type OperationalAlertView,
-} from "@/lib/operationalAttention";
+} from "@/lib/intelligence/operationalAttention";
 import {
   ATTENTION_PROTECTION_EVENT,
   ATTENTION_PROTECTION_STORAGE_KEY,
@@ -18,7 +18,7 @@ import {
   buildOperationalAttentionWindow,
   setAttentionProtectionEnabled,
   type OperationalAttentionWindow,
-} from "@/lib/attentionProtection";
+} from "@/lib/intelligence/attentionProtection";
 
 interface AttentionContextValue {
   alerts: OperationalAlertView[];

@@ -25,16 +25,16 @@ import "server-only";
 // are only present when the caller supplies them (a demo session supplies none),
 // and that is reported as `available: false`, never as "zero enquiries".
 
-import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
-import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligence";
-import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
-import { describeCommandKpis, type KpiDescriptor } from "@/lib/kpiRegistry";
+import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligenceService";
+import { inspectRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
+import { describeCommandKpis, type KpiDescriptor } from "@/lib/performance/kpiRegistry";
 import { listWebsiteSources, normalizeHost } from "@/server/websiteSources";
 import { INJECTION_PROVIDERS, listInjections } from "@/server/websiteInjections";
-import { listIntegrationConnections } from "@/lib/server/integrationConnections";
-import type { BusinessIssueRadar, BusinessRadarCheck, RadarCheckStatus, RadarDomainSummary } from "@/lib/businessRadar";
+import { listIntegrationConnections } from "@/lib/server/integrations/integrationConnections";
+import type { BusinessIssueRadar, BusinessRadarCheck, RadarCheckStatus, RadarDomainSummary } from "@/lib/radar/businessRadar";
 import type { WebsiteSource } from "@/server/websiteSources";
-import type { CommercialSourcePerformance } from "@/lib/commandIntelligence";
+import type { CommercialSourcePerformance } from "@/lib/intelligence/commandIntelligence";
 
 /** The 12 Radar `marketing` families, in the order the workspace reads them. */
 export const MARKETING_MEASURE_IDS = [

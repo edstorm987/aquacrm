@@ -12,8 +12,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (5)
 
 - [`src/lib/integrations/catalog.ts`](../../../../../lib/integrations/catalog.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/integrationConnections.ts`](../../../../../lib/server/integrationConnections.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](../../../../../lib/server/integrations/integrationConnections.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../../server/tenants.md)
 

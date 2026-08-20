@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/formatDateTime";
+import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/shared/formatDateTime";
 
 export type JourneyMeetingKind = "lead" | "contact";
 export type JourneyMeetingMode = "google-meet" | "phone" | "in-person" | "other";

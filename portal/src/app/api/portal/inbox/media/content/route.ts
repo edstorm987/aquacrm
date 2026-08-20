@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { readInboxMedia, verifyInboxMediaToken } from "@/lib/server/inboxMedia";
+import { readInboxMedia, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
 
 export const runtime = "nodejs";
 

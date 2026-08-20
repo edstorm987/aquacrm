@@ -8,14 +8,15 @@
 
 - `default async PortalLayout({ children }: { children: ReactNode })`
 
-## Depends on (9)
+## Depends on (10)
 
 - [`src/components/chrome/ClientWorkspaceTransition.tsx`](../../components/chrome/ClientWorkspaceTransition.md)
 - [`src/components/chrome/CommandCenterTransition.tsx`](../../components/chrome/CommandCenterTransition.md)
 - [`src/components/chrome/DevModeLoadIn.tsx`](../../components/chrome/DevModeLoadIn.md)
 - [`src/components/chrome/DevModeSwitcher.tsx`](../../components/chrome/DevModeSwitcher.md)
 - [`src/components/chrome/SmartWorkSessionMonitor.tsx`](../../components/chrome/SmartWorkSessionMonitor.md)
-- [`src/lib/server/auth.ts`](../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../lib/server/auth/auth.md)
+- [`src/lib/server/dev/devDocs.ts`](../../lib/server/dev/devDocs.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/types.ts`](../../server/types.md)
 - [`src/server/users.ts`](../../server/users.md)

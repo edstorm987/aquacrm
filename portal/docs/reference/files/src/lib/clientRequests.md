@@ -1,4 +1,4 @@
-# `src/lib/clientRequests.ts`
+# `src/lib/clients/clientRequests.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -19,5 +19,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/inbox/page.tsx`](../app/portal/agency/inbox/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/customer/_portalData.ts`](../app/portal/customer/_portalData.md)
-- [`src/lib/server/clientRadar.ts`](./server/clientRadar.md)
+- [`src/lib/server/radar/clientRadarService.ts`](./server/clientRadar.md)
 

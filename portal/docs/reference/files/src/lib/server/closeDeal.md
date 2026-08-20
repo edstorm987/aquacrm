@@ -17,7 +17,7 @@
 - [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](../../built-ins/modules/agency-finance/src/lib/domain.md)
 - [`src/built-ins/modules/agency-finance/src/lib/idempotency.ts`](../../built-ins/modules/agency-finance/src/lib/idempotency.md)
 - [`src/built-ins/modules/agency-finance/src/server/index.ts`](../../built-ins/modules/agency-finance/src/server/index.md)
-- [`src/lib/clientContracts.ts`](../clientContracts.md)
+- [`src/lib/clients/clientContracts.ts`](../clients/clientContracts.md)
 
 ## Used by (2)
 

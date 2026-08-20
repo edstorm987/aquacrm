@@ -1,4 +1,4 @@
-# `src/lib/server/operationalAlertPreferences.ts`
+# `src/lib/server/inbox/operationalAlertPreferences.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/operationalAttention.ts`](../operationalAttention.md)
+- [`src/lib/intelligence/operationalAttention.ts`](../operationalAttention.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/types.ts`](../../server/types.md)
 

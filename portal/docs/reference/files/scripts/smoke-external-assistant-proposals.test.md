@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/businessRadar.ts`](../src/lib/businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](../src/lib/radar/businessRadar.md)
 
 ## Used by
 

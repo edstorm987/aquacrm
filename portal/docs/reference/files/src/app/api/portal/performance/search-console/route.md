@@ -10,10 +10,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (8)
 
-- [`src/lib/clientTelemetry.ts`](../../../../../lib/clientTelemetry.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/googleSearchConsole.ts`](../../../../../lib/server/googleSearchConsole.md)
-- [`src/lib/server/integrationConnections.ts`](../../../../../lib/server/integrationConnections.md)
+- [`src/lib/clients/clientTelemetry.ts`](../../../../../lib/clients/clientTelemetry.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/integrations/googleSearchConsole.ts`](../../../../../lib/server/integrations/googleSearchConsole.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](../../../../../lib/server/integrations/integrationConnections.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/agencyWebsite.ts`](../../../../../server/agencyWebsite.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)

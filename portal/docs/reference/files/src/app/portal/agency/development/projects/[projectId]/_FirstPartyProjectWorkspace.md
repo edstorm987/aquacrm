@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (3)
 
 - [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](../../../../../../built-ins/modules/website-editor/src/lib/devicePresets.md)
-- [`src/lib/aquaExplorerBridge.ts`](../../../../../../lib/aquaExplorerBridge.md)
-- [`src/lib/firstPartyDevelopmentProjects.ts`](../../../../../../lib/firstPartyDevelopmentProjects.md)
+- [`src/lib/integrations/aquaExplorerBridge.ts`](../../../../../../lib/integrations/aquaExplorerBridge.md)
+- [`src/lib/projects/firstPartyDevelopmentProjects.ts`](../../../../../../lib/projects/firstPartyDevelopmentProjects.md)
 
 ## Used by (1)
 

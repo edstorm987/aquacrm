@@ -8,8 +8,8 @@ import {
   isSessionFresh,
   issueSession,
   sessionCookie,
-} from "@/lib/server/auth";
-import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
+} from "@/lib/server/auth/auth";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";

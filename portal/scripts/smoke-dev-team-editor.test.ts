@@ -22,7 +22,7 @@ process.env.PORTAL_BACKEND ??= "memory";
 
 import { POST } from "../src/app/api/portal/dev-team/editor/route";
 import { appConfigEditAdapter } from "../src/lib/server/editing/appConfigAdapter";
-import { issueSession } from "../src/lib/server/auth";
+import { issueSession } from "../src/lib/server/auth/auth";
 import { getAgencyWorkspaceSettings } from "../src/server/agencySettings";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency, getAgency, updateAgency } from "../src/server/tenants";

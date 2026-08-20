@@ -9,9 +9,9 @@ import type { ReactNode } from "react";
 
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { devDocsAccessible, listDevDocs, readDevDoc } from "@/lib/server/devDocs";
+import { devDocsAccessible, listDevDocs, readDevDoc } from "@/lib/server/dev/devDocs";
 import { LibraryIndexView, LibraryRecentView } from "./_LibraryIndex";
 import { LibraryDocViewer } from "./_LibraryDocViewer";
 

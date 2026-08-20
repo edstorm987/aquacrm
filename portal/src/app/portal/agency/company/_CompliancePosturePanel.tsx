@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ChevronDown, CircleHelp, ShieldAlert, ShieldCheck, TriangleAlert, UserRoundCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import type { ComplianceControl, CompliancePosture, ControlStatus } from "@/lib/compliancePosture";
+import type { ComplianceControl, CompliancePosture, ControlStatus } from "@/lib/compliance/compliancePosture";
 
 /**
  * The KNOW side: "where am I exposed, and what is still missing?"

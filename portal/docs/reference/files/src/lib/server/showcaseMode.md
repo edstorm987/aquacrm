@@ -1,4 +1,4 @@
-# `src/lib/server/showcaseMode.ts`
+# `src/lib/server/auth/showcaseMode.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -15,7 +15,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (16)
 
 - [`src/built-ins/runtime/_runtime.ts`](../../built-ins/runtime/_runtime.md)
-- [`src/lib/clientTelemetry.ts`](../clientTelemetry.md)
+- [`src/lib/clients/clientTelemetry.ts`](../clientTelemetry.md)
 - [`src/lib/server/pluginStorage.ts`](./pluginStorage.md)
 - [`src/server/agencyBootstrap.ts`](../../server/agencyBootstrap.md)
 - [`src/server/agencyProducts.ts`](../../server/agencyProducts.md)

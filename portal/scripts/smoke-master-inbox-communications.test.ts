@@ -24,9 +24,9 @@ test("Master Inbox exposes one contact-aware composer for every enquiry view", (
 
 test("send-as accounts are workspace validated and provider backed", () => {
   const catalogue = read("src/lib/integrations/catalog.ts");
-  const senders = read("src/lib/server/outboundCommunications.ts");
+  const senders = read("src/lib/server/email/outboundCommunications.ts");
   const route = read("src/app/api/portal/website-enquiries/communications/route.ts");
-  const email = read("src/lib/server/transactionalEmail.ts");
+  const email = read("src/lib/server/email/transactionalEmail.ts");
   assert.match(catalogue, /id: "smtp"/);
   assert.match(catalogue, /id: "twilio"/);
   assert.match(senders, /resolveCommunicationSender/);

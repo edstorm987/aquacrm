@@ -15,9 +15,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/clients/[clientId]/_FinanceTabClient.tsx`](./[clientId]/_FinanceTabClient.md)
 - [`src/app/portal/clients/[clientId]/_PaymentPlansPanel.tsx`](./[clientId]/_PaymentPlansPanel.md)
 - [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](./_JourneyMeetingsWorkspace.md)
-- [`src/lib/clientAquaHealth.ts`](../../../lib/clientAquaHealth.md)
-- [`src/lib/clientContracts.ts`](../../../lib/clientContracts.md)
-- [`src/lib/clientPaymentPlans.ts`](../../../lib/clientPaymentPlans.md)
+- [`src/lib/clients/clientAquaHealth.ts`](../../../lib/clients/clientAquaHealth.md)
+- [`src/lib/clients/clientContracts.ts`](../../../lib/clients/clientContracts.md)
+- [`src/lib/clients/clientPaymentPlans.ts`](../../../lib/clients/clientPaymentPlans.md)
 
 ## Used by (1)
 

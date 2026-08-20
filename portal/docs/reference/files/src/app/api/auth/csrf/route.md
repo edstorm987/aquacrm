@@ -10,7 +10,7 @@
 
 ## Depends on (1)
 
-- [`src/lib/server/csrf.ts`](../../../../lib/server/csrf.md)
+- [`src/lib/server/auth/csrf.ts`](../../../../lib/server/auth/csrf.md)
 
 ## Used by
 

@@ -6,7 +6,7 @@ import "server-only";
 // evicted on append.
 
 import crypto from "crypto";
-import { appendActivityToClientRecordLedger } from "@/lib/server/clientRecordLedger";
+import { appendActivityToClientRecordLedger } from "@/lib/server/clients/clientRecordLedger";
 import { getState, mutate } from "./storage";
 import type { ActivityCategory, ActivityEntry } from "./types";
 

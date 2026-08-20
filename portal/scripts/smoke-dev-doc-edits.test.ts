@@ -47,7 +47,7 @@ writeFileSync(join(OUTSIDE, "secret.md"), "# secret\n", "utf8");
 
 process.chdir(SANDBOX);
 
-const edits = require_("../src/lib/server/devDocEdits") as typeof import("../src/lib/server/devDocEdits");
+const edits = require_("../src/lib/server/dev/devDocEdits") as typeof import("../src/lib/server/dev/devDocEdits");
 const { saveDevDoc, docHistory, recentDocEdits } = edits;
 
 const LEDGER = join(SANDBOX, ".data", "dev-doc-edits.json");

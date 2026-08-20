@@ -11,8 +11,8 @@ import "server-only";
 // (guess-then-confirm). If the radar can't build, we degrade to an empty
 // snapshot rather than break the People page.
 
-import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
-import type { BusinessIssueRadar, BusinessRadarCheck, RadarCheckStatus, RadarDomainSummary } from "@/lib/businessRadar";
+import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import type { BusinessIssueRadar, BusinessRadarCheck, RadarCheckStatus, RadarDomainSummary } from "@/lib/radar/businessRadar";
 
 export interface StaffCapacitySignal {
   familyId: string;

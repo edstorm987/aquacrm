@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/aquaExplorerBridge.ts`](../src/lib/aquaExplorerBridge.md)
-- [`src/lib/aquaTagSource.ts`](../src/lib/aquaTagSource.md)
+- [`src/lib/integrations/aquaExplorerBridge.ts`](../src/lib/integrations/aquaExplorerBridge.md)
+- [`src/lib/integrations/aquaTagSource.ts`](../src/lib/integrations/aquaTagSource.md)
 
 ## Used by
 

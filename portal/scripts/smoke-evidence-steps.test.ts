@@ -8,7 +8,7 @@ import { stepsFor } from "../src/lib/inbox/evidenceSteps";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), "utf-8");
-const source = read("src", "lib", "server", "operationalAlerts.ts");
+const source = read("src", "lib", "server", "inbox", "operationalAlerts.ts");
 
 function emittedFamilies(): string[] {
   const ids = new Set<string>();

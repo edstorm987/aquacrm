@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (5)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/devDocs.ts`](../../../../../lib/server/devDocs.md)
-- [`src/lib/server/devTeamWorkers.ts`](../../../../../lib/server/devTeamWorkers.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../../../lib/server/dev/devDocs.md)
+- [`src/lib/server/dev/devTeamWorkers.ts`](../../../../../lib/server/dev/devTeamWorkers.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 

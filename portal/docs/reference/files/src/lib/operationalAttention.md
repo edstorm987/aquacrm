@@ -1,4 +1,4 @@
-# `src/lib/operationalAttention.ts`
+# `src/lib/intelligence/operationalAttention.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -35,13 +35,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](../components/chrome/NotificationAttentionProvider.md)
 - [`src/components/chrome/NotificationCentreButton.tsx`](../components/chrome/NotificationCentreButton.md)
 - [`src/components/chrome/SidebarNavLink.tsx`](../components/chrome/SidebarNavLink.md)
-- [`src/lib/attentionProtection.ts`](./attentionProtection.md)
-- [`src/lib/businessRecommendedActions.ts`](./businessRecommendedActions.md)
+- [`src/lib/intelligence/attentionProtection.ts`](./attentionProtection.md)
+- [`src/lib/intelligence/businessRecommendedActions.ts`](./businessRecommendedActions.md)
 - [`src/lib/inbox/attentionResolution.ts`](./inbox/attentionResolution.md)
 - [`src/lib/inbox/attentionThread.ts`](./inbox/attentionThread.md)
 - [`src/lib/inbox/resolutionFocus.ts`](./inbox/resolutionFocus.md)
-- [`src/lib/server/externalAdvisorContext.ts`](./server/externalAdvisorContext.md)
-- [`src/lib/server/operationalAlertPreferences.ts`](./server/operationalAlertPreferences.md)
-- [`src/lib/server/operationalAlerts.ts`](./server/operationalAlerts.md)
+- [`src/lib/server/assistants/externalAdvisorContext.ts`](./server/externalAdvisorContext.md)
+- [`src/lib/server/inbox/operationalAlertPreferences.ts`](./server/operationalAlertPreferences.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./server/operationalAlerts.md)
 - [`src/lib/server/sidebarAttention.ts`](./server/sidebarAttention.md)
 

@@ -1,4 +1,4 @@
-import type { RadarFindingGroupSummary } from "@/lib/businessRadar";
+import type { RadarFindingGroupSummary } from "@/lib/radar/businessRadar";
 
 // "What kind of problem" bar (radar upgrade Stage 5). Shows the top-level
 // finding buckets — Infrastructure / Commercial / Compliance / Delivery /

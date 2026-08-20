@@ -2,7 +2,7 @@
 
 import { Check, CreditCard, ExternalLink, FilePenLine, Landmark, Mail, Plus, ReceiptText, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
+import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 
 type Party = {
   kind: "lead" | "contact";

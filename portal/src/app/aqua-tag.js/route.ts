@@ -1,4 +1,4 @@
-import { aquaTagResponse } from "@/lib/aquaTagSource";
+import { aquaTagResponse } from "@/lib/integrations/aquaTagSource";
 
 export async function GET() {
   return aquaTagResponse();

@@ -3,8 +3,8 @@ import { buildBudgetPotSnapshots } from "../lib/budgetHealth";
 import { normaliseCurrency } from "../lib/currencies";
 import { containerFor } from "../server/foundationAdapter";
 import { BudgetPotsWorkspace } from "../components/BudgetPotsWorkspace";
-import { listAgencyCampaignBudgetRecords } from "@/lib/server/financeBudgetCampaigns";
-import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
+import { listAgencyCampaignBudgetRecords } from "@/lib/server/finance/financeBudgetCampaigns";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 
 export const API_BASE = "/api/portal/agency-finance";

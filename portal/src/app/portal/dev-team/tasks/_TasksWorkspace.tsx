@@ -8,8 +8,8 @@ import {
   MessageSquarePlus, Send, UserRound,
 } from "lucide-react";
 
-import type { PlanTasks, DevTask, TaskState } from "@/lib/server/devTeamTasks";
-import type { Thought } from "@/lib/server/devTeamThoughts";
+import type { PlanTasks, DevTask, TaskState } from "@/lib/server/dev/devTeamTasks";
+import type { Thought } from "@/lib/server/dev/devTeamThoughts";
 
 import { dropLanded, mergeThoughts } from "./_thoughtMerge";
 

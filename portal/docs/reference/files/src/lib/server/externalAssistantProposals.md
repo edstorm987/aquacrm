@@ -1,4 +1,4 @@
-# `src/lib/server/externalAssistantProposals.ts`
+# `src/lib/server/assistants/externalAssistantProposals.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -24,6 +24,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/external-ai/proposals/route.ts`](../../app/api/portal/external-ai/proposals/route.md)
 - [`src/app/api/v1/actions/proposals/route.ts`](../../app/api/v1/actions/proposals/route.md)
 - [`src/app/portal/agency/actions/_ActionsPage.tsx`](../../app/portal/agency/actions/_ActionsPage.md)
-- [`src/lib/server/externalAssistantMcp.ts`](./externalAssistantMcp.md)
-- [`src/lib/server/operationalAlerts.ts`](./operationalAlerts.md)
+- [`src/lib/server/assistants/externalAssistantMcp.ts`](./externalAssistantMcp.md)
+- [`src/lib/server/inbox/operationalAlerts.ts`](./operationalAlerts.md)
 

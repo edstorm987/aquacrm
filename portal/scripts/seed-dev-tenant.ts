@@ -22,7 +22,7 @@ async function main() {
     upsertPerson, classifyPerson, decidePersonOrganisation, addPersonPhone, updatePerson,
   } = await import("@/server/persons");
   const { upsertOrganisation } = await import("@/server/organisations");
-  const { DEV_AGENCY_NAME, DEV_AGENCY_SLUG } = await import("@/lib/server/devMode");
+  const { DEV_AGENCY_NAME, DEV_AGENCY_SLUG } = await import("@/lib/server/dev/devMode");
 
   await ensureHydrated();
 

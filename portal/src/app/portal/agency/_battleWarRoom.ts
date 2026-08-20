@@ -14,7 +14,7 @@
 // when the evidence is missing the state is `learning`, and when no target has
 // been set the state is `no-target` — never a healthy pass.
 
-import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, type HiringCapacityAnalysis, type HiringCapacitySignals } from "@/lib/hiringCapacity";
+import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, type HiringCapacityAnalysis, type HiringCapacitySignals } from "@/lib/performance/hiringCapacity";
 import type { CompanyProfile } from "@/server/types";
 
 /** Where a scope (or a metric) stands against its own target. */

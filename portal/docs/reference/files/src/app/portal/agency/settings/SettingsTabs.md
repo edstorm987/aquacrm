@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx`](./ExternalAiConnectionPanel.md)
 - [`src/app/portal/agency/settings/ShowcaseModePanel.tsx`](./ShowcaseModePanel.md)
 - [`src/app/portal/agency/settings/TeamUsersPanel.tsx`](./TeamUsersPanel.md)
-- [`src/lib/releases.ts`](../../../../lib/releases.md)
+- [`src/lib/projects/releases.ts`](../../../../lib/projects/releases.md)
 - [`src/lib/server/productionReadiness.ts`](../../../../lib/server/productionReadiness.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

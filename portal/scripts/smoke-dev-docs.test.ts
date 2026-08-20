@@ -27,8 +27,8 @@ import {
   buildDocTree,
   parseBlockers,
   scanBlockers,
-} from "../src/lib/server/devDocs";
-import { relativeAge } from "../src/lib/formatDateTime";
+} from "../src/lib/server/dev/devDocs";
+import { relativeAge } from "../src/lib/shared/formatDateTime";
 import { ensureHydrated } from "../src/server/storage";
 import type { SessionPayload } from "../src/server/types";
 

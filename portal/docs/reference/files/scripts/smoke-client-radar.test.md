@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/clientAquaHealth.ts`](../src/lib/clientAquaHealth.md)
-- [`src/lib/clientRadar.ts`](../src/lib/clientRadar.md)
+- [`src/lib/clients/clientAquaHealth.ts`](../src/lib/clients/clientAquaHealth.md)
+- [`src/lib/radar/clientRadar.ts`](../src/lib/radar/clientRadar.md)
 
 ## Used by
 

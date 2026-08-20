@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BookOpen, Download, Settings2 } from "lucide-react";
-import { clientWorkspaceHref } from "@/lib/clientWorkspace";
+import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 interface ProductSopLinks {
   id: string;

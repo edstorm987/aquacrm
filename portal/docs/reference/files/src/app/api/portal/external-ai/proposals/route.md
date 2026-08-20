@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (3)
 
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
-- [`src/lib/server/externalAssistantProposals.ts`](../../../../../lib/server/externalAssistantProposals.md)
+- [`src/lib/server/assistants/externalAssistantProposals.ts`](../../../../../lib/server/assistants/externalAssistantProposals.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 
 ## Used by

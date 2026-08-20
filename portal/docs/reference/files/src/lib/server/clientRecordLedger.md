@@ -1,4 +1,4 @@
-# `src/lib/server/clientRecordLedger.ts`
+# `src/lib/server/clients/clientRecordLedger.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -50,8 +50,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/tenants/client-record/route.ts`](../../app/api/tenants/client-record/route.md)
 - [`src/app/api/tenants/client-requests/route.ts`](../../app/api/tenants/client-requests/route.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
-- [`src/lib/server/inboxService.ts`](./inboxService.md)
-- [`src/lib/server/seedClientFromPerson.ts`](./seedClientFromPerson.md)
+- [`src/lib/server/inbox/inboxService.ts`](./inboxService.md)
+- [`src/lib/server/seeds/seedClientFromPerson.ts`](./seedClientFromPerson.md)
 - [`src/lib/server/websiteEnquiries.ts`](./websiteEnquiries.md)
 - [`src/server/activity.ts`](../../server/activity.md)
 - [`src/server/clientMilestones.ts`](../../server/clientMilestones.md)

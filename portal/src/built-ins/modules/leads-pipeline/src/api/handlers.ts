@@ -12,9 +12,9 @@ import { setupClientStarterPortal } from "@/server/clientPortalSetup";
 import {
   clientDeliveryPackageMetadata,
   customerPortalProvisioningMetadata,
-} from "@/lib/server/customerPortalProvisioning";
-import { cleanPortalProducts, type PortalProductKey, type PortalProductSelection } from "@/lib/portalProducts";
-import { resolveAgencyProductAssignment } from "@/lib/productAssignments";
+} from "@/lib/server/clients/customerPortalProvisioning";
+import { cleanPortalProducts, type PortalProductKey, type PortalProductSelection } from "@/lib/portal/portalProducts";
+import { resolveAgencyProductAssignment } from "@/lib/products/productAssignments";
 import { listAgencyProducts } from "@/server/agencyProducts";
 import { clientMatchesContact, clientMatchesLead } from "../lib/clientMatch";
 import { getState, mutate } from "@/server/storage";
@@ -23,7 +23,7 @@ import { isoDateTimeValue } from "../lib/safeDate";
 import { parseCsv } from "../server/csv";
 import type { PortalState } from "@/server/types";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { resolveIntegrationValues } from "@/lib/server/integrationConnections";
+import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { recordWebsiteEnquiryResponse } from "@/lib/server/websiteEnquiries";
 import type {
   AudienceFilter,

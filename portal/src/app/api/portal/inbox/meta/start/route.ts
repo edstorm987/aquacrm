@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole, authErrorResponse } from "@/lib/server/auth";
-import { buildMetaAuthorizeUrl, createMetaOAuthState, readMetaMessagingConfig } from "@/lib/server/metaMessaging";
+import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { buildMetaAuthorizeUrl, createMetaOAuthState, readMetaMessagingConfig } from "@/lib/server/integrations/metaMessaging";
 import { ensureHydrated } from "@/server/storage";
 
 export async function GET(request: NextRequest) {

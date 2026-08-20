@@ -4,22 +4,13 @@
 
 _No file-level doc-comment. Purpose inferred from its path (Plugins — src/built-ins/) and its exports below._
 
-## Exports (7)
-
-- `visitorId(): string`
-- `sessionId(): string`
-- `interface ResolvedVariant (2 members)`
-- `resolveVariant({ block, groupId, trafficPercent = 100, stickyBy = "visitor" }: ResolveInput): ResolvedVariant`
-- `applyVariant(block: Block, variant: BlockVariant | null): Block`
-- `recordExposure(groupId: string, variantId: string)`
-- `recordConversion(groupId: string, variantId: string)`
+_No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/built-ins/modules/website-editor/src/types/block.ts`](../types/block.md)
+- [`src/lib/elements/variantResolver.ts`](../../../../../lib/elements/variantResolver.md)
 
-## Used by (2)
+## Used by (1)
 
-- [`src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`](./BlockRenderer.md)
 - [`src/built-ins/modules/website-editor/src/components/index.ts`](./index.md)
 

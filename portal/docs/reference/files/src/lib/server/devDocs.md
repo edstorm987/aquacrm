@@ -1,4 +1,4 @@
-# `src/lib/server/devDocs.ts`
+# `src/lib/server/dev/devDocs.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -23,8 +23,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/server/devModeAccess.ts`](./devModeAccess.md)
-- [`src/lib/server/effectiveRole.ts`](./effectiveRole.md)
+- [`src/lib/server/dev/devModeAccess.ts`](./devModeAccess.md)
+- [`src/lib/server/auth/effectiveRole.ts`](./effectiveRole.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (47)
@@ -66,14 +66,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/dev-team/tasks/page.tsx`](../../app/portal/dev-team/tasks/page.md)
 - [`src/app/portal/dev-team/updates/page.tsx`](../../app/portal/dev-team/updates/page.md)
 - [`src/app/portal/dev-team/working/page.tsx`](../../app/portal/dev-team/working/page.md)
-- [`src/lib/server/devConsoleStatus.ts`](./devConsoleStatus.md)
-- [`src/lib/server/devDocEdits.ts`](./devDocEdits.md)
-- [`src/lib/server/devTeamAuditor.ts`](./devTeamAuditor.md)
-- [`src/lib/server/devTeamBoard.ts`](./devTeamBoard.md)
-- [`src/lib/server/devTeamFindings.ts`](./devTeamFindings.md)
-- [`src/lib/server/devTeamPlans.ts`](./devTeamPlans.md)
-- [`src/lib/server/devTeamTasks.ts`](./devTeamTasks.md)
-- [`src/lib/server/devTeamThoughts.ts`](./devTeamThoughts.md)
-- [`src/lib/server/devTeamUpdates.ts`](./devTeamUpdates.md)
-- [`src/lib/server/devTeamWorkers.ts`](./devTeamWorkers.md)
+- [`src/lib/server/dev/devConsoleStatus.ts`](./devConsoleStatus.md)
+- [`src/lib/server/dev/devDocEdits.ts`](./devDocEdits.md)
+- [`src/lib/server/dev/devTeamAuditor.ts`](./devTeamAuditor.md)
+- [`src/lib/server/dev/devTeamBoard.ts`](./devTeamBoard.md)
+- [`src/lib/server/dev/devTeamFindings.ts`](./devTeamFindings.md)
+- [`src/lib/server/dev/devTeamPlans.ts`](./devTeamPlans.md)
+- [`src/lib/server/dev/devTeamTasks.ts`](./devTeamTasks.md)
+- [`src/lib/server/dev/devTeamThoughts.ts`](./devTeamThoughts.md)
+- [`src/lib/server/dev/devTeamUpdates.ts`](./devTeamUpdates.md)
+- [`src/lib/server/dev/devTeamWorkers.ts`](./devTeamWorkers.md)
 

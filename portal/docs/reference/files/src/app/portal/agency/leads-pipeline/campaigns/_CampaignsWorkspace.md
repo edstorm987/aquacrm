@@ -13,7 +13,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/leads-pipeline/_WorkflowSteps.tsx`](../_WorkflowSteps.md)
 - [`src/app/portal/agency/leads-pipeline/campaigns/_CampaignCreativeStudio.tsx`](./_CampaignCreativeStudio.md)
-- [`src/lib/formatDateTime.ts`](../../../../../lib/formatDateTime.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../../lib/shared/formatDateTime.md)
 
 ## Used by (2)
 

@@ -33,7 +33,7 @@ import {
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { ensureHydrated } from "@/server/storage";
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { getClientForAgency } from "@/server/tenants";
 import type { Client } from "@/server/types";
 import {
@@ -56,20 +56,20 @@ import {
   portalProductDefinition,
   portalProjectLabel,
   type PortalProductSelection,
-} from "@/lib/portalProducts";
-import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle, portalProductModule, portalProductModulePage, type PortalProductLifecycleStage } from "@/lib/portalProductModules";
-import { portalWorkspaceProgress, type PortalProductWorkspace } from "@/lib/portalProductWorkspaces";
+} from "@/lib/portal/portalProducts";
+import { PORTAL_PROGRAMME_LIFECYCLE, portalProductLifecycle, portalProductModule, portalProductModulePage, type PortalProductLifecycleStage } from "@/lib/portal/portalProductModules";
+import { portalWorkspaceProgress, type PortalProductWorkspace } from "@/lib/portal/portalProductWorkspaces";
 import { ProductWorkspaceApplication, type ProductWorkspaceRole } from "./_ProductWorkspaceApplication";
-import { buildPerformanceAnalytics } from "@/lib/performanceAnalytics";
-import type { PerformanceEvent } from "@/lib/performanceAnalytics";
-import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@/lib/performanceReports";
-import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
+import { buildPerformanceAnalytics } from "@/lib/performance/performanceAnalytics";
+import type { PerformanceEvent } from "@/lib/performance/performanceAnalytics";
+import { cleanMonthlyPerformanceReports, type MonthlyPerformanceReport } from "@/lib/performance/performanceReports";
+import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import { listClientMilestones } from "@/server/clientMilestones";
-import { getAuthBrand } from "@/lib/authBrand";
-import { resolveClientPortalProvider } from "@/lib/server/clientPortalProvider";
-import { formatPortalCopy } from "@/lib/clientPortalDesign";
-import { portalCustomPage } from "@/lib/clientPortalBuilder";
-import { formatUkDate, formatUkDateTime } from "@/lib/formatDateTime";
+import { getAuthBrand } from "@/lib/brands/authBrand";
+import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
+import { formatPortalCopy } from "@/lib/portal/clientPortalDesign";
+import { portalCustomPage } from "@/lib/portal/clientPortalBuilder";
+import { formatUkDate, formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { PortalPageComposition } from "./_PortalPageComposition";
 
 export type CustomerPortalSection = "home" | "project" | "results" | "files" | "billing" | "support" | "resources" | "details" | "service" | "custom";

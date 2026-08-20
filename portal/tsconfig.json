@@ -215,7 +215,9 @@
     ".next-onboard/types/**/*.ts",
     ".next-onboard/dev/types/**/*.ts",
     ".next-compliance/types/**/*.ts",
-    ".next-compliance/dev/types/**/*.ts"
+    ".next-compliance/dev/types/**/*.ts",
+    ".next-verify/types/**/*.ts",
+    ".next-verify/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

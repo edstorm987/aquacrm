@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (6)
 
 - [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](../../../../built-ins/runtime/foundation-adapters/ecommerceFoundation.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/pluginInstalls.ts`](../../../../server/pluginInstalls.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 

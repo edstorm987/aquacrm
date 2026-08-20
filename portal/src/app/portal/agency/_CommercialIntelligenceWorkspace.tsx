@@ -26,8 +26,8 @@ import type {
   CommercialPersonRow,
   CommercialRecordState,
   CommandKpiStatus,
-} from "@/lib/commandIntelligence";
-import type { CommercialIntelligenceSnapshotWithMeasurement } from "@/lib/commercialIntelligence";
+} from "@/lib/intelligence/commandIntelligence";
+import type { CommercialIntelligenceSnapshotWithMeasurement } from "@/lib/intelligence/commercialIntelligence";
 
 /**
  * The lineage honesty flags are optional on the wire, so a snapshot built

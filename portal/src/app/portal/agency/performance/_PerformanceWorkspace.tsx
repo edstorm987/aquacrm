@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Activity, AlertTriangle, BarChart3, Check, ChevronRight, CircleGauge, Code2, ExternalLink, FileCheck2, FolderOpen, Gauge, Globe2, HeartPulse, Image, MousePointerClick, Plus, Search, Server, Target, Trash2, UsersRound, X } from "lucide-react";
 import type { ClientMilestone, ClientMilestoneStatus, PerformanceExperiment } from "@/server/types";
-import type { PerformanceAnalytics } from "@/lib/performanceAnalytics";
-import type { MonthlyPerformanceReport } from "@/lib/performanceReports";
+import type { PerformanceAnalytics } from "@/lib/performance/performanceAnalytics";
+import type { MonthlyPerformanceReport } from "@/lib/performance/performanceReports";
 import { ExperimentsPanel } from "./_ExperimentsPanel";
 import { AquaTagDashboard } from "./_AquaTagDashboard";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export interface PerformanceProduct {
   id: string;

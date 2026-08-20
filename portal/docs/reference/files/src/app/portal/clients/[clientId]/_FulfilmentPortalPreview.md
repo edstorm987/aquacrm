@@ -13,7 +13,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (2)
 
 - [`src/app/api/tenants/client-approvals/route.ts`](../../../api/tenants/client-approvals/route.md)
-- [`src/lib/portalProducts.ts`](../../../../lib/portalProducts.md)
+- [`src/lib/portal/portalProducts.ts`](../../../../lib/portal/portalProducts.md)
 
 ## Used by (1)
 

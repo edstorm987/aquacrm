@@ -1,4 +1,4 @@
-# `src/lib/clientRelationshipRecord.ts`
+# `src/lib/clients/clientRelationshipRecord.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

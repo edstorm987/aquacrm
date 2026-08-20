@@ -8,8 +8,8 @@ import {
   isAquaExplorerDiagnosticsMessage,
   isAquaExplorerReadyMessage,
   isAquaExplorerSelectedMessage,
-} from "../src/lib/aquaExplorerBridge";
-import { AQUA_TAG_SOURCE } from "../src/lib/aquaTagSource";
+} from "../src/lib/integrations/aquaExplorerBridge";
+import { AQUA_TAG_SOURCE } from "../src/lib/integrations/aquaTagSource";
 
 test("Project Explorer recognises valid tag bridge messages", () => {
   assert.equal(isAquaExplorerReadyMessage({

@@ -1,15 +1,15 @@
-# Plan — Connect flow: real emailed codes  🔴 blocker
+# Plan — Connect flow: real emailed codes  ✅ shipped
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
 **Status: ✅ SHIPPED — all four phases (2026-08-19), code-complete and server-runtime-verified.** A mail sender is now connected (RESEND_API_KEY + MILESYMEDIA_FROM_EMAIL are set) — the one gate left is the code-step browser walk, tracked on the roadmap under `verify-sweep` and unblocked by `npm run sandbox:fork`.
-dev bypass is replaced by a real emailed confirmation code. Two things stand
-between this and "done for a real customer": **(1) a Resend/SMTP sender must be
-connected** for the agency (an ops step, not code), and **(2) the code-step
-browser click-through** hasn't been walked (the connect page renders live in the
-real runtime with these changes — verified, no console errors — but reaching the
-code screen needs a seeded connection + customer session, deferred off the
-Commander's shared `:3032` server). The server flow is runtime-verified 13/13.
+The dev bypass is replaced by a real emailed confirmation code.
+
+_Corrected 2026-08-20 — the paragraph here used to list two things standing between this and "done for a real customer". **One of the two has closed, and the other is no longer blocked:**_
+- ~~**(1) a Resend/SMTP sender must be connected**~~ — ✅ **done.** `RESEND_API_KEY` and `MILESYMEDIA_FROM_EMAIL` are set, and `inspectProductionReadiness` reports the `email` row **ready** (`src/lib/server/productionReadiness.ts:140–144`).
+- **(2) the code-step browser click-through** — still unwalked, but it is no longer "deferred off the Commander's shared `:3032` server": `npm run sandbox:fork` gives any worker its own port and state file. Reaching the code screen still needs a seeded connection + a customer session. Tracked on the roadmap under `verify-sweep`.
+
+The connect page renders live in the real runtime with these changes (verified, no console errors), and the server flow is runtime-verified 13/13. **The `🔴 blocker` badge that used to sit in this plan's title was wrong and has been removed** — it is exactly the kind of stale marker that sends a worker to re-fix shipped code.
 
 **Decisions made (Ed):** 6-digit numeric code · 15-min TTL · **keep** the
 `00000` stand-in, only behind the existing dev-mode gate (not removed).
@@ -76,7 +76,7 @@ no git to recover from. Before assigning this plan, check these paths against ev
 plan in flight._
 
 - `src/lib/server/connectionConfirmation.ts`
-- `src/lib/server/portalConnections.ts`
+- `src/lib/server/portal/portalConnections.ts`
 - `src/app/connect/[connectionId]/_ConnectFlow.tsx`
 - `src/app/connect/[connectionId]/page.tsx`
 - `src/app/api/portal/connections/request-code/route.ts`

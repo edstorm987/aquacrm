@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { formatElapsed, leadTimingSnapshot } from "../src/lib/leadTiming";
+import { formatElapsed, leadTimingSnapshot } from "../src/lib/enquiries/leadTiming";
 import { LeadService, normalizeLeadJourney } from "../src/built-ins/modules/leads-pipeline/src/server/leads";
 import type { Lead } from "../src/built-ins/modules/leads-pipeline/src/lib/domain";
 import type { PluginStorage } from "../src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes";
@@ -125,7 +125,7 @@ describe("lead wait-time tracing", () => {
       readFile(new URL("../src/app/portal/agency/pipelines/[slug]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/inbox/_MasterInbox.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/inbox/_EnquiryDetailCard.tsx", import.meta.url), "utf8"),
-      readFile(new URL("../src/lib/server/operationalAlerts.ts", import.meta.url), "utf8"),
+      readFile(new URL("../src/lib/server/inbox/operationalAlerts.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/portal/website-enquiries/status/route.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/built-ins/modules/leads-pipeline/src/api/handlers.ts", import.meta.url), "utf8"),
     ]);

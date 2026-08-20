@@ -131,7 +131,10 @@ protocol `2025-11-25`. Tools filtered by the key's permissions:
 
 `export:read` is not a tool — it toggles `capabilities.export:[json,csv]`.
 
-**Where to see this live.** `/portal/dev-team/api` ("API & MCP") renders the real
+**Where to see this live.** **Dev Console → Tools → API & MCP**
+(`/portal/dev-team/tools?view=api`; the old `/portal/dev-team/api` is a redirect
+stub onto it since 2026-08-20, and the code is still `dev-team/api/_Section.tsx`)
+renders the real
 handshake and the actual `listExternalAssistantMcpTools()` result for a selected
 key, so the table above can be checked rather than trusted. It mounts the two
 existing panels (`ExternalAiConnectionPanel`, `IntegrationConnectionsPanel`) —

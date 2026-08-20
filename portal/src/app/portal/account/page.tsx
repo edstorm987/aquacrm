@@ -1,5 +1,5 @@
 import { ensureHydrated } from "@/server/storage";
-import { requireSession } from "@/lib/server/auth";
+import { requireSession } from "@/lib/server/auth/auth";
 import { getUserById } from "@/server/users";
 import { redirect } from "next/navigation";
 import Link from "next/link";

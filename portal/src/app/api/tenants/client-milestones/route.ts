@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { createClientMilestone, deleteClientMilestone, listClientMilestones, updateClientMilestone } from "@/server/clientMilestones";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type ClientMilestoneStatus } from "@/server/types";

@@ -1,16 +1,16 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, CLIENT_ROLES, isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import type { ClientContract, ClientContractRevision } from "@/lib/clientContracts";
+import type { ClientContract, ClientContractRevision } from "@/lib/clients/clientContracts";
 import {
   removeClientRecordLedgerEvent,
   upsertClientContractLedgerEvent,
-} from "@/lib/server/clientRecordLedger";
-import { sendTransactionalEmail, type TransactionalEmailResult } from "@/lib/server/transactionalEmail";
+} from "@/lib/server/clients/clientRecordLedger";
+import { sendTransactionalEmail, type TransactionalEmailResult } from "@/lib/server/email/transactionalEmail";
 
 type Action = "create" | "update" | "send" | "accept" | "decline" | "delete";
 

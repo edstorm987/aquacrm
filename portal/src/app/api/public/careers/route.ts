@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/founderSeed";
+import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
 import { storePrivateUpload, PrivateUploadStorageError } from "@/lib/server/privateUploadStorage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { createPeopleApplication } from "@/server/people";

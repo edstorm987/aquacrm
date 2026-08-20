@@ -1,4 +1,4 @@
-# `src/lib/server/kpiTargets.ts`
+# `src/lib/server/kpi/kpiTargets.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (5)
 
-- [`src/lib/kpiRegistry.ts`](../kpiRegistry.md)
+- [`src/lib/performance/kpiRegistry.ts`](../kpiRegistry.md)
 - [`src/server/activity.ts`](../../server/activity.md)
 - [`src/server/agencySettings.ts`](../../server/agencySettings.md)
 - [`src/server/storage.ts`](../../server/storage.md)

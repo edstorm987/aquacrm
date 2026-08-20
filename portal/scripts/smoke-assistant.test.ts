@@ -15,7 +15,7 @@ test("assistant is a tenant-scoped authenticated agency feature", () => {
 });
 
 test("assistant keeps durable history and personal memory", () => {
-  const store = read("src/lib/server/assistantStore.ts");
+  const store = read("src/lib/server/assistants/assistantStore.ts");
   const types = read("src/server/types.ts");
   const storage = read("src/server/storage.ts");
   assert.match(store, /appendAssistantMessage/);
@@ -25,10 +25,10 @@ test("assistant keeps durable history and personal memory", () => {
 });
 
 test("assistant reads fresh skill-scoped context without exposing secrets", () => {
-  const context = read("src/lib/server/assistantBusinessContext.ts");
-  const skillContext = read("src/lib/server/advisorSkillContext.ts");
+  const context = read("src/lib/server/assistants/assistantBusinessContext.ts");
+  const skillContext = read("src/lib/server/assistants/advisorSkillContext.ts");
   const route = read("src/app/api/assistant/route.ts");
-  const openai = read("src/lib/server/openaiAssistant.ts");
+  const openai = read("src/lib/server/assistants/openaiAssistant.ts");
   assert.match(context, /SECRET_KEY/);
   assert.match(context, /recentActivity/);
   assert.match(context, /businessModules/);

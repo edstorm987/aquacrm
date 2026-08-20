@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/server/oauthGoogle.ts`](../src/lib/server/oauthGoogle.md)
+- [`src/lib/server/integrations/oauthGoogle.ts`](../src/lib/server/integrations/oauthGoogle.md)
 
 ## Used by
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CalendarDays, CalendarPlus, Check, ChevronDown, Clock3, LoaderCircle } from "lucide-react";
 
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type { AgencyTask, CommandCalendarEntry } from "@/server/types";
 
 /**

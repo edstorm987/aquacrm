@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (3)
 
-- [`src/lib/server/externalAdvisorContext.ts`](../../../../../lib/server/externalAdvisorContext.md)
-- [`src/lib/server/externalAssistantApi.ts`](../../../../../lib/server/externalAssistantApi.md)
+- [`src/lib/server/assistants/externalAdvisorContext.ts`](../../../../../lib/server/assistants/externalAdvisorContext.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](../../../../../lib/server/assistants/externalAssistantApi.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 
 ## Used by

@@ -40,5 +40,5 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/sop-library/page.tsx`](../app/portal/agency/sop-library/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/team/_data.ts`](../app/portal/team/_data.md)
-- [`src/lib/server/showcaseMode.ts`](../lib/server/showcaseMode.md)
+- [`src/lib/server/auth/showcaseMode.ts`](../lib/server/auth/showcaseMode.md)
 

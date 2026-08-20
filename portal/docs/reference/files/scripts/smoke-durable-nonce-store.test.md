@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/server/nonceStore.ts`](../src/lib/server/nonceStore.md)
+- [`src/lib/server/auth/nonceStore.ts`](../src/lib/server/auth/nonceStore.md)
 
 ## Used by
 

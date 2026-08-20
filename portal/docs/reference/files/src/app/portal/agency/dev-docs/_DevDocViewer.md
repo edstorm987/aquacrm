@@ -11,8 +11,8 @@
 ## Depends on (3)
 
 - [`src/app/portal/agency/dev-docs/_DocMarkdown.tsx`](./_DocMarkdown.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/server/devDocs.ts`](../../../../lib/server/devDocs.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../../lib/server/dev/devDocs.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (1)
 

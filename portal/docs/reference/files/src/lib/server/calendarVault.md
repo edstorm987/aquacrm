@@ -11,5 +11,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Used by (1)
 
-- [`src/lib/server/googleCalendar.ts`](./googleCalendar.md)
+- [`src/lib/server/integrations/googleCalendar.ts`](./integrations/googleCalendar.md)
 

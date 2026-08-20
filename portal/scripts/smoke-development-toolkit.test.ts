@@ -209,7 +209,7 @@ test("Fulfilment navigation, APIs, upload and global search expose the complete 
 test("Development control centre covers the Personal EcoSystem, client work and property-scoped telemetry", () => {
   const page = readFileSync("src/app/portal/agency/development/page.tsx", "utf8");
   const portfolio = readFileSync("src/app/portal/agency/development/_DevelopmentPortfolio.tsx", "utf8");
-  const firstParty = readFileSync("src/lib/firstPartyDevelopmentProjects.ts", "utf8");
+  const firstParty = readFileSync("src/lib/projects/firstPartyDevelopmentProjects.ts", "utf8");
   const propertyApi = readFileSync("src/app/api/tenants/client-properties/route.ts", "utf8");
   assert.match(page, /FIRST_PARTY_DEVELOPMENT_PROJECTS/);
   for (const project of ["Milesymedia website", "AquaCRM", "AquaOasis-Web", "Zimante Group", "Edward Hallam", "Business OS", "Health Check"]) {

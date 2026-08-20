@@ -12,7 +12,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { authErrorResponse, requireSession } from "@/lib/server/auth";
+import { authErrorResponse, requireSession } from "@/lib/server/auth/auth";
 import { resolvePluginApiRoute } from "@/built-ins/runtime/_routeResolver";
 import { FOUNDATION_SERVICES } from "@/built-ins/runtime/foundation-adapters";
 import type { PluginCtx } from "@/built-ins/runtime/_types";

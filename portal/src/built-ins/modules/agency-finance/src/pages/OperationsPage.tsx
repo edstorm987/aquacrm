@@ -3,8 +3,8 @@ import { containerFor } from "../server/foundationAdapter";
 import { FinanceOperationsWorkspace } from "../components/FinanceOperationsWorkspace";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { listFinanceWorkforceOptions } from "@/lib/server/financeWorkforce";
-import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
+import { listFinanceWorkforceOptions } from "@/lib/server/finance/financeWorkforce";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 
 export const API_BASE = "/api/portal/agency-finance/operations";
 

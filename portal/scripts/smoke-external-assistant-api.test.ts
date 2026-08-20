@@ -4,13 +4,13 @@ import { test } from "node:test";
 import {
   buildExternalAssistantSetupDocument,
   externalAssistantSetupFilename,
-} from "../src/lib/externalAssistantSetup";
+} from "../src/lib/integrations/externalAssistantSetup";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("external assistant gateway is bearer-authenticated and tenant-scoped", () => {
-  const gateway = read("src/lib/server/externalAssistantApi.ts");
-  const keys = read("src/lib/server/externalAssistantKeys.ts");
+  const gateway = read("src/lib/server/assistants/externalAssistantApi.ts");
+  const keys = read("src/lib/server/assistants/externalAssistantKeys.ts");
   assert.match(gateway, /MILESYMEDIA_ASSISTANT_API_TOKEN/);
   assert.match(gateway, /MILESYMEDIA_ASSISTANT_AGENCY_ID/);
   assert.match(gateway, /timingSafeEqual/);
@@ -24,7 +24,7 @@ test("external assistant gateway is bearer-authenticated and tenant-scoped", () 
 
 test("owners can manage multiple scoped keys without persisting plaintext secrets", () => {
   const route = read("src/app/api/portal/settings/external-ai/route.ts");
-  const keys = read("src/lib/server/externalAssistantKeys.ts");
+  const keys = read("src/lib/server/assistants/externalAssistantKeys.ts");
   const storage = read("src/server/storage.ts");
   const types = read("src/server/types.ts");
   const ui = read("src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx");
@@ -66,7 +66,7 @@ test("managed key permissions and modules are enforced at every data route", () 
 });
 
 test("external assistant data is sanitised before leaving the portal", () => {
-  const gateway = read("src/lib/server/externalAssistantApi.ts");
+  const gateway = read("src/lib/server/assistants/externalAssistantApi.ts");
   assert.match(gateway, /SECRET_KEY/);
   assert.match(gateway, /\[redacted\]/);
   assert.match(gateway, /STORED_FILE_KEY/);
@@ -109,7 +109,7 @@ test("OpenAPI contract and reusable model-independent skill are shipped", () => 
 });
 
 test("assistant setup prompt and downloadable handoff are available in settings", () => {
-  const setup = read("src/lib/externalAssistantSetup.ts");
+  const setup = read("src/lib/integrations/externalAssistantSetup.ts");
   const ui = read("src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx");
 
   assert.match(setup, /buildExternalAssistantSetupPrompt/);

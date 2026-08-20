@@ -1,4 +1,4 @@
-# `src/lib/server/emailVerification.ts`
+# `src/lib/server/auth/emailVerification.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

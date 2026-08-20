@@ -1,4 +1,4 @@
-# `src/lib/radarInfraChecks.ts`
+# `src/lib/radar/radarInfraChecks.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -10,11 +10,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
 
 ## Used by (3)
 
 - [`scripts/smoke-radar-external-db.test.ts`](../../scripts/smoke-radar-external-db.test.md)
 - [`scripts/smoke-radar-infra-health.test.ts`](../../scripts/smoke-radar-infra-health.test.md)
-- [`src/lib/server/businessIssueRadar.ts`](./server/businessIssueRadar.md)
+- [`src/lib/server/radar/businessIssueRadar.ts`](./server/businessIssueRadar.md)
 

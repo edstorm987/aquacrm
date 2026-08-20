@@ -3,8 +3,8 @@ import {
   ExternalAssistantApiError,
   externalApiErrorResponse,
   externalApiHeaders,
-} from "@/lib/server/externalAssistantApi";
-import { handleExternalAssistantMcpRequest } from "@/lib/server/externalAssistantMcp";
+} from "@/lib/server/assistants/externalAssistantApi";
+import { handleExternalAssistantMcpRequest } from "@/lib/server/assistants/externalAssistantMcp";
 import { ensureHydrated } from "@/server/storage";
 
 export async function POST(request: Request) {

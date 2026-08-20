@@ -34,8 +34,8 @@ import {
   Zap,
 } from "lucide-react";
 
-import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/commandIntelligence";
-import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, HIRING_CAPACITY_AREA_META, type HiringCapacityAreaAnalysis, type HiringCapacitySignals } from "@/lib/hiringCapacity";
+import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/intelligence/commandIntelligence";
+import { buildHiringCapacityAnalysis, emptyHiringCapacitySignals, HIRING_CAPACITY_AREA_META, type HiringCapacityAreaAnalysis, type HiringCapacitySignals } from "@/lib/performance/hiringCapacity";
 import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyEvidenceSnapshot } from "@/server/types";
 import { applyIntelligenceScope, KpiComparisonWorkspace } from "./_CommandIntelligenceWorkspace";
 import { CapitalOwnershipWorkspace } from "./_CapitalOwnershipWorkspace";

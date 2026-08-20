@@ -54,7 +54,7 @@ no git to recover from. Before assigning this plan, check these paths against ev
 plan in flight._
 
 - `src/server/people.ts`
-- `src/lib/server/operationalAlerts.ts`
+- `src/lib/server/inbox/operationalAlerts.ts`
 - `src/components/people/TeamChat.tsx`
 - `src/app/api/portal/team-chat/route.ts`
 - `src/server/types.ts`

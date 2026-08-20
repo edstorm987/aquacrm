@@ -1,4 +1,4 @@
-# `src/lib/server/externalAssistantMcp.ts`
+# `src/lib/server/assistants/externalAssistantMcp.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
-- [`src/lib/server/externalAdvisorContext.ts`](./externalAdvisorContext.md)
-- [`src/lib/server/externalAssistantApi.ts`](./externalAssistantApi.md)
-- [`src/lib/server/externalAssistantProposals.ts`](./externalAssistantProposals.md)
+- [`src/lib/server/assistants/externalAdvisorContext.ts`](./externalAdvisorContext.md)
+- [`src/lib/server/assistants/externalAssistantApi.ts`](./externalAssistantApi.md)
+- [`src/lib/server/assistants/externalAssistantProposals.ts`](./externalAssistantProposals.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 
 ## Used by (2)

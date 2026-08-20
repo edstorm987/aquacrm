@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (5)
 
-- [`src/lib/server/aquaTagDetection.ts`](../../../../../lib/server/aquaTagDetection.md)
-- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/integrations/aquaTagDetection.ts`](../../../../../lib/server/integrations/aquaTagDetection.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 - [`src/server/websiteSources.ts`](../../../../../server/websiteSources.md)

@@ -35,7 +35,7 @@ test("images, files and voice notes use durable inbox media", () => {
   const enquiry = read("src/app/portal/agency/inbox/_EnquiryCommunications.tsx");
   const upload = read("src/app/api/portal/inbox/media/route.ts");
   const content = read("src/app/api/portal/inbox/media/content/route.ts");
-  const token = read("src/lib/server/inboxMedia.ts");
+  const token = read("src/lib/server/inbox/inboxMedia.ts");
   for (const source of [unified, enquiry]) {
     assert.match(source, /navigator\.mediaDevices\.getUserMedia/);
     assert.match(source, /\/api\/portal\/inbox\/media/);
@@ -51,9 +51,9 @@ test("images, files and voice notes use durable inbox media", () => {
 
 test("outbound providers receive real attachments", () => {
   const communications = read("src/app/api/portal/website-enquiries/communications/route.ts");
-  const email = read("src/lib/server/transactionalEmail.ts");
-  const phone = read("src/lib/server/outboundCommunications.ts");
-  const social = read("src/lib/server/inboxService.ts");
+  const email = read("src/lib/server/email/transactionalEmail.ts");
+  const phone = read("src/lib/server/email/outboundCommunications.ts");
+  const social = read("src/lib/server/inbox/inboxService.ts");
   const client = read("src/app/api/tenants/client-requests/route.ts");
   assert.match(communications, /attachments: media\.map/);
   assert.match(communications, /mediaUrls: attachments\.map/);

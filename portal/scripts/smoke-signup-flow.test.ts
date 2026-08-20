@@ -19,7 +19,7 @@ import {
   verifyVerifyEmailToken,
   isVerifyNonceUsed,
   markVerifyNonceUsed,
-} from "../src/lib/server/emailVerification";
+} from "../src/lib/server/auth/emailVerification";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");

@@ -11,8 +11,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/portalConnections.ts`](../../../../lib/server/portalConnections.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/portal/portalConnections.ts`](../../../../lib/server/portal/portalConnections.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/portalConnectionStore.ts`](../../../../server/portalConnectionStore.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)

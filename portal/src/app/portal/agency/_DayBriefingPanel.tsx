@@ -2,9 +2,9 @@
 
 import { ArrowUpRight, Bot, CheckCircle2, LoaderCircle, Plus, Radar, RefreshCw, ShieldCheck } from "lucide-react";
 
-import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
-import type { BusinessIssueRadar } from "@/lib/businessRadar";
-import { formatUkDate } from "@/lib/formatDateTime";
+import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
+import type { BusinessIssueRadar } from "@/lib/radar/businessRadar";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 export type DayTaskGenerationSummary = {
   generatedAt: number;

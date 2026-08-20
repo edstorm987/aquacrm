@@ -1,4 +1,4 @@
-# `src/lib/server/radarSyntheticProbes.ts`
+# `src/lib/server/radar/radarSyntheticProbes.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -13,13 +13,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
-- [`src/lib/clientWorkspace.ts`](../clientWorkspace.md)
-- [`src/lib/radarSyntheticSafety.ts`](../radarSyntheticSafety.md)
+- [`src/lib/clients/clientWorkspace.ts`](../clientWorkspace.md)
+- [`src/lib/radar/radarSyntheticSafety.ts`](../radarSyntheticSafety.md)
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (2)
 
 - [`src/app/api/portal/clients/[clientId]/radar/route.ts`](../../app/api/portal/clients/[clientId]/radar/route.md)
-- [`src/lib/server/radarSweeps.ts`](./radarSweeps.md)
+- [`src/lib/server/radar/radarSweeps.ts`](./radarSweeps.md)
 

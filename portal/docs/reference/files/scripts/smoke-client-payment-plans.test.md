@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/clientPaymentPlans.ts`](../src/lib/clientPaymentPlans.md)
+- [`src/lib/clients/clientPaymentPlans.ts`](../src/lib/clients/clientPaymentPlans.md)
 
 ## Used by
 

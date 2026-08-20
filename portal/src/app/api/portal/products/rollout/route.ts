@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/productAssignments";
-import { portalProductSelectionFromAgencyProduct } from "@/lib/portalProducts";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { resolveAgencyProductAssignment, resolvePortalProductAssignment } from "@/lib/products/productAssignments";
+import { portalProductSelectionFromAgencyProduct } from "@/lib/portal/portalProducts";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { logActivity } from "@/server/activity";
 import { ensureDefaultAgencyProducts, getAgencyProduct } from "@/server/agencyProducts";
 import {

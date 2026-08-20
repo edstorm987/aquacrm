@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import { ScanEye } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible } from "@/lib/server/devDocs";
-import { listFindings } from "@/lib/server/devTeamFindings";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
+import { listFindings } from "@/lib/server/dev/devTeamFindings";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { PageHeader, Pill } from "../_ui";

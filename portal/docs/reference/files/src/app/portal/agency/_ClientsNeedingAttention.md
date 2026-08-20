@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/server/clientAttention.ts`](../../../lib/server/clientAttention.md)
+- [`src/lib/server/clients/clientAttention.ts`](../../../lib/server/clients/clientAttention.md)
 
 ## Used by (1)
 

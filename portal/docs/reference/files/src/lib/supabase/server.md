@@ -15,5 +15,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Used by (1)
 
-- [`src/lib/server/auth.ts`](../server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../server/auth/auth.md)
 

@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/server/emailVerification.ts`](../src/lib/server/emailVerification.md)
+- [`src/lib/server/auth/emailVerification.ts`](../src/lib/server/auth/emailVerification.md)
 
 ## Used by
 

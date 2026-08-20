@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   clearAgencyWebsiteTelemetry,
   ensureAgencyWebsite,
@@ -11,7 +11,7 @@ import {
 } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import type { AgencyWebsitePageStatus, AgencyWebsiteReleaseStatus } from "@/server/types";
-import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/publicUrl";
+import { isLocalDevelopmentUrl, normalizeWebsiteUrl } from "@/lib/public/publicUrl";
 
 export async function GET() {
   try {

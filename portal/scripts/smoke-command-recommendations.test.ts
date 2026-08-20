@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { buildBusinessRecommendedActions } from "../src/lib/businessRecommendedActions";
-import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity } from "../src/lib/businessRadar";
+import { buildBusinessRecommendedActions } from "../src/lib/intelligence/businessRecommendedActions";
+import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity } from "../src/lib/radar/businessRadar";
 
 const now = new Date("2026-08-12T10:00:00Z").getTime();
 
@@ -46,10 +46,10 @@ test("Actions and Advisor share one always-visible, approval-only top five", () 
   const page = readFileSync("src/app/portal/agency/page.tsx", "utf8");
   const actionsPage = readFileSync("src/app/portal/agency/actions/_ActionsPage.tsx", "utf8");
   const actions = readFileSync("src/app/portal/agency/actions/_ActionsWorkspace.tsx", "utf8");
-  const context = readFileSync("src/lib/server/advisorContext.ts", "utf8");
-  const skillContext = readFileSync("src/lib/server/advisorSkillContext.ts", "utf8");
+  const context = readFileSync("src/lib/server/assistants/advisorContext.ts", "utf8");
+  const skillContext = readFileSync("src/lib/server/assistants/advisorSkillContext.ts", "utf8");
   const route = readFileSync("src/app/api/assistant/route.ts", "utf8");
-  const advisor = readFileSync("src/lib/server/openaiAssistant.ts", "utf8");
+  const advisor = readFileSync("src/lib/server/assistants/openaiAssistant.ts", "utf8");
 
   assert.match(page, /buildBusinessRecommendedActions/);
   assert.match(page, /recommendedActions=/);

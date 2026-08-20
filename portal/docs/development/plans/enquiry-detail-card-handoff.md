@@ -36,7 +36,7 @@ Clicking an enquiry in the Master Inbox opens a **focus-trapped modal** that:
 **New (mine, 6 source + 3 test):**
 - `src/app/portal/agency/inbox/_EnquiryDetailCard.tsx` (474L) — the modal (all phases).
 - `src/server/websiteFormSchemas.ts` (108L) — import + `matchFormSchema`/`resolveFormSchemaForEnquiry`.
-- `src/lib/enquiryFormLayout.ts` (66L) — pure `mergeFormLayout`.
+- `src/lib/enquiries/enquiryFormLayout.ts` (66L) — pure `mergeFormLayout`.
 - `src/server/enquiryContactDetails.ts` (81L) — the manual-details store.
 - `src/app/api/portal/website-enquiries/form-template/route.ts` (28L) — GET the template.
 - `src/app/api/portal/website-enquiries/contact-details/route.ts` (58L) — GET/POST manual details.
@@ -44,7 +44,7 @@ Clicking an enquiry in the Master Inbox opens a **focus-trapped modal** that:
 
 **Edited (additive; see coordination):**
 - `src/app/portal/agency/inbox/_MasterInbox.tsx` — extracted the inline expand into the card; renders one section-level modal.
-- `src/lib/server/aquaTagDetection.ts` — added `scanFormSchemasInHtml` (didn't touch `scanFormsInHtml`).
+- `src/lib/server/integrations/aquaTagDetection.ts` — added `scanFormSchemasInHtml` (didn't touch `scanFormsInHtml`).
 - `src/server/types.ts` — additive: `AquaFormFieldSchema`/`AquaFormSchema` + `WebsiteSiteConfig.formSchemas`; `enquiryContactDetails` state slot.
 - `src/app/api/portal/website-sources/route.ts` — additive `import-forms` action + `formSchemasBySource` on GET.
 - `src/app/portal/agency/inbox/_WebsiteSourcesConfig.tsx` — the "Import forms" button.

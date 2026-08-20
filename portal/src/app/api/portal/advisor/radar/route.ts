@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth";
-import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/lib/server/businessIssueRadar";
-import { runRadarFullSweep } from "@/lib/server/radarSweeps";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/lib/server/radar/businessIssueRadar";
+import { runRadarFullSweep } from "@/lib/server/radar/radarSweeps";
 import { getAgencyWorkspaceSettings, updateAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type { RadarPolicyConfiguration } from "@/server/types";

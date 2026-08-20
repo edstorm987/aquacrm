@@ -22,7 +22,7 @@ import {
   parseWorkers,
   type DevTeamBoard,
   type PlanStatus,
-} from "../src/lib/server/devTeamBoard";
+} from "../src/lib/server/dev/devTeamBoard";
 
 const kindOf = (md: string) => parsePlanStatus(md)?.statusKind ?? null;
 

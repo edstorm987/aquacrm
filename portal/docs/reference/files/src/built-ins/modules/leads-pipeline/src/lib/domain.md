@@ -74,12 +74,13 @@
 
 - [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](./tenancy.md)
 
-## Used by (21)
+## Used by (22)
 
 - [`scripts/smoke-client-match.test.ts`](../../../../../../scripts/smoke-client-match.test.md)
 - [`scripts/smoke-commercial-intelligence.test.ts`](../../../../../../scripts/smoke-commercial-intelligence.test.md)
 - [`scripts/smoke-lead-relationship-categories.test.ts`](../../../../../../scripts/smoke-lead-relationship-categories.test.md)
 - [`scripts/smoke-lead-wait-tracing.test.ts`](../../../../../../scripts/smoke-lead-wait-tracing.test.md)
+- [`scripts/smoke-website-signup-lead.test.ts`](../../../../../../scripts/smoke-website-signup-lead.test.md)
 - [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](../../../../../app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.md)
 - [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](../../../../../app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.md)
 - [`src/app/portal/clients/_PeopleHub.tsx`](../../../../../app/portal/clients/_PeopleHub.md)
@@ -95,6 +96,6 @@
 - [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](../server/index.md)
 - [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](../server/leads.md)
 - [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](../server/prospects.md)
-- [`src/lib/commercialIntelligence.ts`](../../../../../lib/commercialIntelligence.md)
-- [`src/lib/server/commandIntelligence.ts`](../../../../../lib/server/commandIntelligence.md)
+- [`src/lib/intelligence/commercialIntelligence.ts`](../../../../../lib/intelligence/commercialIntelligence.md)
+- [`src/lib/server/commandIntelligenceService.ts`](../../../../../lib/server/commandIntelligenceService.md)
 

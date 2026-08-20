@@ -1,4 +1,4 @@
-# `src/lib/server/clientTelemetry.ts`
+# `src/lib/server/clients/clientTelemetryService.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (5)
 
-- [`src/lib/clientTelemetry.ts`](../clientTelemetry.md)
+- [`src/lib/clients/clientTelemetry.ts`](../clientTelemetry.md)
 - [`src/server/activity.ts`](../../server/activity.md)
 - [`src/server/clientMilestones.ts`](../../server/clientMilestones.md)
 - [`src/server/storage.ts`](../../server/storage.md)
@@ -24,6 +24,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/app/api/telemetry/collect/route.ts`](../../app/api/telemetry/collect/route.md)
 - [`src/app/api/tenants/client-telemetry/route.ts`](../../app/api/tenants/client-telemetry/route.md)
-- [`src/lib/server/customerPortalProvisioning.ts`](./customerPortalProvisioning.md)
+- [`src/lib/server/clients/customerPortalProvisioning.ts`](./customerPortalProvisioning.md)
 - [`src/server/websiteSources.ts`](../../server/websiteSources.md)
 

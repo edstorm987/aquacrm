@@ -32,11 +32,11 @@ import {
   signPasswordResetToken,
   verifyPasswordResetToken,
   consumeResetNonce,
-} from "../src/lib/server/passwordReset";
+} from "../src/lib/server/auth/passwordReset";
 import {
   _swapStoreForTests,
   _createMemoryAdapterForTests,
-} from "../src/lib/server/nonceStore";
+} from "../src/lib/server/auth/nonceStore";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -100,7 +100,7 @@ describe("Password reset — single-use nonce (R038)", () => {
 
   it("password-reset uses distinct nonce kind tag (cross-kind isolation)", () => {
     const src = readFileSync(
-      join(ROOT, "src", "lib", "server", "passwordReset.ts"),
+      join(ROOT, "src", "lib", "server", "auth", "passwordReset.ts"),
       "utf8",
     );
     assert.ok(
@@ -108,7 +108,7 @@ describe("Password reset — single-use nonce (R038)", () => {
       "consumeResetNonce must tag nonces with kind 'password-reset' so they can't be replayed against the email-verify or magic-link surfaces",
     );
     const nonceSrc = readFileSync(
-      join(ROOT, "src", "lib", "server", "nonceStore.ts"),
+      join(ROOT, "src", "lib", "server", "auth", "nonceStore.ts"),
       "utf8",
     );
     assert.ok(
@@ -120,7 +120,7 @@ describe("Password reset — single-use nonce (R038)", () => {
 
 describe("Password reset — file structure (R038)", () => {
   it("lib/server/passwordReset.ts exports signer/verifier/consumer", () => {
-    const p = join(ROOT, "src", "lib", "server", "passwordReset.ts");
+    const p = join(ROOT, "src", "lib", "server", "auth", "passwordReset.ts");
     assert.equal(existsSync(p), true);
     const src = readFileSync(p, "utf8");
     assert.ok(src.includes("export function signPasswordResetToken"));

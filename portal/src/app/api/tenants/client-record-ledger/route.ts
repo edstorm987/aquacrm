@@ -6,8 +6,8 @@ import {
   type ClientRecordLedgerScope,
   type ClientRecordLedgerSort,
   type ClientRecordLedgerWindow,
-} from "@/lib/server/clientRecordLedger";
-import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth";
+} from "@/lib/server/clients/clientRecordLedger";
+import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { listClientRelationshipWorkspaces } from "@/server/clientRelationships";
 import { AGENCY_ROLES } from "@/server/types";

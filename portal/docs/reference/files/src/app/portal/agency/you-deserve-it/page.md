@@ -12,7 +12,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/you-deserve-it/_YouDeserveItWorkspace.tsx`](./_YouDeserveItWorkspace.md)
 - [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](../../../../built-ins/modules/agency-marketing/src/lib/domain.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
 - [`src/server/agencySettings.ts`](../../../../server/agencySettings.md)
 - [`src/server/clientDelight.ts`](../../../../server/clientDelight.md)

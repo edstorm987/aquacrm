@@ -12,10 +12,10 @@
 
 - [`src/app/portal/agency/dev-docs/_DocMarkdown.tsx`](../../agency/dev-docs/_DocMarkdown.md)
 - [`src/app/portal/dev-team/library/_paths.ts`](./_paths.md)
-- [`src/lib/formatDateTime.ts`](../../../../lib/formatDateTime.md)
-- [`src/lib/server/devDocs.ts`](../../../../lib/server/devDocs.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../../lib/server/dev/devDocs.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 
 ## Used by (1)
 
-- [`src/app/portal/dev-team/library/page.tsx`](./page.md)
+- [`src/app/portal/dev-team/library/_Section.tsx`](./_Section.md)
 

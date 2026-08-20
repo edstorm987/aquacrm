@@ -20,7 +20,7 @@ process.env.NEXT_PUBLIC_PORTAL_BASE_URL = "https://staging.aquacrm.example";
 test.after(() => rmSync(testRoot, { recursive: true, force: true }));
 
 test("Meta readiness, OAuth state and webhook signatures fail closed", async () => {
-  const meta = await import("../src/lib/server/metaMessaging");
+  const meta = await import("../src/lib/server/integrations/metaMessaging");
 
   // The META_* env above is the FOUNDER'S Meta app, so only the founder's own
   // agency may fall back to it. Seed the founder into `agn_test` so this test
@@ -76,9 +76,9 @@ test("Meta readiness, OAuth state and webhook signatures fail closed", async () 
 });
 
 test("a Meta delivery becomes an idempotent timed Master Inbox conversation", async () => {
-  const store = await import("../src/lib/server/inboxStore");
-  const vault = await import("../src/lib/server/inboxVault");
-  const service = await import("../src/lib/server/inboxService");
+  const store = await import("../src/lib/server/inbox/inboxStore");
+  const vault = await import("../src/lib/server/inbox/inboxVault");
+  const service = await import("../src/lib/server/inbox/inboxService");
   const sentAt = Date.now() - 60_000;
 
   await store.saveInboxConnection({
@@ -130,8 +130,8 @@ test("a Meta delivery becomes an idempotent timed Master Inbox conversation", as
 });
 
 test("webhook verification resolves the owning agency's stored credentials, not just env", async () => {
-  const meta = await import("../src/lib/server/metaMessaging");
-  const connections = await import("../src/lib/server/integrationConnections");
+  const meta = await import("../src/lib/server/integrations/metaMessaging");
+  const connections = await import("../src/lib/server/integrations/integrationConnections");
   const crypto = await import("node:crypto");
 
   // Store a Meta app connection for agn_test whose App Secret + verify token differ from env.
@@ -180,7 +180,7 @@ test("webhook verification resolves the owning agency's stored credentials, not 
 });
 
 test("the webhook verify-token compare is constant-time, not a Set lookup", async () => {
-  const meta = await import("../src/lib/server/metaMessaging");
+  const meta = await import("../src/lib/server/integrations/metaMessaging");
   const { readFileSync } = await import("node:fs");
 
   // Behaviour of the primitive itself: matches any candidate, rejects near
@@ -198,7 +198,7 @@ test("the webhook verify-token compare is constant-time, not a Set lookup", asyn
 
   // Source guardrail — pin the primitive against a regression back to `===` /
   // `Set.has`, and keep it aligned with the signature path.
-  const src = readFileSync("src/lib/server/metaMessaging.ts", "utf8");
+  const src = readFileSync("src/lib/server/integrations/metaMessaging.ts", "utf8");
   assert.match(src, /export function constantTimeSecretMatch/);
   assert.match(src, /crypto\.timingSafeEqual\(suppliedDigest, candidateDigest\)/);
   assert.match(src, /return constantTimeSecretMatch\(suppliedToken, candidates\);/);
@@ -208,9 +208,9 @@ test("the webhook verify-token compare is constant-time, not a Set lookup", asyn
 });
 
 test("multiple accounts on one Meta app coexist as distinct, independently-routed profiles", async () => {
-  const store = await import("../src/lib/server/inboxStore");
-  const vault = await import("../src/lib/server/inboxVault");
-  const service = await import("../src/lib/server/inboxService");
+  const store = await import("../src/lib/server/inbox/inboxStore");
+  const vault = await import("../src/lib/server/inbox/inboxVault");
+  const service = await import("../src/lib/server/inbox/inboxService");
   const sentAt = Date.now() - 30_000;
 
   // A second account — a Facebook Page — under the SAME agency + same Meta app as ig_business_123.

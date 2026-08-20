@@ -7,7 +7,7 @@ const searchUi = readFileSync("src/components/chrome/PortalSearch.tsx", "utf8");
 const socialInbox = readFileSync("src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx", "utf8");
 const globals = readFileSync("src/app/globals.css", "utf8");
 const commandCentre = readFileSync("src/app/portal/agency/_DashboardCommandCenter.tsx", "utf8");
-const radarSources = readFileSync("src/lib/server/radarSourceInspection.ts", "utf8");
+const radarSources = readFileSync("src/lib/server/radar/radarSourceInspection.ts", "utf8");
 
 test("universal search indexes complete website enquiries and social messages", () => {
   assert.match(searchApi, /listWebsiteEnquiries\(500\)/);

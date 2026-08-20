@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { before, test } from "node:test";
 import { readFileSync } from "node:fs";
-import { operationalAlertBelongsToClient, operationalAlertMatchesHref, operationalAlertMatchesHrefPrefix } from "../src/lib/operationalAttention";
+import { operationalAlertBelongsToClient, operationalAlertMatchesHref, operationalAlertMatchesHrefPrefix } from "../src/lib/intelligence/operationalAttention";
 
 /**
  * The destination without the resolution context appended centrally.
@@ -46,10 +46,10 @@ require.cache[serverOnlyPath] = {
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Installs = typeof import("../src/server/pluginInstalls");
-type Alerts = typeof import("../src/lib/server/operationalAlerts");
+type Alerts = typeof import("../src/lib/server/inbox/operationalAlerts");
 type SidebarAttention = typeof import("../src/lib/server/sidebarAttention");
-type AlertPreferences = typeof import("../src/lib/server/operationalAlertPreferences");
-type Proposals = typeof import("../src/lib/server/externalAssistantProposals");
+type AlertPreferences = typeof import("../src/lib/server/inbox/operationalAlertPreferences");
+type Proposals = typeof import("../src/lib/server/assistants/externalAssistantProposals");
 type Tasks = typeof import("../src/server/tasks");
 type Resolution = typeof import("../src/lib/server/resolutionPlans");
 
@@ -68,10 +68,10 @@ before(async () => {
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
   installs = await import("../src/server/pluginInstalls");
-  alerts = await import("../src/lib/server/operationalAlerts");
+  alerts = await import("../src/lib/server/inbox/operationalAlerts");
   sidebarAttention = await import("../src/lib/server/sidebarAttention");
-  alertPreferences = await import("../src/lib/server/operationalAlertPreferences");
-  proposals = await import("../src/lib/server/externalAssistantProposals");
+  alertPreferences = await import("../src/lib/server/inbox/operationalAlertPreferences");
+  proposals = await import("../src/lib/server/assistants/externalAssistantProposals");
   tasks = await import("../src/server/tasks");
   resolution = await import("../src/lib/server/resolutionPlans");
   await storage.ensureHydrated();

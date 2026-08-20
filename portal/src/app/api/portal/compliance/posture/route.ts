@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { buildCompliancePostureForAgency } from "@/lib/server/compliancePostureSource";
-import { assertPostureHonesty } from "@/lib/compliancePosture";
+import { assertPostureHonesty } from "@/lib/compliance/compliancePosture";
 import { ensureHydrated } from "@/server/storage";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 

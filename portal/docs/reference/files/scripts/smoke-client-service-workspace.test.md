@@ -8,12 +8,12 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (7)
 
-- [`src/lib/clientOperations.ts`](../src/lib/clientOperations.md)
-- [`src/lib/clientProductProcess.ts`](../src/lib/clientProductProcess.md)
-- [`src/lib/clientProductVariations.ts`](../src/lib/clientProductVariations.md)
-- [`src/lib/clientServiceWorkspace.ts`](../src/lib/clientServiceWorkspace.md)
-- [`src/lib/portalProducts.ts`](../src/lib/portalProducts.md)
-- [`src/lib/productInternalWorkspace.ts`](../src/lib/productInternalWorkspace.md)
+- [`src/lib/clients/clientOperations.ts`](../src/lib/clients/clientOperations.md)
+- [`src/lib/clients/clientProductProcess.ts`](../src/lib/clients/clientProductProcess.md)
+- [`src/lib/clients/clientProductVariations.ts`](../src/lib/clients/clientProductVariations.md)
+- [`src/lib/clients/clientServiceWorkspace.ts`](../src/lib/clients/clientServiceWorkspace.md)
+- [`src/lib/portal/portalProducts.ts`](../src/lib/portal/portalProducts.md)
+- [`src/lib/products/productInternalWorkspace.ts`](../src/lib/products/productInternalWorkspace.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

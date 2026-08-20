@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/server/effectiveRole.ts`](./effectiveRole.md)
+- [`src/lib/server/auth/effectiveRole.ts`](./auth/effectiveRole.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (1)

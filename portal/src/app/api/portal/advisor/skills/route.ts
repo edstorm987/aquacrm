@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ADVISOR_SKILL_RECIPES } from "@/lib/advisorSkills";
-import { authErrorResponse, requireRole } from "@/lib/server/auth";
+import { ADVISOR_SKILL_RECIPES } from "@/lib/advisor/advisorSkills";
+import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   advisorSkillState,
   createAdvisorSkill,
   deleteAdvisorSkill,
   setAdvisorSkillEnabled,
-} from "@/lib/server/advisorSkills";
+} from "@/lib/server/assistants/advisorSkillsService";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { ensureHydrated } from "@/server/storage";
 import type { AdvisorSkillRecipeId } from "@/server/types";

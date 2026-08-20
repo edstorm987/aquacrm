@@ -17,7 +17,7 @@ import { ensureHydrated } from "@/server/storage";
 import {
   verifyVerifyEmailToken,
   consumeVerifyNonce,
-} from "@/lib/server/emailVerification";
+} from "@/lib/server/auth/emailVerification";
 import { getUserById, markEmailVerified } from "@/server/users";
 import { logActivity } from "@/server/activity";
 

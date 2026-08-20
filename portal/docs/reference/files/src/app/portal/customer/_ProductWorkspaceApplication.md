@@ -12,10 +12,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (5)
 
 - [`src/app/portal/customer/_portalData.ts`](./_portalData.md)
-- [`src/lib/formatDateTime.ts`](../../../lib/formatDateTime.md)
-- [`src/lib/portalProductModules.ts`](../../../lib/portalProductModules.md)
-- [`src/lib/portalProductWorkspaces.ts`](../../../lib/portalProductWorkspaces.md)
-- [`src/lib/portalProducts.ts`](../../../lib/portalProducts.md)
+- [`src/lib/portal/portalProductModules.ts`](../../../lib/portal/portalProductModules.md)
+- [`src/lib/portal/portalProductWorkspaces.ts`](../../../lib/portal/portalProductWorkspaces.md)
+- [`src/lib/portal/portalProducts.ts`](../../../lib/portal/portalProducts.md)
+- [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 
 ## Used by (1)
 

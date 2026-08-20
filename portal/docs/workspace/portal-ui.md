@@ -65,7 +65,8 @@ agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 - `code/_CodeWorkspace.tsx`, `website/_WebsiteWorkspace.tsx`, `projects/[projectId]/_FirstPartyProjectWorkspace.tsx` (675L); thin pages `performance/`, `toolkit/`, `vault/`, `workflow/`.
 
 **Marketing / Performance / Aqua-Tags**
-- `marketing/page.tsx` (895L, also serves `automations` view) + `_FunnelsWorkspace.tsx` (897L), `_MarketingChannelsWorkspace.tsx`, `_CustomerProfilesWorkspace.tsx`.
+- `marketing/page.tsx` (1035L, also serves the `automations` view) + `_marketingViews.ts` (**the view/channel/section resolver — routing lives here, not in the page**), `_MarketingCommandSurfaces.tsx` (463L — pulse / radar / funnel / campaign-attribution / audience-evidence panels), `_FunnelsWorkspace.tsx` (897L), `_MarketingChannelsWorkspace.tsx` (403L), `_CustomerProfilesWorkspace.tsx` (455L).
+  **Ten views became five on 2026-08-20:** `pulse` (default; carries the `pulse` + `radar` sections) · `demand` (`funnel` + `campaigns` + `sources`) · `customers` · `channels` (the five channel tabs **plus** the funnel builder, via `?channel=`) · `automations`; `client-services` is demoted to a header link but still addressable. **No retired `?view=` may die** — `RETIRED_MARKETING_VIEWS` (`_marketingViews.ts:87`) maps `overview`/`radar`/`campaigns`/`sources`/`funnels`/`customer-profiles` and the five old channel names onto their new home, and lands the old block *first* so a `?view=sources` bookmark opens on lead sources rather than three screens above them.
 - `automations/page.tsx` (→ `marketing?view=automations`) + `_AutomationsWorkspace.tsx` (769L) + `_automationWorkspaceData.ts`.
 - `performance/page.tsx` (249L) + `_PerformanceWorkspace.tsx` (533L), `_AquaTagDashboard.tsx`, `_ExperimentsPanel.tsx`.
 - `aqua-tags/page.tsx` + `_AquaTagsWorkspace.tsx` **[new]** — master-tag generator + live domain detect/form-scan + the setup wizard *(steps 1–3 live, 4–6 planned; overlaps `performance/_AquaTagDashboard` — see hazards). Full feature dossier: [aqua-tag.md](aqua-tag.md).*
@@ -137,7 +138,9 @@ Its own portal scope with its own sidebar and chrome, gated twice (`layout.tsx`
 **and** every page re-assert `devDocsAccessible(session)` — founder + Dev Mode,
 so it does not exist in any production-like context). Entering it **does not
 change who you are**: Ed stays signed in as himself, and identity only changes
-when he deliberately inspects a persona in **Profiles**.
+when he deliberately inspects a persona in **Tools → Inspector**
+(`/portal/dev-team/tools`; the section was called "Profiles" in an earlier draft
+of this chapter and never existed under that name on disk).
 
 - `layout.tsx` — the gate + the nav. **Every item sets its own `NavItem.icon`**
   (a lucide component matching that section's own `PageHeader`). This is
@@ -148,12 +151,30 @@ when he deliberately inspects a persona in **Profiles**.
   with the page header.
 - `_ui.tsx` — the shared kit every section uses: `PageHeader` / `Panel` /
   `NavCard` / `Pill` / `EmptyState` + the light palette tokens.
-- Sections: `page.tsx` (Home — live launch-blocker strip + section cards) ·
-  `findings/` · `working/` (the four-lane board + `_LiveWorkers`) · `library/`
-  (reuses the dev-docs backend) · `docs/` · `auditor/` · `profiles/` ·
-  `editor/` · `api/` · `updates/` · `notes/` (reuses the agency notepad
-  wholesale — the one section with no `PageHeader`, because that workspace
-  brings its own `<h1>`) · `plans/new/` (writes a real plan file).
+- **Sections — SIX, with `?view=` tabs (re-shaped 2026-08-20; it was twelve
+  sidebar items).** The nav is `layout.tsx:68-75`:
+
+  | Section | Route | Views (`?view=`) | The real code |
+  | --- | --- | --- | --- |
+  | **Home** | `/portal/dev-team` | — | `page.tsx` (live launch-blocker strip + section cards) |
+  | **Roadmap** | `/roadmap` | `plan` (default) · `now` · `tasks` | `roadmap/_RoadmapWorkspace.tsx`, `working/{_Board,_LiveWorkers,_liveWorkerView}.tsx`, `tasks/{_TasksWorkspace,_thoughtMerge}.ts(x)` |
+  | **Findings** | `/findings` | `mine` (default) · `auditor` | `findings/{_FindingsWorkspace,_Section}.tsx`, `auditor/_Section.tsx` |
+  | **Library** | `/library` | `docs` (default) · `logs` · `updates` | `library/{_LibraryIndex,_LibraryTree,_LibraryDocViewer,_Section,_paths}`, `logs/{_Section,_changesLabel}`, `updates/{_Section,_UpdateComposer}` |
+  | **Tools** | `/tools` | `inspector` (default) · `editor` · `api` | `inspector/{_Section,InspectorClient}.tsx`, `editor/{_Section,_AppConfigEditor}.tsx`, `api/{_Section,_MasterTagPanel,_McpConnectPanel}.tsx` |
+  | **Notes** | `/notes` | — | reuses the agency notepad wholesale — the one section with no `PageHeader`, because that workspace brings its own `<h1>` |
+
+  Plus `plans/new/` (writes a real plan file) and `docs/`.
+
+  **The eight old routes are one-line `redirect()` stubs, kept so every bookmark
+  and doc link still lands:** `/auditor`→`findings?view=auditor` ·
+  `/logs`→`library?view=logs` · `/updates`→`library?view=updates` ·
+  `/inspector`→`tools` · `/editor`→`tools?view=editor` · `/api`→`tools?view=api` ·
+  `/working`→`roadmap?view=now` · `/tasks`→`roadmap?view=tasks`.
+  ⚠ **Only `page.tsx` became a stub** — the `_Section.tsx` and workspace files in
+  those directories are still the live implementations, imported by the new
+  section pages. Edit those; never "restore" a stub. (There is no `profiles/`
+  directory — an earlier version of this chapter listed one; the persona-inspect
+  surface is `inspector/`, now the Tools default view.)
 
 **The numbers are one model, not three.** `lib/server/devTeamBoard.ts`
 (`scanDevTeamBoard` → `composeLanes`) is the single source for the board's four
@@ -164,8 +185,11 @@ they cannot disagree. Two accuracy contracts live in it:
   stale "PLAN (not built)".
 - **…except a PARKED worker**, which hands the verdict *back* to the plan file.
   A parked row still reads "✅ Phase N complete" about its own slice, and without
-  this it reported a not-built plan as shipped (mfa-login did exactly that while
-  `/api/auth/login` has no MFA step at all). Trouble (🔴) still wins over parked.
+  this it reported a not-built plan as shipped. Trouble (🔴) still wins over parked.
+  *(The historical example this rule was written from — "mfa-login reported shipped
+  while `/api/auth/login` has no MFA step" — **is no longer true of the code**:
+  `login/route.ts:320-360` now runs the MFA gate. The contract stands; only the
+  example was stale. Corrected 2026-08-20.)*
 
 **The Auditor separates open from historical on evidence.**
 `lib/server/devTeamAuditor.ts` keeps every 🔴 ruling the log ever recorded — the

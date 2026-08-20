@@ -17,7 +17,7 @@ require.cache[serverOnlyPath] = {
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Calendar = typeof import("../src/server/commandCalendar");
-type Alerts = typeof import("../src/lib/server/operationalAlerts");
+type Alerts = typeof import("../src/lib/server/inbox/operationalAlerts");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -29,7 +29,7 @@ before(async () => {
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
   calendar = await import("../src/server/commandCalendar");
-  alerts = await import("../src/lib/server/operationalAlerts");
+  alerts = await import("../src/lib/server/inbox/operationalAlerts");
   await storage.ensureHydrated();
 });
 
@@ -97,8 +97,8 @@ test("the Command Calendar provides one inspectable planning surface", () => {
   const workspace = readFileSync("src/app/portal/agency/actions/_ActionsWorkspace.tsx", "utf8");
   const page = readFileSync("src/app/portal/agency/actions/_ActionsPage.tsx", "utf8");
   const dashboard = readFileSync("src/app/portal/agency/_DashboardCommandCenter.tsx", "utf8");
-  const radar = readFileSync("src/lib/server/businessIssueRadar.ts", "utf8");
-  const sources = readFileSync("src/lib/server/radarSourceInspection.ts", "utf8");
+  const radar = readFileSync("src/lib/server/radar/businessIssueRadar.ts", "utf8");
+  const sources = readFileSync("src/lib/server/radar/radarSourceInspection.ts", "utf8");
   const route = readFileSync("src/app/api/portal/calendar/route.ts", "utf8");
 
   for (const label of ["Task", "Event", "Work block", "Reminder", "Note", "Goal", "Numeric target"]) {

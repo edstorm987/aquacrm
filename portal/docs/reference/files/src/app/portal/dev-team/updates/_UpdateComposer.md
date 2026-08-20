@@ -14,5 +14,5 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Used by (1)
 
-- [`src/app/portal/dev-team/updates/page.tsx`](./page.md)
+- [`src/app/portal/dev-team/updates/_Section.tsx`](./_Section.md)
 

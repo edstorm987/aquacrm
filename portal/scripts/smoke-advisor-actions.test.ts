@@ -5,8 +5,8 @@ import { test } from "node:test";
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("advisor action review is grounded in live operating data", () => {
-  const context = read("src/lib/server/advisorContext.ts");
-  const health = read("src/lib/server/companyHealthSnapshot.ts");
+  const context = read("src/lib/server/assistants/advisorContext.ts");
+  const health = read("src/lib/server/kpi/companyHealthSnapshot.ts");
   const route = read("src/app/api/assistant/route.ts");
   assert.match(context, /buildCompanyHealthSnapshot/);
   assert.match(context, /listOperationalAlerts/);
@@ -21,7 +21,7 @@ test("advisor action review is grounded in live operating data", () => {
 });
 
 test("advisor returns strict recommendations without mutating tasks", () => {
-  const advisor = read("src/lib/server/openaiAssistant.ts");
+  const advisor = read("src/lib/server/assistants/openaiAssistant.ts");
   assert.match(advisor, /json_schema/);
   assert.match(advisor, /additionalProperties: false/);
   assert.match(advisor, /Do not duplicate an existing open task/);

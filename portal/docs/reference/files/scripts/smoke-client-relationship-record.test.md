@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/clientRelationshipRecord.ts`](../src/lib/clientRelationshipRecord.md)
-- [`src/lib/clientRequests.ts`](../src/lib/clientRequests.md)
+- [`src/lib/clients/clientRelationshipRecord.ts`](../src/lib/clients/clientRelationshipRecord.md)
+- [`src/lib/clients/clientRequests.ts`](../src/lib/clients/clientRequests.md)
 
 ## Used by
 

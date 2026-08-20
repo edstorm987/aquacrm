@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 process.env.PORTAL_HANDOFF_SECRET = "a-test-secret-that-is-long-enough-to-pass-32";
 
-let handoff: typeof import("../src/lib/server/portalHandoff");
-before(async () => { handoff = await import("../src/lib/server/portalHandoff"); });
+let handoff: typeof import("../src/lib/server/portal/portalHandoff");
+before(async () => { handoff = await import("../src/lib/server/portal/portalHandoff"); });
 beforeEach(() => handoff.clearRedeemedHandoffTokens());
 
 const claims = {

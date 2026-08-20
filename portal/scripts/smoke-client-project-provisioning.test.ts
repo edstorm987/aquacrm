@@ -29,7 +29,7 @@ after(() => {
 
 describe("client project provisioning", () => {
   it("creates a complete editable site and clean local Git repository", async () => {
-    const { provisionClientProject } = await import("../src/lib/server/clientProjectProvisioner");
+    const { provisionClientProject } = await import("../src/lib/server/clients/clientProjectProvisioner");
     const project = provisionClientProject({
       clientId: "cli_test",
       clientName: "Aster & Co",
@@ -80,7 +80,7 @@ describe("client project provisioning", () => {
   });
 
   it("never overwrites an existing client project", async () => {
-    const { provisionClientProject } = await import("../src/lib/server/clientProjectProvisioner");
+    const { provisionClientProject } = await import("../src/lib/server/clients/clientProjectProvisioner");
     const first = provisionClientProject({
       clientId: "cli_repeat",
       clientName: "Repeat Studio",
@@ -132,7 +132,7 @@ describe("client project provisioning", () => {
   });
 
   it("publishes privately without storing a GitHub token in the remote", async () => {
-    const { publishProjectToGitHub } = await import("../src/lib/server/githubProjectPublisher");
+    const { publishProjectToGitHub } = await import("../src/lib/server/integrations/githubProjectPublisher");
     const localPath = path.join(tempRoot, "publish-client", "publish-site");
     mkdirSync(localPath, { recursive: true });
     const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -177,7 +177,7 @@ describe("client project provisioning", () => {
   });
 
   it("uploads project files and creates a Vercel review deployment", async () => {
-    const { deployProjectPreviewToVercel } = await import("../src/lib/server/vercelProjectDeployer");
+    const { deployProjectPreviewToVercel } = await import("../src/lib/server/integrations/vercelProjectDeployer");
     const localPath = path.join(tempRoot, "deploy-client", "deploy-site");
     mkdirSync(path.join(localPath, "assets"), { recursive: true });
     mkdirSync(path.join(localPath, ".git"), { recursive: true });

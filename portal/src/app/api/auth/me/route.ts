@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getCurrentUser } from "@/lib/server/auth";
+import { getCurrentUser } from "@/lib/server/auth/auth";
 
 export async function GET() {
   await ensureHydrated();

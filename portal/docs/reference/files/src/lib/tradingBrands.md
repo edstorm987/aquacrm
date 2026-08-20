@@ -1,4 +1,4 @@
-# `src/lib/tradingBrands.ts`
+# `src/lib/brands/tradingBrands.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 

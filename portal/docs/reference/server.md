@@ -20,8 +20,11 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/server/agencyBootstrap.ts`
 
-- `async bootstrapAgency(input: CreateAgencyInput, installedBy?: string): Promise<BootstrapAgencyResult>`
+- `listHeldCompanyPortals(holdingAgencyId: string): Agency[]` — Every company portal in a holding group, oldest first. This is the query the third tier exists to make answerable: without the `holdingAgencyId` stamp a company's portal tenant is…
+- `getCompanyPortalAgency(holdingAgencyId: string, companyId: string): Agency | null` — The portal tenant for one company in a holding group, if it has one yet.
+- `async bootstrapAgency(input: CreateAgencyInput, installedBy?: string, holding?: AgencyHoldingLink): Promise<BootstrapAgencyResult>`
 - `interface BootstrapAgencyResult (2 members)`
+- `interface AgencyHoldingLink (2 members)` — Marks the new tenant as a TRADING COMPANY'S PORTAL rather than a top-level agency — the third tier the founder settled on 2026-08-20 (holding group → company → clients). See the f…
 
 ### `src/server/agencyProducts.ts`
 
@@ -150,6 +153,37 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `getCompanyProfile(agencyId: string, companyId?: string | null): CompanyProfile`
 - `updateCompanyProfile(agencyId: string, input: Partial<CompanyProfile>, actorUserId: string, companyId?: string | null): CompanyProfile`
+
+
+## `src/server/companyPortal/`
+
+### `src/server/companyPortal/companyPortal.ts`
+
+- `previewCompanyPortal(agencyId: string, companyId: string): CompanyPromotionPreview | null` — What a promotion of `companyId` out of `agencyId` would move. Returns `null` when the company does not exist inside that agency — the same answer as "not yours", deliberately, so …
+- `previewCoversEveryCollection(preview: CompanyPromotionPreview): boolean` — Sanity check for callers and tests: the walk covered every collection.
+- `type PromotionAmbiguityKind = | "shared-record" | "straddling-person" | "no-company-dimension" | "untenanted-source" | "staff-tag"`
+- `interface PromotionCollectionLine (9 members)` — ─── Result shapes ────────────────────────────────────────────────────────
+- `interface PromotionAmbiguity (6 members)`
+- `interface PromotionPluginDataLine (9 members)`
+- `interface CompanyPromotionPreview (14 members)`
+
+### `src/server/companyPortal/disposition.ts`
+
+- `dispositionFor(collection: keyof Required<PortalState>): CollectionPromotionPlan`
+- `collectionsWithDisposition(disposition: PromotionDisposition): Array<keyof Required<PortalState>>`
+- `collectionsNeedingConfirmation(): Array<keyof Required<PortalState>>` — Collections whose disposition is a proposal a human must confirm.
+- `PROMOTION_DISPOSITION = {` — THE MAP. Order deliberately follows `PortalState` so the two can be read side by side. Nothing calls this to move a record yet — phase 1 is the map and its guard, and nothing else.
+- `PROMOTION_COLLECTION_COUNT = 78` — How many collections `PortalState` had when this map was written. The map's own length is checked against `PortalState` by the types above; this constant is the human-readable hal…
+- `PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<` — Every classified collection name, in `PortalState` order.
+- `type PromotionDisposition = "move" | "rekey" | "seed" | "closure" | "leave" | "na"` — What a promotion does with a collection. - `move` the records leave the origin tenant and arrive in the new one. One record, one tenant, ever — never a copy (see the erasure invar…
+- `type PromotionOwnership = | "company-single" /** `record.companyIds[]` — exclusive to this company, shared, or unset. */ | "company-multi" /** No company field; follows a client that is moving. */ | "client" /** Belongs…` — How a record in this collection is tied to a company — i.e. which field the preview may read to decide whether a record belongs to the promoted brand. This is the honest statement…
+- `type PromotionKeying = | "own-id" /** The key IS the agency id. */ | "agency-id" /** The key starts with the agency id (`${agencyId}:…` / `${agencyId}|…`). */ | "agency-composite" /** Keyed by ANOTHER record's id — tena…` — How the collection is keyed, so a generic walk can tell which records belong to the origin agency without a per-collection `if`.
+- `type PromotionDispositionMap = { readonly [K in keyof Required<PortalState>]: CollectionPromotionPlan; }` — One entry per collection in `PortalState`. `Required<…>` matters: six of the collections are optional (`assistant`, `websiteSources`, `enquiryContactDetails`, `agencyMasterTagKeys…
+- `interface PromotionParentLink (2 members)` — Where a `foreign-id` collection's tenancy actually lives.
+- `interface CollectionPromotionPlan (6 members)`
+
+
+## `src/server/`
 
 ### `src/server/completedActions.ts`
 
@@ -640,6 +674,8 @@ Every exported function, class, type and const in this area, with its real signa
 - `getTradingCompany(agencyId: string, companyId: string): TradingCompany | null`
 - `createTradingCompany(agencyId: string, input: TradingCompanyInput, actorUserId: string): TradingCompany`
 - `updateTradingCompany(agencyId: string, companyId: string, input: Partial<TradingCompanyInput>, actorUserId: string): TradingCompany | null`
+- `markTradingCompanyPortalCreated(agencyId: string, companyId: string, portalAgencyId: string, actorUserId: string): TradingCompany | null` — Record that a trading company has been given a PORTAL OF ITS OWN — the `Agency` row that backs its workspace. ⚠ THE MODEL, settled by the founder 2026-08-20. This is not a promoti…
+- `tradingCompanyHasOwnPortal(agencyId: string, companyId: string): boolean` — Does this company already have a portal of its own? Creating the portal moves NO records, so the company deliberately stays fully visible in the holding group's portfolio — it has…
 - `recordBelongsToCompany(companyIds: string[] | undefined, activeCompanyId: string | null): boolean`
 - `interface TradingCompanyInput (6 members)`
 
@@ -758,8 +794,8 @@ Every exported function, class, type and const in this area, with its real signa
 - `type PeopleRecognitionKind = "employee-of-month" | "shoutout"`
 - `type CustomKpiOp = "ratio" | "rate" | "sum" | "diff"` — ─── PortalState — the single typed object behind storage ─────────────────
 - `interface BrandKit (15 members)`
-- `interface Agency (8 members)`
-- `interface TradingCompany (10 members)`
+- `interface Agency (10 members)`
+- `interface TradingCompany (12 members)`
 - `interface AquaInjection (7 members)` — One configured injection on a site. `value` is the provider's **public** id or key (a GA4 "G-…", a GTM "GTM-…", a pixel id, …) — these ship in the page's HTML anyway, so they are …
 - `interface AquaFormFieldSchema (4 members)` — One field on an imported website form: what the visitor is asked, and how.
 - `interface AquaFormSchema (5 members)` — A form's field layout, imported from a tagged site's HTML (plan Phase 2) so the enquiry detail card can mirror the real form even before a submission arrives.

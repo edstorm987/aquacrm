@@ -280,11 +280,23 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-company-portal.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-company-products.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-company-switcher.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-completed-register.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-compliance-posture.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -429,6 +441,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-editor-adapters.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-element-engine.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -748,6 +764,19 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-portal-element-parity.harness.tsx`
+
+- `capture(): ParityCapture`
+- `interface ParityCapture (3 members)` — ─── Capture ──────────────────────────────────────────────────────────────
+
+### `scripts/smoke-portal-element-parity.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-portal-elements.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-portal-handoff.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -900,6 +929,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-rls-policy-coverage.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-sandbox-protection.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -989,6 +1022,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-vercel-domain.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-website-signup-lead.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 

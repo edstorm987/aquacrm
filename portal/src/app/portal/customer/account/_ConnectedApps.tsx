@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plug, X } from "lucide-react";
 
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 /**
  * The software a customer has connected to their portal, and the way out.

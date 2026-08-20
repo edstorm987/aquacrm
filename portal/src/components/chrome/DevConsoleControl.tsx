@@ -1,7 +1,7 @@
 import "server-only";
 
 import { DevConsoleButton } from "@/components/chrome/DevConsoleButton";
-import { devConsoleBadge } from "@/lib/server/devConsoleStatus";
+import { devConsoleBadge } from "@/lib/server/dev/devConsoleStatus";
 
 // Server half of the topbar Dev Console — the `RadarQuickLookControl` shape:
 // read the live number here, hand the client button a real starting value.

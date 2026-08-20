@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/attentionProtection.ts`](../src/lib/attentionProtection.md)
+- [`src/lib/intelligence/attentionProtection.ts`](../src/lib/intelligence/attentionProtection.md)
 
 ## Used by
 

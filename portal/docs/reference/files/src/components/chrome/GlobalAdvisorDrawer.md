@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Depends on (2)
 
-- [`src/lib/businessRadar.ts`](../../lib/businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](../../lib/radar/businessRadar.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (1)

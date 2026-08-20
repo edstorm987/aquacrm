@@ -42,7 +42,7 @@ const stubContext = () => ({ Provider: null, Consumer: null, _currentValue: unde
 reactShim.createContext ??= stubContext;
 if (reactShim.default) reactShim.default.createContext ??= stubContext;
 
-import { issueSession } from "../src/lib/server/auth";
+import { issueSession } from "../src/lib/server/auth/auth";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";

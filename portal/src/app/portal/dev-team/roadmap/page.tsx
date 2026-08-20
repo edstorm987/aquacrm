@@ -4,11 +4,11 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Plus, Route } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
-import { devDocsAccessible, PROJECT_ROOT } from "@/lib/server/devDocs";
-import { buildRoadmap, ROADMAP_REL_PATH } from "@/lib/server/devTeamRoadmap";
-import { scanTasks } from "@/lib/server/devTeamTasks";
-import { thoughtsByTask, unacknowledgedCount } from "@/lib/server/devTeamThoughts";
+import { requireRole } from "@/lib/server/auth/auth";
+import { devDocsAccessible, PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { buildRoadmap, ROADMAP_REL_PATH } from "@/lib/server/dev/devTeamRoadmap";
+import { scanTasks } from "@/lib/server/dev/devTeamTasks";
+import { thoughtsByTask, unacknowledgedCount } from "@/lib/server/dev/devTeamThoughts";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { PageHeader, Pill } from "../_ui";

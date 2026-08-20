@@ -1,4 +1,4 @@
-# `src/lib/commandIntelligence.ts`
+# `src/lib/intelligence/commandIntelligence.ts`
 
 ← [File index](../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -38,7 +38,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/businessRadar.ts`](./businessRadar.md)
+- [`src/lib/radar/businessRadar.ts`](./businessRadar.md)
 
 ## Used by (13)
 
@@ -51,8 +51,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/_DashboardCommandCenter.tsx`](../app/portal/agency/_DashboardCommandCenter.md)
 - [`src/app/portal/agency/_DayCommandSensorPanel.tsx`](../app/portal/agency/_DayCommandSensorPanel.md)
 - [`src/app/portal/agency/_DayKpiIntelligencePanel.tsx`](../app/portal/agency/_DayKpiIntelligencePanel.md)
-- [`src/lib/commercialIntelligence.ts`](./commercialIntelligence.md)
-- [`src/lib/kpiRegistry.ts`](./kpiRegistry.md)
-- [`src/lib/server/commandIntelligence.ts`](./server/commandIntelligence.md)
+- [`src/lib/intelligence/commercialIntelligence.ts`](./commercialIntelligence.md)
+- [`src/lib/performance/kpiRegistry.ts`](./kpiRegistry.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./server/commandIntelligence.md)
 - [`src/lib/server/marketingIntelligence.ts`](./server/marketingIntelligence.md)
 

@@ -1,12 +1,12 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
-let detection: typeof import("../src/lib/server/aquaTagDetection");
+let detection: typeof import("../src/lib/server/integrations/aquaTagDetection");
 let safeFetch: typeof import("../src/lib/server/safeSiteFetch");
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
-  detection = await import("../src/lib/server/aquaTagDetection");
+  detection = await import("../src/lib/server/integrations/aquaTagDetection");
   safeFetch = await import("../src/lib/server/safeSiteFetch");
 });
 

@@ -1,4 +1,4 @@
-# `src/lib/server/metaMessaging.ts`
+# `src/lib/server/integrations/metaMessaging.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -26,9 +26,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (4)
 
 - [`src/lib/inbox/types.ts`](../inbox/types.md)
-- [`src/lib/server/inboxStore.ts`](./inboxStore.md)
-- [`src/lib/server/inboxVault.ts`](./inboxVault.md)
-- [`src/lib/server/integrationConnections.ts`](./integrationConnections.md)
+- [`src/lib/server/inbox/inboxStore.ts`](./inboxStore.md)
+- [`src/lib/server/inbox/inboxVault.ts`](./inboxVault.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](./integrationConnections.md)
 
 ## Used by (7)
 
@@ -38,5 +38,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/webhooks/meta/route.ts`](../../app/api/webhooks/meta/route.md)
 - [`src/app/portal/agency/inbox/page.tsx`](../../app/portal/agency/inbox/page.md)
 - [`src/app/portal/agency/marketing/page.tsx`](../../app/portal/agency/marketing/page.md)
-- [`src/lib/server/inboxService.ts`](./inboxService.md)
+- [`src/lib/server/inbox/inboxService.ts`](./inboxService.md)
 

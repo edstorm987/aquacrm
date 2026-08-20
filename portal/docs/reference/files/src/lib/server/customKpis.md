@@ -1,4 +1,4 @@
-# `src/lib/server/customKpis.ts`
+# `src/lib/server/kpi/customKpis.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 

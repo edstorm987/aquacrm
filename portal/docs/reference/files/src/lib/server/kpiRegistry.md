@@ -1,4 +1,4 @@
-# `src/lib/server/kpiRegistry.ts`
+# `src/lib/server/kpi/kpiRegistryService.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
-- [`src/lib/kpiRegistry.ts`](../kpiRegistry.md)
-- [`src/lib/server/commandIntelligence.ts`](./commandIntelligence.md)
-- [`src/lib/server/radarEvidenceVault.ts`](./radarEvidenceVault.md)
+- [`src/lib/performance/kpiRegistry.ts`](../kpiRegistry.md)
+- [`src/lib/server/commandIntelligenceService.ts`](./commandIntelligence.md)
+- [`src/lib/server/radar/radarEvidenceVault.ts`](./radarEvidenceVault.md)
 
 ## Used by (1)
 

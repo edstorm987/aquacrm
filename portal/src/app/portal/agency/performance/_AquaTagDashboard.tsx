@@ -17,9 +17,9 @@ import {
 } from "lucide-react";
 
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
-import type { MonthlyPerformanceReport } from "@/lib/performanceReports";
+import type { MonthlyPerformanceReport } from "@/lib/performance/performanceReports";
 import { GrowthPerformance, type PerformanceClient } from "./_PerformanceWorkspace";
-import { formatUkDate } from "@/lib/formatDateTime";
+import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type Period = 7 | 28 | 90;
 

@@ -20,15 +20,16 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 
 ## Depends on (5)
 
-- [`src/lib/server/clientTelemetry.ts`](../lib/server/clientTelemetry.md)
+- [`src/lib/server/clients/clientTelemetryService.ts`](../lib/server/clients/clientTelemetryService.md)
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/tenants.ts`](./tenants.md)
 - [`src/server/tradingCompanies.ts`](./tradingCompanies.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (12)
+## Used by (13)
 
 - [`scripts/verify-marketing-runtime.ts`](../../scripts/verify-marketing-runtime.md)
+- [`src/app/api/auth/signup/route.ts`](../app/api/auth/signup/route.md)
 - [`src/app/api/portal/aqua-tags/detect/route.ts`](../app/api/portal/aqua-tags/detect/route.md)
 - [`src/app/api/portal/website-injections/route.ts`](../app/api/portal/website-injections/route.md)
 - [`src/app/api/portal/website-sources/route.ts`](../app/api/portal/website-sources/route.md)
@@ -36,7 +37,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/api/public/brand-enquiry/route.ts`](../app/api/public/brand-enquiry/route.md)
 - [`src/app/api/public/form-capture/route.ts`](../app/api/public/form-capture/route.md)
 - [`src/app/portal/agency/fulfilment/page.tsx`](../app/portal/agency/fulfilment/page.md)
-- [`src/app/portal/dev-team/api/page.tsx`](../app/portal/dev-team/api/page.md)
+- [`src/app/portal/dev-team/api/_Section.tsx`](../app/portal/dev-team/api/_Section.md)
 - [`src/lib/server/marketingIntelligence.ts`](../lib/server/marketingIntelligence.md)
 - [`src/server/websiteFormSchemas.ts`](./websiteFormSchemas.md)
 - [`src/server/websiteInjections.ts`](./websiteInjections.md)

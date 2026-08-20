@@ -13,11 +13,11 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (8)
 
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/clientRecordLedger.ts`](../../../../lib/server/clientRecordLedger.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/clients/clientRecordLedger.ts`](../../../../lib/server/clients/clientRecordLedger.md)
 - [`src/lib/server/identityResolution.ts`](../../../../lib/server/identityResolution.md)
-- [`src/lib/server/inboxService.ts`](../../../../lib/server/inboxService.md)
-- [`src/lib/server/inboxStore.ts`](../../../../lib/server/inboxStore.md)
+- [`src/lib/server/inbox/inboxService.ts`](../../../../lib/server/inbox/inboxService.md)
+- [`src/lib/server/inbox/inboxStore.ts`](../../../../lib/server/inbox/inboxStore.md)
 - [`src/lib/server/websiteEnquiries.ts`](../../../../lib/server/websiteEnquiries.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../server/tenants.md)

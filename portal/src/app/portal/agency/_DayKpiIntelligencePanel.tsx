@@ -2,7 +2,7 @@
 
 import { ArrowUpRight, BarChart3 } from "lucide-react";
 
-import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/commandIntelligence";
+import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpi } from "@/lib/intelligence/commandIntelligence";
 
 const COLOURS = ["#68f5d0", "#62e8ff", "#e5c479", "#9bb9ff", "#f87171"];
 

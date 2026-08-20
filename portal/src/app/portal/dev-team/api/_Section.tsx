@@ -5,9 +5,9 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Cable, Database, KeyRound, Plug, Radio, TriangleAlert } from "lucide-react";
 
-import { requireRole } from "@/lib/server/auth";
+import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { devDocsAccessible } from "@/lib/server/devDocs";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { ensureHydrated, flushPendingWrites, getBackendInfo, getState } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import {
@@ -16,24 +16,24 @@ import {
   masterTagSnippet,
 } from "@/server/websiteSources";
 import { INJECTION_PROVIDERS } from "@/server/websiteInjections";
-import { connectionLinkOrigin } from "@/lib/server/portalConnections";
-import { isPubliclyReachableOrigin } from "@/lib/publicOrigin";
+import { connectionLinkOrigin } from "@/lib/server/portal/portalConnections";
+import { isPubliclyReachableOrigin } from "@/lib/public/publicOrigin";
 import { INTEGRATION_CATALOG, type IntegrationProvider } from "@/lib/integrations/catalog";
 import {
   EXTERNAL_ASSISTANT_MODULES,
   isExternalAssistantModule,
   type ExternalAssistantAuth,
   type ExternalAssistantModule,
-} from "@/lib/server/externalAssistantApi";
+} from "@/lib/server/assistants/externalAssistantApi";
 import {
   EXTERNAL_ASSISTANT_PERMISSIONS,
   listExternalAssistantApiKeys,
   type ExternalAssistantApiKeySummary,
-} from "@/lib/server/externalAssistantKeys";
+} from "@/lib/server/assistants/externalAssistantKeys";
 import {
   handleExternalAssistantMcpRequest,
   listExternalAssistantMcpTools,
-} from "@/lib/server/externalAssistantMcp";
+} from "@/lib/server/assistants/externalAssistantMcp";
 import { ExternalAiConnectionPanel } from "@/app/portal/agency/settings/ExternalAiConnectionPanel";
 import { IntegrationConnectionsPanel } from "@/app/portal/agency/settings/IntegrationConnectionsPanel";
 import { PageHeader, Panel, Pill } from "../_ui";

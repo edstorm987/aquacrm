@@ -1,4 +1,4 @@
-# Phases / roadmap
+# Phases / roadmap — 📕 ARCHIVED HISTORY, NOT A QUEUE
 
 ← Back to [development.md](../development.md) (the law)
 
@@ -6,10 +6,27 @@
 > edited from the Dev Console at `/portal/dev-team/roadmap`. It carries the same idea with
 > dates, horizons and progress **computed** from the plans' phases, so it cannot go stale the
 > way this file did. Kept for its history; **do not add new items here.**
+>
+> ### 🛑 Do not pull work from this file
+> **Everything below is a snapshot of what was believed in mid-August 2026.** Most of
+> its "Next" list has since shipped. Re-checked against source on 2026-08-20:
+>
+> | This file's item | Reality on 2026-08-20 |
+> |---|---|
+> | Next #1 — Aqua Tags wizard steps 4–6 | **Partly done.** Steps 1, 2, 3 **and 6** (link a site to a company) are `status: "done"`; step 4 (link the repo) is `"next"`, step 5 (seed into the editor) is `"planned"` — `agency/fulfilment/_AquaTagsWorkspace.tsx:85-90`. |
+> | Next #2 — Command Centre nav link to Aqua Tags | **Still open** — the only route in is still the inbox Channels "Master tags →" link (`inbox/_WebsiteSourcesConfig.tsx:192`). |
+> | Next #3 — real emailed connect codes | ✅ **SHIPPED.** `lib/server/connectionConfirmation.ts` (6-digit, HMAC-hashed, 15-min TTL, single-use, fails closed); `00000` only when dev mode enables the bypass (`:53`, `:177`). See [issues #5](issues.md). |
+> | Next #4 — Aqua Tag consent-gated tag manager | ✅ **SHIPPED** (aqua-tag Phase 4) — `server/websiteInjections.ts`, `GET /api/public/aqua-tag-config`, `ToolInjections` UI; the gate is **fail-closed** on an unlabelled category. |
+> | Next #5 — plugin-data erasure hooks | ✅ **SHIPPED.** See [issues #7](issues.md). |
+> | Next #6 — Radar upgrade + database/storage health | ✅ **SHIPPED.** `lib/radarInfraChecks.ts` + `_InfraHealthPanel.tsx`. See [issues #9b](issues.md). |
+> | Later — "wire MFA into login" | ✅ **BUILT.** Server gate `api/auth/login/route.ts:312,355`; code step `app/login/LoginForm.tsx:197`. See [issues #10](issues.md). |
+> | Decisions — "Database RLS: confirm/enable" | ⚠ **NOT Ed's task any more.** RLS is **ON** in the live project (verified 2026-08-20 across 14 tables with the public anon key). What remains is engineering — see [rls-enable](plans/rls-enable.md). |
+> | Decisions — Aqua Tag form-capture consent | **Still genuinely Ed's call** (`api/public/form-capture/route.ts:245` writes `consent: false`, no gate). |
+> | Decisions — first git commit | **Still genuinely Ed's call.** |
 
-Where development is going, in order. Move an item to "Done" (with a date) when
-it ships, and log it in [updates.md](updates.md). This is the queue — pull the
-top of "Next" unless Ed redirects.
+_Historical content follows._ Where development was going, in order. This **was**
+the queue; it is not any more — pull from [roadmap.md](roadmap.md) and
+[checklist.md](checklist.md) instead.
 
 ## ✅ Recently done (this push — Aug 2026)
 See [the session changelog](../workspace/session-changelog-2026-08.md) for detail.

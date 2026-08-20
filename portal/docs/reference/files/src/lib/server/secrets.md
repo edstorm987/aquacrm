@@ -21,8 +21,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/internalWorkspace.ts`](../internalWorkspace.md)
 - [`src/lib/server/env.ts`](./env.md)
+- [`src/lib/shared/internalWorkspace.ts`](../shared/internalWorkspace.md)
 
 ## Used by
 

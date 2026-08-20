@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/clientTelemetry.ts`](../../../../lib/clientTelemetry.md)
+- [`src/lib/clients/clientTelemetry.ts`](../../../../lib/clients/clientTelemetry.md)
 
 ## Used by (1)
 

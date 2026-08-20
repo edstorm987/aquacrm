@@ -10,7 +10,7 @@
 
 ## Depends on (1)
 
-- [`src/lib/server/oauthGoogle.ts`](../../../../../../lib/server/oauthGoogle.md)
+- [`src/lib/server/integrations/oauthGoogle.ts`](../../../../../../lib/server/integrations/oauthGoogle.md)
 
 ## Used by
 

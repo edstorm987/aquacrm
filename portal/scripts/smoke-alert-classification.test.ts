@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clearanceFor, resolutionKindOf } from "../src/lib/inbox/resolutionExplain";
 import { withResolutionContexts } from "../src/lib/inbox/resolutionFocus";
-import type { OperationalAlert } from "../src/lib/operationalAttention";
+import type { OperationalAlert } from "../src/lib/intelligence/operationalAttention";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");

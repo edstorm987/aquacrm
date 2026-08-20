@@ -88,17 +88,17 @@ Useful entrypoints:
 
 - agency home: `src/app/portal/agency/page.tsx`
 - client workspace: `src/app/portal/clients/[clientId]/page.tsx`
-- client tabs: `src/lib/clientWorkspace.ts`
+- client tabs: `src/lib/clients/clientWorkspace.ts`
 - Master Inbox: `src/app/portal/agency/inbox/_MasterInbox.tsx`
 - Actions: `src/app/portal/agency/actions/_ActionsWorkspace.tsx`
 - Journey: `src/app/portal/agency/pipelines/[slug]/`
 - Fulfilment: `src/app/portal/agency/fulfilment/`
 - product models: `src/server/agencyProducts.ts` and
   `src/server/productWorkspaces.ts`
-- operational alerts: `src/lib/server/operationalAlerts.ts`
-- Radar: `src/lib/server/businessIssueRadar.ts`, `src/lib/radarPolicyEngine.ts`,
-  and `src/lib/radarCheckEngine.ts`
-- permissions: `src/lib/server/requireAgencyScope.ts` and
+- operational alerts: `src/lib/server/inbox/operationalAlerts.ts`
+- Radar: `src/lib/server/radar/businessIssueRadar.ts`, `src/lib/radar/radarPolicyEngine.ts`,
+  and `src/lib/radar/radarCheckEngine.ts`
+- permissions: `src/lib/server/auth/requireAgencyScope.ts` and
   `src/lib/server/RequirePermission.tsx`
 
 ## API And Mutation Pattern
@@ -162,7 +162,7 @@ the operator on a checklist that cannot complete.
   promote/open only the requested record.
 - Client-scoped work should stay inside the client workspace unless the user
   explicitly asks for the portfolio view.
-- Use `src/lib/clientWorkspace.ts` for client tab IDs and URL creation.
+- Use `src/lib/clients/clientWorkspace.ts` for client tab IDs and URL creation.
 
 ## UI Rules Already Established
 

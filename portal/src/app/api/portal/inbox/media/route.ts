@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 
 import type { InboxOutboundAttachment, InboxOutboundAttachmentKind } from "@/lib/inbox/media";
-import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth";
-import { getInboxConversation } from "@/lib/server/inboxStore";
-import { inboxMediaUrl, signInboxMediaToken, type InboxMediaTargetKind } from "@/lib/server/inboxMedia";
+import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
+import { getInboxConversation } from "@/lib/server/inbox/inboxStore";
+import { inboxMediaUrl, signInboxMediaToken, type InboxMediaTargetKind } from "@/lib/server/inbox/inboxMedia";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureHydrated } from "@/server/storage";

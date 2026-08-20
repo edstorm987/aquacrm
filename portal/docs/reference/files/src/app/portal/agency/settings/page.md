@@ -11,9 +11,9 @@
 ## Depends on (13)
 
 - [`src/app/portal/agency/settings/SettingsTabs.tsx`](./SettingsTabs.md)
-- [`src/lib/server/auth.ts`](../../../../lib/server/auth.md)
-- [`src/lib/server/externalAssistantKeys.ts`](../../../../lib/server/externalAssistantKeys.md)
-- [`src/lib/server/integrationConnections.ts`](../../../../lib/server/integrationConnections.md)
+- [`src/lib/server/assistants/externalAssistantKeys.ts`](../../../../lib/server/assistants/externalAssistantKeys.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/integrations/integrationConnections.ts`](../../../../lib/server/integrations/integrationConnections.md)
 - [`src/lib/server/productionReadiness.ts`](../../../../lib/server/productionReadiness.md)
 - [`src/server/agencySettings.ts`](../../../../server/agencySettings.md)
 - [`src/server/phases.ts`](../../../../server/phases.md)

@@ -29,7 +29,7 @@ test("local server-to-server credential remains unavailable to random callers", 
 });
 
 test("new integrations use the Aqua namespace while the old route remains an alias", () => {
-  const source = readFileSync("src/lib/aquaTagSource.ts", "utf8");
+  const source = readFileSync("src/lib/integrations/aquaTagSource.ts", "utf8");
   const currentRoute = readFileSync("src/app/aqua-tag.js/route.ts", "utf8");
   const compatibilityRoute = readFileSync("src/app/milesy-tag.js/route.ts", "utf8");
   const consumeRoute = readFileSync("src/app/api/v1/embed/consume/route.ts", "utf8");

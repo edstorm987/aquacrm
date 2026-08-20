@@ -1,4 +1,4 @@
-# `src/lib/server/inboxVault.ts`
+# `src/lib/server/inbox/inboxVault.ts`
 
 ← [File index](../../../../files-index.md) · Area: Shared logic — src/lib/
 
@@ -12,5 +12,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Used by (2)
 
 - [`src/app/api/portal/inbox/meta/callback/route.ts`](../../app/api/portal/inbox/meta/callback/route.md)
-- [`src/lib/server/metaMessaging.ts`](./metaMessaging.md)
+- [`src/lib/server/integrations/metaMessaging.ts`](./metaMessaging.md)
 

@@ -2,22 +2,15 @@
 
 ← [File index](../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
 
-**What it is:** Block — leaf unit of an EditorPage tree.  Faithful port of `02 felicias aqua portal work/src/portal/server/types.ts` (sections covering Block, BlockStyles, BlockVariant, BlockA11y, BlockSeo, SplitTestGroup, SplitTestStatus, SplitTestResult). The plugin re-exports these so the lifted block components and renderer can import from `@plugin/types/block` without touching the foundation type module.  `type` remains an open string so other plugins (ecommerce, blog, etc.) can extend the registry. The website-editor plugin contributes the canonical block types; their values are aliased in `BlockType` for in-tree references.
+**What it is:** Block — leaf unit of an EditorPage tree.  THE DECLARATION MOVED. Everything below is re-exported verbatim from `src/lib/elements/block.ts`, which is now the single home of the element vocabulary shared by the website, the client portal and product lifecycle stages (element engine, P1). This path is kept because ~380 import sites use it and none of them needed to change.  Add a field to an element by editing `src/lib/elements/block.ts`, not here.  Historical note, still true of the shape: `type` remains an open string so other plugins (ecommerce, blog, etc.) can extend the registry. The website-editor plugin contributes the canonical block types; their values are aliased in `BlockType` for in-tree references.
 
-## Exports (10)
+_No exported symbols (side-effect / internal module)._
 
-- `type BlockType`
-- `interface BlockStyles (32 members)`
-- `interface BlockA11y (7 members)`
-- `interface BlockSeo (2 members)`
-- `interface BlockVariant (5 members)`
-- `interface Block (9 members)`
-- `type SplitTestStatus`
-- `interface SplitTestGroup (13 members)`
-- `interface SplitTestResult (5 members)`
-- `type BlockTreeJSON`
+## Depends on (1)
 
-## Used by (77)
+- [`src/lib/elements/block.ts`](../../../../../lib/elements/block.md)
+
+## Used by (72)
 
 - [`scripts/smoke-public-media-promotion.test.ts`](../../../../../../scripts/smoke-public-media-promotion.test.md)
 - [`scripts/smoke-website-visual-builder.test.ts`](../../../../../../scripts/smoke-website-visual-builder.test.md)
@@ -51,24 +44,19 @@
 - [`src/built-ins/modules/website-editor/src/api/handlers/formSubmissionHost.ts`](../api/handlers/formSubmissionHost.md)
 - [`src/built-ins/modules/website-editor/src/api/handlers/pageVersions.ts`](../api/handlers/pageVersions.md)
 - [`src/built-ins/modules/website-editor/src/api/handlers/templates.ts`](../api/handlers/templates.md)
-- [`src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`](../components/BlockRenderer.md)
 - [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../components/blockRegistry.md)
-- [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](../components/blockStyles.md)
 - [`src/built-ins/modules/website-editor/src/components/blocks/BlogPostBlock.tsx`](../components/blocks/BlogPostBlock.md)
 - [`src/built-ins/modules/website-editor/src/components/blocks/MemberGateBlock.tsx`](../components/blocks/MemberGateBlock.md)
 - [`src/built-ins/modules/website-editor/src/components/canvas/Canvas.tsx`](../components/canvas/Canvas.md)
 - [`src/built-ins/modules/website-editor/src/components/canvas/PropertiesPanel.tsx`](../components/canvas/PropertiesPanel.md)
 - [`src/built-ins/modules/website-editor/src/components/canvas/Sidebar.tsx`](../components/canvas/Sidebar.md)
-- [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](../components/canvas/blockTreeOps.md)
 - [`src/built-ins/modules/website-editor/src/components/editor/CodeModePanel.tsx`](../components/editor/CodeModePanel.md)
 - [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](../components/editor/EditorBlockStage.md)
 - [`src/built-ins/modules/website-editor/src/components/editor/FindReplaceModal.tsx`](../components/editor/FindReplaceModal.md)
 - [`src/built-ins/modules/website-editor/src/components/editor/SaveAsTemplateButton.tsx`](../components/editor/SaveAsTemplateButton.md)
 - [`src/built-ins/modules/website-editor/src/components/editor/VersionDiffPanel.tsx`](../components/editor/VersionDiffPanel.md)
 - [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](../components/pageTemplates.md)
-- [`src/built-ins/modules/website-editor/src/components/variantResolver.ts`](../components/variantResolver.md)
 - [`src/built-ins/modules/website-editor/src/lib/a11yAudit.ts`](../lib/a11yAudit.md)
-- [`src/built-ins/modules/website-editor/src/lib/blockSchemaMigrations.ts`](../lib/blockSchemaMigrations.md)
 - [`src/built-ins/modules/website-editor/src/lib/blockTreeDiff.ts`](../lib/blockTreeDiff.md)
 - [`src/built-ins/modules/website-editor/src/lib/blockTreeJson.ts`](../lib/blockTreeJson.md)
 - [`src/built-ins/modules/website-editor/src/lib/draftPublished.ts`](../lib/draftPublished.md)
