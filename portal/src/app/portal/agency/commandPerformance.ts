@@ -13,7 +13,7 @@
 // path unchanged — `shouldRunHeavyPanels` returns `true`, so the eager build
 // runs exactly as before.
 
-import type { BusinessIssueRadar } from "@/lib/radar/businessRadar";
+import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import type { RadarPolicyConfiguration } from "@/server/types";
 import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandIntelligence";
 import { buildCommercialLifecycleSnapshot } from "@/lib/intelligence/commercialLifecycle";

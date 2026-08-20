@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { RadarTelemetrySnapshot } from "../src/lib/server/radar/radarTelemetry";
+import type { RadarTelemetrySnapshot } from "../src/engines/data/server/radar/radarTelemetry";
 import {
   RADAR_COVERAGE_TEMPLATES,
   coverageTemplateFor,
   resolveRadarCoverage,
   type RadarCoverageInputEntity,
-} from "../src/lib/radar/radarCoverageRegistry";
-import { buildRadarWatchdogChecks } from "../src/lib/radar/radarSentinels";
+} from "../src/engines/data/radar/radarCoverageRegistry";
+import { buildRadarWatchdogChecks } from "../src/engines/data/radar/radarSentinels";
 import * as storage from "../src/server/storage";
 import { createAgency, createClient } from "../src/server/tenants";
-import { buildBusinessIssueRadar, getCachedBusinessIssueRadar } from "../src/lib/server/radar/businessIssueRadar";
+import { buildBusinessIssueRadar, getCachedBusinessIssueRadar } from "../src/engines/data/server/radar/businessIssueRadar";
 
 // Radar upgrade — Stage 6: auto-coverage for new entities (registry + seeder + watchdog proof).
 

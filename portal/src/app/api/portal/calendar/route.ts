@@ -10,8 +10,8 @@ import {
 } from "@/server/commandCalendar";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import { invalidateBusinessIssueRadarCache } from "@/lib/server/radar/businessIssueRadar";
-import { invalidateRadarSourceInspection } from "@/lib/server/radar/radarSourceInspection";
+import { invalidateBusinessIssueRadarCache } from "@/engines/data/server/radar/businessIssueRadar";
+import { invalidateRadarSourceInspection } from "@/engines/data/server/radar/radarSourceInspection";
 
 function invalidateCalendarReadModels(agencyId: string) {
   invalidateBusinessIssueRadarCache(agencyId);

@@ -1,7 +1,7 @@
 import type { AdvisorActionCategory, AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
 import { ADVISOR_CATEGORY_HREF } from "@/lib/advisor/advisorActions";
-import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity, RadarFindingGroup } from "@/lib/radar/businessRadar";
-import { radarFindingGroup } from "@/lib/radar/radarClassification";
+import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity, RadarFindingGroup } from "@/engines/data/radar/businessRadar";
+import { radarFindingGroup } from "@/engines/data/radar/radarClassification";
 import { stepsFor } from "@/lib/inbox/evidenceSteps";
 import { resolutionKindOf } from "@/lib/inbox/resolutionExplain";
 import type { OperationalAlert, OperationalAlertCategory } from "@/lib/intelligence/operationalAttention";

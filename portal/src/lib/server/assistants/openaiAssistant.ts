@@ -3,7 +3,7 @@ import "server-only";
 import type { AdvisorActionCategory, AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
 import { ADVISOR_CATEGORY_HREF } from "@/lib/advisor/advisorActions";
 import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
-import type { AdvisorDomain, BusinessRadarIssue } from "@/lib/radar/businessRadar";
+import type { AdvisorDomain, BusinessRadarIssue } from "@/engines/data/radar/businessRadar";
 import type { AdvisorSkill } from "@/lib/advisor/advisorSkills";
 import type { AssistantMemory, AssistantMessage } from "@/server/types";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";

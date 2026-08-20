@@ -3308,7 +3308,7 @@ export interface PortalState {
   /** Per-agency guided custom KPIs (Phase 6 — KPI intelligence). Additive. */
   customKpis: Record<string, CustomKpiDefinition[]>;
   /** Latest Infra sweep snapshot (radar upgrade Stage 4). App-wide DB/storage health — one probe, not per-agency. */
-  radarInfraHealth?: import("@/lib/radar/businessRadar").RadarInfraHealthSnapshot;
+  radarInfraHealth?: import("@/engines/data/radar/businessRadar").RadarInfraHealthSnapshot;
   operationalAlertPreferences: Record<string, OperationalAlertPreference>;
   peopleApplications: Record<string, PeopleApplication>;
   peopleEmployees: Record<string, PeopleEmployee>;

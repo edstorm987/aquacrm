@@ -25,14 +25,14 @@ import "server-only";
 // are only present when the caller supplies them (a demo session supplies none),
 // and that is reported as `available: false`, never as "zero enquiries".
 
-import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import { getCachedBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
 import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligenceService";
-import { inspectRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
+import { inspectRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
 import { describeCommandKpis, type KpiDescriptor } from "@/lib/performance/kpiRegistry";
 import { listWebsiteSources, normalizeHost } from "@/server/websiteSources";
 import { INJECTION_PROVIDERS, listInjections } from "@/server/websiteInjections";
 import { listIntegrationConnections } from "@/lib/server/integrations/integrationConnections";
-import type { BusinessIssueRadar, BusinessRadarCheck, RadarCheckStatus, RadarDomainSummary } from "@/lib/radar/businessRadar";
+import type { BusinessIssueRadar, BusinessRadarCheck, RadarCheckStatus, RadarDomainSummary } from "@/engines/data/radar/businessRadar";
 import type { WebsiteSource } from "@/server/websiteSources";
 import type { CommercialSourcePerformance } from "@/lib/intelligence/commandIntelligence";
 

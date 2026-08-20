@@ -10,8 +10,8 @@ import {
 import { requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
-import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
-import { radarDigest } from "@/lib/radar/businessRadar";
+import { getCachedBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
+import { radarDigest } from "@/engines/data/radar/businessRadar";
 
 export default async function AssistantPage() {
   await ensureHydrated();

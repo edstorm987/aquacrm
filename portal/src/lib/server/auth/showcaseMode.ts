@@ -10,7 +10,7 @@ import { createPerformanceExperiment } from "@/server/performanceExperiments";
 import { getInstall } from "@/server/pluginInstalls";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { addCard, getPipelineBySlug } from "@/server/pipelines";
-import { createWrittenSop } from "@/server/sops";
+import { createWrittenSop } from "@/engines/sop/server/sops";
 import { ensureHydrated, getState, mutate } from "@/server/storage";
 import { createAgencyTask, updateAgencyTask } from "@/server/tasks";
 import { createClient, getAgencyBySlug } from "@/server/tenants";

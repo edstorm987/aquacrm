@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { resolveKpiTarget } from "../src/lib/performance/kpiRegistry";
-import { clearKpiTarget, getKpiTargetsConfig, setKpiTarget } from "../src/lib/server/kpi/kpiTargets";
-import { createCustomKpi, deleteCustomKpi, listCustomKpis } from "../src/lib/server/kpi/customKpis";
+import { clearKpiTarget, getKpiTargetsConfig, setKpiTarget } from "../src/engines/data/server/kpi/kpiTargets";
+import { createCustomKpi, deleteCustomKpi, listCustomKpis } from "../src/engines/data/server/kpi/customKpis";
 import { ensureHydrated } from "../src/server/storage";
 
 test("setKpiTarget persists to agencySettings; a config override changes the resolved target, versioned", async () => {

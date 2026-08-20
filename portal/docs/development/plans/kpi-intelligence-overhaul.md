@@ -6,7 +6,7 @@
 
 > ⚠ **Not built: shared saved views.** Ed decided saved views should be **BOTH** per-user private *and* shared agency-wide, carried on a new `kpiViews` collection. `kpiViews` **does not exist anywhere in `src/`** (grepped 2026-08-20, zero hits), and saved views are still browser-only `localStorage` under `SAVED_COMPARISON_KEY` (`_CommandIntelligenceWorkspace.tsx:382`, `:473`, `:494`). The plan itself calls this "a follow-on slice once the explorer exists" — the explorer exists, so the slice is now simply open. **This is why this plan stays on the board rather than moving to `archive/`.**
 
-Verified in source 2026-08-20, so nobody re-does it: registry (`src/lib/performance/kpiRegistry.ts`) · custom-KPI builder (`api/portal/kpi-registry/custom/route.ts` + `src/lib/server/kpi/customKpis.ts`) · **server-persisted** targets (`api/portal/kpi-registry/targets/route.ts`, read at `_CommandIntelligenceWorkspace.tsx:394`, written at `:504`/`:512`) · adaptive suggestions (`suggestKpiTarget`, `kpiRegistry.ts:283`, wired to the Sparkles button at `:659`). Ed's verdict: *"a pile of shit with a few good
+Verified in source 2026-08-20, so nobody re-does it: registry (`src/lib/performance/kpiRegistry.ts`) · custom-KPI builder (`api/portal/kpi-registry/custom/route.ts` + `src/engines/data/server/kpi/customKpis.ts`) · **server-persisted** targets (`api/portal/kpi-registry/targets/route.ts`, read at `_CommandIntelligenceWorkspace.tsx:394`, written at `:504`/`:512`) · adaptive suggestions (`suggestKpiTarget`, `kpiRegistry.ts:283`, wired to the Sparkles button at `:659`). Ed's verdict: *"a pile of shit with a few good
 bits and a few awesome UIs."* Keep + extend the great bits (the trajectory graph,
 the people-map); replace the rigidity (few KPIs, fixed formulas, one-size targets)
 with something **explorable, tunable, target-tracked, and adaptive** — without
@@ -147,9 +147,9 @@ no git to recover from. Before assigning this plan, check these paths against ev
 plan in flight._
 
 - `src/lib/performance/kpiRegistry.ts`
-- `src/lib/server/kpi/kpiRegistryService.ts`
-- `src/lib/server/kpi/kpiTargets.ts`
-- `src/lib/server/kpi/customKpis.ts`
+- `src/engines/data/server/kpi/kpiRegistryService.ts`
+- `src/engines/data/server/kpi/kpiTargets.ts`
+- `src/engines/data/server/kpi/customKpis.ts`
 - `src/lib/people/customerProfileScope.ts`
 - `src/app/api/portal/kpi-registry/targets/route.ts`
 - `src/app/api/portal/kpi-registry/custom/route.ts`

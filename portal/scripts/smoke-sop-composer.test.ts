@@ -8,7 +8,7 @@ import {
   getSop,
   updateSop,
   validateSopBlockTree,
-} from "../src/server/sops";
+} from "../src/engines/sop/server/sops";
 import { mutate } from "../src/server/storage";
 import {
   COMPOSER_BLOCK_TYPES,

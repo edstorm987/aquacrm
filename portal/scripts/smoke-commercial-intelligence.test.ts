@@ -144,8 +144,8 @@ require_.cache[serverOnlyPath] = {
 
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
-type RadarModule = typeof import("../src/lib/server/radar/businessIssueRadar");
-type EvidenceVault = typeof import("../src/lib/server/radar/radarEvidenceVault");
+type RadarModule = typeof import("../src/engines/data/server/radar/businessIssueRadar");
+type EvidenceVault = typeof import("../src/engines/data/server/radar/radarEvidenceVault");
 type CommandIntelligence = typeof import("../src/lib/server/commandIntelligenceService");
 
 let storage: Storage;
@@ -158,8 +158,8 @@ before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
-  radarModule = await import("../src/lib/server/radar/businessIssueRadar");
-  evidenceVault = await import("../src/lib/server/radar/radarEvidenceVault");
+  radarModule = await import("../src/engines/data/server/radar/businessIssueRadar");
+  evidenceVault = await import("../src/engines/data/server/radar/radarEvidenceVault");
   commandIntelligence = await import("../src/lib/server/commandIntelligenceService");
   await storage.ensureHydrated();
 });

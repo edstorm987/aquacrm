@@ -14,7 +14,7 @@ import type { SharedKpiComparisonView } from "@/server/types";
  * (`aqua:kpi-comparison-views:v1` in localStorage) and never leaves the
  * machine; this module persists the shared half into
  * `agencySettings.kpiSavedViews`, following the same agency-scoped settings
- * pattern as `kpiTargets` (`src/lib/server/kpi/kpiTargets.ts`). Plan overrides
+ * pattern as `kpiTargets` (`src/engines/data/server/kpi/kpiTargets.ts`). Plan overrides
  * are deliberately NOT part of a shared view — they are already server-shared
  * through the KPI targets store.
  */

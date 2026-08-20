@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createInteractiveSop, createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/server/sops";
+import { createInteractiveSop, createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { BlockTreeJSON } from "@/engines/editor/elements";

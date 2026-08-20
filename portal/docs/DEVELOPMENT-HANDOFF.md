@@ -96,8 +96,8 @@ Useful entrypoints:
 - product models: `src/server/agencyProducts.ts` and
   `src/server/productWorkspaces.ts`
 - operational alerts: `src/lib/server/inbox/operationalAlerts.ts`
-- Radar: `src/lib/server/radar/businessIssueRadar.ts`, `src/lib/radar/radarPolicyEngine.ts`,
-  and `src/lib/radar/radarCheckEngine.ts`
+- Radar: `src/engines/data/server/radar/businessIssueRadar.ts`, `src/engines/data/radar/radarPolicyEngine.ts`,
+  and `src/engines/data/radar/radarCheckEngine.ts`
 - permissions: `src/lib/server/auth/requireAgencyScope.ts` and
   `src/lib/server/RequirePermission.tsx`
 

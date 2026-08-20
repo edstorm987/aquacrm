@@ -1,5 +1,5 @@
-import type { AdvisorDomain, BusinessIssueSeverity, BusinessRadarCheck, BusinessRadarIssue } from "@/lib/radar/businessRadar";
-import type { RadarObservation } from "@/lib/radar/radarCheckEngine";
+import type { AdvisorDomain, BusinessIssueSeverity, BusinessRadarCheck, BusinessRadarIssue } from "@/engines/data/radar/businessRadar";
+import type { RadarObservation } from "@/engines/data/radar/radarCheckEngine";
 
 interface CorrelationEvidence {
   domain: AdvisorDomain;

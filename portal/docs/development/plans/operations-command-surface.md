@@ -79,8 +79,8 @@ plan in flight._
 - `src/app/api/portal/company/legal/route.ts`
 - `src/app/api/portal/company/legal/content/route.ts`
 - `src/app/api/portal/company/legal/upload/route.ts`
-- `src/lib/radar/radarRuleCatalog.ts`
-- `src/lib/server/radar/radarObservations.ts`
+- `src/engines/data/radar/radarRuleCatalog.ts`
+- `src/engines/data/server/radar/radarObservations.ts`
 - `src/lib/server/productionReadiness.ts`
 - `src/server/storage.ts`
 - `src/server/types.ts`

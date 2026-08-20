@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { createSopGuide, deleteSopGuide, listSopGuides, updateSopGuide } from "@/server/sopGuides";
+import { createSopGuide, deleteSopGuide, listSopGuides, updateSopGuide } from "@/engines/sop/server/sopGuides";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type Role, type SopGuideAudience } from "@/server/types";
 

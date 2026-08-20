@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { BusinessRadarIssue } from "@/lib/radar/businessRadar";
+import type { BusinessRadarIssue } from "@/engines/data/radar/businessRadar";
 import type { ClientTelemetryEvent } from "@/lib/clients/clientTelemetry";
 import type { AgencyWebsiteProject, AgencyWebsiteTelemetryEvent, Client, RadarSyntheticProbeResult } from "@/server/types";
 import { formatUkDate, isoDateTimeValue } from "@/lib/shared/formatDateTime";

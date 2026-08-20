@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/server/auth/auth";
-import { listSopCategories, listSops } from "@/server/sops";
-import { listSopGuides } from "@/server/sopGuides";
+import { listSopCategories, listSops } from "@/engines/sop/server/sops";
+import { listSopGuides } from "@/engines/sop/server/sopGuides";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

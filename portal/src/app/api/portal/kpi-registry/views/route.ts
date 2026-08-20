@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { deleteSharedKpiView, listSharedKpiViews, saveSharedKpiView } from "@/lib/server/kpi/kpiSavedViews";
+import { deleteSharedKpiView, listSharedKpiViews, saveSharedKpiView } from "@/engines/data/server/kpi/kpiSavedViews";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

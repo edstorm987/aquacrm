@@ -170,8 +170,8 @@ plan in flight._
 - `scripts/smoke-website-sources.test.ts`
 - `scripts/smoke-aqua-tag-injections.test.ts`
 - `src/server/types.ts`
-- `src/lib/radar/radarRuleCatalog.ts`
-- `src/lib/server/radar/radarObservations.ts`
+- `src/engines/data/radar/radarRuleCatalog.ts`
+- `src/engines/data/server/radar/radarObservations.ts`
 - `scripts/smoke-radar-classification.test.ts`
 - `scripts/smoke-radar-golden-sweep.test.ts`
 - `docs/development/plans/aqua-tag-system.md`

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { deleteSharedKpiView, listSharedKpiViews, saveSharedKpiView } from "../src/lib/server/kpi/kpiSavedViews";
+import { deleteSharedKpiView, listSharedKpiViews, saveSharedKpiView } from "../src/engines/data/server/kpi/kpiSavedViews";
 import { getAgencyWorkspaceSettings, updateAgencyWorkspaceSettings } from "../src/server/agencySettings";
 import { ensureHydrated } from "../src/server/storage";
 

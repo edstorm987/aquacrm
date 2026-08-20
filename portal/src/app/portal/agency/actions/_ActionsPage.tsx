@@ -1,6 +1,6 @@
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessRecommendedActions";
-import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import { getCachedBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
 import { listExternalAssistantActionProposals } from "@/lib/server/assistants/externalAssistantProposals";
 import { requireRole } from "@/lib/server/auth/auth";
 import { isAssistantConfigured } from "@/lib/server/assistants/openaiAssistant";
@@ -13,7 +13,7 @@ import { getInstall } from "@/server/pluginInstalls";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 import { listCommandCalendarEntries } from "@/server/commandCalendar";
 import { getCommandCalendarIntegrationSnapshot } from "@/lib/server/integrations/googleCalendar";
-import { listSops } from "@/server/sops";
+import { listSops } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { listAgencyTasks } from "@/server/tasks";
 import { listClients } from "@/server/tenants";

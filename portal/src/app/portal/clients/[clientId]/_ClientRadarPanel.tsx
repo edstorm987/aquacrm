@@ -16,7 +16,7 @@ import {
   ScanSearch,
   X,
 } from "lucide-react";
-import type { BusinessRadarCheck, ClientRadarSnapshot, RadarCheckStatus } from "@/lib/radar/businessRadar";
+import type { BusinessRadarCheck, ClientRadarSnapshot, RadarCheckStatus } from "@/engines/data/radar/businessRadar";
 
 type Filter = "attention" | "all" | "blind" | "learning";
 

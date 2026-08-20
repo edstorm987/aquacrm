@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createFileSop } from "@/server/sops";
+import { createFileSop } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import type { SopDocument } from "@/server/types";

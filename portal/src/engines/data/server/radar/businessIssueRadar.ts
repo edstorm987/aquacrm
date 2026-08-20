@@ -14,25 +14,25 @@ import type {
   RadarFindingGroup,
   RadarFindingGroupSummary,
   SpeedToLeadRadar,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 import {
   buildCommercialLifecycleChecks,
   buildCommercialLifecycleIssues,
   buildCommercialLifecycleSignals,
   buildCommercialLifecycleSnapshot,
 } from "@/lib/intelligence/commercialLifecycle";
-import { buildRadarCheckMatrix, summarizeRadarChecks } from "@/lib/radar/radarCheckEngine";
-import { classifyRadarCheck, RADAR_FINDING_GROUP_LABELS } from "@/lib/radar/radarClassification";
-import { buildInfraHealthChecks } from "@/lib/radar/radarInfraChecks";
-import { resolveRadarCoverage, type RadarCoverageInputEntity } from "@/lib/radar/radarCoverageRegistry";
-import { ensureRadarSeedingRegistered } from "@/lib/server/radar/radarSeeding";
+import { buildRadarCheckMatrix, summarizeRadarChecks } from "@/engines/data/radar/radarCheckEngine";
+import { classifyRadarCheck, RADAR_FINDING_GROUP_LABELS } from "@/engines/data/radar/radarClassification";
+import { buildInfraHealthChecks } from "@/engines/data/radar/radarInfraChecks";
+import { resolveRadarCoverage, type RadarCoverageInputEntity } from "@/engines/data/radar/radarCoverageRegistry";
+import { ensureRadarSeedingRegistered } from "@/engines/data/server/radar/radarSeeding";
 import { listAgencyProducts } from "@/server/agencyProducts";
 import { listTradingCompanies } from "@/server/tradingCompanies";
-import { buildRadarCorrelationIssues } from "@/lib/radar/radarCorrelations";
-import { applyAdaptiveRadarPolicy } from "@/lib/radar/radarPolicyEngine";
-import { RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES } from "@/lib/radar/radarRuleCatalog";
-import { buildPropertySentinelChecks, buildRadarWatchdogChecks, buildSourceSentinelChecks } from "@/lib/radar/radarSentinels";
-import { buildSyntheticCanaryChecks, buildSyntheticCanaryIssues } from "@/lib/radar/radarSyntheticChecks";
+import { buildRadarCorrelationIssues } from "@/engines/data/radar/radarCorrelations";
+import { applyAdaptiveRadarPolicy } from "@/engines/data/radar/radarPolicyEngine";
+import { RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES } from "@/engines/data/radar/radarRuleCatalog";
+import { buildPropertySentinelChecks, buildRadarWatchdogChecks, buildSourceSentinelChecks } from "@/engines/data/radar/radarSentinels";
+import { buildSyntheticCanaryChecks, buildSyntheticCanaryIssues } from "@/engines/data/radar/radarSyntheticChecks";
 import { formatElapsed } from "@/lib/enquiries/leadTiming";
 import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
@@ -45,16 +45,16 @@ import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import { listClients } from "@/server/tenants";
 import { listUsersForAgency } from "@/server/users";
 import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
-import { buildCompanyHealthSnapshot } from "@/lib/server/kpi/companyHealthSnapshot";
+import { buildCompanyHealthSnapshot } from "@/engines/data/server/kpi/companyHealthSnapshot";
 import { listOperationalAlerts, type OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
 import { getRequestWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
-import { buildRadarObservations } from "@/lib/server/radar/radarObservations";
-import { buildRadarMemoryDigest, buildRadarMemoryIssues } from "@/lib/server/radar/radarMemory";
-import { applyRadarEvidenceBaselines, buildRadarEvidenceLayer } from "@/lib/server/radar/radarEvidenceVault";
-import { buildRadarTelemetrySnapshot } from "@/lib/server/radar/radarTelemetry";
+import { buildRadarObservations } from "@/engines/data/server/radar/radarObservations";
+import { buildRadarMemoryDigest, buildRadarMemoryIssues } from "@/engines/data/server/radar/radarMemory";
+import { applyRadarEvidenceBaselines, buildRadarEvidenceLayer } from "@/engines/data/server/radar/radarEvidenceVault";
+import { buildRadarTelemetrySnapshot } from "@/engines/data/server/radar/radarTelemetry";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
-import { buildClientRadarFleet } from "@/lib/server/radar/clientRadarService";
+import { buildClientRadarFleet } from "@/engines/data/server/radar/clientRadarService";
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;

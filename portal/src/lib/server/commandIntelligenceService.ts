@@ -14,7 +14,7 @@ import type {
   BusinessRadarCheck,
   RadarCheckStatus,
   RadarEvidenceInspectionIndex,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 import type {
   CommandAudienceLocation,
   CommandAudienceDemographic,
@@ -39,10 +39,10 @@ import { getState } from "@/server/storage";
 import { getPipelineBySlug, listCards } from "@/server/pipelines";
 import { listClients } from "@/server/tenants";
 import type { Client, TradingCompany } from "@/server/types";
-import { buildCompanyHealthSnapshot } from "@/lib/server/kpi/companyHealthSnapshot";
+import { buildCompanyHealthSnapshot } from "@/engines/data/server/kpi/companyHealthSnapshot";
 import { makePluginStorage } from "./pluginStorage";
-import { inspectRadarEvidenceSeries } from "@/lib/server/radar/radarEvidenceVault";
-import { buildRadarTelemetrySnapshot, type RadarTelemetryProperty } from "@/lib/server/radar/radarTelemetry";
+import { inspectRadarEvidenceSeries } from "@/engines/data/server/radar/radarEvidenceVault";
+import { buildRadarTelemetrySnapshot, type RadarTelemetryProperty } from "@/engines/data/server/radar/radarTelemetry";
 import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 const DAY = 86_400_000;

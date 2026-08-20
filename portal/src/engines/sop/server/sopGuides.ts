@@ -1,9 +1,9 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { getState, mutate } from "./storage";
-import { logActivity } from "./activity";
-import type { SopGuide, SopGuideAudience } from "./types";
+import { getState, mutate } from "@/server/storage";
+import { logActivity } from "@/server/activity";
+import type { SopGuide, SopGuideAudience } from "@/server/types";
 
 // ─── SOP Engine — guides ──────────────────────────────────────────────────
 //

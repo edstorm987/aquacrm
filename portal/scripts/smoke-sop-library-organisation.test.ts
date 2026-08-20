@@ -2,7 +2,7 @@ import { after, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { createSopCategory, createWrittenSop, deleteSopCategory, getSop, listSopCategories, updateSop } from "../src/server/sops";
+import { createSopCategory, createWrittenSop, deleteSopCategory, getSop, listSopCategories, updateSop } from "../src/engines/sop/server/sops";
 import { mutate } from "../src/server/storage";
 
 const AGENCY_ID = `ag_sop_organisation_${Date.now()}`;

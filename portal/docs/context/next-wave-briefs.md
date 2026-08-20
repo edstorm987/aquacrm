@@ -132,7 +132,7 @@ workers' unshipped work; back up to the scratchpad and restore with cp).
 ---
 
 ## 📝 Held / parked
-- **Radar §9 continuation** — a brief exists but its invariant is STALE: it says keep **2,040 rules / 170 families**. ✅ **Re-verified 2026-08-20: the real figure is 2,064 / 172** — `src/lib/radar/radarRuleCatalog.ts` defines **172** family entries and `RADAR_RULE_LENSES` has **12** lenses (172 × 12 = 2,064). **Correct the brief to 2,064 / 172 before spinning** or the worker's first suite run fails. Feature-extension → park behind the blockers.
+- **Radar §9 continuation** — a brief exists but its invariant is STALE: it says keep **2,040 rules / 170 families**. ✅ **Re-verified 2026-08-20: the real figure is 2,064 / 172** — `src/engines/data/radar/radarRuleCatalog.ts` defines **172** family entries and `RADAR_RULE_LENSES` has **12** lenses (172 × 12 = 2,064). **Correct the brief to 2,064 / 172 before spinning** or the worker's first suite run fails. Feature-extension → park behind the blockers.
 - **Small follow-ups:** kpiViews server-persisted saved views (Ed said "both", built local-only) · public-bucket refcount-aware unpublish cleanup · aqua-tag remainders (P5 flagging findings need the radar probe pipeline; company enquiry surface; per-client injection keys) · Staff's agency-hr `Staff` retirement (cleanup) · enquiry-card's Person-on-conversion + leads-pipeline re-linking.
 
 ## 🤔 Decisions Ed owes (unblock parked plans) — pruned 2026-08-20

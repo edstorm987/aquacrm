@@ -28,7 +28,7 @@ import type {
   AssistantThread,
   AssistantWorkspaceState,
 } from "@/server/types";
-import type { AdvisorRadarDigest, BusinessRadarIssue } from "@/lib/radar/businessRadar";
+import type { AdvisorRadarDigest, BusinessRadarIssue } from "@/engines/data/radar/businessRadar";
 import { formatElapsed } from "@/lib/enquiries/leadTiming";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type { AdvisorSkill, AdvisorSkillRecipe, AdvisorSkillSafety } from "@/lib/advisor/advisorSkills";

@@ -6,7 +6,7 @@ import type {
   ClientRadarSnapshot,
   RadarCheckStatus,
   RadarEntityReference,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 import type { ClientAquaHealth } from "@/lib/clients/clientAquaHealth";
 import type { ClientPaymentPosition } from "@/lib/clients/clientPaymentPlans";
 import type { PortalProductKey } from "@/lib/portal/portalProducts";

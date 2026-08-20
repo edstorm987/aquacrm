@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { BusinessIssueRadar, BusinessRadarIssue, RadarMemoryDigest, RadarMemoryPoint } from "@/lib/radar/businessRadar";
+import type { BusinessIssueRadar, BusinessRadarIssue, RadarMemoryDigest, RadarMemoryPoint } from "@/engines/data/radar/businessRadar";
 import { getState, mutate } from "@/server/storage";
 import type { RadarMemoryState } from "@/server/types";
 

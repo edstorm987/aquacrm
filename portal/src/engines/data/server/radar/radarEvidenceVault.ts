@@ -12,9 +12,9 @@ import type {
   RadarEvidenceSeriesInspection,
   RadarEvidenceSeriesSummary,
   RadarRuleLens,
-} from "@/lib/radar/businessRadar";
-import type { RadarObservation } from "@/lib/radar/radarCheckEngine";
-import { resolveRadarPolicy } from "@/lib/radar/radarPolicyEngine";
+} from "@/engines/data/radar/businessRadar";
+import type { RadarObservation } from "@/engines/data/radar/radarCheckEngine";
+import { resolveRadarPolicy } from "@/engines/data/radar/radarPolicyEngine";
 import { getState, mutate } from "@/server/storage";
 import type { RadarEvidencePoint, RadarEvidenceSeries, RadarEvidenceState, RadarPolicyConfiguration } from "@/server/types";
 

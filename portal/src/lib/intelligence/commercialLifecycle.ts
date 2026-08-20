@@ -5,7 +5,7 @@ import type {
   BusinessRadarIssue,
   RadarCheckStatus,
   RadarRuleLens,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 import type { Client } from "@/server/types";
 
 const DAY = 86_400_000;

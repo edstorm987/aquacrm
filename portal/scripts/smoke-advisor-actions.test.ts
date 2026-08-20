@@ -6,7 +6,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("advisor action review is grounded in live operating data", () => {
   const context = read("src/lib/server/assistants/advisorContext.ts");
-  const health = read("src/lib/server/kpi/companyHealthSnapshot.ts");
+  const health = read("src/engines/data/server/kpi/companyHealthSnapshot.ts");
   const route = read("src/app/api/assistant/route.ts");
   assert.match(context, /buildCompanyHealthSnapshot/);
   assert.match(context, /listOperationalAlerts/);

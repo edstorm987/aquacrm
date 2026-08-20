@@ -9,9 +9,9 @@ import type {
   BusinessRadarIncident,
   BusinessRadarIssue,
   RadarCheckStatus,
-} from "@/lib/radar/businessRadar";
-import { summarizeRadarChecks } from "@/lib/radar/radarCheckEngine";
-import { radarFindingGroup } from "@/lib/radar/radarClassification";
+} from "@/engines/data/radar/businessRadar";
+import { summarizeRadarChecks } from "@/engines/data/radar/radarCheckEngine";
+import { radarFindingGroup } from "@/engines/data/radar/radarClassification";
 import type { RadarPolicyConfiguration, RadarPolicyRule } from "@/server/types";
 
 const DAY = 86_400_000;

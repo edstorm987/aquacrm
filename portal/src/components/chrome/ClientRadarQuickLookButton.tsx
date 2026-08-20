@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, EyeOff, LoaderCircle, Radar, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { ClientRadarSnapshot } from "@/lib/radar/businessRadar";
+import type { ClientRadarSnapshot } from "@/engines/data/radar/businessRadar";
 import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 
 export function ClientRadarQuickLookButton({ initialRadar }: { initialRadar: ClientRadarSnapshot }) {

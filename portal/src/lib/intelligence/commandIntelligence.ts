@@ -1,4 +1,4 @@
-import type { AdvisorDomain } from "@/lib/radar/businessRadar";
+import type { AdvisorDomain } from "@/engines/data/radar/businessRadar";
 
 export type CommandKpiStatus = "critical" | "warning" | "healthy" | "learning" | "blind";
 export type CommandKpiFormat = "number" | "percent" | "currency" | "duration" | "score";

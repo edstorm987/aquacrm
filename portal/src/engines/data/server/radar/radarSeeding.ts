@@ -1,7 +1,7 @@
 import "server-only";
 
 import { on, type AquaEventName } from "@/server/eventBus";
-import { invalidateBusinessIssueRadarCache } from "@/lib/server/radar/businessIssueRadar";
+import { invalidateBusinessIssueRadarCache } from "@/engines/data/server/radar/businessIssueRadar";
 
 /**
  * Event-driven radar seeding (radar upgrade Stage 6, Part E).

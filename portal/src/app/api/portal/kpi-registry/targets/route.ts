@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { clearKpiTarget, getKpiTargetsConfig, setKpiTarget } from "@/lib/server/kpi/kpiTargets";
+import { clearKpiTarget, getKpiTargetsConfig, setKpiTarget } from "@/engines/data/server/kpi/kpiTargets";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

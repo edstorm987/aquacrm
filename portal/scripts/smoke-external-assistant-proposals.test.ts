@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { before, test } from "node:test";
-import type { BusinessIssueRadar } from "../src/lib/radar/businessRadar";
+import type { BusinessIssueRadar } from "../src/engines/data/radar/businessRadar";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");

@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowUpRight, Radar, RadioTower, ShieldCheck } from "lucide-react";
 
-import type { BusinessIssueRadar } from "@/lib/radar/businessRadar";
+import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import { COMMAND_PRIMARY_KPI_STATIONS, type CommandIntelligenceSnapshot, type CommandKpiStatus } from "@/lib/intelligence/commandIntelligence";
 
 const CONTACT_POSITIONS = [

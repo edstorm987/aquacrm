@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { requireRole } from "@/lib/server/auth/auth";
 import { ensureDefaultAgencyProducts, getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
-import { listSops } from "@/server/sops";
+import { listSops } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { ProductDetailWorkspace } from "./_ProductDetailWorkspace";

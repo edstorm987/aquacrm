@@ -1,9 +1,9 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { getState, mutate } from "./storage";
-import { logActivity } from "./activity";
-import type { SopDocument } from "./types";
+import { getState, mutate } from "@/server/storage";
+import { logActivity } from "@/server/activity";
+import type { SopDocument } from "@/server/types";
 import { elementSchema, getElementDefinition, validateElementProps } from "@/engines/editor/elements";
 import type { Block, BlockTreeJSON } from "@/engines/editor/elements";
 

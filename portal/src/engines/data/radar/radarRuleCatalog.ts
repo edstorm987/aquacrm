@@ -1,5 +1,5 @@
-import type { AdvisorDomain, RadarCheckTier, RadarDataDependency, RadarRuleLens } from "@/lib/radar/businessRadar";
-import { classifyRadarCheck } from "@/lib/radar/radarClassification";
+import type { AdvisorDomain, RadarCheckTier, RadarDataDependency, RadarRuleLens } from "@/engines/data/radar/businessRadar";
+import { classifyRadarCheck } from "@/engines/data/radar/radarClassification";
 
 export interface RadarSignalFamilyDefinition {
   id: string;

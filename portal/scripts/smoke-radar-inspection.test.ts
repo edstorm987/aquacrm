@@ -20,7 +20,7 @@ test("legacy Radar links preserve their inspector state inside Command Centre", 
 });
 
 test("evidence inspection exposes an index, complete series, and archive without agency leakage", () => {
-  const vault = read("src/lib/server/radar/radarEvidenceVault.ts");
+  const vault = read("src/engines/data/server/radar/radarEvidenceVault.ts");
   const route = read("src/app/api/portal/advisor/radar/evidence/route.ts");
   assert.match(vault, /inspectRadarEvidence\(/);
   assert.match(vault, /inspectRadarEvidenceSeries\(/);

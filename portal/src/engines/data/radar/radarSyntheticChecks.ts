@@ -4,8 +4,8 @@ import type {
   BusinessRadarIssue,
   RadarCheckStatus,
   RadarRuleLens,
-} from "@/lib/radar/businessRadar";
-import type { RadarTelemetryProperty, RadarTelemetrySnapshot } from "@/lib/server/radar/radarTelemetry";
+} from "@/engines/data/radar/businessRadar";
+import type { RadarTelemetryProperty, RadarTelemetrySnapshot } from "@/engines/data/server/radar/radarTelemetry";
 import type { RadarSyntheticProbeResult } from "@/server/types";
 import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
 

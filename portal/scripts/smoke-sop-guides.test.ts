@@ -25,8 +25,8 @@ const { NextRequest } = require("next/server") as typeof import("next/server");
 const route = require("../src/app/api/portal/sop-guides/route") as typeof import("../src/app/api/portal/sop-guides/route");
 const { issueSession } = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
 const { ensureHydrated } = require("../src/server/storage") as typeof import("../src/server/storage");
-const { createWrittenSop } = require("../src/server/sops") as typeof import("../src/server/sops");
-const guides = require("../src/server/sopGuides") as typeof import("../src/server/sopGuides");
+const { createWrittenSop } = require("../src/engines/sop/server/sops") as typeof import("../src/engines/sop/server/sops");
+const guides = require("../src/engines/sop/server/sopGuides") as typeof import("../src/engines/sop/server/sopGuides");
 
 let seq = 0;
 

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligenceService";
-import { inspectRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
+import { inspectRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
 import { describeCommandKpis, describeEvidenceSeries, type KpiDescriptor } from "@/lib/performance/kpiRegistry";
 
 /**

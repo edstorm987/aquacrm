@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { AdvisorActionCategory } from "@/lib/advisor/advisorActions";
-import type { AdvisorDomain, BusinessIssueRadar } from "@/lib/radar/businessRadar";
+import type { AdvisorDomain, BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import type { OperationalAlertCategory } from "@/lib/intelligence/operationalAttention";
 import { buildAdvisorContext } from "@/lib/server/assistants/advisorContext";
 import {

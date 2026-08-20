@@ -77,8 +77,8 @@ test("commercial lifecycle joins lead sources to conversion, churn, and cancella
 });
 
 test("business radar, Advisor, and command centre consume the same lifecycle snapshot", () => {
-  const radar = read("src/lib/server/radar/businessIssueRadar.ts");
-  const observations = read("src/lib/server/radar/radarObservations.ts");
+  const radar = read("src/engines/data/server/radar/businessIssueRadar.ts");
+  const observations = read("src/engines/data/server/radar/radarObservations.ts");
   const advisor = read("src/lib/server/assistants/advisorSkillContext.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   const tenants = read("src/server/tenants.ts");

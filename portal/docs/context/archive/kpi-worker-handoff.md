@@ -66,9 +66,9 @@ persist config). **If you touch KPIs, start in `lib/kpiRegistry.ts`.**
 
 **New (mine, clean lane):**
 - `src/lib/performance/kpiRegistry.ts` — the registry backbone + all pure logic (descriptors, search/group, targets resolver/versioning, suggestions, custom-KPI compute).
-- `src/lib/server/kpi/kpiRegistryService.ts` — build-snapshot→descriptors + `buildEvidenceDescriptors`.
-- `src/lib/server/kpi/kpiTargets.ts` — target store (get/set/clear, activity-logged).
-- `src/lib/server/kpi/customKpis.ts` — custom-KPI store (list/create/delete).
+- `src/engines/data/server/kpi/kpiRegistryService.ts` — build-snapshot→descriptors + `buildEvidenceDescriptors`.
+- `src/engines/data/server/kpi/kpiTargets.ts` — target store (get/set/clear, activity-logged).
+- `src/engines/data/server/kpi/customKpis.ts` — custom-KPI store (list/create/delete).
 - `src/lib/people/customerProfileScope.ts` — scope + dimension breakdown (pure).
 - `src/app/api/portal/kpi-registry/{evidence,targets,custom}/route.ts` — 3 routes.
 - `scripts/smoke-kpi-registry.test.ts`, `scripts/smoke-kpi-targets.test.ts`, `scripts/smoke-customer-profile-scope.test.ts`.

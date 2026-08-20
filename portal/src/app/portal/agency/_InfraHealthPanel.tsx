@@ -1,6 +1,6 @@
 import { Database, HardDrive } from "lucide-react";
 
-import type { RadarInfraDatabaseHealth, RadarInfraHealthSnapshot, RadarInfraProbeStatus } from "@/lib/radar/businessRadar";
+import type { RadarInfraDatabaseHealth, RadarInfraHealthSnapshot, RadarInfraProbeStatus } from "@/engines/data/radar/businessRadar";
 
 // Database & storage health card (radar upgrade Stage 4, Part D §3).
 // Placement: Command Centre (systems), inside the executive Radar feed.

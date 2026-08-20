@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { RadarCheckScope, RadarCheckTier, RadarDataDependency } from "../src/lib/radar/businessRadar";
+import type { RadarCheckScope, RadarCheckTier, RadarDataDependency } from "../src/engines/data/radar/businessRadar";
 import {
   RADAR_TIER_BY_SCOPE,
   classifyRadarCheck,
   radarCheckTier,
   radarDataDependency,
-} from "../src/lib/radar/radarClassification";
-import { BUSINESS_RADAR_RULE_CATALOG } from "../src/lib/radar/radarRuleCatalog";
+} from "../src/engines/data/radar/radarClassification";
+import { BUSINESS_RADAR_RULE_CATALOG } from "../src/engines/data/radar/radarRuleCatalog";
 
 // Radar upgrade — Stage 2: check classification metadata (tier + dataDependency).
 // Additive over the catalogue: every one of the 2,064 rules and every scope

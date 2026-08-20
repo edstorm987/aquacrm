@@ -10,7 +10,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 // delegate to it (rather than duplicating the orchestration inline).
 
 test("the sweep scheduler declares the typed sweep taxonomy", () => {
-  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
+  const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
   assert.match(sweeps, /export type RadarSweepType = "pulse" \| "deep" \| "infra" \| "evidence" \| "compliance"/);
   assert.match(sweeps, /export const RADAR_SWEEP_DEFINITIONS/);
   for (const type of ["pulse", "deep", "infra", "evidence", "compliance"]) {
@@ -24,7 +24,7 @@ test("the sweep scheduler declares the typed sweep taxonomy", () => {
 });
 
 test("the scheduler wires check tiers to the sweep that refreshes them", () => {
-  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
+  const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
   // Every sweep declares which tiers it refreshes (radar upgrade Stage 2).
   assert.match(sweeps, /tiers:\s*RadarCheckTier\[\]/);
   assert.match(sweeps, /pulse:\s*\{[^}]*tiers:\s*\["instant"\][^}]*\}/s);
@@ -36,7 +36,7 @@ test("the scheduler wires check tiers to the sweep that refreshes them", () => {
 });
 
 test("the sweep scheduler wraps the existing builders without new behaviour", () => {
-  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
+  const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
   // Deep / Synthetic sweep = the synthetic probes; full forces, scheduled does not.
   assert.match(sweeps, /runAgencySyntheticProbes\(agencyId, \{ force: true \}\)/);
   assert.match(sweeps, /runAgencySyntheticProbes\(agencyId\)/);
@@ -69,7 +69,7 @@ test("the scan route and cron loop delegate to the sweep scheduler", () => {
 });
 
 test("a dedicated probe cron gives the Deep + Infra sweeps a real fast cadence", () => {
-  const sweeps = read("src/lib/server/radar/radarSweeps.ts");
+  const sweeps = read("src/engines/data/server/radar/radarSweeps.ts");
   const cron = read("src/app/api/cron/radar-probes/route.ts");
   const vercel = read("vercel.json");
   // The light refresh runs the Deep sweep + invalidates, without a full rebuild/rollup.

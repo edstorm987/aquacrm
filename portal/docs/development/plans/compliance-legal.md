@@ -175,5 +175,5 @@ plan in flight._
 - `docs/compliance/erasure-dpo-pack.md`
 - `docs/development/plans/compliance-legal.md`
 - `src/app/portal/agency/company/_CompanyWorkspace.tsx`
-- `src/lib/radar/radarRuleCatalog.ts`
-- `src/lib/server/radar/radarObservations.ts`
+- `src/engines/data/radar/radarRuleCatalog.ts`
+- `src/engines/data/server/radar/radarObservations.ts`

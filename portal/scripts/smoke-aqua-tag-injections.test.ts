@@ -192,8 +192,8 @@ describe("the injection management route + workspace UI are wired", () => {
 
 describe("injections feed Radar — coverage (Phase 5)", () => {
   const read = (relative: string) => require("node:fs").readFileSync(require("node:path").join(__dirname, "..", relative), "utf-8") as string;
-  const catalogue = read("src/lib/radar/radarRuleCatalog.ts");
-  const observations = read("src/lib/server/radar/radarObservations.ts");
+  const catalogue = read("src/engines/data/radar/radarRuleCatalog.ts");
+  const observations = read("src/engines/data/server/radar/radarObservations.ts");
 
   it("registers a development:injection-coverage family fed by websiteSiteConfigs", () => {
     assert.match(catalogue, /"injection-coverage", "Tag injection coverage"/);

@@ -6,8 +6,8 @@ import { GlobalAdvisorDrawer } from "@/components/chrome/GlobalAdvisorDrawer";
 import { buildAssistantBusinessContext } from "@/lib/server/assistants/assistantBusinessContext";
 import { getAssistantWorkspace } from "@/lib/server/assistants/assistantStore";
 import { assistantModel, isAssistantConfigured } from "@/lib/server/assistants/openaiAssistant";
-import { getCachedBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
-import { radarDigest } from "@/lib/radar/businessRadar";
+import { getCachedBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
+import { radarDigest } from "@/engines/data/radar/businessRadar";
 
 // The LIBRARIAN — the Dev Team's assistant. It is a RESKIN of the agency
 // Advisor (`AdvisorDrawerControl`): the SAME AI engine and the SAME side-panel

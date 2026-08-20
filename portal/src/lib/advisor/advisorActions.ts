@@ -1,5 +1,5 @@
 import type { AgencyTaskPriority } from "@/server/types";
-import type { RadarFindingGroup } from "@/lib/radar/businessRadar";
+import type { RadarFindingGroup } from "@/engines/data/radar/businessRadar";
 import type { EvidenceStep } from "@/lib/inbox/resolutionEvidence";
 import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
 

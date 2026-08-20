@@ -19,7 +19,7 @@ website/portal editor over `src/engines/editor/elements/`). New: **SOP Engine**.
 many tuned views.
 
 ## What the SOP Engine unifies (all three ALREADY EXIST)
-1. **SOP library** (`src/server/sops.ts`, `SopDocument`) — the content ATOMS. Today: written
+1. **SOP library** (`src/engines/sop/server/sops.ts`, `SopDocument`) — the content ATOMS. Today: written
    (markdown) or uploaded file (video/pdf/slides/etc.), categorised + tagged, linked
    everywhere via `sopIds`. Keep the simple library view Ed loves as the default.
 2. **People training** (`PeopleTrainingModule` in types.ts:3066+) — the SEQUENCER: ordered
@@ -58,7 +58,7 @@ many tuned views.
 - Migration: auto-convert existing People training modules into guides, or start fresh + keep old ones readable?
 
 ## Files (when built — big surface)
-`src/server/sops.ts`, `src/server/types.ts` (SopDocument gains block content; training types
+`src/engines/sop/server/sops.ts`, `src/server/types.ts` (SopDocument gains block content; training types
 fold in), `src/engines/editor/elements/**` (reuse), `src/app/portal/agency/sop-library/**`,
 `src/app/portal/agency/people/**` (training merge), client portal resources, product steps.
 Overlaps `src/server/types.ts` (SHARED — take the lock).

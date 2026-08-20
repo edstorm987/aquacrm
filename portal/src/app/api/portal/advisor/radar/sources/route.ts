@@ -6,7 +6,7 @@ import {
   invalidateRadarSourceInspection,
   inspectRadarSourceData,
   inspectRadarSourceDataset,
-} from "@/lib/server/radar/radarSourceInspection";
+} from "@/engines/data/server/radar/radarSourceInspection";
 import { ensureHydrated } from "@/server/storage";
 
 export async function GET(request: Request) {

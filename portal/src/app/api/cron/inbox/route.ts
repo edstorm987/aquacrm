@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { processInboxWebhookQueue } from "@/lib/server/inbox/inboxService";
 import { pruneProcessedInboxWebhookEvents } from "@/lib/server/inbox/inboxStore";
-import { runRadarScheduledSweep, type RadarScheduledSweepResult } from "@/lib/server/radar/radarSweeps";
+import { runRadarScheduledSweep, type RadarScheduledSweepResult } from "@/engines/data/server/radar/radarSweeps";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listAgencies } from "@/server/tenants";
 

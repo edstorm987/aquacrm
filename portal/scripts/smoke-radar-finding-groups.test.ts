@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { AdvisorDomain, RadarFindingGroup } from "../src/lib/radar/businessRadar";
-import { RADAR_FINDING_GROUP_LABELS, radarFindingGroup } from "../src/lib/radar/radarClassification";
+import type { AdvisorDomain, RadarFindingGroup } from "../src/engines/data/radar/businessRadar";
+import { RADAR_FINDING_GROUP_LABELS, radarFindingGroup } from "../src/engines/data/radar/radarClassification";
 import * as storage from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
-import { buildBusinessIssueRadar } from "../src/lib/server/radar/businessIssueRadar";
+import { buildBusinessIssueRadar } from "../src/engines/data/server/radar/businessIssueRadar";
 
 // Radar upgrade — Stage 5: top-level finding grouping (6 problem-kind buckets).
 

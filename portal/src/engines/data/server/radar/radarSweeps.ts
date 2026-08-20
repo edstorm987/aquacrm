@@ -1,14 +1,14 @@
 import "server-only";
 
-import type { BusinessIssueRadar, RadarCheckTier, RadarInfraHealthSnapshot, RadarMemoryDigest } from "@/lib/radar/businessRadar";
+import type { BusinessIssueRadar, RadarCheckTier, RadarInfraHealthSnapshot, RadarMemoryDigest } from "@/engines/data/radar/businessRadar";
 import { mutate } from "@/server/storage";
 import { reconcileAgencyTasksWithRadar } from "@/server/tasks";
 import type { RadarSyntheticProbeResult } from "@/server/types";
-import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/lib/server/radar/businessIssueRadar";
+import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/engines/data/server/radar/businessIssueRadar";
 import { databaseStorageHealth } from "@/lib/server/databaseStorageHealth";
-import { recordRadarEvidence } from "@/lib/server/radar/radarEvidenceVault";
-import { recordRadarSweep } from "@/lib/server/radar/radarMemory";
-import { runAgencySyntheticProbes } from "@/lib/server/radar/radarSyntheticProbes";
+import { recordRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
+import { recordRadarSweep } from "@/engines/data/server/radar/radarMemory";
+import { runAgencySyntheticProbes } from "@/engines/data/server/radar/radarSyntheticProbes";
 
 /**
  * Radar sweep scheduler (Stage 1 of the radar upgrade).

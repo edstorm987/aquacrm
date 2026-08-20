@@ -1,4 +1,4 @@
-import type { AdvisorDomain } from "@/lib/radar/businessRadar";
+import type { AdvisorDomain } from "@/engines/data/radar/businessRadar";
 import type { AdvisorSkillRecipeId } from "@/server/types";
 
 export type AdvisorSkillAccess = "read" | "draft" | "bounded-write";

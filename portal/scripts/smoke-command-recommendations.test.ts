@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { buildBusinessRecommendedActions } from "../src/lib/intelligence/businessRecommendedActions";
-import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity } from "../src/lib/radar/businessRadar";
+import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity } from "../src/engines/data/radar/businessRadar";
 
 const now = new Date("2026-08-12T10:00:00Z").getTime();
 

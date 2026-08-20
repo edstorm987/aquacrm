@@ -1,14 +1,14 @@
 import "server-only";
 
 import type { InboxSnapshot } from "@/lib/inbox/types";
-import type { AdvisorCoverageSource, AdvisorDomain, BusinessSignalStatus, SpeedToLeadRadar } from "@/lib/radar/businessRadar";
-import type { RadarObservation } from "@/lib/radar/radarCheckEngine";
+import type { AdvisorCoverageSource, AdvisorDomain, BusinessSignalStatus, SpeedToLeadRadar } from "@/engines/data/radar/businessRadar";
+import type { RadarObservation } from "@/engines/data/radar/radarCheckEngine";
 import type { CommercialLifecycleSnapshot } from "@/lib/intelligence/commercialLifecycle";
-import { RADAR_SIGNAL_FAMILIES } from "@/lib/radar/radarRuleCatalog";
+import { RADAR_SIGNAL_FAMILIES } from "@/engines/data/radar/radarRuleCatalog";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
-import type { RadarTelemetrySnapshot } from "@/lib/server/radar/radarTelemetry";
-import type { buildCompanyHealthSnapshot } from "@/lib/server/kpi/companyHealthSnapshot";
+import type { RadarTelemetrySnapshot } from "@/engines/data/server/radar/radarTelemetry";
+import type { buildCompanyHealthSnapshot } from "@/engines/data/server/kpi/companyHealthSnapshot";
 import type { LegalDocument, PortalState, ServerUser, AgencyTask, Client } from "@/server/types";
 import { buildHiringCapacityAnalysis, buildHiringCapacitySignals } from "@/lib/performance/hiringCapacity";
 

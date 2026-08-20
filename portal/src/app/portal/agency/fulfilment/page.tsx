@@ -14,7 +14,7 @@ import { portalProductModule } from "@/lib/portal/portalProductModules";
 import { portalWorkspaceProgress } from "@/lib/portal/portalProductWorkspaces";
 import { agencyProductPipelineColumns, defaultAgencyProductPipelineStage } from "@/lib/products/fulfilmentProductPipelines";
 import { portalWorkspaceData } from "../portals/_portalWorkspaceData";
-import { listSops } from "@/server/sops";
+import { listSops } from "@/engines/sop/server/sops";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { formatUkDate } from "@/lib/shared/formatDateTime";

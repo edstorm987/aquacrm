@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import type { RadarInfraDatabaseHealth, RadarInfraHealthSnapshot } from "../src/lib/radar/businessRadar";
-import { buildInfraHealthChecks } from "../src/lib/radar/radarInfraChecks";
+import type { RadarInfraDatabaseHealth, RadarInfraHealthSnapshot } from "../src/engines/data/radar/businessRadar";
+import { buildInfraHealthChecks } from "../src/engines/data/radar/radarInfraChecks";
 import * as storage from "../src/server/storage";
 import { databaseStorageHealth } from "../src/lib/server/databaseStorageHealth";
-import { runRadarInfraSweep } from "../src/lib/server/radar/radarSweeps";
+import { runRadarInfraSweep } from "../src/engines/data/server/radar/radarSweeps";
 
 // Radar upgrade — Stage 4: DB & storage health (the first new signal on the sweep structure).
 

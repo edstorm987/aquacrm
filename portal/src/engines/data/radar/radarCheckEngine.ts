@@ -6,13 +6,13 @@ import type {
   RadarCheckStatus,
   RadarDomainSummary,
   RadarRuleLens,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 import {
   BUSINESS_RADAR_RULE_CATALOG,
   RADAR_CHECKS_PER_DOMAIN,
   RADAR_SIGNAL_FAMILIES,
   type BusinessRadarRuleDefinition,
-} from "@/lib/radar/radarRuleCatalog";
+} from "@/engines/data/radar/radarRuleCatalog";
 import { isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 export interface RadarObservation {

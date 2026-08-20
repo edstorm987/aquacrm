@@ -112,8 +112,8 @@ dead-end as observations you can't act on.
 - **Payoff:** the loop closes — Radar finds it, proposes the exact task(s) to fix it, a click makes them real, and completing them clears the finding (which `reconcileAgencyTasksWithRadar` already verifies).
 
 ## Phasing (incremental, non-breaking)
-1. ✅ **Scheduler layer** *(shipped 2026-08-19)* — `src/lib/server/radar/radarSweeps.ts` introduces the typed sweep taxonomy + a thin orchestration over the *existing* builders (`runRadarFullSweep` / `runRadarScheduledSweep` / `runRadarDeepSweep` / `runRadarEvidenceRollup`). The scan route and `cron/inbox` loop delegate to it; synthetic probes + evidence recording already ran on `cron/inbox`. No behaviour change; full suite green (contract test `smoke-radar-sweeps.test.ts` added).
-2. ✅ **Classification metadata** *(shipped 2026-08-19)* — `src/lib/radar/radarClassification.ts` adds the two axes: **tier** (`instant`/`probe`/`rollup`, scope-driven — which sweep refreshes the check) and **dataDependency** (`in-state`/`derived`/`external` — what the answer relies on). Every one of the 2,040 catalogue rules carries them (computed in the cartesian product, ids unchanged), and every built check is stamped at finalization. The scheduler is wired via `tiers` on each sweep + `RADAR_TIER_TO_SWEEP`. Behavioural test `smoke-radar-classification.test.ts` (all 2,040 classified). *Grouping (Part B's UI buckets) is deferred to Stage 5, per the phasing.*
+1. ✅ **Scheduler layer** *(shipped 2026-08-19)* — `src/engines/data/server/radar/radarSweeps.ts` introduces the typed sweep taxonomy + a thin orchestration over the *existing* builders (`runRadarFullSweep` / `runRadarScheduledSweep` / `runRadarDeepSweep` / `runRadarEvidenceRollup`). The scan route and `cron/inbox` loop delegate to it; synthetic probes + evidence recording already ran on `cron/inbox`. No behaviour change; full suite green (contract test `smoke-radar-sweeps.test.ts` added).
+2. ✅ **Classification metadata** *(shipped 2026-08-19)* — `src/engines/data/radar/radarClassification.ts` adds the two axes: **tier** (`instant`/`probe`/`rollup`, scope-driven — which sweep refreshes the check) and **dataDependency** (`in-state`/`derived`/`external` — what the answer relies on). Every one of the 2,040 catalogue rules carries them (computed in the cartesian product, ids unchanged), and every built check is stamped at finalization. The scheduler is wired via `tiers` on each sweep + `RADAR_TIER_TO_SWEEP`. Behavioural test `smoke-radar-classification.test.ts` (all 2,040 classified). *Grouping (Part B's UI buckets) is deferred to Stage 5, per the phasing.*
 3. ✅ **New tests** *(shipped 2026-08-19)* — `smoke-radar-golden-sweep.test.ts` seeds a known agency fixture and runs the *real* `buildBusinessIssueRadar` end-to-end, asserting the produced structure (2,040 catalogue intact, 2,925 total checks, status partition, every check classified, zero-blindness, determinism). `smoke-radar-sweep-isolation.test.ts` proves the Pulse does zero network I/O and writes none of the three radar state collections, the Deep sweep is scoped to probes, and only a scheduled sweep persists memory + evidence. *The live integration test (seeded server → `/api/portal/advisor/radar`) stays deferred until the server test-harness story is sorted.*
 4. ✅ **Infra sweep + DB/storage health** *(shipped 2026-08-19)* — `databaseStorageHealth()` (promoted from `healthz/full`'s `probeDb`, which now reuses it) probes backend + reachability + latency + key-table row counts for the primary DB, **plus env-referenced external targets** (`RADAR_EXTERNAL_DB_TARGETS`, connection strings stay in env — never in state). `runRadarInfraSweep` writes `radarInfraHealth`; the Pulse reads it and folds **infra-scope** checks in (down→critical, untested→inactive, never a fake pass) — the 2,040 catalogue stays intact (infra rides a new scope, like synthetic). `storage-activity` relabelled honestly. Panel: **Database & storage health** card in the Command Centre radar feed. Storage bytes shown "not available in-app". *Decisions taken: Command Centre placement; external DBs in scope.* **Panel browser-verified** (populated card reads "AquaCRM database · file · UNTESTED" on the file backend).
 5. ✅ **Finding grouping** *(shipped 2026-08-19)* — six top-level "what kind of problem" buckets (Ed's choice): **Infrastructure / Commercial / Compliance / Delivery / Reliability / People**. `radarFindingGroup()` classifies each finding (Reliability + Infrastructure are cross-domain overrides applied first, then domain defaults, with team→People and compliance id fallbacks); incidents carry `group`, and the radar exposes `findingGroups` (per-bucket incident/critical/warning/watch counts). Surfaced as a `FindingGroupBar` above the Command Centre radar feed. Behavioural test `smoke-radar-finding-groups.test.ts`.
@@ -146,16 +146,16 @@ Codex workers in ONE uncommitted tree, two agents in the same file destroys work
 no git to recover from. Before assigning this plan, check these paths against every other
 plan in flight._
 
-- `src/lib/server/radar/radarSweeps.ts`
-- `src/lib/radar/radarClassification.ts`
-- `src/lib/radar/radarCoverageRegistry.ts`
-- `src/lib/server/radar/radarSeeding.ts`
+- `src/engines/data/server/radar/radarSweeps.ts`
+- `src/engines/data/radar/radarClassification.ts`
+- `src/engines/data/radar/radarCoverageRegistry.ts`
+- `src/engines/data/server/radar/radarSeeding.ts`
 - `src/lib/server/databaseStorageHealth.ts`
-- `src/lib/radar/radarInfraChecks.ts`
-- `src/lib/server/radar/businessIssueRadar.ts`
-- `src/lib/radar/businessRadar.ts`
-- `src/lib/radar/radarRuleCatalog.ts`
-- `src/lib/radar/radarPolicyEngine.ts`
+- `src/engines/data/radar/radarInfraChecks.ts`
+- `src/engines/data/server/radar/businessIssueRadar.ts`
+- `src/engines/data/radar/businessRadar.ts`
+- `src/engines/data/radar/radarRuleCatalog.ts`
+- `src/engines/data/radar/radarPolicyEngine.ts`
 - `src/lib/intelligence/businessRecommendedActions.ts`
 - `src/app/portal/agency/_InfraHealthPanel.tsx`
 - `src/app/portal/agency/_FindingGroupBar.tsx`

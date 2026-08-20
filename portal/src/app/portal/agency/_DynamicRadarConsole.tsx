@@ -3,7 +3,7 @@
 import { ArrowLeft, ChevronRight, Database, RotateCcw } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { AdvisorDomain, RadarDomainSummary } from "@/lib/radar/businessRadar";
+import type { AdvisorDomain, RadarDomainSummary } from "@/engines/data/radar/businessRadar";
 import type { CommandDeckInspectorTarget } from "./_CommandDeckPopup";
 import { RadarScanControl } from "./_RadarScanControl";
 

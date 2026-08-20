@@ -47,7 +47,7 @@ import type {
   RadarSourceDataIndex,
   RadarSourceDatasetInspection,
   RadarSourceDatasetSummary,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 import { formatUkDate, isoDateTimeValue } from "@/lib/shared/formatDateTime";
 
 export type RadarInspectionTab = "kpis" | "checks" | "evidence" | "records" | "sources" | "incidents" | "raw";

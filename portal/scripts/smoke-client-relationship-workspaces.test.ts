@@ -148,9 +148,9 @@ test("Journey and Fulfilment identify linked buyers without merging project oper
   const fulfilmentPage = readFileSync("src/app/portal/agency/fulfilment/page.tsx", "utf8");
   const fulfilment = readFileSync("src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx", "utf8");
   const search = readFileSync("src/app/api/portal/search/route.ts", "utf8");
-  const telemetry = readFileSync("src/lib/server/radar/radarTelemetry.ts", "utf8");
+  const telemetry = readFileSync("src/engines/data/server/radar/radarTelemetry.ts", "utf8");
   const intelligence = readFileSync("src/lib/server/commandIntelligenceService.ts", "utf8");
-  const probes = readFileSync("src/lib/server/radar/radarSyntheticProbes.ts", "utf8");
+  const probes = readFileSync("src/engines/data/server/radar/radarSyntheticProbes.ts", "utf8");
   const inbox = readFileSync("src/app/portal/agency/inbox/page.tsx", "utf8");
   const marketing = readFileSync("src/app/portal/agency/marketing/page.tsx", "utf8");
   const development = readFileSync("src/app/portal/agency/development/page.tsx", "utf8");

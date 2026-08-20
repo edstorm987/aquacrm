@@ -6,7 +6,7 @@ import { ensureHydrated } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { ensureDefaultDevelopmentWorkflow, listDevelopmentWorkflows, listVisibleDevelopmentResources } from "@/server/developmentToolkit";
-import { listSops } from "@/server/sops";
+import { listSops } from "@/engines/sop/server/sops";
 import { AGENCY_ROLES } from "@/server/types";
 import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import {

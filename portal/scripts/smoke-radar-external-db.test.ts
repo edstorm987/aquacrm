@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildInfraHealthChecks } from "../src/lib/radar/radarInfraChecks";
+import { buildInfraHealthChecks } from "../src/engines/data/radar/radarInfraChecks";
 import { databaseStorageHealth } from "../src/lib/server/databaseStorageHealth";
 
 // Radar upgrade — Stage 4 follow-up: prove the external-database registry is

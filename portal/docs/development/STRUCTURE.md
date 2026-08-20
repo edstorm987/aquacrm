@@ -59,11 +59,11 @@ src/engines/
 │   ├── (from src/engines/editor/editing/ + src/engines/editor/elements/)   ← client-safe
 │   └── server/              (from src/engines/editor/server/)   ← server-only (git/github)
 ├── sop/                     # SOP Engine
-│   └── server/              (from src/server/sops.ts + sopGuides.ts)   ← state layer
+│   └── server/              (from src/engines/sop/server/sops.ts + sopGuides.ts)   ← state layer
 │       # UI stays in app/portal/agency/sop-library/ (that is a WORKSPACE, not the engine)
 └── data/                    # Data Engine (Radar + KPI)
-    ├── (from src/lib/radar/ + src/lib/performance/[kpi] + src/lib/intelligence/)  ← client-safe
-    └── server/              (from src/lib/server/radar/ + src/lib/server/kpi/)   ← server-only
+    ├── (from src/engines/data/radar/ + src/lib/performance/[kpi] + src/lib/intelligence/)  ← client-safe
+    └── server/              (from src/engines/data/server/radar/ + src/engines/data/server/kpi/)   ← server-only
 ```
 
 Rules:

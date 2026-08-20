@@ -47,7 +47,7 @@ test("classification routing retains history and keeps precise destinations", ()
   const inbox = readFileSync("src/app/portal/agency/inbox/_MasterInbox.tsx", "utf8");
   const detailCard = readFileSync("src/app/portal/agency/inbox/_EnquiryDetailCard.tsx", "utf8");
   const journey = readFileSync("src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx", "utf8");
-  const radar = readFileSync("src/lib/server/radar/businessIssueRadar.ts", "utf8");
+  const radar = readFileSync("src/engines/data/server/radar/businessIssueRadar.ts", "utf8");
   const alerts = readFileSync("src/lib/server/inbox/operationalAlerts.ts", "utf8");
 
   assert.match(route, /classification === "sales"/);

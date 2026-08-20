@@ -77,7 +77,7 @@ plan in flight._
 - `scripts/smoke-client-attention.test.ts`
 - `scripts/client-aqua-health.test.ts`
 - `docs/development/plans/client-health.md`
-- `src/lib/server/radar/clientRadarService.ts`
+- `src/engines/data/server/radar/clientRadarService.ts`
 - `src/lib/server/inbox/operationalAlerts.ts`
 - `src/lib/inbox/resolutionFocus.ts`
 - `src/lib/inbox/resolutionExplain.ts`

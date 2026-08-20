@@ -3,7 +3,7 @@ import type {
   RadarCoverageEntityType,
   RadarCoverageManifest,
   RadarCoverageManifestEntry,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 
 /**
  * Radar coverage registry + seeder (radar upgrade Stage 6, Part E).

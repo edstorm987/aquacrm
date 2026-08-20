@@ -4,7 +4,7 @@ import { getCompanyProfile } from "@/server/company";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 import { listNotepadFolders, listNotepadNotes } from "@/server/notepad";
 import { employeePeopleSnapshot, listPeopleContracts, listPeopleFeedback, listPeopleRecognitions } from "@/server/people";
-import { listSops } from "@/server/sops";
+import { listSops } from "@/engines/sop/server/sops";
 import { listAgencyTasks } from "@/server/tasks";
 
 export function teamWorkspaceData(agencyId: string, userId: string, date?: string) {

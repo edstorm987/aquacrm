@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { getSop } from "@/server/sops";
+import { getSop } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type SopDocument } from "@/server/types";
 

@@ -3,7 +3,7 @@ import "server-only";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
-import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/lib/radar/radarSyntheticSafety";
+import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/engines/data/radar/radarSyntheticSafety";
 
 /**
  * Fetch a public website's HTML, safely.

@@ -7,7 +7,7 @@ import {
   listVisibleDevelopmentResources,
   publicDevelopmentResource,
 } from "@/server/developmentToolkit";
-import { listSops } from "@/server/sops";
+import { listSops } from "@/engines/sop/server/sops";
 import { ensureHydrated } from "@/server/storage";
 
 export async function loadDevelopmentData(mode?: "toolkit" | "vault" | "workflow") {

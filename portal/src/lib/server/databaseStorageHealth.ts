@@ -6,7 +6,7 @@ import type {
   RadarInfraHealthSnapshot,
   RadarInfraProbeStatus,
   RadarInfraStorageHealth,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 
 /**
  * Database & storage health probe (radar upgrade Stage 4 — the first new signal

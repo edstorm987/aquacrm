@@ -464,9 +464,9 @@ describe("Radar evidence finds the history it already has", () => {
   // 3,090 checks while 1,505 more had history sitting in the vault that
   // nothing found. The symptom was Evidence showing figures with no graph on
   // almost every Radar alert — the one thing those alerts exist to show.
-  let vault: typeof import("../src/lib/server/radar/radarEvidenceVault");
+  let vault: typeof import("../src/engines/data/server/radar/radarEvidenceVault");
 
-  before(async () => { vault = await import("../src/lib/server/radar/radarEvidenceVault"); });
+  before(async () => { vault = await import("../src/engines/data/server/radar/radarEvidenceVault"); });
 
   beforeEach(() => {
     mutate(state => {

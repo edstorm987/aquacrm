@@ -5,7 +5,7 @@ import type {
   RadarDataDependency,
   RadarFindingGroup,
   RadarRuleLens,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 
 /**
  * Radar check classification (radar upgrade Stage 2).

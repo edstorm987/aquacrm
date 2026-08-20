@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import type { RadarEvidenceSeriesSummary } from "../src/lib/radar/businessRadar";
+import type { RadarEvidenceSeriesSummary } from "../src/engines/data/radar/businessRadar";
 import type { CommandIntelligenceSnapshot, CommandKpi, CommercialFormulaMetric } from "../src/lib/intelligence/commandIntelligence";
 import type { KpiTargetsConfig } from "../src/server/types";
 import {

@@ -3,7 +3,7 @@ import type {
   RadarInfraDatabaseHealth,
   RadarInfraHealthSnapshot,
   RadarCheckStatus,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 
 /**
  * Infra-scope radar checks (radar upgrade Stage 4).

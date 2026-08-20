@@ -2,9 +2,9 @@ import "server-only";
 
 import { listAgencyTasks } from "@/server/tasks";
 import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessRecommendedActions";
-import { buildCompanyHealthSnapshot } from "@/lib/server/kpi/companyHealthSnapshot";
+import { buildCompanyHealthSnapshot } from "@/engines/data/server/kpi/companyHealthSnapshot";
 import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
-import { buildBusinessIssueRadar } from "@/lib/server/radar/businessIssueRadar";
+import { buildBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
 import { dashboardWorkAccountabilitySnapshot } from "@/server/dashboardPlanning";
 
 export async function buildAdvisorContext(agencyId: string, now = Date.now()) {

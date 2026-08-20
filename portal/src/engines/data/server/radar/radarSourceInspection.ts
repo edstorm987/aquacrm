@@ -5,7 +5,7 @@ import type {
   RadarSourceDataIndex,
   RadarSourceDatasetInspection,
   RadarSourceDatasetSummary,
-} from "@/lib/radar/businessRadar";
+} from "@/engines/data/radar/businessRadar";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";

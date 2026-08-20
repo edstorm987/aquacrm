@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { AquaHealthState } from "@/lib/clients/clientAquaHealth";
 import type { ClientOperationsBrief } from "@/lib/clients/clientOperations";
-import type { ClientRadarSnapshot } from "@/lib/radar/businessRadar";
+import type { ClientRadarSnapshot } from "@/engines/data/radar/businessRadar";
 import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import { ClientOperationTaskButton } from "./_ClientOperationTaskButton";
 import { ClientAdvancedControls } from "./_ClientAdvancedControls";

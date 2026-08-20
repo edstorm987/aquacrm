@@ -33,7 +33,7 @@ file are **all fixed and source-verified**; the Dev Console is our internal work
 | Marketing views | **10 → 5**, every old `?view=` still resolving | — |
 | Element engine | **P1+P2 landed** — the block vocabulary lives in `src/engines/editor/elements/` | `src/engines/editor/elements/{registry,block,definition}.ts` |
 | Environment credentials | belong **only** to the founder's agency | `src/lib/server/auth/founderAgency.ts` |
-| Radar catalogue | **172 families × 12 lenses = 2,064 rules** (the "2,040 / 170" figure in older briefs is stale) | `src/lib/radar/radarRuleCatalog.ts` — 172 family entries |
+| Radar catalogue | **172 families × 12 lenses = 2,064 rules** (the "2,040 / 170" figure in older briefs is stale) | `src/engines/data/radar/radarRuleCatalog.ts` — 172 family entries |
 
 **Still genuinely open** (source-verified 2026-08-20, in priority order):
 1. 🟠 **Published-site SIGNUP block still 400s.** The login half of [issues.md #14](../development/issues.md) was fixed — `api/auth/login/route.ts:124` now accepts `formData()` and 303-redirects. **`api/auth/signup/route.ts:53` still parses `req.json()` only** (zero `formData` references in the file), so `SignupFormBlock.tsx:8`'s native `<form method="POST">` to `/api/auth/signup` still navigates a real visitor onto a raw `{"ok":false,"error":"Invalid JSON."}`. Public-facing. See the narrowed brief in [next-wave-briefs.md](next-wave-briefs.md).

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { buildEvidenceDescriptors } from "@/lib/server/kpi/kpiRegistryService";
+import { buildEvidenceDescriptors } from "@/engines/data/server/kpi/kpiRegistryService";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 

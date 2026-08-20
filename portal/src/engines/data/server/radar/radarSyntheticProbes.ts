@@ -4,7 +4,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { connect as connectTls } from "node:tls";
 
-import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/lib/radar/radarSyntheticSafety";
+import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/engines/data/radar/radarSyntheticSafety";
 import { getState, mutate } from "@/server/storage";
 import type { Client, RadarSyntheticProbeResult } from "@/server/types";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
