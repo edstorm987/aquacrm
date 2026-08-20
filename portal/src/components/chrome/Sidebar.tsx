@@ -128,7 +128,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
           return (
             <details
               key={panel.id}
-              open={panel.id === "main" || hasActive}
+              open={panel.id === "main" || panel.id === "ops" || hasActive}
               data-panel-id={panel.id}
               data-workspaces={workspacesForPanel(panel.id)}
               className="mm-sidebar-panel group/panel"

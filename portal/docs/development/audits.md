@@ -71,6 +71,15 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-20 — 🟢 Light security spot-check of the (still-unlogged) governance feature — access control is SOUND
+
+Given the governance feature has shipped **unlogged for ~9 ticks** (client/agency-facing, compliance data), I did a **light proactive security spot-check** of its access control — the highest risk for a compliance surface — without waiting for a claim. **It's sound:**
+- **Role-gated + agency-scoped on every route** (`api/portal/governance/*`): the main + `legal` routes `requireRole(["agency-owner","agency-manager"])`; **`hipaa` is owner-only** (`requireRole("agency-owner")` — appropriate for the most sensitive compliance data); `erasure/preview` owner/manager. All use `session.agencyId`, never a body-supplied agency.
+- **Company-scoping validated** — the `legal` route refuses a `companyId` not in the caller's agency (`:48`); all use the agency-scoped helpers (`listTradingCompanies(session.agencyId)`, `getClientForAgency(session.agencyId, …)`, `previewClientErasure(session.agencyId)`).
+- So **no cross-agency exposure** in the governance access layer.
+
+**→ Commander:** The unlogged governance feature's **access control is sound** (role-gated, agency-scoped, HIPAA owner-only, company-ownership validated) — **not an open security hole**. A **full** audit (what the compliance snapshot computes, HIPAA/legal accuracy, the "external AI proposals → Actions" behaviour) still needs the feature **logged** — please add the `updates.md` entry. Suite green as of tick 78 (2605/0). (The SOPs tab is likewise still unlogged.)
+
 ## 2026-08-20 — 🟡 Update — unlogged governance work: tick-73 red RESOLVED; new trivial completeness gap; still unlogged
 
 **Rolling reds from the mid-flight, unlogged governance feature.** Re-checked this tick (isolating each):

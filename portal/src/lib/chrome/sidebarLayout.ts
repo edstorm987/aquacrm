@@ -85,17 +85,21 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       // "what needs to happen" surface — see
       // docs/development/plans/inbox-actions-unification.md.
       items.push({ id: "inbox",       label: "Inbox & actions",    href: "/portal/agency/inbox",           panelId: "main", order: -9 });
-      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "main", order: -7 });
-      items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "main", order: -6 });
+      // IA v2 — the business functions group under the "Operations" surface
+      // (panelId: "ops"). Only Command Centre (home) and Inbox & actions stay
+      // on "main". Routes are UNCHANGED; only the sidebar grouping moves. See
+      // docs/development/plans/information-architecture-v2.md.
+      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "ops",  order: -7 });
+      items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "ops",  order: -6 });
       // Aqua Tags — the tag control tower is a Fulfilment view (?view=tags); this is its only sidebar entry.
-      items.push({ id: "aqua-tags",   label: "Aqua tags",          href: "/portal/agency/fulfilment?view=tags", panelId: "main", order: -5.5 });
+      items.push({ id: "aqua-tags",   label: "Aqua tags",          href: "/portal/agency/fulfilment?view=tags", panelId: "ops", order: -5.5 });
       items.push({ id: "finance",     label: "Finance",            href: "/portal/agency/agency-finance",  panelId: "ops",  order: -4 });
       if (input.role === "agency-owner" || input.role === "agency-manager") {
-        items.push({ id: "people",      label: "Staff",              href: "/portal/agency/people",          panelId: "main", order: -3 });
-        items.push({ id: "freelancers", label: "Freelancers",        href: "/portal/agency/freelancers",     panelId: "main", order: -2.9 });
+        items.push({ id: "people",      label: "Staff",              href: "/portal/agency/people",          panelId: "ops",  order: -3 });
+        items.push({ id: "freelancers", label: "Freelancers",        href: "/portal/agency/freelancers",     panelId: "ops",  order: -2.9 });
       }
-      items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -2.5 });
-      items.push({ id: "marketing",   label: "Marketing",          href: "/portal/agency/marketing",       panelId: "main", order: -2 });
+      items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "ops",  order: -2.5 });
+      items.push({ id: "marketing",   label: "Marketing",          href: "/portal/agency/marketing",       panelId: "ops",  order: -2 });
       items.push({ id: "sop-library", label: "SOP library",        href: "/portal/agency/sop-library",     panelId: "ops",  order: -2 });
       items.push({ id: "governance",  label: "Governance",         href: "/portal/agency/governance",      panelId: "ops",  order: -1.5 });
       items.push({ id: "tools",       label: "Tools",              href: "/portal/agency/tools",           panelId: "tools", order: -1 });
@@ -226,16 +230,27 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
   // land in their declared range even if they entered before Settings.
   const sorted = result.sort((a, b) => a.order - b.order);
 
-  // AquaOasis-Web override: one calm, flat agency navigation. Settings
-  // remains separate because the Sidebar renders it in the footer.
+  // AquaOasis-Web override: the IA v2 agency surfaces. Command Centre (home)
+  // and Inbox & actions stay on an unlabelled "main" panel; every business
+  // function groups under the labelled "Operations" surface; Tools keeps its
+  // own labelled panel. (Executive arrives in a later lane.) Settings remains
+  // separate because the Sidebar renders it in the footer. Routes are
+  // unchanged — this is purely a sidebar re-grouping.
+  // See docs/development/plans/information-architecture-v2.md.
   if (input.scope === "agency") {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
-    const canonicalMainIds = new Set([
-          "home", "inbox", "pipelines", "fulfilment", "aqua-tags",
-      "finance", "people", "you-deserve-it", "marketing", "sop-library", "governance", "tools",
-    ]);
-    const canonicalOrder = [...canonicalMainIds];
+    const toolsPanel = sorted.find(p => p.id === "tools");
+    // Command Centre surface — only these two rows stay on "main".
+    const commandCentreIds = ["home", "inbox"];
+    // Operations surface — the business functions, in delegation order.
+    const operationsIds = [
+      "pipelines", "fulfilment", "aqua-tags", "marketing",
+      "finance", "people", "freelancers", "sop-library", "governance",
+      "you-deserve-it",
+    ];
+    const commandCentreSet = new Set(commandCentreIds);
+    const operationsSet = new Set(operationsIds);
     // Collect any "Logs" items from any panel and re-route to settings.
     const logsItems: NavItem[] = [];
     for (const panel of sorted) {
@@ -244,16 +259,30 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
       }
     }
     const out: NavPanel[] = [];
-    const navigationItems = sorted
-      .flatMap(panel => panel.id === "settings" ? [] : panel.items)
-      .filter(item => canonicalMainIds.has(item.id))
-      .sort((a, b) => canonicalOrder.indexOf(a.id) - canonicalOrder.indexOf(b.id));
-    if (main && navigationItems.length) {
+    const allNav = sorted.flatMap(panel => panel.id === "settings" ? [] : panel.items);
+    const commandItems = allNav
+      .filter(item => commandCentreSet.has(item.id))
+      .sort((a, b) => commandCentreIds.indexOf(a.id) - commandCentreIds.indexOf(b.id));
+    const operationsItems = allNav
+      .filter(item => operationsSet.has(item.id))
+      .sort((a, b) => operationsIds.indexOf(a.id) - operationsIds.indexOf(b.id));
+    if (main && commandItems.length) {
       out.push({
         ...main,
         label: "",
-        items: navigationItems,
+        items: commandItems,
       });
+    }
+    if (operationsItems.length) {
+      out.push({
+        id: "ops",
+        label: "Operations",
+        order: 50,
+        items: operationsItems,
+      });
+    }
+    if (toolsPanel && toolsPanel.items.length) {
+      out.push(toolsPanel);
     }
     if (settings || logsItems.length > 0) {
       const baseItems = (settings?.items ?? []).filter(item =>
