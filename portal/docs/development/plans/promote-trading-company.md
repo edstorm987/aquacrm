@@ -236,7 +236,7 @@ deliver what promotion already delivers properly. Not worth it — promote inste
 
 **Held by other lanes right now — must not appear in this plan's file map, and must not be edited by this lane:**
 
-- `src/lib/elements/**`, `src/built-ins/modules/website-editor/**`, `src/lib/server/editing/appConfigAdapter.ts` — **element engine lane**.
+- `src/engines/editor/elements/**`, `src/built-ins/modules/website-editor/**`, `src/lib/server/editing/appConfigAdapter.ts` — **element engine lane**.
 - Any new migrations/SQL directory, and `docs/workspace/database.md` — **RLS lane**. This matters directly: the real fix for `brand_enquiries` is an `agency_id` column, and that column is theirs to add ([rls-enable.md](./rls-enable.md) gap 3). Phase 8 therefore filters in app code off `metadata.agencyId` with legacy rows defaulting to the founder agency, and records the column as a **dependency on the RLS lane**, not as work this plan does.
 - `docs/workspace/env-and-sellability.md`, `docs/workspace/feature-index.md` — **env audit lane**.
 

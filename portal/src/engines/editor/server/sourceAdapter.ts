@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { EditAdapter, EditDocument, EditPlan, EditTarget } from "@/lib/editing/engine";
+import type { EditAdapter, EditDocument, EditPlan, EditTarget } from "@/engines/editor/editing/engine";
 import { formatSourceStamp } from "./sourceStamp";
 import type { SiteRegistry } from "./registry";
 

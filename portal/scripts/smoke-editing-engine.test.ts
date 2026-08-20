@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   isPublishable, planEdits, runEdits,
   type EditAdapter, type EditDocument, type EditIntent,
-} from "../src/lib/editing/engine.ts";
+} from "../src/engines/editor/editing/engine.ts";
 
 const document = (): EditDocument => ({
   id: "portal:cli_1",
@@ -138,8 +138,8 @@ describe("running the loop against an adapter", () => {
 
 describe("website source is just another adapter", () => {
   it("drives the same engine as a portal, with no editing logic of its own", async () => {
-    const { sourceEditAdapter } = await import("../src/lib/server/siteEditor/sourceAdapter.ts");
-    const { mapFile } = await import("../src/lib/server/siteEditor/registry.ts");
+    const { sourceEditAdapter } = await import("../src/engines/editor/server/sourceAdapter.ts");
+    const { mapFile } = await import("../src/engines/editor/server/registry.ts");
     const nodes = Object.fromEntries(
       mapFile("app/page.tsx", "<main>\n  <h1>We build things</h1>\n  <p>{count} clients</p>\n</main>")
         .map(node => [node.key, node]));

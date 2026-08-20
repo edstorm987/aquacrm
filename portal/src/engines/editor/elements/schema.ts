@@ -12,7 +12,7 @@
 // type (`required`, `min`, `pattern`, …) is an optional member on `PropField`
 // itself — still one declaration.
 //
-// Runtime-dependency-free, same rule as the rest of `src/lib/elements`.
+// Runtime-dependency-free, same rule as the rest of `src/engines/editor/elements`.
 
 import type { BlockDefinition, ElementSurface, PropField, PropFieldType } from "./definition";
 import { elementSurfaces } from "./definition";

@@ -7,7 +7,7 @@
 // dependency and this module stays edge/client-safe. `block.ts` is itself
 // dependency-free and only type-imports back from here, so the cycle is
 // compile-time only.
-import type { BlockTreeJSON } from "@/lib/elements/block";
+import type { BlockTreeJSON } from "@/engines/editor/elements/block";
 
 // ─── Tenant identity ──────────────────────────────────────────────────────
 //

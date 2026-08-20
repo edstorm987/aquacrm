@@ -5,7 +5,7 @@ const AGENCY = "agency-editors";
 const ACTOR = "ed";
 
 let adapters: typeof import("../src/lib/server/editing/adapters");
-let engine: typeof import("../src/lib/editing/engine");
+let engine: typeof import("../src/engines/editor/editing/engine");
 let portalEditor: typeof import("../src/server/portalEditor");
 let mutate: typeof import("../src/server/storage").mutate;
 
@@ -15,7 +15,7 @@ before(async () => {
   await storage.ensureHydrated();
   mutate = storage.mutate;
   adapters = await import("../src/lib/server/editing/adapters");
-  engine = await import("../src/lib/editing/engine");
+  engine = await import("../src/engines/editor/editing/engine");
   portalEditor = await import("../src/server/portalEditor");
 });
 

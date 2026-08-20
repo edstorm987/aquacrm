@@ -352,6 +352,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-dev-editor-engine.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-dev-mode-identity.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -473,6 +477,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-end-customer-portal.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-engines-editor.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -632,6 +640,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-inbox-actions-today.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-inbox-actions.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -741,6 +753,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-operational-notifications.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-operations-surface.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -1014,6 +1030,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-site-registry.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-sop-composer.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 

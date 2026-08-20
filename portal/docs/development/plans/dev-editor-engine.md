@@ -38,17 +38,17 @@ earlier; this is the final name. It is the ONE engine that edits everything.
 > works seamlessly."
 
 ## What ALREADY EXISTS (the unification substrate — do NOT rebuild)
-- **Code + git ("our VS Code"):** `src/lib/server/siteEditor/` — `githubSource.ts`
+- **Code + git ("our VS Code"):** `src/engines/editor/server/` — `githubSource.ts`
   (readRepoTree/readRepoFile, GitHubRepoSource), `fileTree.ts` (TreeFile/TreeDirectory,
   MAX_EDITABLE_BYTES), `codeAdapter.ts` (codeEditAdapter), `patch.ts` (plan/applyPatch),
   `publish.ts` (publishEdits → commit). UI already at `/portal/agency/development/code`
   (`_CodeWorkspace.tsx`).
-- **Element/block editing:** the current Aqua Engine (`src/lib/elements/**` + website-editor
+- **Element/block editing:** the current Aqua Engine (`src/engines/editor/elements/**` + website-editor
   plugin) — hero/blocks/portal vocabulary, the P1-P3 work.
-- **The unifying loop with ADAPTERS:** `src/lib/editing/engine.ts` — EditTarget → plan →
+- **The unifying loop with ADAPTERS:** `src/engines/editor/editing/engine.ts` — EditTarget → plan →
   confirm → publish, with adapters for portal / website / marketing / **source (git)**. This is
   literally the "detect and adapt" mechanism Ed describes; it already spans blocks AND git.
-- **Editing modes:** `src/lib/editing/modes.ts` — simple / visual / developer (tab-gated). This
+- **Editing modes:** `src/engines/editor/editing/modes.ts` — simple / visual / developer (tab-gated). This
   IS the "simple editor vs full engine" tiering, already modelled.
 - **Install machinery:** the plugin system (`pluginInstalls`, 13 modules) — how an engine gets
   installed onto a scope (agency/company/client) with a `features` map. The Dev Editor Engine
@@ -80,7 +80,7 @@ earlier; this is the final name. It is the ONE engine that edits everything.
 5. **Client-workspace install** (fulfilment micro view) + the GitHub+AquaTag+Vercel setup flow.
 
 ## Files (broad — epic)
-`src/lib/editing/**`, `src/lib/elements/**`, `src/lib/server/siteEditor/**`,
+`src/engines/editor/editing/**`, `src/engines/editor/elements/**`, `src/engines/editor/server/**`,
 `src/app/portal/agency/development/code/**`, `src/app/portal/dev-team/editor/**`,
 `src/built-ins/modules/website-editor/**` (rename), plugin install layer, client internal
 workspaces. Overlaps many SHARED files — phased, one sub-surface at a time, never all at once.

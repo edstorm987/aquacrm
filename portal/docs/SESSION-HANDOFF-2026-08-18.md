@@ -134,7 +134,7 @@ is a real decision and is not made.
   The connection id grants nothing; security comes from authenticating at Aqua.
   `portalHandoff.ts` is the older approach and is now largely superseded —
   keep it only if deep links into specific portal pages are wanted.
-- **One editing engine, adapters per surface.** `src/lib/editing/engine.ts`.
+- **One editing engine, adapters per surface.** `src/engines/editor/editing/engine.ts`.
   Three server editors migrated onto it and all three gained conflict
   detection they never had. The Portal Studio is *not* migrated and probably
   should not be — it already has draft/publish and version history.

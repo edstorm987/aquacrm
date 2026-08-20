@@ -4110,7 +4110,7 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/AnimateOnScroll.tsx`
 
-- `{ default } from "@/lib/elements/AnimateOnScroll"`
+- `{ default } from "@/engines/editor/elements/AnimateOnScroll"`
 
 ### `src/built-ins/modules/website-editor/src/components/AssetPicker.tsx`
 
@@ -4118,8 +4118,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`
 
-- `{ BlockRenderer, BlockTreeRenderer, default } from "@/lib/elements/BlockRenderer"`
-- `{ BlockRendererProps } from "@/lib/elements/BlockRenderer"`
+- `{ BlockRenderer, BlockTreeRenderer, default } from "@/engines/editor/elements/BlockRenderer"`
+- `{ BlockRendererProps } from "@/engines/editor/elements/BlockRenderer"`
 
 ### `src/built-ins/modules/website-editor/src/components/EditorLivePreview.tsx`
 
@@ -4151,12 +4151,12 @@ _No exported symbols (internal/side-effect module)._
 - `RENDERER_REGISTRATIONS: Record<string, BlockComponentType>`
 - `type BlockComponentProps = BlockRenderProps` — declaration, so `context` (P2) is on both.
 - `interface BlockRegistryEntry (2 members)`
-- `{ BlockDefinition, BlockRenderProps, PropField, PropFieldType } from "@/lib/elements/definition"`
-- `{ BlockComponentType } from "@/lib/elements/definition"`
+- `{ BlockDefinition, BlockRenderProps, PropField, PropFieldType } from "@/engines/editor/elements/definition"`
+- `{ BlockComponentType } from "@/engines/editor/elements/definition"`
 
 ### `src/built-ins/modules/website-editor/src/components/blockStyles.ts`
 
-- `{ STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "@/lib/elements/blockStyles"`
+- `{ STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "@/engines/editor/elements/blockStyles"`
 
 
 ## `src/built-ins/modules/website-editor/src/components/blocks/`
@@ -4496,8 +4496,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`
 
-- `{ appendChild, cloneBlock, createBlock, duplicateBlock, findBlock, insertSibling, isDescendant, makeBlockId, moveBlock, removeBlock, updateBlock } from "@/lib/elements/blockTreeOps"`
-- `{ BlockLocation } from "@/lib/elements/blockTreeOps"`
+- `{ appendChild, cloneBlock, createBlock, duplicateBlock, findBlock, insertSibling, isDescendant, makeBlockId, moveBlock, removeBlock, updateBlock } from "@/engines/editor/elements/blockTreeOps"`
+- `{ BlockLocation } from "@/engines/editor/elements/blockTreeOps"`
 
 ### `src/built-ins/modules/website-editor/src/components/canvas/touchDnd.ts`
 
@@ -4771,8 +4771,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/components/variantResolver.ts`
 
-- `{ applyVariant, recordConversion, recordExposure, resolveVariant, sessionId, visitorId } from "@/lib/elements/variantResolver"`
-- `{ ResolvedVariant } from "@/lib/elements/variantResolver"`
+- `{ applyVariant, recordConversion, recordExposure, resolveVariant, sessionId, visitorId } from "@/engines/editor/elements/variantResolver"`
+- `{ ResolvedVariant } from "@/engines/editor/elements/variantResolver"`
 
 
 ## `src/built-ins/modules/website-editor/src/lib/`
@@ -4837,8 +4837,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/lib/blockSchemaMigrations.ts`
 
-- `{ BLOCK_SCHEMA_VERSION, MIGRATIONS, blockVersion, loadBlockTreeMigrated, migrateTree, treeNeedsMigration } from "@/lib/elements/blockSchemaMigrations"`
-- `{ BlockMigrationStep } from "@/lib/elements/blockSchemaMigrations"`
+- `{ BLOCK_SCHEMA_VERSION, MIGRATIONS, blockVersion, loadBlockTreeMigrated, migrateTree, treeNeedsMigration } from "@/engines/editor/elements/blockSchemaMigrations"`
+- `{ BlockMigrationStep } from "@/engines/editor/elements/blockSchemaMigrations"`
 
 ### `src/built-ins/modules/website-editor/src/lib/blockTreeDiff.ts`
 
@@ -5172,7 +5172,7 @@ _No exported symbols (internal/side-effect module)._
 - `themeId()`
 - `variantId()`
 - `assetId()`
-- `{ makeId, slugify } from "@/lib/elements/ids"`
+- `{ makeId, slugify } from "@/engines/editor/elements/ids"`
 
 ### `src/built-ins/modules/website-editor/src/lib/jsonLdInjection.ts`
 
@@ -5916,7 +5916,7 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/website-editor/src/types/block.ts`
 
-- `{ Block, BlockA11y, BlockSeo, BlockStyles, BlockTreeJSON, BlockType, BlockVariant, SplitTestGroup, SplitTestResult, SplitTestStatus, ElementBinding, ElementContext, ElementProductMatch, ElementVisibility } from "@/lib/elements/block"`
+- `{ Block, BlockA11y, BlockSeo, BlockStyles, BlockTreeJSON, BlockType, BlockVariant, SplitTestGroup, SplitTestResult, SplitTestStatus, ElementBinding, ElementContext, ElementProductMatch, ElementVisibility } from "@/engines/editor/elements/block"`
 
 ### `src/built-ins/modules/website-editor/src/types/content.ts`
 

@@ -31,7 +31,7 @@ file are **all fixed and source-verified**; the Dev Console is our internal work
 | Dev Console shape | **SIX sections** with `?view=` tabs, not twelve sidebar items | old routes are redirect stubs: `dev-team/{working,tasks,auditor,logs,updates,inspector,editor,api}/page.tsx` |
 | Findings + Auditor combined | **DONE** (this file used to say "not done yet") | `dev-team/auditor/page.tsx:6` → `/portal/dev-team/findings?view=auditor` |
 | Marketing views | **10 → 5**, every old `?view=` still resolving | — |
-| Element engine | **P1+P2 landed** — the block vocabulary lives in `src/lib/elements/` | `src/lib/elements/{registry,block,definition}.ts` |
+| Element engine | **P1+P2 landed** — the block vocabulary lives in `src/engines/editor/elements/` | `src/engines/editor/elements/{registry,block,definition}.ts` |
 | Environment credentials | belong **only** to the founder's agency | `src/lib/server/auth/founderAgency.ts` |
 | Radar catalogue | **172 families × 12 lenses = 2,064 rules** (the "2,040 / 170" figure in older briefs is stale) | `src/lib/radar/radarRuleCatalog.ts` — 172 family entries |
 

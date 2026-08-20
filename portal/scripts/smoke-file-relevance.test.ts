@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   PORTAL_SCOPE, WEBSITE_SCOPE, isRelevant, relevantFiles, scopeForSection,
-} from "../src/lib/editing/fileRelevance.ts";
+} from "../src/engines/editor/editing/fileRelevance.ts";
 
 describe("narrowing the repository to what is being edited", () => {
   // Editing a client portal and being shown the marketing site, the API

@@ -15,7 +15,7 @@ existing systems. Nothing built yet; this captures the vision + the merge.
 ## The engine philosophy (this is the app's spine now)
 The app is powered by a few **engines**; each surface is a "car" running an engine with a
 view tuned to its job. Established: **[Aqua Engine](aqua-engine-and-dev-team-plugin.md)** (the
-website/portal editor over `src/lib/elements/`). New: **SOP Engine**. Same idea — one engine,
+website/portal editor over `src/engines/editor/elements/`). New: **SOP Engine**. Same idea — one engine,
 many tuned views.
 
 ## What the SOP Engine unifies (all three ALREADY EXIST)
@@ -26,7 +26,7 @@ many tuned views.
    blocks (heading/text/video/resource), quiz-gated completion, assigned via
    `PeopleTrainingAssignment`. **This gets MERGED into the SOP Engine** — it becomes "a guide
    built from SOPs", not a separate island.
-3. **Element engine** (`src/lib/elements/`) — the INTERACTIVE substrate. Interactive SOPs,
+3. **Element engine** (`src/engines/editor/elements/`) — the INTERACTIVE substrate. Interactive SOPs,
    video guides, animations = element blocks, exactly as website/portal pages are. This is how
    "more than a traditional SOP" is delivered without a new renderer.
 
@@ -59,6 +59,6 @@ many tuned views.
 
 ## Files (when built — big surface)
 `src/server/sops.ts`, `src/server/types.ts` (SopDocument gains block content; training types
-fold in), `src/lib/elements/**` (reuse), `src/app/portal/agency/sop-library/**`,
+fold in), `src/engines/editor/elements/**` (reuse), `src/app/portal/agency/sop-library/**`,
 `src/app/portal/agency/people/**` (training merge), client portal resources, product steps.
 Overlaps `src/server/types.ts` (SHARED — take the lock).

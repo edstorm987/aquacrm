@@ -10,14 +10,14 @@ import {
   validateSopBlockTree,
 } from "../src/server/sops";
 import { mutate } from "../src/server/storage";
-import type { BlockTreeJSON } from "@/lib/elements";
+import type { BlockTreeJSON } from "@/engines/editor/elements";
 // Side-effect import: registers the portal-only element definitions
 // (`approval-panel`, `file-upload`) into the shared element registry, so the
 // SOP block-tree validation below actually consults a real element-engine
 // schema (an approval panel `requires` a title). Without a registered
 // definition the engine fails soft, which is a different code path we also
 // assert on ("unknown type" below).
-import "@/lib/elements/portalElements";
+import "@/engines/editor/elements/portalElements";
 
 const AGENCY_ID = `ag_sop_interactive_${Date.now()}`;
 const ACTOR_ID = "usr_sop_interactive";

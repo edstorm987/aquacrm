@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import type { EditAdapter, EditDocument, EditPlan, EditTarget } from "@/lib/editing/engine";
+import type { EditAdapter, EditDocument, EditPlan, EditTarget } from "@/engines/editor/editing/engine";
 import { getPortalEditorState, savePortalEditorField } from "@/server/portalEditor";
 import { ensureAgencyWebsite, updateAgencyWebsitePage } from "@/server/agencyWebsite";
 import { getClientForAgency, updateClient } from "@/server/tenants";

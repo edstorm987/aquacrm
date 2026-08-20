@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, Lock, LoaderCircle, Send } from "lucide-react";
 
-import { leaseNotice, type LeaseStatus } from "@/lib/editing/leases";
+import { leaseNotice, type LeaseStatus } from "@/engines/editor/editing/leases";
 
 /**
  * What a client sees while Aqua is working on their portal.

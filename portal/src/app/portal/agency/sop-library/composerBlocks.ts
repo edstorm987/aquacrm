@@ -24,8 +24,8 @@
 // registry (the website block registry side-effect import) before calling
 // `createComposerBlock` — the client component and the test both do.
 
-import type { Block, BlockType } from "@/lib/elements";
-import { createBlock } from "@/lib/elements";
+import type { Block, BlockType } from "@/engines/editor/elements";
+import { createBlock } from "@/engines/editor/elements";
 
 /** The control a composer field draws — a thin, self-contained subset. */
 export type ComposerFieldControl = "text" | "textarea" | "url" | "select" | "level";

@@ -26,6 +26,9 @@
       "@/*": [
         "./src/*"
       ],
+      "@/engines/*": [
+        "./src/engines/*"
+      ],
       "@built-ins/*": [
         "./src/built-ins/*"
       ],

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, MousePointerClick, Plug, Search } from "lucide-react";
 
-import type { TreeDirectory, TreeFile } from "@/lib/server/siteEditor/fileTree";
-import { relevantFiles, type RelevanceScope } from "@/lib/editing/fileRelevance";
+import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
+import { relevantFiles, type RelevanceScope } from "@/engines/editor/editing/fileRelevance";
 
 /**
  * The site's source, inside the editor rather than beside it.

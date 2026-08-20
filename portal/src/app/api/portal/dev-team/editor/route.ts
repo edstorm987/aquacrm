@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { runEdits } from "@/lib/editing/engine";
+import { runEdits } from "@/engines/editor/editing/engine";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { appConfigEditAdapter, prepareAppConfigIntents } from "@/lib/server/editing/appConfigAdapter";

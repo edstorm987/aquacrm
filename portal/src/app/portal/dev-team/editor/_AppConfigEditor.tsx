@@ -17,7 +17,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Eye, RotateCcw, TriangleAlert } from "lucide-react";
 
-import type { PublishOutcome } from "@/lib/editing/engine";
+import type { PublishOutcome } from "@/engines/editor/editing/engine";
 import type { AppConfigFieldView } from "@/lib/server/editing/appConfigAdapter";
 import { Panel, Pill } from "../_ui";
 

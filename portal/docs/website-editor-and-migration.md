@@ -109,7 +109,7 @@ The site editor was about to become a fifth. That is how one editor gains an
 undo the others never get, and how a conflict check exists in one place and
 silently does not in three.
 
-`src/lib/editing/engine.ts` is now the loop, and it is the same loop everywhere:
+`src/engines/editor/editing/engine.ts` is now the loop, and it is the same loop everywhere:
 
     map → select → patch → check → preview → publish
 

@@ -8,7 +8,7 @@
 // `next/dynamic` throws under `--conditions react-server`).
 //
 // What moved here is the *lookup*. The renderer and the tree operations are
-// now shared code in `src/lib/elements`, so they cannot import a plugin. They
+// now shared code in `src/engines/editor/elements`, so they cannot import a plugin. They
 // ask this module instead, and the plugin fills it on import:
 //
 //     blockRegistry.ts  ──registerElementDefinitions()──▶  this module

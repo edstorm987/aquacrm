@@ -43,7 +43,7 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 
 ### Two block registries — and the copies the element engine exists to delete
 The **element vocabulary was lifted out of the website-editor plugin into
-`src/lib/elements/`** by element-engine P1+P2 (2026-08-20). `src/lib/elements/index.ts:1-12`
+`src/engines/editor/elements/`** by element-engine P1+P2 (2026-08-20). `src/engines/editor/elements/index.ts:1-12`
 names the duplication it was built to remove, in its own words: *"two block
 registries with 14 of 16 types duplicated, three `BlockStyles`→CSS mappers, two
 prop-schema vocabularies."* Nothing has been deleted yet — the lift is what makes
@@ -63,9 +63,9 @@ delete anything.**
 | --- | --- | --- |
 | **Block registry A** — 70 website element definitions + their lazy loaders | `built-ins/modules/website-editor/src/components/blockRegistry.ts:157` (`BLOCK_REGISTRY`) | live; **stays there on purpose** (`lazyBlock` is a hand-rolled `React.lazy` because `next/dynamic` throws under `--conditions react-server`). It now *pushes* into the shared lookup via `registerElementDefinitions` |
 | **Block registry B** — 16 client-portal block types | `src/lib/portal/clientPortalBuilder.ts:18` (`CLIENT_PORTAL_BLOCK_REGISTRY`) | live, **independent**, its own `ClientPortalBlockType` union and its own `BLOCK_TYPES`/`BLOCK_TONES`/`BLOCK_WIDTHS`/`BLOCK_SPACING`/`BLOCK_ALIGNMENT` sets (`clientPortalBuilder.ts:42-52`). Exactly 4 of its 16 types share a type name with registry A — see the caveat above |
-| **The shared lookup** (not a third registry) | `src/lib/elements/registry.ts` | the surface-filtered `getElementDefinition`/`getElementRenderer` both sides are meant to converge on. `ElementSurface` is `"website" \| "portal" \| "stage"` (`definition.ts:37`) — **`"stage"` has no consumer yet**; the stage builder it was designed for is not built, so don't read its presence as a third live surface |
+| **The shared lookup** (not a third registry) | `src/engines/editor/elements/registry.ts` | the surface-filtered `getElementDefinition`/`getElementRenderer` both sides are meant to converge on. `ElementSurface` is `"website" \| "portal" \| "stage"` (`definition.ts:37`) — **`"stage"` has no consumer yet**; the stage builder it was designed for is not built, so don't read its presence as a third live surface |
 
-**Styles→CSS mappers, three of them:** `blockStylesToCss` (`src/lib/elements/blockStyles.ts:11`, canonical) ·
+**Styles→CSS mappers, three of them:** `blockStylesToCss` (`src/engines/editor/elements/blockStyles.ts:11`, canonical) ·
 `styleString` (`built-ins/modules/website-editor/src/server/staticExport.ts:64`, the static-export path) ·
 the client-portal tone/width/spacing/alignment mapping inside `clientPortalBuilder.ts`.
 `built-ins/modules/website-editor/src/components/blockStyles.ts` is **no longer a
@@ -74,7 +74,7 @@ component's `../blockStyles` import still resolves.
 
 **Prop-schema vocabularies:** `PropField` (the *form-widget* descriptor) and the
 **generated** `ElementSchema`/`ElementPropSchema` (the *validity* contract) both
-live in `src/lib/elements/{definition,schema}.ts` — and there is deliberately no
+live in `src/engines/editor/elements/{definition,schema}.ts` — and there is deliberately no
 way to hand-write an `ElementSchema` (`schema.ts:5-13`), because a second
 declaration of the same contract is exactly the drift being deleted. The plugin
 system's own field vocabularies (`SetupField`/`SettingsField`,
@@ -82,7 +82,7 @@ system's own field vocabularies (`SetupField`/`SettingsField`,
 **different** contract for install/settings forms — don't fold them together, and
 don't add a fourth.
 
-**So, before you add an element:** extend `src/lib/elements` + register into it.
+**So, before you add an element:** extend `src/engines/editor/elements` + register into it.
 Do **not** add a type to `CLIENT_PORTAL_BLOCK_REGISTRY` and a near-twin to
 `BLOCK_REGISTRY` — that is how 14 of 16 got duplicated the first time.
 

@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { EditAdapter, EditDocument, EditIntent, EditPlan, EditTarget } from "@/lib/editing/engine";
-import type { PropField, PropFieldType } from "@/lib/elements/definition";
+import type { EditAdapter, EditDocument, EditIntent, EditPlan, EditTarget } from "@/engines/editor/editing/engine";
+import type { PropField, PropFieldType } from "@/engines/editor/elements/definition";
 import { logActivity } from "@/server/activity";
 import { getAgencyWorkspaceSettings, updateAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { getAgency, updateAgency } from "@/server/tenants";

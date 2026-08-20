@@ -21,7 +21,7 @@ import {
 // and the schema check below would consult no definition — the exact thing the
 // composer depends on.
 import "@/built-ins/modules/website-editor/src/components/blockRegistry";
-import type { Block } from "@/lib/elements";
+import type { Block } from "@/engines/editor/elements";
 
 const AGENCY_ID = `ag_sop_composer_${Date.now()}`;
 const ACTOR_ID = "usr_sop_composer";

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { describeSource, repoRelativePath } from "../src/lib/editing/elementSource.ts";
+import { describeSource, repoRelativePath } from "../src/engines/editor/editing/elementSource.ts";
 
 describe("turning a compiler path into a repository path", () => {
   it("finds the repository root inside an absolute path", () => {
@@ -52,7 +52,7 @@ describe("reading a React 19 debug stack", () => {
   // React 19 removed `_debugSource`; the location now lives in `_debugStack`,
   // an Error captured at the JSX call site.
   it("recovers the file and line from a Next dev stack", async () => {
-    const { sourceFromDebugStack } = await import("../src/lib/editing/elementSource.ts");
+    const { sourceFromDebugStack } = await import("../src/engines/editor/editing/elementSource.ts");
     const stack = [
       "Error: react-stack-top-frame",
       "    at fakeJSXCallSite (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/x.js:3519:19)",
@@ -66,13 +66,13 @@ describe("reading a React 19 debug stack", () => {
   });
 
   it("skips frames into node_modules — machinery, not the component", async () => {
-    const { sourceFromDebugStack } = await import("../src/lib/editing/elementSource.ts");
+    const { sourceFromDebugStack } = await import("../src/engines/editor/editing/elementSource.ts");
     const stack = "    at x (webpack-internal:///./node_modules/react/index.js:10:5)";
     assert.equal(sourceFromDebugStack(stack), null);
   });
 
   it("returns nothing for an empty or unrecognisable stack", async () => {
-    const { sourceFromDebugStack } = await import("../src/lib/editing/elementSource.ts");
+    const { sourceFromDebugStack } = await import("../src/engines/editor/editing/elementSource.ts");
     assert.equal(sourceFromDebugStack(undefined), null);
     assert.equal(sourceFromDebugStack("Error\n    at <anonymous>"), null);
   });

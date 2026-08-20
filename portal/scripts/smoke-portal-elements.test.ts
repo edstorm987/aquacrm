@@ -39,9 +39,9 @@ import {
   portalElementDefinition,
   portalVocabularyProblems,
   toElement,
-} from "@/lib/elements/portalElements";
-import { getElementDefinition, listElementDefinitions } from "@/lib/elements/registry";
-import { assertDefinitionConsistent } from "@/lib/elements/schema";
+} from "@/engines/editor/elements/portalElements";
+import { getElementDefinition, listElementDefinitions } from "@/engines/editor/elements/registry";
+import { assertDefinitionConsistent } from "@/engines/editor/elements/schema";
 import {
   CLIENT_PORTAL_BLOCK_REGISTRY,
   createPortalBlock,

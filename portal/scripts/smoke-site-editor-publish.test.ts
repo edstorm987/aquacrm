@@ -1,7 +1,7 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
-import { hashLine, mapFile, type SiteRegistry } from "../src/lib/server/siteEditor/registry.ts";
+import { hashLine, mapFile, type SiteRegistry } from "../src/engines/editor/server/registry.ts";
 
 const FILE = "app/page.tsx";
 const SOURCE = ["<main>", "  <h1>We build things</h1>", "  <p>Get in touch</p>", "</main>"].join("\n");
@@ -17,11 +17,11 @@ function registryFor(commitSha = "abc123"): SiteRegistry {
 
 const lineHash = (line: number) => hashLine(SOURCE.split("\n")[line - 1]);
 
-let patchMod: typeof import("../src/lib/server/siteEditor/patch");
-let publishMod: typeof import("../src/lib/server/siteEditor/publish");
+let patchMod: typeof import("../src/engines/editor/server/patch");
+let publishMod: typeof import("../src/engines/editor/server/publish");
 before(async () => {
-  patchMod = await import("../src/lib/server/siteEditor/patch");
-  publishMod = await import("../src/lib/server/siteEditor/publish");
+  patchMod = await import("../src/engines/editor/server/patch");
+  publishMod = await import("../src/engines/editor/server/publish");
 });
 
 describe("applying an edit", () => {

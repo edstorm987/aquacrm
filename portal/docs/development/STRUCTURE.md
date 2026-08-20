@@ -56,8 +56,8 @@ with a `server/` subfolder, so the client/server boundary the app relies on is n
 ```
 src/engines/
 ├── editor/                  # Dev Editor Engine
-│   ├── (from src/lib/editing/ + src/lib/elements/)   ← client-safe
-│   └── server/              (from src/lib/server/siteEditor/)   ← server-only (git/github)
+│   ├── (from src/engines/editor/editing/ + src/engines/editor/elements/)   ← client-safe
+│   └── server/              (from src/engines/editor/server/)   ← server-only (git/github)
 ├── sop/                     # SOP Engine
 │   └── server/              (from src/server/sops.ts + sopGuides.ts)   ← state layer
 │       # UI stays in app/portal/agency/sop-library/ (that is a WORKSPACE, not the engine)
@@ -71,7 +71,7 @@ Rules:
   Workspaces — the cars — not the engine).
 - The `server/` subfolder keeps `import "server-only"` modules separate, exactly as `lib/server/`
   does today, so nothing leaks a server module into a client bundle.
-- The move is mechanical + manifest-driven (rewrite every import: `@/lib/editing/*` →
+- The move is mechanical + manifest-driven (rewrite every import: `@/engines/editor/editing/*` →
   `@/engines/editor/*`, etc.), suite-guarded, same protocol as the 2026-08-20 `src/lib` reorg.
   Add an `@/engines/*` tsconfig path alias.
 - Run it on a CLEAN tree with NO other lane active (it rewrites imports across the whole codebase).

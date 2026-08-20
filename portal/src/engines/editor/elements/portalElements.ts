@@ -37,7 +37,7 @@
 //
 // ── Layering ──────────────────────────────────────────────────────────────
 //
-// Same rules as the rest of `src/lib/elements`: no `server-only`, no plugin
+// Same rules as the rest of `src/engines/editor/elements`: no `server-only`, no plugin
 // import, nothing that breaks under `--conditions react-server`. In particular
 // this module must NOT import the website-editor plugin to reach the 70
 // definitions it aliases — the alias is resolved through the shared registry at

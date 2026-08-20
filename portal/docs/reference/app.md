@@ -2096,7 +2096,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/agency/actions/_TodayView.tsx`
 
-- `TodayView({ tasks, entries, busyId, onComplete, onPostpone, onOpenCalendar, }: { tasks: AgencyTask[]; entries: CommandCalendarEntry[]; busyId: string | null; onComplete: (task: AgencyTask) => void; onPostpone: (task: Ag…` — What you are actually doing today. The rest of Actions answers "what exists"; this answers "what now". Anything overdue is shown alongside today rather than in its own section — a…
+- `TodayView({ tasks, entries, attentionActions = [], busyId, onComplete, onPostpone, onAttentionAction, onMarkAttentionDone, onOpenCalendar, }: { tasks: AgencyTask[]; entries: CommandCalendarEntry[]; /** * Needs-attention…` — What you are actually doing today. The rest of Actions answers "what exists"; this answers "what now". Anything overdue is shown alongside today rather than in its own section — a…
 
 ### `src/app/portal/agency/actions/page.tsx`
 
@@ -2857,6 +2857,16 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `SopLibrary({ initialSops, initialCategories, initialGuides = [], canManageGuides = false }: { initialSops: SopDocument[]; initialCategories: string[]; initialGuides?: SopGuide[]; canManageGuides?: boolean; })`
 
+### `src/app/portal/agency/sop-library/composerBlocks.ts`
+
+- `composerBlockType(type: string): ComposerBlockType | undefined` — Lookup the palette entry for a type, if it is one the composer offers.
+- `createComposerBlock(type: BlockType): Block` — Build a fresh block for the composer. Reuses the element engine's `createBlock`, so the block carries the definition's real `defaultProps` and is valid the instant it is added.
+- `isComposerEditable(block: Block): boolean` — Whether a stored block is one the composer knows how to edit inline.
+- `COMPOSER_BLOCK_TYPES: readonly ComposerBlockType[]` — The composer palette. Five common content blocks the element engine already supports, each mapped to the element type it renders as: heading → `heading`, paragraph → `text` (rich …
+- `type ComposerFieldControl = "text" | "textarea" | "url" | "select" | "level"` — The control a composer field draws — a thin, self-contained subset.
+- `interface ComposerField (5 members)`
+- `interface ComposerBlockType (4 members)`
+
 ### `src/app/portal/agency/sop-library/page.tsx`
 
 - `default async SopLibraryPage()`
@@ -3364,7 +3374,8 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/dev-team/editor/page.tsx`
 
-- `default DevTeameditorRedirect()` — stays so every existing link, bookmark and doc reference still lands.
+- `default async DevTeamEditorPage()`
+- `dynamic = "force-dynamic"` — guard, not the write's.
 
 
 ## `src/app/portal/dev-team/findings/`

@@ -35,8 +35,8 @@ import {
 
 import type { SopDocument, SopGuide } from "@/server/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
-import { BlockRenderer } from "@/lib/elements/BlockRenderer";
-import type { Block } from "@/lib/elements";
+import { BlockRenderer } from "@/engines/editor/elements/BlockRenderer";
+import type { Block } from "@/engines/editor/elements";
 import {
   COMPOSER_BLOCK_TYPES,
   composerBlockType,

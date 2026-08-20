@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   EDITING_MODES, editingMode, modeAllowsTab, tabForMode,
-} from "../src/lib/editing/modes.ts";
+} from "../src/engines/editor/editing/modes.ts";
 
 describe("choosing how deep to go", () => {
   it("shows somebody fixing a typo only the words", () => {

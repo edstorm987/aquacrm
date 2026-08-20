@@ -14,7 +14,7 @@ import type {
   ClientPortalPageBlock,
   ClientPortalSectionId,
 } from "@/server/types";
-import { PORTAL_ELEMENT_PAIRINGS, createPortalBlockRecord } from "@/lib/elements/portalElements";
+import { PORTAL_ELEMENT_PAIRINGS, createPortalBlockRecord } from "@/engines/editor/elements/portalElements";
 
 /**
  * The portal palette — 16 placeable things, in palette order.

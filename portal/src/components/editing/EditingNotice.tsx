@@ -2,7 +2,7 @@
 
 import { Lock, TriangleAlert } from "lucide-react";
 
-import { leaseNotice, type LeaseStatus } from "@/lib/editing/leases";
+import { leaseNotice, type LeaseStatus } from "@/engines/editor/editing/leases";
 
 /**
  * "Somebody is already in here" — said before the work is wasted.

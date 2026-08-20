@@ -10,9 +10,9 @@ new system. It is a **name** plus a **fourth mode**. What already exists:
 
 | Ed's ask | Already built | Where |
 |---|---|---|
-| "Aqua Engine is the website portal editor" | the editor itself | `src/lib/editing/engine.ts` (+ 4 adapters), `src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx` — currently called **Studio** |
-| one vocabulary across website + portal | element engine P1→P3, shipped today | `src/lib/elements/**`, `portalElements.ts` merges the portal's 16 block types into the shared registry |
-| "an unlockable function in there **or a mode**" | **the mode system already exists** — 3 modes, tab-gated | `src/lib/editing/modes.ts` — `simple` "Just the words" · `visual` "Design it" · `developer` "Developer" |
+| "Aqua Engine is the website portal editor" | the editor itself | `src/engines/editor/editing/engine.ts` (+ 4 adapters), `src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx` — currently called **Studio** |
+| one vocabulary across website + portal | element engine P1→P3, shipped today | `src/engines/editor/elements/**`, `portalElements.ts` merges the portal's 16 block types into the shared registry |
+| "an unlockable function in there **or a mode**" | **the mode system already exists** — 3 modes, tab-gated | `src/engines/editor/editing/modes.ts` — `simple` "Just the words" · `visual` "Design it" · `developer` "Developer" |
 | Dev Team itself | BUILT, 6 sections, browser-verified 2026-08-19 | `src/app/portal/dev-team/**`, plan [dev-team-portal.md](dev-team-portal.md) |
 | "generate an update" | BUILT — composer + parser + serialised insert-only writer | `src/lib/server/dev/devTeamUpdates.ts`, `src/app/portal/dev-team/updates/_Section.tsx` |
 
@@ -23,7 +23,7 @@ new system. It is a **name** plus a **fourth mode**. What already exists:
    the cheapest fix — do it first. Mostly labels + doc sweep.
 
 2. **A fourth editing mode: Dev Team.** `EDITING_MODES` in
-   `src/lib/editing/modes.ts` is a plain array of `{id, label, summary, tabs}`.
+   `src/engines/editor/editing/modes.ts` is a plain array of `{id, label, summary, tabs}`.
    Dev Team becomes a fourth entry, unlocked rather than always-listed. The
    gating hook already exists (`modeAllowsTab`); what is new is the *unlock*
    condition, since the current gate is founder-only (`canUseDevMode()`).
@@ -51,7 +51,7 @@ new system. It is a **name** plus a **fourth mode**. What already exists:
 
 ## Files
 
-- `src/lib/editing/modes.ts` — the 4th mode
-- `src/lib/editing/**`, `src/lib/elements/**`, `src/built-ins/modules/website-editor/**` — naming sweep
+- `src/engines/editor/editing/modes.ts` — the 4th mode
+- `src/engines/editor/editing/**`, `src/engines/editor/elements/**`, `src/built-ins/modules/website-editor/**` — naming sweep
 - `src/app/portal/dev-team/**` — gate: founder-only → founder-or-unlocked
 - `src/lib/server/dev/devTeamUpdates.ts` — the report + delivery

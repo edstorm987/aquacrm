@@ -79,7 +79,7 @@ You have been carrying these as open. They are not.
 - **Marketing** consolidated ten views into five, and every old link still resolves.
 - **Dev Console** is six sections with tabs, not twelve sidebar items. Eight old routes are redirect stubs.
 - **Company switcher** shipped, with brand-aware sign-in.
-- **Element engine** P1+P2 landed; the block vocabulary now lives in `src/lib/elements/`.
+- **Element engine** P1+P2 landed; the block vocabulary now lives in `src/engines/editor/elements/`.
 - **Database & storage health** is a real panel with real latency bands that shows "untested" rather than a fake green.
 - **The "0 pageviews" lie is fixed** — an unmonitored agency now shows "—" and "Not monitored", not a confident zero.
 - **Client health, Aqua Tag manager, Dev Console topbar, KPI overhaul** — all shipped and mounted.
@@ -111,7 +111,7 @@ You have been carrying these as open. They are not.
 ### Needs engineering — no decision required
 
 - **Company promotion: phases 1–3 BUILT (2026-08-20, evening).** `src/server/companyPortal/` holds the disposition map (all 78 collections classified, tsc-enforced) and the zero-write preview; the endpoint has its security shell. Phases 4–10 (the actual move + plugin `onPromoteCompany` hooks + UI) are open. The model is settled: agency = holding group, companies stay companies and gain portals.
-- **Element engine P3 LANDED (2026-08-20, evening).** The portal's 16 block types are expressed in the shared vocabulary (`src/lib/elements/portalElements.ts`): 14 as aliases of existing elements, 2 as portal-only definitions. A parity harness pins every portal block's rendered HTML byte-for-byte (`scripts/smoke-portal-element-parity.test.ts`) — it has already caught its first real diff (the deliberate Aqua Engine copy change) and demanded it be declared.
+- **Element engine P3 LANDED (2026-08-20, evening).** The portal's 16 block types are expressed in the shared vocabulary (`src/engines/editor/elements/portalElements.ts`): 14 as aliases of existing elements, 2 as portal-only definitions. A parity harness pins every portal block's rendered HTML byte-for-byte (`scripts/smoke-portal-element-parity.test.ts`) — it has already caught its first real diff (the deliberate Aqua Engine copy change) and demanded it be declared.
 
 - ~~Signup is publicly broken~~ **FIXED 2026-08-20 (later the same day).** A form post now creates a WEBSITE LEAD (never an agency, never a user, no password read), answers with a 303 back to the page, and the visitor sees a real confirmation. 25 tests pin it. The same lane found and fixed a worse cousin: `CrmContactFormBlock` posted to an endpoint that never existed and showed a fake "thanks" while dropping every enquiry — it now posts to `/api/public/contact` and only confirms a real write.
 - **RLS residue.** `brand_enquiries` has no agency id, and roughly 27-36 places still use the service key that bypasses RLS. Medium, and it is engineering, not your decision.

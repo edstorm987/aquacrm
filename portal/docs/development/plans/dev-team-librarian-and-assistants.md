@@ -83,7 +83,7 @@ Ed, 2026-08-20:
 
 **4. Editor belongs in the Dev Team sidebar — and it must be the REAL engine.**
 - ⚠ Ed clarified: the editor is NOT the little app-config editor — it's the full **Dev Editor
-  Engine** (VS Code-style code+git via `src/lib/server/siteEditor/**` + `_CodeWorkspace`, unified
+  Engine** (VS Code-style code+git via `src/engines/editor/server/**` + `_CodeWorkspace`, unified
   with the block engine). See [dev-editor-engine.md](dev-editor-engine.md). The shell lane adds
   the sidebar ENTRY; upgrading what the route CONTAINS to the full engine is dev-editor-engine
   Phase 2 (a bigger build). Wire the entry to /portal/dev-team/editor and track the engine

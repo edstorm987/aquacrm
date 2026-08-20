@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, GitBranch, LoaderCircle, Lock, Plug, Search, TriangleAlert } from "lucide-react";
 
-import type { TreeDirectory, TreeFile } from "@/lib/server/siteEditor/fileTree";
+import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 
 /**
  * Code mode — the repository, browsed and read like an editor.

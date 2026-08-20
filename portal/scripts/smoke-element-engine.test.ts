@@ -5,7 +5,7 @@
 //
 //  P1  `Block`, `BlockStyles`, `BlockDefinition`, `PropField`, `BlockRenderer`,
 //      `blockStyles`, `blockTreeOps` and `blockSchemaMigrations` live in
-//      `src/lib/elements` now, and the website-editor plugin re-exports its old
+//      `src/engines/editor/elements` now, and the website-editor plugin re-exports its old
 //      paths. The re-export must be the SAME module, not a copy — a copy is the
 //      failure this whole phase exists to stop, and it is invisible until two
 //      surfaces disagree about a block.
@@ -17,7 +17,7 @@
 // Everything here is driven, not grepped. The renderer is exercised by calling
 // it and walking the element tree it returns, which works under
 // `--conditions react-server` where a DOM render would not. Loading these
-// modules at all is itself part of the contract: `src/lib/elements` may never
+// modules at all is itself part of the contract: `src/engines/editor/elements` may never
 // reach `server-only`, and `lazyBlock` stays a hand-rolled `React.lazy`
 // because `next/dynamic` throws under that condition — if either regressed,
 // this file would fail to import.
@@ -26,22 +26,22 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 // ── the lifted home ────────────────────────────────────────────────────────
-import BlockRenderer from "../src/lib/elements/BlockRenderer";
-import * as elementsBarrel from "../src/lib/elements";
-import * as liftedStyles from "../src/lib/elements/blockStyles";
-import * as liftedTreeOps from "../src/lib/elements/blockTreeOps";
-import * as liftedMigrations from "../src/lib/elements/blockSchemaMigrations";
+import BlockRenderer from "../src/engines/editor/elements/BlockRenderer";
+import * as elementsBarrel from "../src/engines/editor/elements";
+import * as liftedStyles from "../src/engines/editor/elements/blockStyles";
+import * as liftedTreeOps from "../src/engines/editor/elements/blockTreeOps";
+import * as liftedMigrations from "../src/engines/editor/elements/blockSchemaMigrations";
 import {
   assertDefinitionConsistent,
   buildElementSchema,
   validateElementProps,
-} from "../src/lib/elements/schema";
+} from "../src/engines/editor/elements/schema";
 import {
   listElementDefinitions,
   registerElementDefinitions,
-} from "../src/lib/elements/registry";
-import type { BlockDefinition, BlockRenderProps } from "../src/lib/elements/definition";
-import type { Block } from "../src/lib/elements/block";
+} from "../src/engines/editor/elements/registry";
+import type { BlockDefinition, BlockRenderProps } from "../src/engines/editor/elements/definition";
+import type { Block } from "../src/engines/editor/elements/block";
 
 // ── the plugin's old paths, which must still be the same thing ─────────────
 import * as pluginStyles from "../src/built-ins/modules/website-editor/src/components/blockStyles";
@@ -59,7 +59,7 @@ import {
 
 // ── the second prop-schema vocabulary that P2 collapsed ────────────────────
 import { appConfigFieldViews, prepareAppConfigIntents } from "../src/lib/server/editing/appConfigAdapter";
-import type { EditDocument } from "../src/lib/editing/engine";
+import type { EditDocument } from "../src/engines/editor/editing/engine";
 
 // ─── A renderer driver that works without a DOM ────────────────────────────
 //
@@ -116,7 +116,7 @@ function probeElement(type: string, extra: Partial<BlockDefinition> = {}) {
 // P1 — the vocabulary really moved, and moved once
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("P1 — the vocabulary lives in src/lib/elements", () => {
+describe("P1 — the vocabulary lives in src/engines/editor/elements", () => {
   it("the plugin's old paths re-export the lifted module, they do not copy it", () => {
     // Identity, not shape. Two structurally identical copies of
     // `blockStylesToCss` would pass a deepEqual and still be the bug: the
@@ -138,7 +138,7 @@ describe("P1 — the vocabulary lives in src/lib/elements", () => {
     assert.equal(pluginMigrations.BLOCK_SCHEMA_VERSION, liftedMigrations.BLOCK_SCHEMA_VERSION);
 
     // And the barrel exposes the same functions again, so a future portal or
-    // stage surface importing `@/lib/elements` gets the identical code the
+    // stage surface importing `@/engines/editor/elements` gets the identical code the
     // website already runs.
     assert.equal(elementsBarrel.createBlock, liftedTreeOps.createBlock);
     assert.equal(elementsBarrel.blockStylesToCss, liftedStyles.blockStylesToCss);

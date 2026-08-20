@@ -13,7 +13,7 @@
 // `plugins/fulfillment/src/lib/aquaPluginTypes.ts` to ease the eventual
 // merge.
 
-import type { ElementCategory } from "@/lib/elements/definition";
+import type { ElementCategory } from "@/engines/editor/elements/definition";
 import type { ComponentType, ReactNode } from "react";
 
 import type { AgencyId, ClientId, PluginInstall, UserId } from "./tenancy";
@@ -238,7 +238,7 @@ export interface BlockDescriptor {
   requiresPlugin?: string;
 }
 
-// One declaration, in `src/lib/elements/definition.ts` — the palette grouping
+// One declaration, in `src/engines/editor/elements/definition.ts` — the palette grouping
 // is part of the shared element vocabulary now, not a plugin-local enum.
 export type BlockCategory = ElementCategory;
 

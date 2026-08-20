@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 
 import {
   buildFileTree, describeFile, isHiddenPath, treeFiles, MAX_EDITABLE_BYTES,
-} from "../src/lib/server/siteEditor/fileTree.ts";
+} from "../src/engines/editor/server/fileTree.ts";
 
-let engine: typeof import("../src/lib/editing/engine");
-let code: typeof import("../src/lib/server/siteEditor/codeAdapter");
+let engine: typeof import("../src/engines/editor/editing/engine");
+let code: typeof import("../src/engines/editor/server/codeAdapter");
 before(async () => {
-  engine = await import("../src/lib/editing/engine");
-  code = await import("../src/lib/server/siteEditor/codeAdapter");
+  engine = await import("../src/engines/editor/editing/engine");
+  code = await import("../src/engines/editor/server/codeAdapter");
 });
 
 describe("what the file tree refuses to show", () => {
@@ -171,8 +171,8 @@ describe("code mode is the same loop as the visual editor", () => {
 });
 
 describe("reading a repository from GitHub", () => {
-  let github: typeof import("../src/lib/server/siteEditor/githubSource");
-  before(async () => { github = await import("../src/lib/server/siteEditor/githubSource"); });
+  let github: typeof import("../src/engines/editor/server/githubSource");
+  before(async () => { github = await import("../src/engines/editor/server/githubSource"); });
 
   function fakeGitHub(responses: Record<string, unknown>) {
     const calls: string[] = [];

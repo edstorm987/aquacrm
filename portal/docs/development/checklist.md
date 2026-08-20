@@ -24,7 +24,7 @@ Suite **2458 pass / 0 fail** (stable across four full runs), typecheck **0**, sa
 ## 🟠 Next up — mine, in order
 
 - [x] ~~Element engine, phases 1–3~~ **DONE 2026-08-20** — vocabulary in
-      `src/lib/elements/`, additive ABI, portal blocks on the registry with a
+      `src/engines/editor/elements/`, additive ABI, portal blocks on the registry with a
       byte-parity harness guarding client-visible HTML.
 - [ ] **Engine widening + assistant proposals** (P5, P6). ~5 days. After this an
       assistant can compose real sites and portal pages. **Do not start P6 first.**

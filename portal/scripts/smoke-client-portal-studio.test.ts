@@ -531,7 +531,7 @@ describe("client portal studio surface", () => {
 
     // The block TYPES used to be grepped for out of this file's source text.
     // Element-engine P3 moved the per-type vocabulary into
-    // `src/lib/elements/portalElements.ts` — the portal's 16 types now declare
+    // `src/engines/editor/elements/portalElements.ts` — the portal's 16 types now declare
     // which shared element each one is a name for, instead of being a second
     // registry — so a source grep here was asserting the location of a table
     // rather than the existence of a block type. These read the exported

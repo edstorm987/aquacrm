@@ -1,6 +1,6 @@
 // R039 — Element schema migration runner.
 //
-// Implementation moved to `src/lib/elements/blockSchemaMigrations.ts` in P1, so
+// Implementation moved to `src/engines/editor/elements/blockSchemaMigrations.ts` in P1, so
 // a portal or stage tree can be migrated by the same runner. Re-exported here
 // verbatim.
 
@@ -11,5 +11,5 @@ export {
   loadBlockTreeMigrated,
   migrateTree,
   treeNeedsMigration,
-} from "@/lib/elements/blockSchemaMigrations";
-export type { BlockMigrationStep } from "@/lib/elements/blockSchemaMigrations";
+} from "@/engines/editor/elements/blockSchemaMigrations";
+export type { BlockMigrationStep } from "@/engines/editor/elements/blockSchemaMigrations";

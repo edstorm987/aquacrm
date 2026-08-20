@@ -4,11 +4,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatSourceStamp, parseSourceStamp } from "../src/lib/server/siteEditor/sourceStamp.ts";
+import { formatSourceStamp, parseSourceStamp } from "../src/engines/editor/server/sourceStamp.ts";
 import {
   classifyText, hashLine, isMappableFile, isStale, mapFile, reportResolution, resolve,
   type SiteRegistry,
-} from "../src/lib/server/siteEditor/registry.ts";
+} from "../src/engines/editor/server/registry.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 

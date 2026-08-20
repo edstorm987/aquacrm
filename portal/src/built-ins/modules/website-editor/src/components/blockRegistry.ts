@@ -18,14 +18,14 @@
 
 import type { Block, BlockType } from "../types/block";
 import type { BlockCategory, BlockDescriptor } from "../lib/aquaPluginTypes";
-import type { BlockComponentType, BlockDefinition, BlockRenderProps } from "@/lib/elements/definition";
+import type { BlockComponentType, BlockDefinition, BlockRenderProps } from "@/engines/editor/elements/definition";
 import {
   getElementDefinition,
   getElementRenderer,
   listElementDefinitions,
   registerElementDefinitions,
   registerElementRenderers,
-} from "@/lib/elements/registry";
+} from "@/engines/editor/elements/registry";
 import { lazyBlock } from "./lazyBlock";
 
 // ─── Block component loaders (all default exports per 02) ─────────────────
@@ -131,7 +131,7 @@ const CrmContactFormBlock = lazyBlock(() => import("./blocks/CrmContactFormBlock
 // ─── Registry shape ────────────────────────────────────────────────────────
 //
 // THE SHAPES MOVED. `BlockRenderProps`, `PropField`, `PropFieldType` and
-// `BlockDefinition` are declared in `src/lib/elements/definition.ts` — the
+// `BlockDefinition` are declared in `src/engines/editor/elements/definition.ts` — the
 // element vocabulary shared by the website, the client portal and product
 // lifecycle stages (element engine, P1). They are re-exported here verbatim
 // because ~100 import sites read them from this path.
@@ -142,7 +142,7 @@ const CrmContactFormBlock = lazyBlock(() => import("./blocks/CrmContactFormBlock
 // reaches `React.createContext`, which the react-server build of React does
 // not export.
 //
-// Adding a field to a definition means editing `src/lib/elements/definition.ts`,
+// Adding a field to a definition means editing `src/engines/editor/elements/definition.ts`,
 // not this block.
 
 export type {
@@ -150,7 +150,7 @@ export type {
   BlockRenderProps,
   PropField,
   PropFieldType,
-} from "@/lib/elements/definition";
+} from "@/engines/editor/elements/definition";
 
 // ─── Native block library ─────────────────────────────────────────────────
 
@@ -992,7 +992,7 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
 
 // ─── Registration into the shared lookup ───────────────────────────────────
 //
-// P1. `src/lib/elements` owns the renderer and the tree operations now, and it
+// P1. `src/engines/editor/elements` owns the renderer and the tree operations now, and it
 // may not import a plugin — so the library pushes itself into the shared
 // lookup on import instead. `RENDERER_REGISTRATIONS` below registers second so
 // the external-plugin entries win, exactly as the object spread did.
@@ -1012,7 +1012,7 @@ export function getBlockDefinition(type: string): BlockDefinition | undefined {
 
 // SURFACE-FILTERED since P3. The shared lookup now also holds the client
 // portal's two genuinely new elements (`approval-panel`, `file-upload`,
-// registered by `src/lib/elements/portalElements.ts` with `surfaces:
+// registered by `src/engines/editor/elements/portalElements.ts` with `surfaces:
 // ["portal"]`). Filtering here is the whole reason `surfaces` exists: an
 // operator building a public marketing site must never be offered a decision
 // panel bound to a signed-in client's approvals. The 14 portal types that are
@@ -1094,7 +1094,7 @@ export function getBlockEntry(type: string): BlockRegistryEntry | undefined {
 // `requiresPlugin` set has a matching renderer here. Missing renderers
 // log a clear warning so the operator notices in dev.
 
-export type { BlockComponentType } from "@/lib/elements/definition";
+export type { BlockComponentType } from "@/engines/editor/elements/definition";
 
 const NATIVE_RENDERERS: Record<string, BlockComponentType> = Object.fromEntries(
   Object.entries(BLOCK_REGISTRY).map(([type, def]) => [type, def.Component]),

@@ -8,16 +8,16 @@
 // Recursive element renderer, used by both the editor canvas and the host-side
 // PortalPageRenderer.
 //
-// THE IMPLEMENTATION MOVED to `src/lib/elements/BlockRenderer.tsx` in P1 of the
+// THE IMPLEMENTATION MOVED to `src/engines/editor/elements/BlockRenderer.tsx` in P1 of the
 // element engine. This path re-exports it verbatim so every import site — the
 // canvas, the storefront renderer, the preview panes — is unchanged.
 //
 // The bare `import "./blockRegistry"` is load-bearing, not tidy-up: the lifted
-// renderer resolves components through the shared `src/lib/elements/registry`
+// renderer resolves components through the shared `src/engines/editor/elements/registry`
 // lookup, and this plugin's registry is what fills it. Importing it here
 // reproduces exactly the population guarantee the old direct
 // `import { getBlockDefinition } from "./blockRegistry"` gave.
 import "./blockRegistry";
 
-export { BlockRenderer, BlockTreeRenderer, default } from "@/lib/elements/BlockRenderer";
-export type { BlockRendererProps } from "@/lib/elements/BlockRenderer";
+export { BlockRenderer, BlockTreeRenderer, default } from "@/engines/editor/elements/BlockRenderer";
+export type { BlockRendererProps } from "@/engines/editor/elements/BlockRenderer";

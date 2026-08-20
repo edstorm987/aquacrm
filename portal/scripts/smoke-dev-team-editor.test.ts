@@ -27,7 +27,7 @@ import { getAgencyWorkspaceSettings } from "../src/server/agencySettings";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency, getAgency, updateAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
-import type { PublishOutcome } from "../src/lib/editing/engine";
+import type { PublishOutcome } from "../src/engines/editor/editing/engine";
 
 interface EditorBody {
   ok?: boolean;

@@ -4,8 +4,8 @@ import crypto from "node:crypto";
 import { getState, mutate } from "./storage";
 import { logActivity } from "./activity";
 import type { SopDocument } from "./types";
-import { elementSchema, getElementDefinition, validateElementProps } from "@/lib/elements";
-import type { Block, BlockTreeJSON } from "@/lib/elements";
+import { elementSchema, getElementDefinition, validateElementProps } from "@/engines/editor/elements";
+import type { Block, BlockTreeJSON } from "@/engines/editor/elements";
 
 export function listSops(agencyId: string): SopDocument[] {
   return Object.values(getState().sops)

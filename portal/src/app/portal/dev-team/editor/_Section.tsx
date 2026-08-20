@@ -13,7 +13,7 @@ import { AppConfigEditor } from "./_AppConfigEditor";
 
 // Editor — the app editing itself. The website and portal editors change what
 // Aqua publishes; this changes Aqua. It runs on the same shared editing loop
-// (`map → plan → publish` in `@/lib/editing/engine`) as those editors, through
+// (`map → plan → publish` in `@/engines/editor/editing/engine`) as those editors, through
 // the `appConfigEditAdapter`, so it inherits the dry run, the before/after diff,
 // the per-field conflict check and the explicit-confirm rule rather than
 // re-implementing any of them.

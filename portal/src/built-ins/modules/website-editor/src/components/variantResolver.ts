@@ -7,8 +7,8 @@
 
 // Runtime variant resolver for split-tests (X-2).
 //
-// Implementation moved to `src/lib/elements/variantResolver.ts` alongside the
+// Implementation moved to `src/engines/editor/elements/variantResolver.ts` alongside the
 // renderer that calls it. Re-exported here verbatim.
 
-export { applyVariant, recordConversion, recordExposure, resolveVariant, sessionId, visitorId } from "@/lib/elements/variantResolver";
-export type { ResolvedVariant } from "@/lib/elements/variantResolver";
+export { applyVariant, recordConversion, recordExposure, resolveVariant, sessionId, visitorId } from "@/engines/editor/elements/variantResolver";
+export type { ResolvedVariant } from "@/engines/editor/elements/variantResolver";

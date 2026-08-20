@@ -8,7 +8,7 @@ import { deleteSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createInteractiveSop, createWrittenSop, deleteSopRecord, listSops, updateSop } from "@/server/sops";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import type { BlockTreeJSON } from "@/lib/elements";
+import type { BlockTreeJSON } from "@/engines/editor/elements";
 
 export const runtime = "nodejs";
 

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   canTakeOver, claimLease, isLeaseActive, leaseNotice, leaseStatus,
   LEASE_DURATION_MS, TAKEOVER_AFTER_MS, type EditLease,
-} from "../src/lib/editing/leases.ts";
+} from "../src/engines/editor/editing/leases.ts";
 
 const NOW = 1_000_000;
 const lease = (over: Partial<EditLease> = {}): EditLease => ({

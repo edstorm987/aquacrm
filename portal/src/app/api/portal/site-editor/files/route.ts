@@ -5,9 +5,9 @@ import { join, relative, resolve, sep } from "node:path";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import { buildFileTree, describeFile, isHiddenPath } from "@/lib/server/siteEditor/fileTree";
-import { hashFile } from "@/lib/server/siteEditor/codeAdapter";
-import { GitHubNotConfigured, readRepoFile, readRepoTree } from "@/lib/server/siteEditor/githubSource";
+import { buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
+import { hashFile } from "@/engines/editor/server/codeAdapter";
+import { GitHubNotConfigured, readRepoFile, readRepoTree } from "@/engines/editor/server/githubSource";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 
 /**

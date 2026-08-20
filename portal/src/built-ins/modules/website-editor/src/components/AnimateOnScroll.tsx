@@ -7,7 +7,7 @@
 
 // On-scroll entrance animation wrapper.
 //
-// Implementation moved to `src/lib/elements/AnimateOnScroll.tsx` alongside the
+// Implementation moved to `src/engines/editor/elements/AnimateOnScroll.tsx` alongside the
 // renderer that mounts it. Re-exported here verbatim.
 
-export { default } from "@/lib/elements/AnimateOnScroll";
+export { default } from "@/engines/editor/elements/AnimateOnScroll";

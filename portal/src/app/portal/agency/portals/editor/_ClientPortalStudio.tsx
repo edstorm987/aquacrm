@@ -15,10 +15,10 @@ import {
   portalSlug,
   uniquePortalSlug,
 } from "@/lib/portal/clientPortalBuilder";
-import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/lib/editing/modes";
+import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/engines/editor/editing/modes";
 import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
-import { elementSource, repoRelativePath } from "@/lib/editing/elementSource";
-import { PORTAL_SCOPE, scopeForSection } from "@/lib/editing/fileRelevance";
+import { elementSource, repoRelativePath } from "@/engines/editor/editing/elementSource";
+import { PORTAL_SCOPE, scopeForSection } from "@/engines/editor/editing/fileRelevance";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type {
   ClientPortalDesignDocument,

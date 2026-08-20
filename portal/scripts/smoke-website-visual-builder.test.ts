@@ -13,7 +13,7 @@ import {
   findBlock,
   moveBlock,
 } from "../src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps";
-// Statically, not `await import()`. The registry reaches `@/lib/elements/*`
+// Statically, not `await import()`. The registry reaches `@/engines/editor/elements/*`
 // for the shared vocabulary since P1, and a built-in plugin module with a
 // runtime `@/` import cannot be loaded through Node's ESM path under tsx —
 // the plugin package is `"type": "module"` while `src/lib` transpiles to CJS,

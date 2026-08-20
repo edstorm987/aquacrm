@@ -1,12 +1,12 @@
 // Block — leaf unit of an EditorPage tree.
 //
 // THE DECLARATION MOVED. Everything below is re-exported verbatim from
-// `src/lib/elements/block.ts`, which is now the single home of the element
+// `src/engines/editor/elements/block.ts`, which is now the single home of the element
 // vocabulary shared by the website, the client portal and product lifecycle
 // stages (element engine, P1). This path is kept because ~380 import sites use
 // it and none of them needed to change.
 //
-// Add a field to an element by editing `src/lib/elements/block.ts`, not here.
+// Add a field to an element by editing `src/engines/editor/elements/block.ts`, not here.
 //
 // Historical note, still true of the shape: `type` remains an open string so
 // other plugins (ecommerce, blog, etc.) can extend the registry. The
@@ -30,4 +30,4 @@ export type {
   ElementContext,
   ElementProductMatch,
   ElementVisibility,
-} from "@/lib/elements/block";
+} from "@/engines/editor/elements/block";
