@@ -252,10 +252,11 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
   if (input.scope === "agency") {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
-    const toolsPanel = sorted.find(p => p.id === "tools");
-    // Command Centre surface — home, Inbox & actions, and the single Operations
-    // row all stay on "main" as flat rendered rows.
-    const commandCentreIds = ["home", "inbox", "operations-home"];
+    // Command Centre surface — home, Inbox & actions, the single Operations row,
+    // and Tools all render as flat rows on "main" (no nested group headers).
+    // Ed: Operations AND Tools should each be a plain sidebar item, not a nested
+    // word. The functions/utilities live as cards on their hubs.
+    const commandCentreIds = ["home", "inbox", "operations-home", "tools"];
     // Operations functions — the business functions, in delegation order. These
     // render as cards on the Operations hub (not as sidebar rows); they live in
     // a hidden, search-only panel so quick-search still reaches them.
@@ -299,9 +300,6 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
         hidden: true,
         items: operationsItems,
       });
-    }
-    if (toolsPanel && toolsPanel.items.length) {
-      out.push(toolsPanel);
     }
     if (settings || logsItems.length > 0) {
       const baseItems = (settings?.items ?? []).filter(item =>

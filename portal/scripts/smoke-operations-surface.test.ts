@@ -64,13 +64,13 @@ describe("agency Operations surface (IA v2)", () => {
     assert.equal(operationsRow!.href, "/portal/agency/operations", "the Operations row lands on the hub");
   });
 
-  it("renders only Command Centre, Inbox & actions, and Operations on the main panel", () => {
+  it("renders the flat surface rows on the main panel: Command Centre, Inbox, Operations, Tools", () => {
     const main = panel(ownerSidebar(), "main");
     assert.ok(main, "a main (Command Centre) panel should assemble");
     assert.deepEqual(
       main!.items.map(item => item.id),
-      ["home", "inbox", "operations-home"],
-      "the main panel holds Command Centre (home), Inbox & actions, and the single Operations row",
+      ["home", "inbox", "operations-home", "tools"],
+      "the main panel holds Command Centre, Inbox & actions, the Operations row, and Tools as flat rows",
     );
     // The business functions must NOT sit on main — they live on the hub.
     const mainIds = new Set(main!.items.map(item => item.id));
@@ -79,18 +79,18 @@ describe("agency Operations surface (IA v2)", () => {
     }
   });
 
-  it("keeps Tools its own labelled surface, separate from Operations", () => {
+  it("renders Tools as a flat main row (not a nested labelled panel), separate from Operations", () => {
     const panels = ownerSidebar();
-    const tools = panel(panels, "tools");
-    assert.ok(tools, "a Tools panel should assemble");
-    assert.equal(tools!.label, "Tools");
+    // Ed: Tools should be a plain sidebar item, not a nested "TOOLS" group.
+    assert.ok(!panels.some(p => p.id === "tools"), "Tools should no longer assemble as its own labelled panel");
+    const main = panel(panels, "main");
     assert.ok(
-      tools!.items.some(item => item.id === "tools" && item.href === "/portal/agency/tools"),
-      "Tools keeps its own entry",
+      main!.items.some(item => item.id === "tools" && item.href === "/portal/agency/tools"),
+      "Tools is a flat row on the main panel",
     );
-    // Tools must not be swept into Operations.
+    // Tools must not be swept into the Operations functions.
     const ops = panel(panels, "ops");
-    assert.ok(!ops!.items.some(item => item.id === "tools"), "Tools is not an Operations row");
+    assert.ok(!ops!.items.some(item => item.id === "tools"), "Tools is not an Operations function");
   });
 
   it("loses nothing — every Operations route/id still resolves in the sidebar", () => {
@@ -116,14 +116,21 @@ describe("agency Operations surface (IA v2)", () => {
     );
   });
 
-  it("the five-surface shape assembles: main, Operations, Tools (settings in the footer)", () => {
+  it("assembles the flat surface shape: Command Centre · Inbox · Operations · Tools on main, settings in the footer", () => {
     const panels = ownerSidebar();
     const ids = panels.map(p => p.id);
-    // Executive is a later lane; Inbox & actions rides inside main today.
+    // Executive is a later lane. The rendered surfaces are now flat rows on the
+    // unlabelled main panel (Command Centre, Inbox & actions, Operations, Tools),
+    // with the Operations functions hidden and Settings in the footer.
     assert.ok(ids.includes("main"), "Command Centre surface present");
-    assert.ok(ids.includes("ops"), "Operations surface present");
-    assert.ok(ids.includes("tools"), "Tools surface present");
+    assert.ok(ids.includes("ops"), "Operations functions panel present (hidden)");
     assert.ok(ids.includes("settings"), "Settings present (rendered in the footer)");
+    const main = panel(panels, "main");
+    assert.deepEqual(
+      main!.items.map(item => item.id),
+      ["home", "inbox", "operations-home", "tools"],
+      "the main panel renders the four flat surface rows in order",
+    );
   });
 
   // The hidden Operations panel is a two-sided contract between two consumers:
