@@ -100,6 +100,15 @@ Every exported function, class, type and const in this area, with its real signa
 - `brandToStyleString(brand: BrandKit | null | undefined): string` — The component inserts it into the DOM verbatim.
 - `interface BrandCssVars (2 members)`
 
+### `src/lib/chrome/cinematicMode.ts`
+
+- `resolveCinematicPreference(cinematicRaw: string | null, legacyRaw: string | null): boolean` — Derive the cinematic preference from a raw cinematic value plus a raw legacy value. Pure so it can be unit-tested without a DOM. Default is TRUE (play).
+- `cinematicModeEnabled(): boolean`
+- `setCinematicMode(enabled: boolean): void`
+- `CINEMATIC_MODE_STORAGE_KEY = "aqua-cinematic-mode"` — the legacy key once a fresh cinematic preference is written.
+- `CINEMATIC_MODE_EVENT = "aqua-cinematic-mode:change"`
+- `LEGACY_PERFORMANCE_MODE_STORAGE_KEY = "aqua-performance-mode"` — The legacy key. `"1"` meant "skip cutscenes" (performance mode ON).
+
 ### `src/lib/chrome/clientWorkspaceRoute.ts`
 
 - `clientWorkspaceRouteId(pathname: string): string | null`
@@ -113,6 +122,12 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `isCommandCenterPath(pathname: string): boolean`
 
+### `src/lib/chrome/devIconPreference.ts`
+
+- `devIconCookieEnabled(): boolean` — Client read of the current preference. Default true (shown).
+- `setDevIconCookie(shown: boolean): void` — Persist the preference and reload so the topbar re-renders with/without it.
+- `DEV_ICON_COOKIE = "aqua_dev_icon"` — Cookie name. Read on the server by `devIconPreference()`.
+
 ### `src/lib/chrome/devModeLoadIn.ts`
 
 - `DEV_MODE_LOADIN_KEY = "aqua-devmode-loadin"` — same-tab reload, which a signed-cookie swap forces.
@@ -120,10 +135,9 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/lib/chrome/performanceMode.ts`
 
-- `performanceModeEnabled(): boolean`
-- `setPerformanceMode(enabled: boolean): void`
-- `PERFORMANCE_MODE_STORAGE_KEY = "aqua-performance-mode"`
-- `PERFORMANCE_MODE_EVENT = "aqua-performance-mode:change"`
+- `performanceModeCookieEnabled(): boolean` — Read the current preference from the browser's cookies. Client-only.
+- `setPerformanceModeCookie(enabled: boolean): void` — Persist the preference and reload so the next SERVER render reflects it. A cookie (not localStorage) is the whole point — only cookies reach the server on the navigation that foll…
+- `PERFORMANCE_MODE_COOKIE = "aqua_perf_mode"` — Cookie name. Read on the server by `performanceModePreference()`.
 
 ### `src/lib/chrome/sidebarLayout.ts`
 
@@ -1596,6 +1610,16 @@ Every exported function, class, type and const in this area, with its real signa
 - `localDay(now: number = Date.now()): string` — `YYYY-MM-DD` in the server's timezone — for filenames and day stamps.
 - `localStamp(now: number = Date.now()): string` — `YYYY-MM-DD HH:MM` in the server's timezone — for "captured at" lines.
 
+### `src/lib/server/dev/devMarkdownCache.ts`
+
+- `async memoiseByStat<T>(namespace: string, absPath: string, compute: (info: { mtimeMs: number; size: number }) => Promise<T>): Promise<T | null>` — Memoise `compute` for one file, keyed by (namespace, absPath) and validated by the file's mtime + size. `compute` runs only on a miss (new file, or the file moved since it was cac…
+- `async readParsedFile<T>(namespace: string, absPath: string, parse: (text: string) => T): Promise<T | null>` — The common case: read the whole file as UTF-8 and hand it to `parse`. The parsed result (including a `null` the parser returns to mean "nothing here") is memoised, so a file with …
+- `invalidateFile(namespace: string, absPath: string): void` — Drop one (namespace, path) entry. Precise — use when only one reader cached it.
+- `invalidatePath(absPath: string): void` — Drop EVERY entry for one file, whatever namespace cached it. A plan file is cached under both `tasks` and `planStatus`; state.md under `workers` and `blockers`; and a doc edit can…
+- `invalidateNamespace(namespace: string): void` — Drop every entry in one namespace.
+- `__cacheStats(): { hits: number; misses: number; size: number }` — Cache counters + total entries across all namespaces, for the perf smoke test only.
+- `__resetCache(): void` — Clear the store and the counters — the perf smoke test isolates itself with this.
+
 ### `src/lib/server/dev/devMode.ts`
 
 - `devAgencySlug(): string` — Which tenant dev mode signs into, when the clean room is not the point. Bare Co is empty by design, which is right for building but useless for anything that needs volume — Radar …
@@ -1746,13 +1770,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `async readCheckIns(): Promise<WorkerCheckIn[]>` — Explicit worker check-ins, newest first.
 - `isCheckInActive(checkIn: WorkerCheckIn, now = Date.now()): boolean` — Is this check-in the word of a worker who is working RIGHT NOW? Two ways to stop being live: go quiet for longer than the window, or sign off — a worker whose phase/status says "d…
 - `async readActiveCheckIns(now = Date.now()): Promise<WorkerCheckIn[]>` — The DEFAULT read for "who is working right now". `readCheckIns()` is the raw history and stays available, but a consumer that reaches for it to answer "who is on this plan" will n…
-- `async scanWorkerSignals(windowMs = 2 * 60 * 60 * 1000, now = Date.now()): Promise<WorkerSignals>` — Everything the live panel needs. `windowMs` bounds "recent" (default 2h).
+- `async scanWorkerSignals(windowMs = 2 * 60 * 60 * 1000, now = Date.now(), opts: { fresh?: boolean } = {}): Promise<WorkerSignals>` — Everything the live panel needs. `windowMs` bounds "recent" (default 2h). Cached for {@link SIGNALS_TTL_MS} to keep the Dev Team home fast; pass `{ fresh: true }` to force a full …
 - `groupActivity(files: ActiveFile[]): AreaActivity[]` — Group recent file activity into areas — "where work is happening right now".
 - `ACTIVE_CHECK_IN_WINDOW_MS = 2 * 60 * 60 * 1000` — How long a check-in counts as "working right now". A check-in file is written once and never deleted — nothing checks OUT — so without a window every worker that has ever run `wor…
 - `interface WorkerCheckIn (5 members)`
 - `interface ActiveFile (3 members)`
 - `interface WorkerSignals (5 members)`
 - `interface AreaActivity (4 members)`
+
+
+## `src/lib/server/`
+
+### `src/lib/server/devIconPreference.ts`
+
+- `parseDevIconCookie(value: string | undefined | null): boolean` — Pure parser — testable without a request context. Default true.
+- `async devIconPreference(): Promise<boolean>` — Read the dev-icon preference for the current request.
 
 
 ## `src/lib/server/editing/`
@@ -2142,6 +2174,11 @@ Every exported function, class, type and const in this area, with its real signa
 - `type OnboardingProgressMap = Partial<Record<ClientStage, MilestoneState[]>>`
 - `interface Milestone (2 members)`
 - `interface MilestoneState (3 members)`
+
+### `src/lib/server/performanceMode.ts`
+
+- `parsePerformanceModeCookie(value: string | undefined | null): boolean` — Pure parser — testable without a request context.
+- `async performanceModePreference(): Promise<boolean>` — Read the performance-mode preference for the current request.
 
 ### `src/lib/server/personInteractions.ts`
 
@@ -2542,8 +2579,8 @@ Every exported function, class, type and const in this area, with its real signa
 - `synchroniseWebsiteEnquiryLedgerEvents(agencyId: string, clientId: string, enquiry: WebsiteEnquiry)`
 - `async recordWebsiteEnquiryIdentityResolution(enquiryId: string, resolution: IdentityResolutionResult): Promise<boolean>`
 - `triageWebsiteEnquiry(channel: WebsiteEnquiryChannel, message?: string): Pick<WebsiteEnquiry, "priority" | "topic" | "suggestedAction">`
-- `getRequestWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]>`
-- `async listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]>`
+- `getRequestWebsiteEnquiries(agencyId: string, limit = 250): Promise<WebsiteEnquiry[]>`
+- `async listWebsiteEnquiries(agencyId: string, limit = 250, deps: { supabase?: EnquiryReadClient } = {}): Promise<WebsiteEnquiry[]>` — Every website enquiry that belongs to `agencyId`, newest first. SECURITY — this reads through the RLS-bypassing service-role client, so the query returns EVERY tenant's `brand_enq…
 - `mapBrandEnquiryRow(row: BrandEnquiryRow): WebsiteEnquiry` — One live `brand_enquiries` row → the inbox item. Pure: no Supabase, no state, no clock beyond the row's own timestamps. Split out of `listWebsiteEnquiries` so the mapping can be d…
 - `attachRoutedCompanyNames(enquiries: WebsiteEnquiry[], companies: Array<{ id: string; name: string }>): WebsiteEnquiry[]` — Fill in each routed enquiry's company name from the agency's trading companies. Pure — the caller passes the companies, so the read surface can be driven by fixtures instead of by…
 - `matchesRoutedCompanyFilter(enquiry: Pick<WebsiteEnquiry, "routedCompanyId">, filter: string): boolean`
@@ -2560,6 +2597,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface WebsiteEnquiryCall (15 members)`
 - `interface WebsiteEnquiry (48 members)`
 - `interface WebsiteEnquiryFormCapture (7 members)`
+- `interface EnquiryReadClient (1 members)` — The narrow slice of the admin client this read uses. Declared so a test can inject a fake table without standing up the whole Supabase surface — the raw function stays exercisable…
 
 ### `src/lib/server/websiteEnquiryLeadSync.ts`
 

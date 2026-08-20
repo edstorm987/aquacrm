@@ -105,13 +105,21 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `DevModeSwitcher({ role }: { role: Role })`
 
+### `src/components/chrome/DevTeamTransition.tsx`
+
+- `DevTeamTransition()`
+
 ### `src/components/chrome/FloatingChat.tsx`
 
 - `FloatingChat()` — the visual anchor of where the brand "lives" while the nav is gone.
 
 ### `src/components/chrome/GlobalAdvisorDrawer.tsx`
 
-- `GlobalAdvisorDrawer({ initialWorkspace, configured, model, userName, coverage, }: { initialWorkspace: AssistantWorkspaceState; configured: boolean; model: string; userName: string; coverage: Coverage; })`
+- `GlobalAdvisorDrawer({ initialWorkspace, configured, model, userName, coverage, // ── Reskin seam ────────────────────────────────────────────────────────── // The drawer machinery (portal, transitions, lazy chat, notice…`
+
+### `src/components/chrome/LibrarianDrawerControl.tsx`
+
+- `async LibrarianDrawerControl({ agencyId, userId, userName, }: { agencyId: string; userId: string; userName: string; })` — records) is a follow-up — see docs/development/plans/dev-team-librarian-and-assistants.md.
 
 ### `src/components/chrome/MobileNav.tsx`
 
@@ -216,7 +224,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/components/chrome/Topbar.tsx`
 
-- `Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notif…`
+- `Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole,…`
 
 ### `src/components/chrome/TopbarBackButton.tsx`
 

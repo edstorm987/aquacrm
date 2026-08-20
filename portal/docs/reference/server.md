@@ -173,7 +173,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `collectionsWithDisposition(disposition: PromotionDisposition): Array<keyof Required<PortalState>>`
 - `collectionsNeedingConfirmation(): Array<keyof Required<PortalState>>` — Collections whose disposition is a proposal a human must confirm.
 - `PROMOTION_DISPOSITION = {` — THE MAP. Order deliberately follows `PortalState` so the two can be read side by side. Nothing calls this to move a record yet — phase 1 is the map and its guard, and nothing else.
-- `PROMOTION_COLLECTION_COUNT = 78` — How many collections `PortalState` had when this map was written. The map's own length is checked against `PortalState` by the types above; this constant is the human-readable hal…
+- `PROMOTION_COLLECTION_COUNT = 79` — How many collections `PortalState` had when this map was written. The map's own length is checked against `PortalState` by the types above; this constant is the human-readable hal…
 - `PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<` — Every classified collection name, in `PortalState` order.
 - `type PromotionDisposition = "move" | "rekey" | "seed" | "closure" | "leave" | "na"` — What a promotion does with a collection. - `move` the records leave the origin tenant and arrive in the new one. One record, one tenant, ever — never a copy (see the erasure invar…
 - `type PromotionOwnership = | "company-single" /** `record.companyIds[]` — exclusive to this company, shared, or unset. */ | "company-multi" /** No company field; follows a client that is moving. */ | "client" /** Belongs…` — How a record in this collection is tied to a company — i.e. which field the preview may read to decide whether a record belongs to the promoted brand. This is the honest statement…
@@ -566,6 +566,16 @@ Every exported function, class, type and const in this area, with its real signa
 - `saveClientProductWorkspaces(client: Client, workspaces: PortalProductWorkspace[]): Client | null`
 - `reconcileClientProductWorkspaces(client: Client, products: PortalProductSelection[], stage: PortalProductMode): Record<string, unknown>`
 
+### `src/server/sopGuides.ts`
+
+- `listSopGuides(agencyId: string): SopGuide[]`
+- `getSopGuide(agencyId: string, id: string): SopGuide | null`
+- `createSopGuide(input: CreateSopGuideInput): SopGuide`
+- `updateSopGuide(agencyId: string, id: string, patch: UpdateSopGuidePatch, actorUserId: string): SopGuide | null`
+- `deleteSopGuide(agencyId: string, id: string): SopGuide | null`
+- `interface CreateSopGuideInput (7 members)`
+- `interface UpdateSopGuidePatch (5 members)`
+
 ### `src/server/sops.ts`
 
 - `listSops(agencyId: string): SopDocument[]`
@@ -573,10 +583,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `createSopCategory(agencyId: string, category: string, actorUserId: string): string`
 - `getSop(agencyId: string, id: string): SopDocument | null`
 - `createWrittenSop(input: { agencyId: string; title: string; content: string; category?: string; categories?: string[]; tags?: string[]; actorUserId: string }): SopDocument`
+- `validateSopBlockTree(blocks: BlockTreeJSON): SopBlockProblem[]` — Validate an interactive SOP's block tree by COMPOSING the element engine's own validators — never re-implementing them. Structural integrity (a string id, a string type, unique id…
+- `createInteractiveSop(input: { agencyId: string; title: string; blocks: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[]; resourceType?: SopDocument["resourceType"]; actorUserId: string }): SopDoc…`
 - `createFileSop(input: Omit<SopDocument, "createdAt" | "updatedAt" | "updatedBy" | "kind" | "tags" | "categories"> & { tags?: string[]; categories?: string[] }): SopDocument`
-- `updateSop(agencyId: string, id: string, patch: { title?: string; content?: string; category?: string; categories?: string[]; tags?: string[] }, actorUserId: string): SopDocument | null`
+- `updateSop(agencyId: string, id: string, patch: { title?: string; content?: string; blocks?: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[] }, actorUserId: string): SopDocument | null`
 - `deleteSopRecord(agencyId: string, id: string): SopDocument | null`
 - `deleteSopCategory(agencyId: string, category: string, replacementCategory: string | undefined, actorUserId: string): DeleteSopCategoryResult | null`
+- `interface SopBlockProblem (4 members)`
 - `interface DeleteSopCategoryResult (4 members)`
 
 ### `src/server/staffCapacity.ts`
@@ -734,6 +747,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `type CommandCalendarEntryStatus = "planned" | "completed" | "cancelled"`
 - `type CommandCalendarConnectionStatus = "connected" | "syncing" | "error" | "revoked"`
 - `type DashboardWorkActivityMode = "aqua" | "external" | "break" | "unconfirmed"`
+- `type SopGuideAudience = "staff" | "founder" | "freelancer" | "client"` — Who a guide is intended for.
 - `type AgencyProductPricing = "fixed" | "from" | "recurring" | "custom"`
 - `type AgencyProductStatus = "draft" | "live" | "archived"`
 - `type AgencyProductPortalRequirement = "required" | "optional" | "none"`
@@ -863,7 +877,8 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface DashboardWorkActivityBlock (7 members)`
 - `interface DashboardClockOutReview (7 members)`
 - `interface DashboardWorkSession (29 members)`
-- `interface SopDocument (18 members)`
+- `interface SopDocument (19 members)`
+- `interface SopGuide (11 members)`
 - `interface AgencyProductWorkspaceStage (4 members)`
 - `interface AgencyProductWorkspaceStep (7 members)`
 - `interface AgencyProductInternalWorkspace (6 members)`
@@ -961,7 +976,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PeopleFeedback (8 members)` — channel (the fuller two-way conversation is the internal-chat phase).
 - `interface PeopleRecognition (8 members)` — "You Deserve It" clientDelight system, which this can later feed.
 - `interface CustomKpiDefinition (9 members)` — A guided custom KPI (Phase 6 — KPI intelligence): combine a numerator base metric with an optional denominator via an op. Not a formula language — safe and honest by construction …
-- `interface PortalState (78 members)`
+- `interface PortalState (79 members)`
 
 ### `src/server/userSchemaMigration.ts`
 

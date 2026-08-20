@@ -1,5 +1,44 @@
 # Where We Stand
 
+## 2026-08-20 — late-night autonomous session (shipped + verified)
+
+Everything below was built, verifier-CONFIRMED, full-suite green (2589 / 0), tsc 0,
+and browser-verified where visible. 9 commits, nothing pushed.
+
+- **Dev Team**: shipyard theme (forge dark / mill light, WCAG-checked) + "entering the
+  shipyard" cutscene · mtime-cached parsers (home 5.5s→0.17s, roadmap 4.7s→0.15s) ·
+  shell rebuilt (Librarian side-panel replacing the full-page advisor glitch, role-aware
+  "Back to home", Editor + Team chat sidebar items, "Leave Dev Team" removed).
+- **Inbox ⋈ Actions**: Actions is now a tab inside the inbox; sidebar merged to
+  "Inbox & actions"; old /portal/agency/actions links redirect. (Phase 2 attention⋈today
+  merge designed + deferred.)
+- **Governance workspace** (new, /portal/agency/governance + sidebar + Tools): legal
+  register · DPO/data-erasure (staged, typed-name confirm) · compliance posture (GDPR on /
+  HIPAA toggle) · sub-processors · security — KNOW-first, no false-greens. Ed's "real
+  workspaces for legal, DPO".
+- **Funnel builder restored** as a one-click top-level Marketing "Funnels" tab (it had been
+  buried two levels deep in the 10→5 consolidation).
+- **SOP Engine**: interactive-SOP content foundation + **Guides** (ordered SOP sequences,
+  opt-in quiz, a Guides tab beside the library). People training left separate.
+- **Command Centre speed**: radar/intelligence on-demand under Performance mode.
+- **Bugs caught in verification** (not by the suite): a Tailwind-v4/Turbopack CSS drop that
+  made the shipyard theme silently not apply (fixed by shipping the tokens inline); an
+  actions→inbox attention-test regression I'd introduced (fixed); a 45s dev-team slowdown
+  traced to a degraded dev server after hours of churn (fixed by restart, not a code bug).
+- **Verification**: all 59 agency+dev-team routes return 200/307, zero error boundaries.
+
+### Plans captured for Ed's return (core-surface, want his eyes)
+IA v2 (the five surfaces: Command · Inbox&Actions · Executive · Operations · Tools) ·
+Dev Editor Engine (rename Aqua Engine, unify code+git into the editor) · Dev Team Librarian
+→ assistant library · company promotion phases 4-10. All in docs/development/plans/.
+
+### Still only Ed can do
+Vercel `SUPABASE_SERVICE_ROLE_KEY` · apply the brand_enquiries migration · Stripe/Meta ·
+DPO legal sign-off.
+
+---
+
+
 **Written 2026-08-20. Every claim below was checked against the source code, not against another document.**
 
 ---

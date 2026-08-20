@@ -248,6 +248,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-command-center-perf.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-command-center-transition.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -392,11 +396,23 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-dev-team-perf.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-dev-team-plan-authoring.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-dev-team-portal.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-dev-team-shell.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-dev-team-ui.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -473,6 +489,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-enquiry-detail-card.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-enquiry-read-scoping.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -588,6 +608,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-governance-workspace.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-hc-leads-pipeline-integration.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -605,6 +629,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-inbox-actions-in-actions.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-inbox-actions.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -657,6 +685,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-marketing-customer-profiles.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-marketing-funnel-builder.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -837,6 +869,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-profile-toggles.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-project-explorer.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -981,6 +1017,14 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-sop-guides.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-sop-interactive.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-sop-library-organisation.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -1006,6 +1050,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-today-view.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-tools-directory.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 

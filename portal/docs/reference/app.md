@@ -762,6 +762,34 @@ Every exported function, class, type and const in this area, with its real signa
 - `async GET()`
 
 
+## `src/app/api/portal/governance/erasure/preview/`
+
+### `src/app/api/portal/governance/erasure/preview/route.ts`
+
+- `async POST(request: Request)` — The right-to-erasure PREVIEW — how many records an erasure WOULD remove, without removing anything. This is the KNOW step of a DPO erasure: you see the blast radius before you dec…
+
+
+## `src/app/api/portal/governance/hipaa/`
+
+### `src/app/api/portal/governance/hipaa/route.ts`
+
+- `async POST(request: Request)` — The optional per-company HIPAA readiness track. Owner-only: declaring that a company handles PHI is a scope decision with legal consequences, not a display preference. Switching i…
+
+
+## `src/app/api/portal/governance/legal/`
+
+### `src/app/api/portal/governance/legal/route.ts`
+
+- `async POST(request: Request)` — Add a record to the legal register from the Governance workspace. Owner/manager only. This creates a register ENTRY — it does not upload or verify a file, and it must never be rea…
+
+
+## `src/app/api/portal/governance/`
+
+### `src/app/api/portal/governance/route.ts`
+
+- `async GET(request: Request)` — The whole Governance workspace snapshot for one company (or agency-wide). Read-only, owner/manager only. It reports what the app can see and what it cannot — it never returns a co…
+
+
 ## `src/app/api/portal/identity-resolution/`
 
 ### `src/app/api/portal/identity-resolution/route.ts`
@@ -1065,6 +1093,17 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/api/portal/site-editor/files/route.ts`
 
 - `async GET(request: NextRequest)`
+
+
+## `src/app/api/portal/sop-guides/`
+
+### `src/app/api/portal/sop-guides/route.ts`
+
+- `async GET(request: NextRequest)`
+- `async POST(request: NextRequest)`
+- `async PATCH(request: NextRequest)`
+- `async DELETE(request: NextRequest)`
+- `runtime = "nodejs"`
 
 
 ## `src/app/api/portal/sops/categories/`
@@ -2061,7 +2100,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/agency/actions/page.tsx`
 
-- `default async AgencyActionsPage()`
+- `default AgencyActionsPage()` — there as a server-rendered slot — it is not deleted.
 
 
 ## `src/app/portal/agency/activity-inbox/`
@@ -2117,6 +2156,16 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/portal/agency/command-center/page.tsx`
 
 - `{ default } from "../page"`
+
+
+## `src/app/portal/agency/`
+
+### `src/app/portal/agency/commandPerformance.ts`
+
+- `shouldRunHeavyPanels(perfMode: boolean, scanRequested: boolean): boolean` — Whether to build the heavy radar + KPI-intelligence panels for this render. - Performance mode OFF → always `true` (behaviour is byte-for-byte today). - Performance mode ON → `fal…
+- `normalizeScanFlag(value: string | string[] | undefined): boolean` — Parse the one-shot `?scan=1` search param (string | string[] | undefined).
+- `buildPausedBusinessRadar(policy: RadarPolicyConfiguration, now: number): BusinessIssueRadar` — A type-complete but empty `BusinessIssueRadar` used while Performance mode has paused the real sweep. Every count is zero and every collection empty — the same shape a brand-new a…
+- `buildPausedIntelligenceSnapshot(currency: string, now: number): CommandIntelligenceSnapshot` — A type-complete but empty `CommandIntelligenceSnapshot` used while Performance mode has paused the real build. `commercialIntelligence` is the genuine empty-input result of the pu…
 
 
 ## `src/app/portal/agency/company/`
@@ -2394,6 +2443,30 @@ Every exported function, class, type and const in this area, with its real signa
 - `{ default } from "../../../development/workflow/page"`
 
 
+## `src/app/portal/agency/governance/`
+
+### `src/app/portal/agency/governance/_GovernanceWorkspace.tsx`
+
+- `GovernanceWorkspace({ initial, isOwner }: { initial: GovernanceSnapshot; isOwner: boolean })`
+
+### `src/app/portal/agency/governance/_governanceData.ts`
+
+- `async buildGovernanceSnapshot(options: BuildGovernanceOptions): Promise<GovernanceSnapshot>`
+- `type SecurityStatus = "in-code" | "configured" | "partial" | "not-verified" | "blind"` — The Governance workspace snapshot — everything the KNOW-first surface shows, built ONCE from real state so the server page and the GET route return the same shape. The honesty dis…
+- `interface SecurityControl (7 members)`
+- `interface LegalRegisterRow (10 members)`
+- `interface DeclarationRow (6 members)`
+- `interface SubprocessorRow (7 members)`
+- `interface ErasureClientRow (4 members)`
+- `interface GovernanceSnapshot (12 members)`
+- `interface BuildGovernanceOptions (3 members)`
+
+### `src/app/portal/agency/governance/page.tsx`
+
+- `default async GovernancePage()` — The Governance workspace — the dedicated HOME for compliance, legal and security posture, KNOW-first. It surfaces where the agency stands from REAL evidence and, just as loudly, w…
+- `dynamic = "force-dynamic"`
+
+
 ## `src/app/portal/agency/inbox/`
 
 ### `src/app/portal/agency/inbox/_EnquiryCommunications.tsx`
@@ -2520,13 +2593,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `marketingSectionHref(view: MarketingView, section: MarketingSection, brandScope: string): string` — A link straight to one section, anchored so the browser lands on it.
 - `marketingSectionAnchor(section: MarketingSection): string` — The DOM id a section renders under, so links and headings cannot drift.
 - `marketingChannelHref(channel: MarketingChannel, brandScope: string): string` — A link straight to one channel inside the consolidated Channels view.
-- `MARKETING_TAB_VIEWS: readonly MarketingView[]` — The tabs in the bar, in order.
+- `MARKETING_TAB_VIEWS: readonly MarketingView[]` — The tabs in the bar, in order. Funnels sits right after Demand — Ed calls the funnel builder vital, so it is a first-class destination, not two levels deep inside Channels.
 - `MARKETING_VIEWS: readonly MarketingView[]` — Everything `?view=` may legally name, tabs plus the demoted view.
 - `MARKETING_CHANNELS: readonly MarketingChannel[]`
 - `DEFAULT_MARKETING_VIEW: MarketingView` — The view you get with no `?view=` at all.
 - `MARKETING_VIEW_SECTIONS: Partial<Record<MarketingView, readonly MarketingSection[]>>` — Which blocks each merged view carries, in their default order. A view absent here is a single block and has no sections.
 - `RETIRED_MARKETING_VIEWS: Readonly<Record<string, { view: MarketingView; channel?: MarketingChannel; section?: MarketingSection; }>>` — Every `?view=` value retired by a consolidation, and where it now lands. Kept as data rather than as `if` arms so a test can walk it: each entry is a link somewhere in Ed's bookma…
-- `type MarketingView = | "pulse" | "demand" | "customers" | "channels" | "automations" | "client-services"` — The five tabs, plus the demoted-but-still-addressable client services view.
+- `type MarketingView = | "pulse" | "demand" | "funnels" | "customers" | "channels" | "automations" | "client-services"` — The six tabs, plus the demoted-but-still-addressable client services view.
 - `type MarketingChannel = | "social" | "website" | "funnels" | "google-ads" | "google-business" | "reputation"`
 - `type MarketingSection = "pulse" | "radar" | "funnel" | "campaigns" | "sources"` — A block inside a merged view. The retired tabs became these.
 
@@ -2550,7 +2623,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/agency/page.tsx`
 
-- `default async AgencyHome()`
+- `default async AgencyHome({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> })`
 
 
 ## `src/app/portal/agency/people/`
@@ -2782,7 +2855,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/agency/sop-library/_SopLibrary.tsx`
 
-- `SopLibrary({ initialSops, initialCategories }: { initialSops: SopDocument[]; initialCategories: string[] })`
+- `SopLibrary({ initialSops, initialCategories, initialGuides = [], canManageGuides = false }: { initialSops: SopDocument[]; initialCategories: string[]; initialGuides?: SopGuide[]; canManageGuides?: boolean; })`
 
 ### `src/app/portal/agency/sop-library/page.tsx`
 
@@ -3212,13 +3285,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `Pill({ children, tone = "muted", }: { children: ReactNode; tone?: "muted" | "danger" | "ok" | "accent" | "warn"; })`
 - `EmptyState({ children }: { children: ReactNode })`
 - `ViewTabs({ section, active }: { section: keyof typeof SECTION_VIEWS | string; active: string })` — The pill switcher a section's views share. Sits in the PageHeader's meta.
-- `ACCENT = "#0b6f6d"` — gives the internal workspace its own quiet identity.
-- `ACCENT_SOFT = "#e6f1f0"`
+- `ACCENT = "var(--dev-accent)"` — gives the internal workspace its own quiet identity.
+- `ACCENT_SOFT = "var(--dev-accent-soft)"`
 - `ACCENTS: Record<string, Accent>`
-- `INK = "#14231f"` — Text / border tokens (light — the app's private area is light-mode).
-- `MUTED = "#5b6b66"`
-- `FAINT = "#8a978f"`
-- `HAIR = "#e6e9e2"`
+- `INK = "var(--dev-ink)"` — Text / border tokens (light — the app's private area is light-mode).
+- `MUTED = "var(--dev-ink-muted)"`
+- `FAINT = "var(--dev-faint)"`
+- `HAIR = "var(--dev-line)"`
 - `SECTION_VIEWS: Record<string, SectionView[]>`
 - `interface Accent (4 members)` — notes slate — quiet, personal
 - `interface SectionView (3 members)` — working through a redirect.
@@ -3257,6 +3330,14 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/portal/dev-team/auditor/page.tsx`
 
 - `default DevTeamauditorRedirect()` — stays so every existing link, bookmark and doc reference still lands.
+
+
+## `src/app/portal/dev-team/chat/`
+
+### `src/app/portal/dev-team/chat/page.tsx`
+
+- `default async DevTeamChatPage()`
+- `dynamic = "force-dynamic"` — the same chat carries the Dev Team's comms whether the "team" is AI or people.
 
 
 ## `src/app/portal/dev-team/docs/`
