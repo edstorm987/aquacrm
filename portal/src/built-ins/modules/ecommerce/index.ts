@@ -102,6 +102,10 @@ const ecommercePlugin: AquaPlugin = {
     "each client gets their own catalog + Stripe keys + storefront.",
 
   scopePolicy: "client",
+  // Legal hold by default: orders are purchase/payment records. A bespoke
+  // `onEraseClient` (below) refines this — strips customer PII, keeps the
+  // de-identified order — and takes precedence over this flag.
+  dataDisposition: "retain",
 
   // Block renderers live in T3's website-editor plugin; the editor must
   // be installed before this plugin so the storefront can paint product
@@ -272,6 +276,28 @@ const ecommercePlugin: AquaPlugin = {
     // Seed an empty collections list so the admin page renders gracefully
     // before the operator creates one.
     await ctx.storage.set("collections", []);
+  },
+
+  // Right-to-be-forgotten. Orders are retained as purchase/payment records
+  // (legal hold), but the shopper's PII is stripped so what survives is a
+  // de-identified financial shell. The shopper's own identity record lives in
+  // the top-level `endCustomers` collection and is deleted by the erasure
+  // sweep; here we scrub the copy that orders denormalise. Payment/txn refs
+  // (Stripe session + payment intent) are kept — the reconciliation handle.
+  // Idempotent: re-running finds the fields already blank.
+  async onEraseClient(ctx: PluginCtx, clientId: string): Promise<void> {
+    const keys = await ctx.storage.list("order:"); // ServerOrder rows: `order:<id>`
+    for (const key of keys) {
+      const order = await ctx.storage.get<Record<string, unknown>>(key);
+      if (!order || order.clientId !== clientId) continue;
+      delete order.customerEmail;
+      delete order.customerName;
+      delete order.shippingAddress;
+      delete order.trackingNumber;
+      delete order.trackingCarrier;
+      delete order.internalNotes;
+      await ctx.storage.set(key, order);
+    }
   },
 
   // Note: deliberately NO onUninstall that wipes order data. Architecture

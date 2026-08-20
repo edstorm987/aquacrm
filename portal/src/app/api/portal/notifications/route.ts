@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { OperationalAlertAction } from "@/lib/operationalAttention";
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
 import { listOperationalAlertViews, setOperationalAlertPreference } from "@/lib/server/operationalAlertPreferences";
+import { recordCompletedAction } from "@/server/completedActions";
 import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
@@ -41,6 +42,20 @@ export async function PATCH(request: Request) {
     const liveAlerts = await listOperationalAlerts(session.agencyId, now);
     const alert = liveAlerts.find(item => item.id === body.alertId);
     if (!alert) return NextResponse.json({ ok: false, error: "This alert has already been resolved." }, { status: 404 });
+
+    // Dismissing is a decision — "I have judged this not worth acting on" —
+    // and deserves a record. Parking is not: it is "later", and logging it as
+    // completed would inflate the record of what was actually done.
+    if (body.action === "dismiss") {
+      recordCompletedAction(session.agencyId, {
+        sourceId: alert.id,
+        title: alert.title,
+        detail: alert.detail,
+        origin: "inbox",
+        outcome: "dismissed",
+        completedBy: session.userId,
+      }, now);
+    }
 
     setOperationalAlertPreference({
       agencyId: session.agencyId,

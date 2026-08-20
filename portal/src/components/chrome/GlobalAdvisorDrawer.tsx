@@ -2,11 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { BellRing, Sparkles, X } from "lucide-react";
 
-import { AssistantWorkspace } from "@/app/portal/agency/assistant/AssistantWorkspace";
 import type { AssistantWorkspaceState } from "@/server/types";
 import type { AdvisorRadarDigest } from "@/lib/businessRadar";
+
+// Lazy-load the Advisor chat. It's a heavy client workspace (~880 lines) that
+// used to be always-mounted (hidden with a CSS transform) on EVERY agency page,
+// so it hydrated even when never opened. Now its chunk loads — and it mounts —
+// only on first open. The drawer is closed by default, so nothing visible
+// changes; the first open pays a tiny lazy-chunk cost (with a loading fallback).
+const AssistantWorkspace = dynamic(
+  () => import("@/app/portal/agency/assistant/AssistantWorkspace").then(m => m.AssistantWorkspace),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid flex-1 place-items-center text-sm text-black/40">Loading Advisor…</div>
+    ),
+  },
+);
 
 interface Coverage {
   clients: number;
@@ -31,7 +46,11 @@ export function GlobalAdvisorDrawer({
   coverage: Coverage;
 }) {
   const [open, setOpen] = useState(false);
+  // Mount the heavy chat only after the drawer's first open, then keep it
+  // mounted so conversation state persists across open/close.
+  const [mounted, setMounted] = useState(false);
   const [notice, setNotice] = useState("");
+  const [prefill, setPrefill] = useState("");
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const openRef = useRef(false);
 
@@ -40,7 +59,14 @@ export function GlobalAdvisorDrawer({
   }, []);
 
   useEffect(() => {
-    const handleOpen = () => openDrawer();
+    // The event may carry a question — an alert the operator could not make
+    // sense of. Loaded into the composer, never sent automatically: spending
+    // a request on their behalf is not ours to decide.
+    const handleOpen = (event: Event) => {
+      const question = (event as CustomEvent<{ question?: string }>).detail?.question;
+      if (typeof question === "string" && question.trim()) setPrefill(question.trim());
+      openDrawer();
+    };
     window.addEventListener("aqua-advisor:open", handleOpen);
     return () => window.removeEventListener("aqua-advisor:open", handleOpen);
   }, []);
@@ -56,6 +82,7 @@ export function GlobalAdvisorDrawer({
 
   function openDrawer() {
     openRef.current = true;
+    setMounted(true);
     setOpen(true);
     setNotice("");
   }
@@ -97,16 +124,19 @@ export function GlobalAdvisorDrawer({
                 open ? "translate-x-0" : "translate-x-full",
               ].join(" ")}
             >
-              <AssistantWorkspace
-                initialWorkspace={initialWorkspace}
-                configured={configured}
-                model={model}
-                userName={userName}
-                coverage={coverage}
-                variant="drawer"
-                onClose={closeDrawer}
-                onAssistantDone={handleDone}
-              />
+              {mounted ? (
+                <AssistantWorkspace
+                  initialWorkspace={initialWorkspace}
+                  configured={configured}
+                  model={model}
+                  userName={userName}
+                  coverage={coverage}
+                  variant="drawer"
+                  prefill={prefill}
+                  onClose={closeDrawer}
+                  onAssistantDone={handleDone}
+                />
+              ) : null}
             </aside>
           </div>
 

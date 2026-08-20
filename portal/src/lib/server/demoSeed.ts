@@ -11,7 +11,8 @@ import "server-only";
 import { ensureHydrated, getState, mutate } from "@/server/storage";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { createClient, getAgencyBySlug, listClients } from "@/server/tenants";
-import { createUser, getUser } from "@/server/users";
+import { createUser, getUser, markWelcomeComplete } from "@/server/users";
+import { createPeopleEmployee, getPeopleEmployeeByUserId, listPeopleFreelancerJobs, savePeopleFreelancerJob } from "@/server/people";
 import { listPhasesForAgency } from "@/server/phases";
 import { logActivity } from "@/server/activity";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -40,6 +41,11 @@ export const DEMO_CLIENT_PASSWORD = "felicia-demo-2026";
 export const DEMO_CUSTOMER_EMAIL = "demo-shopper@aqua.test";
 export const DEMO_CUSTOMER_PASSWORD = "shopper-demo-2026";
 export const DEMO_CUSTOMER_NAME = "Demo shopper";
+// Freelancer persona — a contracted worker who sees ONLY their own assigned
+// jobs (the freelancer workspace), never the agency-side client workspace.
+export const DEMO_FREELANCER_EMAIL = "sky@aqua.freelance";
+export const DEMO_FREELANCER_PASSWORD = "freelancer-demo-2026";
+export const DEMO_FREELANCER_NAME = "Demo Freelancer";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -149,6 +155,10 @@ async function seedDemoAgencyImpl(actor?: string): Promise<SeedDemoResult> {
       agencyId: agency.id,
     });
   }
+  // The staff POV is a dead-end without a PeopleEmployee record — the team
+  // workspace bounces to the bare account page — so give the demo staff a real
+  // employee so `/portal/team` is a meaningful, seeded workspace.
+  ensureDemoStaffEmployee(agency.id, actor);
 
   const existingClients = listClients(agency.id);
   let client: Client | undefined = existingClients.find(c => c.slug === DEMO_CLIENT_SLUG);
@@ -201,6 +211,12 @@ async function seedDemoAgencyImpl(actor?: string): Promise<SeedDemoResult> {
     });
     createdCustomer = true;
   }
+  // Skip the customer-portal welcome/setup gate so the demo customer POV
+  // lands straight on `/portal/customer` rather than bouncing to `/setup`.
+  if (!customerUser.welcomeCompletedAt) markWelcomeComplete(customerUser.id);
+  // Seed the freelancer persona (+ their assigned job) so the freelancer POV
+  // lands on a populated `/portal/freelancer`.
+  ensureDemoFreelancer(agency.id);
 
   // Install client-scoped plugins on the Felicia mirror so the per-client
   // surfaces (editor, products, orders, memberships, affiliates, CRM)
@@ -448,6 +464,89 @@ export async function resetDemo(): Promise<ResetDemoResult> {
   });
 
   return { ok: true, existed: true, removed };
+}
+
+// ─── Demo staff employee (makes the staff POV a real workspace) ──────────
+//
+// Idempotent + standalone so the dev-mode route can call it on every hop —
+// `seedDemoAgency()` is memoised, so a tenant seeded in a previous process
+// would otherwise never gain the employee. Without a PeopleEmployee the team
+// workspace redirects to `/portal/account`, trapping the demo staff persona.
+export function ensureDemoStaffEmployee(agencyId: string, actor?: string): void {
+  const staff = getUser(DEMO_STAFF_EMAIL);
+  if (!staff) return;
+  if (getPeopleEmployeeByUserId(agencyId, staff.id)) return;
+  createPeopleEmployee({
+    agencyId,
+    actorUserId: actor ?? staff.id,
+    userId: staff.id,
+    name: DEMO_STAFF_NAME,
+    email: DEMO_STAFF_EMAIL,
+    title: "Demo Designer",
+    department: "Delivery",
+  });
+}
+
+// ─── Demo freelancer (a contracted worker + one assigned job) ─────────────
+//
+// Idempotent + standalone (like ensureDemoStaffEmployee) so the dev-mode route
+// can call it on every hop regardless of the memoised seed. Creates: a
+// `role: "freelancer"` login → a linked `PeopleEmployee` (employmentType
+// freelancer) → one `PeopleFreelancerJob`, so the freelancer POV lands on a
+// populated `/portal/freelancer`.
+export function ensureDemoFreelancer(agencyId: string): void {
+  let user = getUser(DEMO_FREELANCER_EMAIL);
+  if (!user) {
+    user = createUser({
+      email: DEMO_FREELANCER_EMAIL,
+      password: DEMO_FREELANCER_PASSWORD,
+      name: DEMO_FREELANCER_NAME,
+      role: "freelancer",
+      agencyId,
+    });
+  }
+  let employee = getPeopleEmployeeByUserId(agencyId, user.id);
+  if (!employee) {
+    employee = createPeopleEmployee({
+      agencyId,
+      actorUserId: "demo-seed",
+      userId: user.id,
+      name: DEMO_FREELANCER_NAME,
+      email: DEMO_FREELANCER_EMAIL,
+      title: "Contract Designer",
+      department: "Delivery",
+      employmentType: "freelancer",
+    });
+  }
+  if (listPeopleFreelancerJobs(agencyId, employee.id).length === 0) {
+    const demoClient = listClients(agencyId).find(c => c.slug === DEMO_CLIENT_SLUG);
+    savePeopleFreelancerJob({
+      agencyId,
+      actorUserId: "demo-seed",
+      employeeId: employee.id,
+      title: "Landing page illustration set",
+      brief: "Five spot illustrations for the new landing page — brand palette, SVG, two rounds of revisions.",
+      clientId: demoClient?.id,
+      feeMinor: 60000,
+      currency: "GBP",
+      startsOn: "2026-08-10",
+      dueOn: "2026-08-28",
+      status: "active",
+    });
+  }
+}
+
+// ─── Demo customer readiness (makes the customer-portal POV land cleanly) ──
+//
+// The customer portal redirects to `/setup` when the end-customer hasn't
+// completed welcome. Mark the seeded demo customer welcome-complete so the
+// customer POV lands on `/portal/customer` instead of the setup dead-end.
+// Idempotent + standalone (same reasoning as ensureDemoStaffEmployee).
+export function ensureDemoCustomerReady(agencyId: string): void {
+  const snap = getDemoSnapshot();
+  if (!snap || snap.agency.id !== agencyId) return;
+  if (snap.customerUser.welcomeCompletedAt) return;
+  markWelcomeComplete(snap.customerUser.id);
 }
 
 // ─── Read-only helper for the demo route handlers ────────────────────────

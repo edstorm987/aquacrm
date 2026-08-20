@@ -192,6 +192,9 @@ test("the command Radar shows its last full run and can force a complete persist
   const console = read("src/app/portal/agency/_DynamicRadarConsole.tsx");
   const control = read("src/app/portal/agency/_RadarScanControl.tsx");
   const route = read("src/app/api/portal/advisor/radar/route.ts");
+  // The full-scan orchestration lives in the sweep scheduler (radar upgrade Stage 1);
+  // the route delegates to runRadarFullSweep. Same behaviour, relocated home.
+  const sweeps = read("src/lib/server/radarSweeps.ts");
   assert.match(page, /DynamicRadarConsole/);
   assert.match(console, /RadarScanControl/);
   assert.match(page, /initialLastRunAt=\{businessRadar\.memory\.lastSweepAt\}/);
@@ -203,10 +206,11 @@ test("the command Radar shows its last full run and can force a complete persist
   assert.match(control, /Scan failed · Retry/);
   assert.match(control, /fetch\("\/api\/portal\/advisor\/radar", \{ method: "POST", cache: "no-store" \}\)/);
   assert.match(route, /async function runFullRadarScan/);
-  assert.match(route, /runAgencySyntheticProbes\(session\.agencyId, \{ force: true \}\)/);
-  assert.match(route, /recordRadarSweep\(session\.agencyId, radar\)/);
-  assert.match(route, /recordRadarEvidence\(session\.agencyId, radar\)/);
-  assert.match(route, /reconcileAgencyTasksWithRadar\(session\.agencyId, radar\)/);
+  assert.match(route, /runRadarFullSweep\(session\.agencyId\)/);
+  assert.match(sweeps, /runAgencySyntheticProbes\(agencyId, \{ force: true \}\)/);
+  assert.match(sweeps, /recordRadarSweep\(agencyId, radar\)/);
+  assert.match(sweeps, /recordRadarEvidence\(agencyId, radar\)/);
+  assert.match(sweeps, /reconcileAgencyTasksWithRadar\(agencyId, radar\)/);
   assert.match(route, /export async function GET\(\)/);
   assert.match(route, /export async function POST\(\)/);
   assert.match(read("src/app/portal/agency/_DashboardCommandCenter.tsx"), /method: showBusy \? "POST" : "GET"/);
@@ -361,8 +365,7 @@ test("radar actively probes every expected live property with SSRF-safe canaries
   const types = read("src/server/types.ts");
   const storage = read("src/server/storage.ts");
   const radar = read("src/lib/server/businessIssueRadar.ts");
-  const route = read("src/app/api/portal/advisor/radar/route.ts");
-  const cron = read("src/app/api/cron/inbox/route.ts");
+  const sweeps = read("src/lib/server/radarSweeps.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   assert.match(probes, /assertPublicDestination/);
   assert.match(probes, /isUnsafeSyntheticAddress/);
@@ -379,8 +382,10 @@ test("radar actively probes every expected live property with SSRF-safe canaries
   assert.match(types, /RadarSyntheticProbeResult/);
   assert.match(storage, /radarSyntheticProbes: parsed\.radarSyntheticProbes \?\? \{\}/);
   assert.match(radar, /syntheticSentinels/);
-  assert.match(route, /runAgencySyntheticProbes\(session\.agencyId, \{ force: true \}\)/);
-  assert.match(cron, /runAgencySyntheticProbes\(agency\.id\)/);
+  // Deep sweep force/cadence split lives in the sweep scheduler (Stage 1): the
+  // full sweep forces every probe; the scheduled sweep respects probe cadence.
+  assert.match(sweeps, /runAgencySyntheticProbes\(agencyId, \{ force: true \}\)/);
+  assert.match(sweeps, /runAgencySyntheticProbes\(agencyId\)/);
   assert.match(dashboard, /Synthetic canaries/);
   assert.match(dashboard, /Failed probes/);
   for (const address of ["127.0.0.1", "10.0.0.7", "172.16.1.1", "192.168.4.5", "169.254.169.254", "::1", "fc00::1", "fe80::1", "::ffff:127.0.0.1"]) {
@@ -400,6 +405,7 @@ test("radar retains temporal memory, recovery, and source-flapping evidence", ()
   const types = read("src/server/types.ts");
   const radarRoute = read("src/app/api/portal/advisor/radar/route.ts");
   const cron = read("src/app/api/cron/inbox/route.ts");
+  const sweeps = read("src/lib/server/radarSweeps.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   const advisor = read("src/lib/server/advisorSkillContext.ts");
   assert.match(types, /RadarMemoryState/);
@@ -412,10 +418,12 @@ test("radar retains temporal memory, recovery, and source-flapping evidence", ()
   assert.match(memory, /new blind check/);
   assert.match(memory, /RECENT_SCAN_LIMIT = 180/);
   assert.match(memory, /HOURLY_ROLLUP_LIMIT = 24 \* 30/);
-  assert.match(radarRoute, /recordRadarSweep/);
+  // The sweep scheduler records the sweep and rebuilds the Pulse; the cron loop
+  // drives it per agency and reports the results as radarSweeps.
+  assert.match(sweeps, /recordRadarSweep/);
   assert.match(radarRoute, /invalidateBusinessIssueRadarCache/);
   assert.match(cron, /radarSweeps/);
-  assert.match(cron, /buildBusinessIssueRadar/);
+  assert.match(sweeps, /buildBusinessIssueRadar/);
   assert.match(dashboard, /Temporal continuity live/);
   assert.match(dashboard, /Assurance memory/);
   assert.match(dashboard, /Recovered/);
@@ -428,8 +436,7 @@ test("radar retains every KPI in a durable evidence vault with historical detect
   const types = read("src/server/types.ts");
   const storage = read("src/server/storage.ts");
   const radar = read("src/lib/server/businessIssueRadar.ts");
-  const radarRoute = read("src/app/api/portal/advisor/radar/route.ts");
-  const cron = read("src/app/api/cron/inbox/route.ts");
+  const sweeps = read("src/lib/server/radarSweeps.ts");
   const dashboard = read("src/app/portal/agency/_DashboardCommandCenter.tsx");
   const advisor = read("src/lib/server/advisorSkillContext.ts");
   assert.match(types, /RadarEvidenceState/);
@@ -445,8 +452,9 @@ test("radar retains every KPI in a durable evidence vault with historical detect
   assert.match(vault, /scope: "history"/);
   assert.match(radar, /historicalChecks/);
   assert.match(radar, /baselineCoveragePercent/);
-  assert.match(radarRoute, /recordRadarEvidence/);
-  assert.match(cron, /recordRadarEvidence/);
+  // Evidence rollup (recordRadarEvidence) is driven by the sweep scheduler for
+  // both the full scan and the scheduled cron sweep.
+  assert.match(sweeps, /recordRadarEvidence/);
   assert.match(dashboard, /Durable evidence vault/);
   assert.match(dashboard, /Historical evidence/);
   assert.match(dashboard, /Pattern breaks/);

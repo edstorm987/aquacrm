@@ -1,33 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  Check,
-  Code2,
-  Copy,
-  ExternalLink,
-  FileText,
-  GripVertical,
-  History,
-  LayoutTemplate,
-  Layers3,
-  LoaderCircle,
-  Monitor,
-  PanelsTopLeft,
-  Palette,
-  Plus,
-  RefreshCw,
-  RotateCcw,
-  Save,
-  Smartphone,
-  Trash2,
-  Upload,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { PORTAL_PHASE_LABELS } from "@/lib/portalProducts";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Trash2, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/clientPortalDesign";
 import {
@@ -39,6 +15,10 @@ import {
   portalSlug,
   uniquePortalSlug,
 } from "@/lib/clientPortalBuilder";
+import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/lib/editing/modes";
+import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
+import { elementSource, repoRelativePath } from "@/lib/editing/elementSource";
+import { PORTAL_SCOPE, scopeForSection } from "@/lib/editing/fileRelevance";
 import { formatUkDate } from "@/lib/formatDateTime";
 import type {
   ClientPortalDesignDocument,
@@ -65,7 +45,7 @@ export type PortalStudioTemplate = {
 };
 
 type Scope = "template" | "client";
-type InspectorTab = "builder" | "content" | "pages" | "brand" | "code" | "versions";
+type InspectorTab = "builder" | "content" | "pages" | "brand" | "code" | "repository" | "versions";
 type Device = "desktop" | "mobile";
 
 type PortalDesignRecord = {
@@ -82,12 +62,7 @@ type PortalDesignRecord = {
   publishedAt?: number;
 };
 
-const MODE_LABELS: Record<ClientPortalMode, string> = {
-  onboarding: "Onboarding",
-  designing: "Designing",
-  "developed-launch": "Review & delivery",
-  maintenance: "Live care",
-};
+const MODE_LABELS: Record<ClientPortalMode, string> = PORTAL_PHASE_LABELS;
 
 const SECTION_LABELS: Record<ClientPortalSectionId, string> = {
   home: "Home",
@@ -100,12 +75,21 @@ const SECTION_LABELS: Record<ClientPortalSectionId, string> = {
   details: "Your details",
 };
 
+/**
+ * Which tabs this mode offers, in its own order.
+ *
+ * The tabs answer "what am I changing?"; the mode answers "how deep am I
+ * going?". Collapsing the two is why an editor feels intimidating to one
+ * person and restrictive to the next.
+ */
 const tabs: Array<{ id: InspectorTab; label: string; icon: typeof FileText }> = [
   { id: "builder", label: "Builder", icon: LayoutTemplate },
   { id: "content", label: "Content", icon: FileText },
   { id: "pages", label: "Pages", icon: Layers3 },
   { id: "brand", label: "Brand", icon: Palette },
   { id: "code", label: "Code", icon: Code2 },
+  // The site's own source, as opposed to the sandboxed portal component above.
+  { id: "repository", label: "Repo", icon: FolderGit2 },
   { id: "versions", label: "Versions", icon: History },
 ];
 
@@ -143,6 +127,92 @@ export function ClientPortalStudio({
   const [customPageId, setCustomPageId] = useState("");
   const [device, setDevice] = useState<Device>("desktop");
   const [tab, setTab] = useState<InspectorTab>("content");
+  // Defaults to the visual mode: a first-time opener should meet a designer's
+  // tool rather than a developer's.
+  const [editingModeId, setEditingModeId] = useState<EditingMode>("visual");
+  const [repository, setRepository] = useState("");
+  const [sourceFocus, setSourceFocus] = useState<{ path: string; line?: number } | null>(null);
+  const [picking, setPicking] = useState(false);
+  const previewRef = useRef<HTMLIFrameElement | null>(null);
+  /**
+   * Set the moment a pick resolves, cleared shortly after.
+   *
+   * The preview already posts a block selection back to the Studio, which
+   * switches to Builder — the right behaviour for clicking a block, and the
+   * wrong one when the click was asking "where is this in the code?". Both
+   * fire for the same click and the message arrives second, so without this
+   * the picker appeared to do nothing at all.
+   */
+  const pickedAt = useRef(0);
+  const allowedTabs = tabs.filter(item => editingMode(editingModeId).tabs.includes(item.id));
+
+  /**
+   * Clicking the preview to find the code behind it.
+   *
+   * The preview is same-origin, so the iframe's document is reachable and
+   * React's own debug source can be read off the clicked node. Listening in
+   * the capture phase and stopping the event means the click finds the code
+   * rather than following a link or submitting something.
+   */
+  useEffect(() => {
+    if (!picking) return;
+    const frame = previewRef.current;
+    if (!frame) return;
+
+    let attached: Document | null = null;
+
+    function onClick(event: MouseEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+      const source = elementSource(event.target as Element);
+      const path = source ? repoRelativePath(source.fileName) : null;
+      setSourceFocus(path ? { path, line: source?.lineNumber } : null);
+      setPicking(false);
+      pickedAt.current = event.timeStamp || 1;
+      setTab("repository");
+    }
+
+    function attach() {
+      const doc = frame?.contentDocument;
+      // Same document as last time — nothing to do. Re-adding would be
+      // harmless but the cursor bookkeeping below would not be.
+      if (!doc || doc === attached) return;
+      detach();
+      doc.addEventListener("click", onClick, true);
+      doc.body?.style.setProperty("cursor", "crosshair");
+      attached = doc;
+    }
+
+    function detach() {
+      if (!attached) return;
+      attached.removeEventListener("click", onClick, true);
+      attached.body?.style.removeProperty("cursor");
+      attached = null;
+    }
+
+    attach();
+    // The preview is keyed on the client, stage and section, so it remounts
+    // and navigates underneath us. A single attempt at attach time is why the
+    // picker silently did nothing: if the document was not ready — or the
+    // frame reloaded a moment later — the listener was never there and
+    // nothing said so. Polling is crude but it is the behaviour somebody
+    // expects: arm the picker, click the page, it works.
+    frame.addEventListener("load", attach);
+    const poll = window.setInterval(attach, 250);
+
+    return () => {
+      window.clearInterval(poll);
+      frame.removeEventListener("load", attach);
+      detach();
+    };
+  }, [picking]);
+
+  function changeMode(next: EditingMode) {
+    setEditingModeId(next);
+    // Switching to "Just the words" while sitting on the code tab must land
+    // somewhere real rather than on a blank panel.
+    setTab(tabForMode(next, tab) as InspectorTab);
+  }
   const [record, setRecord] = useState<PortalDesignRecord | null>(null);
   const [portalDocument, setPortalDocument] = useState<ClientPortalDesignDocument | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -231,6 +301,9 @@ export function ClientPortalStudio({
       const payload = event.data as { type?: string; blockId?: string } | null;
       if (payload?.type !== "aqua:portal-block-select" || !payload.blockId) return;
       setSelectedBlockId(payload.blockId);
+      // A pick is still a selection worth keeping — it just must not drag the
+      // operator away from the file they asked to see.
+      if (pickedAt.current) { pickedAt.current = 0; return; }
       setTab("builder");
       if (window.matchMedia("(max-width: 1023px)").matches) setMobileInspectorOpen(true);
     };
@@ -512,15 +585,30 @@ export function ClientPortalStudio({
               {loading || !frameUrl ? (
                 <div className="grid h-[70vh] place-items-center bg-[#f2f0eb] text-sm text-black/45">Loading the real portal...</div>
               ) : (
-                <iframe key={`${frameKey}:${frameUrl}`} title="Client portal draft preview" src={frameUrl} className={`block w-full bg-white ${device === "mobile" ? "h-[844px]" : "h-[calc(100vh-180px)] min-h-[680px]"}`} />
+                <iframe ref={previewRef} key={`${frameKey}:${frameUrl}`} title="Client portal draft preview" src={frameUrl} className={`block w-full bg-white ${device === "mobile" ? "h-[844px]" : "h-[calc(100vh-180px)] min-h-[680px]"}`} />
               )}
             </div>
           </div>
         </main>
 
         <aside className="hidden w-[340px] shrink-0 flex-col border-l border-white/10 bg-[#141614] lg:flex xl:w-[370px]">
-          <div className="grid grid-cols-6 border-b border-white/10">
-            {tabs.map(item => {
+          <div className="border-b border-white/10 p-2">
+            <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-white/42">
+              How deep do you want to go?
+              <select
+                value={editingModeId}
+                onChange={event => changeMode(event.target.value as EditingMode)}
+                className="min-h-9 rounded-md border border-white/12 bg-white/[0.04] px-2 text-[11px] font-medium normal-case tracking-normal text-white/80 outline-none"
+              >
+                {EDITING_MODES.map(option => (
+                  <option key={option.id} value={option.id} className="bg-[#141614]">{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <p className="mt-1.5 text-[10px] leading-4 text-white/32">{editingMode(editingModeId).summary}</p>
+          </div>
+          <div className="grid border-b border-white/10" style={{ gridTemplateColumns: `repeat(${allowedTabs.length}, minmax(0, 1fr))` }}>
+            {allowedTabs.map(item => {
               const Icon = item.icon;
               return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] font-semibold ${tab === item.id ? "bg-white/[0.07] text-cyan-300" : "text-white/42 hover:bg-white/[0.035] hover:text-white/70"}`}><Icon size={16} /><span>{item.label}</span></button>;
             })}
@@ -528,6 +616,11 @@ export function ClientPortalStudio({
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {portalDocument && record ? (
               <Inspector
+                repository={repository}
+                onRepositoryChange={setRepository}
+                sourceFocus={sourceFocus}
+                picking={picking}
+                onPickElement={() => { setPicking(value => !value); }}
                 tab={tab}
                 scope={scope}
                 mode={mode}
@@ -560,8 +653,8 @@ export function ClientPortalStudio({
         <button type="button" onClick={() => setMobileInspectorOpen(true)} aria-expanded={mobileInspectorOpen} className="fixed bottom-4 right-4 z-30 inline-flex min-h-11 items-center gap-2 rounded-md bg-cyan-300 px-4 text-xs font-bold text-[#102124] shadow-lg lg:hidden"><FileText size={16} /> Edit portal</button>
         {mobileInspectorOpen ? (
           <aside className="fixed inset-0 z-50 flex flex-col bg-[#141614] lg:hidden" aria-label="Portal editor inspector">
-            <div className="grid shrink-0 grid-cols-[repeat(6,1fr)_44px] border-b border-white/10">
-              {tabs.map(item => {
+            <div className="grid shrink-0 border-b border-white/10" style={{ gridTemplateColumns: `repeat(${allowedTabs.length}, 1fr) 44px` }}>
+              {allowedTabs.map(item => {
                 const Icon = item.icon;
                 return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex min-h-14 flex-col items-center justify-center gap-1 text-[9px] font-semibold ${tab === item.id ? "bg-white/[0.07] text-cyan-300" : "text-white/42"}`}><Icon size={15} /><span>{item.label}</span></button>;
               })}
@@ -569,7 +662,7 @@ export function ClientPortalStudio({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {portalDocument && record ? (
-                <Inspector tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} />
+                <Inspector repository={repository} onRepositoryChange={setRepository} sourceFocus={sourceFocus} picking={picking} onPickElement={() => setPicking(value => !value)} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} />
               ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
             <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-[#111311] p-3">
@@ -584,6 +677,11 @@ export function ClientPortalStudio({
 }
 
 function Inspector({
+  repository,
+  onRepositoryChange,
+  sourceFocus,
+  picking,
+  onPickElement,
   tab,
   scope,
   mode,
@@ -609,6 +707,11 @@ function Inspector({
   selectedBlockId,
   selectBlock,
 }: {
+  repository: string;
+  onRepositoryChange: (value: string) => void;
+  sourceFocus: { path: string; line?: number } | null;
+  picking: boolean;
+  onPickElement: () => void;
   tab: InspectorTab;
   scope: Scope;
   mode: ClientPortalMode;
@@ -739,6 +842,13 @@ function Inspector({
         </div>
       </div>
     );
+  }
+
+  if (tab === "repository") {
+    // Scoped to the portal, and narrowed again to the page on screen — the
+    // question somebody actually has is "what renders this", not "show me
+    // the repository".
+    return <RepositoryPanel repository={repository} onRepositoryChange={onRepositoryChange} focus={sourceFocus} picking={picking} onPickElement={onPickElement} scope={scopeForSection(PORTAL_SCOPE, section)} />;
   }
 
   if (tab === "code") {

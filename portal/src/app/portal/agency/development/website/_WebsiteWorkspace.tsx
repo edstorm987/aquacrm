@@ -88,6 +88,15 @@ export function WebsiteWorkspace({
             <span className="rounded-full bg-black/[0.045] px-2 py-1 text-[10px] font-semibold uppercase text-black/50">Ours</span>
           </div>
           <h1 className="mt-1 text-3xl font-semibold text-black/90">Milesymedia website control.</h1>
+          {/* The same site, at the other granularity. Offered here rather than
+              buried in navigation because the moment somebody wants the code
+              is the moment they are already looking at the page. */}
+          <a
+            href="/portal/agency/development/code"
+            className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/70 hover:bg-black/[0.035]"
+          >
+            <Code2 size={14} aria-hidden />Open code mode
+          </a>
           <p className="mt-2 text-sm leading-6 text-black/55">Preview the public experience, control releases and individual page updates, and prove monitoring works before using the same pattern for clients.</p>
         </div>
         <div className="flex flex-wrap gap-2">

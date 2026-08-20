@@ -1,4 +1,6 @@
+import { deriveRecordId, normaliseIdempotencyKey } from "../lib/idempotency";
 import { makeId } from "../lib/ids";
+import { listRowIds } from "./rowIndex";
 import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type {
@@ -228,6 +230,8 @@ export class FinanceOperationsService {
     return row?.agencyId === this.agencyId ? row : null;
   }
 
+  // Idempotent on `input.idempotencyKey`: a resubmit of the same intent returns
+  // the first payroll payment instead of double-recording it. See lib/idempotency.ts.
   async createCompensationPayment(actor: UserId, input: CreateCompensationPaymentInput): Promise<CompensationPayment> {
     const profile = await this.getCompensationProfile(input.profileId);
     if (!profile) throw new Error("Compensation profile not found.");
@@ -238,10 +242,18 @@ export class FinanceOperationsService {
     if (input.grossCents <= 0 && (input.employerCostCents ?? 0) <= 0) throw new Error("Payment amount must be greater than zero.");
     const budgetPotId = cleanText(input.budgetPotId, 160) ?? profile.budgetPotId;
     if (budgetPotId) await this.assertBudget(budgetPotId, currency);
+
+    const key = normaliseIdempotencyKey(input.idempotencyKey);
+    const id = deriveRecordId("payroll", key);
+    if (key) {
+      const existing = await this.getCompensationPayment(id);
+      if (existing) return existing;
+    }
+
     const timestamp = now();
     const status = input.status ?? "planned";
     const row: CompensationPayment = {
-      id: makeId("payroll"),
+      id,
       agencyId: this.agencyId,
       profileId: profile.id,
       budgetPotId,
@@ -307,10 +319,8 @@ export class FinanceOperationsService {
   }
 
   private async listRows<T extends { id: string; agencyId: AgencyId }>(indexKey: string, prefix: string): Promise<T[]> {
-    const indexed = (await this.storage.get<string[]>(indexKey)) ?? [];
-    const stored = (await this.storage.list(prefix)).map(key => key.slice(prefix.length)).filter(Boolean);
     const rows: T[] = [];
-    for (const id of [...new Set([...indexed, ...stored])]) {
+    for (const id of await listRowIds(this.storage, indexKey, prefix)) {
       const row = await this.storage.get<T>(`${prefix}${id}`);
       if (row?.agencyId === this.agencyId) rows.push(row);
     }

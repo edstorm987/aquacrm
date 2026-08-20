@@ -27,6 +27,7 @@ import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { PluginWorkspaceNav } from "@/components/workspaces/PluginWorkspaceNav";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
+import { retiredStaffRedirect } from "./_retiredStaffRoute";
 
 interface RouteProps {
   params: Promise<{ rest: string[] }>;
@@ -34,11 +35,19 @@ interface RouteProps {
 }
 
 export default async function AgencyPluginCatchAll({ params, searchParams }: RouteProps) {
-  await ensureHydrated({ fresh: true });
-  const session = await requireRole([...AGENCY_ROLES]);
-
   const { rest } = await params;
   const sp = await searchParams;
+
+  // Retired duplicate: agency-hr's Staff directory (P5). Runs ahead of the
+  // session check on purpose — it is a pure URL rewrite that reads no tenant
+  // data, and the destination is itself role-gated (the agency layout plus
+  // /portal/agency/people). Departments / Leave / Employees / Roles / Settings
+  // fall straight through to normal plugin resolution.
+  const retiredStaff = retiredStaffRedirect(rest, sp);
+  if (retiredStaff) redirect(retiredStaff);
+
+  await ensureHydrated({ fresh: true });
+  const session = await requireRole([...AGENCY_ROLES]);
 
   if (rest[0] === "fulfillment") {
     if (rest.length === 1) redirect("/portal/agency/fulfilment");

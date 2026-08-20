@@ -3,8 +3,9 @@ import "server-only";
 import crypto from "node:crypto";
 
 import type { InboxAuthMode, InboxChannel, MetaInboxReadiness } from "@/lib/inbox/types";
-import type { PrivateInboxConnection } from "@/lib/server/inboxStore";
+import { findPrivateConnectionByExternalAccount, type PrivateInboxConnection } from "@/lib/server/inboxStore";
 import { decryptInboxSecret } from "@/lib/server/inboxVault";
+import { listAgencyIdsForProvider, resolveIntegrationValues } from "@/lib/server/integrationConnections";
 
 export interface MetaMessagingConfig {
   appId: string;
@@ -47,11 +48,18 @@ function normaliseBaseUrl(value: string): string {
   return value.replace(/\/$/, "");
 }
 
-export function metaInboxReadiness(origin?: string): MetaInboxReadiness {
-  const appIdConfigured = Boolean(process.env.META_APP_ID?.trim());
-  const appSecretConfigured = Boolean(process.env.META_APP_SECRET?.trim());
-  const webhookVerifyTokenConfigured = Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN?.trim());
-  const graphApiVersionConfigured = Boolean(process.env.META_GRAPH_API_VERSION?.trim());
+// Reads the Meta app credentials the agency saved in-app (the `meta` integration
+// connection), falling back to the deploy-level `META_*` env when nothing is
+// stored — so entering the values in "Connect now" flips `configured` → true
+// without a redeploy. The public HTTPS portal URL still derives from
+// `NEXT_PUBLIC_PORTAL_BASE_URL` or the request origin (it is infrastructure, not
+// a per-agency credential).
+export function metaInboxReadiness(agencyId: string, origin?: string): MetaInboxReadiness {
+  const values = resolveIntegrationValues(agencyId, "meta");
+  const appIdConfigured = Boolean(values.appId?.trim());
+  const appSecretConfigured = Boolean(values.appSecret?.trim());
+  const webhookVerifyTokenConfigured = Boolean(values.webhookVerifyToken?.trim());
+  const graphApiVersionConfigured = Boolean(values.graphApiVersion?.trim());
   const base = process.env.NEXT_PUBLIC_PORTAL_BASE_URL?.trim() || origin || "http://localhost:3032";
   const publicBaseUrlConfigured = /^https:\/\//i.test(base) && !/localhost|127\.0\.0\.1/i.test(base);
   const publicBaseUrl = normaliseBaseUrl(base);
@@ -75,15 +83,17 @@ export function metaInboxReadiness(origin?: string): MetaInboxReadiness {
   };
 }
 
-export function readMetaMessagingConfig(origin?: string): MetaMessagingConfig | null {
-  const readiness = metaInboxReadiness(origin);
+export function readMetaMessagingConfig(agencyId: string, origin?: string): MetaMessagingConfig | null {
+  const readiness = metaInboxReadiness(agencyId, origin);
   if (!readiness.configured) return null;
+  const values = resolveIntegrationValues(agencyId, "meta");
+  const base = process.env.NEXT_PUBLIC_PORTAL_BASE_URL?.trim() || origin || "http://localhost:3032";
   return {
-    appId: process.env.META_APP_ID!.trim(),
-    appSecret: process.env.META_APP_SECRET!.trim(),
-    webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN!.trim(),
-    graphApiVersion: process.env.META_GRAPH_API_VERSION!.trim().replace(/^v?/i, "v"),
-    publicBaseUrl: normaliseBaseUrl(process.env.NEXT_PUBLIC_PORTAL_BASE_URL!.trim()),
+    appId: values.appId!.trim(),
+    appSecret: values.appSecret!.trim(),
+    webhookVerifyToken: values.webhookVerifyToken!.trim(),
+    graphApiVersion: values.graphApiVersion!.trim().replace(/^v?/i, "v"),
+    publicBaseUrl: normaliseBaseUrl(base),
     callbackUrl: readiness.callbackUrl,
     webhookUrl: readiness.webhookUrl,
   };
@@ -352,6 +362,68 @@ export function verifyMetaWebhookSignature(rawBody: string, signatureHeader: str
   const a = Buffer.from(received, "hex");
   const b = Buffer.from(expected, "hex");
   return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
+}
+
+// The Meta webhook is a single global, session-less endpoint, but each agency may
+// bring its own Meta app (its own verify token + App Secret). These helpers resolve
+// which agency an incoming request belongs to so the *stored* credential is used —
+// falling back to the deploy-level META_* env. The env value is always kept as a
+// candidate, and the HMAC/token check is the only gate, so adding candidates can
+// never accept a forged request: it only lets a validly-signed one match the right
+// stored secret.
+
+// Constant-time secret compare, matching the POST signature path
+// (`verifyMetaWebhookSignature` above). Both sides are SHA-256 digested first,
+// so the buffers are always 32 bytes: `timingSafeEqual` can be called
+// unconditionally, and the secret's *length* doesn't leak through a length
+// guard either. Every candidate is compared with no early return, so timing
+// doesn't reveal which one matched (or how many were tried).
+export function constantTimeSecretMatch(supplied: string, candidates: Iterable<string>): boolean {
+  const suppliedDigest = crypto.createHash("sha256").update(supplied, "utf8").digest();
+  let matched = false;
+  for (const candidate of candidates) {
+    const candidateDigest = crypto.createHash("sha256").update(candidate, "utf8").digest();
+    if (crypto.timingSafeEqual(suppliedDigest, candidateDigest)) matched = true;
+  }
+  return matched;
+}
+
+// GET handshake: accept if the supplied verify token matches any stored `meta`
+// connection's token or the env token. Low-value handshake secret (passing it
+// only echoes Meta's `challenge`; the POST HMAC is the real gate), but the
+// compare is constant-time so it matches the signature path.
+export function metaWebhookVerifyTokenAccepted(suppliedToken: string): boolean {
+  if (!suppliedToken) return false;
+  const candidates = new Set<string>();
+  const envToken = process.env.META_WEBHOOK_VERIFY_TOKEN?.trim();
+  if (envToken) candidates.add(envToken);
+  for (const agencyId of listAgencyIdsForProvider("meta")) {
+    const token = resolveIntegrationValues(agencyId, "meta").webhookVerifyToken?.trim();
+    if (token) candidates.add(token);
+  }
+  return constantTimeSecretMatch(suppliedToken, candidates);
+}
+
+// POST delivery: verify the signature against the App Secret of the agency that
+// owns the target account(s) in the payload, plus the env secret as a fallback.
+export async function verifyMetaWebhookRequest(
+  rawBody: string,
+  signatureHeader: string | null,
+  payload: { entry?: Array<{ id?: unknown }> } | null,
+): Promise<boolean> {
+  if (!signatureHeader) return false;
+  const secrets = new Set<string>();
+  for (const entry of payload?.entry ?? []) {
+    const accountId = entry?.id ? String(entry.id) : "";
+    if (!accountId) continue;
+    const connection = await findPrivateConnectionByExternalAccount(accountId);
+    if (!connection) continue;
+    const secret = resolveIntegrationValues(connection.agencyId, "meta").appSecret?.trim();
+    if (secret) secrets.add(secret);
+  }
+  const envSecret = process.env.META_APP_SECRET?.trim();
+  if (envSecret) secrets.add(envSecret);
+  return [...secrets].some(secret => verifyMetaWebhookSignature(rawBody, signatureHeader, secret));
 }
 
 async function parseMetaResponse<T>(response: Response, errorCode: string): Promise<T> {

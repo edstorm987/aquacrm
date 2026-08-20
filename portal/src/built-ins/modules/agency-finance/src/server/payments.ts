@@ -1,17 +1,23 @@
 // PaymentService — money-in events tied to invoices. R007 addition.
 //
 // Storage layout:
-//   payments/index               → string[] of payment ids
+//   payments/index               → string[] of payment ids (a fast path; reads
+//                                  also scan by-id, see server/rowIndex.ts)
 //   payments/by-id/<id>          → Payment
-//   payments/by-invoice/<invId>  → string[] of payment ids
-//   payments/by-client/<cid>     → string[] of payment ids
+//
+// There used to be `payments/by-invoice/<invId>` and `payments/by-client/<cid>`
+// arrays here. Nothing ever read them — `listForInvoice`/`list({clientId})` go
+// through `list()` — so every recorded payment paid for four storage ops (and
+// two more racy read-modify-writes) maintaining indexes no query used. Removed.
+// Any left in existing stores are inert: unread keys in the plugin's own slice.
 //
 // Recording a payment optionally transitions the linked Invoice to
 // `paid` (when the full total is covered, considering prior payments).
 
-import { makeId } from "../lib/ids";
+import { deriveRecordId, normaliseIdempotencyKey } from "../lib/idempotency";
+import { listRowIds } from "./rowIndex";
 import { now } from "../lib/time";
-import type { AgencyId, ClientId, UserId } from "../lib/tenancy";
+import type { AgencyId, UserId } from "../lib/tenancy";
 import type {
   CreatePaymentInput,
   Invoice,
@@ -23,8 +29,6 @@ import type { InvoiceService } from "./invoices";
 
 const INDEX_KEY = "payments/index";
 const payKey = (id: string): string => `payments/by-id/${id}`;
-const byInvoiceKey = (id: string): string => `payments/by-invoice/${id}`;
-const byClientKey = (id: ClientId): string => `payments/by-client/${id}`;
 
 export class PaymentService {
   constructor(
@@ -39,8 +43,10 @@ export class PaymentService {
     return p.agencyId === this.agencyId;
   }
 
+  // Index + row scan (see server/rowIndex.ts): a payment whose index slot was
+  // lost to a concurrent write is still real money and must still be listed.
   async list(filter: PaymentFilter = {}): Promise<Payment[]> {
-    const ids = (await this.storage.get<string[]>(INDEX_KEY)) ?? [];
+    const ids = await listRowIds(this.storage, INDEX_KEY, "payments/by-id/");
     const out: Payment[] = [];
     for (const id of ids) {
       const p = await this.storage.get<Payment>(payKey(id));
@@ -64,18 +70,79 @@ export class PaymentService {
     return this.list({ invoiceId });
   }
 
+  // Find a payment by its external reference (e.g. a Stripe PaymentIntent id).
+  // Reconciling a Stripe webhook is idempotent on this, and a refund/chargeback
+  // routes back to the invoice through it.
+  async findByExternalRef(externalRef: string): Promise<Payment | null> {
+    if (!externalRef) return null;
+    const all = await this.list();
+    return all.find(p => p.externalRef === externalRef) ?? null;
+  }
+
+  // A refund flowed back (e.g. Stripe `charge.refunded`): settle the invoice to
+  // `refunded` (paid → refunded is the allowed transition) and surface it.
+  // Returns null when no payment matches the reference. Record + surface only.
+  async markRefunded(externalRef: string, actor: UserId): Promise<{ payment: Payment; invoice: Invoice | null } | null> {
+    const payment = await this.findByExternalRef(externalRef);
+    if (!payment) return null;
+    const invoice = await this.invoices.get(payment.invoiceId);
+    let updated = invoice;
+    if (invoice && invoice.status === "paid") {
+      updated = (await this.invoices.update(payment.invoiceId, { status: "refunded" }, actor)) ?? invoice;
+    }
+    this.activity.logActivity({
+      agencyId: this.agencyId, clientId: payment.clientId, actorUserId: actor,
+      category: "finance", action: "payment.refunded",
+      message: `Refund on invoice ${updated?.number ?? payment.invoiceId}.`,
+      metadata: { paymentId: payment.id, invoiceId: payment.invoiceId, externalRef },
+    });
+    this.events.emit({ agencyId: this.agencyId, clientId: payment.clientId }, "agency-finance.payment.refunded", { paymentId: payment.id, invoiceId: payment.invoiceId });
+    return { payment, invoice: updated };
+  }
+
+  // A chargeback/dispute opened (e.g. Stripe `charge.dispute.created`): surface
+  // it, but DON'T force the invoice status — a dispute is contested and may be
+  // won. `externalRef` may be absent. Returns the matched payment, or null.
+  async markDisputed(externalRef: string | undefined, actor: UserId): Promise<Payment | null> {
+    const payment = externalRef ? await this.findByExternalRef(externalRef) : null;
+    this.activity.logActivity({
+      agencyId: this.agencyId, clientId: payment?.clientId, actorUserId: actor,
+      category: "finance", action: "payment.disputed",
+      message: `Chargeback opened${payment ? ` on invoice ${payment.invoiceId}` : ""}.`,
+      metadata: { paymentId: payment?.id, invoiceId: payment?.invoiceId, externalRef },
+    });
+    this.events.emit({ agencyId: this.agencyId, clientId: payment?.clientId }, "agency-finance.payment.disputed", { paymentId: payment?.id, invoiceId: payment?.invoiceId });
+    return payment;
+  }
+
   // Record a payment. Optionally settles the invoice when the running
   // paid total >= invoice.totalCents.
-  async record(actor: UserId, input: CreatePaymentInput): Promise<{ payment: Payment; invoice: Invoice; settled: boolean }> {
+  //
+  // Idempotent on `input.idempotencyKey`: a resubmit of the SAME intent (a
+  // double-click / retry) returns the first payment instead of double-counting
+  // money-in. A genuine second/partial payment carries a NEW key → a new id →
+  // is recorded normally (partial payments stay legal). Without a key, behaviour
+  // is unchanged (a fresh random id every call).
+  async record(actor: UserId, input: CreatePaymentInput): Promise<{ payment: Payment; invoice: Invoice; settled: boolean; deduped: boolean }> {
     const inv = await this.invoices.get(input.invoiceId);
     if (!inv) throw new Error("agency-finance: invoice not found");
     if (input.amountCents <= 0) throw new Error("agency-finance: amountCents must be > 0");
     if (input.currency !== inv.currency) {
       throw new Error("agency-finance: payment currency must match invoice currency");
     }
+
+    const key = normaliseIdempotencyKey(input.idempotencyKey);
+    const id = deriveRecordId("pay", key);
+    if (key) {
+      // Already recorded under this key → return the first payment, don't mint,
+      // settle, log or emit again.
+      const existing = await this.get(id);
+      if (existing) return { payment: existing, invoice: inv, settled: inv.status === "paid", deduped: true };
+    }
+
     const t = now();
     const payment: Payment = {
-      id: makeId("pay"),
+      id,
       agencyId: this.agencyId,
       invoiceId: inv.id,
       clientId: inv.clientId,
@@ -90,11 +157,6 @@ export class PaymentService {
     await this.storage.set(payKey(payment.id), payment);
     const ids = (await this.storage.get<string[]>(INDEX_KEY)) ?? [];
     if (!ids.includes(payment.id)) await this.storage.set(INDEX_KEY, [...ids, payment.id]);
-
-    const invIdx = (await this.storage.get<string[]>(byInvoiceKey(inv.id))) ?? [];
-    if (!invIdx.includes(payment.id)) await this.storage.set(byInvoiceKey(inv.id), [...invIdx, payment.id]);
-    const cliIdx = (await this.storage.get<string[]>(byClientKey(inv.clientId))) ?? [];
-    if (!cliIdx.includes(payment.id)) await this.storage.set(byClientKey(inv.clientId), [...cliIdx, payment.id]);
 
     this.activity.logActivity({
       agencyId: this.agencyId, clientId: inv.clientId, actorUserId: actor,
@@ -121,6 +183,6 @@ export class PaymentService {
         settled = true;
       }
     }
-    return { payment, invoice: updatedInvoice, settled };
+    return { payment, invoice: updatedInvoice, settled, deduped: false };
   }
 }

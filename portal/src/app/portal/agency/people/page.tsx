@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { getActiveAgencyId, requireRole } from "@/lib/server/auth";
 import { peopleSnapshot } from "@/server/people";
+import { staffCapacitySnapshot } from "@/server/staffCapacity";
 import { ensureHydrated } from "@/server/storage";
 import { PeopleCommand } from "./_PeopleCommand";
 
@@ -15,5 +16,7 @@ export default async function PeoplePage() {
   } catch {
     redirect("/portal/agency");
   }
-  return <PeopleCommand initial={peopleSnapshot(getActiveAgencyId(session))} />;
+  const agencyId = getActiveAgencyId(session);
+  const capacity = await staffCapacitySnapshot(agencyId);
+  return <PeopleCommand initial={peopleSnapshot(agencyId)} capacity={capacity} />;
 }

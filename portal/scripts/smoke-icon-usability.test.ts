@@ -19,8 +19,13 @@ describe("icon-led workspace usability", () => {
       assert.match(people, new RegExp(`icon=\\{${icon}\\}`));
     }
     assert.match(people, /<HeartPulse/);
+    // Marketing's five channel switchers moved from top-level tabs into the
+    // consolidated Channels view (2026-08-19), where the icon is carried on a
+    // config row (`icon: Target`) rather than a JSX prop (`icon={Target}`). The
+    // contract is the same — every switcher still has its own recognisable icon
+    // — so accept either wiring.
     for (const icon of ["Megaphone", "UserRoundSearch", "RadioTower", "Globe2", "Workflow", "Target", "MapPin", "Star", "Activity", "LockKeyhole"]) {
-      assert.match(marketing, new RegExp(`icon=\\{${icon}\\}`));
+      assert.match(marketing, new RegExp(`icon=\\{${icon}\\}|icon: ${icon}\\b`), `${icon} is not wired to any marketing switcher`);
     }
     for (const icon of ["LayoutDashboard", "ArrowDownToLine", "ArrowUpFromLine", "FileText", "BarChart3", "WalletCards", "Landmark", "Target"]) {
       assert.match(finance, new RegExp(icon));

@@ -65,6 +65,10 @@ export interface BuildSidebarInput {
   // circuits the filter so Founders never get gated.
   permissions?: readonly string[];
   isFounder?: boolean;
+  // Dev-only surfaces (Dev Docs). The caller injects `canUseDevMode()` — the
+  // env/backend gate is never read inside this pure assembly, so tests stay
+  // hermetic. Combined with `isFounder`, it guards the one dev-only nav item.
+  devModeAvailable?: boolean;
 }
 
 // Default top-of-list nav items contributed by the foundation, role-aware.
@@ -83,6 +87,7 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       items.push({ id: "finance",     label: "Finance",            href: "/portal/agency/agency-finance",  panelId: "ops",  order: -4 });
       if (input.role === "agency-owner" || input.role === "agency-manager") {
         items.push({ id: "people",      label: "Staff",              href: "/portal/agency/people",          panelId: "main", order: -3 });
+        items.push({ id: "freelancers", label: "Freelancers",        href: "/portal/agency/freelancers",     panelId: "main", order: -2.9 });
       }
       items.push({ id: "you-deserve-it", label: "You deserve it",  href: "/portal/agency/you-deserve-it",  panelId: "main", order: -2.5 });
       items.push({ id: "marketing",   label: "Marketing",          href: "/portal/agency/marketing",       panelId: "main", order: -2 });
@@ -158,7 +163,20 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
 
   // Settings — every scope sees a settings entry. Plugins can add more.
   if (input.scope === "agency" && isAgencyRole(input.role)) {
-    appendIntoPanel(itemsByPanel, { id: "agency-phases", label: "Phases", href: "/portal/agency/phases", panelId: "settings", order: 95 });
+    // Dev Docs — dev-only, founder-only. Never appears for a normal owner or in
+    // any production-like context (caller injects `canUseDevMode()`). Lives in
+    // the settings footer, which the AquaOasis override preserves intact.
+    if (input.isFounder && input.devModeAvailable) {
+      appendIntoPanel(itemsByPanel, { id: "dev-team", label: "Dev Team", href: "/portal/dev-team", panelId: "settings", order: 93 });
+      appendIntoPanel(itemsByPanel, { id: "dev-docs", label: "Dev Docs", href: "/portal/agency/dev-docs", panelId: "settings", order: 94 });
+    }
+    // Phases drives preview-as-client-at-phase, which re-issues you as a seeded
+    // demo client. That route is now fenced behind the same Dev Mode switch as
+    // dev-mode, so the entry point must be fenced with it — otherwise the link
+    // is visible on a live deploy and 404s when clicked.
+    if (input.isFounder && input.devModeAvailable) {
+      appendIntoPanel(itemsByPanel, { id: "agency-phases", label: "Phases", href: "/portal/agency/phases", panelId: "settings", order: 95 });
+    }
     appendIntoPanel(itemsByPanel, { id: "agency-settings", label: "Agency settings", href: "/portal/agency/settings", panelId: "settings", order: 100 });
   } else if (input.scope === "client" && input.currentClient && (isAgencyRole(input.role) || isClientRole(input.role))) {
     appendIntoPanel(itemsByPanel, {

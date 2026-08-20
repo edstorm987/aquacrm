@@ -7,7 +7,7 @@
 // real editing.
 
 import Link from "next/link";
-import { ArrowUpRight, Bell, Boxes, Check, CircleUserRound, Eye, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
+import { ArrowUpRight, Bell, Boxes, Briefcase, Check, CircleUserRound, Eye, Save, ScrollText, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { ProductionReadiness, ReadinessStatus } from "@/lib/server/productionReadiness";
 import type { AgencyWorkspaceSettings, ClientStage } from "@/server/types";
@@ -47,13 +47,14 @@ interface SettingsContext {
   }>;
 }
 
-type TabId = "account" | "team" | "workspace" | "showcase" | "defaults" | "notifications" | "updates" | "logs" | "launch";
+type TabId = "account" | "team" | "workspace" | "showcase" | "freelancer" | "defaults" | "notifications" | "updates" | "logs" | "launch";
 
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
   { id: "account", label: "Account", icon: <CircleUserRound size={16} /> },
   { id: "team", label: "Team", icon: <UsersRound size={16} /> },
   { id: "workspace", label: "Workspace", icon: <Boxes size={16} /> },
   { id: "showcase", label: "Showcase", icon: <Eye size={16} /> },
+  { id: "freelancer", label: "Freelancer access", icon: <Briefcase size={16} /> },
   { id: "defaults", label: "Defaults", icon: <SlidersHorizontal size={16} /> },
   { id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
   { id: "updates", label: "What’s new", icon: <Sparkles size={16} /> },
@@ -122,6 +123,7 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
         {active === "team"        && <TeamPane ctx={ctx} />}
         {active === "workspace"   && <WorkspacePane ctx={ctx} />}
         {active === "showcase"    && <Section eyebrow="Showcase Mode"><ShowcaseModePanel active={ctx.isShowcase} canManage={ctx.canManageSettings} /></Section>}
+        {active === "freelancer"  && <Section eyebrow="Freelancer access"><div className="grid gap-4"><p className="max-w-2xl text-sm leading-6 text-black/58">Control what a freelancer sees and can do in their own workspace — brief, dates, their fee, deliverables, whether the client is named or anonymised, and which actions they can take. Privacy-first by default.</p><Link href="/portal/agency/freelancer-access" className="inline-flex min-h-10 w-fit items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85">Configure freelancer access <ArrowUpRight size={15} /></Link></div></Section>}
         {active === "defaults"    && <DefaultsPane ctx={ctx} />}
         {active === "notifications" && <NotificationsPane ctx={ctx} />}
         {active === "updates"     && <UpdatesPane />}

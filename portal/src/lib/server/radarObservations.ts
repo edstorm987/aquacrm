@@ -157,6 +157,15 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("sales", "target-breaches", zeroTargetMetric(speedToLead.breachedCount, "Leads outside the response target.", "/portal/agency/inbox?view=forms", "sales:response", enquiryConnected(enquiries), latest(openEnquiries), 1, 4));
   add("sales", "pipeline-leads", metric(commercial.leadCount, null, commercial.available ? "healthy" : "unknown", String(commercial.leadCount), "Pipeline connected", "/portal/agency/pipelines/leads", "sales:pipeline", commercial.available, "Lead records available to the pipeline.", commercial.latestActivityAt ?? leadInstall?.installedAt ?? now, commercial.leadCount, undefined, "higher"));
   add("sales", "enquiry-linkage", percentMetric(current30dEnquiries.length ? Math.round(linkedEnquiries.length / current30dEnquiries.length * 100) : null, 90, "Enquiries linked to a lead record.", "/portal/clients?view=journey", "sales:linkage", enquiryConnected(enquiries), latest(enquiries)));
+  // Tag → Radar (aqua-tag plan Phase 5): how many tagged sites point their
+  // enquiries at a specific client/company vs the agency catch-all. Informational
+  // — the catch-all is a valid choice for the owner's own sites, so this is a
+  // watched routing-coverage baseline (feeding trend/evidence), never a false
+  // "route it!" alarm; it stays connected (readable in-state) even at zero so it
+  // is never a blind spot. See server/websiteSources.
+  const agencyWebsiteSources = Object.values(state.websiteSources ?? {}).filter(source => source.agencyId === agencyId);
+  const routedWebsiteSources = agencyWebsiteSources.filter(source => source.destinationClientId || source.destinationCompanyId).length;
+  add("sales", "enquiry-routing", countMetric(routedWebsiteSources, null, `${routedWebsiteSources} of ${agencyWebsiteSources.length} tagged site${agencyWebsiteSources.length === 1 ? "" : "s"} route enquiries to a specific client or company; the rest land in the agency catch-all.`, "/portal/agency/fulfilment?view=tags", "sales:routing", true, now));
   add("sales", "lead-conversion-rate", metric(commercial.conversionRatePercent, null, higherRateStatus(commercial.conversionRatePercent, commercial.leadCount, 5, 20, 10), displayPercent(commercial.conversionRatePercent), "20% or above after 5 leads", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, "Lead capture through to recorded client conversion.", commercial.latestActivityAt, commercial.leadCount, undefined, "higher"));
   add("sales", "lost-decision-rate", metric(commercial.lostDecisionRatePercent, null, lowerRateStatus(commercial.lostDecisionRatePercent, commercial.convertedLeadCount + commercial.lostLeadCount, 5, 35, 60), displayPercent(commercial.lostDecisionRatePercent), "Below 35% of closed decisions", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, "Lost outcomes among leads with a recorded won or lost decision.", commercial.latestActivityAt, commercial.convertedLeadCount + commercial.lostLeadCount, undefined, "lower"));
   add("sales", "stale-open-leads", zeroTargetMetric(commercial.staleOpenLeadCount, "Open leads untouched for at least 14 days.", "/portal/clients?view=journey", "commercial:lifecycle", commercial.available, commercial.latestActivityAt, 1, 5));
@@ -274,6 +283,13 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("development", "property-coverage", countMetric(telemetry.totals.properties, null, "Agency and client digital properties.", "/portal/agency/fulfilment/technical/performance", "development:properties", true, telemetry.totals.latestEventAt, "higher"));
   add("development", "tag-coverage", percentMetric(telemetry.totals.expectedProperties ? Math.round(telemetry.totals.connectedTags / telemetry.totals.expectedProperties * 100) : null, 100, "Expected live properties reporting telemetry.", "/portal/agency/fulfilment/technical/performance", "development:tags", true, telemetry.totals.latestEventAt));
   add("development", "tag-freshness", zeroTargetMetric(telemetry.totals.staleTags, "Live tags silent for more than 48 hours.", "/portal/agency/fulfilment/technical/performance", "development:tags", telemetry.totals.properties > 0, telemetry.totals.latestEventAt, 1, 3));
+  // Tag → Radar (aqua-tag plan Phase 5): how many tagged sites inject third-party
+  // tools through the Aqua Tag (consent-gated). Informational coverage — whether
+  // each tool is actually *firing* on the page is a later detection slice; stays
+  // connected at zero so it is never a false blind spot. See server/websiteInjections.
+  const agencySiteConfigs = Object.values(state.websiteSiteConfigs ?? {}).filter(config => config.agencyId === agencyId);
+  const sitesInjectingTools = agencySiteConfigs.filter(config => config.injections.some(injection => injection.enabled)).length;
+  add("development", "injection-coverage", countMetric(sitesInjectingTools, null, `${sitesInjectingTools} tagged site${sitesInjectingTools === 1 ? "" : "s"} inject third-party tools through the Aqua Tag.`, "/portal/agency/fulfilment?view=tags", "development:injections", true, now));
   add("development", "heartbeat-health", metric(telemetry.totals.heartbeats24h, null, telemetry.totals.expectedProperties && telemetry.totals.heartbeats24h === 0 ? "warning" : telemetry.totals.properties ? "healthy" : "unknown", String(telemetry.totals.heartbeats24h), "At least 1 heartbeat per live property", "/portal/agency/fulfilment/technical/performance", "development:heartbeats", telemetry.totals.properties > 0, "Heartbeat events in 24 hours.", telemetry.totals.latestEventAt ?? now, telemetry.totals.properties));
   add("development", "production-errors", zeroTargetMetric(telemetry.totals.errors24h, "Production errors in 24 hours.", "/portal/agency/fulfilment/technical/performance", "development:errors", telemetry.totals.properties > 0, telemetry.totals.latestEventAt, 1, 5));
   add("development", "error-rate", percentMetric(telemetry.totals.pageviews24h ? Math.round(telemetry.totals.errors24h / telemetry.totals.pageviews24h * 10_000) / 100 : telemetry.totals.errors24h ? 100 : 0, 0, "Errors relative to pageviews.", "/portal/agency/fulfilment/technical/performance", "development:errors", telemetry.totals.properties > 0, telemetry.totals.latestEventAt, true));
@@ -337,8 +353,20 @@ export function buildRadarObservations(input: RadarObservationInputs): RadarObse
   add("systems", "custom-ai-register", countMetric(customAIs.length, null, "Recorded specialist AI systems.", "/portal/agency/automations", "systems:custom-ai", true, newest(customAIs.map(item => item.updatedAt)), "neutral"));
   add("systems", "telemetry-ingestion", countMetric(telemetry.properties.reduce((total, property) => total + property.events.length, 0), null, "Retained telemetry events across properties.", "/portal/agency/fulfilment/technical/performance", "systems:telemetry", telemetry.totals.properties > 0, telemetry.totals.latestEventAt, "higher"));
   add("systems", "inbox-ingestion", countMetric(inboxMessages.length, null, "Retained inbox messages.", "/portal/agency/inbox", "systems:inbox", Boolean(inbox), latestInboxAt, "higher"));
-  add("systems", "storage-activity", countMetric(activity.length, null, "Durable workspace activity records.", "/portal/agency/settings#logs", "systems:storage", true, latestActivityAt, "higher"));
+  // NOTE: this counts recorded workspace *activity rows* — a write-volume proxy,
+  // NOT database/storage health. Real DB reachability/latency/storage rides the
+  // Infra sweep (radar upgrade Stage 4, scope "infra"). Kept (family id unchanged)
+  // so the 2,040 catalogue is intact; relabelled here to stop implying storage health.
+  add("systems", "storage-activity", countMetric(activity.length, null, "Recorded workspace activity rows (write-volume proxy — real DB/storage health rides the Infra sweep).", "/portal/agency/settings#logs", "systems:storage", true, latestActivityAt, "higher"));
   add("systems", "blind-spot-control", zeroTargetMetric(coverage.filter(source => source.status === "disconnected" || source.status === "unavailable").length, "Disconnected or unavailable radar sources.", "/portal/agency/company?view=connections", "systems:coverage", true, domainLastSeen("systems"), 1, 4));
+  // Client software linked into their portals. `uses` and `lastSeenAt` are
+  // absent until the Aqua Tag heartbeat lands, so the freshness lens goes
+  // blind rather than green — the honest reading is "connected, cannot yet
+  // confirm alive", which is what a blind spot is for. Counting them at all is
+  // the point Ed asked for: the connections become something the radar scans.
+  const portalConnections = Object.values(state.portalConnections ?? {}).filter(connection => connection.agencyId === agencyId);
+  const activePortalConnections = portalConnections.filter(connection => connection.status === "active");
+  add("systems", "portal-connections", countMetric(activePortalConnections.length, null, "Client software linked into their portals.", "/portal/agency/portals", "systems:portal-connections", true, newest(activePortalConnections.map(connection => connection.lastSeenAt)), "neutral"));
 
   return completeObservations(observations, coverage, now);
 }

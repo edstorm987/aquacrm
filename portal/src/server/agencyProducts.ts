@@ -87,30 +87,24 @@ export function ensureDefaultAgencyProducts(agencyId: string): AgencyProduct[] {
         });
       }
     }
-    const socialAds = PORTAL_PRODUCT_CATALOG.find(definition => definition.catalogKey === "social-ads");
-    if (socialAds && !existing.some(product => product.portalTemplateKey === "social-ads" || product.name.toLowerCase() === socialAds.name.toLowerCase())) {
-      createAgencyProduct(agencyId, {
-        name: socialAds.name,
-        category: defaultCategory(socialAds.catalogKey),
-        description: socialAds.description,
-        pricing: "recurring",
-        billingInterval: "month",
-        deliverables: socialAds.deliverables,
-        portalRequirement: "required",
-        portalTemplateKey: socialAds.catalogKey,
-        portalHeadline: socialAds.homeHeading,
-      }, "system");
-    }
+    // The standard portal no longer force-adds Social & paid media (or anything
+    // else). One product ships by default — Website — and the rest of the
+    // catalogue is available to add later, one at a time. Ed's scope-down,
+    // Aug 2026.
     return listAgencyProducts(agencyId, true);
   }
-  for (const definition of PORTAL_PRODUCT_CATALOG) {
+  // Standard portal ships with exactly one product: Website. The other
+  // catalogue templates stay available to add from later — the point is to
+  // build them out one at a time, not seed eleven half-finished ones.
+  const standard = PORTAL_PRODUCT_CATALOG.find(definition => definition.catalogKey === "website");
+  if (standard) {
     createAgencyProduct(agencyId, {
-      name: definition.name,
-      category: defaultCategory(definition.catalogKey),
-      description: definition.description,
+      name: standard.name,
+      category: defaultCategory(standard.catalogKey),
+      description: standard.description,
       pricing: "custom",
-      deliverables: definition.deliverables,
-      portalTemplateKey: definition.catalogKey,
+      deliverables: standard.deliverables,
+      portalTemplateKey: standard.catalogKey,
     }, "system");
   }
   return listAgencyProducts(agencyId, true);

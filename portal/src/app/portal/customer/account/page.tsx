@@ -6,7 +6,9 @@ import { AvatarUploader } from "@/app/portal/account/AvatarUploader";
 import { requireRole } from "@/lib/server/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
+import { listOwnPortalConnections } from "@/server/portalConnectionStore";
 import { getAuthBrand } from "@/lib/authBrand";
+import { ConnectedApps } from "./_ConnectedApps";
 
 function initials(seed: string): string {
   const parts = seed.trim().split(/[\s@.]+/).filter(Boolean);
@@ -21,6 +23,10 @@ export default async function CustomerAccountPage() {
   if (!user) notFound();
   const cookieStore = await cookies();
   const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
+  const connectedApps = session.clientId
+    ? listOwnPortalConnections({ clientId: session.clientId, userId: session.userId })
+        .map(connection => ({ id: connection.id, label: connection.label, connectedAt: connection.connectedAt }))
+    : [];
 
   return (
     <>
@@ -97,6 +103,8 @@ export default async function CustomerAccountPage() {
           </Link>
         </aside>
       </div>
+
+      <ConnectedApps initial={connectedApps} accentName={authBrand.name} />
     </>
   );
 }

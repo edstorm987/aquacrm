@@ -9,7 +9,11 @@ test("Journey owns meetings while booking funnels remain in Marketing", () => {
   assert.match(workspace, /id: "meetings", label: "Meetings"/);
   assert.doesNotMatch(workspace, /id: "booking-funnels"/);
   assert.match(workspace, /JourneyMeetingsWorkspace people=\{meetingPeople\}/);
-  assert.match(marketing, /view === "funnels"/);
+  // Booking funnels are still owned by Marketing, but after the 10→5 view
+  // consolidation "funnels" is a CHANNEL inside Channels, not a top-level view —
+  // `view === "funnels"` is now a type error and can never appear. The contract
+  // this pins (funnels live in Marketing, not Journey) is unchanged.
+  assert.match(marketing, /channel === "funnels"|"funnels"/);
   assert.match(marketing, /Funnels &amp; booking/);
   assert.match(marketing, /_FunnelsWorkspace/);
 });

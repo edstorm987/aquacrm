@@ -30,11 +30,16 @@ import { CommsRow } from "./_CommsRow";
 import { FilesTabClient, type FileCategory } from "./_FilesTabClient";
 import { FinanceTabClient } from "./_FinanceTabClient";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
+import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { listContractTemplates } from "@/server/contractTemplates";
 import { ensureDefaultAgencyProducts, productStatus } from "@/server/agencyProducts";
 import { PropertiesTabClient, type ClientProperty } from "./_PropertiesTabClient";
 import { ClientSystemsWorkspace } from "./_ClientSystemsWorkspace";
+import { ClientTagWorkspace } from "./_ClientTagWorkspace";
 import { FulfilmentPortalPreview, type CustomerPortalMode } from "./_FulfilmentPortalPreview";
+import { ClientPortalConnections } from "./_ClientPortalConnections";
+import { describePortalConnection, listPortalConnections } from "@/server/portalConnectionStore";
+import { connectionLinkOrigin } from "@/lib/server/portalConnections";
 import { PhaseTransitionButton } from "./_PhaseTransitionButton";
 import { ClientRequestsPanel } from "./_ClientRequestsPanel";
 import type { ClientRequest } from "@/app/api/tenants/client-requests/route";
@@ -228,6 +233,7 @@ export default async function ClientHome({
     portalExperienceHeadline?: string;
     portalBillingCadence?: string;
     portalWelcomeNote?: string;
+    portalWelcomeVideoUrl?: string;
     portalSupportEmail?: string;
     portalSupportPhone?: string;
     portalSupportWhatsappUrl?: string;
@@ -255,6 +261,7 @@ export default async function ClientHome({
     portalAccessPreparedAt?: number;
     files?: Array<{ id: string; category?: string }>;
     contracts?: ClientContract[];
+    telemetryEvents?: ClientTelemetryEvent[];
     commercialPack?: {
       invoiceNumber?: string;
       invoiceStatus?: string;
@@ -349,6 +356,7 @@ export default async function ClientHome({
     requestsObserved: Array.isArray(meta.clientRequests),
     requests: customerPortalData.requests,
     contracts: customerPortalData.contracts,
+    telemetryEvents: meta.telemetryEvents,
   });
   const relationshipFinance = tab === "overview" && relationshipWorkspaces.length > 1 && financeInstall?.enabled
     ? containerFor({ agencyId: session.agencyId, storage: makePluginStorage(financeInstall.id), install: financeInstall })
@@ -376,6 +384,7 @@ export default async function ClientHome({
         requestsObserved: Array.isArray(workspaceMeta.clientRequests),
         requests: workspaceRequests,
         contracts: workspaceContracts,
+        telemetryEvents: Array.isArray(workspaceMeta.telemetryEvents) ? workspaceMeta.telemetryEvents as ClientTelemetryEvent[] : undefined,
       });
     const outstandingCents = workspaceInvoices
       .filter(invoice => invoice.status === "sent" || invoice.status === "overdue")
@@ -510,6 +519,21 @@ export default async function ClientHome({
     : null;
   const openMilestones = clientMilestones.filter(item => item.status !== "complete");
   const propertyRecords = Array.isArray(meta.properties) ? meta.properties : [];
+  const connectionOrigin = connectionLinkOrigin();
+  const portalConnections = listPortalConnections(session.agencyId, client.id)
+    .map(connection => describePortalConnection(connection, connectionOrigin));
+  // Named from what Aqua already knows the client runs, so naming a connection
+  // is a confirmation rather than a blank box. Their own software first — that
+  // is what a connection is usually for.
+  const connectionSuggestions = Array.from(new Set([
+    ...propertyRecords
+      .filter(property => property.kind === "software" || property.kind === "client-portal" || property.kind === "website")
+      .sort((a, b) => (a.kind === "software" ? 0 : 1) - (b.kind === "software" ? 0 : 1))
+      .map(property => (property.label ?? "").trim()),
+    ...(client.websiteUrl ? [(() => {
+      try { return new URL(client.websiteUrl!).host.replace(/^www\./, ""); } catch { return ""; }
+    })()] : []),
+  ].filter(Boolean))).slice(0, 4);
   const recordFiles = (Array.isArray(meta.files) ? meta.files : []) as Array<{
     id: string;
     name: string;
@@ -1143,6 +1167,7 @@ export default async function ClientHome({
       )}
 
       {tab === "portal" && (
+        <div data-resolution-focus="access" className="grid gap-6">
         <FulfilmentPortalPreview
           clientId={client.id}
           clientName={client.name}
@@ -1158,6 +1183,7 @@ export default async function ClientHome({
             experienceHeadline: meta.portalExperienceHeadline ?? "",
             billingCadence: meta.portalBillingCadence ?? "As agreed",
             welcomeNote: meta.portalWelcomeNote ?? "",
+            welcomeVideoUrl: meta.portalWelcomeVideoUrl ?? "",
             supportEmail: meta.portalSupportEmail ?? customerPortalData.support.email ?? "",
             supportPhone: meta.portalSupportPhone ?? customerPortalData.support.phone ?? "",
             supportWhatsappUrl: meta.portalSupportWhatsappUrl ?? customerPortalData.support.whatsappUrl ?? "",
@@ -1178,6 +1204,13 @@ export default async function ClientHome({
             approvals: customerPortalData.approvals,
           }}
         />
+        <ClientPortalConnections
+          clientId={client.id}
+          clientName={client.name}
+          initialConnections={portalConnections}
+          suggestions={connectionSuggestions}
+        />
+        </div>
       )}
 
       {tab === "systems" && (
@@ -1189,7 +1222,10 @@ export default async function ClientHome({
               <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "website" ? "text-brand" : "text-black/58"}`}><Globe2 size={17} /> Website editor</Link>
             </nav>
             {systemView === "monitoring" ? (
+              <div className="grid gap-6">
               <ClientSystemsWorkspace clientId={client.id} clientName={client.name} properties={propertyRecords} />
+              <ClientTagWorkspace clientId={client.id} clientName={client.name} />
+              </div>
             ) : systemView === "properties" ? (
               <PropertiesTabClient
                 clientId={client.id}
@@ -1214,6 +1250,7 @@ export default async function ClientHome({
 
       {tab === "finance" && (
         <RequirePermission session={session} requires={["finance.view"]}>
+          <div data-resolution-focus="payment">
           <FinanceTabClient
             clientId={client.id}
             clientName={client.name}
@@ -1230,11 +1267,12 @@ export default async function ClientHome({
               stripeLink: meta.stripeLink,
             }}
           />
+          </div>
         </RequirePermission>
       )}
 
       {tab === "communications" && (
-        <div className="grid gap-5">
+        <div data-resolution-focus="reply" className="grid gap-5">
           <header className="grid gap-4 border-b border-black/10 pb-5">
             <div><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/38">Relationship communications</p><h2 className="mt-2 text-2xl font-semibold text-black/88">Messages and requests</h2><p className="mt-1 text-sm text-black/55">Contact details, customer requests, replies and relationship history for this client only.</p></div>
             <CommsRow

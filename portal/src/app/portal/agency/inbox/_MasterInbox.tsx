@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { WebsiteSourcesConfig } from "./_WebsiteSourcesConfig";
+import { IntegrationConnectionsPanel } from "@/app/portal/agency/settings/IntegrationConnectionsPanel";
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Bell, Bot, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, UserPlus, Users, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
 import type { OperationalAlertView } from "@/lib/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
@@ -12,7 +14,7 @@ import { formatUkDate } from "@/lib/formatDateTime";
 import type { InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
 import type { OutboundCommunicationReadiness } from "@/lib/server/outboundCommunications";
 import { SocialInboxWorkspace } from "./_SocialInboxWorkspace";
-import { EnquiryCommunications } from "./_EnquiryCommunications";
+import { EnquiryDetailCard } from "./_EnquiryDetailCard";
 import { UnifiedInboxWorkspace, type UnifiedClientProfile } from "./_UnifiedInboxWorkspace";
 import { AttentionDot, useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
 import { resolveAttentionThreadKey, type AttentionThreadCandidate } from "@/lib/inbox/attentionThread";
@@ -64,7 +66,43 @@ type Update = {
 
 type View = "all" | "attention" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
 
-export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[] }) {
+// Company routing, on the read side.
+//
+// A site registered to one of Ed's own trading companies stamps
+// `routedCompanyId` on every submission from it. Until now nothing read it, so
+// a company enquiry looked exactly like an un-owned agency one. These two
+// helpers are the client-side half of the surface; the server-side definitions
+// they mirror live in `@/lib/server/websiteEnquiries`
+// (`matchesRoutedCompanyFilter`, `routedCompanyFilterOptions`,
+// `ROUTED_COMPANY_FALLBACK_NAME`) and cannot be imported here — that module is
+// `server-only`, and pulling it into a client bundle would fail the build.
+// Keep the two in step; `smoke-inbox-company-routing.test.ts` pins them.
+const COMPANY_FILTER_ALL = "all";
+const COMPANY_FILTER_NONE = "none";
+/** A routed enquiry whose company record has since gone still shows as routed. */
+const COMPANY_FALLBACK_NAME = "Your company";
+
+function matchesCompanyFilter(item: Pick<WebsiteEnquiry, "routedCompanyId">, filter: string): boolean {
+  if (filter === COMPANY_FILTER_ALL) return true;
+  if (filter === COMPANY_FILTER_NONE) return !item.routedCompanyId;
+  return item.routedCompanyId === filter;
+}
+
+function companyFilterOptions(items: Array<Pick<WebsiteEnquiry, "routedCompanyId" | "routedCompanyName">>): Array<{ id: string; name: string }> {
+  const options = new Map<string, string>();
+  for (const item of items) {
+    if (!item.routedCompanyId) continue;
+    const existing = options.get(item.routedCompanyId);
+    if (!existing || existing === COMPANY_FALLBACK_NAME) {
+      options.set(item.routedCompanyId, item.routedCompanyName || COMPANY_FALLBACK_NAME);
+    }
+  }
+  return [...options.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+}
+
+export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[]; canErase: boolean; canManageChannels: boolean; channelClients: Array<{ id: string; name: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedView = searchParams.get("view");
@@ -86,14 +124,17 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   const [classificationBusyId, setClassificationBusyId] = useState<string | null>(null);
   const [classificationError, setClassificationError] = useState<Record<string, string>>({});
   const [classificationFilter, setClassificationFilter] = useState<WebsiteEnquiryClassification | "all">("all");
+  const [companyFilter, setCompanyFilter] = useState<string>(COMPANY_FILTER_ALL);
   const [focusThreadKey, setFocusThreadKey] = useState<string | null>(searchParams.get("thread"));
   const notificationAttention = useNotificationAttention();
   const attentionAlerts = notificationAttention?.alerts.filter(alert => alert.attention) ?? alerts;
   const urgent = attentionAlerts.filter(alert => alert.severity === "critical").length;
 
   const visibleAlerts = useMemo(() => filterRows(attentionAlerts, query, alert => `${alert.title} ${alert.detail} ${alert.clientName ?? ""}`), [attentionAlerts, query]);
-  const visibleWebsiteForms = useMemo(() => filterRows(websiteForms, query, item => `${item.name} ${item.email ?? ""} ${item.phone ?? ""} ${item.brandName} ${item.siteName} ${item.siteHost ?? ""} ${item.pagePath} ${item.source} ${item.channel} ${item.topic} ${item.classification} ${WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]} ${item.services.join(" ")} ${item.message ?? ""} ${item.campaign ?? ""}`)
-    .filter(item => classificationFilter === "all" || item.classification === classificationFilter), [classificationFilter, websiteForms, query]);
+  const companyOptions = useMemo(() => companyFilterOptions(websiteForms), [websiteForms]);
+  const visibleWebsiteForms = useMemo(() => filterRows(websiteForms, query, item => `${item.name} ${item.email ?? ""} ${item.phone ?? ""} ${item.brandName} ${item.siteName} ${item.siteHost ?? ""} ${item.pagePath} ${item.source} ${item.channel} ${item.topic} ${item.classification} ${WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]} ${item.services.join(" ")} ${item.message ?? ""} ${item.campaign ?? ""} ${item.routedCompanyName ?? ""}`)
+    .filter(item => classificationFilter === "all" || item.classification === classificationFilter)
+    .filter(item => matchesCompanyFilter(item, companyFilter)), [classificationFilter, companyFilter, websiteForms, query]);
   const visibleConversations = useMemo(() => filterRows(conversations, query, item => `${item.clientName} ${item.siteName} ${item.siteKind} ${item.message} ${item.type} ${item.topic} ${item.submittedBy}`), [conversations, query]);
   const enquiryForms = visibleWebsiteForms.filter(item => item.channel === "form");
   const chatbotMessages = visibleWebsiteForms.filter(item => item.channel === "chatbot");
@@ -199,6 +240,23 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
     router.refresh();
   }
 
+  async function eraseWebsiteEnquiry(item: WebsiteEnquiry) {
+    setStatusBusyId(item.id);
+    setStatusError(current => ({ ...current, [item.id]: "" }));
+    const response = await fetch("/api/portal/website-enquiries/erase", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enquiryId: item.id }),
+    });
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    setStatusBusyId(null);
+    if (!response.ok) {
+      setStatusError(current => ({ ...current, [item.id]: payload?.error || "The enquiry could not be deleted." }));
+      return;
+    }
+    router.refresh();
+  }
+
   async function classifyWebsiteEnquiry(item: WebsiteEnquiry, classification: WebsiteEnquiryClassification) {
     if (classification === item.classification) return;
     setClassificationBusyId(item.id);
@@ -248,7 +306,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" icon={Inbox} />
     </nav>
 
-    {view !== "all" && view !== "channels" && view !== "social" ? <div className="flex flex-wrap gap-2"><label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label>{view === "forms" || view === "chatbot" || view === "support" ? <select value={classificationFilter} onChange={event => setClassificationFilter(event.target.value as WebsiteEnquiryClassification | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by classification"><option value="all">Every classification</option>{WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}</select> : null}</div> : null}
+    {view !== "all" && view !== "channels" && view !== "social" ? <div className="flex flex-wrap gap-2"><label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label>{view === "forms" || view === "chatbot" || view === "support" ? <select value={classificationFilter} onChange={event => setClassificationFilter(event.target.value as WebsiteEnquiryClassification | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by classification"><option value="all">Every classification</option>{WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}</select> : null}{(view === "forms" || view === "chatbot" || view === "support") && companyOptions.length ? <select value={companyFilter} onChange={event => setCompanyFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by company"><option value={COMPANY_FILTER_ALL}>Every destination</option><option value={COMPANY_FILTER_NONE}>Agency inbox only</option>{companyOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select> : null}</div> : null}
 
     {view === "all" ? <UnifiedInboxWorkspace
       websiteForms={websiteForms}
@@ -287,6 +345,8 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       onLinkLead={linkFormToLead}
       onStatus={updateWebsiteStatus}
       onClassify={classifyWebsiteEnquiry}
+      onErase={eraseWebsiteEnquiry}
+      canErase={canErase}
       referenceNow={referenceNow}
       leadBusyId={leadBusyId}
       statusBusyId={statusBusyId}
@@ -309,6 +369,8 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       onLinkLead={linkFormToLead}
       onStatus={updateWebsiteStatus}
       onClassify={classifyWebsiteEnquiry}
+      onErase={eraseWebsiteEnquiry}
+      canErase={canErase}
       referenceNow={referenceNow}
       leadBusyId={leadBusyId}
       statusBusyId={statusBusyId}
@@ -332,6 +394,8 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         onLinkLead={linkFormToLead}
         onStatus={updateWebsiteStatus}
         onClassify={classifyWebsiteEnquiry}
+      onErase={eraseWebsiteEnquiry}
+      canErase={canErase}
         referenceNow={referenceNow}
         leadBusyId={leadBusyId}
         statusBusyId={statusBusyId}
@@ -375,22 +439,57 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" /><button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
-    {view === "channels" ? <section>
-      <SectionHeader title="Connected channels" detail="Only live connections should claim to deliver messages. Add each provider when its credentials and webhook are ready." />
+    {view === "channels" ? <section className="grid gap-6">
+      <div>
+        <SectionHeader title="Your connections" detail="Press Connect to link an account — email, SMS, WhatsApp and more — then edit, test or remove it any time. Email connections carry their own sender, so replying from the inbox just works." />
+        <div className="mt-3">
+          <IntegrationConnectionsPanel clients={channelClients} canManage={canManageChannels} />
+        </div>
+      </div>
+      <WebsiteSourcesConfig />
+      <div>
+      <SectionHeader title="Always-on channels" detail="These are built in and need no account — live status only." />
       <div className="grid gap-3 md:grid-cols-2">
         <Channel icon={<LifeBuoy size={19} />} name="Client portal & support" detail="Tickets, feedback, approvals, and customer replies." connected />
-        <Channel icon={<Users size={19} />} name="AquaOasis-Web team" detail="Internal notes shared with staff inside this inbox." connected />
-        <Channel icon={<MessageCircle size={19} />} name="WhatsApp" detail={communicationReadiness.whatsappConfigured ? `${communicationReadiness.senders.filter(sender => sender.channel === "whatsapp").length} send-as account(s) ready.` : "Connect a WhatsApp sender number to reply here."} connected={communicationReadiness.whatsappConfigured} />
-        <Channel icon={<MessageCircle size={19} />} name="Text messages" detail={communicationReadiness.smsConfigured ? `${communicationReadiness.senders.filter(sender => sender.channel === "sms").length} SMS send-as account(s) ready.` : "Connect an SMS sender number to reply here."} connected={communicationReadiness.smsConfigured} />
+        <Channel icon={<Users size={19} />} name="Team notes" detail="Internal notes shared with staff inside this inbox." connected />
         <Channel icon={<Phone size={19} />} name="Call mode" detail="Device dialler, call timer, consent-controlled recording, notes, outcome and follow-up history." connected />
-        <Channel icon={<Mail size={19} />} name="Outbound email replies" detail={communicationReadiness.emailConfigured ? `${communicationReadiness.senders.filter(sender => sender.channel === "email").length} Resend or SMTP mailbox(es) ready.` : "Connect Resend or SMTP to answer enquiries without leaving AquaCRM."} connected={communicationReadiness.emailConfigured} />
-        <Channel icon={<MessageCircle size={19} />} name="Meta social messages" detail={socialInbox.connections.length ? `${socialInbox.connections.filter(item => item.status === "connected").length} of ${socialInbox.connections.length} Instagram and Facebook channels live.` : "Credential-ready for Instagram and Facebook messaging."} connected={socialInbox.connections.some(item => item.status === "connected")} />
         <Channel icon={<Radio size={19} />} name="Website forms" detail="Forms are attributed to their brand and page, with direct email replies and retained history." connected />
-        <Channel icon={<MessageCircle size={19} />} name="Website chatbot" detail="AquaOasis-Web chatbot messages are captured with the exact source page." connected />
+        <Channel icon={<MessageCircle size={19} />} name="Website chatbot" detail="Chatbot messages are captured with the exact source page." connected />
         <Channel icon={<Bell size={19} />} name="Production monitoring" detail="Client telemetry errors, deployments, and health signals feed operational alerts." connected />
+        <Channel icon={<MessageCircle size={19} />} name="Meta social messages" detail={socialInbox.connections.length ? `${socialInbox.connections.filter(item => item.status === "connected").length} of ${socialInbox.connections.length} Instagram and Facebook channels live.` : "Instagram &amp; Facebook — connect via the social setup (separate from the accounts above)."} connected={socialInbox.connections.some(item => item.status === "connected")} />
+      </div>
       </div>
     </section> : null}
   </div>;
+}
+
+/**
+ * A two-step delete for a single enquiry.
+ *
+ * Two steps, not a browser confirm dialog: the first click reveals "Delete
+ * permanently? Yes / No" in place, so the destructive action needs a
+ * deliberate second click but never a modal. Owner-only — the caller decides
+ * whether to render it at all.
+ */
+function EnquiryDeleteButton({ item, busy, onErase }: {
+  item: WebsiteEnquiry;
+  busy: boolean;
+  onErase: (item: WebsiteEnquiry) => Promise<void>;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      aria-label={`Delete enquiry from ${item.name}`}
+      className="grid size-9 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+    ><Trash2 size={15} /></button>;
+  }
+  return <span className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-red-50 px-1.5 py-1">
+    <span className="text-[11px] font-medium text-red-700">Delete for good?</span>
+    <button type="button" disabled={busy} onClick={() => void onErase(item)} className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50">{busy ? "…" : "Yes"}</button>
+    <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="rounded px-1.5 py-0.5 text-[11px] font-medium text-black/50 hover:bg-black/5">No</button>
+  </span>;
 }
 
 function WebsiteEnquirySection({
@@ -405,6 +504,8 @@ function WebsiteEnquirySection({
   onLinkLead,
   onStatus,
   onClassify,
+  onErase,
+  canErase,
   referenceNow,
   leadBusyId,
   statusBusyId,
@@ -425,6 +526,8 @@ function WebsiteEnquirySection({
   onLinkLead: (item: WebsiteEnquiry) => Promise<void>;
   onStatus: (item: WebsiteEnquiry, status: WebsiteEnquiry["status"]) => Promise<void>;
   onClassify: (item: WebsiteEnquiry, classification: WebsiteEnquiryClassification) => Promise<void>;
+  onErase: (item: WebsiteEnquiry) => Promise<void>;
+  canErase: boolean;
   referenceNow: number;
   leadBusyId: string | null;
   statusBusyId: string | null;
@@ -434,6 +537,11 @@ function WebsiteEnquirySection({
   classificationError: Record<string, string>;
   communicationReadiness: OutboundCommunicationReadiness;
 }) {
+  // One detail card at a time, rendered at section level rather than inside a
+  // row — the enquiry articles carry `mm-hover-lift` (a hover transform), and a
+  // position:fixed modal nested under a transformed ancestor would anchor to the
+  // row instead of the viewport.
+  const openItem = items.find(entry => entry.id === openId);
   return <section>
     <SectionHeader title={title} detail={detail} />
     {error ? <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">The message history could not be loaded. {error}</div> : null}
@@ -441,7 +549,6 @@ function WebsiteEnquirySection({
       {items.map(item => {
         const icon = item.channel === "chatbot" ? <MessageCircle size={18} /> : item.channel === "support" ? <LifeBuoy size={18} /> : <FileText size={18} />;
         const elapsedSinceEnquiry = Math.max(0, referenceNow - item.submittedAt);
-        const firstResponseMs = item.firstRespondedAt ? Math.max(0, item.firstRespondedAt - item.submittedAt) : undefined;
         return <article key={item.id} className="mm-surface-card mm-hover-lift rounded-md p-4">
           <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start">
             <span className="grid size-10 place-items-center rounded-md bg-brand/10 text-brand">{icon}</span>
@@ -449,6 +556,10 @@ function WebsiteEnquirySection({
               <span className="flex flex-wrap items-center gap-2">
                 <strong className="text-sm text-black/80">{item.name}</strong>
                 <Pill tone="blue">{item.siteName}</Pill>
+                {/* Routed to one of Ed's own companies. Keyed off the id, not
+                    the name, so a deleted company still reads as routed rather
+                    than as a blank badge. */}
+                {item.routedCompanyId ? <Pill tone="brand"><span className="inline-flex items-center gap-1"><Building2 size={11} aria-hidden />{item.routedCompanyName || COMPANY_FALLBACK_NAME}</span></Pill> : null}
                 <Pill>{item.topic}</Pill>
                 <Pill tone={item.priority === "urgent" ? "red" : item.priority === "high" ? "amber" : "neutral"}>{item.priority}</Pill>
                 <Pill tone={item.status === "resolved" ? "green" : item.status === "reviewed" ? "blue" : "amber"}>{item.status}</Pill>
@@ -474,51 +585,24 @@ function WebsiteEnquirySection({
               {item.classification === "sales" && !item.leadId && (item.email || item.phone) ? <button type="button" onClick={() => void onLinkLead(item)} disabled={leadBusyId === item.id} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50"><UserPlus size={14} />{leadBusyId === item.id ? "Linking..." : "Create lead"}</button> : null}
               {item.email ? <a href={`mailto:${item.email}`} aria-label={`Email ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Mail size={15} /></a> : null}
               {item.phone ? <a href={`tel:${item.phone}`} aria-label={`Call ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Phone size={15} /></a> : null}
+              {canErase ? <EnquiryDeleteButton item={item} busy={statusBusyId === item.id} onErase={onErase} /> : null}
             </div>
           </div>
-          {openId === item.id ? <div className="ml-0 mt-3 grid gap-4 rounded-md border border-black/[0.07] bg-black/[0.025] p-4 sm:ml-[52px]">
-            {leadError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{leadError[item.id]}</p> : null}
-            {statusError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{statusError[item.id]}</p> : null}
-            {classificationError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{classificationError[item.id]}</p> : null}
-            <div className={`rounded-md border px-3 py-3 text-xs ${classificationRouteStyle(item.classification)}`}>
-              <p className="font-semibold">Relationship route · {WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]}</p>
-              <p className="mt-1 leading-5 opacity-80">{item.routeNote ?? classificationRouteDescription(item.classification)}</p>
-            </div>
-            <div className={`rounded-md border px-3 py-3 text-xs ${triageStyle(item.priority)}`}>
-              <p className="font-semibold">Automatic triage · {item.topic}</p>
-              <p className="mt-1 leading-5 opacity-80">{item.suggestedAction}</p>
-            </div>
-            <dl className="grid gap-x-6 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
-              <Detail label="Site" value={item.siteName} />
-              <Detail label="Page" value={sourceLocation(item)} />
-              <Detail label="Channel" value={item.channel} />
-              <Detail label="Contact" value={[item.email, item.phone].filter(Boolean).join(" · ") || "Not supplied"} />
-              <Detail label="Preferred reply" value={item.contactMethod?.replaceAll("-", " ") || "Not supplied"} />
-              <Detail label="Campaign" value={item.campaign || "Direct / not supplied"} />
-              <Detail label="Services" value={item.services.join(", ") || "Not specified"} />
-              <Detail label="Relationship" value={WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]} />
-              <Detail label="Email notification" value={item.notification.replaceAll("-", " ")} />
-              <Detail label="Sales record" value={item.leadId ? `Linked · ${item.leadId}` : item.classification === "sales" ? "Awaiting lead creation" : "Excluded from Journey"} />
-              <Detail label="Contact record" value={item.contactId ? `Filed · ${item.contactId}` : item.classification === "spam" ? "Not created for spam" : "Not created"} />
-              <Detail label="Elapsed since enquiry" value={formatElapsed(elapsedSinceEnquiry)} />
-              <Detail label="First review" value={item.reviewedAt ? `${formatElapsed(item.reviewedAt - item.submittedAt)} after receipt` : "Waiting"} />
-              <Detail label="Lead linked" value={item.leadLinkedAt ? `${formatElapsed(item.leadLinkedAt - item.submittedAt)} after receipt` : item.leadId ? "Linked, legacy time unavailable" : "Waiting"} />
-              <Detail label="First response" value={firstResponseMs === undefined ? "Waiting" : `${formatElapsed(firstResponseMs)} after receipt`} />
-              <Detail label="Resolved" value={item.resolvedAt ? `${formatElapsed(item.resolvedAt - item.submittedAt)} after receipt` : "Open"} />
-              <Detail label="Submission ID" value={item.id} />
-              {item.sourceUrl ? <div><dt className="font-medium text-black/40">Source page</dt><dd className="mt-1"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand">Open page <ExternalLink size={12} /></a></dd></div> : null}
-            </dl>
-            <EnquiryCommunications item={item} readiness={communicationReadiness} />
-            <div className="flex flex-wrap gap-2 border-t border-black/[0.07] pt-3">
-              {item.status === "open" ? <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "reviewed")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Mark reviewed</button> : null}
-              {item.status !== "resolved" ? <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "resolved")} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Resolve</button> : <button type="button" disabled={statusBusyId === item.id} onClick={() => void onStatus(item, "open")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Reopen</button>}
-              {item.classification === "sales" ? <Link href="/portal/clients?view=journey" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open Journey <ExternalLink size={13} /></Link> : <Link href="/portal/clients?view=contacts" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open contacts <ExternalLink size={13} /></Link>}
-            </div>
-          </div> : null}
         </article>;
       })}
     </div>
     {!items.length && !error ? <Empty icon={<Inbox size={25} />} title={emptyTitle} detail={emptyDetail} /> : null}
+    {openItem ? <EnquiryDetailCard
+      item={openItem}
+      referenceNow={referenceNow}
+      communicationReadiness={communicationReadiness}
+      onClose={() => onToggle(openItem.id)}
+      onStatus={onStatus}
+      statusBusyId={statusBusyId}
+      leadError={leadError}
+      statusError={statusError}
+      classificationError={classificationError}
+    /> : null}
   </section>;
 }
 
@@ -590,11 +674,21 @@ function Tab({ active, onClick, label, count, icon: Icon, attentionHref, attenti
 }
 
 function AlertRow({ alert, contactAvailable, onContact, busy, onAction }: { alert: OperationalAlertView; contactAvailable: boolean; onContact: () => void; busy: boolean; onAction: (action: "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
+  const router = useRouter();
   const styles = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
   const resolution = resolveAttentionAction(alert);
+  // Resolve now clears the item as well as opening the record. It used to be a
+  // plain link, so clicking it navigated but left the alert sitting in the
+  // list — the "why is this still here?" complaint. Clearing it on the way is
+  // the honest reading of pressing Resolve: you are handling it. If the
+  // underlying issue genuinely persists, the signal re-derives and returns.
+  const resolveAndOpen = async () => {
+    await onAction("dismiss");
+    router.push(alert.href);
+  };
   const resolveControl = contactAvailable
-    ? <button type="button" onClick={onContact} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><span>Resolve</span><ArrowRight size={13} /></button>
-    : <Link href={alert.href} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><span>Resolve</span><ArrowRight size={13} /></Link>;
+    ? <button type="button" disabled={busy} onClick={onContact} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"><span>Resolve</span><ArrowRight size={13} /></button>
+    : <button type="button" disabled={busy} onClick={() => void resolveAndOpen()} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"><span>Resolve</span><ArrowRight size={13} /></button>;
   return <article title={`${alert.title}\n${alert.detail}`} className="mm-surface-card mm-interactive-row grid gap-3 rounded-md p-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
     <span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span>
     <span className="min-w-0">
@@ -635,19 +729,11 @@ function Channel({ icon, name, detail, connected = false }: { icon: React.ReactN
 }
 
 function SectionHeader({ title, detail }: { title: string; detail: string }) { return <div className="border-b border-black/10 pb-3"><h2 className="text-lg font-semibold text-black/82">{title}</h2><p className="mt-1 text-sm text-black/45">{detail}</p></div>; }
-function Detail({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><dt className="font-medium text-black/40">{label}</dt><dd className="mt-1 break-words capitalize text-black/65">{value}</dd></div>; }
-function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "amber" | "green" | "red" | "blue" }) { const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : tone === "blue" ? "bg-blue-50 text-blue-700" : "bg-black/[0.05] text-black/50"; return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${style}`}>{children}</span>; }
+function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "amber" | "green" | "red" | "blue" | "brand" }) { const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : tone === "blue" ? "bg-blue-50 text-blue-700" : tone === "brand" ? "bg-brand/10 text-brand" : "bg-black/[0.05] text-black/50"; return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${style}`}>{children}</span>; }
 function Empty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <div className="py-16 text-center text-black/30">{<span className="inline-grid">{icon}</span>}<h3 className="mt-3 text-sm font-semibold text-black/70">{title}</h3><p className="mx-auto mt-1 max-w-lg text-xs leading-5 text-black/45">{detail}</p></div>; }
 function requestLabel(type: string) { return ({ "support-ticket": "Support", "design-feedback": "Design feedback", suggestion: "Suggestion", cancel: "Cancellation", "move-provider": "Handover" } as Record<string, string>)[type] ?? "Message"; }
 function triageStyle(priority: "urgent" | "high" | "normal") { return priority === "urgent" ? "border-red-200 bg-red-50 text-red-800" : priority === "high" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"; }
 function classificationTone(classification: WebsiteEnquiryClassification): "neutral" | "amber" | "green" | "red" | "blue" { return classification === "unclassified" ? "amber" : classification === "sales" ? "green" : classification === "spam" ? "red" : classification === "existing-client" ? "blue" : "neutral"; }
-function classificationRouteStyle(classification: WebsiteEnquiryClassification) { return classification === "unclassified" ? "border-amber-200 bg-amber-50 text-amber-900" : classification === "sales" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : classification === "spam" ? "border-red-200 bg-red-50 text-red-800" : "border-blue-200 bg-blue-50 text-blue-900"; }
-function classificationRouteDescription(classification: WebsiteEnquiryClassification) {
-  if (classification === "unclassified") return "Review this message before it enters Journey or Contacts.";
-  if (classification === "sales") return "This is a genuine opportunity and belongs in the sales Journey.";
-  if (classification === "spam") return "This remains searchable for audit but does not create a contact or sales work.";
-  return "This is retained as a relationship contact and kept outside the sales Journey.";
-}
 function enquiryWaitTone(elapsedMs: number): "blue" | "amber" | "red" { return elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseCriticalMs ? "red" : elapsedMs >= LEAD_WAIT_THRESHOLDS.firstResponseWarningMs ? "amber" : "blue"; }
 function formatDate(value: number) { return Number.isFinite(value) && value > 0 ? formatUkDate(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Date needs review"; }
 function sourceLocation(item: WebsiteEnquiry) { return `${item.siteHost ?? item.siteName}${item.pagePath === "/" ? "" : item.pagePath}`; }

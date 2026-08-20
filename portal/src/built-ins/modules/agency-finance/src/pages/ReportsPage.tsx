@@ -2,6 +2,7 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import type { Currency } from "../lib/domain";
 import { normaliseCurrency, SUPPORTED_CURRENCIES } from "../lib/currencies";
+import { summariseAging, type AgingSummary } from "../lib/aging";
 import { FinanceNav } from "../components/FinanceNav";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/financeCurrency";
 import Link from "next/link";
@@ -38,6 +39,22 @@ export default async function ReportsPage(props: PluginPageProps) {
   const deductibleCosts = paidExpenses
     .filter(expense => expense.incurredAt >= from)
     .reduce((sum, expense) => sum + Math.round(expense.amountCents * (expense.businessUsePercent ?? 100) / 100), 0);
+
+  // AR/AP aging — outstanding invoices (owed to you) + approved-unreimbursed
+  // costs (you owe), in the selected currency, bucketed by how overdue.
+  const now = Date.now();
+  const receivables = summariseAging(
+    invoices
+      .filter(invoice => (invoice.status === "sent" || invoice.status === "overdue") && invoice.currency === currency)
+      .map(invoice => ({ amountCents: invoice.totalCents, dueAt: invoice.dueAt })),
+    now,
+  );
+  const payables = summariseAging(
+    expenses
+      .filter(expense => expense.status === "approved" && expense.currency === currency)
+      .map(expense => ({ amountCents: expense.amountCents, dueAt: expense.incurredAt })),
+    now,
+  );
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-8 pb-12">
@@ -90,6 +107,15 @@ export default async function ReportsPage(props: PluginPageProps) {
       </div>
 
       <section>
+        <h2 className="text-base font-semibold text-black/85">Aging — who owes you, what you owe</h2>
+        <p className="mt-1 text-xs text-black/45">Outstanding invoices (receivables) and approved-unpaid costs (payables), by how overdue they are · {currency.toUpperCase()}.</p>
+        <div className="mt-3 grid gap-8 lg:grid-cols-2">
+          <AgingTable title="Receivables — owed to you" summary={receivables} currency={currency} emptyText="No outstanding invoices." />
+          <AgingTable title="Payables — you owe" summary={payables} currency={currency} emptyText="No approved costs awaiting payment." />
+        </div>
+      </section>
+
+      <section>
         <h2 className="text-base font-semibold text-black/85">Monthly cash movement</h2>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
@@ -121,4 +147,33 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return <div className="flex items-center justify-between gap-4 py-3"><dt className="text-black/55">{label}</dt><dd className={`font-mono ${strong ? "font-semibold text-black/85" : "text-black/65"}`}>{value}</dd></div>;
+}
+
+function AgingTable({ title, summary, currency, emptyText }: { title: string; summary: AgingSummary; currency: Currency; emptyText: string }) {
+  return (
+    <section>
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-black/80">{title}</h3>
+        <span className="font-mono text-sm font-semibold text-black/85">{money(summary.totalCents, currency)}</span>
+      </div>
+      {summary.count === 0 ? (
+        <p className="mt-3 border-y border-black/10 py-8 text-center text-sm text-black/45">{emptyText}</p>
+      ) : (
+        <>
+          <table className="mt-3 w-full text-sm">
+            <tbody className="divide-y divide-black/10 border-y border-black/10">
+              {summary.buckets.map(bucket => (
+                <tr key={bucket.key} className={bucket.key !== "current" && bucket.totalCents > 0 ? "text-red-800" : ""}>
+                  <td className="py-2.5 text-black/60">{bucket.label}</td>
+                  <td className="py-2.5 text-right text-xs text-black/40">{bucket.count}</td>
+                  <td className="py-2.5 text-right font-mono font-medium">{money(bucket.totalCents, currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-black/45"><strong className="text-black/70">{money(summary.overdueCents, currency)}</strong> overdue of {money(summary.totalCents, currency)}.</p>
+        </>
+      )}
+    </section>
+  );
 }

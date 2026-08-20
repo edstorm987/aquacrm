@@ -8,6 +8,7 @@ import {
   type IntegrationProvider,
 } from "@/lib/integrations/catalog";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
+import { mayUseEnvironmentCredentials } from "@/lib/server/founderAgency";
 import { logActivity } from "@/server/activity";
 import { getState, mutate } from "@/server/storage";
 import type { IntegrationConnection } from "@/server/types";
@@ -47,6 +48,15 @@ export function listManagedIntegrationProviders(agencyId: string): IntegrationPr
   return [...new Set(Object.values(getState().integrationConnections)
     .filter(connection => connection.agencyId === agencyId)
     .map(connection => connection.provider))];
+}
+
+// Agencies that hold a workspace-scoped connection for this provider. For
+// session-less global lookups (e.g. the Meta webhook, which must find which
+// agency an incoming request belongs to) where no agencyId is available up front.
+export function listAgencyIdsForProvider(provider: IntegrationProvider): string[] {
+  return [...new Set(Object.values(getState().integrationConnections)
+    .filter(connection => connection.provider === provider && !connection.clientId)
+    .map(connection => connection.agencyId))];
 }
 
 export function getIntegrationConnection(
@@ -156,6 +166,13 @@ export function resolveIntegrationValues(
     : connections.find(connection => !connection.clientId);
   const managed = selected ? privateValues(selected) : {};
   if (Object.keys(managed).length || options.includeEnvironmentFallback === false) return managed;
+  // The environment's credentials belong to the FOUNDER'S agency, not to
+  // whichever agency happens to be asking. Without this line a second company
+  // with no connection of its own silently inherits his: its Stripe checkout
+  // would run on his key and its mail would leave as his address with his
+  // reply-to. Returning {} instead lets the caller's existing "not configured"
+  // branch fire, which is what prompts that company to connect its own.
+  if (!mayUseEnvironmentCredentials(agencyId)) return {};
   return environmentValues(provider);
 }
 
@@ -281,6 +298,12 @@ function environmentValues(provider: IntegrationProvider): Record<string, string
       voiceFrom: process.env.TWILIO_VOICE_FROM_NUMBER,
       agentPhone: process.env.TWILIO_AGENT_PHONE_NUMBER,
     },
+    meta: {
+      appId: process.env.META_APP_ID,
+      appSecret: process.env.META_APP_SECRET,
+      webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN,
+      graphApiVersion: process.env.META_GRAPH_API_VERSION,
+    },
     stripe: { secretKey: process.env.STRIPE_SECRET_KEY, webhookSecret: process.env.STRIPE_WEBHOOK_SECRET },
     github: { token: process.env.GITHUB_TOKEN, owner: process.env.GITHUB_OWNER },
     vercel: { token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID },
@@ -336,6 +359,18 @@ async function testProvider(
       `Basic ${Buffer.from(`${values.accountSid}:${values.authToken}`).toString("base64")}`,
     );
     return "Twilio accepted the account credentials. SMS and WhatsApp activate independently when their sender numbers are present.";
+  }
+  if (provider === "meta") {
+    const url = new URL("https://graph.facebook.com/oauth/access_token");
+    url.searchParams.set("client_id", values.appId ?? "");
+    url.searchParams.set("client_secret", values.appSecret ?? "");
+    url.searchParams.set("grant_type", "client_credentials");
+    const response = await fetchImpl(url, { cache: "no-store", signal });
+    const payload = await response.json().catch(() => null) as { access_token?: string; error?: { message?: string } } | null;
+    if (!response.ok || !payload?.access_token) {
+      throw new Error(payload?.error?.message || `Meta rejected the app credentials (${response.status}).`);
+    }
+    return "Meta accepted the App ID and secret. Connect an Instagram or Facebook account from the social inbox to finish.";
   }
   if (provider === "stripe") {
     await request("https://api.stripe.com/v1/balance", `Bearer ${values.secretKey}`);

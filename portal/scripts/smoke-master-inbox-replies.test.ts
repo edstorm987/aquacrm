@@ -27,7 +27,11 @@ test("website enquiry replies require a real recipient and sender", () => {
   assert.match(websiteReplyRoute, /resolveCommunicationSender/);
   assert.match(websiteReplyRoute, /sendTransactionalEmail/);
   assert.match(inboxPage, /outboundCommunicationReadiness\(session\.agencyId\)/);
-  assert.match(masterInbox, /Connect Resend or SMTP to answer enquiries/);
+  // Connecting an email sender to reply through is done in the Channels tab's
+  // connection manager (the panel that saves Resend/SMTP), not a dead status
+  // card. Email connections carry their own sender, unifying the two.
+  assert.match(masterInbox, /IntegrationConnectionsPanel/);
+  assert.match(masterInbox, /Email connections carry their own sender/);
 });
 
 test("outbound website replies are idempotent, retained and timed", () => {
@@ -53,4 +57,28 @@ test("authenticated portal conversations preserve their reply history", () => {
   assert.match(masterInbox, /Conversation history/);
   assert.match(clientRequestRoute, /action: reply \? "client_request\.replied"/);
   assert.match(clientRequestRoute, /from: fromMilesymedia \? "milesymedia" : "customer"/);
+});
+
+test("the connections panel prompts to connect an email sender first when none is set", () => {
+  const panel = readFileSync("src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx", "utf8");
+  // The callout appears only when no Resend/SMTP sender is connected yet…
+  assert.match(panel, /connection\.provider === "resend" \|\| connection\.provider === "smtp"/);
+  // …and explains why email matters (enquiry replies + customer login codes) with direct connect actions.
+  assert.match(panel, /Start here — connect an email sender/);
+  assert.match(panel, /reply to website enquiries and send customers their login codes/);
+  assert.match(panel, /setModal\(\{ provider: "resend" \}\)/);
+});
+
+test("the social inbox offers a self-serve Connect-now form that saves Meta credentials", () => {
+  // The dead "Awaiting Meta values" button is gone — an enabled "Connect now" replaces it.
+  assert.doesNotMatch(socialWorkspace, /Awaiting Meta values/);
+  assert.match(socialWorkspace, /Connect now/);
+  // The form saves to the canonical integration store as the `meta` provider,
+  // reusing the shared catalog field definitions (one source of truth, no re-listed fields).
+  assert.match(socialWorkspace, /integrationDefinition\("meta"\)/);
+  assert.match(socialWorkspace, /\/api\/portal\/settings\/integrations/);
+  assert.match(socialWorkspace, /provider: "meta"/);
+  // On save it refreshes so readiness recomputes stored-then-env and the OAuth buttons appear.
+  assert.match(socialWorkspace, /router\.refresh\(\)/);
+  assert.match(socialWorkspace, /readiness\.configured \?/);
 });

@@ -34,6 +34,7 @@ import {
 } from "./handlers-r007";
 import { createBudgetPotHandler, listBudgetPotsHandler, updateBudgetPotHandler } from "./handlers-budgets";
 import { compensationPaymentsHandler, compensationProfilesHandler, obligationsHandler } from "./handlers-operations";
+import { stripeCheckoutHandler, stripeRefundHandler, stripeWebhookHandler } from "./handlers-stripe";
 
 const AGENCY_ADMINS = ["agency-owner", "agency-manager"] as const;
 const AGENCY_VIEWERS = ["agency-owner", "agency-manager", "agency-staff"] as const;
@@ -85,4 +86,11 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "operations/profiles", methods: ["POST", "PATCH"], handler: compensationProfilesHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "operations/payments", methods: ["GET"], handler: compensationPaymentsHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "operations/payments", methods: ["POST", "PATCH"], handler: compensationPaymentsHandler, visibleToRoles: [...AGENCY_ADMINS] },
+
+  // Online payments (Stripe). Money flows to Ed's own Stripe directly; the app
+  // never holds funds. The webhook is PUBLIC (Stripe has no session) — it
+  // resolves the agency from `?agencyId=` and trusts only the signed payload.
+  { path: "invoices/checkout", methods: ["POST"], handler: stripeCheckoutHandler, visibleToRoles: [...AGENCY_ADMINS] },
+  { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler, public: true },
+  { path: "payments/refund", methods: ["POST"], handler: stripeRefundHandler, visibleToRoles: [...AGENCY_ADMINS] },
 ];

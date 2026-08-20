@@ -1,3 +1,6 @@
+import type { ResolutionFocus } from "@/lib/inbox/resolutionContext";
+import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
+
 export type OperationalAlertSeverity = "critical" | "warning" | "notice";
 
 export type OperationalAlertCategory =
@@ -15,6 +18,23 @@ export type OperationalAlertCategory =
 
 export interface OperationalAlert {
   id: string;
+  /**
+   * How this alert can be dealt with, declared by whatever created it.
+   *
+   * Previously inferred at render time by matching the id against a prefix
+   * table. That broke the moment the same radar item started arriving under
+   * three different id forms: one prefix check, three shapes, silent wrong
+   * answer. A check knows what kind of thing it is; it should say so rather
+   * than leave the UI to guess from a string.
+   *
+   * Optional so existing alerts keep working — `resolutionKindOf` falls back
+   * to the prefix table when it is absent.
+   */
+  kind?: ResolutionKind;
+  /** What the destination should highlight. Declared, not inferred. */
+  focus?: ResolutionFocus;
+  /** The observable condition that clears it, in the check's own words. */
+  clearsWhen?: string;
   severity: OperationalAlertSeverity;
   category: OperationalAlertCategory;
   title: string;
@@ -32,6 +52,9 @@ export interface OperationalAlertView extends OperationalAlert {
   state: OperationalAlertViewState;
   attention: boolean;
   parkedUntil?: number;
+  /** How many times this has been put off. See OperationalAlertPreference. */
+  deferrals?: number;
+  firstDeferredAt?: number;
 }
 
 export type OperationalAlertAction = "read" | "unread" | "park" | "dismiss";

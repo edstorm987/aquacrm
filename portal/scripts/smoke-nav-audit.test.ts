@@ -7,8 +7,51 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { buildSidebar } from "../src/lib/chrome/sidebarLayout";
+import agencyHrManifest from "../src/built-ins/modules/agency-hr/index";
+import { retiredStaffRedirect, withQuery, CANONICAL_STAFF_HREF } from "../src/app/portal/agency/[...rest]/_retiredStaffRoute";
+import type { PluginInstall } from "../src/server/types";
+
+// The suite runs under `--conditions react-server`, where `react` has no
+// `createContext` — so `next/navigation`'s client build (the one plain Node
+// resolution picks) throws on import and any module importing it is
+// unloadable. Next itself ships a react-server build of the same module; swap
+// it into the CJS cache before anything pulls `next/navigation` in, so the real
+// `redirect()` can be driven here instead of grepped for. Must run before the
+// dynamic import of StaffPage below.
+const nextRequire = createRequire(import.meta.url);
+const NAVIGATION_CLIENT_BUILD = nextRequire.resolve("next/dist/client/components/navigation.js");
+(nextRequire as unknown as { cache: Record<string, unknown> }).cache[NAVIGATION_CLIENT_BUILD] = {
+  id: NAVIGATION_CLIENT_BUILD,
+  filename: NAVIGATION_CLIENT_BUILD,
+  path: NAVIGATION_CLIENT_BUILD,
+  loaded: true,
+  children: [],
+  paths: [],
+  exports: nextRequire("next/dist/client/components/navigation.react-server.js"),
+};
+
+// `redirect()` signals by throwing an error whose digest is
+// `NEXT_REDIRECT;<kind>;<url>;<status>;`. Run the real component and read the
+// destination back out; returns null when nothing redirected.
+async function redirectTargetOf(run: () => Promise<unknown>): Promise<string | null> {
+  try {
+    await run();
+    return null;
+  } catch (error) {
+    const digest = (error as { digest?: unknown }).digest;
+    if (typeof digest !== "string" || !digest.startsWith("NEXT_REDIRECT;")) throw error;
+    return digest.split(";")[2] ?? null;
+  }
+}
+
+function agencyHrInstall(): PluginInstall {
+  return { pluginId: "agency-hr", enabled: true, features: {}, config: {} } as unknown as PluginInstall;
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -31,6 +74,7 @@ const FINANCE_NAV = join(ROOT, "src", "built-ins", "modules", "agency-finance", 
 const FINANCE_PLANS = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "pages", "PlansPage.tsx");
 const FINANCE_LOCK_IN = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "pages", "LockInPage.tsx");
 const FINANCE_SETTINGS = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "pages", "SettingsPage.tsx");
+const FINANCE_SECTIONS_FILE = join(ROOT, "src", "built-ins", "modules", "agency-finance", "src", "lib", "sections.ts");
 const PIPELINE_PAGE = join(ROOT, "src", "app", "portal", "agency", "pipelines", "[slug]", "page.tsx");
 const CLIENTS_PAGE = join(ROOT, "src", "app", "portal", "clients", "page.tsx");
 const PEOPLE_HUB = join(ROOT, "src", "app", "portal", "clients", "_PeopleHub.tsx");
@@ -152,20 +196,34 @@ describe("standalone portal nav audit", () => {
     const marketing = read(MARKETING_PAGE);
     const workspaceNav = read(PLUGIN_WORKSPACE_NAV);
 
+    // P5 (2026-08-20) — deliberate contract update. Tools and Battle Table used
+    // to launch the agency-hr copy of the staff directory; both now launch the
+    // one canonical surface at /portal/agency/people.
     for (const href of [
       "/portal/agency/activity-inbox",
-      "/portal/agency/agency-hr",
+      "/portal/agency/people",
       "/portal/agency/email-sender",
       "/portal/agency/agency-marketing",
     ]) assert.ok(tools.includes(href), `${href} missing from Tools`);
-    assert.ok(battleTable.includes('href: "/portal/agency/agency-hr"'), "Battle Table should launch People operations");
+    assert.ok(tools.includes('href: "/portal/agency/people"'), "Tools should launch People operations at the canonical staff surface");
+    assert.ok(battleTable.includes('href: "/portal/agency/people"'), "Battle Table should launch People operations");
+    assert.ok(company.includes('href="/portal/agency/people"'), "Company workspace should launch People operations at the canonical staff surface");
     assert.ok(inbox.includes('href="/portal/agency/email-sender"'), "Master Inbox should launch Email operations");
     assert.ok(inbox.includes('href="/portal/agency/activity-inbox"'), "Master Inbox should launch Activity log");
     assert.ok(marketing.includes('href="/portal/agency/agency-marketing"'), "Marketing should launch templates and reporting");
     for (const destination of ["departments", "leave", "employees", "roles", "email-sender/logs", "agency-marketing/templates", "agency-marketing/reports", "agency-marketing/calendar", "agency-marketing/touchpoints", "agency-marketing/performance"]) {
       assert.ok(workspaceNav.includes(destination), `${destination} missing from contextual workspace navigation`);
     }
-    assert.ok(read(CATCHALL).includes('["agency-hr", "email-sender", "agency-marketing"]'), "visible optional workspaces should activate when opened");
+    // agency-hr stays in the provisioning list: its Departments / Leave /
+    // Employees / Roles / Settings pages are still reached through the
+    // catch-all and must activate on first open. Asserted per-id rather than as
+    // one literal so a formatting change cannot silently drop a workspace.
+    const catchAll = read(CATCHALL);
+    const provisioning = /\[([^\]]*)\]\.includes\(workspacePluginId\)/.exec(catchAll);
+    assert.ok(provisioning, "catch-all should gate provisioning on an explicit workspace list");
+    for (const pluginId of ["agency-hr", "email-sender", "agency-marketing"]) {
+      assert.ok(provisioning![1].includes(`"${pluginId}"`), `${pluginId} missing from the catch-all provisioning list`);
+    }
     assert.ok(read(CATCHALL).includes("mayProvisionWorkspace"), "only agency administrators should activate optional workspaces");
     assert.ok(workspaceNav.includes("item.adminOnly"), "administrative workspace links should stay role-gated");
   });
@@ -174,11 +232,15 @@ describe("standalone portal nav audit", () => {
     const company = read(COMPANY_WORKSPACE);
     const search = read(SEARCH_ROUTE);
     const nav = read(FINANCE_NAV);
+    const sections = read(FINANCE_SECTIONS_FILE);
     assert.ok(company.includes("/portal/agency/agency-finance/payments"));
     assert.ok(search.includes("/portal/agency/agency-finance/payments?entry="));
     assert.ok(!company.includes("/portal/agency/agency-finance/income"));
     assert.ok(!search.includes("/portal/agency/agency-finance/income"));
-    for (const href of ["/plans", "/lock-in", "/settings"]) assert.ok(nav.includes(href), `${href} missing from Finance navigation`);
+    // The finance sub-nav derives from one canonical section list, so the
+    // in-page tabs and the plugin manifest cannot drift apart.
+    assert.ok(nav.includes("FINANCE_SECTIONS"), "FinanceNav should derive from the canonical section list");
+    for (const href of ["/plans", "/lock-in", "/settings"]) assert.ok(sections.includes(href), `${href} missing from Finance sections`);
     assert.ok(read(FINANCE_PLANS).includes('<FinanceNav active="plans" />'));
     assert.ok(read(FINANCE_LOCK_IN).includes('<FinanceNav active="deposits" />'));
     assert.ok(read(FINANCE_SETTINGS).includes('<FinanceNav active="settings" />'));
@@ -464,5 +526,120 @@ describe("standalone portal nav audit", () => {
     assert.ok(chrome.includes('href: "/portal/customer/bookings"'));
     assert.ok(read(ORDER_DETAIL).includes("receiptHref"), "order toolbar should expose the receipt");
     assert.ok(read(ORDER_DETAIL_PAGE).includes("/receipt`"), "order detail should build the mounted receipt URL");
+  });
+
+  // --- P5: the duplicate Staff surface is retired -----------------------------
+  //
+  // Behavioural, not shape: these drive the real manifest, the real
+  // `buildSidebar`, the real redirect map, and the real StaffPage component.
+
+  it("the agency-hr plugin exposes no nav item labelled Staff", () => {
+    // 1. The manifest itself no longer contributes a Staff row.
+    const labels = agencyHrManifest.navItems.map(item => item.label);
+    assert.ok(
+      !labels.some(label => label.trim().toLocaleLowerCase() === "staff"),
+      `agency-hr should contribute no "Staff" nav item, got: ${labels.join(", ")}`,
+    );
+    assert.ok(
+      !agencyHrManifest.navItems.some(item => item.id === "agency-hr.staff"),
+      "the agency-hr.staff nav item should be gone",
+    );
+    assert.ok(
+      !agencyHrManifest.navItems.some(item => item.href === "/portal/agency/agency-hr" || item.href === "/portal/agency/agency-hr/staff"),
+      "no agency-hr nav item should point at the retired staff paths",
+    );
+
+    // 2. The pages that have no core equivalent survive — this must retire one
+    //    surface, not gut the plugin.
+    for (const id of ["agency-hr.departments", "agency-hr.leave", "agency-hr.employees", "agency-hr.roles", "agency-hr.settings"]) {
+      assert.ok(agencyHrManifest.navItems.some(item => item.id === id), `${id} should still be in the agency-hr manifest`);
+    }
+    // 3. And the plugin is still installed/intact: the permission model that
+    //    effectiveRole.ts and sopsAccess.ts import lives here.
+    assert.equal(agencyHrManifest.id, "agency-hr");
+    assert.ok(agencyHrManifest.pages.some(page => page.path === "departments"), "agency-hr should still mount its Departments page");
+
+    // 4. End state: assembling the real sidebar with agency-hr installed AND
+    //    enabled yields exactly one item labelled "Staff", and it is the core
+    //    /portal/agency/people row.
+    const panels = buildSidebar({
+      role: "agency-owner",
+      scope: "agency",
+      installedPlugins: [agencyHrInstall()],
+    });
+    const allItems = panels.flatMap(panel => panel.items);
+    const staffItems = allItems.filter(item => item.label.trim().toLocaleLowerCase() === "staff");
+    assert.equal(staffItems.length, 1, `expected exactly one Staff sidebar item, got ${staffItems.map(i => `${i.id}→${i.href}`).join(", ")}`);
+    assert.equal(staffItems[0].href, CANONICAL_STAFF_HREF);
+    assert.ok(
+      allItems.every(item => !item.href.startsWith("/portal/agency/agency-hr")),
+      "no sidebar row should point into the agency-hr workspace",
+    );
+
+    // 5. Because the AquaOasis agency override in sidebarLayout.ts filters the
+    //    agency sidebar down to a fixed list of core ids, agency-hr contributes
+    //    no sidebar row at all — so its surviving pages need an explicit entry
+    //    point or they are orphaned. Tools carries it.
+    const tools = read(TOOLS_PAGE);
+    assert.ok(
+      tools.includes('href: "/portal/agency/agency-hr/departments"'),
+      "Tools must keep an entry point into the surviving agency-hr pages, or Departments/Leave/Employees/Roles/Settings become unreachable",
+    );
+  });
+
+  it("/portal/agency/agency-hr and /portal/agency/agency-hr/staff both redirect to /portal/agency/people", async () => {
+    // Layer 1 — the catch-all's redirect map, executed. The page module itself
+    // pulls next/link and client components and cannot be imported here, so the
+    // decision it delegates to is imported and driven directly.
+    assert.equal(retiredStaffRedirect(["agency-hr"]), "/portal/agency/people");
+    assert.equal(retiredStaffRedirect(["agency-hr", "staff"]), "/portal/agency/people");
+    // …and the query string survives, including repeated keys. A redirect that
+    // drops ?dept=… silently discards the operator's filter.
+    assert.equal(
+      retiredStaffRedirect(["agency-hr"], { dept: "design", status: ["active", "leave"] }),
+      "/portal/agency/people?dept=design&status=active&status=leave",
+    );
+    assert.equal(
+      retiredStaffRedirect(["agency-hr", "staff"], { q: "sam smith" }),
+      "/portal/agency/people?q=sam+smith",
+    );
+    assert.equal(withQuery("/x", { a: undefined }), "/x", "absent params should not produce a bare ?");
+    // Everything else falls through untouched — the surviving plugin pages must
+    // not be swallowed by the retirement.
+    for (const rest of [["agency-hr", "departments"], ["agency-hr", "leave"], ["agency-hr", "employees"], ["agency-hr", "roles"], ["agency-hr", "settings"], ["agency-hr", "staff", "extra"], ["agency-finance"], ["email-sender"]]) {
+      assert.equal(retiredStaffRedirect(rest), null, `/${rest.join("/")} should not be redirected`);
+    }
+
+    // …and the catch-all actually performs that redirect, before it resolves a
+    // plugin page.
+    const catchAll = read(CATCHALL);
+    assert.ok(catchAll.includes("retiredStaffRedirect(rest, sp)"), "catch-all should consult the retirement map with the live segments and query");
+    assert.ok(catchAll.includes("if (retiredStaff) redirect(retiredStaff)"), "catch-all should redirect when the retirement map matches");
+    assert.ok(
+      catchAll.indexOf("retiredStaffRedirect(rest, sp)") < catchAll.indexOf("resolveAgencyPluginPage({"),
+      "the retirement redirect must run before plugin page resolution",
+    );
+
+    // Layer 2 — the plugin page itself, executed. Even reached directly it
+    // redirects, and it too keeps the query string.
+    const { default: StaffPage } = await import("../src/built-ins/modules/agency-hr/src/pages/StaffPage");
+    assert.equal(
+      await redirectTargetOf(() => StaffPage({ agencyId: "ag_1", searchParams: {} } as never)),
+      "/portal/agency/people",
+    );
+    assert.equal(
+      await redirectTargetOf(() => StaffPage({ agencyId: "ag_1", searchParams: { dept: "design", status: ["active", "leave"] } } as never)),
+      "/portal/agency/people?dept=design&status=active&status=leave",
+    );
+    // Both retired manifest paths resolve to that same component.
+    const staffPaths = agencyHrManifest.pages.filter(page => page.path === "" || page.path === "staff");
+    assert.equal(staffPaths.length, 2, "both retired paths should still resolve (redirect) rather than 404");
+    for (const page of staffPaths) {
+      const mod = await page.component();
+      assert.equal(
+        await redirectTargetOf(() => (mod.default as (props: never) => Promise<unknown>)({ agencyId: "ag_1", searchParams: {} } as never)),
+        "/portal/agency/people",
+      );
+    }
   });
 });

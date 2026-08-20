@@ -108,7 +108,7 @@ export class CommercialService {
       actorUserId: actor,
       category: "leads",
       action: existing ? "commercial.updated" : "commercial.created",
-      message: `${existing ? "Updated" : "Created"} commercial pack ${pack.invoiceNumber} for ${pack.recipientEmail}.`,
+      message: `${existing ? "Updated" : "Created"} commercial pack ${pack.invoiceNumber} for ${pack.partyKind} ${pack.partyId}.`,
       metadata: { commercialPackId: pack.id, partyKind: pack.partyKind, partyId: pack.partyId },
     });
     return pack;
@@ -171,7 +171,7 @@ export class CommercialService {
       actorUserId: actor,
       category: "leads",
       action: "commercial.sent",
-      message: `Sent ${pack.invoiceNumber} and agreement to ${pack.recipientEmail}.`,
+      message: `Sent ${pack.invoiceNumber} and agreement to ${pack.partyKind} ${pack.partyId}.`,
       metadata: { commercialPackId: pack.id, messageId: result.messageId },
     });
     return next;
@@ -187,7 +187,7 @@ export class CommercialService {
       agencyId: this.agencyId,
       category: "leads",
       action: "commercial.agreement.accepted",
-      message: `${acceptedBy || pack.recipientEmail} accepted ${pack.agreementTitle}.`,
+      message: `${pack.partyKind} ${pack.partyId} accepted ${pack.agreementTitle}.`,
       metadata: { commercialPackId: pack.id, acceptedBy },
     });
     return next;
@@ -257,6 +257,25 @@ export class CommercialService {
   async setFinanceInvoiceId(kind: CommercialPartyKind, partyId: string, financeInvoiceId: string): Promise<void> {
     const pack = await this.get(kind, partyId);
     if (pack) await this.persist({ ...pack, financeInvoiceId, updatedAt: now() });
+  }
+
+  // Right-to-be-forgotten: strip the recipient's identity from a pack, keep the
+  // invoice + agreement. RETAIN-with-PII-stripped, the same disposition the
+  // ecommerce hook applies to orders (keep the money record and its refs, drop
+  // the person) — a commercial pack is the finance/contract record held for
+  // legal defence under GDPR Art. 17(3)(e). Idempotent: a second run finds
+  // nothing left to strip and returns false.
+  //
+  // NOTE: `agreementBody` and any `signedDocumentDataUrl` are deliberately
+  // retained — they ARE the signed contract. Free text a human typed into
+  // either may still name the recipient; that is a legal-hold record, not a
+  // handle the erasure sweep should rewrite.
+  async stripIdentityForErasure(kind: CommercialPartyKind, partyId: string): Promise<boolean> {
+    const pack = await this.get(kind, partyId);
+    if (!pack) return false;
+    if (!pack.recipientEmail && !pack.recipientName) return false;
+    await this.persist({ ...pack, recipientEmail: "", recipientName: undefined, updatedAt: now() });
+    return true;
   }
 
   private async persist(pack: CommercialPack): Promise<void> {

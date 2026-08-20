@@ -9,9 +9,7 @@ import type {
 } from "./src/lib/aquaPluginTypes";
 import { ROUTES } from "./src/api/routes";
 import { _containerFromCtx } from "./src/server/foundationAdapter";
-
-const AGENCY_ADMINS = ["agency-owner", "agency-manager"] as const;
-const AGENCY_VIEWERS = ["agency-owner", "agency-manager", "agency-staff"] as const;
+import { FINANCE_SECTIONS } from "./src/lib/sections";
 
 const manifest: AquaPlugin = {
   id: "agency-finance",
@@ -29,97 +27,24 @@ const manifest: AquaPlugin = {
 
   core: true,
   scopePolicy: "agency",
+  // Legal hold: invoices/payments survive client erasure — statutory finance
+  // retention + the legal-defence record (GDPR Art. 17(3)(e)).
+  dataDisposition: "retain",
 
-  navItems: [
-    {
-      id: "agency-finance.invoices",
-      label: "Invoices",
-      href: "/portal/agency/agency-finance/invoices",
-      panelId: "agency-finance",
-      order: 10,
-      visibleToRoles: [...AGENCY_VIEWERS],
-    },
-    {
-      id: "agency-finance.expenses",
-      label: "Expenses",
-      href: "/portal/agency/agency-finance/expenses",
-      panelId: "agency-finance",
-      order: 20,
-      visibleToRoles: [...AGENCY_VIEWERS],
-    },
-    {
-      id: "agency-finance.reports",
-      label: "Revenue",
-      href: "/portal/agency/agency-finance/reports",
-      panelId: "agency-finance",
-      order: 30,
-      visibleToRoles: [...AGENCY_VIEWERS],
-    },
-    {
-      id: "agency-finance.budgets",
-      label: "Budgets",
-      href: "/portal/agency/agency-finance/budgets",
-      panelId: "agency-finance",
-      order: 31,
-      visibleToRoles: [...AGENCY_ADMINS],
-    },
-    {
-      id: "agency-finance.planning",
-      label: "Planning",
-      href: "/portal/agency/agency-finance/planning",
-      panelId: "agency-finance",
-      order: 32,
-      visibleToRoles: [...AGENCY_ADMINS],
-    },
-    {
-      id: "agency-finance.operations",
-      label: "Finance operations",
-      href: "/portal/agency/agency-finance/operations",
-      panelId: "agency-finance",
-      order: 33,
-      visibleToRoles: [...AGENCY_ADMINS],
-    },
-    {
-      id: "agency-finance.payments",
-      label: "Income",
-      href: "/portal/agency/agency-finance/payments",
-      panelId: "agency-finance",
-      order: 35,
-      visibleToRoles: [...AGENCY_VIEWERS],
-    },
-    {
-      id: "agency-finance.plans",
-      label: "Plans",
-      href: "/portal/agency/agency-finance/plans",
-      panelId: "agency-finance",
-      order: 40,
-      visibleToRoles: [...AGENCY_VIEWERS],
-    },
-    {
-      id: "agency-finance.lock-in",
-      label: "Deposits",
-      href: "/portal/agency/agency-finance/lock-in",
-      panelId: "agency-finance",
-      order: 45,
-      visibleToRoles: [...AGENCY_VIEWERS],
-    },
-    {
-      id: "agency-finance.founder",
-      label: "Finance overview",
-      href: "/portal/agency/agency-finance/founder",
-      panelId: "agency-finance",
-      order: 50,
-      visibleToRoles: [...AGENCY_ADMINS],
-    },
-    {
-      id: "agency-finance.settings",
-      label: "Settings",
-      href: "/portal/agency/agency-finance/settings",
-      panelId: "agency-finance",
-      order: 99,
-      visibleToRoles: [...AGENCY_ADMINS],
-    },
-  ],
+  // Derived from the one canonical section list (./src/lib/sections.ts) so the
+  // sidebar nav and the in-page FinanceNav tabs can never drift apart. NOTE:
+  // in the current AquaOasis-Web sidebar these items are filtered by the
+  // canonical-id allow-list in sidebarLayout.ts, so the visible sidebar entry
+  // is the foundation's single "finance" item — these describe the sections
+  // for the in-page nav + future chrome. See docs hazards for the full story.
+  navItems: FINANCE_SECTIONS.map(section => ({
+    id: `agency-finance.${section.key}`,
+    label: section.label,
+    href: section.href,
+    panelId: "agency-finance",
+    order: section.order,
+    visibleToRoles: [...section.roles],
+  })),
 
   pages: [
     { path: "", component: () => import("./src/pages/FounderDashboardPage") },
@@ -133,7 +58,6 @@ const manifest: AquaPlugin = {
     { path: "payments", component: () => import("./src/pages/PaymentsPage") },
     { path: "plans", component: () => import("./src/pages/PlansPage") },
     { path: "lock-in", component: () => import("./src/pages/LockInPage") },
-    { path: "founder", component: () => import("./src/pages/FounderDashboardPage") },
     { path: "settings", component: () => import("./src/pages/SettingsPage") },
   ],
 
@@ -188,6 +112,38 @@ const manifest: AquaPlugin = {
             type: "number",
             default: 0,
             helpText: "Future round — value stored, not yet enforced. v1 keeps approvals manual.",
+          },
+        ],
+      },
+      {
+        id: "online-payments",
+        label: "Online payments (Stripe)",
+        fields: [
+          {
+            id: "stripeSecretKey",
+            label: "Stripe secret key",
+            type: "password",
+            placeholder: "sk_test_… (start with a TEST key)",
+            helpText: "Your own Stripe key — money flows to your Stripe account directly; the app never holds funds. Use a TEST key (sk_test_…) until you have verified the flow end to end.",
+          },
+          {
+            id: "stripeWebhookSecret",
+            label: "Stripe webhook signing secret",
+            type: "password",
+            placeholder: "whsec_…",
+            helpText: "From your Stripe webhook endpoint. Point the endpoint at /api/portal/agency-finance/stripe/webhook?agencyId=<your agency id>. Required to verify incoming events.",
+          },
+          {
+            id: "successUrl",
+            label: "Payment success URL (optional)",
+            type: "text",
+            placeholder: "Defaults to the invoice page",
+          },
+          {
+            id: "cancelUrl",
+            label: "Payment cancel URL (optional)",
+            type: "text",
+            placeholder: "Defaults to the invoice page",
           },
         ],
       },

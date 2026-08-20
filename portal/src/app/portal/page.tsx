@@ -14,6 +14,9 @@ export default async function PortalIndex() {
 
   if (session.role === "agency-staff") redirect("/portal/team");
   if (isAgencyRole(session.role)) redirect("/portal/agency");
+  // A freelancer sees their OWN limited workspace, never the agency-side client
+  // workspace — so branch before the client-role fall-through below.
+  if (session.role === "freelancer") redirect("/portal/freelancer");
   if (isClientRole(session.role) && session.clientId) redirect(`/portal/clients/${session.clientId}`);
   if (session.role === "end-customer") redirect("/portal/customer");
   redirect("/login");

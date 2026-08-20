@@ -1,0 +1,76 @@
+# `src/server/pluginInstalls.ts`
+
+← [File index](../../../files-index.md) · Area: State layer — src/server/
+
+_No file-level doc-comment. Purpose inferred from its path (State layer — src/server/) and its exports below._
+
+## Exports (10)
+
+- `makeInstallId(scope: PluginInstallScope, pluginId: string): string`
+- `getInstall(scope: PluginInstallScope, pluginId: string): PluginInstall | null`
+- `getInstallById(id: string): PluginInstall | null`
+- `listInstalledFor(scope: PluginInstallScope): PluginInstall[]`
+- `listInstalledForClientOnly(scope: PluginInstallScope): PluginInstall[]`
+- `listInstalledForAgencyOnly(agencyId: string): PluginInstall[]`
+- `interface UpsertPluginInstallInput (7 members)`
+- `upsertInstall(input: UpsertPluginInstallInput): PluginInstall`
+- `patchInstall(scope: PluginInstallScope, pluginId: string, patch: Partial<Pick<PluginInstall, "enabled" | "config" | "features" | "setupAnswers">>): PluginInstall | null`
+- `deleteInstall(scope: PluginInstallScope, pluginId: string): boolean`
+
+## Depends on (2)
+
+- [`src/server/storage.ts`](./storage.md)
+- [`src/server/types.ts`](./types.md)
+
+## Used by (49)
+
+- [`src/app/api/portal/journey/payment-request/route.ts`](../app/api/portal/journey/payment-request/route.md)
+- [`src/app/api/portal/search/route.ts`](../app/api/portal/search/route.md)
+- [`src/app/api/portal/settings/route.ts`](../app/api/portal/settings/route.md)
+- [`src/app/api/portal/website-enquiries/classification/route.ts`](../app/api/portal/website-enquiries/classification/route.md)
+- [`src/app/api/portal/website-enquiries/lead/route.ts`](../app/api/portal/website-enquiries/lead/route.md)
+- [`src/app/api/public/brand-enquiry/route.ts`](../app/api/public/brand-enquiry/route.md)
+- [`src/app/api/public/contact/route.ts`](../app/api/public/contact/route.md)
+- [`src/app/api/tenants/client-payment-plans/route.ts`](../app/api/tenants/client-payment-plans/route.md)
+- [`src/app/api/tenants/close-deal/route.ts`](../app/api/tenants/close-deal/route.md)
+- [`src/app/client-website-preview/[clientId]/[siteId]/[pageId]/page.tsx`](../app/client-website-preview/[clientId]/[siteId]/[pageId]/page.md)
+- [`src/app/portal/agency/[...rest]/page.tsx`](../app/portal/agency/[...rest]/page.md)
+- [`src/app/portal/agency/actions/_ActionsPage.tsx`](../app/portal/agency/actions/_ActionsPage.md)
+- [`src/app/portal/agency/development/page.tsx`](../app/portal/agency/development/page.md)
+- [`src/app/portal/agency/layout.tsx`](../app/portal/agency/layout.md)
+- [`src/app/portal/agency/marketing/page.tsx`](../app/portal/agency/marketing/page.md)
+- [`src/app/portal/agency/performance/page.tsx`](../app/portal/agency/performance/page.md)
+- [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](../app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.md)
+- [`src/app/portal/agency/pipelines/[slug]/page.tsx`](../app/portal/agency/pipelines/[slug]/page.md)
+- [`src/app/portal/agency/settings/page.tsx`](../app/portal/agency/settings/page.md)
+- [`src/app/portal/agency/you-deserve-it/page.tsx`](../app/portal/agency/you-deserve-it/page.md)
+- [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
+- [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
+- [`src/app/portal/customer/_portalData.ts`](../app/portal/customer/_portalData.md)
+- [`src/app/portal/customer/_subroute.tsx`](../app/portal/customer/_subroute.md)
+- [`src/app/portal/customer/orders/page.tsx`](../app/portal/customer/orders/page.md)
+- [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](../built-ins/modules/leads-pipeline/src/pages/CampaignsPage.md)
+- [`src/built-ins/runtime/_routeResolver.ts`](../built-ins/runtime/_routeResolver.md)
+- [`src/built-ins/runtime/_runtime.ts`](../built-ins/runtime/_runtime.md)
+- [`src/built-ins/runtime/foundation-adapters/_crossPluginPorts.ts`](../built-ins/runtime/foundation-adapters/_crossPluginPorts.md)
+- [`src/built-ins/runtime/foundation-adapters/_eventSubscribers.ts`](../built-ins/runtime/foundation-adapters/_eventSubscribers.md)
+- [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](../built-ins/runtime/foundation-adapters/_foundationPorts.md)
+- [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
+- [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](../built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.md)
+- [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](../built-ins/runtime/foundation-adapters/portalVariantAdapter.md)
+- [`src/lib/server/aquaOasisSeed.ts`](../lib/server/aquaOasisSeed.md)
+- [`src/lib/server/brandPortfolio.ts`](../lib/server/brandPortfolio.md)
+- [`src/lib/server/clientDelightExpense.ts`](../lib/server/clientDelightExpense.md)
+- [`src/lib/server/clientRadar.ts`](../lib/server/clientRadar.md)
+- [`src/lib/server/commandIntelligence.ts`](../lib/server/commandIntelligence.md)
+- [`src/lib/server/commercialProposal.ts`](../lib/server/commercialProposal.md)
+- [`src/lib/server/companyHealthSnapshot.ts`](../lib/server/companyHealthSnapshot.md)
+- [`src/lib/server/demoSeed.ts`](../lib/server/demoSeed.md)
+- [`src/lib/server/embedAllowResolver.ts`](../lib/server/embedAllowResolver.md)
+- [`src/lib/server/financeBudgetCampaigns.ts`](../lib/server/financeBudgetCampaigns.md)
+- [`src/lib/server/financeCurrency.ts`](../lib/server/financeCurrency.md)
+- [`src/lib/server/financeWorkforce.ts`](../lib/server/financeWorkforce.md)
+- [`src/lib/server/operationalAlerts.ts`](../lib/server/operationalAlerts.md)
+- [`src/lib/server/showcaseMode.ts`](../lib/server/showcaseMode.md)
+- [`src/lib/server/websiteEnquiryLeadSync.ts`](../lib/server/websiteEnquiryLeadSync.md)
+

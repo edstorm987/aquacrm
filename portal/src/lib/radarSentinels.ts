@@ -3,6 +3,7 @@ import type {
   AdvisorDomain,
   BusinessRadarCheck,
   BusinessRadarIssue,
+  RadarCoverageManifest,
   RadarEvidenceDigest,
   RadarCheckScope,
   RadarCheckStatus,
@@ -64,9 +65,11 @@ export function buildRadarWatchdogChecks(input: {
   telemetry: RadarTelemetrySnapshot;
   correlationIssues: readonly BusinessRadarIssue[];
   evidence?: RadarEvidenceDigest;
+  /** Entity coverage manifest (radar upgrade Stage 6). When present, adds the coverage-gaps self-check. */
+  coverageManifest?: RadarCoverageManifest;
   now: number;
 }): BusinessRadarCheck[] {
-  const { checks, coverage, telemetry, correlationIssues, evidence, now } = input;
+  const { checks, coverage, telemetry, correlationIssues, evidence, coverageManifest, now } = input;
   const ids = checks.map(check => check.id);
   const uniqueIds = new Set(ids);
   const domains = new Map<AdvisorDomain, number>();
@@ -101,6 +104,25 @@ export function buildRadarWatchdogChecks(input: {
     { id: "correlation-engine", label: "Correlation engine execution", lens: "continuity", status: "pass", detail: "Confirms compound-risk and domain-cluster evaluation completed during this sweep.", evidence: [`${correlationIssues.length} correlated risks emitted`, "Correlation engine completed"] },
     { id: "source-availability", label: "Source availability guardrail", lens: "resilience", status: unavailableSources.length ? "critical" : "pass", detail: unavailableSources.length ? "One or more registered evidence sources are disconnected or unavailable." : "Every registered source is connected or explicitly reporting an empty state.", evidence: unavailableSources.length ? unavailableSources.map(source => `${source.label}: ${source.status}`) : [`${coverage.length} sources available`] },
   ];
+
+  // Coverage-gaps self-check (radar upgrade Stage 6) — proves the seeder covers
+  // every monitorable entity. Added only when a manifest is supplied so existing
+  // watchdog callers keep their check count.
+  if (coverageManifest) {
+    const { entries, gaps, fallback, calibrating } = coverageManifest;
+    rules.push({
+      id: "coverage-gaps",
+      label: "Entity coverage completeness",
+      lens: "connection",
+      status: gaps > 0 ? "critical" : fallback > 0 ? "watch" : "pass",
+      detail: gaps > 0
+        ? `${gaps} active entit${gaps === 1 ? "y has" : "ies have"} no radar pack — a blind spot in coverage seeding.`
+        : fallback > 0
+          ? `${fallback} entit${fallback === 1 ? "y is" : "ies are"} covered by the generic fallback pack; a bespoke template would monitor them better.`
+          : `All ${entries.length} monitorable entit${entries.length === 1 ? "y resolves" : "ies resolve"} to a radar detector pack.`,
+      evidence: [`${entries.length} entities`, `${coverageManifest.covered} bespoke`, `${fallback} fallback`, `${gaps} gaps`, `${calibrating} calibrating`],
+    });
+  }
 
   return rules.map(rule => sentinel({
     domain: "systems",

@@ -97,7 +97,7 @@ export class WebhookService {
           clientId: message.clientId,
           category: "email",
           action: "email.delivered",
-          message: `Email delivered to ${recipient}.`,
+          message: `Email delivered (message ${message.id}).`,
           metadata: { messageId: message.id, externalRef: message.externalRef },
         });
         applied = true;

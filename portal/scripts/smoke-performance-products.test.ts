@@ -46,14 +46,13 @@ async function fresh() {
 describe("agency products", () => {
   it("seeds the reusable catalogue once and supports custom product lifecycle", async () => {
     const { agency } = await fresh();
+    // Standard portal seeds exactly one product — Website. The rest of the
+    // catalogue is available to add later, not seeded up front (Aug 2026).
     const seeded = products.ensureDefaultAgencyProducts(agency.id);
-    assert.equal(seeded.length, 11);
-    assert.deepEqual(
-      seeded.filter(product => product.category === "Lead magnets").map(product => product.name).sort(),
-      ["Business OS", "Digital health check"],
-    );
-    assert.equal(products.ensureDefaultAgencyProducts(agency.id).length, 11);
-    assert.equal(seeded.find(product => product.name === "Website")?.portalTemplateKey, "website");
+    assert.equal(seeded.length, 1);
+    assert.equal(seeded[0]?.name, "Website");
+    assert.equal(seeded[0]?.portalTemplateKey, "website");
+    assert.equal(products.ensureDefaultAgencyProducts(agency.id).length, 1, "re-running the seed does not multiply products");
 
     const custom = products.createAgencyProduct(agency.id, {
       name: "Launch photography",
@@ -83,7 +82,7 @@ describe("agency products", () => {
       sopIds: ["sop_shoot"],
       sopCategories: ["Photography"],
     }, "tester");
-    assert.equal(products.listAgencyProducts(agency.id).length, 12);
+    assert.equal(products.listAgencyProducts(agency.id).length, 2);
     assert.equal(custom.priceCents, 75_000);
     assert.equal(custom.contractTitle, "Launch photography agreement");
     assert.match(custom.contractBody ?? "", /delivery and payment/);
@@ -100,11 +99,15 @@ describe("agency products", () => {
 
     const archived = products.updateAgencyProduct(agency.id, custom.id, { active: false }, "tester");
     assert.equal(archived?.active, false);
-    assert.equal(products.listAgencyProducts(agency.id).length, 11);
-    assert.equal(products.listAgencyProducts(agency.id, true).length, 12);
+    assert.equal(products.listAgencyProducts(agency.id).length, 1);
+    assert.equal(products.listAgencyProducts(agency.id, true).length, 2);
 
+    // Photography is no longer seeded, so create it explicitly for the package.
     const website = seeded.find(product => product.name === "Website")!;
-    const photography = seeded.find(product => product.name === "Photography")!;
+    const photography = products.createAgencyProduct(agency.id, {
+      name: "Photography", category: "Creative", portalTemplateKey: "photography",
+      deliverables: ["Planning", "Shoot", "Edited gallery"],
+    }, "tester");
     const packageProduct = products.createAgencyProduct(agency.id, {
       kind: "package",
       name: "Launch package",

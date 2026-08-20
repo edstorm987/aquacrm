@@ -45,6 +45,26 @@ const DESTINATION_LABELS: Record<string, string> = {
   people: "Staff",
 };
 
+/**
+ * How far repeatedly-deferred work is promoted up the queue.
+ *
+ * The shield caps the focus window, which is what makes it useful — but it
+ * also means a job put off ten times can sit in the reserve forever, never
+ * surfacing precisely because it keeps being pushed back. "You keep swerving
+ * this" is a reason to look at something, not a reason to hide it.
+ *
+ * Exactly one tier, never more. Deferring a job does not make it more
+ * important than a live outage, and letting the count climb without limit
+ * would let stale annoyances outrank genuine emergencies. One tier is enough
+ * to break out of the reserve without reordering the top of the queue.
+ */
+export const DEFERRALS_BEFORE_PROMOTION = 3;
+
+export function promoteForDeferrals(rank: number, deferrals?: number): number {
+  if ((deferrals ?? 0) < DEFERRALS_BEFORE_PROMOTION) return rank;
+  return Math.max(0, rank - 1);
+}
+
 export function buildProtectedAttentionWindow<T>(items: readonly T[], options: {
   groupKey: (item: T) => string;
   urgencyRank: (item: T) => number;
@@ -138,7 +158,10 @@ export function buildOperationalAttentionWindow(alerts: readonly OperationalAler
   const eligible = alerts.filter(alert => alert.state !== "parked" && (alert.attention || alert.persistentUntilResolved));
   const window = buildProtectedAttentionWindow(eligible, {
     groupKey: destinationForOperationalAlert,
-    urgencyRank: alert => alert.severity === "critical" ? 0 : alert.severity === "warning" ? 1 : 2,
+    urgencyRank: alert => promoteForDeferrals(
+      alert.severity === "critical" ? 0 : alert.severity === "warning" ? 1 : 2,
+      alert.deferrals,
+    ),
     enabled: options.enabled,
   });
   const reserveDestinations = window.reserveGroups.map(group => {

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Eye, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
+import { ChevronDown, Eye, FlaskConical, Gauge, LogOut, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import type { Role } from "@/server/types";
 import { PERFORMANCE_MODE_EVENT, PERFORMANCE_MODE_STORAGE_KEY, performanceModeEnabled, setPerformanceMode } from "@/lib/chrome/performanceMode";
+import { DEV_MODE_LOADIN_KEY } from "@/lib/chrome/devModeLoadIn";
 import { useNotificationAttention } from "./NotificationAttentionProvider";
 import { ColorModeToggle } from "./ColorModeToggle";
 import { QuickNoteWindow } from "./QuickNoteWindow";
@@ -26,6 +27,12 @@ interface Props {
   name?: string;
   avatarUrl?: string;
   accountLabel?: string;
+  /** Dev Mode (local/dev only) — show the demo-persona toggle row. Server
+   *  computes this from `canUseDevMode()` + founder; defaults off. */
+  canUseDevMode?: boolean;
+  /** True when the current session is already a Dev Mode demo session
+   *  (`devReturnAgencyId` set) — the toggle then reads "on" and exits. */
+  devModeActive?: boolean;
 }
 
 function initials(seed: string): string {
@@ -44,13 +51,48 @@ function accountDisplayName(name: string | undefined, email: string): string {
   return firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
 }
 
-export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "AquaCRM account" }: Props) {
+export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "AquaCRM account", canUseDevMode = false, devModeActive = false }: Props) {
   const attention = useNotificationAttention();
   const display = accountDisplayName(name, email);
   const firstName = display.split(/\s+/)[0] || "Account";
   const [open, setOpen] = useState(false);
   const [quickNoteOpen, setQuickNoteOpen] = useState(false);
   const [performanceMode, setPerformanceModeState] = useState(false);
+  const [devBusy, setDevBusy] = useState(false);
+
+  // Opening the Dev Team workspace does NOT change who you are.
+  //
+  // It used to mint a demo-owner session, which meant the founder browsing his
+  // own dev workspace was suddenly a different account looking at demo data.
+  // The workspace is gated on founder + Dev Mode already, so entering it is
+  // plain navigation: Ed stays Ed, on his real account and real data, just
+  // inside the workspace. Identity only changes when he deliberately INSPECTS a
+  // persona (Dev Team → Profiles), and exiting that inspection returns him
+  // here — the Showcase Mode shape.
+  //
+  // Leaving is navigation too. A session still carrying `devReturn*` (an agent
+  // or a dev who entered the old way, or an inspection) is restored through the
+  // mint route so they land back on their real account.
+  async function toggleDevMode() {
+    if (devBusy) return;
+    if (!devModeActive) {
+      window.location.assign("/portal/dev-team");
+      return;
+    }
+    setDevBusy(true);
+    try {
+      const response = await fetch("/api/auth/dev-mode", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "exit" }),
+      });
+      const result = await response.json() as { ok?: boolean; redirect?: string; error?: string };
+      if (!response.ok || !result.ok) throw new Error(result.error || "Dev Mode could not be changed.");
+      window.location.assign(result.redirect || "/portal/agency");
+    } catch {
+      setDevBusy(false);
+    }
+  }
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const attentionLevel = attention?.attentionWindow.level;
   const showFocusProtection = role.startsWith("agency-") && (attentionLevel === "elevated" || attentionLevel === "overload");
@@ -177,6 +219,27 @@ export function ProfileMenu({ email, role, name, avatarUrl, accountLabel = "Aqua
                 </span>
                 <span aria-hidden="true" data-enabled={focusProtectionEnabled} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
                   <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={focusProtectionEnabled} />
+                </span>
+              </button>
+            ) : null}
+            {canUseDevMode ? (
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={devModeActive}
+                disabled={devBusy}
+                onClick={() => void toggleDevMode()}
+                className="mm-dev-mode-toggle flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#2A2520] hover:bg-[#F4ECD9] disabled:opacity-60"
+              >
+                <FlaskConical size={16} className="text-[#8E7340]" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">Dev Mode</span>
+                  <span className="mt-0.5 block text-[10px] leading-4 text-[#776D60]">
+                    {devModeActive ? "On demo data — switch back to your account" : "Explore demo profiles on safe data"}
+                  </span>
+                </span>
+                <span aria-hidden="true" data-enabled={devModeActive} className="mm-performance-mode-switch relative h-5 w-9 shrink-0 rounded-full border border-[#B9A98E] bg-[#E8DFCF] transition-colors data-[enabled=true]:border-[#087782] data-[enabled=true]:bg-[#087782]">
+                  <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform data-[enabled=true]:translate-x-4" data-enabled={devModeActive} />
                 </span>
               </button>
             ) : null}

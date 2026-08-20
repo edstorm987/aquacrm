@@ -114,9 +114,16 @@ export class FunnelService {
 
     if (upsert.created) {
       this.activity.logActivity({
-        agencyId: this.agencyId, actorUserId: leadUserId, actorEmail: email,
+        // `actorEmail` is deliberately NOT set: it is a PII FIELD on every
+        // activity entry, not just the message, and these entries carry no
+        // `clientId` for the erasure sweep to match. `actorUserId` identifies
+        // the lead user without naming them.
+        agencyId: this.agencyId, actorUserId: leadUserId,
         category: "public-funnel", action: "public-funnel.lead.captured",
-        message: `Lead captured (${source}): ${email}`,
+        // No address in the message: this install is agency-scoped, so its
+        // entries carry no `clientId` and the erasure sweep (clientId-only)
+        // could never scrub them. The metadata carries the capture id.
+        message: `Lead captured (${source}).`,
         metadata: { captureId: capture.id, source, leadUserId },
       });
       this.events.emit({ agencyId: this.agencyId },
@@ -127,9 +134,13 @@ export class FunnelService {
     if (source === "hc") {
       const bucket = bucketHcSlot(args.hcSlot);
       this.activity.logActivity({
-        agencyId: this.agencyId, actorUserId: leadUserId, actorEmail: email,
+        // `actorEmail` is deliberately NOT set: it is a PII FIELD on every
+        // activity entry, not just the message, and these entries carry no
+        // `clientId` for the erasure sweep to match. `actorUserId` identifies
+        // the lead user without naming them.
+        agencyId: this.agencyId, actorUserId: leadUserId,
         category: "public-funnel", action: "public-funnel.hc.completed",
-        message: `Health Check completed: ${email}${bucket ? ` (${bucket})` : ""}`,
+        message: `Health Check completed${bucket ? ` (${bucket})` : ""}.`,
         metadata: { captureId: capture.id, leadUserId, bucket, slot: args.hcSlot?.slot },
       });
       this.events.emit({ agencyId: this.agencyId },
@@ -151,6 +162,39 @@ export class FunnelService {
       ...(session !== undefined ? { session } : {}),
     };
     return result;
+  }
+
+  // Right-to-be-forgotten: delete every capture made by one of `addresses`,
+  // plus the `captures/by-email/<email>` pointer whose KEY NAME holds the
+  // address (no value-scan can reach that). Called by `onEraseClient`.
+  //
+  // DELETE, not anonymise: a funnel capture is marketing PII — the policy's
+  // clearest delete category. A capture carries NO `clientId` (it is made long
+  // before the person is a client), so the address is the only link.
+  //
+  // Idempotent: a second run finds nothing and returns 0.
+  async eraseForAddresses(addresses: readonly string[]): Promise<number> {
+    let erased = 0;
+    for (const address of new Set(addresses.map(a => canonEmail(a)).filter(Boolean))) {
+      const captures = await this.listByEmail(address);
+      for (const capture of captures) {
+        await this.storage.del(captureKey(capture.id));
+        const index = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
+        await this.storage.set(CAPTURE_INDEX, index.filter(value => value !== capture.id));
+        erased++;
+      }
+      await this.storage.del(captureEmailKey(address));
+    }
+    if (erased) {
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        category: "public-funnel",
+        action: "public-funnel.captures.erased",
+        message: `Erased ${erased} funnel capture${erased === 1 ? "" : "s"} for a client erasure.`,
+        metadata: { erased },
+      });
+    }
+    return erased;
   }
 
   // ── Reads ───────────────────────────────────────────────────

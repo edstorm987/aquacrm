@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     ? "facebook-login" as const
     : "instagram-login" as const;
   const returnUrl = safeReturnUrl(request.nextUrl.searchParams.get("return"));
-  const config = readMetaMessagingConfig(request.nextUrl.origin);
+  const config = readMetaMessagingConfig(session.agencyId, request.nextUrl.origin);
   if (!config) return redirectWithResult(request, returnUrl, "not-configured");
 
   const state = createMetaOAuthState({

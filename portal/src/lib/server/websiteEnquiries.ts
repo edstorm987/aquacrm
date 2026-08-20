@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isWebsiteEnquiryClassification, type WebsiteEnquiryClassification } from "@/lib/enquiryClassification";
@@ -11,6 +12,8 @@ import {
   type IdentityResolutionInput,
 } from "@/lib/server/identityResolution";
 import { synchroniseClientRecordLedger } from "@/lib/server/clientRecordLedger";
+import { upsertPerson } from "@/server/persons";
+import { listTradingCompanies } from "@/server/tradingCompanies";
 import type { IdentityResolutionResult, IdentityResolutionStatus } from "@/server/types";
 
 export type WebsiteEnquiryChannel = "form" | "chatbot" | "support";
@@ -80,14 +83,43 @@ export interface WebsiteEnquiry {
   email?: string;
   phone?: string;
   contactMethod?: string;
+  // Captured at submission and, until now, never surfaced. Whether somebody
+  // agreed to be contacted is not optional detail — it decides what you are
+  // allowed to do next.
+  consent?: boolean;
+  consentPurpose?: string;
+  consentVersion?: number;
+  consentCapturedAt?: number;
   services: string[];
   message?: string;
+  /**
+   * The submission as it stood — which form, on which page, what it was for,
+   * and every answer given. Absent on enquiries captured before the Aqua Tag
+   * started recording it, which is why the inbox has to say so rather than
+   * render an empty section.
+   */
+  formCapture?: WebsiteEnquiryFormCapture;
   sourceUrl?: string;
   campaign?: string;
   submittedAt: number;
+  /**
+   * The trading company this submission was routed to, because the site it came
+   * from is registered against one of Ed's own companies rather than a client.
+   * Written by `brand-enquiry` and `form-capture` at submission; absent for
+   * everything that lands in the agency inbox, which is most enquiries.
+   */
+  routedCompanyId?: string;
+  /**
+   * The routed company's current name, resolved at read time — the id alone is
+   * unreadable in an inbox. Undefined when the company has since been deleted,
+   * which is why the surface labels the badge rather than assuming a name.
+   */
+  routedCompanyName?: string;
   leadId?: string;
   contactId?: string;
   clientId?: string;
+  // Canonical Person for this enquirer, set by synchroniseWebsiteEnquiryIdentities.
+  personId?: string;
   identityStatus?: IdentityResolutionStatus;
   identityConfidence?: number;
   identityExplanation?: string;
@@ -101,13 +133,14 @@ export interface WebsiteEnquiry {
   notification: "sent" | "failed" | "not-configured" | "pending" | "unknown";
 }
 
-type BrandEnquiryRow = {
+export type BrandEnquiryRow = {
   id: string;
   brand_slug: string;
   name: string;
   email: string | null;
   phone: string | null;
   contact_method: string | null;
+  consent: boolean | null;
   services: string[] | null;
   message: string | null;
   source_url: string | null;
@@ -126,6 +159,35 @@ function inferChannel(row: BrandEnquiryRow, metadata: Record<string, unknown>): 
   if (row.contact_method === "chat" || row.services?.some(service => /\b(chat|chatbot)\b/i.test(service))) return "chatbot";
   if (row.contact_method === "support" || row.services?.some(service => /\b(support|ticket)\b/i.test(service))) return "support";
   return "form";
+}
+
+export interface WebsiteEnquiryFormCapture {
+  /** "Hero enquiry · /pricing" — the question the operator actually has. */
+  formLabel: string;
+  formName?: string;
+  purpose?: string;
+  /** Whether the purpose was declared, chosen by the visitor, or guessed. */
+  purposeSource?: string;
+  capturedAt?: number;
+  fields: Array<{ key: string; label?: string; value: string; type?: string }>;
+  /** The answers Aqua has no column of its own for. */
+  additional: Array<{ key: string; label?: string; value: string; type?: string }>;
+}
+
+function readFormCapture(metadata: Record<string, unknown>): WebsiteEnquiryFormCapture | undefined {
+  const raw = metadata.formCapture as Record<string, unknown> | undefined;
+  if (!raw || typeof raw !== "object") return undefined;
+  const form = (raw.form ?? {}) as Record<string, unknown>;
+  const fields = Array.isArray(raw.fields) ? raw.fields as WebsiteEnquiryFormCapture["fields"] : [];
+  return {
+    formLabel: typeof raw.formLabel === "string" ? raw.formLabel : "Website form",
+    formName: typeof form.formName === "string" ? form.formName : undefined,
+    purpose: typeof form.purpose === "string" ? form.purpose : undefined,
+    purposeSource: typeof form.purposeSource === "string" ? form.purposeSource : undefined,
+    capturedAt: typeof raw.capturedAt === "string" ? Date.parse(raw.capturedAt) || undefined : undefined,
+    fields,
+    additional: Array.isArray(raw.additional) ? raw.additional as WebsiteEnquiryFormCapture["additional"] : [],
+  };
 }
 
 function sourceParts(sourceUrl: string | null): { host?: string; pagePath: string; origin?: string } {
@@ -270,7 +332,10 @@ export async function synchroniseWebsiteEnquiryIdentities(
   enquiries: WebsiteEnquiry[],
 ): Promise<WebsiteEnquiry[]> {
   const reconciled: WebsiteEnquiry[] = [];
-  for (const enquiry of enquiries) {
+  // Company routing is resolved for every enquiry, spam included — an enquiry
+  // routed to one of Ed's companies still belongs to that company whatever it
+  // turns out to be, and the inbox filter has to be able to find it.
+  for (const enquiry of attachRoutedCompanyNames(enquiries, listTradingCompanies(agencyId, true))) {
     if (enquiry.classification === "spam") {
       reconciled.push(enquiry);
       continue;
@@ -291,16 +356,45 @@ export async function synchroniseWebsiteEnquiryIdentities(
     };
     const resolution = resolveContactIdentity(input);
     upsertIdentityResolutionReview(input, resolution);
+
+    // A company route claims the enquiry, exactly as the capture endpoint
+    // decided at submission (`brand-enquiry/route.ts` sets
+    // `owningClientId = undefined` when `routedCompanyId` is set). Without this
+    // the read side quietly undid that: the identity guess would auto-link the
+    // enquiry to a client here, on every inbox render, and file it on that
+    // client's record — so the company route appeared to do nothing.
+    // The suggestion review above is still written, because a human can still
+    // decide this really was a client; what is refused is the automatic link.
+    const attributedClientId = enquiry.routedCompanyId ? undefined : resolution.clientId;
+
+    // Every non-spam enquiry resolves to a canonical Person immediately, even
+    // before anyone classifies it — an unclassified enquiry IS a person in the
+    // "enquiry" state. Without this the classify alert has no card to open,
+    // because the Person would not exist until classification happened.
+    const { person } = upsertPerson(agencyId, {
+      emails: [enquiry.email],
+      phones: [enquiry.phone],
+      name: enquiry.name,
+      source: `website:${enquiry.siteName}`,
+      facets: {
+        enquiryIds: [enquiry.id],
+        leadId: enquiry.leadId,
+        contactId: enquiry.contactId,
+        clientIds: attributedClientId ? [attributedClientId] : undefined,
+      },
+    });
+
     const next: WebsiteEnquiry = {
       ...enquiry,
-      clientId: resolution.clientId ?? enquiry.clientId,
+      personId: person.id,
+      clientId: enquiry.routedCompanyId ? undefined : (resolution.clientId ?? enquiry.clientId),
       identityStatus: resolution.status,
       identityConfidence: resolution.confidence,
       identityExplanation: resolution.explanation,
     };
-    if (resolution.clientId) {
-      synchroniseWebsiteEnquiryLedgerEvents(agencyId, resolution.clientId, next);
-      if (enquiry.clientId !== resolution.clientId || enquiry.identityStatus !== resolution.status) {
+    if (attributedClientId) {
+      synchroniseWebsiteEnquiryLedgerEvents(agencyId, attributedClientId, next);
+      if (enquiry.clientId !== attributedClientId || enquiry.identityStatus !== resolution.status) {
         await recordWebsiteEnquiryIdentityResolution(enquiry.id, resolution);
       }
     }
@@ -400,17 +494,44 @@ export function triageWebsiteEnquiry(channel: WebsiteEnquiryChannel, message?: s
   return { priority: "normal", topic: "New enquiry", suggestedAction: "Review the brief, create or open the lead, and record the next action." };
 }
 
+// Request-scoped dedup for the enquiry read. A single agency render fans out
+// to this from several independent engines (radar, operational alerts, source
+// inspection, person interactions, resolution plans) — each previously its own
+// Supabase round-trip for the SAME rows, because the query is `cache: "no-store"`
+// so Next.js can't dedupe it. React cache() collapses same-limit calls within
+// one request into one network trip. The `limit` is normalised through a
+// wrapper so `()` and `(250)` share a key rather than caching twice.
+// The raw function below is untouched: API routes, scripts and tests keep
+// exactly the behaviour they had.
+const cachedWebsiteEnquiries = cache(
+  (limit: number): Promise<WebsiteEnquiry[]> => listWebsiteEnquiries(limit),
+);
+
+export function getRequestWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]> {
+  return cachedWebsiteEnquiries(limit);
+}
+
 export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]> {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("brand_enquiries")
-    .select("id, brand_slug, name, email, phone, contact_method, services, message, source_url, campaign, created_at, metadata")
+    .select("id, brand_slug, name, email, phone, contact_method, services, message, source_url, campaign, consent, created_at, metadata")
     .order("created_at", { ascending: false })
     .limit(Math.min(Math.max(limit, 1), 500));
 
   if (error) throw new Error(`Could not load website enquiries: ${error.message}`);
 
-  return ((data ?? []) as BrandEnquiryRow[]).map((row) => {
+  return ((data ?? []) as BrandEnquiryRow[]).map(mapBrandEnquiryRow);
+}
+
+/**
+ * One live `brand_enquiries` row → the inbox item. Pure: no Supabase, no state,
+ * no clock beyond the row's own timestamps. Split out of `listWebsiteEnquiries`
+ * so the mapping can be driven directly by a row fixture — the live table is the
+ * only source of these rows and there is no local sandbox for it, so a test that
+ * needed the query could only ever assert against Ed's real data.
+ */
+export function mapBrandEnquiryRow(row: BrandEnquiryRow): WebsiteEnquiry {
     const metadata = row.metadata ?? {};
     const notificationValue = typeof metadata.notification === "string" ? metadata.notification : "unknown";
     const notification = NOTIFICATION_STATES.has(notificationValue)
@@ -458,11 +579,22 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       email: row.email || undefined,
       phone: row.phone || undefined,
       contactMethod: row.contact_method || undefined,
+      formCapture: readFormCapture(metadata),
+      consent: row.consent ?? undefined,
+      consentPurpose: typeof metadata.consentPurpose === "string" ? metadata.consentPurpose : undefined,
+      consentVersion: typeof metadata.consentVersion === "number" ? metadata.consentVersion : undefined,
+      consentCapturedAt: metadataStamp(metadata, "consentCapturedAt"),
       services: row.services ?? [],
       message: row.message || undefined,
       sourceUrl: row.source_url || undefined,
       campaign: row.campaign || undefined,
       submittedAt: safeStamp(row.created_at),
+      // Written at submission when the site is registered to one of Ed's own
+      // companies. Everything else — every enquiry that predates the Aqua Tag,
+      // and every catch-all site — simply has no key here and stays undefined.
+      routedCompanyId: typeof metadata.routedCompanyId === "string" && metadata.routedCompanyId.trim()
+        ? metadata.routedCompanyId
+        : undefined,
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
       contactId: typeof metadata.contactId === "string" ? metadata.contactId : undefined,
       clientId: typeof metadata.clientId === "string" ? metadata.clientId : identity.clientId,
@@ -478,7 +610,74 @@ export async function listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[
       calls: inboxCalls(metadata),
       notification,
     };
-  });
+}
+
+/**
+ * Fill in each routed enquiry's company name from the agency's trading
+ * companies. Pure — the caller passes the companies, so the read surface can be
+ * driven by fixtures instead of by whatever happens to be in the live store.
+ *
+ * A company that has since been deleted leaves the name undefined rather than
+ * dropping the routing: the enquiry still belongs to a company, and the surface
+ * says so with a fallback label instead of an empty badge.
+ */
+export function attachRoutedCompanyNames(
+  enquiries: WebsiteEnquiry[],
+  companies: Array<{ id: string; name: string }>,
+): WebsiteEnquiry[] {
+  if (!enquiries.some(enquiry => enquiry.routedCompanyId)) return enquiries;
+  const names = new Map(companies.map(company => [company.id, company.name]));
+  return enquiries.map(enquiry => enquiry.routedCompanyId
+    ? { ...enquiry, routedCompanyName: names.get(enquiry.routedCompanyId) ?? enquiry.routedCompanyName }
+    : enquiry);
+}
+
+/**
+ * "all" (everything), "none" (only what belongs to the agency inbox), or a
+ * company id. The inbox filter control keeps the same three values, so an
+ * unrecognised value can only ever narrow to nothing rather than mis-attribute.
+ */
+export const ROUTED_COMPANY_FILTER_ALL = "all";
+export const ROUTED_COMPANY_FILTER_NONE = "none";
+
+/** What a routed enquiry is called when its company record has gone. */
+export const ROUTED_COMPANY_FALLBACK_NAME = "Your company";
+
+export function matchesRoutedCompanyFilter(
+  enquiry: Pick<WebsiteEnquiry, "routedCompanyId">,
+  filter: string,
+): boolean {
+  if (filter === ROUTED_COMPANY_FILTER_ALL) return true;
+  if (filter === ROUTED_COMPANY_FILTER_NONE) return !enquiry.routedCompanyId;
+  return enquiry.routedCompanyId === filter;
+}
+
+export function filterEnquiriesByRoutedCompany(
+  enquiries: WebsiteEnquiry[],
+  filter: string,
+): WebsiteEnquiry[] {
+  return enquiries.filter(enquiry => matchesRoutedCompanyFilter(enquiry, filter));
+}
+
+/**
+ * The companies actually represented in this batch of enquiries — the filter
+ * offers a company only when there is something to see under it, so an agency
+ * that routes nothing to a company never grows a dead control.
+ */
+export function routedCompanyFilterOptions(
+  enquiries: Array<Pick<WebsiteEnquiry, "routedCompanyId" | "routedCompanyName">>,
+): Array<{ id: string; name: string }> {
+  const options = new Map<string, string>();
+  for (const enquiry of enquiries) {
+    if (!enquiry.routedCompanyId) continue;
+    const existing = options.get(enquiry.routedCompanyId);
+    if (!existing || existing === ROUTED_COMPANY_FALLBACK_NAME) {
+      options.set(enquiry.routedCompanyId, enquiry.routedCompanyName || ROUTED_COMPANY_FALLBACK_NAME);
+    }
+  }
+  return [...options.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
 }
 
 function storedIdentityResolution(value: unknown): {

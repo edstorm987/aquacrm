@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       connections: await listInboxConnections(session.agencyId),
-      readiness: metaInboxReadiness(request.nextUrl.origin),
+      readiness: metaInboxReadiness(session.agencyId, request.nextUrl.origin),
     });
   } catch (cause) {
     return authErrorResponse(cause);

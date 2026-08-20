@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
 import { createClientDelight, deleteClientDelight, listClientDelight, updateClientDelight } from "@/server/clientDelight";
+import { recordDelightExpense } from "@/lib/server/clientDelightExpense";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type ClientDelightOccasion, type ClientDelightStatus, type ExperienceAudience, type ExperienceDeliveryMethod, type ExperienceFulfilmentStep } from "@/server/types";
 
@@ -83,6 +84,19 @@ export async function POST(request: Request) {
         ? updateClientDelight(session.agencyId, body.id, input, session.userId)
         : null;
     if (!record) return NextResponse.json({ ok: false, error: "record not found" }, { status: 404 });
+    // Wire You-Deserve-It spend → Finance: a delivered delight with a cost
+    // becomes an approval-gated finance expense. Idempotent on the delight id,
+    // and a no-op when Finance isn't connected — never fails the delight save.
+    if (record.status === "delivered" && (record.costCents ?? 0) > 0) {
+      try {
+        await recordDelightExpense(session.agencyId, {
+          clientId: record.clientId,
+          title: record.title,
+          amountCents: record.costCents ?? 0,
+          delightId: record.id,
+        }, session.userId);
+      } catch { /* recording the expense must never block the delight save */ }
+    }
     return NextResponse.json({ ok: true, record });
   } catch (error) {
     try {

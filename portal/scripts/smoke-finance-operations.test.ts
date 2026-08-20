@@ -113,10 +113,15 @@ test("salary, employer costs, bonuses and freelancers roll up by budget", async 
 test("Finance exposes operations, legal reuse and private compensation controls", () => {
   const manifest = readFileSync("src/built-ins/modules/agency-finance/index.ts", "utf8");
   const navigation = readFileSync("src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx", "utf8");
+  const sections = readFileSync("src/built-ins/modules/agency-finance/src/lib/sections.ts", "utf8");
   const workspace = readFileSync("src/built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.tsx", "utf8");
   const routes = readFileSync("src/built-ins/modules/agency-finance/src/api/routes.ts", "utf8");
-  assert.match(manifest, /agency-finance\/operations/);
-  assert.match(navigation, /Operations/);
+  // Operations section + route live in the one canonical section list; the
+  // manifest nav items and the in-page tabs both derive from it.
+  assert.match(sections, /agency-finance\/operations/);
+  assert.match(sections, /Operations/);
+  assert.match(manifest, /FINANCE_SECTIONS/);
+  assert.match(navigation, /FINANCE_SECTIONS/);
   assert.match(workspace, /LegalCompliancePanel/);
   assert.match(workspace, /Department cost capacity/);
   assert.match(workspace, /Freelancer invoice/);

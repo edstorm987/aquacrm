@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { createRequire } from "node:module";
+import { before, test } from "node:test";
 
 import type { Campaign, Lead } from "../src/built-ins/modules/leads-pipeline/src/lib/domain";
 import { buildCommercialIntelligence } from "../src/lib/commercialIntelligence";
@@ -85,4 +86,133 @@ test("commercial formulas expose missing evidence as learning, never as a zero p
   assert.equal(roas?.status, "learning");
   assert.equal(conversion?.value, null);
   assert.equal(conversion?.status, "learning");
+});
+
+// ── Measurement honesty (issue #15) ──────────────────────────────────────────
+// A Radar `value: 0` from a `blind`/`learning`/`inactive` check is not a
+// reading. These pin that the funnel says "unmeasured" instead of asserting
+// that literally nobody visited the site.
+
+test("with no monitored properties the funnel reports pageviews as unmeasured, not zero", () => {
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 0, forms: 4, pageviewsMeasured: false, formsMeasured: true, now });
+  assert.equal(snapshot.lineage.pageviewsMeasured, false);
+  assert.equal(snapshot.lineage.pageviews, 0, "the raw figure is preserved; only its honesty flag changes");
+  assert.equal(snapshot.lineage.formsMeasured, true, "an unmeasured pageview count must not drag forms down with it");
+});
+
+test("with a real reading the funnel is measured and equals the reading", () => {
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 10, pageviewsMeasured: true, formsMeasured: true, now });
+  assert.equal(snapshot.lineage.pageviewsMeasured, true);
+  assert.equal(snapshot.lineage.pageviews, 1_240);
+});
+
+test("with no monitored properties the funnel reports forms as unmeasured, not zero", () => {
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 0, pageviewsMeasured: true, formsMeasured: false, now });
+  assert.equal(snapshot.lineage.formsMeasured, false);
+  assert.equal(snapshot.lineage.forms, 0);
+  assert.equal(snapshot.lineage.pageviewsMeasured, true);
+});
+
+test("with a real form reading the funnel is measured and equals the reading", () => {
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_240, forms: 37, formsMeasured: true, now });
+  assert.equal(snapshot.lineage.formsMeasured, true);
+  assert.equal(snapshot.lineage.forms, 37);
+});
+
+test("callers that supply no honesty flag keep today's behaviour", () => {
+  const snapshot = buildCommercialIntelligence({ leads, clients, campaigns, pipeline, cards, currency: "GBP", pageviews: 1_000, forms: 10, now });
+  assert.equal(snapshot.lineage.pageviewsMeasured, true);
+  assert.equal(snapshot.lineage.formsMeasured, true);
+});
+
+// ── The same honesty, driven through the real server path ────────────────────
+// The `?? 0` that destroyed the distinction lives in
+// `src/lib/server/commandIntelligence.ts`, not in the pure builder above, so
+// these run the actual snapshot builder against a real Radar. A source grep
+// would not have caught the original bug and does not prove this fix.
+
+const require_ = createRequire(import.meta.url);
+const serverOnlyPath = require_.resolve("server-only");
+require_.cache[serverOnlyPath] = {
+  id: serverOnlyPath, filename: serverOnlyPath, loaded: true, exports: {}, paths: [], children: [],
+} as never;
+
+type Storage = typeof import("../src/server/storage");
+type Tenants = typeof import("../src/server/tenants");
+type RadarModule = typeof import("../src/lib/server/businessIssueRadar");
+type EvidenceVault = typeof import("../src/lib/server/radarEvidenceVault");
+type CommandIntelligence = typeof import("../src/lib/server/commandIntelligence");
+
+let storage: Storage;
+let tenants: Tenants;
+let radarModule: RadarModule;
+let evidenceVault: EvidenceVault;
+let commandIntelligence: CommandIntelligence;
+
+before(async () => {
+  process.env.PORTAL_BACKEND = "memory";
+  storage = await import("../src/server/storage");
+  tenants = await import("../src/server/tenants");
+  radarModule = await import("../src/lib/server/businessIssueRadar");
+  evidenceVault = await import("../src/lib/server/radarEvidenceVault");
+  commandIntelligence = await import("../src/lib/server/commandIntelligence");
+  await storage.ensureHydrated();
+});
+
+/** A fresh agency with nothing monitored, plus its real Radar. */
+async function freshAgencyRadar() {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Unmonitored Co", slug: `unmonitored-${Math.random().toString(36).slice(2, 8)}` });
+  const radar = await radarModule.buildBusinessIssueRadar(agency.id, now);
+  return { agencyId: agency.id, radar };
+}
+
+const snapshotFor = async (agencyId: string, radar: Awaited<ReturnType<RadarModule["buildBusinessIssueRadar"]>>) =>
+  commandIntelligence.buildCommandIntelligenceSnapshot({ agencyId, radar, evidence: evidenceVault.inspectRadarEvidence(agencyId), now });
+
+/** Promote the reading lens the snapshot actually consults to a real measurement. */
+function makeAssessed(radar: { checks: { domain: string; familyId: string; scope: string; lens: string; status: string; value?: number | null }[] }, familyId: string, value: number) {
+  const check = radar.checks.find(row => row.domain === "marketing" && row.familyId === familyId && row.scope === "kpi" && row.lens === "threshold");
+  assert.ok(check, `radar fixture must carry a marketing ${familyId} threshold check`);
+  check.status = "pass";
+  check.value = value;
+}
+
+test("a fresh agency's Command Centre reports pageviews and forms as unmeasured, never as a measured zero", async () => {
+  const { agencyId, radar } = await freshAgencyRadar();
+  const traffic = radar.checks.find(row => row.domain === "marketing" && row.familyId === "traffic-7d" && row.scope === "kpi" && row.lens === "threshold");
+  assert.equal(traffic?.status, "learning", "precondition: the Radar reports learning, and still emits value 0");
+  assert.equal(traffic?.value, 0);
+  assert.equal(radar.summary.monitoredProperties, 0);
+
+  const snapshot = await snapshotFor(agencyId, radar);
+  assert.equal(snapshot.commercialIntelligence.lineage.pageviewsMeasured, false);
+  assert.equal(snapshot.commercialIntelligence.lineage.formsMeasured, false);
+  assert.equal(snapshot.kpis.find(kpi => kpi.id === "traffic-7d")?.display, "—", "the KPI card must not print a confident 0");
+  assert.equal(snapshot.kpis.find(kpi => kpi.id === "forms-7d")?.display, "—");
+});
+
+test("a real Aqua Tag reading is measured and reaches the funnel unchanged", async () => {
+  const { agencyId, radar } = await freshAgencyRadar();
+  makeAssessed(radar, "traffic-7d", 1_240);
+  makeAssessed(radar, "form-submissions", 18);
+
+  const snapshot = await snapshotFor(agencyId, radar);
+  assert.equal(snapshot.commercialIntelligence.lineage.pageviewsMeasured, true);
+  assert.equal(snapshot.commercialIntelligence.lineage.pageviews, 1_240);
+  assert.equal(snapshot.commercialIntelligence.lineage.formsMeasured, true);
+  assert.equal(snapshot.commercialIntelligence.lineage.forms, 18);
+  assert.equal(snapshot.kpis.find(kpi => kpi.id === "traffic-7d")?.display, "1,240");
+  assert.equal(snapshot.kpis.find(kpi => kpi.id === "forms-7d")?.display, "18");
+  assert.equal(snapshot.demandFlow.pageviews, 1_240);
+});
+
+test("a measured zero stays a zero — quiet is not the same as unmonitored", async () => {
+  const { agencyId, radar } = await freshAgencyRadar();
+  makeAssessed(radar, "traffic-7d", 0);
+
+  const snapshot = await snapshotFor(agencyId, radar);
+  assert.equal(snapshot.commercialIntelligence.lineage.pageviewsMeasured, true, "a lens that assessed and found nothing is a genuine reading");
+  assert.equal(snapshot.commercialIntelligence.lineage.pageviews, 0);
+  assert.equal(snapshot.kpis.find(kpi => kpi.id === "traffic-7d")?.display, "0");
 });

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  AreaChart,
   ArrowUpRight,
   BarChart3,
   CalendarRange,
@@ -22,13 +23,13 @@ import {
   Save,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Target,
   Trash2,
   UsersRound,
   X,
 } from "lucide-react";
 
-import type { AdvisorDomain } from "@/lib/businessRadar";
 import type {
   CommandAudienceSignal,
   CommandAudienceDemographic,
@@ -37,13 +38,16 @@ import type {
   CommandIntelligenceScope,
   CommandIntelligenceSnapshot,
   CommandKpi,
+  CommandKpiFormat,
   CommandKpiStatus,
 } from "@/lib/commandIntelligence";
 import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
+import { describeCommandKpis, describeCommercialFormulas, describeCustomKpis, searchKpiDescriptors, suggestKpiTarget, type KpiDescriptor } from "@/lib/kpiRegistry";
+import type { CustomKpiDefinition, CustomKpiOp, KpiTargetsConfig } from "@/server/types";
 import { CommercialIntelligenceWorkspace } from "./_CommercialIntelligenceWorkspace";
 
 export type IntelligenceView = "overview" | "lifecycle" | "campaigns" | "audiences" | "kpis" | "compare";
-type KpiDomainFilter = AdvisorDomain | "all";
+type KpiDomainFilter = string;
 type KpiSort = "rank" | "attention" | "name" | "freshness";
 
 export function CommandIntelligenceWorkspace({ snapshot, initialView = "overview", initialKpiIds = [], initialScopeId = "ecosystem", initialCommercialFocus }: { snapshot: CommandIntelligenceSnapshot; initialView?: IntelligenceView; initialKpiIds?: string[]; initialScopeId?: string; initialCommercialFocus?: { metricId?: string; recordId?: string; sourceId?: string; stageId?: string } }) {
@@ -341,6 +345,7 @@ function TopKpisView({ snapshot, rows, domainFilter, statusFilter, query, sort, 
 }
 
 type ComparisonMode = "plan" | "indexed" | "change" | "raw";
+type KpiChartType = "line" | "area" | "bar";
 export type ComparisonRange = "24h" | "7d" | "30d" | "90d" | "quarter" | "ytd" | "12m" | "all" | "custom";
 type KpiPlanOverride = { baselineValue?: number; targetValue?: number };
 type KpiPlanOverrides = Record<string, KpiPlanOverride>;
@@ -351,9 +356,16 @@ const SAVED_COMPARISON_KEY = "aqua:kpi-comparison-views:v1";
 const KPI_PLAN_OVERRIDES_KEY = "aqua:kpi-plan-overrides:v1";
 
 export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRange = "30d", context = "operational", onInspect }: { snapshot: CommandIntelligenceSnapshot; initialKpiIds?: string[]; initialRange?: ComparisonRange; context?: "operational" | "strategic"; onInspect: (kpi: CommandKpi) => void }) {
-  const defaultIds = initialKpiIds.filter(id => snapshot.kpis.some(kpi => kpi.id === id));
+  const [evidenceDescriptors, setEvidenceDescriptors] = useState<KpiDescriptor[]>([]);
+  const [evidenceState, setEvidenceState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [customDefinitions, setCustomDefinitions] = useState<CustomKpiDefinition[]>([]);
+  const [customForm, setCustomForm] = useState<{ label: string; numeratorId: string; denominatorId: string; op: CustomKpiOp }>({ label: "", numeratorId: "", denominatorId: "", op: "rate" });
+  const baseDescriptors = useMemo(() => [...describeCommandKpis(snapshot), ...describeCommercialFormulas(snapshot), ...evidenceDescriptors], [snapshot, evidenceDescriptors]);
+  const descriptors = useMemo(() => [...baseDescriptors, ...describeCustomKpis(customDefinitions, baseDescriptors)], [baseDescriptors, customDefinitions]);
+  const defaultIds = initialKpiIds.filter(id => descriptors.some(descriptor => descriptor.id === id));
   const [selectedIds, setSelectedIds] = useState<string[]>(defaultIds.length ? defaultIds : ["business-health", "revenue-target", "lead-conversion", "traffic-7d"]);
   const [mode, setMode] = useState<ComparisonMode>("plan");
+  const [chartType, setChartType] = useState<KpiChartType>("line");
   const [range, setRange] = useState<ComparisonRange>(initialRange);
   const [customStart, setCustomStart] = useState(dateInput(snapshot.generatedAt - 30 * 86_400_000));
   const [customEnd, setCustomEnd] = useState(dateInput(snapshot.generatedAt));
@@ -363,7 +375,7 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
   const [planOverrides, setPlanOverrides] = useState<KpiPlanOverrides>({});
   const [viewName, setViewName] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
-  const availableKpiKey = snapshot.kpis.map(kpi => kpi.id).join("|");
+  const availableKpiKey = descriptors.map(descriptor => descriptor.id).join("|");
 
   useEffect(() => {
     try {
@@ -378,14 +390,72 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
   }, []);
 
   useEffect(() => {
-    setSelectedIds(current => {
-      const valid = current.filter(id => snapshot.kpis.some(kpi => kpi.id === id));
-      return valid.length ? valid : snapshot.kpis.slice(0, 4).map(kpi => kpi.id);
-    });
-  }, [availableKpiKey, snapshot.kpis]);
+    let cancelled = false;
+    void fetch("/api/portal/kpi-registry/targets").then(response => response.json()).then((data: { ok?: boolean; config?: KpiTargetsConfig }) => {
+      if (cancelled || !data.ok || !data.config?.byKpi) return;
+      const byKpi = data.config.byKpi;
+      setPlanOverrides(current => {
+        const merged = { ...current };
+        for (const [id, override] of Object.entries(byKpi)) {
+          merged[id] = { baselineValue: override.baselineValue ?? undefined, targetValue: override.targetValue ?? undefined };
+        }
+        return merged;
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
-  const selectedKpis = selectedIds.map(id => snapshot.kpis.find(kpi => kpi.id === id)).filter((kpi): kpi is CommandKpi => Boolean(kpi));
-  const availableKpis = snapshot.kpis.filter(kpi => (pickerDomain === "all" || kpi.domain === pickerDomain) && (!pickerQuery.trim() || `${kpi.label} ${kpi.detail}`.toLowerCase().includes(pickerQuery.trim().toLowerCase())));
+  useEffect(() => {
+    setSelectedIds(current => {
+      const valid = current.filter(id => descriptors.some(descriptor => descriptor.id === id));
+      return valid.length ? valid : descriptors.slice(0, 4).map(descriptor => descriptor.id);
+    });
+  }, [availableKpiKey, descriptors]);
+
+  const selectedDescriptors = selectedIds.map(id => descriptors.find(descriptor => descriptor.id === id)).filter((descriptor): descriptor is KpiDescriptor => Boolean(descriptor));
+  const availableDescriptors = useMemo(() => searchKpiDescriptors(pickerDomain === "all" ? descriptors : descriptors.filter(descriptor => descriptor.category === pickerDomain), pickerQuery), [descriptors, pickerDomain, pickerQuery]);
+
+  async function loadEvidence() {
+    if (evidenceState === "loading" || evidenceState === "loaded") return;
+    setEvidenceState("loading");
+    try {
+      const response = await fetch("/api/portal/kpi-registry/evidence");
+      const data = await response.json() as { ok?: boolean; descriptors?: KpiDescriptor[] };
+      if (data.ok && Array.isArray(data.descriptors)) {
+        setEvidenceDescriptors(data.descriptors);
+        setEvidenceState("loaded");
+      } else {
+        setEvidenceState("error");
+      }
+    } catch {
+      setEvidenceState("error");
+    }
+  }
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/portal/kpi-registry/custom").then(response => response.json()).then((data: { ok?: boolean; definitions?: CustomKpiDefinition[] }) => {
+      if (!cancelled && data.ok && Array.isArray(data.definitions)) setCustomDefinitions(data.definitions);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  async function createCustom() {
+    if (!customForm.label.trim() || !customForm.numeratorId) return;
+    try {
+      const response = await fetch("/api/portal/kpi-registry/custom", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: customForm.label, numeratorId: customForm.numeratorId, denominatorId: customForm.denominatorId || undefined, op: customForm.op }) });
+      const data = await response.json() as { ok?: boolean; definitions?: CustomKpiDefinition[] };
+      if (data.ok && Array.isArray(data.definitions)) { setCustomDefinitions(data.definitions); setCustomForm({ label: "", numeratorId: "", denominatorId: "", op: "rate" }); }
+    } catch { /* keep the form open */ }
+  }
+
+  async function deleteCustom(id: string) {
+    try {
+      const response = await fetch(`/api/portal/kpi-registry/custom?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const data = await response.json() as { ok?: boolean; definitions?: CustomKpiDefinition[] };
+      if (data.ok && Array.isArray(data.definitions)) setCustomDefinitions(data.definitions);
+    } catch { /* ignore */ }
+  }
+
   const bounds = comparisonBounds(snapshot, range, customStart, customEnd, mode);
 
   function toggleKpi(id: string) {
@@ -424,12 +494,14 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
     window.localStorage.setItem(SAVED_COMPARISON_KEY, JSON.stringify(next));
   }
 
-  function updatePlan(kpi: CommandKpi, field: keyof KpiPlanOverride, displayValue: string) {
-    const rawValue = displayValue.trim() === "" ? undefined : planningStoredValue(Number(displayValue), kpi);
+  function updatePlan(kpi: KpiDescriptor, field: keyof KpiPlanOverride, displayValue: string) {
+    const rawValue = displayValue.trim() === "" ? undefined : planningStoredValue(Number(displayValue), kpi.format);
     const next = { ...planOverrides, [kpi.id]: { ...planOverrides[kpi.id], [field]: Number.isFinite(rawValue) ? rawValue : undefined } };
     if (next[kpi.id]?.baselineValue === undefined && next[kpi.id]?.targetValue === undefined) delete next[kpi.id];
     setPlanOverrides(next);
     window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(next));
+    const override = next[kpi.id];
+    void fetch("/api/portal/kpi-registry/targets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(override ? { kpiId: kpi.id, baselineValue: override.baselineValue ?? null, targetValue: override.targetValue ?? null } : { kpiId: kpi.id, action: "clear" }) }).catch(() => {});
   }
 
   function resetPlan(kpiId: string) {
@@ -437,15 +509,25 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
     delete next[kpiId];
     setPlanOverrides(next);
     window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(next));
+    void fetch("/api/portal/kpi-registry/targets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kpiId, action: "clear" }) }).catch(() => {});
+  }
+
+  function applySuggestion(kpi: KpiDescriptor) {
+    const suggestion = suggestKpiTarget(kpi);
+    if (!suggestion) return;
+    const next = { ...planOverrides, [kpi.id]: { baselineValue: suggestion.baseline, targetValue: suggestion.target } };
+    setPlanOverrides(next);
+    window.localStorage.setItem(KPI_PLAN_OVERRIDES_KEY, JSON.stringify(next));
+    void fetch("/api/portal/kpi-registry/targets", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kpiId: kpi.id, baselineValue: suggestion.baseline, targetValue: suggestion.target }) }).catch(() => {});
   }
 
   return <div>
-    <header className={`border-b px-4 py-4 sm:px-5 ${context === "strategic" ? "border-[#d7b56d]/18 bg-[#d7b56d]/[0.025]" : "border-[#62e8ff]/16"}`}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className={`text-[8px] font-semibold uppercase ${context === "strategic" ? "text-[#e4c783]/60" : "text-[#76dff1]/55"}`}>{context === "strategic" ? "BT-INT · Strategic trajectory laboratory" : "INT-COMP · Multi-instrument analysis"} · {snapshot.kpis[0]?.scope.label ?? "Unlinked scope"}</p><h2 className="mt-1 text-sm font-semibold">{context === "strategic" ? "KPI trends, required pace and projections" : "Dynamic KPI comparison"}</h2><p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/32">Compare actual evidence with approved baselines, required pace, period projections and native-unit target gaps.</p></div><span className="inline-flex items-center gap-2 border border-[#68f5d0]/18 bg-[#68f5d0]/[0.05] px-2.5 py-1.5 text-[8px] font-semibold uppercase text-[#68f5d0]"><span className="size-1.5 bg-current shadow-[0_0_7px_currentColor]" /> {selectedKpis.length} instruments linked</span></div></header>
+    <header className={`border-b px-4 py-4 sm:px-5 ${context === "strategic" ? "border-[#d7b56d]/18 bg-[#d7b56d]/[0.025]" : "border-[#62e8ff]/16"}`}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className={`text-[8px] font-semibold uppercase ${context === "strategic" ? "text-[#e4c783]/60" : "text-[#76dff1]/55"}`}>{context === "strategic" ? "BT-INT · Strategic trajectory laboratory" : "INT-COMP · Multi-instrument analysis"} · {snapshot.kpis[0]?.scope.label ?? "Unlinked scope"}</p><h2 className="mt-1 text-sm font-semibold">{context === "strategic" ? "KPI trends, required pace and projections" : "Dynamic KPI comparison"}</h2><p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/32">Compare actual evidence with approved baselines, required pace, period projections and native-unit target gaps.</p></div><span className="inline-flex items-center gap-2 border border-[#68f5d0]/18 bg-[#68f5d0]/[0.05] px-2.5 py-1.5 text-[8px] font-semibold uppercase text-[#68f5d0]"><span className="size-1.5 bg-current shadow-[0_0_7px_currentColor]" /> {selectedDescriptors.length} instruments linked</span></div></header>
 
     <div className="grid xl:grid-cols-[270px_minmax(0,1fr)]">
       <aside className="min-w-0 border-b border-[#62e8ff]/16 bg-[#031018]/60 xl:border-b-0 xl:border-r" aria-label="KPI comparison controls">
-        <div className="border-b border-[#62e8ff]/12 p-3"><div className="flex items-center justify-between gap-2"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/52">INSTRUMENT SELECTOR</p><div className="flex gap-2"><button type="button" onClick={() => setSelectedIds([...new Set([...selectedIds, ...availableKpis.map(kpi => kpi.id)])])} className="text-[7px] font-semibold uppercase text-[#62e8ff]/60 hover:text-white">All visible</button><button type="button" onClick={() => setSelectedIds([])} className="text-[7px] font-semibold uppercase text-red-300/60 hover:text-red-200">Clear</button></div></div><label className="relative mt-3 block"><span className="sr-only">Search comparison KPIs</span><Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#62e8ff]/40" /><input value={pickerQuery} onChange={event => setPickerQuery(event.target.value)} placeholder="Find a KPI" className="min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] pl-8 pr-2 text-[9px] text-white outline-none focus:border-[#62e8ff]/45" /></label><select value={pickerDomain} onChange={event => setPickerDomain(event.target.value as KpiDomainFilter)} aria-label="Filter comparison KPIs by system" className="mt-2 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white"><option value="all">All systems</option>{[...new Set(snapshot.kpis.map(kpi => kpi.domain))].map(domain => <option key={domain} value={domain}>{domainLabel(domain)}</option>)}</select></div>
-        <div className="max-h-[390px] overflow-y-auto divide-y divide-white/7">{availableKpis.map((kpi, index) => { const selected = selectedIds.includes(kpi.id); return <button key={kpi.id} type="button" onClick={() => toggleKpi(kpi.id)} aria-pressed={selected} className={`grid w-full grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5 text-left ${selected ? "bg-[#62e8ff]/[0.07]" : "hover:bg-white/[0.025]"}`}><span className={`grid size-4 place-items-center border ${selected ? "border-[#68f5d0]/50 bg-[#68f5d0]/12 text-[#68f5d0]" : "border-white/14 text-transparent"}`}>{selected ? <Check size={10} /> : null}</span><span className="min-w-0"><span className="block truncate text-[9px] font-semibold text-white/58">{kpi.shortLabel}</span><span className="block truncate text-[7px] uppercase text-white/22">{kpi.domain} · {kpi.status}</span></span><span className="size-1.5" style={{ backgroundColor: COMPARISON_COLOURS[(selectedIds.indexOf(kpi.id) >= 0 ? selectedIds.indexOf(kpi.id) : index) % COMPARISON_COLOURS.length] }} /></button>; })}</div>
+        <div className="border-b border-[#62e8ff]/12 p-3"><div className="flex items-center justify-between gap-2"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/52">INSTRUMENT SELECTOR</p><div className="flex gap-2"><button type="button" onClick={() => setSelectedIds([...new Set([...selectedIds, ...availableDescriptors.map(descriptor => descriptor.id)])])} className="text-[7px] font-semibold uppercase text-[#62e8ff]/60 hover:text-white">All visible</button><button type="button" onClick={() => setSelectedIds([])} className="text-[7px] font-semibold uppercase text-red-300/60 hover:text-red-200">Clear</button></div></div><label className="relative mt-3 block"><span className="sr-only">Search comparison KPIs</span><Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#62e8ff]/40" /><input value={pickerQuery} onChange={event => setPickerQuery(event.target.value)} placeholder="Find a KPI" className="min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] pl-8 pr-2 text-[9px] text-white outline-none focus:border-[#62e8ff]/45" /></label><select value={pickerDomain} onChange={event => setPickerDomain(event.target.value as KpiDomainFilter)} aria-label="Filter comparison KPIs by system" className="mt-2 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white"><option value="all">All systems</option>{[...new Set(descriptors.map(descriptor => descriptor.category))].map(domain => <option key={domain} value={domain}>{domainLabel(domain)}</option>)}</select><button type="button" onClick={loadEvidence} disabled={evidenceState === "loading" || evidenceState === "loaded"} className="mt-2 flex min-h-8 w-full items-center justify-center gap-1.5 border border-[#62e8ff]/14 bg-[#62e8ff]/[0.04] px-2 text-[8px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.09] disabled:opacity-60">{evidenceState === "loading" ? "Loading radar evidence…" : evidenceState === "loaded" ? `${evidenceDescriptors.length.toLocaleString()} evidence series added` : evidenceState === "error" ? "Retry radar evidence" : "＋ Add radar evidence series"}</button></div>
+        <div className="max-h-[390px] overflow-y-auto divide-y divide-white/7">{availableDescriptors.slice(0, 200).map((kpi, index) => { const selected = selectedIds.includes(kpi.id); return <button key={kpi.id} type="button" onClick={() => toggleKpi(kpi.id)} aria-pressed={selected} className={`grid w-full grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5 text-left ${selected ? "bg-[#62e8ff]/[0.07]" : "hover:bg-white/[0.025]"}`}><span className={`grid size-4 place-items-center border ${selected ? "border-[#68f5d0]/50 bg-[#68f5d0]/12 text-[#68f5d0]" : "border-white/14 text-transparent"}`}>{selected ? <Check size={10} /> : null}</span><span className="min-w-0"><span className="block truncate text-[9px] font-semibold text-white/58">{kpi.shortLabel}</span><span className="block truncate text-[7px] uppercase text-white/22">{kpi.category} · {kpi.status}</span></span><span className="size-1.5" style={{ backgroundColor: COMPARISON_COLOURS[(selectedIds.indexOf(kpi.id) >= 0 ? selectedIds.indexOf(kpi.id) : index) % COMPARISON_COLOURS.length] }} /></button>; })}{availableDescriptors.length > 200 ? <p className="px-3 py-2 text-center text-[8px] uppercase text-white/28">+{(availableDescriptors.length - 200).toLocaleString()} more · refine your search</p> : null}</div>
       </aside>
 
       <div className="min-w-0">
@@ -455,19 +537,30 @@ export function KpiComparisonWorkspace({ snapshot, initialKpiIds = [], initialRa
           <div className={`grid grid-cols-2 gap-2 ${range === "custom" ? "opacity-100" : "pointer-events-none opacity-30"}`}><label className="text-[7px] font-semibold uppercase text-white/28">From<input type="date" value={customStart} onChange={event => setCustomStart(event.target.value)} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white" /></label><label className="text-[7px] font-semibold uppercase text-white/28">To<input type="date" value={customEnd} onChange={event => setCustomEnd(event.target.value)} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white" /></label></div>
         </div>
 
-        <section className="p-3 sm:p-5" aria-labelledby="comparison-chart-heading"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">TIME PLOT · {formatDateTime(bounds.start)} TO {formatDateTime(bounds.end)}</p><h3 id="comparison-chart-heading" className="mt-1 text-sm font-semibold">{mode === "plan" ? "Actual progress against required pace and forecast" : mode === "indexed" ? "Relative movement from index 100" : mode === "change" ? "Change from each KPI's first retained point" : "Raw values on a shared scale"}</h3></div><span className="inline-flex items-center gap-1.5 text-[8px] text-white/30"><CalendarRange size={11} /> {comparisonDuration(bounds.start, bounds.end)}</span></div><ComparisonChart kpis={selectedKpis} mode={mode} start={bounds.start} end={bounds.end} planOverrides={planOverrides} /></section>
+        <section className="p-3 sm:p-5" aria-labelledby="comparison-chart-heading"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">TIME PLOT · {formatDateTime(bounds.start)} TO {formatDateTime(bounds.end)}</p><h3 id="comparison-chart-heading" className="mt-1 text-sm font-semibold">{mode === "plan" ? "Actual progress against required pace and forecast" : mode === "indexed" ? "Relative movement from index 100" : mode === "change" ? "Change from each KPI's first retained point" : "Raw values on a shared scale"}</h3></div><div className="flex items-center gap-2">{mode !== "plan" ? <fieldset className="flex" aria-label="Chart type"><legend className="sr-only">Chart type</legend>{([["line", LineChart], ["area", AreaChart], ["bar", BarChart3]] as const).map(([value, Icon]) => <button key={value} type="button" onClick={() => setChartType(value)} aria-pressed={chartType === value} title={`${value} chart`} className={`grid size-7 place-items-center border ${chartType === value ? "border-[#62e8ff]/40 bg-[#62e8ff]/12 text-[#8ef1ff]" : "border-[#62e8ff]/12 text-white/34 hover:text-white/60"}`}><Icon size={12} /></button>)}</fieldset> : null}<span className="inline-flex items-center gap-1.5 text-[8px] text-white/30"><CalendarRange size={11} /> {comparisonDuration(bounds.start, bounds.end)}</span></div></div><ComparisonChart kpis={selectedDescriptors} mode={mode} chartType={chartType} start={bounds.start} end={bounds.end} planOverrides={planOverrides} /></section>
 
-        {mode === "plan" ? <PlanningAssumptions kpis={selectedKpis} overrides={planOverrides} start={bounds.start} end={bounds.end} currency={snapshot.currency} onChange={updatePlan} onReset={resetPlan} /> : null}
+        {mode === "plan" ? <PlanningAssumptions kpis={selectedDescriptors} overrides={planOverrides} start={bounds.start} end={bounds.end} currency={snapshot.currency} onChange={updatePlan} onReset={resetPlan} onSuggest={applySuggestion} /> : null}
 
-        <section className="border-t border-[#62e8ff]/14"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#62e8ff]/10 px-4 py-3 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SELECTED INSTRUMENTS</p><h3 className="mt-1 text-xs font-semibold">Range statistics, projected gaps and evidence coverage</h3></div><span className="text-[8px] uppercase text-white/24">Click one to inspect its source</span></div><div className="grid sm:grid-cols-2 2xl:grid-cols-4">{selectedKpis.map((kpi, index) => <ComparisonStatistic key={kpi.id} kpi={kpi} currency={snapshot.currency} colour={COMPARISON_COLOURS[index % COMPARISON_COLOURS.length]} start={bounds.start} end={bounds.end} mode={mode} planOverride={planOverrides[kpi.id]} onClick={() => onInspect(kpi)} />)}{!selectedKpis.length ? <div className="p-10 text-center text-xs text-white/32 sm:col-span-2 2xl:col-span-4">Select at least one KPI from the instrument bank.</div> : null}</div></section>
+        <section className="border-t border-[#62e8ff]/14"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#62e8ff]/10 px-4 py-3 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SELECTED INSTRUMENTS</p><h3 className="mt-1 text-xs font-semibold">Range statistics, projected gaps and evidence coverage</h3></div><span className="text-[8px] uppercase text-white/24">Click one to inspect its source</span></div><div className="grid sm:grid-cols-2 2xl:grid-cols-4">{selectedDescriptors.map((kpi, index) => <ComparisonStatistic key={kpi.id} kpi={kpi} currency={snapshot.currency} colour={COMPARISON_COLOURS[index % COMPARISON_COLOURS.length]} start={bounds.start} end={bounds.end} mode={mode} planOverride={planOverrides[kpi.id]} onClick={() => { const command = snapshot.kpis.find(item => item.id === kpi.id); if (command) onInspect(command); }} />)}{!selectedDescriptors.length ? <div className="p-10 text-center text-xs text-white/32 sm:col-span-2 2xl:col-span-4">Select at least one KPI from the instrument bank.</div> : null}</div></section>
       </div>
     </div>
 
     <section className="border-t border-[#62e8ff]/16 bg-[#031018]/55 p-4 sm:p-5"><div className="grid gap-4 xl:grid-cols-[minmax(250px,.65fr)_minmax(320px,1.35fr)]"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">SAVED COMPARISON VIEWS</p><h3 className="mt-1 text-xs font-semibold">Return to a monitoring configuration</h3><div className="mt-3 flex"><input value={viewName} onChange={event => setViewName(event.target.value)} placeholder="View name" className="min-h-9 min-w-0 flex-1 border border-[#62e8ff]/14 bg-[#020b11] px-3 text-[10px] text-white outline-none focus:border-[#62e8ff]/45" /><button type="button" onClick={saveView} title="Save KPI comparison view" className="grid size-9 place-items-center border border-l-0 border-[#62e8ff]/20 bg-[#62e8ff]/[0.07] text-[#8ef1ff]"><Save size={13} /></button></div>{saveMessage ? <p className="mt-2 text-[8px] text-[#68f5d0]/70">{saveMessage}</p> : null}</div><div className="grid gap-px border border-[#62e8ff]/12 bg-[#62e8ff]/12 sm:grid-cols-2">{savedViews.map(view => <div key={view.id} className="flex min-w-0 items-center gap-2 bg-[#020b11] p-3"><button type="button" onClick={() => loadView(view)} className="min-w-0 flex-1 text-left"><span className="block truncate text-[10px] font-semibold text-white/62">{view.name}</span><span className="mt-1 block truncate text-[7px] uppercase text-white/24">{view.kpiIds.length} KPIs · {view.range} · {view.mode}</span></button><button type="button" onClick={() => deleteView(view.id)} title={`Delete ${view.name}`} className="grid size-7 shrink-0 place-items-center text-white/25 hover:bg-red-400/10 hover:text-red-300"><Trash2 size={11} /></button></div>)}{!savedViews.length ? <p className="p-5 text-center text-[10px] text-white/28 sm:col-span-2">Saved views stay in this browser workspace and can be recalled without rebuilding the graph.</p> : null}</div></div></section>
+
+    <section className="border-t border-[#62e8ff]/16 p-4 sm:p-5" aria-labelledby="custom-kpi-heading"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">CUSTOM KPIS</p><h3 id="custom-kpi-heading" className="mt-1 text-xs font-semibold">Build a KPI from two metrics</h3><p className="mt-1 max-w-2xl text-[10px] leading-4 text-white/32">Pick a numerator and, optionally, a denominator and an operation. Guided — not a formula language — so it only wires existing registry metrics together. New custom KPIs plot in the bank like any other.</p></div>
+      <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(140px,1fr)_minmax(140px,1fr)_92px_minmax(140px,1fr)_auto] lg:items-end">
+        <label className="text-[7px] font-semibold uppercase text-white/28">Name<input value={customForm.label} onChange={event => setCustomForm(form => ({ ...form, label: event.target.value }))} placeholder="e.g. Form to lead" className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white outline-none focus:border-[#62e8ff]/45" /></label>
+        <label className="text-[7px] font-semibold uppercase text-white/28">Numerator<select value={customForm.numeratorId} onChange={event => setCustomForm(form => ({ ...form, numeratorId: event.target.value }))} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white"><option value="">Select…</option>{baseDescriptors.map(descriptor => <option key={descriptor.id} value={descriptor.id}>{descriptor.shortLabel}</option>)}</select></label>
+        <label className="text-[7px] font-semibold uppercase text-white/28">Op<select value={customForm.op} onChange={event => setCustomForm(form => ({ ...form, op: event.target.value as CustomKpiOp }))} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white">{(["rate", "ratio", "sum", "diff"] as const).map(op => <option key={op} value={op}>{op}</option>)}</select></label>
+        <label className="text-[7px] font-semibold uppercase text-white/28">Denominator<select value={customForm.denominatorId} onChange={event => setCustomForm(form => ({ ...form, denominatorId: event.target.value }))} className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] text-white"><option value="">None</option>{baseDescriptors.map(descriptor => <option key={descriptor.id} value={descriptor.id}>{descriptor.shortLabel}</option>)}</select></label>
+        <button type="button" onClick={createCustom} disabled={!customForm.label.trim() || !customForm.numeratorId} className="inline-flex min-h-8 items-center justify-center gap-1.5 border border-[#68f5d0]/25 bg-[#68f5d0]/[0.07] px-3 text-[8px] font-semibold uppercase text-[#68f5d0] enabled:hover:bg-[#68f5d0]/[0.13] disabled:opacity-40">Create</button>
+      </div>
+      {customDefinitions.length ? <div className="mt-3 flex flex-wrap gap-2">{customDefinitions.map(definition => <span key={definition.id} className="inline-flex items-center gap-2 border border-[#62e8ff]/14 bg-[#020b11] px-2.5 py-1.5 text-[9px] text-white/55"><Sparkles size={10} className="text-[#8ef1ff]/70" />{definition.label}<button type="button" onClick={() => deleteCustom(definition.id)} title={`Delete ${definition.label}`} className="text-white/30 hover:text-red-300"><X size={10} /></button></span>)}</div> : null}
+    </section>
   </div>;
 }
 
-function ComparisonChart({ kpis, mode, start, end, planOverrides }: { kpis: CommandKpi[]; mode: ComparisonMode; start: number; end: number; planOverrides: KpiPlanOverrides }) {
+function ComparisonChart({ kpis, mode, chartType, start, end, planOverrides }: { kpis: KpiDescriptor[]; mode: ComparisonMode; chartType: KpiChartType; start: number; end: number; planOverrides: KpiPlanOverrides }) {
   if (mode === "plan") return <PlanGapChart kpis={kpis} start={start} end={end} overrides={planOverrides} />;
   const series = kpis.map((kpi, index) => ({ kpi, colour: COMPARISON_COLOURS[index % COMPARISON_COLOURS.length], points: comparisonPoints(kpi, mode, start, end) }));
   const values = series.flatMap(item => item.points.map(point => point.value));
@@ -488,7 +581,21 @@ function ComparisonChart({ kpis, mode, start, end, planOverrides }: { kpis: Comm
     {[0, 1, 2, 3, 4].map(index => { const at = start + index / 4 * (end - start); const colX = left + index / 4 * (width - left - right); return <g key={index}><line x1={colX} y1={top} x2={colX} y2={height - bottom} stroke="rgba(98,232,255,.055)" /><text x={colX} y={height - 16} fill="rgba(166,218,227,.35)" fontSize="9" textAnchor={index === 0 ? "start" : index === 4 ? "end" : "middle"}>{chartTimeLabel(at, end - start)}</text></g>; })}
     {mode === "indexed" && low <= 100 && high >= 100 ? <line x1={left} y1={y(100)} x2={width - right} y2={y(100)} stroke="rgba(229,196,121,.45)" strokeDasharray="6 6" /> : null}
     {mode === "change" && low <= 0 && high >= 0 ? <line x1={left} y1={y(0)} x2={width - right} y2={y(0)} stroke="rgba(229,196,121,.45)" strokeDasharray="6 6" /> : null}
-    {series.map(item => item.points.length > 1 ? <path key={item.kpi.id} d={item.points.map((point, index) => `${index ? "L" : "M"}${x(point.at).toFixed(2)} ${y(point.value).toFixed(2)}`).join(" ")} fill="none" stroke={item.colour} strokeWidth="2.25" vectorEffect="non-scaling-stroke" /> : item.points.map(point => <circle key={`${item.kpi.id}:${point.at}`} cx={x(point.at)} cy={y(point.value)} r="4" fill={item.colour} />))}
+    {series.map((item, seriesIndex) => {
+      const line = item.points.map((point, index) => `${index ? "L" : "M"}${x(point.at).toFixed(2)} ${y(point.value).toFixed(2)}`).join(" ");
+      const floor = height - bottom;
+      if (chartType === "bar") {
+        const slot = (width - left - right) / Math.max(1, item.points.length);
+        const barWidth = Math.max(2, Math.min(16, slot / Math.max(1, series.length) - 1));
+        return <g key={item.kpi.id}>{item.points.map(point => { const cx = x(point.at) + (seriesIndex - (series.length - 1) / 2) * barWidth; const topY = y(point.value); return <rect key={point.at} x={(cx - barWidth / 2).toFixed(2)} y={Math.min(topY, floor).toFixed(2)} width={barWidth.toFixed(2)} height={Math.abs(floor - topY).toFixed(2)} fill={item.colour} opacity=".72" />; })}</g>;
+      }
+      if (chartType === "area" && item.points.length > 1) {
+        return <g key={item.kpi.id}><path d={`${line} L${x(item.points.at(-1)!.at).toFixed(2)} ${floor.toFixed(2)} L${x(item.points[0]!.at).toFixed(2)} ${floor.toFixed(2)} Z`} fill={item.colour} opacity=".12" /><path d={line} fill="none" stroke={item.colour} strokeWidth="2.25" vectorEffect="non-scaling-stroke" /></g>;
+      }
+      return item.points.length > 1
+        ? <path key={item.kpi.id} d={line} fill="none" stroke={item.colour} strokeWidth="2.25" vectorEffect="non-scaling-stroke" />
+        : <g key={item.kpi.id}>{item.points.map(point => <circle key={point.at} cx={x(point.at)} cy={y(point.value)} r="4" fill={item.colour} />)}</g>;
+    })}
   </svg>{!values.length ? <div className="absolute inset-0 grid place-items-center p-6 text-center"><div><LineChart className="mx-auto text-[#62e8ff]/35" size={22} /><p className="mt-2 text-xs font-semibold text-white/52">No retained points in this range</p><p className="mt-1 max-w-md text-[10px] leading-4 text-white/28">Choose a wider window or allow Radar to gather more evidence. The chart will not fabricate missing history.</p></div></div> : null}</div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">{series.map(item => <span key={item.kpi.id} className="inline-flex items-center gap-1.5 text-[8px] text-white/42"><span className="size-2" style={{ backgroundColor: item.colour }} />{item.kpi.shortLabel} · {item.points.length} points</span>)}</div>{mode === "raw" && new Set(kpis.map(kpi => kpi.format)).size > 1 ? <p className="mt-3 border-l-2 border-amber-300/45 pl-3 text-[9px] leading-4 text-amber-200/62">Raw mode is sharing one axis across different units. Use Index 100 or % change for a fair cross-unit comparison.</p> : null}</div>;
 }
 
@@ -508,7 +615,7 @@ interface ResolvedKpiPlan {
   points: Array<{ at: number; value: number; progress: number }>;
 }
 
-function PlanGapChart({ kpis, start, end, overrides }: { kpis: CommandKpi[]; start: number; end: number; overrides: KpiPlanOverrides }) {
+function PlanGapChart({ kpis, start, end, overrides }: { kpis: KpiDescriptor[]; start: number; end: number; overrides: KpiPlanOverrides }) {
   const series = kpis.map((kpi, index) => ({ kpi, colour: COMPARISON_COLOURS[index % COMPARISON_COLOURS.length], plan: resolveKpiPlan(kpi, overrides[kpi.id], start, end) }));
   const chartSeries = series.filter(item => item.plan.baselineValue !== null && item.plan.targetValue !== null);
   const values = chartSeries.flatMap(item => [...item.plan.points.map(point => point.progress), item.plan.forecastProgress].filter((value): value is number => value !== null && Number.isFinite(value)));
@@ -546,59 +653,59 @@ function PlanGapChart({ kpis, start, end, overrides }: { kpis: CommandKpi[]; sta
   </div>;
 }
 
-function PlanningAssumptions({ kpis, overrides, start, end, currency, onChange, onReset }: { kpis: CommandKpi[]; overrides: KpiPlanOverrides; start: number; end: number; currency: string; onChange: (kpi: CommandKpi, field: keyof KpiPlanOverride, value: string) => void; onReset: (kpiId: string) => void }) {
+function PlanningAssumptions({ kpis, overrides, start, end, currency, onChange, onReset, onSuggest }: { kpis: KpiDescriptor[]; overrides: KpiPlanOverrides; start: number; end: number; currency: string; onChange: (kpi: KpiDescriptor, field: keyof KpiPlanOverride, value: string) => void; onReset: (kpiId: string) => void; onSuggest: (kpi: KpiDescriptor) => void }) {
   return <section className="border-t border-[#62e8ff]/14" aria-labelledby="planning-assumptions-heading">
     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#62e8ff]/10 px-4 py-3 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#76dff1]/50">PLAN CONTROL · BASELINE TO OBJECTIVE</p><h3 id="planning-assumptions-heading" className="mt-1 text-xs font-semibold">Planning assumptions and target sources</h3></div><span className="text-[8px] uppercase text-white/24">Overrides persist in this workspace</span></div>
-    <div className="divide-y divide-[#62e8ff]/10">{kpis.map(kpi => { const plan = resolveKpiPlan(kpi, overrides[kpi.id], start, end); const overridden = Boolean(overrides[kpi.id]); return <div key={kpi.id} className="grid gap-3 px-4 py-3 sm:px-5 lg:grid-cols-[minmax(150px,1fr)_130px_130px_minmax(180px,.8fr)_auto] lg:items-end"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/65">{kpi.shortLabel}</p><p className="mt-1 truncate text-[7px] uppercase text-white/24">{kpi.plan.direction} is better · {kpi.plan.cadence}</p></div><PlanNumberInput label={`Baseline${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.baselineValue} kpi={kpi} onCommit={value => onChange(kpi, "baselineValue", value)} /><PlanNumberInput label={`Target${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.targetValue} kpi={kpi} onCommit={value => onChange(kpi, "targetValue", value)} /><div className="min-w-0"><p className="text-[7px] font-semibold uppercase text-white/25">Authority</p><p className="mt-1 truncate text-[9px] text-[#8ec9d5]/52" title={kpi.plan.source}>{overridden ? `Workspace override · ${kpi.plan.source}` : kpi.plan.source}</p></div><button type="button" onClick={() => onReset(kpi.id)} disabled={!overridden} title={`Reset ${kpi.shortLabel} planning assumptions`} className="grid size-8 place-items-center border border-[#62e8ff]/12 text-white/30 enabled:hover:bg-[#62e8ff]/[0.06] enabled:hover:text-white disabled:opacity-25"><Trash2 size={11} /></button></div>; })}{!kpis.length ? <p className="p-8 text-center text-[10px] text-white/28">Select KPIs to configure their planning assumptions.</p> : null}</div>
+    <div className="divide-y divide-[#62e8ff]/10">{kpis.map(kpi => { const plan = resolveKpiPlan(kpi, overrides[kpi.id], start, end); const overridden = Boolean(overrides[kpi.id]); const suggestion = suggestKpiTarget(kpi); return <div key={kpi.id} className="grid gap-3 px-4 py-3 sm:px-5 lg:grid-cols-[minmax(150px,1fr)_130px_130px_minmax(180px,.8fr)_auto] lg:items-end"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/65">{kpi.shortLabel}</p><p className="mt-1 truncate text-[7px] uppercase text-white/24">{kpi.direction} is better · {kpi.cadence}</p></div><PlanNumberInput label={`Baseline${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.baselineValue} kpi={kpi} onCommit={value => onChange(kpi, "baselineValue", value)} /><PlanNumberInput label={`Target${kpi.format === "currency" ? ` (${currency})` : ""}`} value={plan.targetValue} kpi={kpi} onCommit={value => onChange(kpi, "targetValue", value)} /><div className="min-w-0"><p className="text-[7px] font-semibold uppercase text-white/25">Authority</p><p className="mt-1 truncate text-[9px] text-[#8ec9d5]/52" title={kpi.planSource}>{overridden ? `Workspace override · ${kpi.planSource}` : kpi.planSource}</p></div><div className="flex items-center gap-1"><button type="button" onClick={() => onSuggest(kpi)} disabled={!suggestion} title={suggestion ? `Suggest a target — ${suggestion.basis}` : "Not enough retained history to suggest a target yet"} aria-label={`Suggest a target for ${kpi.shortLabel}`} className="grid size-8 place-items-center border border-[#62e8ff]/12 text-[#8ef1ff]/70 enabled:hover:bg-[#62e8ff]/[0.06] enabled:hover:text-white disabled:opacity-25"><Sparkles size={11} /></button><button type="button" onClick={() => onReset(kpi.id)} disabled={!overridden} title={`Reset ${kpi.shortLabel} planning assumptions`} className="grid size-8 place-items-center border border-[#62e8ff]/12 text-white/30 enabled:hover:bg-[#62e8ff]/[0.06] enabled:hover:text-white disabled:opacity-25"><Trash2 size={11} /></button></div></div>; })}{!kpis.length ? <p className="p-8 text-center text-[10px] text-white/28">Select KPIs to configure their planning assumptions.</p> : null}</div>
   </section>;
 }
 
-function PlanNumberInput({ label, value, kpi, onCommit }: { label: string; value: number | null; kpi: CommandKpi; onCommit: (value: string) => void }) {
-  return <label className="text-[7px] font-semibold uppercase text-white/25">{label}<input key={`${kpi.id}:${label}:${value ?? "empty"}`} type="number" step={kpi.format === "number" ? "1" : "0.1"} defaultValue={value === null ? "" : planningDisplayValue(value, kpi)} onBlur={event => onCommit(event.currentTarget.value)} placeholder="Not set" className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white outline-none focus:border-[#62e8ff]/45" /></label>;
+function PlanNumberInput({ label, value, kpi, onCommit }: { label: string; value: number | null; kpi: KpiDescriptor; onCommit: (value: string) => void }) {
+  return <label className="text-[7px] font-semibold uppercase text-white/25">{label}<input key={`${kpi.id}:${label}:${value ?? "empty"}`} type="number" step={kpi.format === "number" ? "1" : "0.1"} defaultValue={value === null ? "" : planningDisplayValue(value, kpi.format)} onBlur={event => onCommit(event.currentTarget.value)} placeholder="Not set" className="mt-1 min-h-8 w-full border border-[#62e8ff]/14 bg-[#020b11] px-2 text-[9px] normal-case text-white outline-none focus:border-[#62e8ff]/45" /></label>;
 }
 
-function resolveKpiPlan(kpi: CommandKpi, override: KpiPlanOverride | undefined, start: number, end: number): ResolvedKpiPlan {
+function resolveKpiPlan(kpi: KpiDescriptor, override: KpiPlanOverride | undefined, start: number, end: number): ResolvedKpiPlan {
   const rawPoints = comparisonPoints(kpi, "raw", start, end);
   const currentValue = rawPoints.at(-1)?.value ?? kpi.value;
   const currentAt = Math.min(end, Math.max(start, rawPoints.at(-1)?.at ?? kpi.measuredAt));
-  const baselineValue = finiteValue(override?.baselineValue) ?? finiteValue(kpi.plan.baselineValue) ?? rawPoints[0]?.value ?? currentValue;
-  const targetValue = finiteValue(override?.targetValue) ?? finiteValue(kpi.plan.targetValue);
+  const baselineValue = finiteValue(override?.baselineValue) ?? finiteValue(kpi.baseline) ?? rawPoints[0]?.value ?? currentValue;
+  const targetValue = finiteValue(override?.targetValue) ?? finiteValue(kpi.target);
   if (baselineValue === null || targetValue === null) return { baselineValue, targetValue, currentValue, currentAt, expectedValue: null, actualProgress: null, expectedProgress: null, paceGap: null, targetGap: null, forecastValue: null, forecastProgress: null, forecastGap: null, points: [] };
-  const progress = (value: number) => planProgress(value, baselineValue, targetValue, kpi.plan.direction);
+  const progress = (value: number) => planProgress(value, baselineValue, targetValue, kpi.direction);
   const points = rawPoints.map(point => ({ ...point, progress: progress(point.value) }));
   if (!points.length && currentValue !== null) points.push({ at: currentAt, value: currentValue, progress: progress(currentValue) });
   const elapsed = Math.min(1, Math.max(0, (currentAt - start) / Math.max(1, end - start)));
   const expectedProgress = baselineValue === targetValue ? 100 : elapsed * 100;
   const expectedValue = baselineValue === targetValue ? targetValue : baselineValue + (targetValue - baselineValue) * elapsed;
   const actualProgress = currentValue === null ? null : progress(currentValue);
-  const paceGap = currentValue === null ? null : directionalDifference(currentValue, expectedValue, kpi.plan.direction);
-  const targetGap = currentValue === null ? null : directionalShortfall(currentValue, targetValue, kpi.plan.direction);
-  const trend = rawPoints.length >= 2 ? rawPoints : kpi.history.filter(point => point.at <= currentAt && Number.isFinite(point.value)).slice(-8);
+  const paceGap = currentValue === null ? null : directionalDifference(currentValue, expectedValue, kpi.direction);
+  const targetGap = currentValue === null ? null : directionalShortfall(currentValue, targetValue, kpi.direction);
+  const trend = rawPoints.length >= 2 ? rawPoints : kpi.series.filter(point => point.at <= currentAt && Number.isFinite(point.value)).slice(-8);
   const first = trend[0];
   const last = trend.at(-1);
   const forecastValue = first && last && last.at > first.at ? last.value + (last.value - first.value) / (last.at - first.at) * Math.max(0, end - last.at) : null;
   const forecastProgress = forecastValue === null ? null : progress(forecastValue);
-  const forecastGap = forecastValue === null ? null : directionalShortfall(forecastValue, targetValue, kpi.plan.direction);
+  const forecastGap = forecastValue === null ? null : directionalShortfall(forecastValue, targetValue, kpi.direction);
   return { baselineValue, targetValue, currentValue, currentAt, expectedValue, actualProgress, expectedProgress, paceGap, targetGap, forecastValue, forecastProgress, forecastGap, points };
 }
 
-function ComparisonStatistic({ kpi, currency, colour, start, end, mode, planOverride, onClick }: { kpi: CommandKpi; currency: string; colour: string; start: number; end: number; mode: ComparisonMode; planOverride?: KpiPlanOverride; onClick: () => void }) {
+function ComparisonStatistic({ kpi, currency, colour, start, end, mode, planOverride, onClick }: { kpi: KpiDescriptor; currency: string; colour: string; start: number; end: number; mode: ComparisonMode; planOverride?: KpiPlanOverride; onClick: () => void }) {
   if (mode === "plan") {
     const plan = resolveKpiPlan(kpi, planOverride, start, end);
     const paceTone = plan.paceGap === null ? "text-white/30" : plan.paceGap < 0 ? "text-red-300" : "text-[#68f5d0]";
     const forecastTone = plan.forecastGap === null ? "text-sky-300/55" : plan.forecastGap > 0 ? "text-red-300" : "text-[#68f5d0]";
-    return <button type="button" onClick={onClick} className="min-w-0 border-b border-r border-[#62e8ff]/12 p-3 text-left hover:bg-[#62e8ff]/[0.045]"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/62">{kpi.shortLabel}</p><p className="mt-1 truncate text-[7px] uppercase text-white/22">{kpi.plan.cadence} · {kpi.plan.source}</p></div><span className="mt-1 size-2 shrink-0" style={{ backgroundColor: colour }} /></div><div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-[7px] uppercase text-white/24"><span>Actual / expected<strong className="mt-1 block truncate text-[10px] normal-case text-white/62">{plan.currentValue === null ? "No data" : formatKpiValue(plan.currentValue, kpi, currency)} / {plan.expectedValue === null ? "-" : formatKpiValue(plan.expectedValue, kpi, currency)}</strong></span><span>Pace variance<strong className={`mt-1 block truncate text-[10px] normal-case ${paceTone}`}>{plan.paceGap === null ? "No plan" : signedKpiValue(plan.paceGap, kpi, currency)}</strong></span><span>Target gap<strong className={`mt-1 block truncate text-[10px] normal-case ${plan.targetGap === null ? "text-white/30" : plan.targetGap > 0 ? "text-red-300" : "text-[#68f5d0]"}`}>{plan.targetGap === null ? "Not set" : gapLabel(plan.targetGap, kpi, currency)}</strong></span><span>Period forecast<strong className={`mt-1 block truncate text-[10px] normal-case ${forecastTone}`}>{plan.forecastValue === null ? "Building trend" : `${formatKpiValue(plan.forecastValue, kpi, currency)} · ${gapLabel(plan.forecastGap ?? 0, kpi, currency)}`}</strong></span></div></button>;
+    return <button type="button" onClick={onClick} className="min-w-0 border-b border-r border-[#62e8ff]/12 p-3 text-left hover:bg-[#62e8ff]/[0.045]"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/62">{kpi.shortLabel}</p><p className="mt-1 truncate text-[7px] uppercase text-white/22">{kpi.cadence} · {kpi.planSource}</p></div><span className="mt-1 size-2 shrink-0" style={{ backgroundColor: colour }} /></div><div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-[7px] uppercase text-white/24"><span>Actual / expected<strong className="mt-1 block truncate text-[10px] normal-case text-white/62">{plan.currentValue === null ? "No data" : formatKpiValue(plan.currentValue, kpi.format, currency)} / {plan.expectedValue === null ? "-" : formatKpiValue(plan.expectedValue, kpi.format, currency)}</strong></span><span>Pace variance<strong className={`mt-1 block truncate text-[10px] normal-case ${paceTone}`}>{plan.paceGap === null ? "No plan" : signedKpiValue(plan.paceGap, kpi.format, currency)}</strong></span><span>Target gap<strong className={`mt-1 block truncate text-[10px] normal-case ${plan.targetGap === null ? "text-white/30" : plan.targetGap > 0 ? "text-red-300" : "text-[#68f5d0]"}`}>{plan.targetGap === null ? "Not set" : gapLabel(plan.targetGap, kpi.format, currency)}</strong></span><span>Period forecast<strong className={`mt-1 block truncate text-[10px] normal-case ${forecastTone}`}>{plan.forecastValue === null ? "Building trend" : `${formatKpiValue(plan.forecastValue, kpi.format, currency)} · ${gapLabel(plan.forecastGap ?? 0, kpi.format, currency)}`}</strong></span></div></button>;
   }
   const points = comparisonPoints(kpi, "raw", start, end);
   const values = points.map(point => point.value);
   const first = values[0];
   const last = values.at(-1);
   const change = first === undefined || last === undefined ? null : first === 0 ? last - first : (last - first) / Math.abs(first) * 100;
-  return <button type="button" onClick={onClick} className="min-w-0 border-b border-r border-[#62e8ff]/12 p-3 text-left hover:bg-[#62e8ff]/[0.045]"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/62">{kpi.shortLabel}</p><p className="mt-1 text-[7px] uppercase text-white/22">{kpi.domain} · {points.length} points</p></div><span className="mt-1 size-2 shrink-0" style={{ backgroundColor: colour }} /></div><div className="mt-3 grid grid-cols-3 gap-2 text-[7px] uppercase text-white/24"><span>Latest<strong className="mt-1 block truncate text-[10px] normal-case text-white/62">{last === undefined ? "No data" : formatKpiValue(last, kpi, currency)}</strong></span><span>Movement<strong className={`mt-1 block truncate text-[10px] normal-case ${change === null ? "text-white/30" : change < 0 ? "text-red-300" : "text-[#68f5d0]"}`}>{change === null ? "-" : `${change > 0 ? "+" : ""}${roundNumber(change, 1)}${first === 0 ? "" : "%"}`}</strong></span><span>Range<strong className="mt-1 block truncate text-[10px] normal-case text-white/62">{values.length ? `${compactNumber(Math.min(...values))}–${compactNumber(Math.max(...values))}` : "-"}</strong></span></div></button>;
+  return <button type="button" onClick={onClick} className="min-w-0 border-b border-r border-[#62e8ff]/12 p-3 text-left hover:bg-[#62e8ff]/[0.045]"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-white/62">{kpi.shortLabel}</p><p className="mt-1 text-[7px] uppercase text-white/22">{kpi.category} · {points.length} points</p></div><span className="mt-1 size-2 shrink-0" style={{ backgroundColor: colour }} /></div><div className="mt-3 grid grid-cols-3 gap-2 text-[7px] uppercase text-white/24"><span>Latest<strong className="mt-1 block truncate text-[10px] normal-case text-white/62">{last === undefined ? "No data" : formatKpiValue(last, kpi.format, currency)}</strong></span><span>Movement<strong className={`mt-1 block truncate text-[10px] normal-case ${change === null ? "text-white/30" : change < 0 ? "text-red-300" : "text-[#68f5d0]"}`}>{change === null ? "-" : `${change > 0 ? "+" : ""}${roundNumber(change, 1)}${first === 0 ? "" : "%"}`}</strong></span><span>Range<strong className="mt-1 block truncate text-[10px] normal-case text-white/62">{values.length ? `${compactNumber(Math.min(...values))}–${compactNumber(Math.max(...values))}` : "-"}</strong></span></div></button>;
 }
 
-function comparisonPoints(kpi: CommandKpi, mode: Exclude<ComparisonMode, "plan">, start: number, end: number): Array<{ at: number; value: number }> {
-  const raw = kpi.history.filter(point => point.at >= start && point.at <= end && Number.isFinite(point.value));
+function comparisonPoints(kpi: KpiDescriptor, mode: Exclude<ComparisonMode, "plan">, start: number, end: number): Array<{ at: number; value: number }> {
+  const raw = kpi.series.filter(point => point.at >= start && point.at <= end && Number.isFinite(point.value));
   if (!raw.some(point => point.at === kpi.measuredAt) && kpi.value !== null && kpi.measuredAt >= start && kpi.measuredAt <= end) raw.push({ at: kpi.measuredAt, value: kpi.value });
   raw.sort((left, right) => left.at - right.at);
   if (mode === "raw" || !raw.length) return raw;
@@ -686,15 +793,22 @@ function BusinessCompass({ kpis }: { kpis: CommandKpi[] }) {
 }
 
 function DemandFlow({ snapshot }: { snapshot: CommandIntelligenceSnapshot }) {
+  // `blind`/`learning` KPIs still carry a numeric 0 from the Radar. Rendering
+  // that as a demand figure invents a measurement nobody took, so those stages
+  // report "—" instead.
+  const kpiMeasured = (id: string) => {
+    const status = snapshot.kpis.find(kpi => kpi.id === id)?.status;
+    return status !== undefined && status !== "learning" && status !== "blind";
+  };
   const steps = [
-    { label: "Pageviews", value: snapshot.demandFlow.pageviews, window: "7 days" },
-    { label: "Forms", value: snapshot.demandFlow.forms, window: "7 days" },
-    { label: "New leads", value: snapshot.demandFlow.leads, window: "30 days" },
-    { label: "Converted", value: snapshot.demandFlow.convertedLeads, window: "retained" },
-    { label: "Active clients", value: snapshot.demandFlow.activeClients, window: "current" },
+    { label: "Pageviews", value: snapshot.demandFlow.pageviews, window: "7 days", measured: kpiMeasured("traffic-7d") },
+    { label: "Forms", value: snapshot.demandFlow.forms, window: "7 days", measured: kpiMeasured("forms-7d") },
+    { label: "New leads", value: snapshot.demandFlow.leads, window: "30 days", measured: true },
+    { label: "Converted", value: snapshot.demandFlow.convertedLeads, window: "retained", measured: true },
+    { label: "Active clients", value: snapshot.demandFlow.activeClients, window: "current", measured: true },
   ];
-  const max = Math.max(1, ...steps.map(step => step.value));
-  return <div className="mt-5 space-y-2">{steps.map((step, index) => <div key={step.label} className="grid grid-cols-[82px_minmax(0,1fr)_54px] items-center gap-3"><div><p className="text-[9px] font-semibold text-white/62">{step.label}</p><p className="text-[7px] uppercase text-white/25">{step.window}</p></div><div className="relative h-7 border border-[#62e8ff]/12 bg-black/25"><span className={`absolute inset-y-0 left-0 ${index < 2 ? "bg-[#62e8ff]/25" : index < 4 ? "bg-[#e5c479]/25" : "bg-[#68f5d0]/25"}`} style={{ width: `${Math.max(step.value ? 6 : 0, step.value / max * 100)}%` }} /><span className="absolute inset-y-0 left-2 flex items-center text-[7px] font-semibold uppercase text-[#8ec9d5]/38">Stage 0{index + 1}</span></div><strong className="text-right text-sm tabular-nums text-white/85">{step.value.toLocaleString()}</strong></div>)}</div>;
+  const max = Math.max(1, ...steps.map(step => step.measured ? step.value : 0));
+  return <div className="mt-5 space-y-2">{steps.map((step, index) => <div key={step.label} className="grid grid-cols-[82px_minmax(0,1fr)_54px] items-center gap-3"><div><p className="text-[9px] font-semibold text-white/62">{step.label}</p><p className="text-[7px] uppercase text-white/25">{step.measured ? step.window : "not monitored"}</p></div><div className="relative h-7 border border-[#62e8ff]/12 bg-black/25"><span className={`absolute inset-y-0 left-0 ${index < 2 ? "bg-[#62e8ff]/25" : index < 4 ? "bg-[#e5c479]/25" : "bg-[#68f5d0]/25"}`} style={{ width: `${step.measured ? Math.max(step.value ? 6 : 0, step.value / max * 100) : 0}%` }} /><span className="absolute inset-y-0 left-2 flex items-center text-[7px] font-semibold uppercase text-[#8ec9d5]/38">Stage 0{index + 1}</span></div><strong className={`text-right text-sm tabular-nums ${step.measured ? "text-white/85" : "text-white/38"}`}>{step.measured ? step.value.toLocaleString() : "—"}</strong></div>)}</div>;
 }
 
 function KpiInstrument({ kpi, onClick, expanded = false }: { kpi: CommandKpi; onClick: () => void; expanded?: boolean }) {
@@ -811,7 +925,7 @@ function ProfileField({ label, value }: { label: string; value?: string | string
 }
 
 function KpiInspector({ kpi, currency, onClose }: { kpi: CommandKpi; currency: string; onClose: () => void }) {
-  return <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="kpi-inspector-heading" className="max-h-[90dvh] w-full max-w-xl overflow-y-auto border border-[#62e8ff]/28 bg-[#020b11] shadow-[0_24px_80px_rgba(0,0,0,.55)]"><header className="flex items-start justify-between gap-4 border-b border-[#62e8ff]/16 px-4 py-4 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">INT-{String(kpi.rank).padStart(2, "0")} · {kpi.domain} instrument</p><h2 id="kpi-inspector-heading" className="mt-1 text-lg font-semibold text-white">{kpi.label}</h2><p className="mt-1 text-[9px] uppercase text-[#62e8ff]/48">Scope · {kpi.scope.label}</p></div><button onClick={onClose} title="Close KPI detail" className="grid size-9 shrink-0 place-items-center border border-white/10 text-white/50 hover:bg-white/[0.06] hover:text-white"><X size={15} /></button></header><div className="p-4 sm:p-5"><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><div><p className={`text-3xl font-semibold tabular-nums ${statusText(kpi.status)}`}>{kpi.display}</p><p className="mt-1 text-[9px] font-semibold uppercase text-white/30">{kpi.measurement.unit} · {kpi.status} · measured {formatAge(kpi.measuredAt)}</p></div><KpiSparkline kpi={kpi} /></div><p className="mt-5 text-sm leading-6 text-white/55">{kpi.detail}</p><div className="mt-5 border border-[#62e8ff]/18 bg-[#62e8ff]/[0.035] p-4"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/60">What this number means</p><dl className="mt-2 divide-y divide-[#62e8ff]/10 text-xs"><InspectorRow label="Unit" value={kpi.measurement.unit} /><InspectorRow label="Denominator" value={kpi.measurement.basis} /><InspectorRow label="Window" value={kpi.measurement.window} /><InspectorRow label="Formula" value={kpi.measurement.formula} /></dl></div><dl className="mt-5 divide-y divide-[#62e8ff]/12 border-y border-[#62e8ff]/12 text-xs"><InspectorRow label="Scope" value={`${kpi.scope.label} · ${kpi.scope.kind}`} /><InspectorRow label="Target" value={kpi.target} /><InspectorRow label="Baseline" value={kpi.plan.baselineValue === null ? "Not connected" : formatKpiValue(kpi.plan.baselineValue, kpi, currency)} /><InspectorRow label="Plan target" value={kpi.plan.targetValue === null ? "Not approved" : formatKpiValue(kpi.plan.targetValue, kpi, currency)} /><InspectorRow label="Plan source" value={`${kpi.plan.source} · ${kpi.plan.cadence}`} /><InspectorRow label="Source" value={kpi.sourceId} /><InspectorRow label="Sample" value={kpi.sampleSize === undefined ? "Not supplied" : `${kpi.sampleSize.toLocaleString()} ${kpi.measurement.basis}`} /><InspectorRow label="History" value={kpi.history.length ? `${kpi.history.length} retained points` : "Building baseline"} /></dl><div className="mt-5"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">Evidence</p><ul className="mt-2 divide-y divide-white/8 border-y border-white/8">{kpi.evidence.map(item => <li key={item} className="flex gap-2 py-2 text-[11px] leading-4 text-white/45"><CheckCircle2 size={12} className="mt-0.5 shrink-0 text-[#68f5d0]/65" />{item}</li>)}</ul></div><Link href={kpi.href} className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/25 bg-[#62e8ff]/[0.08] px-4 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.13]">Open operating workspace <ArrowUpRight size={13} /></Link></div></section></div>;
+  return <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/65 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="kpi-inspector-heading" className="max-h-[90dvh] w-full max-w-xl overflow-y-auto border border-[#62e8ff]/28 bg-[#020b11] shadow-[0_24px_80px_rgba(0,0,0,.55)]"><header className="flex items-start justify-between gap-4 border-b border-[#62e8ff]/16 px-4 py-4 sm:px-5"><div><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">INT-{String(kpi.rank).padStart(2, "0")} · {kpi.domain} instrument</p><h2 id="kpi-inspector-heading" className="mt-1 text-lg font-semibold text-white">{kpi.label}</h2><p className="mt-1 text-[9px] uppercase text-[#62e8ff]/48">Scope · {kpi.scope.label}</p></div><button onClick={onClose} title="Close KPI detail" className="grid size-9 shrink-0 place-items-center border border-white/10 text-white/50 hover:bg-white/[0.06] hover:text-white"><X size={15} /></button></header><div className="p-4 sm:p-5"><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><div><p className={`text-3xl font-semibold tabular-nums ${statusText(kpi.status)}`}>{kpi.display}</p><p className="mt-1 text-[9px] font-semibold uppercase text-white/30">{kpi.measurement.unit} · {kpi.status} · measured {formatAge(kpi.measuredAt)}</p></div><KpiSparkline kpi={kpi} /></div><p className="mt-5 text-sm leading-6 text-white/55">{kpi.detail}</p><div className="mt-5 border border-[#62e8ff]/18 bg-[#62e8ff]/[0.035] p-4"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/60">What this number means</p><dl className="mt-2 divide-y divide-[#62e8ff]/10 text-xs"><InspectorRow label="Unit" value={kpi.measurement.unit} /><InspectorRow label="Denominator" value={kpi.measurement.basis} /><InspectorRow label="Window" value={kpi.measurement.window} /><InspectorRow label="Formula" value={kpi.measurement.formula} /></dl></div><dl className="mt-5 divide-y divide-[#62e8ff]/12 border-y border-[#62e8ff]/12 text-xs"><InspectorRow label="Scope" value={`${kpi.scope.label} · ${kpi.scope.kind}`} /><InspectorRow label="Target" value={kpi.target} /><InspectorRow label="Baseline" value={kpi.plan.baselineValue === null ? "Not connected" : formatKpiValue(kpi.plan.baselineValue, kpi.format, currency)} /><InspectorRow label="Plan target" value={kpi.plan.targetValue === null ? "Not approved" : formatKpiValue(kpi.plan.targetValue, kpi.format, currency)} /><InspectorRow label="Plan source" value={`${kpi.plan.source} · ${kpi.plan.cadence}`} /><InspectorRow label="Source" value={kpi.sourceId} /><InspectorRow label="Sample" value={kpi.sampleSize === undefined ? "Not supplied" : `${kpi.sampleSize.toLocaleString()} ${kpi.measurement.basis}`} /><InspectorRow label="History" value={kpi.history.length ? `${kpi.history.length} retained points` : "Building baseline"} /></dl><div className="mt-5"><p className="text-[8px] font-semibold uppercase text-[#62e8ff]/55">Evidence</p><ul className="mt-2 divide-y divide-white/8 border-y border-white/8">{kpi.evidence.map(item => <li key={item} className="flex gap-2 py-2 text-[11px] leading-4 text-white/45"><CheckCircle2 size={12} className="mt-0.5 shrink-0 text-[#68f5d0]/65" />{item}</li>)}</ul></div><Link href={kpi.href} className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/25 bg-[#62e8ff]/[0.08] px-4 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.13]">Open operating workspace <ArrowUpRight size={13} /></Link></div></section></div>;
 }
 
 function ViewButton({ active, icon, label, detail, onClick }: { active: boolean; icon: React.ReactNode; label: string; detail: string; onClick: () => void }) {
@@ -843,7 +957,7 @@ function formatShortTime(value: number): string { return formatUkDate(value, { h
 function formatDateTime(value: number): string { return formatUkDate(value, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); }
 function formatAge(value: number): string { const elapsed = Math.max(0, Date.now() - value); if (elapsed < 60_000) return "just now"; if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`; if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`; return `${Math.floor(elapsed / 86_400_000)}d ago`; }
 function statusSort(status: CommandKpiStatus): number { return status === "critical" ? 0 : status === "warning" ? 1 : status === "blind" ? 2 : status === "learning" ? 3 : 4; }
-function domainLabel(domain: AdvisorDomain): string { return domain === "inbox" ? "Inbox" : domain.charAt(0).toUpperCase() + domain.slice(1); }
+function domainLabel(domain: string): string { return domain === "inbox" ? "Inbox" : domain.charAt(0).toUpperCase() + domain.slice(1); }
 function dateInput(value: number): string { return dateInputValue(value); }
 function startOfInputDay(value: string, fallback: number): number { const parsed = new Date(`${value}T00:00:00`).getTime(); return Number.isFinite(parsed) ? parsed : fallback; }
 function endOfInputDay(value: string, fallback: number): number { const parsed = new Date(`${value}T23:59:59.999`).getTime(); return Number.isFinite(parsed) ? parsed : fallback; }
@@ -859,9 +973,9 @@ function comparisonRangeLabel(range: ComparisonRange, mode: ComparisonMode): str
 }
 function compactNumber(value: number): string { return new Intl.NumberFormat("en-GB", { notation: Math.abs(value) >= 10_000 ? "compact" : "standard", maximumFractionDigits: Math.abs(value) < 10 ? 1 : 0 }).format(value); }
 function chartTimeLabel(value: number, span: number): string { return span <= 2 * 86_400_000 ? formatUkDate(value, { hour: "2-digit", minute: "2-digit" }) : formatUkDate(value, { day: "2-digit", month: "short" }); }
-function formatKpiValue(value: number, kpi: CommandKpi, currency: string): string { if (kpi.format === "currency") return money(value, currency); if (kpi.format === "percent") return `${roundNumber(value, 1)}%`; if (kpi.format === "score") return `${roundNumber(value, 0)}/100`; if (kpi.format === "duration") return value < 60_000 ? `${Math.round(value / 1_000)}s` : value < 3_600_000 ? `${Math.round(value / 60_000)}m` : `${roundNumber(value / 3_600_000, 1)}h`; return compactNumber(value); }
-function planningDisplayValue(value: number, kpi: CommandKpi): number { return kpi.format === "currency" ? roundNumber(value / 100, 2) : roundNumber(value, 2); }
-function planningStoredValue(value: number, kpi: CommandKpi): number { return kpi.format === "currency" ? Math.round(value * 100) : value; }
+function formatKpiValue(value: number, format: CommandKpiFormat, currency: string): string { if (format === "currency") return money(value, currency); if (format === "percent") return `${roundNumber(value, 1)}%`; if (format === "score") return `${roundNumber(value, 0)}/100`; if (format === "duration") return value < 60_000 ? `${Math.round(value / 1_000)}s` : value < 3_600_000 ? `${Math.round(value / 60_000)}m` : `${roundNumber(value / 3_600_000, 1)}h`; return compactNumber(value); }
+function planningDisplayValue(value: number, format: CommandKpiFormat): number { return format === "currency" ? roundNumber(value / 100, 2) : roundNumber(value, 2); }
+function planningStoredValue(value: number, format: CommandKpiFormat): number { return format === "currency" ? Math.round(value * 100) : value; }
 function finiteValue(value: number | null | undefined): number | null { return typeof value === "number" && Number.isFinite(value) ? value : null; }
 function planProgress(value: number, baseline: number, target: number, direction: CommandKpi["plan"]["direction"]): number {
   if (baseline !== target) return (value - baseline) / (target - baseline) * 100;
@@ -870,6 +984,6 @@ function planProgress(value: number, baseline: number, target: number, direction
 }
 function directionalDifference(actual: number, expected: number, direction: CommandKpi["plan"]["direction"]): number { return direction === "higher" ? actual - expected : expected - actual; }
 function directionalShortfall(actual: number, target: number, direction: CommandKpi["plan"]["direction"]): number { return direction === "higher" ? target - actual : actual - target; }
-function signedKpiValue(value: number, kpi: CommandKpi, currency: string): string { return `${value > 0 ? "+" : value < 0 ? "-" : ""}${formatKpiValue(Math.abs(value), kpi, currency)}`; }
-function gapLabel(value: number, kpi: CommandKpi, currency: string): string { return value > 0 ? `${formatKpiValue(value, kpi, currency)} short` : value < 0 ? `${formatKpiValue(Math.abs(value), kpi, currency)} ahead` : "On target"; }
+function signedKpiValue(value: number, format: CommandKpiFormat, currency: string): string { return `${value > 0 ? "+" : value < 0 ? "-" : ""}${formatKpiValue(Math.abs(value), format, currency)}`; }
+function gapLabel(value: number, format: CommandKpiFormat, currency: string): string { return value > 0 ? `${formatKpiValue(value, format, currency)} short` : value < 0 ? `${formatKpiValue(Math.abs(value), format, currency)} ahead` : "On target"; }
 function roundNumber(value: number, precision: number): number { const factor = 10 ** precision; return Math.round(value * factor) / factor; }

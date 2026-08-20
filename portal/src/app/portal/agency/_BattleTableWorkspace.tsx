@@ -40,8 +40,20 @@ import type { CompanyCapacityAreaId, CompanyCapacityAreaPlan, CompanyObjective, 
 import { applyIntelligenceScope, KpiComparisonWorkspace } from "./_CommandIntelligenceWorkspace";
 import { CapitalOwnershipWorkspace } from "./_CapitalOwnershipWorkspace";
 import { QuarterlyStrategyReview } from "./_QuarterlyStrategyReview";
+import {
+  buildBattlefield,
+  buildWarRoomDecisions,
+  buildWarRoomPulse,
+  summariseBattlefield,
+  type WarRoomBattlefieldRow,
+  type WarRoomDecision,
+  type WarRoomIncident,
+  type WarRoomPulseMetric,
+  type WarRoomScopeInput,
+  type WarRoomTargetState,
+} from "./_battleWarRoom";
 
-export type BattleTableSection = "overview" | "intelligence" | "strategy" | "projections" | "objectives" | "capacity" | "plans" | "capital" | "reviews" | "systems";
+export type BattleTableSection = "warroom" | "overview" | "intelligence" | "strategy" | "projections" | "objectives" | "capacity" | "plans" | "capital" | "reviews" | "systems";
 
 export type BattleTableActuals = {
   monthRevenueCents: number;
@@ -91,6 +103,8 @@ export type BattleTableScopePayload = {
   capacitySignals: HiringCapacitySignals;
 };
 
+// The 10 planning surfaces are the DRILL-IN layer, not the front door. The war
+// room above them is the daily surface; these are where a decision is settled.
 const sections: Array<{ id: BattleTableSection; label: string; icon: React.ReactNode }> = [
   { id: "overview", label: "Strategic plot", icon: <Map size={14} /> },
   { id: "intelligence", label: "KPI intelligence", icon: <BarChart3 size={14} /> },
@@ -104,7 +118,7 @@ const sections: Array<{ id: BattleTableSection; label: string; icon: React.React
   { id: "systems", label: "Executive systems", icon: <Layers3 size={14} /> },
 ];
 
-export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence, initialSection = "overview", initialScopeId = "ecosystem" }: { payload: BattleTablePayload; intelligence: CommandIntelligenceSnapshot; onOpenIntelligence: (kpiIds?: string[], scopeId?: string) => void; initialSection?: BattleTableSection; initialScopeId?: string }) {
+export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence, radarIncidents = [], initialSection = "warroom", initialScopeId = "ecosystem" }: { payload: BattleTablePayload; intelligence: CommandIntelligenceSnapshot; onOpenIntelligence: (kpiIds?: string[], scopeId?: string) => void; radarIncidents?: WarRoomIncident[]; initialSection?: BattleTableSection; initialScopeId?: string }) {
   const scopes = payload.scopes?.length ? payload.scopes : [fallbackBattleScope(payload)];
   const [scopeId, setScopeId] = useState(scopes.some(scope => scope.id === initialScopeId) ? initialScopeId : scopes[0]!.id);
   const selectedScope = scopes.find(scope => scope.id === scopeId) ?? scopes[0]!;
@@ -118,6 +132,30 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const calculations = useMemo(() => strategicCalculations(company, selectedScope.actuals), [company, selectedScope.actuals]);
+
+  // The war room reads the live payload every scope already carries — the same
+  // finance actuals, retained plans and capacity signals the planning sections
+  // are fed by. Editing a plan re-derives the battlefield immediately because
+  // `profiles` (not the server payload) is what feeds it.
+  const warRoomScopes = useMemo<WarRoomScopeInput[]>(() => scopes.map(scope => ({
+    id: scope.id,
+    companyId: scope.companyId,
+    label: scope.label,
+    kind: scope.kind,
+    profile: profiles[scope.id] ?? scope.initial,
+    actuals: scope.actuals,
+    healthScore: scope.healthScore,
+    productCount: scope.productCount,
+    legalCount: scope.legalCount,
+    capacitySignals: scope.capacitySignals,
+  })), [scopes, profiles]);
+  const warRoomNow = intelligence.generatedAt;
+  const battlefield = useMemo(() => buildBattlefield({ scopes: warRoomScopes, incidents: radarIncidents, now: warRoomNow }), [warRoomScopes, radarIncidents, warRoomNow]);
+  const decisions = useMemo(() => buildWarRoomDecisions({ scopes: warRoomScopes, incidents: radarIncidents, now: warRoomNow }), [warRoomScopes, radarIncidents, warRoomNow]);
+  const pulse = useMemo(() => {
+    const scope = warRoomScopes.find(item => item.id === selectedScope.id) ?? warRoomScopes[0]!;
+    return buildWarRoomPulse({ scope, now: warRoomNow });
+  }, [warRoomScopes, selectedScope.id, warRoomNow]);
 
   async function save(next: CompanyProfile, success = "Battle Table updated.") {
     if (!payload.canEdit) return false;
@@ -149,6 +187,15 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
     window.requestAnimationFrame(() => document.getElementById("battle-table-body")?.scrollTo({ top: 0, behavior: "smooth" }));
   }
 
+  // Drilling in from the war room moves scope AND section in one move, so a
+  // decision opens on the exact company it was raised against.
+  function drillInto(nextScopeId: string, next: BattleTableSection) {
+    if (scopes.some(scope => scope.id === nextScopeId)) setScopeId(nextScopeId);
+    setMessage("");
+    setError("");
+    selectSection(next);
+  }
+
   return <section className="aqua-battle-table relative min-h-[46rem] overflow-hidden border border-[#d7b56d]/30 bg-[#050b0e] text-white" aria-labelledby="battle-table-heading">
     <div className="pointer-events-none absolute inset-0 opacity-70" aria-hidden="true" style={{ backgroundImage: "linear-gradient(rgba(215,181,109,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(98,232,255,.025) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
     <header className="relative flex min-h-[78px] flex-wrap items-center justify-between gap-4 border-b border-[#d7b56d]/25 bg-[#071116]/95 px-4 py-3 sm:px-6">
@@ -178,11 +225,19 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
       <div className="flex min-w-[250px] flex-wrap content-center gap-1.5 px-4 py-3 sm:px-5">{selectedScope.coverage.map(item => <span key={item} className="border border-[#62e8ff]/15 bg-[#62e8ff]/[0.04] px-2 py-1 text-[7px] font-semibold uppercase text-[#8ec9d5]/55">{item}</span>)}</div>
     </section>
 
-    <nav aria-label="Battle Table views" className="relative grid grid-flow-col auto-cols-[minmax(9.5rem,1fr)] overflow-x-auto border-b border-[#d7b56d]/20 bg-[#061016]/96 xl:grid-flow-row xl:grid-cols-10">
-      {sections.map(item => <button key={item.id} type="button" aria-pressed={section === item.id} onClick={() => selectSection(item.id)} className={`flex min-h-14 items-center justify-center gap-2 border-r border-[#d7b56d]/12 px-3 text-[10px] font-semibold uppercase transition ${section === item.id ? "bg-[#d7b56d]/[0.12] text-[#f1dba9] shadow-[inset_0_-2px_0_#d7b56d]" : "text-white/45 hover:bg-white/[0.035] hover:text-white/78"}`}>{item.icon}{item.label}</button>)}
-    </nav>
+    <div className="relative border-b border-[#d7b56d]/20 bg-[#061016]/96">
+      <div className="flex flex-wrap items-stretch border-b border-[#d7b56d]/14">
+        <button type="button" aria-pressed={section === "warroom"} onClick={() => selectSection("warroom")} className={`flex min-h-14 flex-1 items-center justify-center gap-2 border-r border-[#d7b56d]/12 px-4 text-[11px] font-semibold uppercase transition ${section === "warroom" ? "bg-[#d7b56d]/[0.14] text-[#f1dba9] shadow-[inset_0_-2px_0_#d7b56d]" : "text-white/60 hover:bg-white/[0.04] hover:text-white"}`}><Zap size={15} /> War room{decisions.length ? <span className={`ml-1 px-2 py-0.5 text-[9px] tabular-nums ${decisions.some(item => item.severity === "critical") ? "bg-red-400/15 text-red-200" : "bg-amber-300/15 text-amber-200"}`}>{decisions.length}</span> : null}</button>
+        <span className="hidden items-center px-4 text-[8px] font-semibold uppercase text-white/28 lg:flex">Set-up and planning · drill in below</span>
+      </div>
+      <nav aria-label="Battle Table views" className="grid grid-flow-col auto-cols-[minmax(9.5rem,1fr)] overflow-x-auto xl:grid-flow-row xl:grid-cols-10">
+        {sections.map(item => <button key={item.id} type="button" aria-pressed={section === item.id} onClick={() => selectSection(item.id)} className={`flex min-h-12 items-center justify-center gap-2 border-r border-[#d7b56d]/12 px-3 text-[10px] font-semibold uppercase transition ${section === item.id ? "bg-[#d7b56d]/[0.12] text-[#f1dba9] shadow-[inset_0_-2px_0_#d7b56d]" : "text-white/40 hover:bg-white/[0.035] hover:text-white/78"}`}>{item.icon}{item.label}</button>)}
+      </nav>
+    </div>
 
     <div id="battle-table-body" className="relative max-h-[calc(100dvh-13rem)] min-h-[38rem] overflow-y-auto">
+      {section !== "warroom" ? <div className="flex items-center gap-3 border-b border-[#d7b56d]/12 bg-[#050d11]/80 px-4 py-2 sm:px-6"><button type="button" onClick={() => selectSection("warroom")} className="inline-flex min-h-8 items-center gap-2 text-[9px] font-semibold uppercase text-[#62e8ff] hover:text-white"><Zap size={12} /> Back to the war room</button><span className="text-[9px] uppercase text-white/25">Drill-in · {selectedScope.label}</span></div> : null}
+      {section === "warroom" ? <WarRoom rows={battlefield} decisions={decisions} pulse={pulse} selectedScopeId={selectedScope.id} scopeLabel={selectedScope.label} radarCritical={radarIncidents.filter(incident => incident.severity === "critical").length} onDrill={drillInto} onOpenIntelligence={onOpenIntelligence} /> : null}
       {section === "overview" ? <StrategicOverview payload={activePayload} company={company} calculations={calculations} onSelect={selectSection} /> : null}
       {section === "intelligence" ? <KpiStrategyWorkspace snapshot={scopedIntelligence} initialScopeId={selectedScope.id} onOpenIntelligence={onOpenIntelligence} /> : null}
       {section === "strategy" ? <StrategyEditor key={`${selectedScope.id}:strategy`} company={company} canEdit={payload.canEdit} saving={saving} onSave={save} /> : null}
@@ -195,6 +250,133 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
       {section === "systems" ? <ExecutiveSystems payload={activePayload} /> : null}
     </div>
   </section>;
+}
+
+// ─── The war room — the Battle Table's front door ─────────────────────────────
+// Three zones: the battlefield (every scope at a glance), the decisions queue
+// (what needs Ed now, with its evidence and where it is settled) and the live
+// pulse (key metrics against target, with deviation and run-rate forecast).
+function WarRoom({ rows, decisions, pulse, selectedScopeId, scopeLabel, radarCritical, onDrill, onOpenIntelligence }: {
+  rows: WarRoomBattlefieldRow[];
+  decisions: WarRoomDecision[];
+  pulse: WarRoomPulseMetric[];
+  selectedScopeId: string;
+  scopeLabel: string;
+  radarCritical: number;
+  onDrill: (scopeId: string, section: BattleTableSection) => void;
+  onOpenIntelligence: (kpiIds?: string[], scopeId?: string) => void;
+}) {
+  const summary = summariseBattlefield(rows);
+  const criticalDecisions = decisions.filter(item => item.severity === "critical");
+  return <div className="min-w-0">
+    <div className="grid grid-cols-2 border-b border-[#d7b56d]/16 sm:grid-cols-3 lg:grid-cols-5">
+      <BattleMetric label="Fronts held" value={String(summary.scopes)} detail="Ecosystem plus every trading company on the table" tone="clear" />
+      <BattleMetric label="Behind pace" value={String(summary.behind)} detail="Scopes under their month-to-date revenue corridor" tone={summary.behind ? "warning" : "clear"} />
+      <BattleMetric label="Needs you now" value={String(criticalDecisions.length)} detail={`${decisions.length} call${decisions.length === 1 ? "" : "s"} in the queue in total`} tone={criticalDecisions.length ? "critical" : decisions.length ? "warning" : "clear"} />
+      <BattleMetric label="Radar critical" value={String(radarCritical)} detail="Critical incidents from the latest Radar sweep" tone={radarCritical ? "critical" : "clear"} />
+      <BattleMetric label="Open alerts" value={String(summary.alerts)} detail={`${summary.criticalAlerts} cannot wait`} tone={summary.criticalAlerts ? "critical" : summary.alerts ? "warning" : "clear"} />
+    </div>
+
+    <section className="border-b border-[#d7b56d]/16 p-4 sm:p-6" aria-label="The battlefield">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div><p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Zone 1 · The battlefield</p><h2 className="mt-1 text-xl font-semibold">Every company at a glance</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-white/42">Health, revenue against the month-to-date corridor and the alert load for each scope. Pick a row to command that company.</p></div>
+      </div>
+      <div className="mt-4 overflow-x-auto border border-[#d7b56d]/16">
+        <table className="w-full min-w-[760px] border-collapse text-left text-xs">
+          <thead><tr className="border-b border-white/10 bg-[#071116]/70 text-[9px] uppercase text-white/32"><th className="p-3">Scope</th><th className="p-3">Health</th><th className="p-3">Revenue vs pace</th><th className="p-3">Position</th><th className="p-3">Alerts</th><th className="p-3">Command</th></tr></thead>
+          <tbody>
+            {rows.map(row => <tr key={row.scopeId} className={`border-b border-white/8 last:border-b-0 ${row.scopeId === selectedScopeId ? "bg-[#d7b56d]/[0.05]" : ""}`}>
+              <th className="p-3 font-semibold"><span className="flex items-center gap-2">{row.kind === "aggregate" ? <Layers3 size={13} className="text-[#62e8ff]" /> : <Building2 size={13} className="text-[#e4c783]" />}<span className="truncate">{row.label}</span></span><span className="mt-1 block text-[8px] font-normal uppercase text-white/28">{row.kind === "aggregate" ? "Whole ecosystem" : "Trading company"}</span></th>
+              <td className="p-3"><span className={`text-base font-semibold tabular-nums ${row.healthState === "critical" ? "text-red-300" : row.healthState === "warning" ? "text-amber-200" : "text-[#68f5d0]"}`}>{row.healthScore}</span><span className="ml-1 text-[9px] text-white/28">pts</span></td>
+              <td className="p-3"><span className="block tabular-nums text-white/78">{money(row.revenueCents, row.currency)}</span><span className="mt-0.5 block text-[9px] text-white/30">{row.targetCents > 0 ? `of ${money(row.targetCents, row.currency)} target` : "no target set"}</span></td>
+              <td className="p-3"><TargetStateChip state={row.revenue.state} deviationPercent={row.revenue.deviationPercent} /><span className="mt-1 block text-[9px] text-white/28">{row.revenue.forecastCents === null ? "Run rate unavailable" : `Run rate lands ${money(row.revenue.forecastCents, row.currency)}`}</span></td>
+              <td className="p-3"><span className="flex flex-wrap gap-1">{row.criticalAlertCount ? <span className="border border-red-300/25 bg-red-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-red-200">{row.criticalAlertCount} critical</span> : null}{row.alertCount - row.criticalAlertCount > 0 ? <span className="border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-amber-200">{row.alertCount - row.criticalAlertCount} watch</span> : null}{!row.alertCount ? <span className="border border-[#68f5d0]/22 bg-[#68f5d0]/[0.06] px-2 py-0.5 text-[9px] font-semibold uppercase text-[#68f5d0]">Holding</span> : null}</span></td>
+              <td className="p-3"><button type="button" onClick={() => onDrill(row.scopeId, "overview")} className="inline-flex min-h-8 items-center gap-1.5 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.05] px-2.5 text-[9px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1]">Drill in <ArrowUpRight size={12} /></button></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div className="grid min-w-0 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.72fr)]">
+      <section className="min-w-0 border-b border-[#d7b56d]/16 p-4 sm:p-6 xl:border-b-0 xl:border-r" aria-label="Decisions needing you">
+        <p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Zone 2 · Decisions needing you</p>
+        <h2 className="mt-1 text-xl font-semibold">What needs your call right now</h2>
+        <p className="mt-2 max-w-2xl text-xs leading-5 text-white/42">Raised from live evidence — revenue pace, capacity guardrails, at-risk objectives, capital exceptions and critical Radar incidents. Nothing here is committed work until you act on it.</p>
+        <div className="mt-4 grid gap-2">
+          {decisions.map(decision => <DecisionCard key={decision.id} decision={decision} onDrill={onDrill} />)}
+          {!decisions.length ? <div className="border border-[#68f5d0]/18 bg-[#68f5d0]/[0.035] px-5 py-10 text-center"><CheckCircle2 className="mx-auto text-[#68f5d0]" size={24} /><p className="mt-3 text-sm font-semibold">No decision is waiting on you</p><p className="mx-auto mt-1 max-w-xl text-xs leading-5 text-white/38">Every scope is inside its corridor, guardrails are clear and no critical incident is open. The queue fills itself as evidence changes.</p></div> : null}
+        </div>
+      </section>
+
+      <aside className="grid content-start bg-[#071116]/80" aria-label="Live pulse">
+        <div className="border-b border-[#d7b56d]/16 p-5">
+          <p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">Zone 3 · Live pulse · {scopeLabel}</p>
+          <h2 className="mt-1 text-lg font-semibold">Metrics against target</h2>
+          <p className="mt-2 text-[10px] leading-4 text-white/35">Deviation is measured against each metric&rsquo;s own target. Missing evidence stays &ldquo;Learning&rdquo; rather than reading as a pass.</p>
+        </div>
+        <div className="divide-y divide-white/8">
+          {pulse.map(metric => <PulseRow key={metric.id} metric={metric} />)}
+        </div>
+        <div className="p-5">
+          <button type="button" onClick={() => onOpenIntelligence(undefined, selectedScopeId)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.055] px-3 text-[9px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1]"><BarChart3 size={14} /> Full KPI intelligence <ArrowUpRight size={12} /></button>
+        </div>
+      </aside>
+    </div>
+  </div>;
+}
+
+function DecisionCard({ decision, onDrill }: { decision: WarRoomDecision; onDrill: (scopeId: string, section: BattleTableSection) => void }) {
+  const tone = decision.severity === "critical"
+    ? { rail: "bg-red-400", border: "border-red-300/25", chip: "bg-red-400/12 text-red-200", label: "Critical" }
+    : decision.severity === "warning"
+      ? { rail: "bg-amber-300", border: "border-amber-300/25", chip: "bg-amber-300/12 text-amber-200", label: "Warning" }
+      : { rail: "bg-[#62e8ff]", border: "border-[#62e8ff]/22", chip: "bg-[#62e8ff]/12 text-[#8ef1ff]", label: "Watch" };
+  return <article className={`relative flex gap-3 border ${tone.border} bg-[#071116]/74 p-4`}>
+    <span className={`absolute inset-y-0 left-0 w-0.5 ${tone.rail}`} aria-hidden="true" />
+    <div className="min-w-0 flex-1 pl-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`px-2 py-0.5 text-[8px] font-semibold uppercase ${tone.chip}`}>{tone.label}</span>
+        <span className="text-[8px] font-semibold uppercase text-white/30">{decision.scopeLabel}</span>
+      </div>
+      <h3 className="mt-2 text-sm font-semibold">{decision.title}</h3>
+      <p className="mt-1 text-xs leading-5 text-white/45">{decision.detail}</p>
+      {decision.evidence.length ? <ul className="mt-3 grid gap-1 border-l border-white/10 pl-3 text-[10px] leading-4 text-white/38">{decision.evidence.map(item => <li key={item}>{item}</li>)}</ul> : null}
+    </div>
+    <div className="flex shrink-0 items-start">
+      {decision.href
+        ? <Link href={decision.href} className="inline-flex min-h-9 items-center gap-1.5 border border-[#d7b56d]/25 bg-[#d7b56d]/[0.07] px-3 text-[9px] font-semibold uppercase text-[#f1dba9] hover:bg-[#d7b56d]/[0.12]">{decision.actionLabel} <ArrowUpRight size={12} /></Link>
+        : <button type="button" onClick={() => onDrill(decision.scopeId, decision.section)} className="inline-flex min-h-9 items-center gap-1.5 border border-[#d7b56d]/25 bg-[#d7b56d]/[0.07] px-3 text-[9px] font-semibold uppercase text-[#f1dba9] hover:bg-[#d7b56d]/[0.12]">{decision.actionLabel} <ArrowUpRight size={12} /></button>}
+    </div>
+  </article>;
+}
+
+function PulseRow({ metric }: { metric: WarRoomPulseMetric }) {
+  return <div className="px-5 py-4">
+    <div className="flex items-baseline justify-between gap-3">
+      <p className="text-[9px] font-semibold uppercase text-white/32">{metric.label}</p>
+      <TargetStateChip state={metric.state} deviationPercent={metric.deviationPercent} />
+    </div>
+    <div className="mt-1 flex items-baseline justify-between gap-3">
+      <strong className="text-lg tabular-nums">{metric.value}</strong>
+      <span className="text-[9px] uppercase text-white/28">{metric.target}</span>
+    </div>
+    <p className="mt-1 text-[10px] leading-4 text-white/32">{metric.detail}</p>
+  </div>;
+}
+
+function TargetStateChip({ state, deviationPercent }: { state: WarRoomTargetState; deviationPercent: number | null }) {
+  const label = state === "ahead" ? "Ahead"
+    : state === "on-track" ? "On track"
+    : state === "behind" ? "Behind"
+    : state === "critical" ? "Off track"
+    : state === "no-target" ? "No target"
+    : "Learning";
+  const tone = state === "critical" ? "border-red-300/25 bg-red-400/10 text-red-200"
+    : state === "behind" ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
+    : state === "ahead" || state === "on-track" ? "border-[#68f5d0]/22 bg-[#68f5d0]/[0.06] text-[#68f5d0]"
+    : "border-white/12 bg-white/[0.04] text-white/45";
+  return <span className={`inline-flex items-center gap-1 border px-2 py-0.5 text-[9px] font-semibold uppercase ${tone}`}>{label}{deviationPercent === null ? null : <span className="tabular-nums opacity-75">{signed(deviationPercent)}%</span>}</span>;
 }
 
 function StrategicOverview({ payload, company, calculations, onSelect }: { payload: BattleTablePayload; company: CompanyProfile; calculations: StrategicCalculations; onSelect: (section: BattleTableSection) => void }) {
@@ -453,7 +635,7 @@ function ExecutiveSystems({ payload }: { payload: BattleTablePayload }) {
     { label: "Products and offers", value: String(payload.productCount), detail: "Pricing, packages, fulfilment and portal seeds", href: "/portal/agency/fulfilment?view=services", icon: <Package size={17} /> },
     { label: "Connections", value: `${payload.connectedSources}/${payload.totalSources}`, detail: "Evidence, integrations and operating inputs", href: "/portal/agency/company?view=connections", icon: <PlugZap size={17} /> },
     { label: "Legal and compliance", value: String(payload.legalCount), detail: "Contracts, insurance, policies and obligations", href: "/portal/agency/company?view=legal", icon: <FileCheck2 size={17} /> },
-    { label: "People and departments", value: String(payload.staffCount), detail: "Capacity owners, roles, leave and compensation", href: "/portal/agency/agency-hr", icon: <UsersRound size={17} /> },
+    { label: "People and departments", value: String(payload.staffCount), detail: "Capacity owners, roles, leave and compensation", href: "/portal/agency/people", icon: <UsersRound size={17} /> },
     { label: "Finance planning", value: payload.actuals.financeConnected ? "Live" : "Setup", detail: "Budgets, cash, forecasts, tax and profitability", href: "/portal/agency/agency-finance/plans", icon: <Landmark size={17} /> },
     { label: "Journey and pipeline", value: String(payload.actuals.leadCount), detail: "Demand, conversion, deals and source quality", href: "/portal/clients?view=journey", icon: <BriefcaseBusiness size={17} /> },
     { label: "Executive actions", value: String(payload.actuals.openTasks), detail: "Owned work created from strategic decisions", href: "/portal/agency/actions", icon: <CheckCircle2 size={17} /> },

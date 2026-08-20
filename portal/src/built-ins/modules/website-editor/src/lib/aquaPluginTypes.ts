@@ -13,6 +13,7 @@
 // `plugins/fulfillment/src/lib/aquaPluginTypes.ts` to ease the eventual
 // merge.
 
+import type { ElementCategory } from "@/lib/elements/definition";
 import type { ComponentType, ReactNode } from "react";
 
 import type { AgencyId, ClientId, PluginInstall, UserId } from "./tenancy";
@@ -57,6 +58,26 @@ export interface PluginStorage {
   list(prefix?: string): Promise<string[]>;
 }
 
+// Public media bridge (approved website media → aquacrm-public CDN). Vendored
+// mirror of the foundation `PublicMediaPort` (`built-ins/runtime/_types.ts`).
+export interface PublicMediaStoreInput {
+  agencyId: string;
+  clientId?: string;
+  siteId?: string;
+  /** A `data:<mime>;base64,<payload>` URI to publish to the public bucket. */
+  dataUrl: string;
+  filename?: string;
+}
+
+export interface StoredPublicMedia {
+  publicUrl: string;
+  storageKey: string;
+}
+
+export interface PublicMediaPort {
+  store(input: PublicMediaStoreInput): Promise<StoredPublicMedia>;
+}
+
 export interface PluginServices {
   clients: ClientStorePort;
   pluginInstalls: PluginInstallStorePort;
@@ -66,6 +87,9 @@ export interface PluginServices {
   activity: ActivityLogPort;
   events: EventBusPort;
   variants: PortalVariantPort;
+  // Optional + additive: absent where public media isn't wired — callers must
+  // then leave media untouched (never block a publish on a missing port).
+  publicMedia?: PublicMediaPort;
 }
 
 // ─── Setup wizard ──────────────────────────────────────────────────────────
@@ -214,13 +238,9 @@ export interface BlockDescriptor {
   requiresPlugin?: string;
 }
 
-export type BlockCategory =
-  | "layout"
-  | "content"
-  | "media"
-  | "commerce"
-  | "auth"
-  | "advanced";
+// One declaration, in `src/lib/elements/definition.ts` — the palette grouping
+// is part of the shared element vocabulary now, not a plugin-local enum.
+export type BlockCategory = ElementCategory;
 
 export interface HeadInjection {
   id: string;

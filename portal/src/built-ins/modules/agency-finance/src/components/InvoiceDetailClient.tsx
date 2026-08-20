@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FilePenLine, Plus, Printer, Trash2, X } from "lucide-react";
+import { CreditCard, Download, FilePenLine, Plus, Printer, Trash2, X } from "lucide-react";
 import type { Invoice, InvoiceTemplate } from "../lib/domain";
 import { dateInputValue, formatUkDate } from "../lib/safeDate";
 
@@ -29,15 +29,19 @@ export function InvoiceDetailClient({
   agencyName,
   clientName,
   template,
+  stripeConfigured = false,
 }: {
   invoice: Invoice;
   agencyName: string;
   clientName: string;
   template: InvoiceTemplate;
+  stripeConfigured?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [payLink, setPayLink] = useState<string | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
   const [dueAt, setDueAt] = useState(dateInputValue(invoice.dueAt));
   const [taxAmount, setTaxAmount] = useState((invoice.taxCents / 100).toFixed(2));
   const [notes, setNotes] = useState(invoice.notes ?? "");
@@ -96,6 +100,33 @@ export function InvoiceDetailClient({
     if (await patch({ status: "sent" })) window.location.reload();
   }
 
+  // Create a Stripe Checkout pay-link for this invoice. The webhook reconciles
+  // it to paid; money goes to your Stripe account directly — the app never
+  // holds funds.
+  async function createPayLink() {
+    setPayBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE}/invoices/checkout`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ invoiceId: invoice.id }),
+      });
+      const result = await response.json() as { ok?: boolean; url?: string; error?: string };
+      if (!response.ok || !result.ok || !result.url) {
+        setError(result.error === "stripe_not_configured"
+          ? "Set up Stripe in Finance settings to take card payments."
+          : (result.error ?? "Could not create a pay-link."));
+        return;
+      }
+      setPayLink(result.url);
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
+  const canTakeCard = stripeConfigured && (invoice.status === "sent" || invoice.status === "overdue");
+
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6 pb-12">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -114,6 +145,11 @@ export function InvoiceDetailClient({
           <a href={printUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03]">
             <Printer size={16} aria-hidden /> Print / save PDF
           </a>
+          {canTakeCard ? (
+            <button type="button" disabled={payBusy} onClick={createPayLink} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium hover:bg-black/[0.03] disabled:opacity-50">
+              <CreditCard size={16} aria-hidden /> {payBusy ? "Creating…" : "Pay by card"}
+            </button>
+          ) : null}
           {invoice.status === "draft" ? (
             <button type="button" onClick={() => setEditing(value => !value)} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">
               {editing ? <X size={16} aria-hidden /> : <FilePenLine size={16} aria-hidden />} {editing ? "Cancel" : "Amend"}
@@ -128,6 +164,14 @@ export function InvoiceDetailClient({
         </p>
       ) : null}
       {error ? <p role="alert" className="border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
+      {payLink ? (
+        <div className="flex flex-wrap items-center gap-3 border-l-2 border-black/25 bg-black/[0.025] px-4 py-3 text-sm">
+          <span className="font-medium text-black/70">Stripe pay-link ready.</span>
+          <a href={payLink} target="_blank" rel="noreferrer" className="font-medium text-black/80 underline underline-offset-2">Open checkout →</a>
+          <button type="button" onClick={() => void navigator.clipboard?.writeText(payLink)} className="rounded-md border border-black/15 bg-white px-2 py-1 text-xs font-medium hover:bg-black/[0.03]">Copy link</button>
+          <span className="text-xs text-black/45">Send this to your client. It settles to your Stripe account; the app never holds the funds.</span>
+        </div>
+      ) : null}
 
       {editing ? (
         <div className="border-y border-black/10 bg-black/[0.015] p-5">

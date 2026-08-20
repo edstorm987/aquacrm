@@ -246,6 +246,31 @@ export interface PhaseStorePort {
   deletePhase(id: string): boolean | Promise<boolean>;
 }
 
+// ─── PublicMediaPort — approved website media → the aquacrm-public CDN ─────
+// The bridge that lets a sandboxed plugin (e.g. website-editor) push approved
+// media to the public bucket without importing app services directly. Backed
+// by `publicMediaAdapter` → `lib/server/publicUploadStorage`. See
+// docs/development/plans/public-bucket.md (Phase 2).
+
+export interface PublicMediaStoreInput {
+  agencyId: string;
+  clientId?: string;
+  siteId?: string;
+  /** A `data:<mime>;base64,<payload>` URI to publish to the public bucket. */
+  dataUrl: string;
+  filename?: string;
+}
+
+export interface StoredPublicMedia {
+  /** The durable, CDN-served public URL for the stored object. */
+  publicUrl: string;
+  storageKey: string;
+}
+
+export interface PublicMediaPort {
+  store(input: PublicMediaStoreInput): Promise<StoredPublicMedia>;
+}
+
 // ─── PluginServices — the foundation toolbox handed to plugins ────────────
 
 export interface PluginServices {
@@ -257,6 +282,9 @@ export interface PluginServices {
   activity: ActivityLogPort;
   events: EventBusPort;
   variants: PortalVariantPort;
+  // Optional + additive: absent where public media isn't wired (callers must
+  // then leave media untouched — never block a publish on a missing port).
+  publicMedia?: PublicMediaPort;
 }
 
 // ─── Runtime context handed to plugin lifecycle hooks ─────────────────────
@@ -469,6 +497,30 @@ export interface HealthStatus {
 
 export type PluginScopePolicy = "client" | "agency" | "either";
 
+// ─── Erasure subject ──────────────────────────────────────────────────────
+//
+// Who is being erased, resolved ONCE by `eraseClientCompletely` and handed to
+// every `onEraseClient` hook. The client record is deleted immediately after
+// the hooks run, so this is a hook's only chance to know the person behind the
+// id — and plugins that hold pre-client data (a funnel capture, a marketing
+// lead, an email to a lead who converted later) can only match on it.
+
+export interface ErasureSubject {
+  /** Every address the client workspace knows for this person, lowercased. */
+  emails: string[];
+  /** The client's display name at erasure time (for a plugin matching by name). */
+  name?: string;
+  /** The client record's metadata — `leadId`/`contactId`/`linkedContacts`/… for
+   *  plugins that link by record id rather than by address. */
+  metadata: Record<string, unknown>;
+}
+
+// ─── Erasure data disposition (optional, defaults to "delete") ────────────
+// How the client-erasure sweep treats this plugin's client data when it has
+// no bespoke `onEraseClient` hook. "retain" = legal hold (finance, contracts,
+// deliverable proof) — excluded from the sweep so it survives erasure.
+export type PluginDataDisposition = "delete" | "retain";
+
 // ─── The plugin manifest ──────────────────────────────────────────────────
 
 export interface AquaPlugin {
@@ -487,6 +539,17 @@ export interface AquaPlugin {
   // doesn't set it, so the runtime falls back to permissive.
   scopePolicy?: PluginScopePolicy;
 
+  // How the client-erasure sweep treats this plugin's data when the plugin
+  // has NO `onEraseClient` hook. "delete" (the default) lets the generic
+  // sweep drop/prune the client's records; "retain" excludes the plugin from
+  // the sweep entirely — for data under a legal-retention obligation
+  // (finance/invoices, deliverable proof, contracts) that must survive an
+  // erasure as the legal-defence record (GDPR Art. 17(3)(e)). A plugin that
+  // needs to split delete-PII-from-keep-record implements `onEraseClient`
+  // instead, which takes precedence over this flag. See the
+  // [erasure disposition policy](../../../docs/development/plans/plugin-data-erasure.md).
+  dataDisposition?: PluginDataDisposition;
+
   plans?: PlanId[];
   requires?: string[];
   conflicts?: string[];
@@ -496,6 +559,26 @@ export interface AquaPlugin {
   onEnable?: (ctx: PluginCtx) => Promise<void>;
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
+
+  // Right-to-be-forgotten hook. Called when a client is permanently erased,
+  // so a plugin can destroy every record it holds for that client from its
+  // own per-install storage. The client erasure sweep resolves this like the
+  // other lifecycle hooks and invokes it for each installed plugin.
+  //
+  // The target `clientId` is passed EXPLICITLY, not read from `ctx.clientId`:
+  // an agency-scoped install holds data for many clients in one storage
+  // slice, where `ctx.clientId` is `undefined`. The hook must be idempotent —
+  // it may fire for a client the plugin holds no data for, and erasure has no
+  // undo, so it must never throw on "nothing to erase". Plugins that don't
+  // implement it are covered by the runtime's generic `pluginData` fallback.
+  //
+  // `subject` carries WHO is being erased, resolved once by the sweep from the
+  // client record (which is deleted moments later, so a hook can't look it up
+  // afterwards). Most plugins need it: a record is often tied to the person by
+  // their ADDRESS, not by a `clientId` — a marketing email or a funnel capture
+  // predates the client existing at all. Without this every hook re-derived the
+  // same thing through its own tenant port, four different ways.
+  onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
 
   setup?: SetupStep[];
 

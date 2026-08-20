@@ -10,8 +10,10 @@ import {
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/tradingBrands";
 import { authErrorResponse, requireRole } from "@/lib/server/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { pipelinePort } from "@/lib/server/leadsPipelinePorts";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getInstall } from "@/server/pluginInstalls";
+import { classifyPerson, upsertPerson } from "@/server/persons";
 import { deleteCard, getPipelineBySlug, listCards } from "@/server/pipelines";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
@@ -130,15 +132,39 @@ export async function PATCH(request: Request) {
             customFields,
           }, session.userId);
       leadId = result.lead.id;
-      if (existingRoutedContact?.customFields?.enquiryId === enquiry.id) {
-        await contacts.delete(existingRoutedContact.id, session.userId);
-        contactId = undefined;
-      }
-      routeNote = result.created ? "Created a sales lead and added it to Journey." : "Kept the existing sales lead in Journey.";
+      // The contact record is RETAINED. It costs nothing to keep and it holds
+      // history that reclassification used to destroy.
+      if (existingRoutedContact) contactId = existingRoutedContact.id;
+      // Returning to sales after being routed out: the kanban card was
+      // removed as a projection, so put it back or the lead is invisible
+      // in Journey despite being eligible again.
+      ensureLeadCard(session.agencyId, result.lead);
+      routeNote = result.created
+        ? "Created a sales lead and added it to Journey."
+        : "Restored the sales lead to Journey with its history intact.";
     } else {
       const activeLead = matchedLead ?? (existingLeadId ? await leads.get(existingLeadId) : null);
       if (activeLead) {
-        await leads.delete(activeLead.id, session.userId);
+        // The lead is KEPT, not deleted.
+        //
+        // `isLeadJourneyEligible` already excludes any website lead whose
+        // classification is not "sales", and that filter is applied on all
+        // six Journey surfaces (clients page, pipeline workspace, pipeline
+        // page, Radar, operational alerts). Stamping the classification is
+        // therefore enough to remove it from the sales Journey.
+        //
+        // The previous `leads.delete()` was redundant on top of that filter,
+        // and destroyed meeting notes, call recordings, sales presentations,
+        // budget and journey events with no way back.
+        await leads.update(activeLead.id, {
+          customFields: {
+            ...(activeLead.customFields ?? {}),
+            enquiryId: enquiry.id,
+            enquiryClassification: classification,
+          },
+        }, session.userId);
+        // The kanban card IS removed — it is a projection of Journey
+        // membership, and `ensureLeadCard` puts it back on return to sales.
         removeLeadCards(session.agencyId, activeLead.id, activeLead.pipelineCardId);
       }
       const contactType = classificationContactType(classification);
@@ -180,15 +206,37 @@ export async function PATCH(request: Request) {
         contactId = result.contact.id;
         routeNote = result.created ? "Filed as a non-sales contact." : "Updated the existing non-sales contact.";
       } else if (classification === "spam") {
-        if (existingRoutedContact?.customFields?.enquiryId === enquiry.id) {
-          await contacts.delete(existingRoutedContact.id, session.userId);
-        }
-        contactId = undefined;
+        // Spam contacts are retained too. Deleting them loses the evidence
+        // that this address was already judged spam, so the next enquiry from
+        // it arrives looking brand new.
+        if (existingRoutedContact) contactId = existingRoutedContact.id;
         routeNote = "Removed from Journey and retained as spam for audit and search.";
       } else if (!enquiry.email?.trim()) {
         routeNote = "Removed from Journey and retained in the inbox. Add an email before creating a contact record.";
       }
     }
+
+    // The canonical human. Classification is authoritative on the Person —
+    // the enquiry only records what was decided at the time. Facets are
+    // attached additively, so a retained lead and a retained contact can both
+    // hang off the same person.
+    const { person } = upsertPerson(session.agencyId, {
+      emails: [enquiry.email ?? undefined],
+      phones: [enquiry.phone ?? undefined],
+      name: enquiry.name,
+      source: typeof currentMetadata.source === "string" ? currentMetadata.source : `website:${enquiry.brand_slug}`,
+      facets: {
+        leadId: leadId ?? existingLeadId,
+        contactId,
+        enquiryIds: [enquiry.id],
+      },
+    });
+    classifyPerson(session.agencyId, person.id, {
+      classification,
+      by: session.userId,
+      sourceType: "website-enquiry",
+      sourceId: enquiry.id,
+    });
 
     await flushPendingWrites();
     const history = Array.isArray(currentMetadata.enquiryClassificationHistory)
@@ -215,12 +263,13 @@ export async function PATCH(request: Request) {
       archivedLeadId: !leadId && existingLeadId ? existingLeadId : currentMetadata.archivedLeadId ?? null,
       leadRoutedOutAt: !leadId && existingLeadId ? now : null,
       contactId: contactId ?? null,
+      personId: person.id,
       enquiryRouteNote: routeNote,
     };
     const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata }).eq("id", enquiry.id);
     if (updateError) throw new Error(`Could not classify website enquiry: ${updateError.message}`);
 
-    return NextResponse.json({ ok: true, classification, leadId, contactId, routeNote });
+    return NextResponse.json({ ok: true, classification, leadId, contactId, personId: person.id, routeNote });
   } catch (error) {
     try {
       return authErrorResponse(error);
@@ -229,6 +278,30 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "The enquiry could not be routed." }, { status: 500 });
     }
   }
+}
+
+/**
+ * Put the lead's kanban card back when it re-enters Journey. Without this a
+ * lead reclassified away from sales and back again is eligible for Journey
+ * but has no card, so it silently never appears on the board.
+ */
+function ensureLeadCard(agencyId: string, lead: { id: string; email?: string; phone?: string; name?: string; source: string }) {
+  const pipeline = getPipelineBySlug(agencyId, "leads");
+  if (!pipeline) return;
+  const alreadyOnBoard = listCards(pipeline.id).some(card => {
+    if (card.kind !== "lead") return false;
+    const snapshot = card.lead as unknown as { leadId?: string };
+    return snapshot.leadId === lead.id;
+  });
+  if (alreadyOnBoard) return;
+  pipelinePort.addLeadCard({
+    agencyId,
+    leadId: lead.id,
+    email: lead.email,
+    phone: lead.phone,
+    name: lead.name,
+    source: lead.source,
+  } as never);
 }
 
 function removeLeadCards(agencyId: string, leadId: string, pipelineCardId?: string) {

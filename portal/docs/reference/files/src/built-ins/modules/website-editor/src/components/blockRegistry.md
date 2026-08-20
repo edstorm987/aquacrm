@@ -1,0 +1,133 @@
+# `src/built-ins/modules/website-editor/src/components/blockRegistry.ts`
+
+← [File index](../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
+
+**What it is:** Block registry for the visual editor.  Faithful port of `02/src/components/editor/blockRegistry.ts`, with the auth category preserved (login/signup/social/theme-selector/ member-gate are surfaced under "auth" in the editor's block-library sidebar even though 02 grouped some of them under "content").  Maps each BlockType to: - the React component that renders it - the default props for newly inserted blocks - a property-panel schema (which fields the editor exposes) - an icon + label for the block library sidebar  Adding a new block type: add it to BlockType in `../types/block.ts`, add the component file under `./blocks/`, and append a registry entry here. The plugin manifest derives `BlockDescriptor[]` from this map via `BLOCK_DESCRIPTORS`.
+
+## Exports (18)
+
+- `interface BlockRenderProps (3 members)`
+- `type PropFieldType`
+- `interface PropField (7 members)`
+- `interface BlockDefinition (12 members)`
+- `BLOCK_REGISTRY: Record<string, BlockDefinition>`
+- `getBlockDefinition(type: string): BlockDefinition | undefined`
+- `listBlockDefinitions(): BlockDefinition[]`
+- `listBlocksByCategory(category: BlockCategory): BlockDefinition[]`
+- `BLOCK_DESCRIPTORS: BlockDescriptor[]`
+- `BLOCK_TYPES`
+- `getBlockDescriptor(type: string): BlockDescriptor | undefined`
+- `interface BlockComponentProps (3 members)`
+- `interface BlockRegistryEntry (2 members)`
+- `getBlockEntry(type: string): BlockRegistryEntry | undefined`
+- `type BlockComponentType`
+- `RENDERER_REGISTRATIONS: Record<string, BlockComponentType>`
+- `getBlockRenderer(type: string): BlockComponentType | undefined`
+- `registerExternalBlockRenderers(plugins: PluginWithBlocks[]): string[]`
+
+## Depends on (3)
+
+- [`src/built-ins/modules/website-editor/src/components/lazyBlock.tsx`](./lazyBlock.md)
+- [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](../lib/aquaPluginTypes.md)
+- [`src/built-ins/modules/website-editor/src/types/block.ts`](../types/block.md)
+
+## Used by (97)
+
+- [`src/built-ins/modules/website-editor/index.ts`](../../index.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/blocks.test.ts`](../__smoke__/blocks.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/cross-plugin-renderers.test.ts`](../__smoke__/cross-plugin-renderers.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/incubator-template.test.ts`](../__smoke__/incubator-template.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r007-cookie-force-password.test.ts`](../__smoke__/r007-cookie-force-password.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r008-blog.test.ts`](../__smoke__/r008-blog.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r009-notion-incubator-blocks.test.ts`](../__smoke__/r009-notion-incubator-blocks.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r015-forms-as-block.test.ts`](../__smoke__/r015-forms-as-block.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r017-block-library-polish.test.ts`](../__smoke__/r017-block-library-polish.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r027-block-catalog.test.ts`](../__smoke__/r027-block-catalog.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/video-and-preview.test.ts`](../__smoke__/video-and-preview.test.md)
+- [`src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`](./BlockRenderer.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/AccordionBlock.tsx`](./blocks/AccordionBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/AffiliateLeaderboardBlock.tsx`](./blocks/AffiliateLeaderboardBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/AffiliatePayoutMeterBlock.tsx`](./blocks/AffiliatePayoutMeterBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/AffiliateSignupBlock.tsx`](./blocks/AffiliateSignupBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/AppShowcaseBlock.tsx`](./blocks/AppShowcaseBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/AuthorBioBlock.tsx`](./blocks/AuthorBioBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/BannerBlock.tsx`](./blocks/BannerBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/BeforeAfterBlock.tsx`](./blocks/BeforeAfterBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/BlogFeedBlock.tsx`](./blocks/BlogFeedBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/BlogPostBlock.tsx`](./blocks/BlogPostBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/BookingWidgetBlock.tsx`](./blocks/BookingWidgetBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/BreadcrumbBlock.tsx`](./blocks/BreadcrumbBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ButtonBlock.tsx`](./blocks/ButtonBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CardGridBlock.tsx`](./blocks/CardGridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CartSummaryBlock.tsx`](./blocks/CartSummaryBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CheckoutSummaryBlock.tsx`](./blocks/CheckoutSummaryBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CollectionGridBlock.tsx`](./blocks/CollectionGridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ColumnBlock.tsx`](./blocks/ColumnBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ContactFormBlock.tsx`](./blocks/ContactFormBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ContainerBlock.tsx`](./blocks/ContainerBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CookieConsentBlock.tsx`](./blocks/CookieConsentBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CountdownTimerBlock.tsx`](./blocks/CountdownTimerBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CrmContactFormBlock.tsx`](./blocks/CrmContactFormBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/CtaBlock.tsx`](./blocks/CtaBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/DividerBlock.tsx`](./blocks/DividerBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/DonationButtonBlock.tsx`](./blocks/DonationButtonBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/FaqBlock.tsx`](./blocks/FaqBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/FeatureComparisonBlock.tsx`](./blocks/FeatureComparisonBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/FeatureGridBlock.tsx`](./blocks/FeatureGridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/FooterBlock.tsx`](./blocks/FooterBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/FormBlock.tsx`](./blocks/FormBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/FormEmbedBlock.tsx`](./blocks/FormEmbedBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/FormRenderBlock.tsx`](./blocks/FormRenderBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/GalleryBlock.tsx`](./blocks/GalleryBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/GridBlock.tsx`](./blocks/GridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/HeadingBlock.tsx`](./blocks/HeadingBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/HeroBlock.tsx`](./blocks/HeroBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/HtmlBlock.tsx`](./blocks/HtmlBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/IconBlock.tsx`](./blocks/IconBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ImageBlock.tsx`](./blocks/ImageBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/LanguageSwitcherBlock.tsx`](./blocks/LanguageSwitcherBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/LoginFormBlock.tsx`](./blocks/LoginFormBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/LogoGridBlock.tsx`](./blocks/LogoGridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/MapBlock.tsx`](./blocks/MapBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/MarqueeBlock.tsx`](./blocks/MarqueeBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/MemberGateBlock.tsx`](./blocks/MemberGateBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/MembershipPaywallBlock.tsx`](./blocks/MembershipPaywallBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/MembershipSignupBlock.tsx`](./blocks/MembershipSignupBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/MembershipTierGridBlock.tsx`](./blocks/MembershipTierGridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/NavbarBlock.tsx`](./blocks/NavbarBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/NewsletterSignupBlock.tsx`](./blocks/NewsletterSignupBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/OrderSuccessBlock.tsx`](./blocks/OrderSuccessBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/PaymentButtonBlock.tsx`](./blocks/PaymentButtonBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/PricingTableBlock.tsx`](./blocks/PricingTableBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ProcessStepsBlock.tsx`](./blocks/ProcessStepsBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ProductCardBlock.tsx`](./blocks/ProductCardBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ProductGridBlock.tsx`](./blocks/ProductGridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ProductSearchBlock.tsx`](./blocks/ProductSearchBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/PropertyStripBlock.tsx`](./blocks/PropertyStripBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/QuoteBlock.tsx`](./blocks/QuoteBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/RowBlock.tsx`](./blocks/RowBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/SectionBlock.tsx`](./blocks/SectionBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ShareButtonsBlock.tsx`](./blocks/ShareButtonsBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/SignupFormBlock.tsx`](./blocks/SignupFormBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/SocialAuthBlock.tsx`](./blocks/SocialAuthBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/SocialProofBarBlock.tsx`](./blocks/SocialProofBarBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/SpacerBlock.tsx`](./blocks/SpacerBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/StatsBarBlock.tsx`](./blocks/StatsBarBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/TabsBlock.tsx`](./blocks/TabsBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/TeamGridBlock.tsx`](./blocks/TeamGridBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/TestimonialsBlock.tsx`](./blocks/TestimonialsBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/TextBlock.tsx`](./blocks/TextBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ThemeSelectorBlock.tsx`](./blocks/ThemeSelectorBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/TimelineBlock.tsx`](./blocks/TimelineBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/ToggleBlock.tsx`](./blocks/ToggleBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/VariantPickerBlock.tsx`](./blocks/VariantPickerBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/VideoBlock.tsx`](./blocks/VideoBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/VideoEmbedBlock.tsx`](./blocks/VideoEmbedBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/Canvas.tsx`](./canvas/Canvas.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/PropertiesPanel.tsx`](./canvas/PropertiesPanel.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/Sidebar.tsx`](./canvas/Sidebar.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](./canvas/blockTreeOps.md)
+- [`src/built-ins/modules/website-editor/src/components/editor/BlockCatalog.tsx`](./editor/BlockCatalog.md)
+- [`src/built-ins/modules/website-editor/src/components/index.ts`](./index.md)
+- [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](./pageTemplates.md)
+

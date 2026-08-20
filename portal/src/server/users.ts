@@ -324,6 +324,28 @@ export function updateUser(
 
 // R020: mark user's email verified — called by /api/auth/verify-email after
 // HMAC token + nonce checks. Idempotent (re-marking is a no-op timestamp refresh).
+/** Records that a customer chose their password and saw the welcome. */
+export function markWelcomeComplete(userId: string): ServerUser | null {
+  let saved: ServerUser | null = null;
+  mutate(state => {
+    for (const [key, u] of Object.entries(state.users)) {
+      if (u.id === userId) {
+        const next: ServerUser = {
+          ...u,
+          welcomeCompletedAt: Date.now(),
+          // They have one now, and it is theirs.
+          mustChangePassword: false,
+          updatedAt: Date.now(),
+        };
+        state.users[key] = next;
+        saved = next;
+        return;
+      }
+    }
+  });
+  return saved;
+}
+
 export function markEmailVerified(userId: string): ServerUser | null {
   let saved: ServerUser | null = null;
   mutate(state => {

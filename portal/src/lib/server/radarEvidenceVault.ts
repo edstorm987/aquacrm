@@ -159,8 +159,26 @@ export function inspectRadarEvidence(agencyId: string): RadarEvidenceInspectionI
   };
 }
 
+/**
+ * A retained series, found by its own id or by the source it measures.
+ *
+ * The map is keyed by `series.id`, but a series also records the `sourceId` it
+ * was measured from, and for most of them the two differ — `team:team-size` is
+ * keyed under that id while measuring `team:users`. Callers holding a check
+ * know the source, not the series id, so a key lookup alone silently missed
+ * them: on this data 216 of 3,090 checks resolved, and 1,505 more had history
+ * sitting in the vault that nothing ever found. The visible symptom was
+ * Evidence showing figures with no graph on almost every Radar alert.
+ *
+ * When several series measure one source, the longest history wins — it is the
+ * one that can actually show a pattern.
+ */
 export function inspectRadarEvidenceSeries(agencyId: string, id: string): RadarEvidenceSeriesInspection | null {
-  const series = getState().radarEvidence[agencyId]?.series[id];
+  const stored = getState().radarEvidence[agencyId]?.series;
+  const series = stored?.[id]
+    ?? Object.values(stored ?? {})
+      .filter(entry => entry.sourceId === id)
+      .sort((left, right) => right.points.length - left.points.length)[0];
   if (!series) return null;
   return {
     ...evidenceSeriesSummary(series),
@@ -171,6 +189,7 @@ export function inspectRadarEvidenceSeries(agencyId: string, id: string): RadarE
 
 function evidenceSeriesSummary(series: RadarEvidenceSeries): RadarEvidenceSeriesSummary {
   const latest = series.points.at(-1);
+  const rollingValues = series.points.slice(-DEFAULT_BASELINE_POINTS).map(point => point.value).filter(value => Number.isFinite(value));
   return {
     id: series.id,
     domain: series.domain as AdvisorDomain,
@@ -185,6 +204,7 @@ function evidenceSeriesSummary(series: RadarEvidenceSeries): RadarEvidenceSeries
     hourlyRollupCount: series.hourly.length,
     latestValue: latest?.value,
     latestStatus: latest?.status,
+    rollingBaseline: rollingValues.length >= 3 ? median(rollingValues) : undefined,
     recentPoints: series.points.slice(-24).map(point => ({ ...point })),
     recentHourly: series.hourly.slice(-24).map(rollup => ({ ...rollup })),
   };

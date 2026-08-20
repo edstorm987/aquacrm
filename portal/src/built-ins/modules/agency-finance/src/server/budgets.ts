@@ -4,6 +4,8 @@ import type { AgencyId, UserId } from "../lib/tenancy";
 import type { BudgetPot, CreateBudgetPotInput, Currency, UpdateBudgetPotPatch } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
 
+import { listRowIds } from "./rowIndex";
+
 const INDEX_KEY = "budget-pots/index";
 const potKey = (id: string): string => `budget-pots/by-id/${id}`;
 
@@ -16,12 +18,8 @@ export class BudgetService {
   ) {}
 
   async list(includeClosed = false): Promise<BudgetPot[]> {
-    const indexedIds = (await this.storage.get<string[]>(INDEX_KEY)) ?? [];
-    const storedIds = (await this.storage.list("budget-pots/by-id/"))
-      .map(key => key.slice("budget-pots/by-id/".length))
-      .filter(Boolean);
     const rows: BudgetPot[] = [];
-    for (const id of [...new Set([...indexedIds, ...storedIds])]) {
+    for (const id of await listRowIds(this.storage, INDEX_KEY, "budget-pots/by-id/")) {
       const pot = await this.storage.get<BudgetPot>(potKey(id));
       if (!pot || pot.agencyId !== this.agencyId || (!includeClosed && pot.status === "closed")) continue;
       rows.push(pot);

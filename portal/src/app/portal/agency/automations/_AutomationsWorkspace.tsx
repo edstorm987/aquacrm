@@ -1,23 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+// Types only — erased at compile time, so @xyflow/react stays out of this chunk.
+import type { Edge, Node } from "@xyflow/react";
 import {
-  Background,
-  Controls,
-  Handle,
-  MiniMap,
-  Position,
-  ReactFlow,
-  addEdge,
-  useEdgesState,
-  useNodesState,
-  type Connection,
-  type Edge,
-  type Node,
-  type NodeProps,
-} from "@xyflow/react";
-import {
-  Activity,
   Bot,
   Check,
   ChevronDown,
@@ -31,7 +18,6 @@ import {
   FolderPlus,
   GitBranch,
   History,
-  Mail,
   MoreHorizontal,
   Pencil,
   Play,
@@ -42,7 +28,6 @@ import {
   Sparkles,
   Trash2,
   Workflow,
-  Webhook,
   X,
   Zap,
 } from "lucide-react";
@@ -62,9 +47,19 @@ import type {
 import { formatUkDate } from "@/lib/formatDateTime";
 
 type WorkspaceTab = "flows" | "runs" | "ais";
-type BuilderNodeData = AutomationNodeConfig & { kind: AutomationNodeKind; [key: string]: unknown };
-type BuilderNode = Node<BuilderNodeData, "automation">;
+export type BuilderNodeData = AutomationNodeConfig & { kind: AutomationNodeKind; [key: string]: unknown };
+export type BuilderNode = Node<BuilderNodeData, "automation">;
 type TeamMember = { id: string; name: string; email: string };
+
+/**
+ * React Flow is the largest dependency in this route's bundle, so the canvas subtree
+ * (and every @xyflow/react import) lives in its own chunk that only downloads when the
+ * flow builder is actually rendered.
+ */
+const AutomationsCanvas = dynamic(() => import("./_AutomationsCanvas").then(module => module.AutomationsCanvas), {
+  ssr: false,
+  loading: () => <CanvasSkeleton />,
+});
 
 const TRIGGER_LABELS: Record<AutomationTriggerType, string> = {
   manual: "Manual run",
@@ -92,6 +87,9 @@ const NODE_LABELS: Record<AutomationNodeKind, string> = {
   condition: "Condition",
   action: "Action",
 };
+
+/** Module constant so the canvas prop is referentially stable across renders. */
+const CANVAS_LABELS = { trigger: TRIGGER_LABELS, node: NODE_LABELS };
 
 const STATUS_CLASS = {
   draft: "bg-slate-100 text-slate-700",
@@ -131,42 +129,13 @@ function builderEdges(workflow?: AutomationWorkflow): Edge[] {
   }));
 }
 
-function AutomationNodeCard({ data, selected }: NodeProps<BuilderNode>) {
-  const Icon = data.kind === "trigger" ? Zap : data.kind === "delay" ? Clock3 : data.kind === "condition" ? GitBranch : data.actionType === "send-email" ? Mail : data.actionType === "send-webhook" ? Webhook : data.actionType === "log-activity" ? Activity : Check;
-  const detail = data.kind === "trigger"
-    ? data.triggerType === "custom.event" ? data.eventName || "Choose an event name" : TRIGGER_LABELS[data.triggerType ?? "manual"]
-    : data.kind === "delay"
-      ? `${data.delayMinutes ?? 60} minutes`
-      : data.kind === "condition"
-        ? data.conditionType === "enquiry.awaiting-response" || data.conditionType === "client-request.awaiting-response" ? "Still awaiting a reply?" : `${data.field || "event field"} ${data.operator || "equals"}`
-        : data.actionType === "send-email" ? "Send email" : data.actionType === "send-webhook" ? `${data.webhookMethod ?? "POST"} webhook` : data.actionType === "log-activity" ? "Record activity" : "Create task";
-  return (
-    <div className={`aqua-automation-node ${selected ? "is-selected" : ""}`} data-node-kind={data.kind}>
-      {data.kind !== "trigger" ? <Handle type="target" position={Position.Left} /> : null}
-      <div className="flex items-start gap-2.5">
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-black/5"><Icon size={16} /></span>
-        <span className="min-w-0">
-          <span className="block text-[10px] font-bold uppercase text-black/45">{NODE_LABELS[data.kind]}</span>
-          <span className="block truncate text-sm font-semibold text-slate-900">{data.label}</span>
-          <span className="mt-1 block truncate text-xs text-slate-500">{detail}</span>
-        </span>
-      </div>
-      {data.kind === "condition" ? (
-        <>
-          <span className="absolute -right-9 top-[34px] text-[10px] font-bold text-emerald-700">YES</span>
-          <Handle id="yes" type="source" position={Position.Right} style={{ top: 41 }} />
-          <span className="absolute -right-8 top-[76px] text-[10px] font-bold text-slate-500">NO</span>
-          <Handle id="no" type="source" position={Position.Right} style={{ top: 83 }} />
-        </>
-      ) : <Handle type="source" position={Position.Right} />}
-    </div>
-  );
-}
-
-const NODE_TYPES = { automation: AutomationNodeCard };
-
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Module-scope so the canvas prop is referentially stable (its onConnect memo depends on it). */
+function newEdgeId(): string {
+  return uid("edge");
 }
 
 function template(kind: "enquiry" | "client-request" | "client" | "stage" | "daily"): Pick<AutomationWorkflow, "name" | "description" | "nodes" | "edges"> {
@@ -267,8 +236,10 @@ export function AutomationsWorkspace({
   const selected = workflows.find(workflow => workflow.id === selectedId);
   const [name, setName] = useState(selected?.name ?? "");
   const [description, setDescription] = useState(selected?.description ?? "");
-  const [nodes, setNodes, onNodesChange] = useNodesState<BuilderNode>(builderNodes(selected));
-  const [edges, setEdges, onEdgesChange] = useEdgesState(builderEdges(selected));
+  // useNodesState/useEdgesState are just useState + apply*Changes, so the arrays stay here
+  // (the toolbar, inspector and save payload all read them) and the canvas owns the handlers.
+  const [nodes, setNodes] = useState<BuilderNode[]>(builderNodes(selected));
+  const [edges, setEdges] = useState<Edge[]>(builderEdges(selected));
   const [selectedNodeId, setSelectedNodeId] = useState<string>();
   const [templateMenu, setTemplateMenu] = useState(false);
   const [folderFilter, setFolderFilter] = useState<"all" | "unfiled" | string>("all");
@@ -307,10 +278,6 @@ export function AutomationsWorkspace({
       return `${workflow.name} ${workflow.description ?? ""} ${TRIGGER_LABELS[trigger]}`.toLowerCase().includes(query);
     });
   }, [folderFilter, libraryQuery, workflows]);
-
-  const onConnect = useCallback((connection: Connection) => {
-    setEdges(current => addEdge({ ...connection, id: uid("edge"), animated: true, label: connection.sourceHandle || undefined, style: { stroke: connection.sourceHandle === "no" ? "#94a3b8" : "#0f8b8d", strokeWidth: 2 } }, current));
-  }, [setEdges]);
 
   function workflowPayload(status = selected?.status ?? "draft") {
     return {
@@ -647,9 +614,7 @@ export function AutomationsWorkspace({
                 <span className="ml-auto text-xs text-slate-400">Select a block to configure it</span>
               </div>
               <div className="aqua-automation-flow h-[550px] w-full">
-                <ReactFlow<BuilderNode, Edge> nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_event, item) => setSelectedNodeId(item.id)} onPaneClick={() => setSelectedNodeId(undefined)} fitView minZoom={0.35} maxZoom={1.8} deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}>
-                  <Background gap={20} size={1} color="#d6dcdd" /><Controls showInteractive={false} /><MiniMap pannable zoomable nodeColor={miniMapColour} />
-                </ReactFlow>
+                <AutomationsCanvas nodes={nodes} edges={edges} setNodes={setNodes} setEdges={setEdges} selectNode={setSelectedNodeId} newEdgeId={newEdgeId} canEdit={canEdit} labels={CANVAS_LABELS} />
               </div>
             </> : <div className="flex min-h-[650px] items-center justify-center px-8 text-center"><div><Sparkles className="mx-auto text-[#087f8c]" size={30} /><h2 className="mt-3 text-lg font-semibold">Build your first automation</h2><p className="mt-1 max-w-sm text-sm text-slate-500">Choose New and start with an enquiry reminder, client onboarding, stage handover, or daily planning flow.</p></div></div>}
           </div>
@@ -674,9 +639,27 @@ function stripKind(data: BuilderNodeData): AutomationNodeConfig {
   return config;
 }
 
-function miniMapColour(item: Node): string {
-  const kind = (item.data as BuilderNodeData).kind;
-  return kind === "trigger" ? "#0f8b8d" : kind === "delay" ? "#c77600" : kind === "condition" ? "#2563a8" : "#187554";
+/** Placeholder shown in the canvas box while the React Flow chunk downloads. */
+function CanvasSkeleton() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle,#d6dcdd_1px,transparent_1px)] [background-size:20px_20px]" role="status" aria-live="polite" aria-label="Loading the flow canvas">
+      <div className="flex items-center gap-6" aria-hidden="true">
+        {[0, 1, 2].map(index => (
+          <div key={index} className="h-[105px] w-[220px] animate-pulse rounded-md border border-black/10 border-l-4 border-l-black/15 bg-white/85 p-3.5 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <span className="h-8 w-8 shrink-0 rounded-md bg-black/10" />
+              <span className="min-w-0 flex-1">
+                <span className="block h-2 w-14 rounded bg-black/10" />
+                <span className="mt-2 block h-3 w-28 rounded bg-black/10" />
+                <span className="mt-2 block h-2 w-20 rounded bg-black/5" />
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <span className="sr-only">Loading the flow canvas</span>
+    </div>
+  );
 }
 
 function TabButton({ active, onClick, icon, label, count }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; count?: number }) {

@@ -56,6 +56,114 @@ export interface TradingCompany {
   status: TradingCompanyStatus;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Set once this brand has been promoted into its own agency — the id of the
+   * agency it became. See `server/promotion/promoteCompany`.
+   *
+   * The brand record deliberately STAYS here in the origin tenant rather than
+   * being deleted, because the tombstone is what makes promotion idempotent (a
+   * second POST creates nothing and returns this id) and resumable (later
+   * phases move records into the agency the first phase created). It is also
+   * what lets the origin agency's own history still explain where a brand went.
+   */
+  promotedAgencyId?: string;
+  /** When the promotion happened. Written once, never overwritten. */
+  promotedAt?: number;
+}
+
+/**
+ * Where a tagged website's submissions route. A site feeds the agency inbox by
+ * default, or is pointed at one specific client, or — for Ed's own brands — at
+ * one of his trading companies. The Aqua Tag's routing registry
+ * (`server/websiteSources`) resolves a submission's host to one of these.
+ * `client` and `company` are mutually exclusive: a site has one home, never both.
+ */
+export type WebsiteSourceDestination =
+  | { kind: "inbox" }
+  | { kind: "client"; clientId: string }
+  | { kind: "company"; companyId: string };
+
+/**
+ * The consent bucket an injected tool waits for. These match the Aqua Tag's own
+ * client-side categories (`necessary` fires always; the rest gate on the
+ * visitor's stored `aqua-cookie-preferences`). See `lib/aquaTagSource`.
+ */
+export type AquaConsentCategory = "necessary" | "preferences" | "analytics" | "marketing";
+
+/**
+ * The allow-listed third-party tools the Aqua Tag can inject. v1 is a curated
+ * catalogue configured **by id/key only — never a raw `<script>`** (Ed's
+ * resolved security decision), so there is no XSS surface. Adding a provider is
+ * one entry in `server/websiteInjections`'s catalogue.
+ */
+export type AquaInjectionKind =
+  | "ga4"               // Google Analytics 4 — measurement id
+  | "gtm"               // Google Tag Manager — container id
+  | "posthog"           // PostHog — project api key
+  | "meta-pixel"        // Meta / Facebook Pixel — pixel id
+  | "google-ads"        // Google Ads — conversion id
+  | "linkedin"          // LinkedIn Insight — partner id
+  | "gsc-verification"; // Google Search Console `<meta>` verification token
+
+/**
+ * One configured injection on a site. `value` is the provider's **public** id or
+ * key (a GA4 "G-…", a GTM "GTM-…", a pixel id, …) — these ship in the page's
+ * HTML anyway, so they are not secrets; the store validates them to a safe token
+ * charset because they become part of the markup the tag injects.
+ */
+export interface AquaInjection {
+  id: string;
+  kind: AquaInjectionKind;
+  value: string;
+  consentCategory: AquaConsentCategory;
+  enabled: boolean;
+  label?: string;
+  createdAt: number;
+}
+
+/** One field on an imported website form: what the visitor is asked, and how. */
+export interface AquaFormFieldSchema {
+  /** The input's `name` (or `id`) — what a submission arrives keyed by. */
+  name: string;
+  /** The visible label shown to the visitor, if one could be resolved. */
+  label?: string;
+  /** Input type: text, email, tel, select, textarea, checkbox, radio, … */
+  type: string;
+  /** The field was marked `required` in the markup. */
+  required: boolean;
+}
+
+/**
+ * A form's field layout, imported from a tagged site's HTML (plan Phase 2) so the
+ * enquiry detail card can mirror the real form even before a submission arrives.
+ */
+export interface AquaFormSchema {
+  /** Stable-ish identity: the form's `id` or `name` attribute, if any. */
+  formId?: string;
+  /** A human label for the form — its id/name, or a best-effort heading. */
+  label: string;
+  /** Where the form posts, if declared (its `action`). */
+  action?: string;
+  /** True when the tag would capture this form (enquiry-shaped, not a login). */
+  capturable: boolean;
+  fields: AquaFormFieldSchema[];
+}
+
+/**
+ * Per-site configuration for the Aqua Tag, keyed by `websiteSource` id. v1 holds
+ * the injection list; imported form schemas (plan Phase 2) join it here so a site
+ * has one config record. `formSchemas` is optional and additive — a site
+ * configured only for injections simply has none.
+ */
+export interface WebsiteSiteConfig {
+  websiteSourceId: string;
+  agencyId: string;
+  injections: AquaInjection[];
+  /** Form layouts imported from the live site, so the card mirrors the real form. */
+  formSchemas?: AquaFormSchema[];
+  /** When the schemas were last imported, and the URL they were read from. */
+  formSchemasImportedAt?: number;
+  formSchemasImportedFrom?: string;
 }
 
 // Phase-driven lifecycle. Stored as a string so future agency-customised
@@ -93,6 +201,9 @@ export interface Client {
   // A relationship can own several isolated client workspaces. Each
   // workspace keeps its own products, delivery, finance and portal data.
   relationshipId?: string;
+  // The canonical human behind this workspace. Clients sharing a
+  // `relationshipId` share a `personId`. See `Person`.
+  personId?: string;
   workspaceLabel?: string;
   companyId?: string;
   name: string;
@@ -199,6 +310,14 @@ export interface ServerUser {
   companyIds?: string[];          // empty/undefined = shared Milesymedia access
   clientId?: string;             // set for client-* roles + freelancer + end-customer
   mustChangePassword?: boolean;
+  /**
+   * When the customer finished setting their own password and saw the welcome.
+   *
+   * Absent means they have never been through it — which is how the portal
+   * knows to show setup rather than dropping somebody who has only ever
+   * followed a link straight into a workspace they have no password for.
+   */
+  welcomeCompletedAt?: number;
   emailVerifiedAt?: number;       // R020: epoch ms when verification token redeemed
   sessionRev?: number;            // R021: rotation counter; bumped on role/password change
   // R036: optional profile picture as a `data:image/...;base64,...` data URL.
@@ -239,6 +358,33 @@ export interface SessionPayload {
   // Showcase Mode uses an isolated, hardcoded tenant during client calls.
   // The signed return id restores the live workspace without exposing it.
   showcaseReturnAgencyId?: string;
+  // Dev Mode (local/dev only) mints a demo-persona session in the fenced
+  // `demo-agency` tenant. The signed return id restores the founder's real
+  // workspace on exit — the exact mirror of `showcaseReturnAgencyId`, kept
+  // separate so the chrome + exit path can tell Dev Mode from Showcase Mode.
+  devReturnAgencyId?: string;
+  // Whether the session that entered Dev Mode was itself a demo/dev session
+  // (e.g. the local `/dev` sign-in, which is `isDemo`). Exit restores this so a
+  // local dev founder returns to a session `getSession()` accepts, instead of a
+  // non-demo one that fails the Supabase identity cross-check → login.
+  devReturnWasDemo?: boolean;
+  // The EXACT user who started the inspection. Exit restores THIS user rather
+  // than "an owner found in the agency" — the same escalation the freelancer
+  // preview was fixed for (audits.md 2026-08-19), and what lets Ed inspect a
+  // demo persona and come back as HIMSELF. Additive: legacy Dev Mode cookies
+  // without it fall back to the old owner lookup.
+  devReturnUserId?: string;
+  // Freelancer preview (an owner/manager previewing a real freelancer's
+  // workspace). Distinct from the Dev Mode `devReturn*` fields so the Dev Mode
+  // switcher doesn't show; the freelancer layout renders an "Exit preview"
+  // instead.
+  previewReturnAgencyId?: string;
+  previewReturnWasDemo?: boolean;
+  // The EXACT user who entered the preview. Exit restores THIS user (not "an
+  // owner in the agency") — without it a manager could enter → exit and be
+  // re-minted as the agency owner (a privilege escalation; see audits.md
+  // 2026-08-19). Additive; legacy preview cookies without it fail exit closed.
+  previewReturnUserId?: string;
   // Public portfolio session for the real product demo. It is isolated to
   // fictional showcase data and middleware rejects every mutating request.
   publicShowcase?: boolean;
@@ -363,6 +509,234 @@ export interface ClientRecordLedgerPage {
     attention: number;
     dateReview: number;
   };
+}
+
+// ─── Organisation ─────────────────────────────────────────────────────────
+//
+// The customer company. A buyer is often an organisation rather than a
+// single human: one company may put ten people in front of you — an owner,
+// a finance contact, two execs, a marketing manager — and every one of them
+// may email, book meetings, or appear on an enquiry.
+//
+// Without this, each of those people becomes an unrelated record and the
+// relationship is scattered. The existing data already shows the problem:
+// "Meridian Kitchens", "Cedar Dental" and "Summit Physio" are stored as
+// leads, i.e. companies sitting in records meant for people.
+//
+// NOT `TradingCompany`, which is one of Ed's OWN brands (Milesymedia,
+// AquaOasis, Zimante) and drives customer-facing portal branding.
+
+export interface Organisation {
+  id: string;
+  agencyId: string;
+  name: string;
+  // Email domain, e.g. "commonground.example". The strongest automatic
+  // grouping signal — two people sharing a domain almost always share an
+  // employer. `IdentityResolutionReason` already has an `email-domain` kind.
+  domain?: string;
+  website?: string;
+  phone?: string;
+  classification: PersonClassification;
+  classificationHistory: PersonClassificationEvent[];
+  facets: {
+    clientIds?: string[];
+    enquiryIds?: string[];
+  };
+  relationshipId?: string;
+  source?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ─── Person ───────────────────────────────────────────────────────────────
+//
+// The canonical human. One Person per real individual, regardless of how many
+// records they accumulate. `Lead`, `Contact` and `Client` are facets that
+// point back here via `personId`; they are never deleted when a person is
+// reclassified, only detached from the active state.
+//
+// This exists because classification used to destroy records: reclassifying a
+// sales lead as a supplier hard-deleted the lead and every meeting note, call
+// recording and sales presentation on it. State belongs to the Person; the
+// facets retain their own history.
+//
+// Distinct from `Client.relationshipId`, which groups client *workspaces* for
+// one buyer and stops at clients. Person spans enquiry → contact → lead →
+// client. Clients sharing a `relationshipId` share a `personId`.
+//
+// Named `Person`/`persons` deliberately: the `people*` aggregates
+// (`peopleEmployees`, `peopleApplications`, …) are the HR domain and are a
+// different concept.
+
+// The card's face. Derived from which facets exist and how the person is
+// classified — never set by hand, so it cannot drift from the underlying
+// records. See `derivePersonState`.
+export type PersonState = "enquiry" | "contact" | "lead" | "client";
+
+// How the relationship is understood. Mirrors WebsiteEnquiryClassification so
+// an enquiry decision maps straight onto the person, but it lives here as the
+// authoritative value — the enquiry only records what was decided at the time.
+export type PersonClassification =
+  | "unclassified"
+  | "sales"
+  | "existing-client"
+  | "supplier"
+  | "partnership"
+  | "marketer"
+  | "recruitment"
+  | "spam"
+  | "other";
+
+export interface PersonClassificationEvent {
+  from: PersonClassification;
+  to: PersonClassification;
+  at: number;
+  by?: string;
+  note?: string;
+  // Which record prompted the change, so the card can show provenance.
+  sourceType?: IdentityResolutionSource;
+  sourceId?: string;
+}
+
+// Pointers to the records this person owns. A person keeps every facet they
+// have ever had; `PersonState` decides which one the card leads with.
+export interface PersonFacets {
+  leadId?: string;
+  contactId?: string;
+  // A buyer may hold several client workspaces (see Client.relationshipId).
+  clientIds?: string[];
+  enquiryIds?: string[];
+}
+
+// One person routinely has several addresses and numbers — a work email, a
+// personal one, a mobile, a desk line. Matching must consider all of them, or
+// the same human arrives twice under different records.
+//
+// `value` is the normalised form used for matching; `raw` preserves what was
+// actually entered so the card can display it the way the person writes it.
+export interface PersonEmail {
+  value: string;
+  raw?: string;
+  label?: string;        // free text: "work", "personal", "accounts", …
+  isPrimary?: boolean;
+}
+
+export interface PersonPhone {
+  value: string;
+  raw?: string;
+  label?: string;        // free text: "mobile", "office", "whatsapp", …
+  isPrimary?: boolean;
+}
+
+// Company membership is proposed by the system and decided by a human.
+//
+// A rejected link is retained deliberately: without it the same wrong guess
+// resurfaces every time evidence is recalculated, and a dismissed suggestion
+// that keeps coming back is worse than no suggestion at all.
+export type OrganisationLinkStatus = "suggested" | "confirmed" | "rejected";
+
+export interface PersonOrganisationLink {
+  organisationId: string;
+  status: OrganisationLinkStatus;
+  confidence?: number;   // 0–1, suggestions only
+  reason?: string;       // "Shares the domain commonground.example"
+  suggestedAt?: number;
+  decidedAt?: number;
+  decidedBy?: string;
+}
+
+/**
+ * A meeting, call or note recorded against a person before they are a client.
+ *
+ * Enquiries and replies come from the website store; these are the things an
+ * operator adds by hand while working a relationship. Held on the Person so
+ * they survive classification changes, and so they can seed the real client
+ * record when the person converts.
+ */
+export interface PersonRecordEntry {
+  id: string;
+  kind: "meeting" | "call" | "note";
+  at: number;
+  summary: string;
+  body?: string;
+  /** Where a meeting happened, or how a call was made. */
+  location?: string;
+  outcome?: string;
+  createdBy?: string;
+  createdAt: number;
+}
+
+export interface Person {
+  id: string;
+  agencyId: string;
+  // All known addresses and numbers, normalised via
+  // normaliseIdentityEmail/normaliseIdentityPhone so matching stays
+  // consistent with the existing identity resolution layer. Matching
+  // considers every entry, not just the primary.
+  emails: PersonEmail[];
+  phones: PersonPhone[];
+  name?: string;
+  // Free-text company name as captured. Superseded by `organisationId` once
+  // a human confirms the link, but retained as evidence of what was entered.
+  company?: string;
+  // The confirmed company. Only ever set from a `confirmed` link below — the
+  // system proposes, a human decides.
+  organisationId?: string;
+  organisationLinks: PersonOrganisationLink[];
+  // Free text on purpose. Roles vary far too widely to enumerate — cleaner,
+  // CFO, CTO, site foreman, practice manager.
+  jobTitle?: string;
+  // The person the agency deals with by default for this organisation.
+  // Only one per organisation should carry it.
+  isPrimaryContact?: boolean;
+  notes?: string;
+  /** Meetings, calls and notes added by hand. See PersonRecordEntry. */
+  record?: PersonRecordEntry[];
+  // Anything else worth recording that has no typed home.
+  customFields?: Record<string, string>;
+  classification: PersonClassification;
+  classifiedAt?: number;
+  classifiedBy?: string;
+  classificationHistory: PersonClassificationEvent[];
+  facets: PersonFacets;
+  // Mirrors Client.relationshipId for people who hold client workspaces, so
+  // the two groupings agree without rewriting the 39 relationshipId sites.
+  relationshipId?: string;
+  source?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ─── Completed work ───────────────────────────────────────────────────────
+//
+// Resolving something used to leave no trace: the alert stopped firing and
+// that was that. So "did I already deal with this?" had no answer, and there
+// was no record of a day's work to look back on.
+//
+// Deliberately a separate log rather than a flag on the alert: alerts are
+// derived from live evidence and cease to exist once the evidence is healthy,
+// taking any flag with them. What was done is a fact about the past and has to
+// outlive the thing that prompted it.
+
+export type CompletedActionOutcome =
+  | "resolved"      // dealt with, evidence should now be healthy
+  | "accepted"      // turned into committed work
+  | "dismissed"     // judged not worth acting on
+  | "not-applicable";
+
+export interface CompletedAction {
+  id: string;
+  agencyId: string;
+  /** The alert or task this came from, so a repeat can be recognised. */
+  sourceId: string;
+  title: string;
+  detail?: string;
+  origin?: AgencyTaskOrigin;
+  outcome: CompletedActionOutcome;
+  completedAt: number;
+  completedBy?: string;
+  /** What the operator did, in their words. */
+  note?: string;
 }
 
 export type IdentityResolutionSource = "website-enquiry" | "social-inbox" | "lead" | "contact";
@@ -679,7 +1053,10 @@ export interface ExternalAssistantActionProposal {
 export type AgencyTaskStatus = "todo" | "in-progress" | "done";
 export type AgencyTaskPriority = "low" | "normal" | "high" | "urgent";
 export type AgencyTaskRecurrence = "none" | "daily" | "weekly" | "monthly";
-export type AgencyTaskOrigin = "manual" | "radar" | "advisor" | "crm";
+// "inbox" is work accepted from a Needs-attention alert. Added after the
+// four original origins; existing rows have no "inbox" value, so no
+// migration is needed — `taskOrigin` still defaults absent values to manual.
+export type AgencyTaskOrigin = "manual" | "radar" | "advisor" | "crm" | "inbox";
 export type AgencyTaskReconciliationStatus = "pending" | "still-firing" | "resolved" | "unverifiable" | "reopened";
 
 export interface AgencyTaskReconciliation {
@@ -689,6 +1066,69 @@ export interface AgencyTaskReconciliation {
   checkedAt?: number;
   resolvedAt?: number;
   detail: string;
+}
+
+/**
+ * A sub-task on an action.
+ *
+ * "Onboard Cedar Dental" is not one thing — it is create the portal, send the
+ * welcome pack, book the kick-off. Without sub-tasks each of those is either a
+ * separate top-level action (losing the fact that they belong together) or
+ * invisible (leaving the operator to remember the sequence).
+ *
+ * `done` is stored here, unlike derived plan steps, because a human decides
+ * when "send the welcome pack" is finished — there is no record to observe.
+ * The two kinds sit side by side in the UI; only the source of truth differs.
+ */
+export interface AgencyTaskChecklistItem {
+  id: string;
+  label: string;
+  /** Where this sub-task is carried out, so it can have its own Resolve. */
+  href?: string;
+  /** What the destination should highlight when opened. */
+  focus?: string;
+  /** An SOP to follow for this step. */
+  sopId?: string;
+  done: boolean;
+  doneAt?: number;
+  doneBy?: string;
+  createdAt: number;
+}
+
+/**
+ * A saved sequence, so repeatable work is written down once.
+ *
+ * Stored per agency alongside the read-only built-in library in
+ * `@/lib/tasks/taskTemplates`. Both share one shape because the operator does
+ * not care which is which — the only difference is that a built-in cannot be
+ * edited away.
+ */
+export interface AgencyTaskTemplateStep {
+  label: string;
+  href?: string;
+  focus?: string;
+  sopId?: string;
+}
+
+export interface AgencyTaskTemplate {
+  id: string;
+  agencyId: string;
+  name: string;
+  summary?: string;
+  /** May contain `{subject}`, filled in when the template is applied. */
+  taskTitle: string;
+  notes?: string;
+  priority?: AgencyTaskPriority;
+  steps: AgencyTaskTemplateStep[];
+  /**
+   * Alert families this template claims, so a matching action arrives with
+   * its steps already on it. Beats the built-in mapping — somebody who wrote
+   * their own onboarding sequence means it to win.
+   */
+  appliesTo?: string[];
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface AgencyTask {
@@ -714,6 +1154,8 @@ export interface AgencyTask {
   assigneeUserId?: string;
   clientId?: string;
   sopIds?: string[];
+  /** Sub-tasks. See AgencyTaskChecklistItem. */
+  checklist?: AgencyTaskChecklistItem[];
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -1374,6 +1816,25 @@ export interface RadarPolicyConfiguration {
   updatedAt: number;
 }
 
+/** One KPI target/baseline override (Phase 4 — KPI intelligence). `effectiveFrom`
+ *  versions the change so trend lines stay comparable; `history` keeps prior values. */
+export interface KpiTargetOverride {
+  baselineValue?: number | null;
+  targetValue?: number | null;
+  effectiveFrom?: number;
+  updatedAt?: number;
+  updatedBy?: string;
+  history?: Array<{ baselineValue?: number | null; targetValue?: number | null; effectiveFrom: number }>;
+}
+
+/** Per-agency, optionally per-company, KPI target overrides. Resolved
+ *  system-default → agency → company (most specific wins), like the radar policy. */
+export interface KpiTargetsConfig {
+  byKpi: Record<string, KpiTargetOverride>;
+  byCompany?: Record<string, Record<string, KpiTargetOverride>>;
+  updatedAt: number;
+}
+
 export interface AgencyWorkspaceSettings {
   agencyId: string;
   legalName?: string;
@@ -1393,6 +1854,8 @@ export interface AgencyWorkspaceSettings {
   portalAccessDays: number;
   clientWelcomeMessage?: string;
   sopCategories?: string[];
+  /** Per-agency / per-company KPI target overrides (Phase 4). Additive; optional. */
+  kpiTargets?: KpiTargetsConfig;
   advisor: {
     speedToLeadTargetMinutes: number;
     speedToLeadWarningMinutes: number;
@@ -2222,6 +2685,16 @@ export interface OperationalAlertPreference {
   alertOccurredAt: number;
   updatedAt: number;
   parkedUntil?: number;
+  /**
+   * How many times this has been put off, and when it was first deferred.
+   *
+   * Without a count, a parked item returns looking exactly like a new one, and
+   * work deferred five times is indistinguishable from work seen once. That is
+   * the whole failure mode for off-system jobs: nothing in Aqua does them, so
+   * the only pressure to act is knowing how long you have not.
+   */
+  deferrals?: number;
+  firstDeferredAt?: number;
 }
 
 // ─── People ──────────────────────────────────────────────────────────────
@@ -2289,7 +2762,9 @@ export type PeopleWorkspaceStationId =
   | "leave"
   | "training"
   | "pay"
-  | "notes";
+  | "notes"
+  | "progression"
+  | "chat";
 
 export interface PeopleWorkspaceAccess {
   stationId: PeopleWorkspaceStationId;
@@ -2339,6 +2814,8 @@ export interface PeopleEmployee {
   startDate?: number;
   endDate?: number;
   probationEndsAt?: number;
+  targetRole?: string; // growth path — the role they're growing toward (owner-set)
+  growthPathNote?: string; // how they get there (owner-set, shown to the staff member)
   weeklyHours?: number;
   holidayAllowanceDays?: number;
   payBasis: "salary" | "hourly" | "day-rate" | "commission-only" | "unpaid";
@@ -2389,16 +2866,234 @@ export interface PeopleTrainingAssignment {
   title: string;
   description?: string;
   sopId?: string;
+  moduleId?: string; // links to a PeopleTrainingModule (quiz-gated completion)
   resourceUrl?: string;
   dueAt?: number;
   status: "assigned" | "in-progress" | "completed" | "overdue";
   completedAt?: number;
+  score?: number; // last quiz score (percent) for a module assignment
   evidence?: string;
   createdAt: number;
   updatedAt: number;
 }
 
+export type PeopleFreelancerJobStatus = "proposed" | "active" | "delivered" | "paid" | "cancelled";
+
+// A one-time project engagement for a freelancer/contractor — scoped work with a
+// fee and a proposed→active→delivered→paid lifecycle. The job tracks its own fee
+// and payment state, but Finance stays the authority on money actually paid:
+// `paymentRef` links to the finance record once the payment is logged there
+// (guess-then-confirm — the job never moves money itself).
+export interface PeopleFreelancerJob {
+  id: string;
+  agencyId: string;
+  employeeId: string; // the freelancer — a PeopleEmployee (employmentType freelancer/contractor)
+  title: string;
+  brief?: string;
+  clientId?: string; // optional — the client/project it is for
+  status: PeopleFreelancerJobStatus;
+  feeMinor?: number;
+  currency: string;
+  startsOn?: string; // ISO yyyy-mm-dd
+  dueOn?: string; // ISO yyyy-mm-dd
+  deliveredAt?: number;
+  paidAt?: number;
+  paymentRef?: string; // finance reference once the payment is recorded there
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Agency-configurable policy for what a freelancer sees + can do in their own
+// workspace ("all configurable" — Ed). Lives in types.ts (not the server-only
+// freelancerWorkspace module) so PortalState can reference it. Per-job
+// overrides are a later refinement; v1 is the agency-wide default.
+export interface FreelancerAccessConfig {
+  showFee: boolean;                       // the freelancer's own pay
+  clientIdentity: "named" | "anonymised"; // real client name vs a neutral label
+  showBrief: boolean;
+  showDates: boolean;
+  showDeliverables: boolean;
+  showNotes: boolean;                     // agency-internal notes
+  actions: { markSubmitted: boolean; upload: boolean; message: boolean };
+}
+
+// A configurable onboarding step Ed defines once; new hires are seeded from the
+// template rather than a hardcoded list.
+export interface PeopleOnboardingStep {
+  id: string;
+  label: string;
+  owner: "company" | "employee";
+  detail?: string;
+  requiresEvidence?: boolean;
+}
+
+// Ed's own labels + guidance for each hiring pipeline stage. The stage *ids* stay
+// fixed (Radar candidate-backlog/hiring reads key off them); only the presentation
+// and his process notes are configurable.
+export interface PeopleHiringStageConfig {
+  id: PeopleApplicationStage;
+  label: string;
+  guidance?: string;
+}
+
+export interface PeopleProcessConfig {
+  agencyId: string;
+  onboardingSteps: PeopleOnboardingStep[];
+  hiringStages: PeopleHiringStageConfig[];
+  updatedAt: number;
+}
+
+// Internal staff chat — modeled on the inbox conversation pattern but kept
+// staff-scoped in its own store (never the client inbox). A "team" channel is
+// everyone in the agency; a "direct" channel is a 1:1 between two members.
+export type PeopleChannelKind = "team" | "direct";
+
+export interface PeopleChannel {
+  id: string;
+  agencyId: string;
+  kind: PeopleChannelKind;
+  name: string;
+  memberUserIds: string[]; // empty for the team channel (everyone); the two ids for a direct
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PeopleMessage {
+  id: string;
+  agencyId: string;
+  channelId: string;
+  authorUserId: string;
+  authorName: string;
+  body: string;
+  createdAt: number;
+  mentions?: string[]; // userIds @mentioned in the body (resolved against the roster at post time)
+}
+
+// Per-member read cursor for a chat channel — how "unread" is derived (a message
+// after this timestamp, not authored by the member, is unread). Keyed
+// `${agencyId}:${channelId}:${userId}` in state.
+export interface PeopleChannelRead {
+  agencyId: string;
+  channelId: string;
+  userId: string;
+  lastReadAt: number;
+}
+
+// Training modules — Ed authors content as ordered blocks (aligned to the portal
+// content-block pattern: heading / text / video / resource) plus a quiz. Assigned
+// via PeopleTrainingAssignment (`moduleId`); completion gates on passing the quiz.
+export type PeopleTrainingBlockType = "heading" | "text" | "video" | "resource";
+
+export interface PeopleTrainingBlock {
+  id: string;
+  type: PeopleTrainingBlockType;
+  text?: string; // heading / paragraph text
+  url?: string; // video or resource URL
+  label?: string; // resource link label
+}
+
+export interface PeopleTrainingQuizOption {
+  id: string;
+  text: string;
+  correct: boolean;
+}
+
+export interface PeopleTrainingQuizQuestion {
+  id: string;
+  prompt: string;
+  options: PeopleTrainingQuizOption[];
+}
+
+export interface PeopleTrainingModule {
+  id: string;
+  agencyId: string;
+  title: string;
+  summary?: string;
+  blocks: PeopleTrainingBlock[];
+  quiz: PeopleTrainingQuizQuestion[];
+  passMark: number; // percent needed to pass (default 70)
+  status: "draft" | "published";
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type PeopleContractKind = "offer" | "employment" | "nda" | "commission" | "policy" | "other";
+export type PeopleContractStatus = "draft" | "sent" | "acknowledged" | "declined";
+
+// A staff/employment contract or policy document (offer letter, employment terms,
+// NDA, commission agreement, policy to acknowledge). Mirrors the client-contract
+// shape + reuses `contractTemplates`, but is staff-scoped and signed off by an
+// acknowledgement (the staff member types their name) rather than a client accept.
+export interface PeopleContract {
+  id: string;
+  agencyId: string;
+  employeeId: string;
+  kind: PeopleContractKind;
+  title: string;
+  summary?: string;
+  body?: string;
+  templateId?: string;
+  status: PeopleContractStatus;
+  createdAt: number;
+  updatedAt: number;
+  sentAt?: number;
+  acknowledgedAt?: number;
+  acknowledgedBy?: string; // the staff member's userId
+  acknowledgementName?: string; // the typed name captured as the sign-off
+  declinedAt?: number;
+}
+
+export type PeopleFeedbackSentiment = "positive" | "idea" | "concern";
+export type PeopleFeedbackStatus = "new" | "read" | "actioned";
+
+// Upward feedback from a staff member to the owner — a lightweight one-way
+// channel (the fuller two-way conversation is the internal-chat phase).
+export interface PeopleFeedback {
+  id: string;
+  agencyId: string;
+  employeeId: string;
+  message: string;
+  sentiment: PeopleFeedbackSentiment;
+  status: PeopleFeedbackStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type PeopleRecognitionKind = "employee-of-month" | "shoutout";
+
+// Lightweight internal recognition for a team member. Deliberately self-contained
+// (owned by the People domain) — the richer gift/experience side lives in the
+// "You Deserve It" clientDelight system, which this can later feed.
+export interface PeopleRecognition {
+  id: string;
+  agencyId: string;
+  employeeId: string;
+  kind: PeopleRecognitionKind;
+  period?: string; // ISO yyyy-mm, for employee-of-month
+  note?: string;
+  awardedByUserId: string;
+  createdAt: number;
+}
+
 // ─── PortalState — the single typed object behind storage ─────────────────
+
+export type CustomKpiOp = "ratio" | "rate" | "sum" | "diff";
+
+/** A guided custom KPI (Phase 6 — KPI intelligence): combine a numerator base
+ *  metric with an optional denominator via an op. Not a formula language — safe
+ *  and honest by construction (only wires existing registry series together). */
+export interface CustomKpiDefinition {
+  id: string;
+  label: string;
+  numeratorId: string;
+  denominatorId?: string;
+  op: CustomKpiOp;
+  category?: string;
+  direction?: "higher" | "lower";
+  createdAt: number;
+  createdBy?: string;
+}
 
 export interface PortalState {
   agencies: Record<string, Agency>;
@@ -2412,6 +3107,13 @@ export interface PortalState {
   activity: ActivityEntry[];
   clientRecordLedger: Record<string, ClientRecordLedgerEvent>;
   identityResolutionReviews: Record<string, IdentityResolutionReview>;
+  // Canonical people and the companies they belong to. Optional in parsed
+  // blobs (legacy state lacks them); the storage parser injects empty
+  // records, same as pipelines below.
+  persons: Record<string, Person>;
+  organisations: Record<string, Organisation>;
+  // What has actually been finished. See CompletedAction.
+  completedActions: Record<string, CompletedAction>;
   // T1 R034 — multi-pipeline kanban model. Optional in parsed blobs
   // (legacy state lacks these fields); storage parser injects defaults.
   pipelines: Record<string, Pipeline>;
@@ -2422,6 +3124,21 @@ export interface PortalState {
   externalAssistantActionProposals: Record<string, ExternalAssistantActionProposal>;
   integrationConnections: Record<string, IntegrationConnection>;
   tasks: Record<string, AgencyTask>;
+  // Saved task sequences. See AgencyTaskTemplate.
+  taskTemplates: Record<string, AgencyTaskTemplate>;
+  // A client's own software connected to their portal. See portalConnections.
+  portalConnections: Record<string, import("@/lib/server/portalConnections").PortalConnection>;
+  // Where each Aqua-tagged website's submissions route. See server/websiteSources.
+  websiteSources?: Record<string, import("@/server/websiteSources").WebsiteSource>;
+  // Operator-added contact details for an enquiry (Phase 4), keyed by enquiry id.
+  // See server/enquiryContactDetails.
+  enquiryContactDetails?: Record<string, import("@/server/enquiryContactDetails").EnquiryContactDetails>;
+  // One master Aqua-tag site key per agency — the owner's tag for their own
+  // sites, pouring submissions into their inbox. See server/websiteSources.
+  agencyMasterTagKeys?: Record<string, string>;
+  // Per-site Aqua Tag config (injections now, form schemas later), keyed by
+  // websiteSource id. See server/websiteInjections.
+  websiteSiteConfigs?: Record<string, WebsiteSiteConfig>;
   notepadFolders: Record<string, NotepadFolder>;
   notepadNotes: Record<string, NotepadNote>;
   automationFolders: Record<string, AutomationFolder>;
@@ -2454,10 +3171,27 @@ export interface PortalState {
   radarMemory: Record<string, RadarMemoryState>;
   radarSyntheticProbes: Record<string, Record<string, RadarSyntheticProbeResult>>;
   radarEvidence: Record<string, RadarEvidenceState>;
+  /** Per-agency guided custom KPIs (Phase 6 — KPI intelligence). Additive. */
+  customKpis: Record<string, CustomKpiDefinition[]>;
+  /** Latest Infra sweep snapshot (radar upgrade Stage 4). App-wide DB/storage health — one probe, not per-agency. */
+  radarInfraHealth?: import("@/lib/businessRadar").RadarInfraHealthSnapshot;
   operationalAlertPreferences: Record<string, OperationalAlertPreference>;
   peopleApplications: Record<string, PeopleApplication>;
   peopleEmployees: Record<string, PeopleEmployee>;
   peopleLeaveRequests: Record<string, PeopleLeaveRequest>;
   peopleShifts: Record<string, PeopleShift>;
   peopleTrainingAssignments: Record<string, PeopleTrainingAssignment>;
+  peopleFreelancerJobs: Record<string, PeopleFreelancerJob>;
+  peopleRecognitions: Record<string, PeopleRecognition>;
+  peopleFeedback: Record<string, PeopleFeedback>;
+  peopleProcessConfig: Record<string, PeopleProcessConfig>;
+  // Agency-wide freelancer-access policy, keyed by agencyId. Absent → defaults.
+  freelancerAccessConfig: Record<string, FreelancerAccessConfig>;
+  // Per-job freelancer-access override, keyed by jobId. Absent → agency default.
+  freelancerJobOverride: Record<string, FreelancerAccessConfig>;
+  peopleContracts: Record<string, PeopleContract>;
+  peopleChannels: Record<string, PeopleChannel>;
+  peopleMessages: Record<string, PeopleMessage>;
+  peopleChannelReads: Record<string, PeopleChannelRead>;
+  peopleTrainingModules: Record<string, PeopleTrainingModule>;
 }

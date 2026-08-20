@@ -1,5 +1,7 @@
 import "server-only";
+import { cache } from "react";
 
+import { getRequestNow } from "@/lib/server/requestNow";
 import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor as financeContainerFor } from "@/built-ins/modules/agency-finance/src/server/foundationAdapter";
@@ -33,6 +35,13 @@ export interface CompanyRevenueGrowthPoint {
   at: number;
   value: number;
 }
+
+// Request-deduped: the agency page and the radar engine both build this same
+// snapshot per render; React cache() (keyed on agencyId, shared request `now`)
+// collapses them to one build. The raw function below is unchanged.
+export const getRequestCompanyHealth = cache(
+  (agencyId: string) => buildCompanyHealthSnapshot(agencyId, getRequestNow()),
+);
 
 export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.now()) {
   const clients = listClients(agencyId);

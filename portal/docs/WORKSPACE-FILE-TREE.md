@@ -1,0 +1,131 @@
+# Workspace file tree — the contents page
+
+This is the **index** to a full map of the AquaCRM portal: what every part does,
+so edits land in the right place and nothing gets built twice. The detail lives
+in per-area **chapters** in [`docs/workspace/`](workspace/) — this page is the
+table of contents and the shared rules.
+
+~1,460 files in `src`, ~700 in plugins, ~200 test scripts. Big, but every
+concern has one owning place — the chapters tell you where.
+
+---
+
+**New here, or coming back after a while?** Read
+[architecture-noobie.md](architecture-noobie.md) first — the whole system in plain
+English, no assumed knowledge. Then come back to this page for the detail.
+
+## The golden rule
+
+**Before adding a file or a feature, find the concern first.** Most "where does
+this go?" and "did we already build this?" questions are answered by the
+[Feature → files index](workspace/feature-index.md). If two things look alike,
+check [Hazards & duplication](workspace/hazards-and-duplication.md) **before**
+editing — several features exist twice, and editing the obvious file is
+sometimes the wrong move.
+
+The owning layer, by kind of change:
+
+| Changing… | Lives in | Chapter |
+| --- | --- | --- |
+| State / data (the `PortalState` store) | `src/server/` | [State layer](workspace/state-layer.md) |
+| Logic / services / engines | `src/lib/`, `src/lib/server/` | [Shared logic](workspace/shared-logic.md) |
+| An HTTP endpoint | `src/app/api/**/route.ts` | [API & routes](workspace/api-and-routes.md) |
+| A screen | `src/app/portal/**/page.tsx` + `_Component.tsx` | [Portal UI](workspace/portal-ui.md) |
+| A whole feature/module | `src/built-ins/modules/<plugin>/` | [Plugins](workspace/plugins.md) |
+| Shared UI (shell, primitives) | `src/components/` | [Components](workspace/components.md) |
+| Config / tests / docs | root, `scripts/`, `docs/` | [Scripts, config & docs](workspace/scripts-config-docs.md) |
+
+> **Two backends exist:** local **file/memory** state (`.data/portal-state.json`)
+> and **live Supabase** (auth + `brand_enquiries` + Storage). Anything touching
+> Supabase is real, un-sandboxed data — see the live-data hazards.
+
+---
+
+## The chapters
+
+1. **[State layer](workspace/state-layer.md)** — `src/server/` (49 files). The `PortalState` store and every CRUD/domain function over it. Start here to understand the data.
+2. **[Shared logic](workspace/shared-logic.md)** — `src/lib/` + `src/lib/server/` (~204). Services, the Radar engine, integrations, auth, the Aqua Tag, editing. The client-safe vs server-only split.
+3. **[Portal UI](workspace/portal-ui.md)** — `src/app/portal/` (agency / clients / customer / team). Every screen, its tabs, and the load-bearing components.
+4. **[API & routes](workspace/api-and-routes.md)** — `src/app/api/**` + the non-portal routes, grouped by area with the **live-Supabase** ones flagged. For the exhaustive one-row-per-endpoint version (path · methods · purpose · scope · live), see the **[full API reference](workspace/api-reference.md)**.
+5. **[Plugins](workspace/plugins.md)** — `src/built-ins/` (~756). The 13 feature modules and the runtime that installs them, mapped internally.
+6. **[Components](workspace/components.md)** — `src/components/` (60). The app shell (chrome), attention surface, and reusable primitives.
+7. **[Scripts, config & docs](workspace/scripts-config-docs.md)** — root config, the ~200 test scripts, and the prose docs. Includes the canonical full-suite command.
+8. **[Feature → files index](workspace/feature-index.md)** — the conflict-avoider: "where does X live?" across all layers, per feature.
+9. **[Hazards & duplication](workspace/hazards-and-duplication.md)** — live-data risks, confirmed duplicates, drift-prone twins, dead/alias code, and the standing rules. **Read before editing.**
+10. **[Recent changes (Aug 2026)](workspace/session-changelog-2026-08.md)** — what the latest session built and where it landed.
+
+**Feature dossiers** (a whole subsystem pulled into one verified page — read from source, omega detail):
+- **[Radar](workspace/radar.md)** — the 2,064-rule catalogue, the check engine, the health/evidence/readiness contract, policy, correlations, sentinels, the scan flow, the in-app/off-system/judgement action model, and the full test inventory.
+- **[Advisor & AI Assistant](workspace/advisor.md)** — the 8 skill recipes, action/proposal types + human-acceptance flow, context builders, the OpenAI wiring, and every MCP tool.
+- **[KPI & Intelligence](workspace/kpi-intelligence.md)** — every metric with its formula and source (20 command KPIs + 40 commercial formulas), the trajectory mechanics, and computed-vs-hardcoded-vs-index.
+- **[The Aqua Tag](workspace/aqua-tag.md)** — the tag script + verified internals, keys & routing, all its views/workspaces, detect/scan engine, ingestion + telemetry, consent model, endpoints.
+- **[Database (Supabase)](workspace/database.md)** — table-by-table columns, storage buckets, auth flows, and security — with the hard repo-vs-dashboard boundary (RLS is not in the repo).
+
+---
+
+## The function-by-function reference (`docs/reference/`)
+
+The chapters above tell you **what each area does**. The
+**[symbol reference](reference/00-index.md)** tells you **where every single
+function is** — every exported function, class, service method, type and const
+in all 1,649 source files, with its **real signature and doc-comment**.
+**6,352 symbols**, grouped by area:
+
+- [State layer](reference/server.md) · [Shared logic](reference/lib.md) · [Components](reference/components.md) · [Plugins](reference/built-ins.md) · [App routes & UI](reference/app.md) · [Scripts](reference/scripts.md)
+
+**Grep it instead of opening source** — that's the context-saver. It's
+**generated** by [`scripts/generate-symbol-reference.mjs`](../scripts/generate-symbol-reference.mjs)
+(parses the code with the TypeScript compiler, so it never misses a file), and
+**re-runnable** so it stays true:
+
+```bash
+node scripts/generate-symbol-reference.mjs
+```
+
+For the deepest layer — **one doc per source file** (1,650 of them, each with
+its API, dependencies, and who-uses-it), browse the
+**[file-by-file reference](reference/files-index.md)**:
+
+```bash
+node scripts/generate-file-docs.mjs
+```
+
+For endpoints specifically, the [full API reference](workspace/api-reference.md)
+adds purpose + scope + live-data flag per route.
+
+---
+
+## Top-level layout
+
+```
+aquaCRM/portal/
+├── src/
+│   ├── app/            Next.js App Router — routes, pages, API (432 files)
+│   │   ├── api/            HTTP endpoints (portal, public, tenants, auth, v1…)
+│   │   ├── portal/         Authenticated UI (agency / clients / customer / team)
+│   │   ├── connect/ setup/ login/ dev/ …   public + auth flows
+│   │   ├── (website)/      Public marketing site route group
+│   │   └── aqua-tag.js/    Serves the Aqua Tag script
+│   ├── lib/            Shared logic — client-safe + server-only (204 files)
+│   │   └── server/         server-only services (Supabase, radar, enquiries…)
+│   ├── server/         State/store layer — the source of truth (49 files)
+│   ├── components/     Shared UI (chrome, attention, editing, auth) (60 files)
+│   └── built-ins/      Plugin/module system (~756 files)
+│       ├── runtime/        registry + foundation adapters
+│       └── modules/        one folder per plugin (website-editor, finance…)
+├── scripts/            ~200 smoke tests + tooling
+├── docs/               handoffs, architecture, this map
+│   └── workspace/          the chapters this page indexes
+└── .data/              local state file (git-ignored sandbox)
+```
+
+---
+
+## Keeping this map honest
+
+It's a living map — when you add a feature or move something, update the
+relevant chapter and, if it's a new cross-layer concern, the
+[feature index](workspace/feature-index.md). If you create a new duplicate or
+alias (sometimes unavoidable), log it in
+[hazards](workspace/hazards-and-duplication.md) so the next person doesn't get
+caught. The map is only worth trusting if it stays true.

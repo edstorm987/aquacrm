@@ -1,3 +1,4 @@
+import { mayUseEnvironmentCredentials } from "./founderAgency";
 import { sendResendEmail } from "./resendEmail";
 import { resolveIntegrationConnectionValues, resolveIntegrationValues } from "./integrationConnections";
 
@@ -32,7 +33,14 @@ export function transactionalEmailReadiness(
 ): TransactionalEmailReadiness {
   const resend = resolveIntegrationValues(agencyId, "resend", { clientId });
   const smtp = resolveIntegrationValues(agencyId, "smtp", { clientId });
-  const resendReady = Boolean((resend.apiKey || process.env.RESEND_API_KEY?.trim()) && (resend.fromEmail || process.env.MILESYMEDIA_FROM_EMAIL?.trim()));
+  // Same rule as integration credentials: the env sender is the FOUNDER'S. If
+  // any agency could count it as "configured", a new company would never be
+  // prompted to connect Resend — and its mail would go out as his address.
+  const envSender = mayUseEnvironmentCredentials(agencyId);
+  const resendReady = Boolean(
+    (resend.apiKey || (envSender && process.env.RESEND_API_KEY?.trim()))
+    && (resend.fromEmail || (envSender && process.env.MILESYMEDIA_FROM_EMAIL?.trim())),
+  );
   const smtpReady = Boolean(smtp.host && smtp.port && smtp.username && smtp.password && smtp.fromEmail);
   return resendReady || smtpReady
     ? { configured: true }

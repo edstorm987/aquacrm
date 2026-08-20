@@ -11,6 +11,7 @@ const websiteShell = readFileSync(join(ROOT, "src/app/(website)/WebsiteShell.tsx
 const starter = readFileSync(join(ROOT, "../github-templates/starters/luxury-service-site/index.html"), "utf8");
 const inboxPage = readFileSync(join(ROOT, "src/app/portal/agency/inbox/page.tsx"), "utf8");
 const inboxUi = readFileSync(join(ROOT, "src/app/portal/agency/inbox/_MasterInbox.tsx"), "utf8");
+const inboxDetailCard = readFileSync(join(ROOT, "src/app/portal/agency/inbox/_EnquiryDetailCard.tsx"), "utf8");
 const alerts = readFileSync(join(ROOT, "src/lib/server/operationalAlerts.ts"), "utf8");
 const repairRoute = readFileSync(join(ROOT, "src/app/api/portal/website-enquiries/lead/route.ts"), "utf8");
 const enquiryReader = readFileSync(join(ROOT, "src/lib/server/websiteEnquiries.ts"), "utf8");
@@ -48,7 +49,7 @@ test("website enquiries appear in alerts and a first-class inbox feed", () => {
   assert.match(inboxUi, /data-enquiry-message/);
   assert.match(inboxUi, /whitespace-pre-wrap break-words/);
   assert.match(inboxUi, /sourceLocation\(item\)/);
-  assert.match(inboxUi, /Campaign/);
+  assert.match(inboxDetailCard, /Campaign/);
   assert.match(inboxUi, /Create lead/);
 });
 

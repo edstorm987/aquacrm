@@ -17,6 +17,7 @@ import { PUBLIC_AQUA_SITES, resolvePublicAquaSite } from "@/lib/publicSites";
 import { triggerAutomations } from "@/server/automations";
 import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clientRecordLedger";
+import { resolveWebsiteSourceRouting } from "@/server/websiteSources";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
@@ -166,6 +167,12 @@ export function OPTIONS(req: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
 }
 
+// A double-submit, a retry, or the Aqua Tag racing the form must not each
+// become a new enquiry. Same brand + same contact detail inside this window is
+// treated as the same enquiry. The root cause (a marketing form firing several
+// times) lives on the site; the fix belongs here, where every path converges.
+const DEDUPE_WINDOW_MS = 2 * 60 * 1_000;
+
 export async function POST(req: NextRequest) {
   const requestedOrigin = req.headers.get("origin");
   const origin = allowedOrigin(req);
@@ -259,8 +266,40 @@ export async function POST(req: NextRequest) {
     const company = companies[brand as TradingBrandSlug];
     const brandDefinition = tradingBrandDefinition(brand as TradingBrandSlug);
     const pagePath = sourceUrl ? new URL(sourceUrl).pathname : "/";
+    // Where this site's submissions are configured to go. Absent → the agency
+    // inbox, which is the old behaviour. A registered client destination makes
+    // the enquiry that client's from the start, rather than piling into Ed's
+    // queue and hoping identity resolution guesses right.
+    const destination = (() => {
+      try { return sourceUrl ? resolveWebsiteSourceRouting(agency.id, new URL(sourceUrl).host) : { kind: "inbox" as const }; }
+      catch { return { kind: "inbox" as const }; }
+    })();
+    const routedClientId = destination.kind === "client" ? destination.clientId : undefined;
+    const routedCompanyId = destination.kind === "company" ? destination.companyId : undefined;
     const capturedAt = new Date().toISOString();
     const supabase = createSupabaseAdminClient();
+
+    // Idempotency: if an enquiry with this contact detail already landed on
+    // this brand moments ago, return it rather than inserting a duplicate (and
+    // creating a second lead). This is what stopped a single submission
+    // becoming three.
+    if (hasEmail || hasPhone) {
+      const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
+      const recent = supabase
+        .from("brand_enquiries")
+        .select("id")
+        .eq("brand_slug", brand)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const { data: existing } = hasEmail
+        ? await recent.eq("email", email)
+        : await recent.eq("phone", phone);
+      if (existing?.[0]?.id) {
+        return response({ ok: true, submissionId: existing[0].id, deduped: true }, 200, origin);
+      }
+    }
+
     const { data: captured, error: captureError } = await supabase
       .from("brand_enquiries")
       .insert({
@@ -284,6 +323,7 @@ export async function POST(req: NextRequest) {
           propertyId: publicSite?.propertyId ?? brand,
           siteName: publicSite?.siteName ?? brandDefinition.name,
           pagePath,
+          ...(routedCompanyId ? { routedCompanyId } : {}),
           inboxStatus: "open",
           enquiryClassification: "unclassified",
           notification: "pending",
@@ -351,8 +391,13 @@ export async function POST(req: NextRequest) {
     };
     const identityResolution = resolveContactIdentity(identityInput);
     upsertIdentityResolutionReview(identityInput, identityResolution);
-    if (identityResolution.clientId) {
-      upsertClientRecordLedgerEvent(agency.id, identityResolution.clientId, {
+    // The configured route wins over the identity guess: a client's own site
+    // routes to them even if the visitor isn't a known contact yet. A company
+    // route claims the enquiry for that company, so it is not also filed onto a
+    // client via the identity guess.
+    const owningClientId = routedCompanyId ? undefined : (routedClientId ?? identityResolution.clientId);
+    if (owningClientId) {
+      upsertClientRecordLedgerEvent(agency.id, owningClientId, {
         sourceType: "enquiry",
         sourceId: `website-enquiry:${captured.id}`,
         group: "messages",

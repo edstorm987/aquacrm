@@ -32,15 +32,15 @@ const manifest: AquaPlugin = {
   core: false,
   scopePolicy: "agency",
 
+  // P5 (2026-08-20) — the plugin's own "Staff" row is deliberately absent.
+  // `/portal/agency/people` is the one canonical staff directory (finance
+  // already treats `people.ts` as canonical and demotes agency-hr rows to
+  // `legacyStaff`), so shipping a second "Staff" row here produced two
+  // directories that silently diverged. The row is gone and both
+  // `/portal/agency/agency-hr` and `/portal/agency/agency-hr/staff` now
+  // redirect to the canonical surface. Departments / Leave / Employees /
+  // Roles / Settings stay — they have no core equivalent.
   navItems: [
-    {
-      id: "agency-hr.staff",
-      label: "Staff",
-      href: "/portal/agency/agency-hr",
-      panelId: "agency-hr",
-      order: 10,
-      visibleToRoles: [...AGENCY_VIEWERS],
-    },
     {
       id: "agency-hr.departments",
       label: "Departments",

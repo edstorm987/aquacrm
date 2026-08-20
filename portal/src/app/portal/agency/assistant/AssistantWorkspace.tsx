@@ -51,6 +51,8 @@ interface Props {
   variant?: "page" | "drawer";
   onClose?: () => void;
   onAssistantDone?: () => void;
+  /** Question text to load into the composer, e.g. from an alert. */
+  prefill?: string;
 }
 
 type SpeechRecognitionInstance = {
@@ -90,10 +92,18 @@ export function AssistantWorkspace({
   variant = "page",
   onClose,
   onAssistantDone,
+  prefill,
 }: Props) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [activeThreadId, setActiveThreadId] = useState(initialWorkspace.threads[0]?.id ?? "");
   const [draft, setDraft] = useState("");
+
+  // A question handed in from elsewhere — an alert the operator could not make
+  // sense of. Loaded into the box rather than sent, so they can reword it
+  // before spending a request.
+  useEffect(() => {
+    if (prefill) setDraft(prefill);
+  }, [prefill]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);

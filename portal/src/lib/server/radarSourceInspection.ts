@@ -17,7 +17,7 @@ import { listUsersForAgency } from "@/server/users";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { listInboxSnapshot } from "./inboxStore";
 import { makePluginStorage } from "./pluginStorage";
-import { listWebsiteEnquiries } from "./websiteEnquiries";
+import { getRequestWebsiteEnquiries } from "./websiteEnquiries";
 
 interface RadarSourceDataset extends RadarSourceDatasetSummary {
   records: Array<Record<string, unknown>>;
@@ -121,7 +121,7 @@ async function buildRadarSourceDatasets(agencyId: string): Promise<RadarSourceDa
   const leadInstall = installs.find(install => install.pluginId === "leads-pipeline");
   const canInspectPublicEnquiries = state.agencies[agencyId]?.slug === FOUNDER_AGENCY_SLUG;
   const [enquiryResult, inboxResult, leadResult] = await Promise.allSettled([
-    within(EXTERNAL_SOURCE_TIMEOUT_MS, "Website enquiries", canInspectPublicEnquiries ? listWebsiteEnquiries(500) : Promise.resolve([])),
+    within(EXTERNAL_SOURCE_TIMEOUT_MS, "Website enquiries", canInspectPublicEnquiries ? getRequestWebsiteEnquiries(500) : Promise.resolve([])),
     within(EXTERNAL_SOURCE_TIMEOUT_MS, "Social inbox", listInboxSnapshot(agencyId)),
     within(EXTERNAL_SOURCE_TIMEOUT_MS, "Lead pipeline", leadInstall ? listRadarLeads(agencyId, leadInstall.id) : Promise.resolve([])),
   ]);

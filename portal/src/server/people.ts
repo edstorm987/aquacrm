@@ -3,18 +3,42 @@ import "server-only";
 import crypto from "node:crypto";
 
 import { logActivity } from "./activity";
+import { listContractTemplates } from "./contractTemplates";
 import { getState, mutate } from "./storage";
+import { listAgencyTasks } from "./tasks";
+import { listUsersForAgency } from "./users";
 import type {
+  AgencyTask,
+  DashboardWorkSession,
   PeopleApplication,
   PeopleApplicationStage,
+  PeopleChannel,
+  PeopleChannelRead,
+  PeopleContract,
+  PeopleContractKind,
+  PeopleContractStatus,
+  PeopleMessage,
   PeopleEmployee,
   PeopleEmploymentType,
+  PeopleFeedback,
+  PeopleFeedbackSentiment,
+  PeopleFreelancerJob,
+  PeopleFreelancerJobStatus,
+  PeopleHiringStageConfig,
   PeopleLeaveRequest,
   PeopleOnboardingItem,
+  PeopleOnboardingStep,
+  PeopleProcessConfig,
+  PeopleRecognition,
+  PeopleRecognitionKind,
   PeopleShift,
   PeopleTrainingAssignment,
+  PeopleTrainingBlock,
+  PeopleTrainingModule,
+  PeopleTrainingQuizQuestion,
   PeopleWorkspaceAccess,
   PeopleWorkspaceStationId,
+  ServerUser,
 } from "./types";
 
 export const PEOPLE_STATIONS: ReadonlyArray<{
@@ -32,6 +56,8 @@ export const PEOPLE_STATIONS: ReadonlyArray<{
   { id: "training", label: "Training", description: "Assigned SOPs, resources and completion evidence.", href: "/portal/team/training" },
   { id: "pay", label: "Pay & commission", description: "Employment terms and active commission rules.", href: "/portal/team/pay" },
   { id: "notes", label: "Work notes", description: "Private notes retained against the employee identity.", href: "/portal/team/notes" },
+  { id: "progression", label: "My growth & company", description: "Your role and growth path, the company mission, SOPs, and feedback to the founder.", href: "/portal/team/progression" },
+  { id: "chat", label: "Team chat", description: "Message the team and teammates directly.", href: "/portal/team/chat" },
 ] as const;
 
 export const DEFAULT_PEOPLE_ACCESS: PeopleWorkspaceAccess[] = PEOPLE_STATIONS.map((station, order) => ({
@@ -60,6 +86,74 @@ function clean(value: unknown, max = 240): string {
 
 export function hashPeopleStatusToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+// ─── Configurable processes (onboarding template + hiring stages) ─────────────
+// Ed defines his own onboarding steps and his own labels/guidance per hiring
+// stage. Stage *ids* are fixed (Radar reads key off them); only presentation and
+// process notes are configurable. New hires seed their onboarding from the
+// template rather than a hardcoded list.
+
+const HIRING_STAGE_IDS: PeopleApplicationStage[] = ["applied", "under-review", "interview", "shortlisted", "offer", "accepted", "onboarding", "declined", "withdrawn"];
+const DEFAULT_HIRING_STAGE_LABELS: Record<PeopleApplicationStage, string> = {
+  applied: "Applied", "under-review": "Under review", interview: "Interview", shortlisted: "Shortlisted", offer: "Offer", accepted: "Accepted", onboarding: "Onboarding", declined: "Declined", withdrawn: "Withdrawn",
+};
+
+export function defaultOnboardingSteps(): PeopleOnboardingStep[] {
+  return DEFAULT_ONBOARDING_LABELS.map(([label, owner], index) => ({ id: `onboarding_${index + 1}`, label, owner }));
+}
+
+function defaultHiringStages(): PeopleHiringStageConfig[] {
+  return HIRING_STAGE_IDS.map(stageId => ({ id: stageId, label: DEFAULT_HIRING_STAGE_LABELS[stageId] }));
+}
+
+/** The agency's configured onboarding + hiring process, falling back to defaults. */
+export function getPeopleProcessConfig(agencyId: string): PeopleProcessConfig {
+  const stored = getState().peopleProcessConfig?.[agencyId];
+  const onboardingSteps = stored?.onboardingSteps?.length ? stored.onboardingSteps : defaultOnboardingSteps();
+  // Always present every fixed stage: overlay stored labels/guidance onto the fixed id set.
+  const storedById = new Map((stored?.hiringStages ?? []).map(stage => [stage.id, stage]));
+  const hiringStages = HIRING_STAGE_IDS.map(stageId => {
+    const custom = storedById.get(stageId);
+    return { id: stageId, label: clean(custom?.label, 60) || DEFAULT_HIRING_STAGE_LABELS[stageId], guidance: clean(custom?.guidance, 1_000) || undefined };
+  });
+  return { agencyId, onboardingSteps, hiringStages, updatedAt: stored?.updatedAt ?? 0 };
+}
+
+function persistProcessConfig(agencyId: string, patch: Partial<Pick<PeopleProcessConfig, "onboardingSteps" | "hiringStages">>, actorUserId: string): PeopleProcessConfig {
+  const current = getPeopleProcessConfig(agencyId);
+  const next: PeopleProcessConfig = {
+    agencyId,
+    onboardingSteps: patch.onboardingSteps ?? current.onboardingSteps,
+    hiringStages: patch.hiringStages ?? current.hiringStages,
+    updatedAt: Date.now(),
+  };
+  mutate(state => { state.peopleProcessConfig[agencyId] = next; });
+  logActivity({ agencyId, actorUserId, category: "settings", action: "people.process_config_updated", message: "Updated the people process templates.", metadata: { onboardingSteps: next.onboardingSteps.length } });
+  return next;
+}
+
+export function savePeopleOnboardingTemplate(agencyId: string, steps: Array<{ id?: string; label: string; owner?: "company" | "employee"; detail?: string; requiresEvidence?: boolean }>, actorUserId: string): PeopleProcessConfig {
+  const cleaned = steps
+    .map((step, index): PeopleOnboardingStep => ({
+      id: clean(step.id, 60) || `onboarding_${index + 1}`,
+      label: clean(step.label, 200),
+      owner: step.owner === "employee" ? "employee" : "company",
+      detail: clean(step.detail, 1_000) || undefined,
+      requiresEvidence: Boolean(step.requiresEvidence),
+    }))
+    .filter(step => step.label);
+  if (!cleaned.length) throw new Error("Keep at least one onboarding step.");
+  return persistProcessConfig(agencyId, { onboardingSteps: cleaned.slice(0, 40) }, actorUserId);
+}
+
+export function savePeopleHiringStages(agencyId: string, stages: Array<{ id: string; label?: string; guidance?: string }>, actorUserId: string): PeopleProcessConfig {
+  const byId = new Map(stages.map(stage => [stage.id, stage]));
+  const merged = HIRING_STAGE_IDS.map((stageId): PeopleHiringStageConfig => {
+    const custom = byId.get(stageId);
+    return { id: stageId, label: clean(custom?.label, 60) || DEFAULT_HIRING_STAGE_LABELS[stageId], guidance: clean(custom?.guidance, 1_000) || undefined };
+  });
+  return persistProcessConfig(agencyId, { hiringStages: merged }, actorUserId);
 }
 
 export function listPeopleApplications(agencyId: string): PeopleApplication[] {
@@ -237,11 +331,12 @@ export function createPeopleEmployee(input: {
     currency: "GBP",
     commissionRules: [],
     workspaceAccess: DEFAULT_PEOPLE_ACCESS.map(access => ({ ...access })),
-    onboardingItems: DEFAULT_ONBOARDING_LABELS.map(([label, owner], index): PeopleOnboardingItem => ({
-      id: `onboarding_${index + 1}`,
-      label,
+    onboardingItems: getPeopleProcessConfig(input.agencyId).onboardingSteps.map((step): PeopleOnboardingItem => ({
+      id: step.id,
+      label: step.label,
+      detail: step.detail,
       status: "todo",
-      owner,
+      owner: step.owner,
     })),
     createdAt: now,
     updatedAt: now,
@@ -404,10 +499,12 @@ export function savePeopleTraining(input: Omit<PeopleTrainingAssignment, "id" | 
     title: clean(input.title, 200),
     description: clean(input.description, 2_000) || undefined,
     sopId: clean(input.sopId, 160) || undefined,
+    moduleId: clean(input.moduleId, 160) || existing?.moduleId || undefined,
     resourceUrl: clean(input.resourceUrl, 500) || undefined,
     dueAt: input.dueAt,
     status: input.status,
     completedAt: input.status === "completed" ? existing?.completedAt ?? now : undefined,
+    score: input.score ?? existing?.score,
     evidence: clean(input.evidence, 1_000) || undefined,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
@@ -417,7 +514,956 @@ export function savePeopleTraining(input: Omit<PeopleTrainingAssignment, "id" | 
   return training;
 }
 
-export function peopleSnapshot(agencyId: string) {
+// ─── Training modules + quizzes (Ed authors, staff complete) ──────────────────
+// A module is ordered content blocks (heading/text/video/resource — aligned to
+// the portal content-block pattern) plus a quiz. Assigned via a training
+// assignment (`moduleId`); completion gates on passing the quiz. No AI — Ed
+// curates the content.
+
+const TRAINING_BLOCK_TYPES: PeopleTrainingBlock["type"][] = ["heading", "text", "video", "resource"];
+
+export function listPeopleTrainingModules(agencyId: string, publishedOnly = false): PeopleTrainingModule[] {
+  return Object.values(getState().peopleTrainingModules ?? {})
+    .filter(module => module.agencyId === agencyId && (!publishedOnly || module.status === "published"))
+    .sort((a, b) => Number(a.status === "draft") - Number(b.status === "draft") || b.updatedAt - a.updatedAt);
+}
+
+export function getPeopleTrainingModule(agencyId: string, moduleId: string): PeopleTrainingModule | null {
+  const module = getState().peopleTrainingModules?.[moduleId];
+  return module?.agencyId === agencyId ? module : null;
+}
+
+export function savePeopleTrainingModule(input: {
+  agencyId: string;
+  actorUserId: string;
+  id?: string;
+  title: string;
+  summary?: string;
+  blocks?: PeopleTrainingBlock[];
+  quiz?: PeopleTrainingQuizQuestion[];
+  passMark?: number;
+  status?: "draft" | "published";
+}): PeopleTrainingModule {
+  const title = clean(input.title, 200);
+  if (!title) throw new Error("Module title required.");
+  const existing = input.id ? getState().peopleTrainingModules?.[input.id] : null;
+  if (existing && existing.agencyId !== input.agencyId) throw new Error("Module not found.");
+  const now = Date.now();
+  const blocks: PeopleTrainingBlock[] = (input.blocks ?? existing?.blocks ?? [])
+    .filter(block => TRAINING_BLOCK_TYPES.includes(block.type))
+    .map((block, index) => ({
+      id: clean(block.id, 60) || `block_${index + 1}`,
+      type: block.type,
+      text: clean(block.text, 8_000) || undefined,
+      url: clean(block.url, 1_000) || undefined,
+      label: clean(block.label, 200) || undefined,
+    }));
+  const quiz: PeopleTrainingQuizQuestion[] = (input.quiz ?? existing?.quiz ?? [])
+    .map((question, qIndex) => ({
+      id: clean(question.id, 60) || `q_${qIndex + 1}`,
+      prompt: clean(question.prompt, 1_000),
+      options: (question.options ?? []).map((option, oIndex) => ({
+        id: clean(option.id, 60) || `o_${oIndex + 1}`,
+        text: clean(option.text, 500),
+        correct: Boolean(option.correct),
+      })).filter(option => option.text),
+    }))
+    .filter(question => question.prompt && question.options.length >= 2 && question.options.some(option => option.correct));
+  const passMark = Math.min(100, Math.max(0, Math.round(input.passMark ?? existing?.passMark ?? 70)));
+  const module: PeopleTrainingModule = {
+    id: existing?.id ?? id("module"),
+    agencyId: input.agencyId,
+    title,
+    summary: clean(input.summary, 1_000) || existing?.summary || undefined,
+    blocks,
+    quiz,
+    passMark,
+    status: input.status === "published" ? "published" : input.status === "draft" ? "draft" : existing?.status ?? "draft",
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  mutate(state => { state.peopleTrainingModules[module.id] = module; });
+  logActivity({ agencyId: input.agencyId, actorUserId: input.actorUserId, category: "settings", action: existing ? "people.module_updated" : "people.module_created", message: `${existing ? "Updated" : "Created"} training module “${title}”.`, metadata: { moduleId: module.id, status: module.status } });
+  return module;
+}
+
+export interface TrainingQuizResult {
+  total: number;
+  correct: number;
+  score: number; // percent
+  passed: boolean;
+}
+
+/** Pure grading: `answers` maps questionId → chosen optionId. An empty quiz passes. */
+export function gradeTrainingQuiz(module: PeopleTrainingModule, answers: Record<string, string>): TrainingQuizResult {
+  const total = module.quiz.length;
+  if (total === 0) return { total: 0, correct: 0, score: 100, passed: true };
+  let correct = 0;
+  for (const question of module.quiz) {
+    const chosen = answers[question.id];
+    const correctOption = question.options.find(option => option.correct);
+    if (chosen && correctOption && chosen === correctOption.id) correct += 1;
+  }
+  const score = Math.round((correct / total) * 100);
+  return { total, correct, score, passed: score >= module.passMark };
+}
+
+/**
+ * Staff completes a module-backed assignment by submitting quiz answers. Passing
+ * gates completion; failing records the score and leaves it in progress.
+ */
+export function completeModuleAssignment(input: { agencyId: string; assignmentId: string; userId: string; answers: Record<string, string> }): { assignment: PeopleTrainingAssignment; result: TrainingQuizResult } | null {
+  const existing = getState().peopleTrainingAssignments[input.assignmentId];
+  if (!existing || existing.agencyId !== input.agencyId) return null;
+  const employee = getPeopleEmployee(input.agencyId, existing.employeeId);
+  if (!employee || employee.userId !== input.userId) return null; // only the assigned person
+  const module = existing.moduleId ? getPeopleTrainingModule(input.agencyId, existing.moduleId) : null;
+  if (!module) throw new Error("This training has no module to complete.");
+  const result = gradeTrainingQuiz(module, input.answers);
+  const now = Date.now();
+  const assignment: PeopleTrainingAssignment = {
+    ...existing,
+    status: result.passed ? "completed" : "in-progress",
+    score: result.score,
+    completedAt: result.passed ? existing.completedAt ?? now : existing.completedAt,
+    updatedAt: now,
+  };
+  mutate(state => { state.peopleTrainingAssignments[assignment.id] = assignment; });
+  return { assignment, result };
+}
+
+// ─── Freelancer one-time-project jobs ─────────────────────────────────────────
+// Scoped engagements for a freelancer/contractor with a fee and a
+// proposed→active→delivered→paid lifecycle. The job owns its own state; Finance
+// stays the authority on money paid (a `paymentRef` links the two once recorded
+// there). Sorted open-first, then by most recent.
+
+const FREELANCER_JOB_ORDER: Record<PeopleFreelancerJobStatus, number> = {
+  proposed: 0, active: 1, delivered: 2, paid: 3, cancelled: 4,
+};
+
+export function listPeopleFreelancerJobs(agencyId: string, employeeId?: string): PeopleFreelancerJob[] {
+  return Object.values(getState().peopleFreelancerJobs ?? {})
+    .filter(job => job.agencyId === agencyId && (!employeeId || job.employeeId === employeeId))
+    .sort((a, b) => FREELANCER_JOB_ORDER[a.status] - FREELANCER_JOB_ORDER[b.status] || b.updatedAt - a.updatedAt);
+}
+
+export function savePeopleFreelancerJob(input: {
+  agencyId: string;
+  actorUserId: string;
+  id?: string;
+  employeeId: string;
+  title: string;
+  brief?: string;
+  clientId?: string;
+  feeMinor?: number;
+  currency?: string;
+  startsOn?: string;
+  dueOn?: string;
+  notes?: string;
+  status?: PeopleFreelancerJobStatus;
+}): PeopleFreelancerJob {
+  const employee = getPeopleEmployee(input.agencyId, input.employeeId);
+  if (!employee) throw new Error("Freelancer not found.");
+  const title = clean(input.title, 200);
+  if (!title) throw new Error("Job title required.");
+  const existing = input.id ? getState().peopleFreelancerJobs?.[input.id] : null;
+  if (existing && existing.agencyId !== input.agencyId) throw new Error("Freelancer job not found.");
+  const now = Date.now();
+  const status = input.status ?? existing?.status ?? "proposed";
+  const job: PeopleFreelancerJob = {
+    id: existing?.id ?? id("freelancerjob"),
+    agencyId: input.agencyId,
+    employeeId: input.employeeId,
+    title,
+    brief: clean(input.brief, 4_000) || undefined,
+    clientId: clean(input.clientId, 120) || undefined,
+    status,
+    feeMinor: typeof input.feeMinor === "number" && input.feeMinor >= 0 ? Math.round(input.feeMinor) : existing?.feeMinor,
+    currency: clean(input.currency, 3).toUpperCase() || existing?.currency || employee.currency || "GBP",
+    startsOn: clean(input.startsOn, 10) || existing?.startsOn,
+    dueOn: clean(input.dueOn, 10) || existing?.dueOn,
+    deliveredAt: status === "delivered" || status === "paid" ? existing?.deliveredAt ?? now : existing?.deliveredAt,
+    paidAt: status === "paid" ? existing?.paidAt ?? now : existing?.paidAt,
+    paymentRef: existing?.paymentRef,
+    notes: clean(input.notes, 2_000) || existing?.notes,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  mutate(state => { state.peopleFreelancerJobs[job.id] = job; });
+  logActivity({
+    agencyId: input.agencyId,
+    actorUserId: input.actorUserId,
+    category: "settings",
+    action: existing ? "people.freelancer_job_updated" : "people.freelancer_job_created",
+    message: `${existing ? "Updated" : "Created"} freelancer job “${title}” for ${employee.name}.`,
+    metadata: { jobId: job.id, employeeId: employee.id, status: job.status },
+  });
+  return job;
+}
+
+/**
+ * Move a job through its lifecycle. `paymentRef` is recorded when the money is
+ * logged in Finance — the job never moves money itself (Finance owns money).
+ */
+export function setPeopleFreelancerJobStatus(input: {
+  agencyId: string;
+  jobId: string;
+  status: PeopleFreelancerJobStatus;
+  actorUserId: string;
+  paymentRef?: string;
+}): PeopleFreelancerJob | null {
+  const existing = getState().peopleFreelancerJobs?.[input.jobId];
+  if (!existing || existing.agencyId !== input.agencyId) return null;
+  const now = Date.now();
+  const updated: PeopleFreelancerJob = {
+    ...existing,
+    status: input.status,
+    deliveredAt: input.status === "delivered" || input.status === "paid" ? existing.deliveredAt ?? now : existing.deliveredAt,
+    paidAt: input.status === "paid" ? existing.paidAt ?? now : existing.paidAt,
+    paymentRef: input.status === "paid" ? clean(input.paymentRef, 160) || existing.paymentRef : existing.paymentRef,
+    updatedAt: now,
+  };
+  mutate(state => { state.peopleFreelancerJobs[updated.id] = updated; });
+  logActivity({
+    agencyId: input.agencyId,
+    actorUserId: input.actorUserId,
+    category: "settings",
+    action: "people.freelancer_job_status",
+    message: `Freelancer job “${updated.title}” moved to ${updated.status}.`,
+    metadata: { jobId: updated.id, status: updated.status },
+  });
+  return updated;
+}
+
+// ─── Recognition (employee of the month + shoutouts) ──────────────────────────
+// Lightweight internal recognition. The current employee of the month is simply
+// the most recent "employee-of-month" award. Ties to "You Deserve It" later.
+
+export function listPeopleRecognitions(agencyId: string, employeeId?: string): PeopleRecognition[] {
+  return Object.values(getState().peopleRecognitions ?? {})
+    .filter(item => item.agencyId === agencyId && (!employeeId || item.employeeId === employeeId))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function currentEmployeeOfMonth(agencyId: string): PeopleRecognition | null {
+  return listPeopleRecognitions(agencyId).find(item => item.kind === "employee-of-month") ?? null;
+}
+
+export function awardPeopleRecognition(input: {
+  agencyId: string;
+  actorUserId: string;
+  employeeId: string;
+  kind: PeopleRecognitionKind;
+  period?: string;
+  note?: string;
+}): PeopleRecognition {
+  const employee = getPeopleEmployee(input.agencyId, input.employeeId);
+  if (!employee) throw new Error("Team member not found.");
+  const now = Date.now();
+  const recognition: PeopleRecognition = {
+    id: id("recognition"),
+    agencyId: input.agencyId,
+    employeeId: input.employeeId,
+    kind: input.kind === "shoutout" ? "shoutout" : "employee-of-month",
+    period: clean(input.period, 7) || undefined,
+    note: clean(input.note, 1_000) || undefined,
+    awardedByUserId: input.actorUserId,
+    createdAt: now,
+  };
+  mutate(state => { state.peopleRecognitions[recognition.id] = recognition; });
+  logActivity({
+    agencyId: input.agencyId,
+    actorUserId: input.actorUserId,
+    category: "settings",
+    action: "people.recognition_awarded",
+    message: `${employee.name} recognised — ${recognition.kind === "employee-of-month" ? "employee of the month" : "shoutout"}.`,
+    metadata: { recognitionId: recognition.id, employeeId: employee.id, kind: recognition.kind },
+  });
+  return recognition;
+}
+
+// ─── Upward feedback (staff → owner) ──────────────────────────────────────────
+// A lightweight one-way channel so staff can send thoughts to the founder. The
+// fuller two-way conversation is the internal-chat phase.
+
+const FEEDBACK_STATUS_ORDER: Record<PeopleFeedback["status"], number> = { new: 0, read: 1, actioned: 2 };
+
+export function listPeopleFeedback(agencyId: string, employeeId?: string): PeopleFeedback[] {
+  return Object.values(getState().peopleFeedback ?? {})
+    .filter(item => item.agencyId === agencyId && (!employeeId || item.employeeId === employeeId))
+    .sort((a, b) => FEEDBACK_STATUS_ORDER[a.status] - FEEDBACK_STATUS_ORDER[b.status] || b.createdAt - a.createdAt);
+}
+
+export function createPeopleFeedback(input: {
+  agencyId: string;
+  employeeId: string;
+  message: string;
+  sentiment?: PeopleFeedbackSentiment;
+}): PeopleFeedback {
+  const employee = getPeopleEmployee(input.agencyId, input.employeeId);
+  if (!employee) throw new Error("Employee not found.");
+  const message = clean(input.message, 4_000);
+  if (message.length < 2) throw new Error("Add a little more to your feedback.");
+  const now = Date.now();
+  const feedback: PeopleFeedback = {
+    id: id("feedback"),
+    agencyId: input.agencyId,
+    employeeId: input.employeeId,
+    message,
+    sentiment: input.sentiment && ["positive", "idea", "concern"].includes(input.sentiment) ? input.sentiment : "idea",
+    status: "new",
+    createdAt: now,
+    updatedAt: now,
+  };
+  mutate(state => { state.peopleFeedback[feedback.id] = feedback; });
+  logActivity({
+    agencyId: input.agencyId,
+    actorUserId: employee.userId,
+    category: "system",
+    action: "people.feedback_sent",
+    message: `${employee.name} sent feedback to the founder.`,
+    metadata: { feedbackId: feedback.id, employeeId: employee.id, sentiment: feedback.sentiment },
+  });
+  return feedback;
+}
+
+export function setPeopleFeedbackStatus(agencyId: string, feedbackId: string, status: PeopleFeedback["status"]): PeopleFeedback | null {
+  const existing = getState().peopleFeedback?.[feedbackId];
+  if (!existing || existing.agencyId !== agencyId) return null;
+  const updated: PeopleFeedback = { ...existing, status, updatedAt: Date.now() };
+  mutate(state => { state.peopleFeedback[updated.id] = updated; });
+  return updated;
+}
+
+// ─── Staff contracts (offer / employment / NDA / commission / policy) ─────────
+// Reuse the agency's contract templates + a draft→sent→acknowledged flow. Staff
+// sign off by acknowledgement (typing their name), which the client-contract
+// "accept" flow mirrors. Kept staff-scoped in People; also surfaced in the
+// unified agency contracts view.
+
+const CONTRACT_STATUS_ORDER: Record<PeopleContractStatus, number> = { sent: 0, draft: 1, acknowledged: 2, declined: 3 };
+
+export function listPeopleContracts(agencyId: string, employeeId?: string): PeopleContract[] {
+  return Object.values(getState().peopleContracts ?? {})
+    .filter(contract => contract.agencyId === agencyId && (!employeeId || contract.employeeId === employeeId))
+    .sort((a, b) => CONTRACT_STATUS_ORDER[a.status] - CONTRACT_STATUS_ORDER[b.status] || b.updatedAt - a.updatedAt);
+}
+
+export function createPeopleContract(input: {
+  agencyId: string;
+  actorUserId: string;
+  employeeId: string;
+  kind?: PeopleContractKind;
+  title?: string;
+  summary?: string;
+  body?: string;
+  templateId?: string;
+}): PeopleContract {
+  const employee = getPeopleEmployee(input.agencyId, input.employeeId);
+  if (!employee) throw new Error("Team member not found.");
+  const template = input.templateId ? listContractTemplates(input.agencyId).find(item => item.id === input.templateId) : undefined;
+  const title = clean(input.title, 200) || template?.title || "Employment contract";
+  const now = Date.now();
+  const kind: PeopleContractKind = (["offer", "employment", "nda", "commission", "policy", "other"] as PeopleContractKind[]).includes(input.kind as PeopleContractKind) ? input.kind as PeopleContractKind : "employment";
+  const contract: PeopleContract = {
+    id: id("staffcontract"),
+    agencyId: input.agencyId,
+    employeeId: input.employeeId,
+    kind,
+    title,
+    summary: clean(input.summary, 500) || template?.summary || undefined,
+    body: clean(input.body, 40_000) || template?.body || undefined,
+    templateId: template?.id,
+    status: "draft",
+    createdAt: now,
+    updatedAt: now,
+  };
+  mutate(state => { state.peopleContracts[contract.id] = contract; });
+  logActivity({ agencyId: input.agencyId, actorUserId: input.actorUserId, category: "settings", action: "people.contract_created", message: `Drafted “${title}” for ${employee.name}.`, metadata: { contractId: contract.id, employeeId: employee.id, kind } });
+  return contract;
+}
+
+export function sendPeopleContract(agencyId: string, contractId: string, actorUserId: string): PeopleContract | null {
+  const existing = getState().peopleContracts?.[contractId];
+  if (!existing || existing.agencyId !== agencyId) return null;
+  if (!existing.body) throw new Error("Add the contract body before sending.");
+  const now = Date.now();
+  const updated: PeopleContract = { ...existing, status: "sent", sentAt: existing.sentAt ?? now, updatedAt: now };
+  mutate(state => { state.peopleContracts[updated.id] = updated; });
+  logActivity({ agencyId, actorUserId, category: "settings", action: "people.contract_sent", message: `Sent “${updated.title}” for sign-off.`, metadata: { contractId: updated.id, employeeId: updated.employeeId } });
+  return updated;
+}
+
+/** Staff sign-off: the employee acknowledges (types their name) a sent contract. */
+export function acknowledgePeopleContract(input: { agencyId: string; contractId: string; userId: string; name: string; decline?: boolean }): PeopleContract | null {
+  const existing = getState().peopleContracts?.[input.contractId];
+  if (!existing || existing.agencyId !== input.agencyId) return null;
+  // Only the employee the contract belongs to may sign it.
+  const employee = getPeopleEmployee(input.agencyId, existing.employeeId);
+  if (!employee || employee.userId !== input.userId) return null;
+  if (existing.status !== "sent") throw new Error("This contract is not awaiting your sign-off.");
+  const now = Date.now();
+  const updated: PeopleContract = input.decline
+    ? { ...existing, status: "declined", declinedAt: now, updatedAt: now }
+    : { ...existing, status: "acknowledged", acknowledgedAt: now, acknowledgedBy: input.userId, acknowledgementName: clean(input.name, 120) || employee.name, updatedAt: now };
+  mutate(state => { state.peopleContracts[updated.id] = updated; });
+  logActivity({ agencyId: input.agencyId, actorUserId: input.userId, category: "settings", action: input.decline ? "people.contract_declined" : "people.contract_acknowledged", message: `${employee.name} ${input.decline ? "declined" : "acknowledged"} “${updated.title}”.`, metadata: { contractId: updated.id } });
+  return updated;
+}
+
+// ─── Internal staff chat (team + direct channels) ─────────────────────────────
+// A full internal inbox for the team, modeled on the conversation pattern but in
+// its own store — never the client inbox. One agency-wide "team" channel plus
+// 1:1 "direct" channels, with a "working today" roster from work-sessions.
+
+function isoToday(now: number): string {
+  const date = new Date(now);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function userDisplayName(agencyId: string, userId: string): string {
+  return listUsersForAgency(agencyId).find(user => user.id === userId)?.name ?? "Team member";
+}
+
+export function ensureTeamChannel(agencyId: string): PeopleChannel {
+  const existing = Object.values(getState().peopleChannels ?? {}).find(channel => channel.agencyId === agencyId && channel.kind === "team");
+  if (existing) return existing;
+  const now = Date.now();
+  const channel: PeopleChannel = { id: id("channel"), agencyId, kind: "team", name: "Team", memberUserIds: [], createdAt: now, updatedAt: now };
+  mutate(state => { state.peopleChannels[channel.id] = channel; });
+  return channel;
+}
+
+/** Channels visible to a member: the team channel + any direct channels they're in. */
+export function listPeopleChannels(agencyId: string, userId: string): PeopleChannel[] {
+  const team = ensureTeamChannel(agencyId);
+  const directs = Object.values(getState().peopleChannels ?? {})
+    .filter(channel => channel.agencyId === agencyId && channel.kind === "direct" && channel.memberUserIds.includes(userId))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  return [team, ...directs];
+}
+
+export function ensureDirectChannel(agencyId: string, userIdA: string, userIdB: string): PeopleChannel {
+  const pair = [userIdA, userIdB].sort();
+  const existing = Object.values(getState().peopleChannels ?? {}).find(channel =>
+    channel.agencyId === agencyId && channel.kind === "direct" &&
+    channel.memberUserIds.length === 2 && [...channel.memberUserIds].sort().every((value, index) => value === pair[index]));
+  if (existing) return existing;
+  const now = Date.now();
+  const channel: PeopleChannel = { id: id("channel"), agencyId, kind: "direct", name: `${userDisplayName(agencyId, userIdA)} · ${userDisplayName(agencyId, userIdB)}`, memberUserIds: pair, createdAt: now, updatedAt: now };
+  mutate(state => { state.peopleChannels[channel.id] = channel; });
+  return channel;
+}
+
+function canAccessChannel(channel: PeopleChannel, userId: string): boolean {
+  return channel.kind === "team" || channel.memberUserIds.includes(userId);
+}
+
+export function listPeopleMessages(agencyId: string, channelId: string, limit = 100): PeopleMessage[] {
+  return Object.values(getState().peopleMessages ?? {})
+    .filter(message => message.agencyId === agencyId && message.channelId === channelId)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .slice(-limit);
+}
+
+export function postPeopleMessage(input: { agencyId: string; channelId: string; authorUserId: string; body: string }): PeopleMessage {
+  const channel = getState().peopleChannels?.[input.channelId];
+  if (!channel || channel.agencyId !== input.agencyId) throw new Error("Channel not found.");
+  if (!canAccessChannel(channel, input.authorUserId)) throw new Error("You are not a member of this channel.");
+  const body = clean(input.body, 4_000);
+  if (!body) throw new Error("Write a message.");
+  const now = Date.now();
+  const mentions = parseMentions(input.agencyId, body);
+  const message: PeopleMessage = { id: id("msg"), agencyId: input.agencyId, channelId: input.channelId, authorUserId: input.authorUserId, authorName: userDisplayName(input.agencyId, input.authorUserId), body, createdAt: now };
+  if (mentions.length) message.mentions = mentions;
+  mutate(state => {
+    state.peopleMessages[message.id] = message;
+    if (state.peopleChannels[channel.id]) state.peopleChannels[channel.id] = { ...channel, updatedAt: now };
+    // Posting means the author has seen everything up to now in this channel.
+    state.peopleChannelReads[channelReadKey(input.agencyId, channel.id, input.authorUserId)] = { agencyId: input.agencyId, channelId: channel.id, userId: input.authorUserId, lastReadAt: now };
+  });
+  return message;
+}
+
+// ─── Chat read-state, @mentions and owner attention ──────────────────────────
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Resolve @mentions in a message body against the agency roster. Matches
+ * "@Full Name" and "@FirstName" (word-bounded, case-insensitive) and returns the
+ * distinct userIds mentioned. Best-effort: an ambiguous first name notifies every
+ * match; an "@handle" that matches nobody is simply ignored.
+ */
+function parseMentions(agencyId: string, body: string): string[] {
+  if (!body.includes("@")) return [];
+  const mentioned = new Set<string>();
+  for (const user of listUsersForAgency(agencyId)) {
+    if (!user.role.startsWith("agency-")) continue;
+    const candidates = [user.name.trim(), user.name.trim().split(/\s+/)[0]].filter(Boolean);
+    if (candidates.some(candidate => new RegExp(`@${escapeRegExp(candidate)}\\b`, "i").test(body))) {
+      mentioned.add(user.id);
+    }
+  }
+  return [...mentioned];
+}
+
+function channelReadKey(agencyId: string, channelId: string, userId: string): string {
+  return `${agencyId}:${channelId}:${userId}`;
+}
+
+/** Record that a member has read a channel up to `now` (clears its unread). */
+export function markChannelRead(agencyId: string, channelId: string, userId: string, now = Date.now()): void {
+  const read: PeopleChannelRead = { agencyId, channelId, userId, lastReadAt: now };
+  mutate(state => { state.peopleChannelReads[channelReadKey(agencyId, channelId, userId)] = read; });
+}
+
+function lastReadAt(agencyId: string, channelId: string, userId: string): number {
+  return getState().peopleChannelReads?.[channelReadKey(agencyId, channelId, userId)]?.lastReadAt ?? 0;
+}
+
+export interface ChatAttention {
+  directCount: number; // unread 1:1 direct messages from other people
+  mentionCount: number; // unread @mentions of the member in team channels
+  total: number;
+  latestAt: number;
+}
+
+/**
+ * What in the chat is waiting on this member: unread **direct** messages (from
+ * someone else) and unread **@mentions** in the team channel. A direct message
+ * that also @mentions counts once (as a direct). Messages the member authored, or
+ * anything already read, never count — so it clears the moment they open the channel.
+ */
+export function chatAttentionForUser(agencyId: string, userId: string): ChatAttention {
+  let directCount = 0;
+  let mentionCount = 0;
+  let latestAt = 0;
+  for (const channel of listPeopleChannels(agencyId, userId)) {
+    const readAt = lastReadAt(agencyId, channel.id, userId);
+    for (const message of listPeopleMessages(agencyId, channel.id, 500)) {
+      if (message.createdAt <= readAt || message.authorUserId === userId) continue;
+      const isDirect = channel.kind === "direct";
+      const mentioned = message.mentions?.includes(userId) ?? false;
+      if (!isDirect && !mentioned) continue;
+      if (isDirect) directCount += 1;
+      else mentionCount += 1;
+      latestAt = Math.max(latestAt, message.createdAt);
+    }
+  }
+  return { directCount, mentionCount, total: directCount + mentionCount, latestAt };
+}
+
+/** The agency owner's chat attention (for the Command Centre alert), or null if clear. */
+export function ownerChatAttention(agencyId: string): (ChatAttention & { ownerUserId: string }) | null {
+  const owner = listUsersForAgency(agencyId).find(user => user.role === "agency-owner");
+  if (!owner) return null;
+  const attention = chatAttentionForUser(agencyId, owner.id);
+  return attention.total > 0 ? { ...attention, ownerUserId: owner.id } : null;
+}
+
+/** Distinct userIds who have a work-session today — the "working today" roster. */
+export function workingTodayUserIds(agencyId: string, now = Date.now()): string[] {
+  const today = isoToday(now);
+  return [...new Set(
+    Object.values(getState().dashboardWorkSessions ?? {})
+      .filter(session => session.agencyId === agencyId && session.date === today)
+      .map(session => session.userId),
+  )];
+}
+
+export interface TeamChatRosterEntry {
+  userId: string;
+  name: string;
+  presence: StaffPresence;
+  workingToday: boolean;
+}
+
+export function teamChatSnapshot(agencyId: string, userId: string, activeChannelId?: string, now = Date.now()) {
+  const channels = listPeopleChannels(agencyId, userId);
+  const active = channels.find(channel => channel.id === activeChannelId) ?? channels[0];
+  const workingToday = new Set(workingTodayUserIds(agencyId, now));
+  const roster: TeamChatRosterEntry[] = listUsersForAgency(agencyId)
+    .filter(user => user.role.startsWith("agency-"))
+    .map(user => ({ userId: user.id, name: user.name, presence: presenceFromSessions(workSessionsForUser(agencyId, user.id), now), workingToday: workingToday.has(user.id) }))
+    .sort((a, b) => Number(b.presence.online) - Number(a.presence.online) || Number(b.workingToday) - Number(a.workingToday) || a.name.localeCompare(b.name));
+  return {
+    channels,
+    activeChannelId: active?.id ?? "",
+    messages: active ? listPeopleMessages(agencyId, active.id) : [],
+    roster,
+    selfUserId: userId,
+  };
+}
+
+// ─── Staff Command — agency-side directory + per-person staff card ────────────
+// One surface for the owner: every person (staff and the owner himself) as a
+// directory row, each opening a full card that pulls together the person's
+// identity, assigned work, days worked, pay, access, leave, shifts and
+// training. Cross-domain reads (tasks + work-sessions) are read-only here — the
+// owning modules stay authoritative. The owner is derived from the agency-owner
+// user rather than seeded as a record, so nothing junk is written to live data
+// (see docs/development/notes.md — owner-as-staff).
+
+export type StaffPresenceState = "online" | "idle" | "offline";
+
+export interface StaffPresence {
+  state: StaffPresenceState;
+  online: boolean; // convenience mirror of `state === "online"`
+  lastSeenAt?: number;
+  activeSince?: number;
+}
+
+// Presence is derived from work-session heartbeats, not a stored flag. A fresh
+// heartbeat (within ONLINE window) on an open session = online; an open session
+// whose heartbeat has gone quiet = idle; anything staler, or no open session at
+// all, = offline (so an abandoned open session never reads "online"). Windows
+// key off the dashboard's own idle/check-in cadence.
+export const PRESENCE_ONLINE_MS = 5 * 60 * 1000; // fresh heartbeat → online
+export const PRESENCE_IDLE_MS = 30 * 60 * 1000; // open but quiet → idle, beyond → offline
+
+export interface StaffWorkSummary {
+  daysWorked: number; // distinct calendar days with any work session
+  sessions: number;
+  loggedMs: number; // productive time across all sessions (aqua + external)
+  last7DaysMs: number;
+  openTasks: number;
+  doneTasks: number;
+}
+
+export interface StaffDirectoryEntry {
+  id: string; // employeeId, or `owner:<userId>` for an owner without a People record
+  employeeId?: string;
+  userId?: string;
+  name: string;
+  email: string;
+  title: string;
+  department?: string;
+  status: PeopleEmployee["status"];
+  employmentType: PeopleEmploymentType;
+  isOwner: boolean;
+  isEmployeeOfMonth: boolean;
+  hasPortalAccount: boolean;
+  presence: StaffPresence;
+  openTasks: number;
+  onboardingRemaining: number;
+}
+
+export interface StaffCard {
+  entry: StaffDirectoryEntry;
+  employee: PeopleEmployee | null; // null for a derived owner card without a People record
+  work: StaffWorkSummary;
+  tasks: AgencyTask[];
+  leaveRequests: PeopleLeaveRequest[];
+  shifts: PeopleShift[];
+  training: PeopleTrainingAssignment[];
+  freelancerJobs: PeopleFreelancerJob[];
+  recognitions: PeopleRecognition[];
+  feedback: PeopleFeedback[];
+  contracts: PeopleContract[];
+  stations: typeof PEOPLE_STATIONS;
+  holiday: { allowanceDays: number; usedDays: number; remainingDays: number };
+}
+
+export interface DelegatableTask {
+  id: string;
+  title: string;
+  priority: AgencyTask["priority"];
+  dueAt?: number;
+  assigneeUserId?: string;
+}
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+function agencyOwnerUser(agencyId: string): ServerUser | null {
+  return listUsersForAgency(agencyId).find(user => user.role === "agency-owner") ?? null;
+}
+
+function workSessionsForUser(agencyId: string, userId: string): DashboardWorkSession[] {
+  return Object.values(getState().dashboardWorkSessions ?? {})
+    .filter(session => session.agencyId === agencyId && session.userId === userId);
+}
+
+function sessionLastSeen(session: DashboardWorkSession): number {
+  return Math.max(
+    session.startedAt,
+    session.endedAt ?? 0,
+    session.lastHeartbeatAt ?? 0,
+    session.lastInteractionAt ?? 0,
+    session.lastVisibleAt ?? 0,
+    session.updatedAt ?? 0,
+  );
+}
+
+function presenceFromSessions(sessions: DashboardWorkSession[], now: number): StaffPresence {
+  const active = sessions.find(session => !session.endedAt);
+  const lastSeenAt = sessions.length ? Math.max(...sessions.map(sessionLastSeen)) : undefined;
+  if (active) {
+    const quietFor = now - sessionLastSeen(active);
+    const state: StaffPresenceState = quietFor <= PRESENCE_ONLINE_MS ? "online" : quietFor <= PRESENCE_IDLE_MS ? "idle" : "offline";
+    return { state, online: state === "online", lastSeenAt: sessionLastSeen(active), activeSince: active.startedAt };
+  }
+  return { state: "offline", online: false, lastSeenAt };
+}
+
+function summariseWork(sessions: DashboardWorkSession[], tasks: AgencyTask[], now: number): StaffWorkSummary {
+  const productive = (session: DashboardWorkSession) => (session.aquaActiveMs ?? 0) + (session.externalWorkMs ?? 0);
+  const days = new Set(sessions.map(session => session.date));
+  return {
+    daysWorked: days.size,
+    sessions: sessions.length,
+    loggedMs: sessions.reduce((sum, session) => sum + productive(session), 0),
+    last7DaysMs: sessions.filter(session => sessionLastSeen(session) >= now - WEEK_MS).reduce((sum, session) => sum + productive(session), 0),
+    openTasks: tasks.filter(task => task.status !== "done").length,
+    doneTasks: tasks.filter(task => task.status === "done").length,
+  };
+}
+
+function tasksForUser(agencyId: string, userId: string | undefined): AgencyTask[] {
+  if (!userId) return [];
+  return listAgencyTasks(agencyId).filter(task => task.assigneeUserId === userId);
+}
+
+function holidayFor(employee: PeopleEmployee | null, leaveRequests: PeopleLeaveRequest[]) {
+  const allowanceDays = employee?.holidayAllowanceDays ?? 0;
+  const usedDays = leaveRequests.filter(request => request.status === "approved").reduce((sum, request) => sum + request.days, 0);
+  return { allowanceDays, usedDays, remainingDays: Math.max(0, allowanceDays - usedDays) };
+}
+
+function directoryEntryForEmployee(employee: PeopleEmployee, ownerUserId: string | undefined, ownerEmail: string | undefined, now: number, eotmEmployeeId?: string): StaffDirectoryEntry {
+  const isOwner = Boolean(
+    (ownerUserId && employee.userId === ownerUserId) ||
+    (ownerEmail && employee.email === ownerEmail.toLowerCase()),
+  );
+  const sessions = employee.userId ? workSessionsForUser(employee.agencyId, employee.userId) : [];
+  return {
+    id: employee.id,
+    employeeId: employee.id,
+    userId: employee.userId,
+    name: employee.name,
+    email: employee.email,
+    title: employee.title,
+    department: employee.department,
+    status: employee.status,
+    employmentType: employee.employmentType,
+    isOwner,
+    isEmployeeOfMonth: employee.id === eotmEmployeeId,
+    hasPortalAccount: Boolean(employee.userId),
+    presence: presenceFromSessions(sessions, now),
+    openTasks: tasksForUser(employee.agencyId, employee.userId).filter(task => task.status !== "done").length,
+    onboardingRemaining: employee.onboardingItems.filter(item => item.status !== "done").length,
+  };
+}
+
+function derivedOwnerEntry(agencyId: string, owner: ServerUser, now: number): StaffDirectoryEntry {
+  const sessions = workSessionsForUser(agencyId, owner.id);
+  return {
+    id: `owner:${owner.id}`,
+    userId: owner.id,
+    name: owner.name,
+    email: owner.email,
+    title: "Founder & owner",
+    status: "active",
+    employmentType: "full-time",
+    isOwner: true,
+    isEmployeeOfMonth: false,
+    hasPortalAccount: true,
+    presence: presenceFromSessions(sessions, now),
+    openTasks: tasksForUser(agencyId, owner.id).filter(task => task.status !== "done").length,
+    onboardingRemaining: 0,
+  };
+}
+
+/**
+ * Every person the owner should see in the Staff Command — all People records
+ * plus the owner himself. The owner sorts first, then active people by name,
+ * alumni last. If the agency-owner already has a People record we mark it
+ * rather than adding a second row.
+ */
+export function staffDirectory(agencyId: string, now = Date.now()): StaffDirectoryEntry[] {
+  const owner = agencyOwnerUser(agencyId);
+  const eotmEmployeeId = currentEmployeeOfMonth(agencyId)?.employeeId;
+  const employees = listPeopleEmployees(agencyId);
+  const entries = employees.map(employee => directoryEntryForEmployee(employee, owner?.id, owner?.email, now, eotmEmployeeId));
+  const ownerHasRecord = entries.some(entry => entry.isOwner);
+  if (owner && !ownerHasRecord) entries.push(derivedOwnerEntry(agencyId, owner, now));
+  return entries.sort((a, b) =>
+    Number(b.isOwner) - Number(a.isOwner) ||
+    Number(a.status === "alumni") - Number(b.status === "alumni") ||
+    a.name.localeCompare(b.name),
+  );
+}
+
+/**
+ * The full card for one directory entry. Accepts an employee id, or the
+ * `owner:<userId>` synthetic id produced by {@link staffDirectory} for an owner
+ * without a People record (his work still resolves through the shared userId).
+ */
+export function staffCard(agencyId: string, entryId: string, now = Date.now()): StaffCard | null {
+  const owner = agencyOwnerUser(agencyId);
+  if (entryId.startsWith("owner:")) {
+    if (!owner || `owner:${owner.id}` !== entryId) return null;
+    const entry = derivedOwnerEntry(agencyId, owner, now);
+    const tasks = tasksForUser(agencyId, owner.id);
+    const sessions = workSessionsForUser(agencyId, owner.id);
+    return {
+      entry,
+      employee: null,
+      work: summariseWork(sessions, tasks, now),
+      tasks,
+      leaveRequests: [],
+      shifts: [],
+      training: [],
+      freelancerJobs: [],
+      recognitions: [],
+      feedback: [],
+      contracts: [],
+      stations: PEOPLE_STATIONS,
+      holiday: holidayFor(null, []),
+    };
+  }
+  const employee = getPeopleEmployee(agencyId, entryId);
+  if (!employee) return null;
+  const entry = directoryEntryForEmployee(employee, owner?.id, owner?.email, now, currentEmployeeOfMonth(agencyId)?.employeeId);
+  const tasks = tasksForUser(agencyId, employee.userId);
+  const sessions = employee.userId ? workSessionsForUser(agencyId, employee.userId) : [];
+  const leaveRequests = listPeopleLeaveRequests(agencyId, employee.id);
+  return {
+    entry,
+    employee,
+    work: summariseWork(sessions, tasks, now),
+    tasks,
+    leaveRequests,
+    shifts: listPeopleShifts(agencyId, employee.id),
+    training: listPeopleTraining(agencyId, employee.id),
+    freelancerJobs: listPeopleFreelancerJobs(agencyId, employee.id),
+    recognitions: listPeopleRecognitions(agencyId, employee.id),
+    feedback: listPeopleFeedback(agencyId, employee.id),
+    contracts: listPeopleContracts(agencyId, employee.id),
+    stations: PEOPLE_STATIONS,
+    holiday: holidayFor(employee, leaveRequests),
+  };
+}
+
+/**
+ * Open tasks the owner can hand off from the Staff Command: unassigned work, or
+ * work currently sitting with the owner. Assigning one to a staff member reuses
+ * the existing tasks API (`assigneeUserId`).
+ */
+// ─── Org chart / hierarchy ────────────────────────────────────────────────────
+// Built from the existing `managerEmployeeId` reporting edge. The owner sits at
+// the top; anyone without a valid manager (or who reports to the owner) hangs
+// off them; freelancers/contractors are a distinct layer, not in the line tree.
+// Cyclic manager references never recurse (a visited set) — survivors of a cycle
+// surface as `unplaced` rather than silently vanishing.
+
+export interface StaffOrgNode {
+  entry: StaffDirectoryEntry;
+  reports: StaffOrgNode[];
+}
+
+export interface StaffDepartmentComposition {
+  name: string;
+  headcount: number;
+  online: number;
+  managers: number;
+}
+
+export interface StaffOrgChart {
+  owner: StaffOrgNode | null;
+  freelancers: StaffDirectoryEntry[];
+  unplaced: StaffDirectoryEntry[];
+  departments: StaffDepartmentComposition[];
+  totalPeople: number;
+}
+
+function isFreelanceType(type: PeopleEmploymentType): boolean {
+  return type === "freelancer" || type === "contractor";
+}
+
+export function staffOrgChart(agencyId: string, now = Date.now()): StaffOrgChart {
+  const directory = staffDirectory(agencyId, now);
+  const byEmployeeId = new Map(directory.filter(entry => entry.employeeId).map(entry => [entry.employeeId as string, entry]));
+  const active = listPeopleEmployees(agencyId).filter(employee => employee.status !== "alumni");
+  const staff = active.filter(employee => !isFreelanceType(employee.employmentType));
+  const staffIds = new Set(staff.map(employee => employee.id));
+  const ownerEntry = directory.find(entry => entry.isOwner) ?? null;
+  const ownerEmployeeId = ownerEntry?.employeeId;
+
+  const directReports = new Map<string, PeopleEmployee[]>();
+  for (const employee of staff) {
+    const managerId = employee.managerEmployeeId;
+    if (managerId && managerId !== employee.id && staffIds.has(managerId)) {
+      const list = directReports.get(managerId) ?? [];
+      list.push(employee);
+      directReports.set(managerId, list);
+    }
+  }
+  const validManager = (managerId?: string) => Boolean(managerId && staffIds.has(managerId));
+
+  const visited = new Set<string>();
+  function nodeFor(employee: PeopleEmployee): StaffOrgNode {
+    visited.add(employee.id);
+    const reports = (directReports.get(employee.id) ?? [])
+      .filter(child => !visited.has(child.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(nodeFor);
+    return { entry: byEmployeeId.get(employee.id) as StaffDirectoryEntry, reports };
+  }
+
+  if (ownerEmployeeId) visited.add(ownerEmployeeId);
+  const rootEmployees = staff
+    .filter(employee => employee.id !== ownerEmployeeId)
+    .filter(employee => !validManager(employee.managerEmployeeId) || employee.managerEmployeeId === ownerEmployeeId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const rootNodes = rootEmployees.filter(employee => !visited.has(employee.id)).map(nodeFor);
+  // In practice an agency always has an owner user, so ownerEntry is set and every
+  // root hangs beneath it. If it somehow isn't, roots surface as `unplaced` so no
+  // one vanishes.
+  const owner: StaffOrgNode | null = ownerEntry ? { entry: ownerEntry, reports: rootNodes } : null;
+
+  const unplaced = staff
+    .filter(employee => employee.id !== ownerEmployeeId && !visited.has(employee.id))
+    .map(employee => byEmployeeId.get(employee.id))
+    .filter((entry): entry is StaffDirectoryEntry => Boolean(entry));
+  const rootlessEntries = owner ? [] : rootNodes.map(node => node.entry);
+
+  const freelancers = directory.filter(entry => entry.status !== "alumni" && isFreelanceType(entry.employmentType));
+
+  const departmentNames = [...new Set(staff.map(employee => employee.department?.trim() || "Unassigned"))].sort();
+  const managerIds = new Set([...directReports.keys()]);
+  const departments: StaffDepartmentComposition[] = departmentNames.map(name => {
+    const members = staff.filter(employee => (employee.department?.trim() || "Unassigned") === name);
+    return {
+      name,
+      headcount: members.length,
+      online: members.filter(employee => byEmployeeId.get(employee.id)?.presence.state === "online").length,
+      managers: members.filter(employee => managerIds.has(employee.id)).length,
+    };
+  });
+
+  return {
+    owner,
+    freelancers,
+    unplaced: [...unplaced, ...rootlessEntries],
+    departments,
+    totalPeople: directory.filter(entry => entry.status !== "alumni").length,
+  };
+}
+
+export function delegatableTasks(agencyId: string): DelegatableTask[] {
+  const owner = agencyOwnerUser(agencyId);
+  return listAgencyTasks(agencyId)
+    .filter(task => task.status !== "done" && (!task.assigneeUserId || task.assigneeUserId === owner?.id))
+    .map(task => ({ id: task.id, title: task.title, priority: task.priority, dueAt: task.dueAt, assigneeUserId: task.assigneeUserId }));
+}
+
+export function peopleSnapshot(agencyId: string, now = Date.now()) {
+  const directory = staffDirectory(agencyId, now);
+  const eotm = currentEmployeeOfMonth(agencyId);
   return {
     applications: listPeopleApplications(agencyId),
     employees: listPeopleEmployees(agencyId),
@@ -425,17 +1471,47 @@ export function peopleSnapshot(agencyId: string) {
     shifts: listPeopleShifts(agencyId),
     training: listPeopleTraining(agencyId),
     stations: PEOPLE_STATIONS,
+    directory,
+    cards: directory
+      .map(entry => staffCard(agencyId, entry.id, now))
+      .filter((card): card is StaffCard => card !== null),
+    delegatable: delegatableTasks(agencyId),
+    employeeOfMonth: eotm ? { recognition: eotm, entry: directory.find(entry => entry.employeeId === eotm.employeeId) ?? null } : null,
+    orgChart: staffOrgChart(agencyId, now),
+    processConfig: getPeopleProcessConfig(agencyId),
+    contracts: listPeopleContracts(agencyId),
+    contractTemplates: listContractTemplates(agencyId).map(template => ({ id: template.id, title: template.title, summary: template.summary })),
+    trainingModules: listPeopleTrainingModules(agencyId),
+  };
+}
+
+/** A module without the quiz answer key — safe to send to the staff member taking it. */
+export function sanitizeModuleForStaff(module: PeopleTrainingModule) {
+  return {
+    id: module.id,
+    title: module.title,
+    summary: module.summary,
+    blocks: module.blocks,
+    passMark: module.passMark,
+    quiz: module.quiz.map(question => ({ id: question.id, prompt: question.prompt, options: question.options.map(option => ({ id: option.id, text: option.text })) })),
   };
 }
 
 export function employeePeopleSnapshot(agencyId: string, userId: string) {
   const employee = getPeopleEmployeeByUserId(agencyId, userId);
   if (!employee) return null;
+  const training = listPeopleTraining(agencyId, employee.id);
+  const moduleIds = new Set(training.map(item => item.moduleId).filter((value): value is string => Boolean(value)));
+  const modules = [...moduleIds]
+    .map(moduleId => getPeopleTrainingModule(agencyId, moduleId))
+    .filter((module): module is PeopleTrainingModule => Boolean(module))
+    .map(sanitizeModuleForStaff);
   return {
     employee,
     leaveRequests: listPeopleLeaveRequests(agencyId, employee.id),
     shifts: listPeopleShifts(agencyId, employee.id),
-    training: listPeopleTraining(agencyId, employee.id),
+    training,
+    modules,
     stations: PEOPLE_STATIONS,
   };
 }

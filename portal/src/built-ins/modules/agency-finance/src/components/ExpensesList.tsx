@@ -46,6 +46,16 @@ const labelClass = "grid gap-1 text-xs font-medium text-black/60";
 
 function money(cents: number, currency = "gbp"): string { return formatMoney(cents, currency); }
 
+// A one-time idempotency key per "record an expense" intent: a double-click or
+// a retry on the same submit carries the same key, so the server records it
+// once instead of double-counting money-out. Recording the NEXT expense (after
+// a successful save) rotates the key, so a second receipt at the identical
+// amount is still recorded normally.
+function freshIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `idem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
 function csvCell(value: unknown): string {
   return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`;
 }
@@ -244,7 +254,7 @@ export function ExpensesList({ expenses, categories, clients, budgetPots, apiBas
   }
 
   return (
-    <section className="mx-auto w-full max-w-6xl space-y-6 pb-12">
+    <section data-resolution-focus="evidence" className="mx-auto w-full max-w-6xl space-y-6 pb-12">
       <FinanceNav active="expenses" />
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -712,6 +722,7 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
   const initialTaxRate = String((expense?.taxRateBps ?? 2_000) / 100);
   const [taxRate, setTaxRate] = useState(initialTaxRate);
   const [attachments, setAttachments] = useState<ExpenseAttachment[]>(expense?.attachments ?? []);
+  const [idempotencyKey, setIdempotencyKey] = useState(freshIdempotencyKey);
   const editing = Boolean(expense);
   const categoryListId = `expense-category-options-${expense?.id ?? "new"}`;
   const initialCategoryName = categories.find(category => category.id === expense?.categoryId)?.name ?? "";
@@ -813,14 +824,17 @@ function ExpenseForm({ expense, apiBase, categories, clients, budgetPots, custom
             headers: { "content-type": "application/json" },
             body: JSON.stringify(editing
               ? { id: expense!.id, patch: fields }
-              : { ...fields, recordAsPaid: data.get("recordAsPaid") === "on" }),
+              : { ...fields, recordAsPaid: data.get("recordAsPaid") === "on", idempotencyKey }),
           });
           const result = await response.json();
           if (!response.ok || !result.ok) {
             setError(result?.error ?? `Could not save expense (${response.status}).`);
             return;
           }
-          if (!editing) form.reset();
+          if (!editing) {
+            form.reset();
+            setIdempotencyKey(freshIdempotencyKey());   // the next expense is a new intent
+          }
           onSaved(result.expense as Expense);
         } catch (saveError) {
           setError(saveError instanceof Error ? saveError.message : "The expense could not be saved.");

@@ -8,8 +8,11 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 test("Master Inbox exposes one contact-aware composer for every enquiry view", () => {
   const inbox = read("src/app/portal/agency/inbox/_MasterInbox.tsx");
+  const detailCard = read("src/app/portal/agency/inbox/_EnquiryDetailCard.tsx");
   const composer = read("src/app/portal/agency/inbox/_EnquiryCommunications.tsx");
-  assert.match(inbox, /<EnquiryCommunications item=\{item\} readiness=\{communicationReadiness\}/);
+  // The enquiry detail card is the inbox's per-enquiry view; it hosts the one composer.
+  assert.match(inbox, /<EnquiryDetailCard/);
+  assert.match(detailCard, /<EnquiryCommunications item=\{item\} readiness=\{communicationReadiness\}/);
   assert.match(composer, /id: "email"/);
   assert.match(composer, /id: "sms"/);
   assert.match(composer, /id: "whatsapp"/);

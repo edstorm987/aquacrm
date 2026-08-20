@@ -70,7 +70,7 @@ export function InvoicesList({ invoices, clients, apiBase, canMutate, template, 
   }
 
   return (
-    <section className="mx-auto w-full max-w-6xl space-y-6 pb-12">
+    <section data-resolution-focus="payment" className="mx-auto w-full max-w-6xl space-y-6 pb-12">
       <FinanceNav active="invoices" />
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>

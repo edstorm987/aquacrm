@@ -328,6 +328,8 @@ export function FinanceTabClient({
         )}
       </header>
 
+      <CloseDealCard clientId={clientId} onClosed={refresh} />
+
       {/* MRR strip */}
       <section className="rounded-xl border border-black/10 bg-white p-4">
         <header className="flex items-baseline justify-between gap-2">
@@ -418,13 +420,13 @@ export function FinanceTabClient({
         )}
       </section>
 
-      {showContracts ? <ContractsPanel
+      {showContracts ? <div data-resolution-focus="contract"><ContractsPanel
         clientId={clientId}
         clientName={clientName}
         recipientEmail={recipientEmail}
         initialContracts={initialContracts}
         initialTemplates={initialContractTemplates}
-      /> : null}
+      /></div> : null}
 
       <PaymentPlansPanel
         clientId={clientId}
@@ -613,6 +615,126 @@ export function FinanceTabClient({
         )}
       </section>
     </div>
+  );
+}
+
+const CLOSE_CHANNELS: Array<{ value: string; label: string }> = [
+  { value: "stripe", label: "Stripe — card pay-link" },
+  { value: "bank-transfer", label: "Bank transfer" },
+  { value: "cash", label: "Cash" },
+  { value: "other", label: "Other" },
+];
+
+// A one-time idempotency key per close intent: a double-click / retry on the
+// same close carries the same key, so the server bills once. Closing a *new*
+// deal (after reset) rotates the key, so it's recorded normally.
+function freshIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `idem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
+// The one-button "close the deal" for an existing client: one action →
+// contract (sent) + invoice (issued) + a routed payment. Money flows to your
+// own Stripe/bank/cash directly; the app never holds funds.
+function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null>(null);
+  const [form, setForm] = useState({ title: "", amount: "", channel: "stripe", dueInDays: "30", contractSummary: "" });
+  const [idempotencyKey, setIdempotencyKey] = useState(freshIdempotencyKey);
+
+  function reset() {
+    setForm({ title: "", amount: "", channel: "stripe", dueInDays: "30", contractSummary: "" });
+    setResult(null);
+    setError(null);
+    setOpen(false);
+    setIdempotencyKey(freshIdempotencyKey());   // next close is a new intent
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const amount = parseFloat(form.amount);
+    if (!form.title.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setError("Add a deal title and a positive amount.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tenants/close-deal", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          title: form.title.trim(),
+          amountCents: Math.round(amount * 100),
+          currency: "gbp",
+          channel: form.channel,
+          dueInDays: Number(form.dueInDays) || 30,
+          contractSummary: form.contractSummary.trim() || undefined,
+          idempotencyKey,
+        }),
+      });
+      const data = await res.json().catch(() => null) as { ok?: boolean; error?: string; invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null;
+      if (!res.ok || !data?.ok) {
+        setError(data?.error ?? "Could not close the deal.");
+        return;
+      }
+      setResult(data);
+      onClosed();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputClass = "min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm font-normal text-black";
+
+  return (
+    <section className="rounded-xl border border-black/10 bg-white p-4">
+      {result ? (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-emerald-800">Deal closed ✓</p>
+          <p className="text-xs text-black/60">Contract sent{result.invoiceNumber ? ` · invoice ${result.invoiceNumber} issued` : ""}.</p>
+          {result.payLink ? (
+            <a href={result.payLink} target="_blank" rel="noreferrer" className="inline-block rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Open the Stripe pay-link →</a>
+          ) : null}
+          {result.paymentInstruction ? <p className="text-xs text-black/50">{result.paymentInstruction}</p> : null}
+          <div><button type="button" onClick={reset} className="text-xs font-medium text-brand underline">Close another deal</button></div>
+        </div>
+      ) : !open ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-medium text-black/85">Close the deal</h2>
+            <p className="mt-0.5 text-xs text-black/45">One action → contract, invoice, and a routed payment. The money goes straight to you.</p>
+          </div>
+          <button type="button" onClick={() => setOpen(true)} className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white shadow hover:opacity-90">Close the deal</button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-sm font-medium text-black/85">Close the deal</p>
+            <button type="button" onClick={() => setOpen(false)} className="text-xs text-black/50 hover:underline">Cancel</button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-medium text-black/60 sm:col-span-2">What did you agree?<input className={inputClass} placeholder="Website build + care plan" value={form.title} disabled={busy} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} autoFocus /></label>
+            <label className="grid gap-1 text-xs font-medium text-black/60">Amount
+              <div className="flex min-h-10 overflow-hidden rounded-md border border-black/15 bg-white">
+                <span className="grid w-10 place-items-center border-r border-black/10 text-sm text-black/45">£</span>
+                <input type="number" step="0.01" min="0.01" placeholder="0.00" className="min-w-0 flex-1 px-3 text-sm outline-none" value={form.amount} disabled={busy} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+              </div>
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-black/60">Take payment by<select className={inputClass} value={form.channel} disabled={busy} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}>{CLOSE_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
+            <label className="grid gap-1 text-xs font-medium text-black/60">Payment due in (days)<input type="number" min="0" step="1" className={inputClass} value={form.dueInDays} disabled={busy} onChange={e => setForm(f => ({ ...f, dueInDays: e.target.value }))} /></label>
+            <label className="grid gap-1 text-xs font-medium text-black/60">Contract summary <span className="font-normal text-black/35">(optional)</span><input className={inputClass} placeholder="Scope, terms" value={form.contractSummary} disabled={busy} onChange={e => setForm(f => ({ ...f, contractSummary: e.target.value }))} /></label>
+          </div>
+          {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
+          <div className="flex justify-end">
+            <button type="submit" disabled={busy} className="min-h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50">{busy ? "Closing…" : "Close the deal"}</button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

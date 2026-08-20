@@ -1,6 +1,7 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
+import { NewPlanForm } from "../components/NewPlanForm";
 
 export default async function PlansPage(props: PluginPageProps) {
   const c = containerFor({
@@ -53,21 +54,7 @@ export default async function PlansPage(props: PluginPageProps) {
       </table>
 
       <h2>New plan</h2>
-      <form action={`${apiBase}/plans/create`} method="post" style={{ display: "grid", gap: 8, maxWidth: 480 }}>
-        <label>Tier
-          <select name="tier" defaultValue="growth">
-            <option value="starter">Starter</option>
-            <option value="growth">Growth</option>
-            <option value="scale">Scale</option>
-            <option value="custom">Custom</option>
-          </select>
-        </label>
-        <label>Label<input name="label" required /></label>
-        <label>Monthly (cents)<input name="monthlyAmountCents" type="number" min={0} required /></label>
-        <label>Minimum term (months)<input name="lockInMonths" type="number" min={0} defaultValue={0} /></label>
-        <label>Deposit (pence)<input name="lockInFeeCents" type="number" min={0} defaultValue={0} /></label>
-        <button type="submit">Create plan</button>
-      </form>
+      <NewPlanForm apiBase={apiBase} />
       </div>
     </section>
   );

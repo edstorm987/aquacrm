@@ -4,6 +4,7 @@
 
 import type {
   AquaPlugin,
+  ErasureSubject,
   HealthStatus,
   PluginCtx,
 } from "./src/lib/aquaPluginTypes";
@@ -169,6 +170,16 @@ const manifest: AquaPlugin = {
     });
     if (!c) return;
     await c.templates.seedDefaults(ctx.actor);
+  },
+
+  // Right-to-be-forgotten. A marketing lead is captured long before the person
+  // is a client, so the row carries no `clientId` and the generic value-scan
+  // can never find it — and `leads/by-email/<email>` holds the address in the
+  // KEY NAME. Marketing PII → DELETE, per the disposition policy. Idempotent.
+  onEraseClient: async (ctx: PluginCtx, _clientId: string, subject?: ErasureSubject) => {
+    const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
+    if (!c) return; // foundation not registered — nothing to erase
+    await c.leads.eraseForAddresses(subject?.emails ?? []);
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {

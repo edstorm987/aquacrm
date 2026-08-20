@@ -3,9 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { requireRoleForClient } from "@/lib/server/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
+import { previewClientErasure } from "@/server/clientErasure";
 import { AGENCY_ROLES } from "@/server/types";
 import { phaseLabel } from "@/server/phases";
 import { ClientStatusActions } from "./_ClientStatusActions";
+import { ClientDangerZone } from "./_ClientDangerZone";
 import { ClientDomainSettings } from "./_ClientDomainSettings";
 import { formatUkDateTime } from "@/lib/formatDateTime";
 
@@ -28,6 +30,10 @@ export default async function ClientSettingsPage({
   if (!client) notFound();
 
   const meta = client.metadata ?? {};
+  // Owner-only: erasure is irreversible. The count is worked out here so the
+  // danger zone can say exactly how much will go.
+  const canErase = session.role === "agency-owner";
+  const erasureCount = canErase ? await previewClientErasure(session.agencyId, client.id) ?? 0 : 0;
   const properties = Array.isArray(meta.properties)
     ? meta.properties.filter((property): property is { id: string; label: string; kind: string; liveUrl?: string } => (
       Boolean(property)
@@ -80,6 +86,10 @@ export default async function ClientSettingsPage({
       </section>
 
       <ClientStatusActions clientId={client.id} status={client.status} />
+
+      {canErase ? (
+        <ClientDangerZone clientId={client.id} clientName={client.name} recordCount={erasureCount} />
+      ) : null}
     </div>
   );
 }

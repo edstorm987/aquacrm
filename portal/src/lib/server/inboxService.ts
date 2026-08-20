@@ -301,7 +301,7 @@ export async function sendInboxReply(input: {
   if (conversation.responseDueAt && conversation.responseDueAt < Date.now()) throw new Error("meta_reply_window_closed");
   const connection = await getPrivateInboxConnection(input.agencyId, conversation.connectionId);
   if (!connection || connection.status !== "connected" || !connection.encryptedAccessToken) throw new Error("inbox_connection_not_ready");
-  const config = readMetaMessagingConfig(input.origin);
+  const config = readMetaMessagingConfig(input.agencyId, input.origin);
   if (!config) throw new Error("meta_not_configured");
 
   const now = Date.now();

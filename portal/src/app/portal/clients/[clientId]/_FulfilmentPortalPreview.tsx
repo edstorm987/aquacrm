@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ClientApproval, ClientApprovalType } from "@/app/api/tenants/client-approvals/route";
 import type { PortalProductSelection } from "@/lib/portalProducts";
+import { PORTAL_PHASE_LABELS } from "@/lib/portalProducts";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -34,6 +35,7 @@ export interface CustomerPortalPreviewInitial {
   experienceHeadline?: string;
   billingCadence?: string;
   welcomeNote?: string;
+  welcomeVideoUrl?: string;
   supportEmail?: string;
   supportPhone?: string;
   supportWhatsappUrl?: string;
@@ -59,10 +61,10 @@ const MODES: Array<{
   label: string;
   description: string;
 }> = [
-  { id: "onboarding", label: "Onboarding", description: "Collect details and inspiration" },
-  { id: "designing", label: "In progress", description: "Share the work and gather feedback" },
-  { id: "developed-launch", label: "Review & delivery", description: "Review, refine, and approve delivery" },
-  { id: "maintenance", label: "Live care", description: "Support and monitor the live product" },
+  { id: "onboarding", label: PORTAL_PHASE_LABELS.onboarding, description: "Collect details and inspiration" },
+  { id: "designing", label: PORTAL_PHASE_LABELS.designing, description: "Share the work and gather feedback" },
+  { id: "developed-launch", label: PORTAL_PHASE_LABELS["developed-launch"], description: "Build, test and prepare to launch" },
+  { id: "maintenance", label: PORTAL_PHASE_LABELS.maintenance, description: "Live, supported and monitored" },
 ];
 
 const CONTROL = "min-h-11 w-full rounded-md border border-black/12 bg-white px-3 text-sm text-[#282521] outline-none transition placeholder:text-black/30 focus:border-[#91713a] focus:ring-2 focus:ring-[#91713a]/10";
@@ -88,6 +90,7 @@ export function FulfilmentPortalPreview({
   const [experienceHeadline, setExperienceHeadline] = useState(initial.experienceHeadline ?? "");
   const [billingCadence, setBillingCadence] = useState(initial.billingCadence ?? "As agreed");
   const [welcomeNote, setWelcomeNote] = useState(initial.welcomeNote ?? "");
+  const [welcomeVideoUrl, setWelcomeVideoUrl] = useState(initial.welcomeVideoUrl ?? "");
   const [supportEmail, setSupportEmail] = useState(initial.supportEmail ?? "");
   const [supportPhone, setSupportPhone] = useState(initial.supportPhone ?? "");
   const [supportWhatsappUrl, setSupportWhatsappUrl] = useState(initial.supportWhatsappUrl ?? "");
@@ -169,6 +172,7 @@ export function FulfilmentPortalPreview({
           experienceHeadline,
           billingCadence,
           welcomeNote,
+          welcomeVideoUrl,
           supportEmail,
           supportPhone,
           supportWhatsappUrl,
@@ -516,6 +520,12 @@ export function FulfilmentPortalPreview({
               </Field>
               <Field label="Welcome note" htmlFor="portal-welcome-note">
                 <textarea id="portal-welcome-note" value={welcomeNote} onChange={event => edit(setWelcomeNote, event.target.value)} className={`${CONTROL} min-h-28 resize-y py-3`} placeholder="A short, personal welcome." />
+              </Field>
+              <Field label="Welcome video (setup screen)" htmlFor="portal-welcome-video">
+                <input id="portal-welcome-video" type="url" value={welcomeVideoUrl} onChange={event => edit(setWelcomeVideoUrl, event.target.value)} className={CONTROL} placeholder="Embed URL — YouTube, Vimeo or Loom" />
+                {/* Shown once, on the customer's first-run setup screen. An
+                    embed URL, not a watch/share link, so it plays in place. */}
+                <p className="mt-1 text-[11px] leading-4 text-black/45">Plays on the customer&rsquo;s first sign-in. Use the embed link.</p>
               </Field>
             </div>
 

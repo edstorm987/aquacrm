@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   Archive,
@@ -22,9 +22,11 @@ import {
   Send,
   Settings2,
   UserRound,
+  X,
 } from "lucide-react";
 
 import type { InboxConversationThread, InboxSnapshot, MetaInboxReadiness } from "@/lib/inbox/types";
+import { integrationDefinition } from "@/lib/integrations/catalog";
 import { formatElapsed } from "@/lib/leadTiming";
 import { formatUkDate } from "@/lib/formatDateTime";
 
@@ -51,7 +53,11 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   const [composerMode, setComposerMode] = useState<"reply" | "note">("reply");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(loadError ?? null);
-  const [showConnections, setShowConnections] = useState(snapshot.conversations.length === 0);
+  const metaResult = searchParams.get("meta");
+  const connectedCount = searchParams.get("connected");
+  const [showConnections, setShowConnections] = useState(snapshot.conversations.length === 0 || Boolean(metaResult));
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
+  const connectNotice = noticeDismissed ? null : metaConnectNotice(metaResult, connectedCount);
 
   const conversations = useMemo(() => snapshot.conversations.filter(item => {
     if (queue === "unread" && item.unreadCount === 0) return false;
@@ -133,6 +139,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
         </button>
       </div>
 
+      {connectNotice ? <div role="status" className={`mt-3 flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-xs ${connectNotice.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : connectNotice.tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-red-200 bg-red-50 text-red-700"}`}><span className="leading-5">{connectNotice.text}</span><button type="button" onClick={() => setNoticeDismissed(true)} aria-label="Dismiss" className="shrink-0 rounded p-0.5 opacity-60 hover:opacity-100"><X size={13} /></button></div> : null}
       {showConnections ? <ConnectionSetup readiness={readiness} connections={snapshot.connections} busy={busy} onDisconnect={disconnect} /> : null}
       {error ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
 
@@ -185,21 +192,83 @@ function ConnectionSetup({ readiness, connections, busy, onDisconnect }: {
   onDisconnect: (id: string) => Promise<void>;
 }) {
   const active = connections.filter(item => item.status !== "disconnected");
+  const [showConnect, setShowConnect] = useState(false);
   return <div className="mt-4 border-y border-black/10 bg-black/[0.018] p-4">
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-md ${readiness.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}><PlugZap size={17} /></span><div><h3 className="text-sm font-semibold text-black/75">Meta messaging connection</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-black/45">{readiness.configured ? "Application credentials are ready. Connect each professional account using Meta's consent screen." : `Ready for value injection. Still needed: ${readiness.missing.join(", ")}.`}</p></div></div>
+      <div className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-md ${readiness.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}><PlugZap size={17} /></span><div><h3 className="text-sm font-semibold text-black/75">Meta messaging connection</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-black/45">{readiness.configured ? "Application credentials are ready. Connect each professional account using Meta's consent screen." : `Add your Meta app credentials to start connecting accounts. Still needed: ${readiness.missing.join(", ")}.`}</p></div></div>
       <div className="flex flex-wrap gap-2">
         {readiness.configured ? <>
-          <a href="/api/portal/inbox/meta/start?mode=instagram&return=%2Fportal%2Fagency%2Finbox%3Fview%3Dsocial" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Instagram size={15} /> Connect Instagram</a>
-          <a href="/api/portal/inbox/meta/start?mode=facebook&return=%2Fportal%2Fagency%2Finbox%3Fview%3Dsocial" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Facebook size={15} /> Connect Facebook</a>
-        </> : <button type="button" disabled className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white opacity-40"><PlugZap size={15} /> Awaiting Meta values</button>}
+          <a href="/api/portal/inbox/meta/start?mode=instagram&return=%2Fportal%2Fagency%2Finbox%3Fview%3Dsocial" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Instagram size={15} /> {active.length ? "Add Instagram" : "Connect Instagram"}</a>
+          <a href="/api/portal/inbox/meta/start?mode=facebook&return=%2Fportal%2Fagency%2Finbox%3Fview%3Dsocial" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Facebook size={15} /> {active.length ? "Add Facebook" : "Connect Facebook"}</a>
+        </> : <button type="button" onClick={() => setShowConnect(value => !value)} aria-expanded={showConnect} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/80"><PlugZap size={15} /> {showConnect ? "Close" : "Connect now"}</button>}
       </div>
     </div>
+    {!readiness.configured && showConnect ? <MetaConnectForm onClose={() => setShowConnect(false)} /> : null}
     <div className="mt-4 grid gap-2">
-      {active.map(connection => <div key={connection.id} className="grid gap-3 border-t border-black/[0.07] pt-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className="grid size-9 place-items-center rounded-md bg-white text-black/55">{connection.channel === "instagram" ? <Instagram size={16} /> : <Facebook size={16} />}</span><div className="min-w-0"><p className="truncate text-xs font-semibold text-black/72">{connection.displayName}{connection.username ? ` · @${connection.username}` : ""}</p><p className="mt-1 text-[11px] text-black/40">{connection.webhookStatus === "subscribed" ? "Live webhook subscribed" : connection.lastError || "Webhook subscription pending"}{connection.lastWebhookAt ? ` · last event ${formatElapsed(Date.now() - connection.lastWebhookAt)} ago` : ""}</p></div><button type="button" disabled={busy === `disconnect:${connection.id}`} onClick={() => void onDisconnect(connection.id)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/55 disabled:opacity-50">Disconnect</button></div>)}
+      {active.length ? <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{active.length} connected account{active.length === 1 ? "" : "s"}</p> : null}
+      {active.map(connection => <div key={connection.id} className="grid gap-3 border-t border-black/[0.07] pt-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className="grid size-9 place-items-center rounded-md bg-white text-black/55">{connection.channel === "instagram" ? <Instagram size={16} /> : <Facebook size={16} />}</span><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><span className="truncate text-xs font-semibold text-black/72">{connection.displayName}{connection.username ? ` · @${connection.username}` : ""}</span>{connection.marketingAssetId || connection.companyId ? <span className="shrink-0 rounded bg-black/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-black/45" title="Linked to a marketing profile or company">Routed</span> : null}</div><p className="mt-1 text-[11px] text-black/40">{connection.webhookStatus === "subscribed" ? "Live webhook subscribed" : connection.lastError || "Webhook subscription pending"}{connection.lastWebhookAt ? ` · last event ${formatElapsed(Date.now() - connection.lastWebhookAt)} ago` : ""}</p></div><button type="button" disabled={busy === `disconnect:${connection.id}`} onClick={() => void onDisconnect(connection.id)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/55 disabled:opacity-50">Disconnect</button></div>)}
       {!active.length ? <p className="border-t border-black/[0.07] pt-3 text-xs text-black/40">No social account has been authorised yet. Existing website and portal messages continue working normally.</p> : null}
     </div>
   </div>;
+}
+
+// "Connect now": collect the Meta app credentials in-app and save them to the
+// canonical integration connection (encrypted). The field definitions come from
+// the shared catalog so labels/help/secret flags stay in one place. On save the
+// page refreshes → readiness recomputes from the stored values → the
+// Instagram/Facebook consent buttons above replace this form.
+function MetaConnectForm({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const definition = integrationDefinition("meta");
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    const response = await fetch("/api/portal/settings/integrations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "save", provider: "meta", label: definition.name, values }),
+    });
+    const payload = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
+    setSaving(false);
+    if (!response.ok || !payload?.ok) {
+      setError(payload?.error || "The Meta credentials could not be saved.");
+      return;
+    }
+    onClose();
+    router.refresh();
+  }
+
+  return <form onSubmit={submit} className="mt-4 grid gap-3 border-t border-black/[0.07] pt-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="max-w-lg text-xs leading-5 text-black/50">Enter your Meta app credentials. Secret values are encrypted before storage and never shown again — you'll still authorise each Instagram or Facebook account with Meta after saving.</p>
+      <a href={definition.setupUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/65 hover:border-black/30">{definition.setupLabel} <ExternalLink size={13} /></a>
+    </div>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {definition.fields.map(field => <label key={field.id} className="grid content-start gap-1 text-xs font-medium text-black/60">
+        <span>{field.label}</span>
+        <input
+          type={field.kind}
+          value={values[field.id] ?? ""}
+          onChange={event => setValues(current => ({ ...current, [field.id]: event.target.value }))}
+          placeholder={field.placeholder}
+          required={field.required}
+          autoComplete={field.secret ? "new-password" : "off"}
+          className="min-h-10 w-full rounded-md border border-black/12 bg-white px-3 text-xs text-black/80 outline-none focus:border-black/40"
+        />
+        <span className="text-[11px] font-normal leading-4 text-black/40">{field.help}</span>
+      </label>)}
+    </div>
+    {error ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
+    <div className="flex items-center justify-end gap-2">
+      <button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/15 bg-white px-4 text-xs font-semibold text-black/60">Cancel</button>
+      <button type="submit" disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Saving…" : "Save & continue"}</button>
+    </div>
+  </form>;
 }
 
 function ConversationRow({ item, active, onClick }: { item: InboxConversationThread; active: boolean; onClick: () => void }) {
@@ -261,3 +330,34 @@ function longDate(value: number): string { return formatUkDate(value, { day: "nu
 function formatRemaining(value: number): string { const ms = Math.max(0, value - Date.now()); const hours = Math.floor(ms / 3_600_000); const minutes = Math.floor((ms % 3_600_000) / 60_000); return hours ? `${hours}h ${minutes}m` : `${minutes}m`; }
 function messageTypeLabel(value?: string): string { return value ? `${value[0]?.toUpperCase()}${value.slice(1)} message` : "No message preview"; }
 function messageError(value?: string): string { if (value === "meta_reply_window_closed") return "Meta's reply window has closed. Continue from the native inbox if Meta permits it."; if (value === "inbox_connection_not_ready" || value === "meta_not_configured") return "This sending profile is not ready yet. Check Channels and inject the Meta values."; return value?.replaceAll("_", " ") || "The inbox action could not be completed."; }
+
+// Turns the `?meta=…&connected=N` result the OAuth callback redirects back with
+// into human feedback — Facebook login can return several Pages + Instagram
+// accounts at once, so the count matters. Without this, connecting many accounts
+// (or a failure) was silent.
+function metaConnectNotice(result: string | null, count: string | null): { tone: "ok" | "warn" | "error"; text: string } | null {
+  if (!result) return null;
+  const parsed = Number(count);
+  const accounts = Number.isFinite(parsed) && parsed > 0 ? `${parsed} account${parsed === 1 ? "" : "s"}` : "your account";
+  switch (result) {
+    case "connected":
+      return { tone: "ok", text: `Connected ${accounts}. Messages arrive here once Meta delivers each account's first verified webhook.` };
+    case "needs-attention":
+      return { tone: "warn", text: `Connected ${accounts}, but a live webhook subscription needs attention — check the accounts listed below.` };
+    case "no-eligible-accounts":
+      return { tone: "warn", text: "No eligible Instagram or Facebook accounts were found for that login. Each account must be a professional/business account linked to a Page." };
+    case "not-configured":
+      return { tone: "error", text: "Meta isn't fully configured yet — add your app credentials with “Connect now” first." };
+    case "session-required":
+      return { tone: "error", text: "Your session expired part-way through connecting. Please try again." };
+    case "state-owner-mismatch":
+    case "invalid_state":
+    case "malformed_state":
+    case "expired_state":
+      return { tone: "error", text: "That connection link expired or didn't match — please start connecting again." };
+    case "missing-code":
+      return { tone: "error", text: "Meta didn't return an authorisation code. Please try connecting again." };
+    default:
+      return { tone: "error", text: `The connection didn't complete: ${result.replaceAll("_", " ")}.` };
+  }
+}

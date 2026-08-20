@@ -185,7 +185,11 @@ export class EmailService {
       actorUserId: actor,
       category: "email",
       action: "email.queued",
-      message: `Queued email "${subject}" → ${to.join(", ")}${input.triggeredByPlugin ? ` (via ${input.triggeredByPlugin})` : ""}.`,
+      // Recipient addresses are NOT named here. This install is agency-scoped,
+      // so its entries carry no `clientId` and the erasure sweep (clientId-only)
+      // could never scrub them — an address here would outlive a
+      // right-to-be-forgotten erasure. The metadata carries `messageId`.
+      message: `Queued email "${subject}" to ${to.length} recipient${to.length === 1 ? "" : "s"}${input.triggeredByPlugin ? ` (via ${input.triggeredByPlugin})` : ""}.`,
       metadata: { messageId: id, templateId: input.templateId, triggeredByPlugin: input.triggeredByPlugin },
     });
     this.events.emit({ agencyId: this.agencyId, clientId: input.clientId }, "email.queued", { messageId: id });
@@ -206,7 +210,7 @@ export class EmailService {
         clientId: updated.clientId,
         category: "email",
         action: "email.sent",
-        message: `Sent email "${updated.subject}" → ${updated.to.join(", ")} (ref ${externalRef}).`,
+        message: `Sent email "${updated.subject}" to ${updated.to.length} recipient${updated.to.length === 1 ? "" : "s"} (message ${id}).`,
         metadata: { messageId: id, externalRef },
       });
       this.events.emit(
@@ -363,6 +367,50 @@ export class EmailService {
     await this.removeFromStatusIndex(id, existing.status);
     await this.appendToStatusIndex(id, toStatus);
     return next;
+  }
+
+  // Right-to-be-forgotten: delete every message addressed to one of `addresses`,
+  // plus the index entries and the idempotency pointer (whose KEY NAME can embed
+  // the address a caller passed in its `externalRef` — a value-scan can never
+  // reach that). Called by the plugin's `onEraseClient` hook.
+  //
+  // DELETE, not anonymise: raw comms content is the disposition policy's clearest
+  // delete category (the same treatment the live `inbox_*` scrub applies). The
+  // count comes back for the no-PII audit stub.
+  //
+  // Matching is by recipient address because a campaign blast to a LEAD carries
+  // no `clientId` — the row is only tied to the person by who it was sent to.
+  // Messages that DO carry `clientId` are matched too, so a client-stamped email
+  // goes even if the address has since changed.
+  //
+  // Idempotent: a second run finds no matching rows and returns 0.
+  async eraseForAddresses(addresses: readonly string[], clientId?: string): Promise<number> {
+    const wanted = new Set(addresses.map(a => a.trim().toLowerCase()).filter(Boolean));
+    if (!wanted.size && !clientId) return 0;
+    const messages = await this.list();
+    let erased = 0;
+    for (const message of messages) {
+      const recipients = [...message.to, ...(message.cc ?? []), ...(message.bcc ?? [])];
+      const addressed = recipients.some(r => wanted.has(r.trim().toLowerCase()));
+      if (!addressed && !(clientId !== undefined && message.clientId === clientId)) continue;
+      await this.storage.del(msgKey(message.id));
+      if (message.idempotencyKey) await this.storage.del(idemKey(message.idempotencyKey));
+      await this.removeFromStatusIndex(message.id, message.status);
+      const ix = (await this.storage.get<string[]>(MSG_INDEX_KEY)) ?? [];
+      await this.storage.set(MSG_INDEX_KEY, ix.filter(value => value !== message.id));
+      erased++;
+    }
+    if (erased) {
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: "system",
+        category: "email",
+        action: "email.erased",
+        message: `Erased ${erased} message${erased === 1 ? "" : "s"} for a client erasure.`,
+        metadata: { erased },
+      });
+    }
+    return erased;
   }
 
   private async appendToStatusIndex(id: string, status: EmailStatus): Promise<void> {

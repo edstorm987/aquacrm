@@ -39,6 +39,13 @@ const manifest: AquaPlugin = {
 
   core: false,
   scopePolicy: "client",
+  // Legal hold: subscriptions are payment records, retained as the de-identified
+  // legal-defence record. No bespoke `onEraseClient` is needed — a Subscription
+  // embeds no name/email (only the member's pseudonymous user token, plan id,
+  // billing amounts, and Stripe refs). The member's identity (name/email) lives
+  // in the top-level `endCustomers` collection and is deleted by the erasure
+  // sweep, so what remains here is already de-identified.
+  dataDisposition: "retain",
   requires: ["ecommerce"],
 
   navItems: [

@@ -3,8 +3,10 @@ import "server-only";
 import crypto from "node:crypto";
 import { getState, mutate } from "./storage";
 import { logActivity } from "./activity";
-import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus } from "./types";
+import type {
+  AgencyTaskChecklistItem, AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus } from "./types";
 import type { BusinessIssueRadar } from "@/lib/businessRadar";
+import { builtInTemplateForSource } from "@/lib/tasks/taskTemplates";
 
 export interface CreateAgencyTaskInput {
   agencyId: string;
@@ -27,6 +29,35 @@ export interface CreateAgencyTaskInput {
   clientId?: string;
   sopIds?: string[];
   createdBy: string;
+}
+
+/**
+ * The steps a newly accepted action should arrive with.
+ *
+ * An accepted action landing with an empty checklist puts the sequence back in
+ * the operator's head, which is exactly what the templates were meant to stop.
+ * Looked up here rather than in `taskTemplates.ts` so this module does not
+ * import the one that imports it.
+ *
+ * An agency's own template wins over the built-in mapping: somebody who wrote
+ * their own onboarding sequence means it to be the one that runs.
+ */
+function seededChecklistFor(agencyId: string, sourceId: string | undefined, now: number): AgencyTaskChecklistItem[] | undefined {
+  if (!sourceId) return undefined;
+  const claimed = Object.values(getState().taskTemplates ?? {})
+    .filter(template => template.agencyId === agencyId)
+    .find(template => template.appliesTo?.some(prefix => prefix && sourceId.startsWith(prefix)));
+  const steps = claimed?.steps ?? builtInTemplateForSource(sourceId)?.steps;
+  if (!steps?.length) return undefined;
+  return steps.map(step => ({
+    id: `chk_${crypto.randomBytes(6).toString("hex")}`,
+    label: step.label,
+    href: step.href,
+    focus: step.focus,
+    sopId: step.sopId,
+    done: false,
+    createdAt: now,
+  }));
 }
 
 export function listAgencyTasks(agencyId: string): AgencyTask[] {
@@ -70,6 +101,7 @@ export function createAgencyTask(input: CreateAgencyTaskInput): AgencyTask {
       activeSourceIds: [],
       detail: "Awaiting the next Radar sweep.",
     } : undefined,
+    checklist: origin !== "manual" ? seededChecklistFor(input.agencyId, sourceId, now) : undefined,
     acceptedAt: origin !== "manual" ? now : undefined,
     assigneeUserId: validAssigneeUserId(input.agencyId, input.assigneeUserId),
     clientId: validClientId(input.agencyId, input.clientId),
@@ -229,7 +261,7 @@ function validRecurrence(value?: AgencyTaskRecurrence): Exclude<AgencyTaskRecurr
 }
 
 function validOrigin(value?: AgencyTaskOrigin): AgencyTaskOrigin {
-  return value === "radar" || value === "advisor" || value === "crm" ? value : "manual";
+  return value === "radar" || value === "advisor" || value === "crm" || value === "inbox" ? value : "manual";
 }
 
 function taskOrigin(task: AgencyTask): AgencyTaskOrigin {
@@ -251,4 +283,99 @@ export function deleteAgencyTask(agencyId: string, id: string): boolean {
   if (!existing || existing.agencyId !== agencyId) return false;
   mutate(state => { delete state.tasks[id]; });
   return true;
+}
+
+
+// ─── Sub-tasks ────────────────────────────────────────────────────────────
+
+export interface AddChecklistItemInput {
+  label: string;
+  href?: string;
+  focus?: string;
+  sopId?: string;
+}
+
+/**
+ * Add a sub-task.
+ *
+ * Appended rather than inserted: a checklist is a sequence somebody is working
+ * through, and reordering underneath them loses their place.
+ */
+export function addTaskChecklistItem(
+  agencyId: string,
+  taskId: string,
+  input: AddChecklistItemInput,
+  now = Date.now(),
+): AgencyTask | null {
+  const label = input.label.trim().slice(0, 240);
+  if (!label) throw new Error("A label is required.");
+  let saved: AgencyTask | null = null;
+  mutate(state => {
+    const task = state.tasks[taskId];
+    if (!task || task.agencyId !== agencyId) return;
+    const item: AgencyTaskChecklistItem = {
+      id: `chk_${crypto.randomBytes(6).toString("hex")}`,
+      label,
+      href: input.href?.trim() || undefined,
+      focus: input.focus?.trim() || undefined,
+      sopId: input.sopId?.trim() || undefined,
+      done: false,
+      createdAt: now,
+    };
+    task.checklist = [...(task.checklist ?? []), item];
+    task.updatedAt = now;
+    saved = task;
+  });
+  return saved;
+}
+
+/** Tick or untick a sub-task. Ticking is reversible — a mis-click is not a decision. */
+export function setTaskChecklistItemDone(
+  agencyId: string,
+  taskId: string,
+  itemId: string,
+  done: boolean,
+  actor?: string,
+  now = Date.now(),
+): AgencyTask | null {
+  let saved: AgencyTask | null = null;
+  mutate(state => {
+    const task = state.tasks[taskId];
+    if (!task || task.agencyId !== agencyId) return;
+    task.checklist = (task.checklist ?? []).map(item => item.id === itemId
+      ? { ...item, done, doneAt: done ? now : undefined, doneBy: done ? actor : undefined }
+      : item);
+    task.updatedAt = now;
+    saved = task;
+  });
+  return saved;
+}
+
+export function removeTaskChecklistItem(
+  agencyId: string,
+  taskId: string,
+  itemId: string,
+  now = Date.now(),
+): AgencyTask | null {
+  let saved: AgencyTask | null = null;
+  mutate(state => {
+    const task = state.tasks[taskId];
+    if (!task || task.agencyId !== agencyId) return;
+    task.checklist = (task.checklist ?? []).filter(item => item.id !== itemId);
+    task.updatedAt = now;
+    saved = task;
+  });
+  return saved;
+}
+
+/** How far through the checklist this task is. */
+export function checklistProgress(task: AgencyTask): { total: number; done: number; next?: AgencyTaskChecklistItem } {
+  const items = task.checklist ?? [];
+  return {
+    total: items.length,
+    done: items.filter(item => item.done).length,
+    // The first unticked item, so completing one out of order does not strand
+    // the sequence.
+    next: items.find(item => !item.done),
+  };
 }

@@ -1,0 +1,642 @@
+# `src/server/types.ts`
+
+← [File index](../../../files-index.md) · Area: State layer — src/server/
+
+**What it is:** Shared portal types. Storage, server modules, auth, chrome and the plugin runtime all import from here. Keeping this module dependency-free means it can be safely imported from edge / middleware / client code when the bundler tree-shakes the unused symbols. ─── Tenant identity ──────────────────────────────────────────────────────  Three nested levels: Agency → Client → End-customer. Every row in the portal carries `agencyId`. Rows scoped to a specific client also carry `clientId`. End-customer rows additionally carry `customerId` (the shopper / member / affiliate). See `04-architecture.md §1`.
+
+## Exports (279)
+
+- `type AgencyStatus`
+- `interface BrandKit (15 members)`
+- `interface Agency (8 members)`
+- `type TradingCompanyStatus`
+- `interface TradingCompany (10 members)`
+- `type WebsiteSourceDestination`
+- `type AquaConsentCategory`
+- `type AquaInjectionKind`
+- `interface AquaInjection (7 members)`
+- `interface AquaFormFieldSchema (4 members)`
+- `interface AquaFormSchema (5 members)`
+- `interface WebsiteSiteConfig (6 members)`
+- `type ClientStage`
+- `interface ClientEndCustomerConfig (2 members)`
+- `interface Client (17 members)`
+- `interface EndCustomer (6 members)`
+- `type Role`
+- `AGENCY_ROLES: readonly Role[]`
+- `CLIENT_ROLES: readonly Role[]`
+- `ALL_ROLES: readonly Role[]`
+- `LEAD_AGENCY_ID`
+- `isAgencyRole(role: Role): boolean`
+- `isClientRole(role: Role): boolean`
+- `isLeadRole(role: Role): boolean`
+- `USER_SCHEMA_V`
+- `interface ServerUser (17 members)`
+- `interface SessionPayload (19 members)`
+- `interface PluginInstall (12 members)`
+- `interface PluginInstallScope (2 members)`
+- `type ActivityCategory`
+- `interface ActivityEntry (10 members)`
+- `type ClientRecordLedgerGroup`
+- `type ClientRecordLedgerVisibility`
+- `type ClientRecordLedgerAttention`
+- `type ClientRecordLedgerSource`
+- `interface ClientRecordLedgerEvent (16 members)`
+- `interface ClientRecordLedgerPage (7 members)`
+- `interface Organisation (13 members)`
+- `type PersonState`
+- `type PersonClassification`
+- `interface PersonClassificationEvent (7 members)`
+- `interface PersonFacets (4 members)`
+- `interface PersonEmail (4 members)`
+- `interface PersonPhone (4 members)`
+- `type OrganisationLinkStatus`
+- `interface PersonOrganisationLink (7 members)`
+- `interface PersonRecordEntry (9 members)`
+- `interface Person (22 members)`
+- `type CompletedActionOutcome`
+- `interface CompletedAction (10 members)`
+- `type IdentityResolutionSource`
+- `type IdentityResolutionStatus`
+- `type IdentityReviewStatus`
+- `interface IdentityResolutionReason (4 members)`
+- `interface IdentityResolutionCandidate (5 members)`
+- `interface IdentityResolutionResult (10 members)`
+- `interface IdentityResolutionReview (21 members)`
+- `interface PhaseDefinition (16 members)`
+- `interface PhaseChecklistItem (4 members)`
+- `type PipelineKind`
+- `type PipelineCardKind`
+- `interface PipelineColumn (4 members)`
+- `interface LeadSnapshot (5 members)`
+- `interface DealSnapshot (3 members)`
+- `type PipelineCard`
+- `interface Pipeline (10 members)`
+- `interface AssistantMessage (5 members)`
+- `interface AssistantThread (5 members)`
+- `interface AssistantMemory (4 members)`
+- `interface AssistantWorkspaceState (5 members)`
+- `type AdvisorSkillRecipeId`
+- `interface AdvisorCustomSkill (7 members)`
+- `interface AdvisorSkillPolicy (1 members)`
+- `type ExternalAssistantApiPermission`
+- `interface ExternalAssistantApiKey (14 members)`
+- `type ExternalAssistantProposalStatus`
+- `type ExternalAssistantProposalCategory`
+- `interface ExternalAssistantActionProposal (22 members)`
+- `type AgencyTaskStatus`
+- `type AgencyTaskPriority`
+- `type AgencyTaskRecurrence`
+- `type AgencyTaskOrigin`
+- `type AgencyTaskReconciliationStatus`
+- `interface AgencyTaskReconciliation (6 members)`
+- `interface AgencyTaskChecklistItem (9 members)`
+- `interface AgencyTaskTemplateStep (4 members)`
+- `interface AgencyTaskTemplate (12 members)`
+- `interface AgencyTask (27 members)`
+- `type NotepadNoteStatus`
+- `type NotepadNoteVisibility`
+- `interface NotepadFolder (7 members)`
+- `interface NotepadNote (14 members)`
+- `type AutomationWorkflowStatus`
+- `type AutomationTriggerType`
+- `type AutomationNodeKind`
+- `type AutomationActionType`
+- `type AutomationConditionType`
+- `type AutomationConditionOperator`
+- `interface AutomationNodeConfig (21 members)`
+- `interface AutomationWorkflowNode (4 members)`
+- `interface AutomationWorkflowEdge (4 members)`
+- `interface AutomationFolder (8 members)`
+- `interface AutomationWorkflow (17 members)`
+- `type AutomationRunStatus`
+- `interface AutomationRunLog (4 members)`
+- `interface AutomationRun (15 members)`
+- `type CustomAIStatus`
+- `interface CustomAIRecord (14 members)`
+- `interface DashboardDayPlan (11 members)`
+- `type CommandCalendarEntryType`
+- `type CommandCalendarEntryStatus`
+- `interface CommandCalendarEntry (16 members)`
+- `type CommandCalendarConnectionStatus`
+- `interface CommandCalendarConnection (16 members)`
+- `interface CommandCalendarSource (17 members)`
+- `interface CommandCalendarExternalEvent (21 members)`
+- `interface DashboardWeekPlan (23 members)`
+- `interface DashboardWeeklyEvidenceSnapshot (8 members)`
+- `type DashboardWorkActivityMode`
+- `interface DashboardWorkActivityBlock (7 members)`
+- `interface DashboardClockOutReview (7 members)`
+- `interface DashboardWorkSession (29 members)`
+- `interface SopDocument (18 members)`
+- `type AgencyProductPricing`
+- `type AgencyProductStatus`
+- `type AgencyProductPortalRequirement`
+- `type AgencyProductKind`
+- `type AgencyProductPortalTemplateKey`
+- `type AgencyProductPortalMode`
+- `type AgencyProductWorkspaceModule`
+- `interface AgencyProductWorkspaceStage (4 members)`
+- `interface AgencyProductWorkspaceStep (7 members)`
+- `interface AgencyProductInternalWorkspace (6 members)`
+- `interface AgencyProduct (37 members)`
+- `interface ClientProductVariation (29 members)`
+- `type ClientMilestoneStatus`
+- `interface ClientMilestone (16 members)`
+- `type PerformanceExperimentStatus`
+- `interface PerformanceExperimentVariant (4 members)`
+- `interface PerformanceExperiment (14 members)`
+- `type ClientDelightOccasion`
+- `type ClientDelightStatus`
+- `type ExperienceAudience`
+- `type ExperiencePackageAudience`
+- `type ExperienceDeliveryMethod`
+- `interface ExperiencePackage (18 members)`
+- `interface ExperienceFulfilmentStep (4 members)`
+- `interface ClientDelightRecord (28 members)`
+- `type RadarOperatingStage`
+- `type RadarPolicyState`
+- `type RadarActivationCondition`
+- `type RadarBaselineStrategy`
+- `type RadarEvaluationWindow`
+- `type RadarNotificationCadence`
+- `type RadarPolicyExceptionEffect`
+- `interface RadarPolicyRule (17 members)`
+- `interface RadarPolicyException (8 members)`
+- `interface RadarPolicyConfiguration (6 members)`
+- `interface KpiTargetOverride (6 members)`
+- `interface KpiTargetsConfig (3 members)`
+- `interface AgencyWorkspaceSettings (22 members)`
+- `type PortalFormEntity`
+- `type PortalFormFieldType`
+- `type PortalFormFieldValue`
+- `interface PortalFormFieldDefinition (9 members)`
+- `interface PortalFormEditorState (3 members)`
+- `type ClientPortalMode`
+- `type ClientPortalSectionId`
+- `interface ClientPortalStagePresentation (6 members)`
+- `interface ClientPortalPagePresentation (5 members)`
+- `type ClientPortalExtensionPlacement`
+- `interface ClientPortalCustomCode (8 members)`
+- `type ClientPortalBlockType`
+- `type ClientPortalBlockWidth`
+- `type ClientPortalBlockTone`
+- `type ClientPortalBlockDataSource`
+- `type ClientPortalBlockVisibilityRule`
+- `type ClientPortalProductMatch`
+- `type ClientPortalBlockSpacing`
+- `type ClientPortalBlockAlignment`
+- `type ClientPortalMediaAspect`
+- `type ClientPortalMediaFit`
+- `type ClientPortalRequestType`
+- `type ClientPortalApprovalType`
+- `type ClientPortalUploadCategory`
+- `interface ClientPortalBlockResponsive (4 members)`
+- `interface ClientPortalBlockMedia (5 members)`
+- `interface ClientPortalBlockItem (5 members)`
+- `interface ClientPortalPageBlock (21 members)`
+- `interface ClientPortalCustomPage (5 members)`
+- `interface ClientPortalBuilderDocument (2 members)`
+- `interface ClientPortalDesignDocument (8 members)`
+- `interface ClientPortalDesignVersion (6 members)`
+- `interface ClientPortalTemplateRecord (19 members)`
+- `interface ClientPortalInstanceRecord (14 members)`
+- `interface CompanyObjective (8 members)`
+- `interface CompanyPlan (6 members)`
+- `interface CompanyQuarterlyReview (23 members)`
+- `interface CompanyQuarterlyScorecard (5 members)`
+- `interface CompanyQuarterlyEvidenceSnapshot (16 members)`
+- `interface CompanyCapacityPlan (7 members)`
+- `type CompanyCapacityAreaId`
+- `interface CompanyCapacityAreaPlan (9 members)`
+- `interface CompanyProjectionPlan (6 members)`
+- `interface CompanyShareClass (7 members)`
+- `interface CompanyShareholder (11 members)`
+- `interface CompanyCapitalTransaction (14 members)`
+- `interface CompanyInvestmentHolding (15 members)`
+- `interface CompanyDividendAllocation (2 members)`
+- `interface CompanyDividendDistribution (14 members)`
+- `interface CompanyGovernanceDecision (14 members)`
+- `interface CompanyCapitalPlan (8 members)`
+- `interface CompanyProfile (16 members)`
+- `type LegalDocumentCategory`
+- `type LegalDocumentStatus`
+- `interface LegalDocument (20 members)`
+- `type DevelopmentResourceKind`
+- `type DevelopmentResourceVisibility`
+- `interface DevelopmentResourceFile (5 members)`
+- `interface DevelopmentCredential (6 members)`
+- `interface DevelopmentResource (21 members)`
+- `interface DevelopmentWorkflowStage (4 members)`
+- `interface DevelopmentWorkflow (10 members)`
+- `type AgencyWebsiteReleaseStatus`
+- `type AgencyWebsitePageStatus`
+- `interface AgencyWebsitePage (5 members)`
+- `interface AgencyWebsiteTelemetryEvent (29 members)`
+- `interface AgencyWebsiteProject (17 members)`
+- `interface IntegrationConnection (15 members)`
+- `interface RadarMemoryIssueState (11 members)`
+- `interface RadarMemoryCheckState (7 members)`
+- `interface RadarMemorySourceState (10 members)`
+- `interface RadarMemoryScan (13 members)`
+- `interface RadarMemoryHourlyRollup (7 members)`
+- `interface RadarMemoryState (9 members)`
+- `interface RadarSyntheticProbeResult (23 members)`
+- `interface RadarEvidencePoint (3 members)`
+- `interface RadarEvidenceHourlyRollup (6 members)`
+- `interface RadarEvidenceSeries (16 members)`
+- `interface RadarEvidenceState (5 members)`
+- `interface OperationalAlertPreference (9 members)`
+- `type PeopleApplicationStage`
+- `interface PeopleApplicationStageEntry (4 members)`
+- `interface PeopleApplication (20 members)`
+- `type PeopleEmploymentType`
+- `type PeopleWorkspaceStationId`
+- `interface PeopleWorkspaceAccess (3 members)`
+- `interface PeopleOnboardingItem (8 members)`
+- `interface PeopleCommissionRule (12 members)`
+- `interface PeopleEmployee (28 members)`
+- `interface PeopleLeaveRequest (13 members)`
+- `interface PeopleShift (11 members)`
+- `interface PeopleTrainingAssignment (15 members)`
+- `type PeopleFreelancerJobStatus`
+- `interface PeopleFreelancerJob (17 members)`
+- `interface FreelancerAccessConfig (7 members)`
+- `interface PeopleOnboardingStep (5 members)`
+- `interface PeopleHiringStageConfig (3 members)`
+- `interface PeopleProcessConfig (4 members)`
+- `type PeopleChannelKind`
+- `interface PeopleChannel (7 members)`
+- `interface PeopleMessage (8 members)`
+- `interface PeopleChannelRead (4 members)`
+- `type PeopleTrainingBlockType`
+- `interface PeopleTrainingBlock (5 members)`
+- `interface PeopleTrainingQuizOption (3 members)`
+- `interface PeopleTrainingQuizQuestion (3 members)`
+- `interface PeopleTrainingModule (10 members)`
+- `type PeopleContractKind`
+- `type PeopleContractStatus`
+- `interface PeopleContract (16 members)`
+- `type PeopleFeedbackSentiment`
+- `type PeopleFeedbackStatus`
+- `interface PeopleFeedback (8 members)`
+- `type PeopleRecognitionKind`
+- `interface PeopleRecognition (8 members)`
+- `type CustomKpiOp`
+- `interface CustomKpiDefinition (9 members)`
+- `interface PortalState (78 members)`
+
+## Used by (351)
+
+- [`scripts/smoke-automation-control.test.ts`](../../scripts/smoke-automation-control.test.md)
+- [`scripts/smoke-business-radar.test.ts`](../../scripts/smoke-business-radar.test.md)
+- [`scripts/smoke-client-journey.test.ts`](../../scripts/smoke-client-journey.test.md)
+- [`scripts/smoke-client-match.test.ts`](../../scripts/smoke-client-match.test.md)
+- [`scripts/smoke-client-service-workspace.test.ts`](../../scripts/smoke-client-service-workspace.test.md)
+- [`scripts/smoke-commercial-intelligence.test.ts`](../../scripts/smoke-commercial-intelligence.test.md)
+- [`scripts/smoke-commercial-lifecycle-radar.test.ts`](../../scripts/smoke-commercial-lifecycle-radar.test.md)
+- [`scripts/smoke-dev-docs.test.ts`](../../scripts/smoke-dev-docs.test.md)
+- [`scripts/smoke-google-command-calendar.test.ts`](../../scripts/smoke-google-command-calendar.test.md)
+- [`scripts/smoke-kpi-registry.test.ts`](../../scripts/smoke-kpi-registry.test.md)
+- [`scripts/smoke-lead-role.test.ts`](../../scripts/smoke-lead-role.test.md)
+- [`scripts/smoke-multi-agency-users.test.ts`](../../scripts/smoke-multi-agency-users.test.md)
+- [`scripts/smoke-organisations.test.ts`](../../scripts/smoke-organisations.test.md)
+- [`scripts/smoke-person-destination.test.ts`](../../scripts/smoke-person-destination.test.md)
+- [`scripts/smoke-persons.test.ts`](../../scripts/smoke-persons.test.md)
+- [`scripts/smoke-product-assignment-adaptation.test.ts`](../../scripts/smoke-product-assignment-adaptation.test.md)
+- [`src/app/api/auth/dev-mode/route.ts`](../app/api/auth/dev-mode/route.md)
+- [`src/app/api/portal/activity-inbox/list/route.ts`](../app/api/portal/activity-inbox/list/route.md)
+- [`src/app/api/portal/advisor/radar/route.ts`](../app/api/portal/advisor/radar/route.md)
+- [`src/app/api/portal/advisor/skills/route.ts`](../app/api/portal/advisor/skills/route.md)
+- [`src/app/api/portal/agency/users/route.ts`](../app/api/portal/agency/users/route.md)
+- [`src/app/api/portal/aqua-tags/detect/route.ts`](../app/api/portal/aqua-tags/detect/route.md)
+- [`src/app/api/portal/attention/completed/route.ts`](../app/api/portal/attention/completed/route.md)
+- [`src/app/api/portal/attention/plan/route.ts`](../app/api/portal/attention/plan/route.md)
+- [`src/app/api/portal/automations/route.ts`](../app/api/portal/automations/route.md)
+- [`src/app/api/portal/calendar/connections/route.ts`](../app/api/portal/calendar/connections/route.md)
+- [`src/app/api/portal/calendar/google/callback/route.ts`](../app/api/portal/calendar/google/callback/route.md)
+- [`src/app/api/portal/calendar/google/events/route.ts`](../app/api/portal/calendar/google/events/route.md)
+- [`src/app/api/portal/calendar/google/start/route.ts`](../app/api/portal/calendar/google/start/route.md)
+- [`src/app/api/portal/calendar/route.ts`](../app/api/portal/calendar/route.md)
+- [`src/app/api/portal/calendar/sync/route.ts`](../app/api/portal/calendar/sync/route.md)
+- [`src/app/api/portal/client-portal-design/route.ts`](../app/api/portal/client-portal-design/route.md)
+- [`src/app/api/portal/clients/[clientId]/radar/route.ts`](../app/api/portal/clients/[clientId]/radar/route.md)
+- [`src/app/api/portal/company/legal/route.ts`](../app/api/portal/company/legal/route.md)
+- [`src/app/api/portal/company/legal/upload/route.ts`](../app/api/portal/company/legal/upload/route.md)
+- [`src/app/api/portal/company/route.ts`](../app/api/portal/company/route.md)
+- [`src/app/api/portal/connections/route.ts`](../app/api/portal/connections/route.md)
+- [`src/app/api/portal/dashboard-planning/route.ts`](../app/api/portal/dashboard-planning/route.md)
+- [`src/app/api/portal/dev-team/console/route.ts`](../app/api/portal/dev-team/console/route.md)
+- [`src/app/api/portal/dev-team/docs/route.ts`](../app/api/portal/dev-team/docs/route.md)
+- [`src/app/api/portal/dev-team/editor/route.ts`](../app/api/portal/dev-team/editor/route.md)
+- [`src/app/api/portal/dev-team/findings/image/route.ts`](../app/api/portal/dev-team/findings/image/route.md)
+- [`src/app/api/portal/dev-team/findings/route.ts`](../app/api/portal/dev-team/findings/route.md)
+- [`src/app/api/portal/dev-team/plans/route.ts`](../app/api/portal/dev-team/plans/route.md)
+- [`src/app/api/portal/dev-team/thoughts/route.ts`](../app/api/portal/dev-team/thoughts/route.md)
+- [`src/app/api/portal/dev-team/updates/route.ts`](../app/api/portal/dev-team/updates/route.md)
+- [`src/app/api/portal/dev-team/workers/route.ts`](../app/api/portal/dev-team/workers/route.md)
+- [`src/app/api/portal/development/route.ts`](../app/api/portal/development/route.md)
+- [`src/app/api/portal/development/upload/route.ts`](../app/api/portal/development/upload/route.md)
+- [`src/app/api/portal/finance/expense-attachments/content/route.ts`](../app/api/portal/finance/expense-attachments/content/route.md)
+- [`src/app/api/portal/finance/expense-attachments/upload/route.ts`](../app/api/portal/finance/expense-attachments/upload/route.md)
+- [`src/app/api/portal/freelancer-access/route.ts`](../app/api/portal/freelancer-access/route.md)
+- [`src/app/api/portal/freelancers/route.ts`](../app/api/portal/freelancers/route.md)
+- [`src/app/api/portal/fulfillment/clients/route.ts`](../app/api/portal/fulfillment/clients/route.md)
+- [`src/app/api/portal/inbox/media/route.ts`](../app/api/portal/inbox/media/route.md)
+- [`src/app/api/portal/journey/payment-request/route.ts`](../app/api/portal/journey/payment-request/route.md)
+- [`src/app/api/portal/kpi-registry/custom/route.ts`](../app/api/portal/kpi-registry/custom/route.md)
+- [`src/app/api/portal/kpi-registry/evidence/route.ts`](../app/api/portal/kpi-registry/evidence/route.md)
+- [`src/app/api/portal/kpi-registry/targets/route.ts`](../app/api/portal/kpi-registry/targets/route.md)
+- [`src/app/api/portal/master-inbox/message/route.ts`](../app/api/portal/master-inbox/message/route.md)
+- [`src/app/api/portal/notepad/route.ts`](../app/api/portal/notepad/route.md)
+- [`src/app/api/portal/notifications/route.ts`](../app/api/portal/notifications/route.md)
+- [`src/app/api/portal/people/route.ts`](../app/api/portal/people/route.md)
+- [`src/app/api/portal/phases/delete/route.ts`](../app/api/portal/phases/delete/route.md)
+- [`src/app/api/portal/phases/upsert/route.ts`](../app/api/portal/phases/upsert/route.md)
+- [`src/app/api/portal/pipelines/move-client/route.ts`](../app/api/portal/pipelines/move-client/route.md)
+- [`src/app/api/portal/products/rollout/route.ts`](../app/api/portal/products/rollout/route.md)
+- [`src/app/api/portal/products/route.ts`](../app/api/portal/products/route.md)
+- [`src/app/api/portal/search/route.ts`](../app/api/portal/search/route.md)
+- [`src/app/api/portal/settings/external-ai/route.ts`](../app/api/portal/settings/external-ai/route.md)
+- [`src/app/api/portal/settings/portal-editor/route.ts`](../app/api/portal/settings/portal-editor/route.md)
+- [`src/app/api/portal/settings/route.ts`](../app/api/portal/settings/route.md)
+- [`src/app/api/portal/site-editor/files/route.ts`](../app/api/portal/site-editor/files/route.md)
+- [`src/app/api/portal/sops/categories/route.ts`](../app/api/portal/sops/categories/route.md)
+- [`src/app/api/portal/sops/content/route.ts`](../app/api/portal/sops/content/route.md)
+- [`src/app/api/portal/sops/route.ts`](../app/api/portal/sops/route.md)
+- [`src/app/api/portal/sops/upload/route.ts`](../app/api/portal/sops/upload/route.md)
+- [`src/app/api/portal/tasks/checklist/route.ts`](../app/api/portal/tasks/checklist/route.md)
+- [`src/app/api/portal/tasks/route.ts`](../app/api/portal/tasks/route.md)
+- [`src/app/api/portal/tasks/templates/route.ts`](../app/api/portal/tasks/templates/route.md)
+- [`src/app/api/portal/trading-companies/route.ts`](../app/api/portal/trading-companies/route.md)
+- [`src/app/api/portal/website-enquiries/contact-details/route.ts`](../app/api/portal/website-enquiries/contact-details/route.md)
+- [`src/app/api/portal/website-enquiries/form-template/route.ts`](../app/api/portal/website-enquiries/form-template/route.md)
+- [`src/app/api/portal/website-injections/route.ts`](../app/api/portal/website-injections/route.md)
+- [`src/app/api/portal/website-sources/route.ts`](../app/api/portal/website-sources/route.md)
+- [`src/app/api/portal/website/route.ts`](../app/api/portal/website/route.md)
+- [`src/app/api/public/careers/route.ts`](../app/api/public/careers/route.md)
+- [`src/app/api/tenants/client-approvals/route.ts`](../app/api/tenants/client-approvals/route.md)
+- [`src/app/api/tenants/client-comms/route.ts`](../app/api/tenants/client-comms/route.md)
+- [`src/app/api/tenants/client-contacts/route.ts`](../app/api/tenants/client-contacts/route.md)
+- [`src/app/api/tenants/client-contracts/route.ts`](../app/api/tenants/client-contracts/route.md)
+- [`src/app/api/tenants/client-delight/route.ts`](../app/api/tenants/client-delight/route.md)
+- [`src/app/api/tenants/client-domain/route.ts`](../app/api/tenants/client-domain/route.md)
+- [`src/app/api/tenants/client-files/content/route.ts`](../app/api/tenants/client-files/content/route.md)
+- [`src/app/api/tenants/client-files/route.ts`](../app/api/tenants/client-files/route.md)
+- [`src/app/api/tenants/client-files/upload/route.ts`](../app/api/tenants/client-files/upload/route.md)
+- [`src/app/api/tenants/client-marketing/route.ts`](../app/api/tenants/client-marketing/route.md)
+- [`src/app/api/tenants/client-milestones/route.ts`](../app/api/tenants/client-milestones/route.md)
+- [`src/app/api/tenants/client-notes/route.ts`](../app/api/tenants/client-notes/route.md)
+- [`src/app/api/tenants/client-operation-task/route.ts`](../app/api/tenants/client-operation-task/route.md)
+- [`src/app/api/tenants/client-operations/route.ts`](../app/api/tenants/client-operations/route.md)
+- [`src/app/api/tenants/client-payment-plans/route.ts`](../app/api/tenants/client-payment-plans/route.md)
+- [`src/app/api/tenants/client-product-process/route.ts`](../app/api/tenants/client-product-process/route.md)
+- [`src/app/api/tenants/client-projects/deploy/route.ts`](../app/api/tenants/client-projects/deploy/route.md)
+- [`src/app/api/tenants/client-projects/provision/route.ts`](../app/api/tenants/client-projects/provision/route.md)
+- [`src/app/api/tenants/client-projects/publish/route.ts`](../app/api/tenants/client-projects/publish/route.md)
+- [`src/app/api/tenants/client-properties/route.ts`](../app/api/tenants/client-properties/route.md)
+- [`src/app/api/tenants/client-record-ledger/route.ts`](../app/api/tenants/client-record-ledger/route.md)
+- [`src/app/api/tenants/client-record/route.ts`](../app/api/tenants/client-record/route.md)
+- [`src/app/api/tenants/client-requests/route.ts`](../app/api/tenants/client-requests/route.md)
+- [`src/app/api/tenants/client-status/route.ts`](../app/api/tenants/client-status/route.md)
+- [`src/app/api/tenants/client-telemetry/route.ts`](../app/api/tenants/client-telemetry/route.md)
+- [`src/app/api/tenants/client-workspaces/route.ts`](../app/api/tenants/client-workspaces/route.md)
+- [`src/app/api/tenants/close-deal/route.ts`](../app/api/tenants/close-deal/route.md)
+- [`src/app/api/tenants/customer-portal-control/route.ts`](../app/api/tenants/customer-portal-control/route.md)
+- [`src/app/api/tenants/customer-project-brief/route.ts`](../app/api/tenants/customer-project-brief/route.md)
+- [`src/app/api/tenants/experience-packages/route.ts`](../app/api/tenants/experience-packages/route.md)
+- [`src/app/api/tenants/onboarding-tick/route.ts`](../app/api/tenants/onboarding-tick/route.md)
+- [`src/app/api/tenants/product-workspaces/route.ts`](../app/api/tenants/product-workspaces/route.md)
+- [`src/app/api/v1/actions/proposals/route.ts`](../app/api/v1/actions/proposals/route.md)
+- [`src/app/careers/status/[token]/page.tsx`](../app/careers/status/[token]/page.md)
+- [`src/app/client-preview/[clientId]/page.tsx`](../app/client-preview/[clientId]/page.md)
+- [`src/app/client-site-preview/[clientId]/[propertyId]/[[...assetPath]]/route.ts`](../app/client-site-preview/[clientId]/[propertyId]/[[...assetPath]]/route.md)
+- [`src/app/client-website-preview/[clientId]/[siteId]/[pageId]/page.tsx`](../app/client-website-preview/[clientId]/[siteId]/[pageId]/page.md)
+- [`src/app/connect/[connectionId]/page.tsx`](../app/connect/[connectionId]/page.md)
+- [`src/app/portal/agency/[...rest]/page.tsx`](../app/portal/agency/[...rest]/page.md)
+- [`src/app/portal/agency/_BattleTableWorkspace.tsx`](../app/portal/agency/_BattleTableWorkspace.md)
+- [`src/app/portal/agency/_CapitalOwnershipWorkspace.tsx`](../app/portal/agency/_CapitalOwnershipWorkspace.md)
+- [`src/app/portal/agency/_ClockOutReviewDialog.tsx`](../app/portal/agency/_ClockOutReviewDialog.md)
+- [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](../app/portal/agency/_CommandIntelligenceWorkspace.md)
+- [`src/app/portal/agency/_DashboardCommandCenter.tsx`](../app/portal/agency/_DashboardCommandCenter.md)
+- [`src/app/portal/agency/_QuarterlyStrategyReview.tsx`](../app/portal/agency/_QuarterlyStrategyReview.md)
+- [`src/app/portal/agency/_RadarPolicyPanel.tsx`](../app/portal/agency/_RadarPolicyPanel.md)
+- [`src/app/portal/agency/_WeeklyReviewWorkspace.tsx`](../app/portal/agency/_WeeklyReviewWorkspace.md)
+- [`src/app/portal/agency/actions/_ActionsPage.tsx`](../app/portal/agency/actions/_ActionsPage.md)
+- [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](../app/portal/agency/actions/_ActionsWorkspace.md)
+- [`src/app/portal/agency/actions/_TodayView.tsx`](../app/portal/agency/actions/_TodayView.md)
+- [`src/app/portal/agency/activity-inbox/page.tsx`](../app/portal/agency/activity-inbox/page.md)
+- [`src/app/portal/agency/assistant/AssistantWorkspace.tsx`](../app/portal/agency/assistant/AssistantWorkspace.md)
+- [`src/app/portal/agency/automations/_AutomationsCanvas.tsx`](../app/portal/agency/automations/_AutomationsCanvas.md)
+- [`src/app/portal/agency/automations/_AutomationsWorkspace.tsx`](../app/portal/agency/automations/_AutomationsWorkspace.md)
+- [`src/app/portal/agency/automations/_automationWorkspaceData.ts`](../app/portal/agency/automations/_automationWorkspaceData.md)
+- [`src/app/portal/agency/company/_CompanyConnectionsWorkspace.tsx`](../app/portal/agency/company/_CompanyConnectionsWorkspace.md)
+- [`src/app/portal/agency/company/_CompanyWorkspace.tsx`](../app/portal/agency/company/_CompanyWorkspace.md)
+- [`src/app/portal/agency/company/_LegalCompliancePanel.tsx`](../app/portal/agency/company/_LegalCompliancePanel.md)
+- [`src/app/portal/agency/company/_TradingCompaniesPanel.tsx`](../app/portal/agency/company/_TradingCompaniesPanel.md)
+- [`src/app/portal/agency/company/page.tsx`](../app/portal/agency/company/page.md)
+- [`src/app/portal/agency/contacts/[personId]/_ContactCard.tsx`](../app/portal/agency/contacts/[personId]/_ContactCard.md)
+- [`src/app/portal/agency/contacts/[personId]/page.tsx`](../app/portal/agency/contacts/[personId]/page.md)
+- [`src/app/portal/agency/contacts/_ContactsIndex.tsx`](../app/portal/agency/contacts/_ContactsIndex.md)
+- [`src/app/portal/agency/contacts/companies/[organisationId]/page.tsx`](../app/portal/agency/contacts/companies/[organisationId]/page.md)
+- [`src/app/portal/agency/contacts/page.tsx`](../app/portal/agency/contacts/page.md)
+- [`src/app/portal/agency/dev-docs/page.tsx`](../app/portal/agency/dev-docs/page.md)
+- [`src/app/portal/agency/development/_DevelopmentToolkitWorkspace.tsx`](../app/portal/agency/development/_DevelopmentToolkitWorkspace.md)
+- [`src/app/portal/agency/development/code/page.tsx`](../app/portal/agency/development/code/page.md)
+- [`src/app/portal/agency/development/page.tsx`](../app/portal/agency/development/page.md)
+- [`src/app/portal/agency/development/projects/[projectId]/page.tsx`](../app/portal/agency/development/projects/[projectId]/page.md)
+- [`src/app/portal/agency/development/website/_WebsiteWorkspace.tsx`](../app/portal/agency/development/website/_WebsiteWorkspace.md)
+- [`src/app/portal/agency/freelancer-access/_FreelancerAccessConfigPanel.tsx`](../app/portal/agency/freelancer-access/_FreelancerAccessConfigPanel.md)
+- [`src/app/portal/agency/freelancer-access/page.tsx`](../app/portal/agency/freelancer-access/page.md)
+- [`src/app/portal/agency/freelancers/page.tsx`](../app/portal/agency/freelancers/page.md)
+- [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](../app/portal/agency/fulfilment/_FulfilmentWorkspace.md)
+- [`src/app/portal/agency/fulfilment/page.tsx`](../app/portal/agency/fulfilment/page.md)
+- [`src/app/portal/agency/inbox/_EnquiryDetailCard.tsx`](../app/portal/agency/inbox/_EnquiryDetailCard.md)
+- [`src/app/portal/agency/inbox/page.tsx`](../app/portal/agency/inbox/page.md)
+- [`src/app/portal/agency/layout.tsx`](../app/portal/agency/layout.md)
+- [`src/app/portal/agency/marketing/page.tsx`](../app/portal/agency/marketing/page.md)
+- [`src/app/portal/agency/notepad/_NotepadWorkspace.tsx`](../app/portal/agency/notepad/_NotepadWorkspace.md)
+- [`src/app/portal/agency/notepad/page.tsx`](../app/portal/agency/notepad/page.md)
+- [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
+- [`src/app/portal/agency/people/_PeopleCommand.tsx`](../app/portal/agency/people/_PeopleCommand.md)
+- [`src/app/portal/agency/performance/_ExperimentsPanel.tsx`](../app/portal/agency/performance/_ExperimentsPanel.md)
+- [`src/app/portal/agency/performance/_PerformanceWorkspace.tsx`](../app/portal/agency/performance/_PerformanceWorkspace.md)
+- [`src/app/portal/agency/performance/page.tsx`](../app/portal/agency/performance/page.md)
+- [`src/app/portal/agency/phases/[phaseId]/page.tsx`](../app/portal/agency/phases/[phaseId]/page.md)
+- [`src/app/portal/agency/phases/page.tsx`](../app/portal/agency/phases/page.md)
+- [`src/app/portal/agency/pipelines/[slug]/page.tsx`](../app/portal/agency/pipelines/[slug]/page.md)
+- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../app/portal/agency/portals/editor/_ClientPortalStudio.md)
+- [`src/app/portal/agency/portals/editor/page.tsx`](../app/portal/agency/portals/editor/page.md)
+- [`src/app/portal/agency/portals/forms/page.tsx`](../app/portal/agency/portals/forms/page.md)
+- [`src/app/portal/agency/portals/page.tsx`](../app/portal/agency/portals/page.md)
+- [`src/app/portal/agency/products/[productId]/_ProductDetailWorkspace.tsx`](../app/portal/agency/products/[productId]/_ProductDetailWorkspace.md)
+- [`src/app/portal/agency/products/[productId]/page.tsx`](../app/portal/agency/products/[productId]/page.md)
+- [`src/app/portal/agency/products/_ProductsWorkspace.tsx`](../app/portal/agency/products/_ProductsWorkspace.md)
+- [`src/app/portal/agency/settings/PortalEditorPanel.tsx`](../app/portal/agency/settings/PortalEditorPanel.md)
+- [`src/app/portal/agency/settings/SettingsTabs.tsx`](../app/portal/agency/settings/SettingsTabs.md)
+- [`src/app/portal/agency/settings/page.tsx`](../app/portal/agency/settings/page.md)
+- [`src/app/portal/agency/sop-library/_SopLibrary.tsx`](../app/portal/agency/sop-library/_SopLibrary.md)
+- [`src/app/portal/agency/sop-library/page.tsx`](../app/portal/agency/sop-library/page.md)
+- [`src/app/portal/agency/you-deserve-it/_YouDeserveItWorkspace.tsx`](../app/portal/agency/you-deserve-it/_YouDeserveItWorkspace.md)
+- [`src/app/portal/agency/you-deserve-it/page.tsx`](../app/portal/agency/you-deserve-it/page.md)
+- [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](../app/portal/clients/[clientId]/[...rest]/page.md)
+- [`src/app/portal/clients/[clientId]/_ClientOperatingPlan.tsx`](../app/portal/clients/[clientId]/_ClientOperatingPlan.md)
+- [`src/app/portal/clients/[clientId]/_ClientRecordWorkspace.tsx`](../app/portal/clients/[clientId]/_ClientRecordWorkspace.md)
+- [`src/app/portal/clients/[clientId]/_ClientServiceAssignment.tsx`](../app/portal/clients/[clientId]/_ClientServiceAssignment.md)
+- [`src/app/portal/clients/[clientId]/layout.tsx`](../app/portal/clients/[clientId]/layout.md)
+- [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
+- [`src/app/portal/clients/[clientId]/settings/page.tsx`](../app/portal/clients/[clientId]/settings/page.md)
+- [`src/app/portal/clients/_IdentityReviewWorkspace.tsx`](../app/portal/clients/_IdentityReviewWorkspace.md)
+- [`src/app/portal/clients/_PeopleHub.tsx`](../app/portal/clients/_PeopleHub.md)
+- [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
+- [`src/app/portal/customer/_CustomerPortalChrome.tsx`](../app/portal/customer/_CustomerPortalChrome.md)
+- [`src/app/portal/customer/_CustomerPortalViews.tsx`](../app/portal/customer/_CustomerPortalViews.md)
+- [`src/app/portal/customer/_PortalCustomExtension.tsx`](../app/portal/customer/_PortalCustomExtension.md)
+- [`src/app/portal/customer/_PortalInteractionBlocks.tsx`](../app/portal/customer/_PortalInteractionBlocks.md)
+- [`src/app/portal/customer/_PortalPageComposition.tsx`](../app/portal/customer/_PortalPageComposition.md)
+- [`src/app/portal/customer/_portalData.ts`](../app/portal/customer/_portalData.md)
+- [`src/app/portal/dev-team/api/page.tsx`](../app/portal/dev-team/api/page.md)
+- [`src/app/portal/dev-team/auditor/page.tsx`](../app/portal/dev-team/auditor/page.md)
+- [`src/app/portal/dev-team/docs/page.tsx`](../app/portal/dev-team/docs/page.md)
+- [`src/app/portal/dev-team/editor/page.tsx`](../app/portal/dev-team/editor/page.md)
+- [`src/app/portal/dev-team/findings/page.tsx`](../app/portal/dev-team/findings/page.md)
+- [`src/app/portal/dev-team/inspector/page.tsx`](../app/portal/dev-team/inspector/page.md)
+- [`src/app/portal/dev-team/layout.tsx`](../app/portal/dev-team/layout.md)
+- [`src/app/portal/dev-team/library/page.tsx`](../app/portal/dev-team/library/page.md)
+- [`src/app/portal/dev-team/logs/page.tsx`](../app/portal/dev-team/logs/page.md)
+- [`src/app/portal/dev-team/notes/page.tsx`](../app/portal/dev-team/notes/page.md)
+- [`src/app/portal/dev-team/page.tsx`](../app/portal/dev-team/page.md)
+- [`src/app/portal/dev-team/plans/new/page.tsx`](../app/portal/dev-team/plans/new/page.md)
+- [`src/app/portal/dev-team/tasks/page.tsx`](../app/portal/dev-team/tasks/page.md)
+- [`src/app/portal/dev-team/updates/page.tsx`](../app/portal/dev-team/updates/page.md)
+- [`src/app/portal/dev-team/working/page.tsx`](../app/portal/dev-team/working/page.md)
+- [`src/app/portal/layout.tsx`](../app/portal/layout.md)
+- [`src/app/portal/page.tsx`](../app/portal/page.md)
+- [`src/app/portal/preview/[template]/page.tsx`](../app/portal/preview/[template]/page.md)
+- [`src/app/portal/team/[section]/page.tsx`](../app/portal/team/[section]/page.md)
+- [`src/app/portal/team/_TeamWorkspace.tsx`](../app/portal/team/_TeamWorkspace.md)
+- [`src/built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.tsx`](../built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.md)
+- [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../built-ins/modules/leads-pipeline/src/api/handlers.md)
+- [`src/built-ins/runtime/_routeResolver.ts`](../built-ins/runtime/_routeResolver.md)
+- [`src/built-ins/runtime/_runtime.ts`](../built-ins/runtime/_runtime.md)
+- [`src/built-ins/runtime/_types.ts`](../built-ins/runtime/_types.md)
+- [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](../built-ins/runtime/foundation-adapters/clientStoreAdapter.md)
+- [`src/built-ins/runtime/foundation-adapters/leadFunnelPorts.ts`](../built-ins/runtime/foundation-adapters/leadFunnelPorts.md)
+- [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](../built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.md)
+- [`src/components/attention/CompletedRegister.tsx`](../components/attention/CompletedRegister.md)
+- [`src/components/attention/TaskChecklist.tsx`](../components/attention/TaskChecklist.md)
+- [`src/components/attention/TaskTemplates.tsx`](../components/attention/TaskTemplates.md)
+- [`src/components/chrome/DevModeSwitcher.tsx`](../components/chrome/DevModeSwitcher.md)
+- [`src/components/chrome/GlobalAdvisorDrawer.tsx`](../components/chrome/GlobalAdvisorDrawer.md)
+- [`src/components/chrome/ProfileMenu.tsx`](../components/chrome/ProfileMenu.md)
+- [`src/components/chrome/SmartWorkSessionMonitor.tsx`](../components/chrome/SmartWorkSessionMonitor.md)
+- [`src/components/chrome/ThemeInjector.tsx`](../components/chrome/ThemeInjector.md)
+- [`src/components/chrome/Topbar.tsx`](../components/chrome/Topbar.md)
+- [`src/components/people/TeamChat.tsx`](../components/people/TeamChat.md)
+- [`src/components/workspaces/PluginWorkspaceNav.tsx`](../components/workspaces/PluginWorkspaceNav.md)
+- [`src/lib/advisorActions.ts`](../lib/advisorActions.md)
+- [`src/lib/advisorSkills.ts`](../lib/advisorSkills.md)
+- [`src/lib/businessRadar.ts`](../lib/businessRadar.md)
+- [`src/lib/chrome/activityCategoryStyle.ts`](../lib/chrome/activityCategoryStyle.md)
+- [`src/lib/chrome/brandKit.ts`](../lib/chrome/brandKit.md)
+- [`src/lib/chrome/sidebarLayout.ts`](../lib/chrome/sidebarLayout.md)
+- [`src/lib/clientPortalBuilder.ts`](../lib/clientPortalBuilder.md)
+- [`src/lib/clientPortalDesign.ts`](../lib/clientPortalDesign.md)
+- [`src/lib/clientProductVariations.ts`](../lib/clientProductVariations.md)
+- [`src/lib/commercialIntelligence.ts`](../lib/commercialIntelligence.md)
+- [`src/lib/commercialLifecycle.ts`](../lib/commercialLifecycle.md)
+- [`src/lib/enquiryFormLayout.ts`](../lib/enquiryFormLayout.md)
+- [`src/lib/fulfilmentProductPipelines.ts`](../lib/fulfilmentProductPipelines.md)
+- [`src/lib/hiringCapacity.ts`](../lib/hiringCapacity.md)
+- [`src/lib/kpiRegistry.ts`](../lib/kpiRegistry.md)
+- [`src/lib/personDestination.ts`](../lib/personDestination.md)
+- [`src/lib/portalProducts.ts`](../lib/portalProducts.md)
+- [`src/lib/productAssignments.ts`](../lib/productAssignments.md)
+- [`src/lib/productInternalWorkspace.ts`](../lib/productInternalWorkspace.md)
+- [`src/lib/radarPolicyEngine.ts`](../lib/radarPolicyEngine.md)
+- [`src/lib/radarSyntheticChecks.ts`](../lib/radarSyntheticChecks.md)
+- [`src/lib/server/RequirePermission.tsx`](../lib/server/RequirePermission.md)
+- [`src/lib/server/advisorSkills.ts`](../lib/server/advisorSkills.md)
+- [`src/lib/server/aquaOasisSeed.ts`](../lib/server/aquaOasisSeed.md)
+- [`src/lib/server/aquaTagDetection.ts`](../lib/server/aquaTagDetection.md)
+- [`src/lib/server/assistantStore.ts`](../lib/server/assistantStore.md)
+- [`src/lib/server/auth.ts`](../lib/server/auth.md)
+- [`src/lib/server/clientPortalProvider.ts`](../lib/server/clientPortalProvider.md)
+- [`src/lib/server/clientRadar.ts`](../lib/server/clientRadar.md)
+- [`src/lib/server/clientRecordLedger.ts`](../lib/server/clientRecordLedger.md)
+- [`src/lib/server/commandIntelligence.ts`](../lib/server/commandIntelligence.md)
+- [`src/lib/server/customKpis.ts`](../lib/server/customKpis.md)
+- [`src/lib/server/demoSeed.ts`](../lib/server/demoSeed.md)
+- [`src/lib/server/devDocEdits.ts`](../lib/server/devDocEdits.md)
+- [`src/lib/server/devDocs.ts`](../lib/server/devDocs.md)
+- [`src/lib/server/editing/adapters.ts`](../lib/server/editing/adapters.md)
+- [`src/lib/server/editing/appConfigAdapter.ts`](../lib/server/editing/appConfigAdapter.md)
+- [`src/lib/server/effectiveRole.ts`](../lib/server/effectiveRole.md)
+- [`src/lib/server/externalAssistantApi.ts`](../lib/server/externalAssistantApi.md)
+- [`src/lib/server/externalAssistantKeys.ts`](../lib/server/externalAssistantKeys.md)
+- [`src/lib/server/externalAssistantProposals.ts`](../lib/server/externalAssistantProposals.md)
+- [`src/lib/server/googleCalendar.ts`](../lib/server/googleCalendar.md)
+- [`src/lib/server/identityResolution.ts`](../lib/server/identityResolution.md)
+- [`src/lib/server/integrationConnections.ts`](../lib/server/integrationConnections.md)
+- [`src/lib/server/kpiTargets.ts`](../lib/server/kpiTargets.md)
+- [`src/lib/server/onboardingMilestones.ts`](../lib/server/onboardingMilestones.md)
+- [`src/lib/server/openaiAssistant.ts`](../lib/server/openaiAssistant.md)
+- [`src/lib/server/operationalAlertPreferences.ts`](../lib/server/operationalAlertPreferences.md)
+- [`src/lib/server/postLoginRedirect.ts`](../lib/server/postLoginRedirect.md)
+- [`src/lib/server/previewPhase.ts`](../lib/server/previewPhase.md)
+- [`src/lib/server/radarEvidenceVault.ts`](../lib/server/radarEvidenceVault.md)
+- [`src/lib/server/radarMemory.ts`](../lib/server/radarMemory.md)
+- [`src/lib/server/radarObservations.ts`](../lib/server/radarObservations.md)
+- [`src/lib/server/radarSweeps.ts`](../lib/server/radarSweeps.md)
+- [`src/lib/server/radarSyntheticProbes.ts`](../lib/server/radarSyntheticProbes.md)
+- [`src/lib/server/radarTelemetry.ts`](../lib/server/radarTelemetry.md)
+- [`src/lib/server/requireAgencyScope.ts`](../lib/server/requireAgencyScope.md)
+- [`src/lib/server/showcaseMode.ts`](../lib/server/showcaseMode.md)
+- [`src/lib/server/sopsAccess.ts`](../lib/server/sopsAccess.md)
+- [`src/lib/server/websiteEnquiries.ts`](../lib/server/websiteEnquiries.md)
+- [`src/lib/tasks/taskTemplates.ts`](../lib/tasks/taskTemplates.md)
+- [`src/server/activity.ts`](./activity.md)
+- [`src/server/agencyBootstrap.ts`](./agencyBootstrap.md)
+- [`src/server/agencyProducts.ts`](./agencyProducts.md)
+- [`src/server/agencySettings.ts`](./agencySettings.md)
+- [`src/server/agencyWebsite.ts`](./agencyWebsite.md)
+- [`src/server/automations.ts`](./automations.md)
+- [`src/server/clientDelight.ts`](./clientDelight.md)
+- [`src/server/clientErasure.ts`](./clientErasure.md)
+- [`src/server/clientMilestones.ts`](./clientMilestones.md)
+- [`src/server/clientPortalDesigns.ts`](./clientPortalDesigns.md)
+- [`src/server/clientRelationships.ts`](./clientRelationships.md)
+- [`src/server/commandCalendar.ts`](./commandCalendar.md)
+- [`src/server/company.ts`](./company.md)
+- [`src/server/completedActions.ts`](./completedActions.md)
+- [`src/server/customAIs.ts`](./customAIs.md)
+- [`src/server/dashboardPlanning.ts`](./dashboardPlanning.md)
+- [`src/server/developmentToolkit.ts`](./developmentToolkit.md)
+- [`src/server/experiencePackages.ts`](./experiencePackages.md)
+- [`src/server/freelancerAdmin.ts`](./freelancerAdmin.md)
+- [`src/server/freelancerWorkspace.ts`](./freelancerWorkspace.md)
+- [`src/server/legalDocuments.ts`](./legalDocuments.md)
+- [`src/server/notepad.ts`](./notepad.md)
+- [`src/server/organisations.ts`](./organisations.md)
+- [`src/server/people.ts`](./people.md)
+- [`src/server/performanceExperiments.ts`](./performanceExperiments.md)
+- [`src/server/persons.ts`](./persons.md)
+- [`src/server/phaseTokens.ts`](./phaseTokens.md)
+- [`src/server/phases.ts`](./phases.md)
+- [`src/server/pipelines.ts`](./pipelines.md)
+- [`src/server/pluginInstalls.ts`](./pluginInstalls.md)
+- [`src/server/portalEditor.ts`](./portalEditor.md)
+- [`src/server/productWorkspaces.ts`](./productWorkspaces.md)
+- [`src/server/sops.ts`](./sops.md)
+- [`src/server/storage.ts`](./storage.md)
+- [`src/server/taskTemplates.ts`](./taskTemplates.md)
+- [`src/server/tasks.ts`](./tasks.md)
+- [`src/server/tenants.ts`](./tenants.md)
+- [`src/server/tradingCompanies.ts`](./tradingCompanies.md)
+- [`src/server/userSchemaMigration.ts`](./userSchemaMigration.md)
+- [`src/server/users.ts`](./users.md)
+- [`src/server/websiteFormSchemas.ts`](./websiteFormSchemas.md)
+- [`src/server/websiteInjections.ts`](./websiteInjections.md)
+- [`src/server/websiteSources.ts`](./websiteSources.md)
+- [`src/server/zimanteTradingCompanies.ts`](./zimanteTradingCompanies.md)
+

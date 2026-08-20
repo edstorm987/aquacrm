@@ -3,7 +3,7 @@
 
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES } from "@/server/types";
@@ -13,15 +13,19 @@ import { getInstall, listInstalledFor } from "@/server/pluginInstalls";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { buildSidebar } from "@/lib/chrome/sidebarLayout";
 import { effectiveRole } from "@/lib/server/effectiveRole";
+import { canUseDevMode } from "@/lib/server/devModeAccess";
+import { devDocsAccessible } from "@/lib/server/devDocs";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { Topbar } from "@/components/chrome/Topbar";
 import { NotificationCentreButton } from "@/components/chrome/NotificationCentreButton";
 import { AdvisorDrawerControl } from "@/components/chrome/AdvisorDrawerControl";
+import { ResolutionBanner } from "@/components/attention/ResolutionBanner";
+import { ResolutionSpotlight } from "@/components/attention/ResolutionSpotlight";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { INTERNAL_WORKSPACE_NAME, INTERNAL_WORKSPACE_SUBTITLE } from "@/lib/internalWorkspace";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
-import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { getRequestOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { addSidebarAttention } from "@/lib/server/sidebarAttention";
 import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
 import { NotificationAttentionProvider } from "@/components/chrome/NotificationAttentionProvider";
@@ -70,8 +74,9 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     installedPlugins: installs,
     permissions: eff.permissions,
     isFounder: eff.isFounder,
+    devModeAvailable: canUseDevMode(),
   });
-  const operationalAlerts = await listOperationalAlerts(agency.id);
+  const operationalAlerts = await getRequestOperationalAlerts(agency.id);
   const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
   const panels = addSidebarAttention(basePanels, alertViews.filter(alert =>
     alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")
@@ -93,6 +98,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
       <>
         <ThemeInjector brand={agency.brand} scope="agency" />
         <main id="main-content" data-testid="portal-embed" className="mm-portal-root min-h-screen px-4 py-4">
+          <Suspense fallback={null}><ResolutionBanner /><ResolutionSpotlight /></Suspense>
           <ErrorBoundary label="agency workspace (embed)"><PortalRouteCanvas>{children}</PortalRouteCanvas></ErrorBoundary>
         </main>
       </>
@@ -123,6 +129,9 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
             publicShowcase={session.publicShowcase}
+            canUseDevMode={canUseDevMode() && eff.isFounder}
+            devConsole={devDocsAccessible(session)}
+            devModeActive={Boolean(session.devReturnAgencyId)}
             privacyTerms={privacyTerms}
             notifications={<NotificationCentreButton />}
             radarControl={advisorEnabled ? <RadarQuickLookControl agencyId={session.agencyId} /> : null}
@@ -131,6 +140,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+            <Suspense fallback={null}><ResolutionBanner /><ResolutionSpotlight /></Suspense>
             <ErrorBoundary label="agency workspace"><PortalRouteCanvas>{children}</PortalRouteCanvas></ErrorBoundary>
           </main>
         </div>

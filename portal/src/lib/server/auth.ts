@@ -57,6 +57,19 @@ interface IssueSessionInput {
   // to scope writes to the demo agency only.
   isDemo?: boolean;
   showcaseReturnAgencyId?: string;
+  // Dev Mode (local/dev only) return-to-real, mirrors showcaseReturnAgencyId.
+  devReturnAgencyId?: string;
+  // Whether the pre-Dev-Mode session was itself demo/dev (restored on exit).
+  devReturnWasDemo?: boolean;
+  // The exact person who started the inspection, so `exit` restores THEM
+  // (mirrors previewReturnUserId below).
+  devReturnUserId?: string;
+  // Freelancer preview return-to-real (mirrors the devReturn* pair).
+  previewReturnAgencyId?: string;
+  previewReturnWasDemo?: boolean;
+  // The exact enterer's userId, so `exit` restores THEM (not "an owner it
+  // finds"). Prevents a manager escalating to owner via enter→exit.
+  previewReturnUserId?: string;
   publicShowcase?: boolean;
   // R021: session rotation revision. Pass the user's current `sessionRev`
   // here so the cookie gets stamped — later rotations bump the user record's
@@ -83,6 +96,12 @@ export function issueSession(input: IssueSessionInput): string {
     clientId: input.clientId,
     isDemo: input.isDemo === true ? true : undefined,
     showcaseReturnAgencyId: input.showcaseReturnAgencyId,
+    devReturnAgencyId: input.devReturnAgencyId,
+    devReturnWasDemo: input.devReturnWasDemo === true ? true : undefined,
+    devReturnUserId: input.devReturnUserId,
+    previewReturnAgencyId: input.previewReturnAgencyId,
+    previewReturnWasDemo: input.previewReturnWasDemo === true ? true : undefined,
+    previewReturnUserId: input.previewReturnUserId,
     publicShowcase: input.publicShowcase === true ? true : undefined,
     sessionRev: input.sessionRev ?? 0,
     iat: now,

@@ -7,6 +7,7 @@ import {
   getActiveAgencyId,
 } from "@/lib/server/auth";
 import { effectiveRole } from "@/lib/server/effectiveRole";
+import { canUseDevMode } from "@/lib/server/devModeAccess";
 import { getUser } from "@/server/users";
 import { getPhase } from "@/server/phases";
 import {
@@ -23,6 +24,19 @@ interface Body { phaseId?: string }
 // short-lived `lk_preview_phase` cookie so the client portal can
 // render as if at that phase. Redirects to the demo client overview.
 export async function POST(req: NextRequest) {
+  // The same switch its sibling dev-mode route hangs off, and for the same
+  // reason. This route re-issues the caller as a SEEDED DEMO CLIENT and calls
+  // seedDemoAgency(), which writes a fixed-credential shared tenant — neither
+  // belongs anywhere near production. Its only other gate is
+  // `effectiveRole().isFounder`, and that maps EVERY agency-owner to "Founder",
+  // so without this line every customer's owner could reach it on a live deploy.
+  if (!canUseDevMode()) {
+    return NextResponse.json(
+      { ok: false, error: "Not available." },
+      { status: 404, headers: { "cache-control": "no-store" } },
+    );
+  }
+
   await ensureHydrated();
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });

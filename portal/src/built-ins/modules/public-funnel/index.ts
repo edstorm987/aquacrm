@@ -12,6 +12,7 @@
 
 import type {
   AquaPlugin,
+  ErasureSubject,
   HealthStatus,
   PluginCtx,
 } from "./src/lib/aquaPluginTypes";
@@ -79,6 +80,16 @@ const manifest: AquaPlugin = {
     { id: "tool-capture", label: "Capture Resources tools",    default: true },
     { id: "auto-signin",  label: "Issue session cookie",       default: true },
   ],
+
+  // Right-to-be-forgotten. A funnel capture is made LONG before the person is a
+  // client — it carries no `clientId` at all, so the generic value-scan can
+  // never find it, and `captures/by-email/<email>` holds the address in the KEY
+  // NAME. Marketing PII → DELETE, per the disposition policy. Idempotent.
+  onEraseClient: async (ctx: PluginCtx, _clientId: string, subject?: ErasureSubject) => {
+    const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
+    if (!c) return; // foundation not registered — nothing to erase
+    await c.funnel.eraseForAddresses(subject?.emails ?? []);
+  },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {
     const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   if (providerError) return redirectResult(request, returnUrl, providerError);
   const code = request.nextUrl.searchParams.get("code");
   if (!code) return redirectResult(request, returnUrl, "missing-code");
-  const config = readMetaMessagingConfig(request.nextUrl.origin);
+  const config = readMetaMessagingConfig(session.agencyId, request.nextUrl.origin);
   if (!config) return redirectResult(request, returnUrl, "not-configured");
 
   try {

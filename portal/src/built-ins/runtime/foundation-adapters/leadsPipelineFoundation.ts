@@ -39,6 +39,10 @@ import { getInstall } from "@/server/pluginInstalls";
 // = "@aqua/plugin-leads-pipeline" (latter still imported above).
 const PLUGIN_ID = "leads-pipeline";
 
+// Seeding a converted client with its pre-client history registers here so
+// it is live wherever the leads foundation is.
+import "./personClientSeeding";
+
 let registered = false;
 
 export function ensureLeadsPipelineFoundationRegistered(): void {

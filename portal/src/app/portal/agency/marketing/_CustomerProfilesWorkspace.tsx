@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { scopeProfiles, summariseProfileDimension, type ProfileDimension } from "@/lib/customerProfileScope";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, BriefcaseBusiness, Building2, Pencil, Plus, Search, Trash2, UserRoundSearch, X } from "lucide-react";
 
@@ -105,11 +106,16 @@ export function CustomerProfilesWorkspace({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | MarketingCustomerProfileStatus>("all");
+  const [scopeCompanyId, setScopeCompanyId] = useState("all");
+  const [dimension, setDimension] = useState<ProfileDimension>("segment");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const companyNames = useMemo(() => new Map(companies.map(company => [company.id, company.name])), [companies]);
+  const scoped = useMemo(() => scopeProfiles(profiles, scopeCompanyId), [profiles, scopeCompanyId]);
+  const breakdown = useMemo(() => summariseProfileDimension(scoped, dimension, companyNames), [scoped, dimension, companyNames]);
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return profiles.filter(profile => {
+    return scoped.filter(profile => {
       if (status !== "all" && profile.status !== status) return false;
       if (!needle) return true;
       return [
@@ -124,7 +130,7 @@ export function CustomerProfilesWorkspace({
         ...profile.jobTitles,
       ].some(value => value?.toLowerCase().includes(needle));
     });
-  }, [profiles, query, status]);
+  }, [scoped, query, status]);
 
   function beginCreate() {
     setDraft({ ...EMPTY_DRAFT, companyIds: [...defaultCompanyIds] });
@@ -225,9 +231,9 @@ export function CustomerProfilesWorkspace({
     }
   }
 
-  const active = profiles.filter(profile => profile.status === "active").length;
-  const validated = profiles.filter(profile => profile.evidenceConfidence === "validated").length;
-  const primary = profiles.filter(profile => profile.priority === "primary" && profile.status !== "archived").length;
+  const active = scoped.filter(profile => profile.status === "active").length;
+  const validated = scoped.filter(profile => profile.evidenceConfidence === "validated").length;
+  const primary = scoped.filter(profile => profile.priority === "primary" && profile.status !== "archived").length;
 
   return (
     <section className="space-y-6">
@@ -243,13 +249,22 @@ export function CustomerProfilesWorkspace({
       </div>
 
       <dl className="grid grid-cols-2 border-y border-black/10 lg:grid-cols-4">
-        <Metric label="Profiles" value={String(profiles.length)} />
+        <Metric label="Profiles" value={String(scoped.length)} />
         <Metric label="Active" value={String(active)} />
         <Metric label="Primary audiences" value={String(primary)} />
         <Metric label="Validated" value={String(validated)} />
       </dl>
 
+      <div className="rounded-md border border-black/10 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-black/45">Breakdown</p><p className="mt-0.5 text-sm font-semibold text-black/70">{scoped.length} profile{scoped.length === 1 ? "" : "s"} in scope, by dimension</p></div>
+          <label><span className="sr-only">Breakdown dimension</span><select value={dimension} onChange={event => setDimension(event.target.value as ProfileDimension)} className={`${FIELD} min-w-40`}>{(["segment", "priority", "status", "confidence", "location", "company"] as const).map(dim => <option key={dim} value={dim}>{dim[0]!.toUpperCase() + dim.slice(1)}</option>)}</select></label>
+        </div>
+        {breakdown.length ? <ul className="mt-3 space-y-2">{breakdown.slice(0, 8).map(row => <li key={row.value} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"><div className="min-w-0"><div className="flex items-center justify-between gap-2"><span className="truncate text-xs font-medium text-black/60">{row.value}</span><span className="text-xs tabular-nums text-black/45">{row.count}</span></div><div className="mt-1 h-1.5 rounded-full bg-black/5"><span className="block h-full rounded-full bg-black/60" style={{ width: `${Math.max(6, row.count / breakdown[0]!.count * 100)}%` }} /></div></div></li>)}</ul> : <p className="mt-3 text-xs text-black/40">No profiles in this scope yet.</p>}
+      </div>
+
       <div className="flex flex-wrap gap-3">
+        <label><span className="sr-only">Company scope</span><select value={scopeCompanyId} onChange={event => setScopeCompanyId(event.target.value)} className={`${FIELD} min-w-44`}><option value="all">All companies (ecosystem)</option>{companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>
         <label className="relative min-w-[240px] flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" />
           <input value={query} onChange={event => setQuery(event.target.value)} className={`${FIELD} pl-9`} placeholder="Search customer profiles" aria-label="Search customer profiles" />

@@ -7,6 +7,8 @@
 //   invoices/seq/<year>          → integer (next sequence number)
 
 import { formatInvoiceNumber, makeId } from "../lib/ids";
+import { deriveRecordId, normaliseIdempotencyKey } from "../lib/idempotency";
+import { listRowIds } from "./rowIndex";
 import { now, yearOf } from "../lib/time";
 import type { AgencyId, ClientId, UserId } from "../lib/tenancy";
 import type {
@@ -60,8 +62,10 @@ export class InvoiceService {
     private events: EventBusPort,
   ) {}
 
+  // Index + row scan (see server/rowIndex.ts): an invoice whose index slot was
+  // lost to a concurrent create is still owed money and must still be listed.
   async list(filter?: InvoiceFilter): Promise<Invoice[]> {
-    const ids = (await this.storage.get<string[]>(INV_INDEX_KEY)) ?? [];
+    const ids = await listRowIds(this.storage, INV_INDEX_KEY, "invoices/by-id/");
     const out: Invoice[] = [];
     for (const id of ids) {
       const row = await this.storage.get<Invoice>(invKey(id));
@@ -106,22 +110,31 @@ export class InvoiceService {
     return row && row.agencyId === this.agencyId ? row : null;
   }
 
+  // Routed through `list` rather than the `invoices/by-client/<id>` array: that
+  // secondary index is a read-modify-write too, so a concurrent create could
+  // drop a client's invoice from their own tab while it still showed agency-wide
+  // — the more confusing failure of the two. Same filter, same ordering.
   async listForClient(clientId: ClientId): Promise<Invoice[]> {
-    const ids = (await this.storage.get<string[]>(byClientKey(clientId))) ?? [];
-    const out: Invoice[] = [];
-    for (const id of ids) {
-      const row = await this.storage.get<Invoice>(invKey(id));
-      if (row) out.push(row);
-    }
-    return out.sort((a, b) => b.issuedAt - a.issuedAt);
+    return this.list({ clientId });
   }
 
+  // Idempotent on `input.idempotencyKey`: a resubmit of the same intent (or a
+  // double-clicked "close the deal") returns the first invoice instead of
+  // minting a second one — and, crucially, without burning another sequential
+  // invoice number. See lib/idempotency.ts.
   async create(input: CreateInvoiceInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<Invoice> {
     if (!input.lineItems || input.lineItems.length === 0) {
       throw new Error("Invoice must have at least one line item.");
     }
     const client = await this.tenant.getClientForAgency(this.agencyId, input.clientId);
     if (!client) throw new Error(`Client ${input.clientId} not found in this agency.`);
+
+    const key = normaliseIdempotencyKey(input.idempotencyKey);
+    const id = key ? deriveRecordId("inv", key) : makeId("inv");
+    if (key) {
+      const existing = await this.get(id);
+      if (existing) return existing;
+    }
 
     const issuedAt = input.issuedAt ?? now();
     const year = yearOf(issuedAt);
@@ -133,7 +146,6 @@ export class InvoiceService {
     const taxCents = input.taxCents ?? 0;
     const totalCents = subtotalCents + taxCents;
 
-    const id = makeId("inv");
     const ts = now();
     const row: Invoice = {
       id,

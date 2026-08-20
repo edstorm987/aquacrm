@@ -12,7 +12,8 @@ import { validatePalette } from "@/lib/a11y/contrastValidator";
 import type { BrandKit } from "@/server/types";
 
 interface Props {
-  brand: BrandKit;
+  /** Absent on a tenant that has not been branded yet. */
+  brand?: BrandKit | null;
   scope: "agency" | "client" | "customer" | `trading-company:${string}`;
 }
 
@@ -21,9 +22,9 @@ export function ThemeInjector({ brand, scope }: Props) {
 
   if (process.env.NODE_ENV !== "production") {
     const result = validatePalette({
-      primary: brand.primaryColor,
-      secondary: brand.secondaryColor,
-      accent: brand.accentColor,
+      primary: brand?.primaryColor ?? "",
+      secondary: brand?.secondaryColor,
+      accent: brand?.accentColor,
     });
     if (!result.ok && typeof console !== "undefined") {
       const summary = result.warnings

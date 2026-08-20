@@ -23,8 +23,32 @@ interface BuildCommercialIntelligenceInput {
   currency: string;
   pageviews: number;
   forms: number;
+  /**
+   * Whether `pageviews` is an actual reading. The Radar emits `value: 0` on
+   * `blind`/`learning`/`inactive` checks, so an agency with nothing monitored
+   * arrives here indistinguishable from a monitored-but-quiet one. Callers that
+   * know the difference pass `false` so the funnel can render "—" instead of a
+   * fabricated zero. Omitted means "the caller asserts this is a reading" —
+   * that keeps every pre-existing call site behaving exactly as before.
+   */
+  pageviewsMeasured?: boolean;
+  /** Same contract as `pageviewsMeasured`, for `forms`. */
+  formsMeasured?: boolean;
   now?: number;
 }
+
+/**
+ * `CommercialIntelligenceSnapshot["lineage"]` plus the honesty flags. Additive
+ * on purpose: `lineage.pageviews` stays `number` so `marketingIntelligence.ts`
+ * (a different lane's file) keeps compiling untouched.
+ */
+export type CommercialLineage = CommercialIntelligenceSnapshot["lineage"] & {
+  pageviewsMeasured: boolean;
+  formsMeasured: boolean;
+};
+
+export type CommercialIntelligenceSnapshotWithMeasurement =
+  Omit<CommercialIntelligenceSnapshot, "lineage"> & { lineage: CommercialLineage };
 
 interface FormulaInput {
   id: string;
@@ -52,8 +76,10 @@ export function buildCommercialIntelligence({
   currency,
   pageviews,
   forms,
+  pageviewsMeasured = true,
+  formsMeasured = true,
   now = Date.now(),
-}: BuildCommercialIntelligenceInput): CommercialIntelligenceSnapshot {
+}: BuildCommercialIntelligenceInput): CommercialIntelligenceSnapshotWithMeasurement {
   const columns = [...(pipeline?.columns ?? [])].sort((left, right) => left.order - right.order);
   const columnById = new Map(columns.map(column => [column.id, column]));
   const cardsById = new Map(cards.map(card => [card.id, card]));
@@ -240,7 +266,7 @@ export function buildCommercialIntelligence({
     stages: stageRows,
     people,
     sources,
-    lineage: { pageviews, forms, leads: leads.length, contacted: contacted.length, meetings: meetings.length, proposals: proposals.length, won: converted.length, activeClients: activeClients.length, churnedClients: churnedClients.length },
+    lineage: { pageviews, forms, pageviewsMeasured, formsMeasured, leads: leads.length, contacted: contacted.length, meetings: meetings.length, proposals: proposals.length, won: converted.length, activeClients: activeClients.length, churnedClients: churnedClients.length },
     quality: {
       sourceCoveragePercent: percent(attributedLeads.length, leads.length),
       campaignCoveragePercent: percent(campaignLinked.length, leads.length),

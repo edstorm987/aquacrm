@@ -5,6 +5,16 @@ sign-in, the internal agency workspace, and branded customer portals. Public
 sites submit centrally to AquaCRM while preserving their trading brand,
 source, campaign, requested services, and consent record.
 
+## Documentation
+
+- `CLAUDE.md` is the AI collaborator entrypoint.
+- `docs/PRODUCT-ARCHITECTURE.md` defines domain ownership and the agency/client
+  macro and micro model.
+- `docs/CURRENT-IMPLEMENTATION.md` records implemented systems, integration
+  truth boundaries, and recent upgrades.
+- `docs/DEVELOPMENT-HANDOFF.md` covers repository workflow, persistence,
+  testing, permissions, Git safety, and deployment.
+
 ## Local
 
 ```bash

@@ -232,8 +232,17 @@ describe("Sales, pipelines, finance, inbox, and systems", () => {
     const workspace = read(join(PORTAL, "agency", "marketing", "_MarketingChannelsWorkspace.tsx"));
     const routes = read(join(BUILT_INS, "modules", "agency-marketing", "src", "api", "routes.ts"));
 
-    for (const label of ["Campaigns", "Social media", "Websites", "Google Ads", "Lead sources", "Automations"]) {
+    // The five channel tabs were consolidated into one "Channels" view
+    // (2026-08-19, Ed's call) — they were always the same component with a
+    // different `kind`. The contract is unchanged in substance: every channel is
+    // still reachable and individually addressable, now via an in-view switcher
+    // (`CHANNEL_TABS`) rather than its own top-level tab. Old `?view=<channel>`
+    // links still resolve — pinned in smoke-marketing-intelligence.
+    for (const label of ["Campaigns", "Channels", "Lead sources", "Automations"]) {
       assert.ok(page.includes(`>${label}<`), `${label} marketing view missing`);
+    }
+    for (const channel of ["Social media", "Websites", "Google Ads", "Google Business Profile", "Reputation"]) {
+      assert.ok(page.includes(`label: "${channel}"`), `${channel} channel missing from the Channels switcher`);
     }
     assert.ok(page.includes(">Funnels &amp; booking<"), "Funnels and booking marketing view missing");
     assert.ok(page.includes("Internal workspace"));

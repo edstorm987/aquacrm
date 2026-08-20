@@ -131,8 +131,11 @@ export default async function AgencyInboxPage() {
     conversations={conversations}
     socialInbox={socialInbox}
     socialInboxError={socialInboxResult.error}
-    metaReadiness={metaInboxReadiness()}
+    metaReadiness={metaInboxReadiness(session.agencyId)}
     currentUserId={session.userId}
+    canErase={session.role === "agency-owner"}
+    canManageChannels={session.role === "agency-owner" || session.role === "agency-manager"}
+    channelClients={clients.map(client => ({ id: client.id, name: client.name }))}
     communicationReadiness={outboundCommunicationReadiness(session.agencyId)}
     clientProfiles={clients.map(client => ({
       id: client.id,

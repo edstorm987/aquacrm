@@ -18,7 +18,12 @@ test("Radar source records remain tenant scoped and owner or manager only", () =
   assert.match(inspector, /listInboxSnapshot\(agencyId\)/);
   assert.match(inspector, /listRadarLeads\(agencyId/);
   assert.match(inspector, /state\.agencies\[agencyId\]\?\.slug === FOUNDER_AGENCY_SLUG/);
-  assert.match(inspector, /canInspectPublicEnquiries \? listWebsiteEnquiries\(500\) : Promise\.resolve\(\[\]\)/);
+  // The contract is the GATE: public enquiry rows are read only when the agency
+  // is the canonical founder workspace, otherwise an empty list. The reader
+  // itself may be the request-deduped wrapper (`getRequestWebsiteEnquiries`) or
+  // the raw `listWebsiteEnquiries` — both hit the same query — so match either
+  // rather than pinning one identifier and failing on a perf refactor.
+  assert.match(inspector, /canInspectPublicEnquiries \? (?:getRequest|list)WebsiteEnquiries\(500\) : Promise\.resolve\(\[\]\)/);
 });
 
 test("Radar source records redact credentials before display or export", () => {

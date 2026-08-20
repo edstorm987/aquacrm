@@ -1,12 +1,23 @@
 import type { AdvisorActionCategory, AdvisorActionSuggestion } from "@/lib/advisorActions";
 import { ADVISOR_CATEGORY_HREF } from "@/lib/advisorActions";
-import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity } from "@/lib/businessRadar";
+import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity, RadarFindingGroup } from "@/lib/businessRadar";
+import { radarFindingGroup } from "@/lib/radarClassification";
+import { stepsFor } from "@/lib/inbox/evidenceSteps";
+import { resolutionKindOf } from "@/lib/inbox/resolutionExplain";
 import type { OperationalAlert, OperationalAlertCategory } from "@/lib/operationalAttention";
 
 type RankedAction = AdvisorActionSuggestion & {
   domain: AdvisorDomain;
   score: number;
+  group: RadarFindingGroup;
+  /** The most specific underlying finding id, used to resolve kind/clearance/steps (Stage 7). */
+  findingId: string;
+  /** True when a concrete remediation exists, so a `judgement` default can widen to `off-system`. */
+  restorable: boolean;
 };
+
+// Groups whose incidents have a concrete fix elsewhere — a judgement default widens to off-system.
+const RESTORABLE_GROUPS: ReadonlySet<RadarFindingGroup> = new Set<RadarFindingGroup>(["infrastructure", "reliability", "compliance", "delivery"]);
 
 export function buildBusinessRecommendedActions({
   radar,
@@ -41,6 +52,9 @@ export function buildBusinessRecommendedActions({
       sourceAlertIds: [alert.id],
       domain,
       score: alert.severity === "critical" ? 1_250 : 900,
+      findingId: alert.id,
+      group: radarFindingGroup({ domain, id: alert.id }),
+      restorable: false,
     });
   }
 
@@ -58,6 +72,9 @@ export function buildBusinessRecommendedActions({
       sourceAlertIds: [incident.id, ...incident.sourceIds].slice(0, 10),
       domain: incident.domain,
       score: incidentScore(incident.severity, incident.findingCount, incident.detectedAt, now),
+      findingId: incident.sourceIds[0] ?? incident.issueIds[0] ?? incident.id,
+      group: incident.group,
+      restorable: RESTORABLE_GROUPS.has(incident.group),
     });
   }
 
@@ -76,6 +93,9 @@ export function buildBusinessRecommendedActions({
       sourceAlertIds: [conclusion.id],
       domain: conclusion.domain,
       score: severityScore(conclusion.severity) + 80,
+      findingId: conclusion.id,
+      group: radarFindingGroup({ domain: conclusion.domain, id: conclusion.id }),
+      restorable: false, // a strategic conclusion is a genuine judgement call
     });
   }
 
@@ -94,6 +114,9 @@ export function buildBusinessRecommendedActions({
       sourceAlertIds: [source.id],
       domain: source.domain,
       score: 660 + domainWeight(source.domain),
+      findingId: `coverage:${source.id}`,
+      group: "reliability", // a source visibility gap is an observability problem
+      restorable: true, // reconnecting the source is a concrete off-system action
     });
   }
 
@@ -112,6 +135,9 @@ export function buildBusinessRecommendedActions({
       sourceAlertIds: [`radar-readiness:${domain.domain}`],
       domain: domain.domain,
       score: 420 + domain.blindChecks * 4 + (100 - domain.readinessPercent) + domainWeight(domain.domain),
+      findingId: `coverage:${domain.domain}-readiness`,
+      group: "reliability", // closing a readiness/evidence gap is an observability action
+      restorable: true,
     });
   }
 
@@ -142,7 +168,50 @@ export function buildBusinessRecommendedActions({
     add(candidate, false);
   }
 
-  return selected.slice(0, limit).map(({ domain: _domain, score: _score, ...action }) => action);
+  return selected.slice(0, limit).map(ranked => {
+    const { domain, score: _score, findingId, restorable, group, ...action } = ranked;
+    return enrichAction(action, { findingId, group, restorable });
+  });
+}
+
+/**
+ * Attach the resolution model to a proposed action (radar upgrade Stage 7).
+ * The finding's own kind + clearance (via `resolutionKindOf`) become the task's
+ * control and expected outcome; `stepsFor` supplies concrete instruction steps
+ * (so one finding can decompose into several tasks). A `judgement` default is
+ * widened to `off-system` where a real remediation exists — but a genuine
+ * judgement call keeps its kind and still carries steps, never a dead end.
+ */
+function enrichAction(
+  action: AdvisorActionSuggestion,
+  { findingId, group, restorable }: { findingId: string; group: RadarFindingGroup; restorable: boolean },
+): AdvisorActionSuggestion {
+  const resolution = resolutionKindOf({ id: findingId });
+  let kind = resolution.kind;
+  let expectedOutcome = resolution.clearsWhen;
+  if (kind === "judgement" && restorable) {
+    kind = "off-system";
+    expectedOutcome = expectedOutcome ?? `${action.title.replace(/[.\s]+$/, "")} is resolved and Radar can read it as healthy again.`;
+  }
+  return {
+    ...action,
+    kind,
+    expectedOutcome,
+    steps: stepsFor(findingId, { href: action.href }),
+    suggestedOwner: ownerForGroup(group),
+    group,
+  };
+}
+
+function ownerForGroup(group: RadarFindingGroup): string {
+  return ({
+    infrastructure: "Systems / development",
+    reliability: "Systems / development",
+    commercial: "Owner",
+    compliance: "Owner",
+    delivery: "Delivery lead",
+    people: "Owner",
+  })[group];
 }
 
 function incidentScore(severity: BusinessIssueSeverity, findingCount: number, detectedAt: number, now: number): number {

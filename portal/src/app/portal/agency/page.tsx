@@ -11,6 +11,8 @@
 // glance at status before diving into a board.
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Activity, AlertTriangle, Anchor, Compass, Database, Gauge, NotebookPen, RadioTower, ShieldCheck, Target } from "lucide-react";
 import { ensureHydrated } from "@/server/storage";
@@ -33,7 +35,7 @@ import { CommandDeckPopup, type CommandDeckInspectorTarget, type CommandDeckPopu
 import { DynamicRadarConsole, type DynamicRadarStatus } from "./_DynamicRadarConsole";
 import { getCachedBusinessIssueRadar } from "@/lib/server/businessIssueRadar";
 import { inspectRadarEvidence } from "@/lib/server/radarEvidenceVault";
-import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { getRequestOperationalAlerts } from "@/lib/server/operationalAlerts";
 import { buildBusinessRecommendedActions } from "@/lib/businessRecommendedActions";
 import { AgencyActionsPage } from "./actions/_ActionsPage";
 import { AssistantWorkspace } from "./assistant/AssistantWorkspace";
@@ -41,12 +43,13 @@ import { buildAssistantBusinessContext } from "@/lib/server/assistantBusinessCon
 import { getAssistantWorkspace } from "@/lib/server/assistantStore";
 import { radarDigest } from "@/lib/businessRadar";
 import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligence";
-import { buildCompanyHealthSnapshot } from "@/lib/server/companyHealthSnapshot";
+import { getRequestCompanyHealth } from "@/lib/server/companyHealthSnapshot";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { listUsersForAgency } from "@/server/users";
 import { listCommandCalendarEntries } from "@/server/commandCalendar";
 import { getCommandCalendarIntegrationSnapshot } from "@/lib/server/googleCalendar";
 import { buildBrandPortfolioSnapshot } from "@/lib/server/brandPortfolio";
+import { listClientsNeedingAttention } from "@/lib/server/clientAttention";
 import { getCompanyProfile } from "@/server/company";
 import { calculateCompanyHealth } from "@/lib/companyHealth";
 import type { CompanyHealthActuals } from "@/lib/server/companyHealthSnapshot";
@@ -55,11 +58,34 @@ import type { BattleTableScopePayload } from "./_BattleTableWorkspace";
 import { BrandPortfolioInstrument } from "./_BrandPortfolioInstrument";
 import { buildHiringCapacitySignals } from "@/lib/hiringCapacity";
 import { listPeopleEmployees } from "@/server/people";
+import { devDocsAccessible } from "@/lib/server/devDocs";
+import { composeLanes, scanDevTeamBoard } from "@/lib/server/devTeamBoard";
+import { DevTeamStation } from "./_DevTeamStation";
+
+// Fallback for the streamed secondary stations. Each of those workspaces
+// renders only after an explicit station click, but as bare awaited children
+// they blocked the whole page's first paint — the Day Command board (the
+// default landing) had to wait on two full AgencyActionsPage data pipelines
+// plus the advisor context. Wrapping them in <Suspense> lets the shell + Day
+// board flush immediately while these resolve behind. Identical output; they
+// are simply no longer on the critical path.
+function StationStreaming({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="grid min-h-[24rem] place-items-center text-sm text-[#62e8ff]/60"
+    >
+      Loading {label}…
+    </div>
+  );
+}
 
 export default async function AgencyHome() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
-  const agency = getAgency(session.agencyId)!;
+  const agency = getAgency(session.agencyId);
+  if (!agency) redirect("/login");
   const clients = listClients(agency.id);
   const tasks = listAgencyTasks(agency.id);
   ensureDefaultAgencyProducts(agency.id);
@@ -67,11 +93,12 @@ export default async function AgencyHome() {
   const serviceBrands = listTradingCompanies(agency.id).filter(company => company.status !== "archived");
   const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
   const recommendationTime = Date.now();
-  const [businessRadar, operationalAlerts, companyHealth, brandPortfolio] = await Promise.all([
+  const [businessRadar, operationalAlerts, companyHealth, brandPortfolio, clientsNeedingAttention] = await Promise.all([
     getCachedBusinessIssueRadar(agency.id),
-    listOperationalAlerts(agency.id, recommendationTime),
-    buildCompanyHealthSnapshot(agency.id, recommendationTime),
+    getRequestOperationalAlerts(agency.id),
+    getRequestCompanyHealth(agency.id),
     buildBrandPortfolioSnapshot(agency.id, recommendationTime),
+    listClientsNeedingAttention(agency.id, recommendationTime),
   ]);
   const radarEvidence = inspectRadarEvidence(agency.id);
   const intelligenceSnapshot = await buildCommandIntelligenceSnapshot({
@@ -141,6 +168,18 @@ export default async function AgencyHome() {
   const peopleEmployees = listPeopleEmployees(agency.id);
   const aggregateCapacitySignals = buildHiringCapacitySignals({ tasks, people: peopleEmployees, now: recommendationTime });
   const legalDocuments = listLegalDocuments(agency.id);
+  // Founder + Dev Mode only. Decided server-side so the Dev Team station node is
+  // never constructed — and never streamed — for anybody else.
+  const devTeamVisible = devDocsAccessible(session);
+  // The station's badge must tell the truth AND agree with the station itself,
+  // so it is computed from the SAME model the station renders: `composeLanes`
+  // over the live board. The badge counts the Blocked lane (what the station's
+  // "Blocked" tile shows) and carries the open-launch-blocker subset with it so
+  // the label can break the number down instead of asserting a bare count.
+  // Only for a founder — nobody else sees the station.
+  const devTeamLanes = devTeamVisible ? composeLanes(await scanDevTeamBoard()) : null;
+  const devTeamBlockedCount = devTeamLanes?.blocked.length ?? 0;
+  const devTeamLaunchBlockerCount = devTeamLanes?.blocked.filter(item => item.kind === "blocker").length ?? 0;
   const battleTableScopes = buildBattleTableScopes({
     aggregate: {
       companyName: INTERNAL_WORKSPACE_NAME,
@@ -349,6 +388,7 @@ export default async function AgencyHome() {
           products: products.length,
         }}
         intelligenceSnapshot={intelligenceSnapshot}
+        clientsNeedingAttention={clientsNeedingAttention}
         battleTablePayload={{
           companyName: INTERNAL_WORKSPACE_NAME,
           initial: companyHealth.profile,
@@ -366,37 +406,51 @@ export default async function AgencyHome() {
         }}
         executiveWorkspace={executiveWorkspace}
         calendarWorkspace={(
-          <AgencyActionsPage
-            key="calendar-workspace"
-            initialView="calendar"
-            heading="Command Calendar"
-            description="Dated work, meetings, reminders and business deadlines in the same Command Centre viewport."
-          />
+          <Suspense fallback={<StationStreaming label="Command Calendar" />}>
+            <AgencyActionsPage
+              key="calendar-workspace"
+              initialView="calendar"
+              heading="Command Calendar"
+              description="Dated work, meetings, reminders and business deadlines in the same Command Centre viewport."
+            />
+          </Suspense>
         )}
         actionsWorkspace={(
-          <AgencyActionsPage
-            key="actions-workspace"
-            heading="Command Centre Actions"
-            description="Radar, Advisor, manual and CRM work in one controlled queue. Approve suggested work before it enters your committed list."
-          />
+          <Suspense fallback={<StationStreaming label="Command Centre Actions" />}>
+            <AgencyActionsPage
+              key="actions-workspace"
+              heading="Command Centre Actions"
+              description="Radar, Advisor, manual and CRM work in one controlled queue. Approve suggested work before it enters your committed list."
+            />
+          </Suspense>
         )}
         advisorWorkspace={(
-          <AssistantWorkspace
-            key="advisor-workspace"
-            initialWorkspace={getAssistantWorkspace(agency.id, session.userId)}
-            configured={advisorConfigured}
-            model={assistantModel(agency.id)}
-            userName={account?.name || session.email}
-            coverage={{
-              clients: assistantContext.summary.clients.length,
-              team: assistantContext.summary.team.length,
-              pipelines: assistantContext.summary.pipelines.length,
-              recentActivity: assistantContext.summary.recentActivity.length,
-              modules: Object.keys(assistantContext.summary.businessModules),
-              radar: radarDigest(businessRadar),
-            }}
-          />
+          <Suspense fallback={<StationStreaming label="Aqua Advisor" />}>
+            <AssistantWorkspace
+              key="advisor-workspace"
+              initialWorkspace={getAssistantWorkspace(agency.id, session.userId)}
+              configured={advisorConfigured}
+              model={assistantModel(agency.id)}
+              userName={account?.name || session.email}
+              coverage={{
+                clients: assistantContext.summary.clients.length,
+                team: assistantContext.summary.team.length,
+                pipelines: assistantContext.summary.pipelines.length,
+                recentActivity: assistantContext.summary.recentActivity.length,
+                modules: Object.keys(assistantContext.summary.businessModules),
+                radar: radarDigest(businessRadar),
+              }}
+            />
+          </Suspense>
         )}
+        devTeamVisible={devTeamVisible}
+        devTeamBlockedCount={devTeamBlockedCount}
+        devTeamLaunchBlockerCount={devTeamLaunchBlockerCount}
+        devTeamWorkspace={devTeamVisible ? (
+          <Suspense fallback={<StationStreaming label="Dev Team" />}>
+            <DevTeamStation key="dev-team-workspace" />
+          </Suspense>
+        ) : null}
       />
     </div>
   );

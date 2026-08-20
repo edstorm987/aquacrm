@@ -46,6 +46,13 @@ export function LoginForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [magicSent, setMagicSent] = useState<{ devUrl?: string } | null>(null);
+  // The second factor. `/api/auth/login` answers a correct password on an
+  // MFA-enrolled account with 401 { mfaRequired: true } and NO session cookie;
+  // the same credentials are then re-posted with `code`. Without this the
+  // enrolment panel on /portal/account is a lockout button — the server gate
+  // shipped before the screen that satisfies it.
+  const [code, setCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   function navigate(url: string) {
     if (embedded && typeof window !== "undefined" && window.parent !== window) {
@@ -95,11 +102,18 @@ export function LoginForm({
         res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password, clientId, brand: brandParam }),
+          body: JSON.stringify({ email, password, clientId, brand: brandParam, ...(code.trim() ? { code: code.trim() } : {}) }),
         });
       }
-      const data = (await res.json()) as { ok: boolean; error?: string; returnUrl?: string; redirect?: string };
+      const data = (await res.json()) as { ok: boolean; error?: string; returnUrl?: string; redirect?: string; mfaRequired?: boolean };
       if (!res.ok || !data.ok) {
+        if (data.mfaRequired) {
+          // Ask for the code and keep the password in state so the retry is one
+          // field, not a whole re-entry. Clear any stale code so a rejected one
+          // is never resent.
+          setMfaRequired(true);
+          setCode("");
+        }
         setError(data.error ?? `${mode === "signup" ? "Sign-up" : "Sign-in"} failed.`);
         setBusy(false);
         return;
@@ -173,11 +187,37 @@ export function LoginForm({
           />
         </label>
       )}
+      {/* The second factor.
+
+          `/api/auth/login` answers a correct password on an MFA-enrolled account
+          with 401 { mfaRequired: true } and NO session cookie; the same
+          credentials are re-posted with `code`. Without this field the enrolment
+          panel on /portal/account is a lockout button — the server gate shipped
+          before the screen that satisfies it. */}
+      {mfaRequired && (
+        <label className="mm-field">
+          <span className="mm-label">Authentication code</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={8}
+            required
+            autoFocus
+            value={code}
+            onChange={event => setCode(event.target.value)}
+            placeholder="6-digit code"
+            className="mm-input"
+            data-testid="login-mfa-code"
+          />
+        </label>
+      )}
       {!isMagic && mode === "signin" && (
         <a
           href={`/login/forgot${brandParam ? `?brand=${encodeURIComponent(brandParam)}` : ""}`}
           className="mm-form-toggle"
           data-testid="login-forgot-link"
+
         >
           Forgot password?
         </a>

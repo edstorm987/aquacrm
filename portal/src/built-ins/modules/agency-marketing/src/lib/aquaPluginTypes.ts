@@ -136,6 +136,13 @@ export interface HealthStatus {
   components?: Record<string, { ok: boolean; message?: string }>;
 }
 
+/** Who is being erased. Mirrors `built-ins/runtime/_types.ts`. */
+export interface ErasureSubject {
+  emails: string[];
+  name?: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface AquaPlugin {
   id: string;
   name: string;
@@ -151,6 +158,12 @@ export interface AquaPlugin {
   conflicts?: string[];
   onInstall?: (ctx: PluginCtx, setupAnswers: Record<string, string>) => Promise<void>;
   onUninstall?: (ctx: PluginCtx) => Promise<void>;
+  // Right-to-be-forgotten hook — the client-erasure sweep calls this so the
+  // plugin can erase every record it holds for `clientId`, including PII held
+  // in storage KEY names the generic value-scan can't reach. `subject` says WHO
+  // is being erased (resolved from the client record, deleted moments later).
+  // Idempotent. (Mirrors `built-ins/runtime/_types.ts`.)
+  onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
   onEnable?: (ctx: PluginCtx) => Promise<void>;
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;

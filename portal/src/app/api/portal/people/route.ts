@@ -3,16 +3,33 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getActiveAgencyId, requireRole } from "@/lib/server/auth";
 import { provisionSupabaseIdentity } from "@/lib/supabase/admin";
 import {
+  acknowledgePeopleContract,
+  awardPeopleRecognition,
+  completeModuleAssignment,
+  createPeopleContract,
   createPeopleEmployee,
+  createPeopleFeedback,
   createPeopleLeaveRequest,
   decidePeopleLeaveRequest,
   employeePeopleSnapshot,
   getPeopleApplication,
   getPeopleEmployee,
+  getPeopleTrainingModule,
+  listPeopleContracts,
+  listPeopleFeedback,
+  listPeopleFreelancerJobs,
+  listPeopleRecognitions,
   peopleSnapshot,
+  savePeopleHiringStages,
+  savePeopleOnboardingTemplate,
+  savePeopleTrainingModule,
+  sendPeopleContract,
+  setPeopleFeedbackStatus,
   rotatePeopleApplicationStatusToken,
+  savePeopleFreelancerJob,
   savePeopleShift,
   savePeopleTraining,
+  setPeopleFreelancerJobStatus,
   updatePeopleApplication,
   updatePeopleEmployee,
   canUsePeopleStation,
@@ -24,6 +41,11 @@ import type {
   PeopleEmployee,
   PeopleEmploymentType,
   PeopleLeaveRequest,
+  PeopleContractKind,
+  PeopleFeedback,
+  PeopleFeedbackSentiment,
+  PeopleFreelancerJobStatus,
+  PeopleRecognitionKind,
   PeopleShift,
   PeopleTrainingAssignment,
   PeopleWorkspaceAccess,
@@ -35,6 +57,12 @@ export const runtime = "nodejs";
 const MANAGERS = ["agency-owner", "agency-manager"] as const;
 const APPLICATION_STAGES = new Set<PeopleApplicationStage>(["applied", "under-review", "interview", "shortlisted", "offer", "accepted", "onboarding", "declined", "withdrawn"]);
 const EMPLOYMENT_TYPES = new Set<PeopleEmploymentType>(["full-time", "part-time", "contractor", "freelancer", "intern", "volunteer"]);
+const FREELANCER_JOB_STATUSES = new Set<PeopleFreelancerJobStatus>(["proposed", "active", "delivered", "paid", "cancelled"]);
+
+function freelancerStatus(value: unknown): PeopleFreelancerJobStatus | undefined {
+  const parsed = text(value, 30) as PeopleFreelancerJobStatus;
+  return FREELANCER_JOB_STATUSES.has(parsed) ? parsed : undefined;
+}
 
 function text(value: unknown, max = 240): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -111,6 +139,31 @@ export async function POST(req: NextRequest) {
         });
         await flushPendingWrites();
         return NextResponse.json({ ok: true, training });
+      }
+      if (action === "complete-module") {
+        if (!canUsePeopleStation(agencyId, session.userId, "training", true)) return error("Training is not assigned to your workspace.", 403);
+        const answers = (body.answers && typeof body.answers === "object") ? body.answers as Record<string, string> : {};
+        const outcome = completeModuleAssignment({ agencyId, assignmentId: text(body.assignmentId, 120), userId: session.userId, answers });
+        if (!outcome) return error("Training assignment not found.", 404);
+        await flushPendingWrites();
+        return NextResponse.json({ ok: true, training: outcome.assignment, result: outcome.result });
+      }
+      if (action === "acknowledge-contract") {
+        const contract = acknowledgePeopleContract({ agencyId, contractId: text(body.contractId, 120), userId: session.userId, name: text(body.name, 120), decline: Boolean(body.decline) });
+        if (!contract) return error("Contract not found or not yours to sign.", 404);
+        await flushPendingWrites();
+        return NextResponse.json({ ok: true, contract });
+      }
+      if (action === "submit-feedback") {
+        if (!canUsePeopleStation(agencyId, session.userId, "progression", true)) return error("The growth & company station is not assigned to your workspace.", 403);
+        const feedback = createPeopleFeedback({
+          agencyId,
+          employeeId: self.employee.id,
+          message: text(body.message, 4_000),
+          sentiment: text(body.sentiment, 20) as PeopleFeedbackSentiment,
+        });
+        await flushPendingWrites();
+        return NextResponse.json({ ok: true, feedback }, { status: 201 });
       }
       return error("This employee action is not permitted.", 403);
     }
@@ -214,6 +267,7 @@ export async function POST(req: NextRequest) {
           phone: text(body.phone, 50),
           title: text(body.title, 160) || existing.title,
           department: text(body.department, 120),
+          managerEmployeeId: text(body.managerEmployeeId, 120) || undefined,
           employmentType: EMPLOYMENT_TYPES.has(text(body.employmentType, 40) as PeopleEmploymentType) ? text(body.employmentType, 40) as PeopleEmploymentType : existing.employmentType,
           status: text(body.status, 40) as PeopleEmployee["status"],
           startDate: number(body.startDate),
@@ -224,6 +278,8 @@ export async function POST(req: NextRequest) {
           payBasis: text(body.payBasis, 40) as PeopleEmployee["payBasis"],
           basePayMinor: number(body.basePayMinor),
           currency: text(body.currency, 3).toUpperCase() || existing.currency,
+          targetRole: text(body.targetRole, 160) || undefined,
+          growthPathNote: text(body.growthPathNote, 2_000) || undefined,
         };
       }
       const employee = updatePeopleEmployee(agencyId, employeeId, patch, session.userId);
@@ -269,6 +325,132 @@ export async function POST(req: NextRequest) {
       });
       await flushPendingWrites();
       return NextResponse.json({ ok: true, training });
+    }
+
+    if (action === "save-freelancer-job") {
+      const job = savePeopleFreelancerJob({
+        agencyId,
+        actorUserId: session.userId,
+        id: text(body.id, 120) || undefined,
+        employeeId: text(body.employeeId, 120),
+        title: text(body.title, 200),
+        brief: text(body.brief, 4_000),
+        clientId: text(body.clientId, 120),
+        feeMinor: number(body.feeMinor),
+        currency: text(body.currency, 3),
+        startsOn: text(body.startsOn, 10),
+        dueOn: text(body.dueOn, 10),
+        notes: text(body.notes, 2_000),
+        status: freelancerStatus(body.status),
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, job, jobs: listPeopleFreelancerJobs(agencyId, job.employeeId) }, { status: 201 });
+    }
+
+    if (action === "set-freelancer-job-status") {
+      const status = freelancerStatus(body.status);
+      if (!status) return error("Choose a valid job status.");
+      const job = setPeopleFreelancerJobStatus({
+        agencyId,
+        jobId: text(body.jobId, 120),
+        status,
+        actorUserId: session.userId,
+        paymentRef: text(body.paymentRef, 160),
+      });
+      if (!job) return error("Freelancer job not found.", 404);
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, job, jobs: listPeopleFreelancerJobs(agencyId, job.employeeId) });
+    }
+
+    if (action === "award-recognition") {
+      const kind = text(body.kind, 30) === "shoutout" ? "shoutout" : "employee-of-month";
+      const recognition = awardPeopleRecognition({
+        agencyId,
+        actorUserId: session.userId,
+        employeeId: text(body.employeeId, 120),
+        kind: kind as PeopleRecognitionKind,
+        period: text(body.period, 7),
+        note: text(body.note, 1_000),
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, recognition, recognitions: listPeopleRecognitions(agencyId, recognition.employeeId) }, { status: 201 });
+    }
+
+    if (action === "save-training-module") {
+      const module = savePeopleTrainingModule({
+        agencyId,
+        actorUserId: session.userId,
+        id: text(body.id, 120) || undefined,
+        title: text(body.title, 200),
+        summary: text(body.summary, 1_000),
+        blocks: Array.isArray(body.blocks) ? body.blocks as import("@/server/types").PeopleTrainingBlock[] : undefined,
+        quiz: Array.isArray(body.quiz) ? body.quiz as import("@/server/types").PeopleTrainingQuizQuestion[] : undefined,
+        passMark: number(body.passMark),
+        status: text(body.status, 20) === "published" ? "published" : text(body.status, 20) === "draft" ? "draft" : undefined,
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, module, modules: peopleSnapshot(agencyId).trainingModules }, { status: 201 });
+    }
+
+    if (action === "assign-module") {
+      const module = getPeopleTrainingModule(agencyId, text(body.moduleId, 120));
+      if (!module) return error("Module not found.", 404);
+      const training = savePeopleTraining({
+        agencyId,
+        employeeId: text(body.employeeId, 120),
+        title: module.title,
+        description: module.summary,
+        moduleId: module.id,
+        dueAt: number(body.dueAt),
+        status: "assigned",
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, training }, { status: 201 });
+    }
+
+    if (action === "save-onboarding-template") {
+      const steps = Array.isArray(body.steps) ? body.steps as Array<{ id?: string; label: string; owner?: "company" | "employee"; detail?: string; requiresEvidence?: boolean }> : [];
+      const config = savePeopleOnboardingTemplate(agencyId, steps, session.userId);
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, processConfig: config });
+    }
+
+    if (action === "save-hiring-stages") {
+      const stages = Array.isArray(body.stages) ? body.stages as Array<{ id: string; label?: string; guidance?: string }> : [];
+      const config = savePeopleHiringStages(agencyId, stages, session.userId);
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, processConfig: config });
+    }
+
+    if (action === "create-contract") {
+      const contract = createPeopleContract({
+        agencyId,
+        actorUserId: session.userId,
+        employeeId: text(body.employeeId, 120),
+        kind: text(body.kind, 30) as PeopleContractKind,
+        title: text(body.title, 200),
+        summary: text(body.summary, 500),
+        body: text(body.body, 40_000),
+        templateId: text(body.templateId, 120) || undefined,
+      });
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, contract, contracts: listPeopleContracts(agencyId, contract.employeeId) }, { status: 201 });
+    }
+
+    if (action === "send-contract") {
+      const contract = sendPeopleContract(agencyId, text(body.contractId, 120), session.userId);
+      if (!contract) return error("Contract not found.", 404);
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, contract, contracts: listPeopleContracts(agencyId, contract.employeeId) });
+    }
+
+    if (action === "set-feedback-status") {
+      const status = text(body.status, 20);
+      if (!["new", "read", "actioned"].includes(status)) return error("Choose a valid feedback status.");
+      const feedback = setPeopleFeedbackStatus(agencyId, text(body.feedbackId, 120), status as PeopleFeedback["status"]);
+      if (!feedback) return error("Feedback not found.", 404);
+      await flushPendingWrites();
+      return NextResponse.json({ ok: true, feedback, feedbackList: listPeopleFeedback(agencyId, feedback.employeeId) });
     }
 
     return error("Unknown People action.", 404);

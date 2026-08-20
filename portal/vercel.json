@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/inbox",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/radar-probes",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

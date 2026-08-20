@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
+import { devDocsAccessible } from "@/lib/server/devDocs";
 import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { phaseLabel } from "@/server/phases";
@@ -35,6 +36,7 @@ import { containerFor as financeContainerFor } from "@/built-ins/modules/agency-
 import type { Invoice } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import { listContractTemplates } from "@/server/contractTemplates";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clientContracts";
+import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { calculateClientAquaHealth } from "@/lib/clientAquaHealth";
 import { JourneyCommercialWorkspace, type JourneyCommercialClient } from "./_JourneyCommercialWorkspace";
 import type { JourneyMeetingPerson } from "./_JourneyMeetingsWorkspace";
@@ -58,6 +60,7 @@ interface JourneyClientMetadata {
   customFields?: Record<string, unknown>;
   clientRequests?: Array<{ type?: string; status?: string; priority?: string; submittedAt?: number; replies?: Array<{ from?: string; createdAt?: number }> }>;
   contracts?: ClientContract[];
+  telemetryEvents?: ClientTelemetryEvent[];
   planTier?: "foundational" | "expansion" | "mastery";
   portalServicePlan?: string;
   lockInPaid?: boolean;
@@ -370,6 +373,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
         requestsObserved,
         requests: requestsObserved ? metadata!.clientRequests! : [],
         contracts,
+        telemetryEvents: metadata?.telemetryEvents,
       }),
     };
   });
@@ -408,6 +412,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
             currentPath={currentPath}
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            devConsole={devDocsAccessible(session)}
             privacyTerms={[
               ...clients.flatMap(client => [client.name, client.ownerEmail ?? ""]),
               ...contacts.flatMap(contact => [contact.name ?? "", contact.email, contact.phone ?? "", contact.company ?? ""]),

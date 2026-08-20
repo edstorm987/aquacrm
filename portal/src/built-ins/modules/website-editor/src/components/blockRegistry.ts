@@ -16,82 +16,101 @@
 // here. The plugin manifest derives `BlockDescriptor[]` from this map
 // via `BLOCK_DESCRIPTORS`.
 
-import type { ComponentType, ReactNode } from "react";
 import type { Block, BlockType } from "../types/block";
-import type { BlockDescriptor, BlockCategory } from "../lib/aquaPluginTypes";
+import type { BlockCategory, BlockDescriptor } from "../lib/aquaPluginTypes";
+import type { BlockComponentType, BlockDefinition, BlockRenderProps } from "@/lib/elements/definition";
+import {
+  getElementDefinition,
+  getElementRenderer,
+  listElementDefinitions,
+  registerElementDefinitions,
+  registerElementRenderers,
+} from "@/lib/elements/registry";
+import { lazyBlock } from "./lazyBlock";
 
-// ─── Block component imports (all default exports per 02) ──────────────────
+// ─── Block component loaders (all default exports per 02) ─────────────────
+//
+// These were 78 static imports, which meant that importing this registry for
+// its *metadata* alone — the block-library sidebar, the properties panel, the
+// page templates — pulled the entire block library into the same bundle. The
+// editor and sites routes are the heaviest in the app for exactly that reason.
+//
+// `lazyBlock` keeps the registry shape identical (each entry is still a
+// component you can render synchronously) while putting every block in its own
+// chunk, fetched the first time that block type is rendered. Metadata — label,
+// icon, category, defaultProps, fields — stays static, so the palette, the
+// properties panel and `createBlock()` never trigger a download.
 
-import AccordionBlock from "./blocks/AccordionBlock";
-import AppShowcaseBlock from "./blocks/AppShowcaseBlock";
-import AuthorBioBlock from "./blocks/AuthorBioBlock";
-import BannerBlock from "./blocks/BannerBlock";
-import CookieConsentBlock from "./blocks/CookieConsentBlock";
-import BlogFeedBlock from "./blocks/BlogFeedBlock";
-import BlogPostBlock from "./blocks/BlogPostBlock";
-import FormEmbedBlock from "./blocks/FormEmbedBlock";
-import FeatureComparisonBlock from "./blocks/FeatureComparisonBlock";
-import TeamGridBlock from "./blocks/TeamGridBlock";
-import BreadcrumbBlock from "./blocks/BreadcrumbBlock";
-import ProcessStepsBlock from "./blocks/ProcessStepsBlock";
-import ShareButtonsBlock from "./blocks/ShareButtonsBlock";
-import BeforeAfterBlock from "./blocks/BeforeAfterBlock";
-import BookingWidgetBlock from "./blocks/BookingWidgetBlock";
-import ButtonBlock from "./blocks/ButtonBlock";
-import CardGridBlock from "./blocks/CardGridBlock";
-import CartSummaryBlock from "./blocks/CartSummaryBlock";
-import CheckoutSummaryBlock from "./blocks/CheckoutSummaryBlock";
-import CollectionGridBlock from "./blocks/CollectionGridBlock";
-import ColumnBlock from "./blocks/ColumnBlock";
-import ContactFormBlock from "./blocks/ContactFormBlock";
-import ContainerBlock from "./blocks/ContainerBlock";
-import CountdownTimerBlock from "./blocks/CountdownTimerBlock";
-import CtaBlock from "./blocks/CtaBlock";
-import DividerBlock from "./blocks/DividerBlock";
-import DonationButtonBlock from "./blocks/DonationButtonBlock";
-import FaqBlock from "./blocks/FaqBlock";
-import FeatureGridBlock from "./blocks/FeatureGridBlock";
-import FooterBlock from "./blocks/FooterBlock";
-import FormBlock from "./blocks/FormBlock";
-import GalleryBlock from "./blocks/GalleryBlock";
-import GridBlock from "./blocks/GridBlock";
-import HeadingBlock from "./blocks/HeadingBlock";
-import HeroBlock from "./blocks/HeroBlock";
-import HtmlBlock from "./blocks/HtmlBlock";
-import IconBlock from "./blocks/IconBlock";
-import ImageBlock from "./blocks/ImageBlock";
-import LanguageSwitcherBlock from "./blocks/LanguageSwitcherBlock";
-import LoginFormBlock from "./blocks/LoginFormBlock";
-import LogoGridBlock from "./blocks/LogoGridBlock";
-import MapBlock from "./blocks/MapBlock";
-import MarqueeBlock from "./blocks/MarqueeBlock";
-import MemberGateBlock from "./blocks/MemberGateBlock";
-import NavbarBlock from "./blocks/NavbarBlock";
-import NewsletterSignupBlock from "./blocks/NewsletterSignupBlock";
-import OrderSuccessBlock from "./blocks/OrderSuccessBlock";
-import PropertyStripBlock from "./blocks/PropertyStripBlock";
-import ToggleBlock from "./blocks/ToggleBlock";
-import PaymentButtonBlock from "./blocks/PaymentButtonBlock";
-import PricingTableBlock from "./blocks/PricingTableBlock";
-import ProductCardBlock from "./blocks/ProductCardBlock";
-import ProductGridBlock from "./blocks/ProductGridBlock";
-import ProductSearchBlock from "./blocks/ProductSearchBlock";
-import QuoteBlock from "./blocks/QuoteBlock";
-import RowBlock from "./blocks/RowBlock";
-import SectionBlock from "./blocks/SectionBlock";
-import SignupFormBlock from "./blocks/SignupFormBlock";
-import SocialAuthBlock from "./blocks/SocialAuthBlock";
-import SocialProofBarBlock from "./blocks/SocialProofBarBlock";
-import SpacerBlock from "./blocks/SpacerBlock";
-import StatsBarBlock from "./blocks/StatsBarBlock";
-import TabsBlock from "./blocks/TabsBlock";
-import TestimonialsBlock from "./blocks/TestimonialsBlock";
-import TextBlock from "./blocks/TextBlock";
-import ThemeSelectorBlock from "./blocks/ThemeSelectorBlock";
-import TimelineBlock from "./blocks/TimelineBlock";
-import VariantPickerBlock from "./blocks/VariantPickerBlock";
-import VideoBlock from "./blocks/VideoBlock";
-import VideoEmbedBlock from "./blocks/VideoEmbedBlock";
+const AccordionBlock = lazyBlock(() => import("./blocks/AccordionBlock"), "AccordionBlock");
+const AppShowcaseBlock = lazyBlock(() => import("./blocks/AppShowcaseBlock"), "AppShowcaseBlock");
+const AuthorBioBlock = lazyBlock(() => import("./blocks/AuthorBioBlock"), "AuthorBioBlock");
+const BannerBlock = lazyBlock(() => import("./blocks/BannerBlock"), "BannerBlock");
+const CookieConsentBlock = lazyBlock(() => import("./blocks/CookieConsentBlock"), "CookieConsentBlock");
+const BlogFeedBlock = lazyBlock(() => import("./blocks/BlogFeedBlock"), "BlogFeedBlock");
+const BlogPostBlock = lazyBlock(() => import("./blocks/BlogPostBlock"), "BlogPostBlock");
+const FormEmbedBlock = lazyBlock(() => import("./blocks/FormEmbedBlock"), "FormEmbedBlock");
+const FeatureComparisonBlock = lazyBlock(() => import("./blocks/FeatureComparisonBlock"), "FeatureComparisonBlock");
+const TeamGridBlock = lazyBlock(() => import("./blocks/TeamGridBlock"), "TeamGridBlock");
+const BreadcrumbBlock = lazyBlock(() => import("./blocks/BreadcrumbBlock"), "BreadcrumbBlock");
+const ProcessStepsBlock = lazyBlock(() => import("./blocks/ProcessStepsBlock"), "ProcessStepsBlock");
+const ShareButtonsBlock = lazyBlock(() => import("./blocks/ShareButtonsBlock"), "ShareButtonsBlock");
+const BeforeAfterBlock = lazyBlock(() => import("./blocks/BeforeAfterBlock"), "BeforeAfterBlock");
+const BookingWidgetBlock = lazyBlock(() => import("./blocks/BookingWidgetBlock"), "BookingWidgetBlock");
+const ButtonBlock = lazyBlock(() => import("./blocks/ButtonBlock"), "ButtonBlock");
+const CardGridBlock = lazyBlock(() => import("./blocks/CardGridBlock"), "CardGridBlock");
+const CartSummaryBlock = lazyBlock(() => import("./blocks/CartSummaryBlock"), "CartSummaryBlock");
+const CheckoutSummaryBlock = lazyBlock(() => import("./blocks/CheckoutSummaryBlock"), "CheckoutSummaryBlock");
+const CollectionGridBlock = lazyBlock(() => import("./blocks/CollectionGridBlock"), "CollectionGridBlock");
+const ColumnBlock = lazyBlock(() => import("./blocks/ColumnBlock"), "ColumnBlock");
+const ContactFormBlock = lazyBlock(() => import("./blocks/ContactFormBlock"), "ContactFormBlock");
+const ContainerBlock = lazyBlock(() => import("./blocks/ContainerBlock"), "ContainerBlock");
+const CountdownTimerBlock = lazyBlock(() => import("./blocks/CountdownTimerBlock"), "CountdownTimerBlock");
+const CtaBlock = lazyBlock(() => import("./blocks/CtaBlock"), "CtaBlock");
+const DividerBlock = lazyBlock(() => import("./blocks/DividerBlock"), "DividerBlock");
+const DonationButtonBlock = lazyBlock(() => import("./blocks/DonationButtonBlock"), "DonationButtonBlock");
+const FaqBlock = lazyBlock(() => import("./blocks/FaqBlock"), "FaqBlock");
+const FeatureGridBlock = lazyBlock(() => import("./blocks/FeatureGridBlock"), "FeatureGridBlock");
+const FooterBlock = lazyBlock(() => import("./blocks/FooterBlock"), "FooterBlock");
+const FormBlock = lazyBlock(() => import("./blocks/FormBlock"), "FormBlock");
+const GalleryBlock = lazyBlock(() => import("./blocks/GalleryBlock"), "GalleryBlock");
+const GridBlock = lazyBlock(() => import("./blocks/GridBlock"), "GridBlock");
+const HeadingBlock = lazyBlock(() => import("./blocks/HeadingBlock"), "HeadingBlock");
+const HeroBlock = lazyBlock(() => import("./blocks/HeroBlock"), "HeroBlock");
+const HtmlBlock = lazyBlock(() => import("./blocks/HtmlBlock"), "HtmlBlock");
+const IconBlock = lazyBlock(() => import("./blocks/IconBlock"), "IconBlock");
+const ImageBlock = lazyBlock(() => import("./blocks/ImageBlock"), "ImageBlock");
+const LanguageSwitcherBlock = lazyBlock(() => import("./blocks/LanguageSwitcherBlock"), "LanguageSwitcherBlock");
+const LoginFormBlock = lazyBlock(() => import("./blocks/LoginFormBlock"), "LoginFormBlock");
+const LogoGridBlock = lazyBlock(() => import("./blocks/LogoGridBlock"), "LogoGridBlock");
+const MapBlock = lazyBlock(() => import("./blocks/MapBlock"), "MapBlock");
+const MarqueeBlock = lazyBlock(() => import("./blocks/MarqueeBlock"), "MarqueeBlock");
+const MemberGateBlock = lazyBlock(() => import("./blocks/MemberGateBlock"), "MemberGateBlock");
+const NavbarBlock = lazyBlock(() => import("./blocks/NavbarBlock"), "NavbarBlock");
+const NewsletterSignupBlock = lazyBlock(() => import("./blocks/NewsletterSignupBlock"), "NewsletterSignupBlock");
+const OrderSuccessBlock = lazyBlock(() => import("./blocks/OrderSuccessBlock"), "OrderSuccessBlock");
+const PropertyStripBlock = lazyBlock(() => import("./blocks/PropertyStripBlock"), "PropertyStripBlock");
+const ToggleBlock = lazyBlock(() => import("./blocks/ToggleBlock"), "ToggleBlock");
+const PaymentButtonBlock = lazyBlock(() => import("./blocks/PaymentButtonBlock"), "PaymentButtonBlock");
+const PricingTableBlock = lazyBlock(() => import("./blocks/PricingTableBlock"), "PricingTableBlock");
+const ProductCardBlock = lazyBlock(() => import("./blocks/ProductCardBlock"), "ProductCardBlock");
+const ProductGridBlock = lazyBlock(() => import("./blocks/ProductGridBlock"), "ProductGridBlock");
+const ProductSearchBlock = lazyBlock(() => import("./blocks/ProductSearchBlock"), "ProductSearchBlock");
+const QuoteBlock = lazyBlock(() => import("./blocks/QuoteBlock"), "QuoteBlock");
+const RowBlock = lazyBlock(() => import("./blocks/RowBlock"), "RowBlock");
+const SectionBlock = lazyBlock(() => import("./blocks/SectionBlock"), "SectionBlock");
+const SignupFormBlock = lazyBlock(() => import("./blocks/SignupFormBlock"), "SignupFormBlock");
+const SocialAuthBlock = lazyBlock(() => import("./blocks/SocialAuthBlock"), "SocialAuthBlock");
+const SocialProofBarBlock = lazyBlock(() => import("./blocks/SocialProofBarBlock"), "SocialProofBarBlock");
+const SpacerBlock = lazyBlock(() => import("./blocks/SpacerBlock"), "SpacerBlock");
+const StatsBarBlock = lazyBlock(() => import("./blocks/StatsBarBlock"), "StatsBarBlock");
+const TabsBlock = lazyBlock(() => import("./blocks/TabsBlock"), "TabsBlock");
+const TestimonialsBlock = lazyBlock(() => import("./blocks/TestimonialsBlock"), "TestimonialsBlock");
+const TextBlock = lazyBlock(() => import("./blocks/TextBlock"), "TextBlock");
+const ThemeSelectorBlock = lazyBlock(() => import("./blocks/ThemeSelectorBlock"), "ThemeSelectorBlock");
+const TimelineBlock = lazyBlock(() => import("./blocks/TimelineBlock"), "TimelineBlock");
+const VariantPickerBlock = lazyBlock(() => import("./blocks/VariantPickerBlock"), "VariantPickerBlock");
+const VideoBlock = lazyBlock(() => import("./blocks/VideoBlock"), "VideoBlock");
+const VideoEmbedBlock = lazyBlock(() => import("./blocks/VideoEmbedBlock"), "VideoEmbedBlock");
 
 // ─── External-plugin block renderers (registered by this plugin) ──────────
 // T2's @aqua/plugin-ecommerce + @aqua/plugin-memberships declare block
@@ -100,50 +119,38 @@ import VideoEmbedBlock from "./blocks/VideoEmbedBlock";
 // (which carries the editor metadata for the native palette). They show
 // up only in RENDERER_REGISTRATIONS so the runtime renderer can resolve
 // them by id.
-import MembershipPaywallBlock from "./blocks/MembershipPaywallBlock";
-import MembershipSignupBlock from "./blocks/MembershipSignupBlock";
-import MembershipTierGridBlock from "./blocks/MembershipTierGridBlock";
-import AffiliateSignupBlock from "./blocks/AffiliateSignupBlock";
-import AffiliatePayoutMeterBlock from "./blocks/AffiliatePayoutMeterBlock";
-import AffiliateLeaderboardBlock from "./blocks/AffiliateLeaderboardBlock";
-import FormRenderBlock from "./blocks/FormRenderBlock";
-import CrmContactFormBlock from "./blocks/CrmContactFormBlock";
+const MembershipPaywallBlock = lazyBlock(() => import("./blocks/MembershipPaywallBlock"), "MembershipPaywallBlock");
+const MembershipSignupBlock = lazyBlock(() => import("./blocks/MembershipSignupBlock"), "MembershipSignupBlock");
+const MembershipTierGridBlock = lazyBlock(() => import("./blocks/MembershipTierGridBlock"), "MembershipTierGridBlock");
+const AffiliateSignupBlock = lazyBlock(() => import("./blocks/AffiliateSignupBlock"), "AffiliateSignupBlock");
+const AffiliatePayoutMeterBlock = lazyBlock(() => import("./blocks/AffiliatePayoutMeterBlock"), "AffiliatePayoutMeterBlock");
+const AffiliateLeaderboardBlock = lazyBlock(() => import("./blocks/AffiliateLeaderboardBlock"), "AffiliateLeaderboardBlock");
+const FormRenderBlock = lazyBlock(() => import("./blocks/FormRenderBlock"), "FormRenderBlock");
+const CrmContactFormBlock = lazyBlock(() => import("./blocks/CrmContactFormBlock"), "CrmContactFormBlock");
 
 // ─── Registry shape ────────────────────────────────────────────────────────
+//
+// THE SHAPES MOVED. `BlockRenderProps`, `PropField`, `PropFieldType` and
+// `BlockDefinition` are declared in `src/lib/elements/definition.ts` — the
+// element vocabulary shared by the website, the client portal and product
+// lifecycle stages (element engine, P1). They are re-exported here verbatim
+// because ~100 import sites read them from this path.
+//
+// What stays here is the *library*: the 70 website element definitions below
+// and their lazy loaders. `lazyBlock` stays with them for the reason its own
+// header gives — it is a hand-rolled `React.lazy` because `next/dynamic`
+// reaches `React.createContext`, which the react-server build of React does
+// not export.
+//
+// Adding a field to a definition means editing `src/lib/elements/definition.ts`,
+// not this block.
 
-export interface BlockRenderProps {
-  block: Block;
-  editorMode?: boolean;
-  renderChildren?: (children: Block[] | undefined) => React.ReactNode;
-}
-
-export type PropFieldType =
-  | "text" | "textarea" | "url" | "color" | "select" | "number" | "boolean" | "image" | "richtext";
-
-export interface PropField {
-  key: string;
-  label: string;
-  type: PropFieldType;
-  default?: unknown;
-  options?: Array<{ value: string; label: string }>;
-  placeholder?: string;
-  help?: string;
-}
-
-export interface BlockDefinition {
-  type: BlockType;
-  label: string;
-  icon: string;
-  iconNode?: ReactNode;
-  category: BlockCategory;
-  isContainer: boolean;
-  Component: ComponentType<BlockRenderProps>;
-  defaultProps: Record<string, unknown>;
-  defaultChildren?: Block[];
-  fields: PropField[];
-  requiresPlugin?: string;
-  requiresFeature?: string;
-}
+export type {
+  BlockDefinition,
+  BlockRenderProps,
+  PropField,
+  PropFieldType,
+} from "@/lib/elements/definition";
 
 // ─── Native block library ─────────────────────────────────────────────────
 
@@ -186,25 +193,27 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   divider: {
     type: "divider", label: "Divider", icon: "—", category: "layout", isContainer: false,
     Component: DividerBlock, defaultProps: { color: "rgba(255,255,255,0.1)" },
-    fields: [{ key: "color", label: "Colour", type: "color", default: "#1a1a1a" }],
+    fields: [{ key: "color", label: "Colour", type: "color", default: "rgba(255,255,255,0.1)" }],
   },
 
   // ── Content ────────────────────────────────────────────────────────────
   heading: {
     type: "heading", label: "Heading", icon: "H", category: "content", isContainer: false,
     Component: HeadingBlock, defaultProps: { text: "Your headline", level: 2 },
+    // `level` has no field row on purpose. It was a `select` whose options were
+    // the STRINGS "1".."6" while `defaultProps`, the `HeadingLevelPills` control
+    // in PropertiesPanel and every reader (`HeadingBlock`, `a11yAudit`) all use
+    // NUMBERS — so a heading held a number until somebody touched the dropdown,
+    // then held a string. Two controls for one prop, disagreeing on its type.
+    // The pills are the one that was always right; this row was the duplicate.
     fields: [
       { key: "text", label: "Text", type: "text", default: "Your headline" },
-      { key: "level", label: "Level", type: "select", default: 2, options: [
-        { value: "1", label: "H1" }, { value: "2", label: "H2" }, { value: "3", label: "H3" },
-        { value: "4", label: "H4" }, { value: "5", label: "H5" }, { value: "6", label: "H6" },
-      ] },
     ],
   },
   text: {
     type: "text", label: "Text", icon: "T", category: "content", isContainer: false,
     Component: TextBlock, defaultProps: { text: "Add your copy here. Click to edit." },
-    fields: [{ key: "text", label: "Text", type: "richtext", default: "Add your copy here." }],
+    fields: [{ key: "text", label: "Text", type: "richtext", default: "Add your copy here. Click to edit." }],
   },
   button: {
     type: "button", label: "Button", icon: "▶", category: "content", isContainer: false,
@@ -236,7 +245,7 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
     fields: [
       { key: "eyebrow", label: "Eyebrow", type: "text", default: "Welcome" },
       { key: "headline", label: "Headline", type: "text", default: "Build something beautiful" },
-      { key: "subhead", label: "Sub-headline", type: "textarea", default: "A short tagline." },
+      { key: "subhead", label: "Sub-headline", type: "textarea", default: "A short tagline that explains the value proposition." },
       { key: "ctaLabel", label: "CTA label", type: "text", default: "Get started" },
       { key: "ctaHref", label: "CTA URL", type: "url", default: "#" },
       { key: "backgroundImage", label: "Background image URL", type: "image", default: "" },
@@ -749,7 +758,7 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
     },
     fields: [
       { key: "headline", label: "Headline", type: "text", default: "Thanks for your order!" },
-      { key: "subhead", label: "Sub-headline", type: "textarea", default: "" },
+      { key: "subhead", label: "Sub-headline", type: "textarea", default: "We've sent a receipt to your email. Your order will ship soon." },
       { key: "ctaLabel", label: "CTA label", type: "text", default: "Continue shopping" },
       { key: "ctaHref", label: "CTA URL", type: "url", default: "/shop" },
     ],
@@ -890,7 +899,7 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   html: {
     type: "html", label: "Raw HTML", icon: "</>", category: "advanced", isContainer: false,
     Component: HtmlBlock, defaultProps: { html: "<p>Custom HTML here</p>" },
-    fields: [{ key: "html", label: "HTML", type: "textarea", default: "<p>Custom HTML</p>" }],
+    fields: [{ key: "html", label: "HTML", type: "textarea", default: "<p>Custom HTML here</p>" }],
   },
   "countdown-timer": {
     type: "countdown-timer", label: "Countdown timer", icon: "⏱", category: "advanced", isContainer: false,
@@ -955,18 +964,32 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
   },
 };
 
+// ─── Registration into the shared lookup ───────────────────────────────────
+//
+// P1. `src/lib/elements` owns the renderer and the tree operations now, and it
+// may not import a plugin — so the library pushes itself into the shared
+// lookup on import instead. `RENDERER_REGISTRATIONS` below registers second so
+// the external-plugin entries win, exactly as the object spread did.
+//
+// Every path that used to reach `BLOCK_REGISTRY` still imports this module, so
+// the population guarantee is the one it replaced. The selectors below read
+// the shared lookup rather than the literal, so a portal element registered in
+// a later phase is visible to the same palette.
+
+registerElementDefinitions(BLOCK_REGISTRY);
+
 // ─── Public selectors ──────────────────────────────────────────────────────
 
 export function getBlockDefinition(type: string): BlockDefinition | undefined {
-  return BLOCK_REGISTRY[type];
+  return getElementDefinition(type);
 }
 
 export function listBlockDefinitions(): BlockDefinition[] {
-  return Object.values(BLOCK_REGISTRY);
+  return listElementDefinitions();
 }
 
 export function listBlocksByCategory(category: BlockCategory): BlockDefinition[] {
-  return Object.values(BLOCK_REGISTRY).filter(d => d.category === category);
+  return listElementDefinitions().filter(d => d.category === category);
 }
 
 // ─── Plugin manifest derivative ────────────────────────────────────────────
@@ -997,15 +1020,13 @@ export function getBlockDescriptor(type: string): BlockDescriptor | undefined {
 // Existing callers (smoke test, manifest derivation) imported these names
 // from blockRegistry. Keep them as re-exports so imports don't break.
 
-export interface BlockComponentProps {
-  block: Block;
-  editorMode?: boolean;
-  renderChildren?: (children: Block[] | undefined) => React.ReactNode;
-}
+// The Round-1 name for `BlockRenderProps`. Same type — an alias, not a second
+// declaration, so `context` (P2) is on both.
+export type BlockComponentProps = BlockRenderProps;
 
 export interface BlockRegistryEntry {
   descriptor: BlockDescriptor;
-  component: ComponentType<BlockRenderProps>;
+  component: BlockComponentType;
 }
 
 export function getBlockEntry(type: string): BlockRegistryEntry | undefined {
@@ -1038,7 +1059,7 @@ export function getBlockEntry(type: string): BlockRegistryEntry | undefined {
 // `requiresPlugin` set has a matching renderer here. Missing renderers
 // log a clear warning so the operator notices in dev.
 
-export type BlockComponentType = ComponentType<BlockRenderProps>;
+export type { BlockComponentType } from "@/lib/elements/definition";
 
 const NATIVE_RENDERERS: Record<string, BlockComponentType> = Object.fromEntries(
   Object.entries(BLOCK_REGISTRY).map(([type, def]) => [type, def.Component]),
@@ -1074,8 +1095,13 @@ export const RENDERER_REGISTRATIONS: Record<string, BlockComponentType> = {
   "crm-contact-form":         CrmContactFormBlock,
 };
 
+// External-plugin renderers register after the natives, so a plugin that
+// contributes a renderer for a type this library also declares wins — which is
+// what the `...NATIVE_RENDERERS` spread above already meant.
+registerElementRenderers(RENDERER_REGISTRATIONS);
+
 export function getBlockRenderer(type: string): BlockComponentType | undefined {
-  return RENDERER_REGISTRATIONS[type];
+  return getElementRenderer(type);
 }
 
 // Minimal AquaPlugin shape used by the registration helper. Importing

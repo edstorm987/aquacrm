@@ -32,6 +32,19 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Per-process build dir. Two dev servers sharing one `.next` fight over the
+  // same compiler output and lock files (that's what left a stale folder-lock
+  // and wedged :3032 before). `NEXT_DIST_DIR` gives a parallel worker its own
+  // build output; unset → the normal `.next`, so nothing existing changes.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+  experimental: {
+    // Rewrite named imports from these barrels into direct per-module imports
+    // so a page that uses six icons doesn't pull the whole library into its
+    // chunk. `lucide-react` is imported by nearly every surface here (the
+    // command centre alone names ~40 icons), so this trims every route.
+    // Behaviour is identical — it only changes how the import is resolved.
+    optimizePackageImports: ["lucide-react"],
+  },
   // Anchor Turbopack + output-file tracing at this app root for Vercel.
   outputFileTracingRoot: new URL(".", import.meta.url).pathname,
   turbopack: {

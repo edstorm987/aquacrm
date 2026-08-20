@@ -125,7 +125,9 @@ export async function handlePublishPage(req: Request, ctx: PluginCtx): Promise<R
   if (!scope.ok) return scope.res;
   const body = await readJsonBody<{ siteId?: string; pageId?: string }>(req);
   if (!body?.siteId || !body?.pageId) return fail("siteId, pageId required", 400);
-  const page = await publishPage(ctx.storage, scope.agencyId, scope.clientId, body.siteId, body.pageId);
+  const page = await publishPage(ctx.storage, scope.agencyId, scope.clientId, body.siteId, body.pageId, {
+    publicMedia: ctx.services.publicMedia,
+  });
   if (!page) return fail("page not found", 404);
   return ok({ page });
 }

@@ -49,6 +49,7 @@ export interface CreateInvoiceInput {
   taxCents?: number;
   currency?: Currency;
   notes?: string;
+  idempotencyKey?: string;    // one-time key per submit intent; see lib/idempotency.ts
 }
 
 export interface UpdateInvoicePatch {
@@ -151,6 +152,7 @@ export interface CreateExpenseInput {
   recurringActive?: boolean;
   recordAsPaid?: boolean;
   customFields?: Record<string, string | string[] | boolean>;
+  idempotencyKey?: string;    // one-time key per submit intent; see lib/idempotency.ts
 }
 
 export interface UpdateExpensePatch {
@@ -425,6 +427,7 @@ export interface CreateCompensationPaymentInput {
   paidAt?: number;
   reference?: string;
   notes?: string;
+  idempotencyKey?: string;    // one-time key per submit intent; see lib/idempotency.ts
 }
 
 export interface UpdateCompensationPaymentPatch extends Partial<Omit<CreateCompensationPaymentInput, "profileId" | "budgetPotId" | "paidAt">> {
@@ -497,6 +500,10 @@ export interface CreatePaymentInput {
   paidAt?: number;            // defaults to now()
   notes?: string;
   externalRef?: string;
+  // One-time key per submit intent. A resubmit under the same key is deduped
+  // (returns the first payment). A genuine second/partial payment uses a new
+  // key and is recorded normally. See lib/idempotency.ts.
+  idempotencyKey?: string;
 }
 
 export interface IncomeEntry {
@@ -528,6 +535,7 @@ export interface CreateIncomeEntryInput {
   receivedAt?: number;
   reference?: string;
   notes?: string;
+  idempotencyKey?: string;    // one-time key per submit intent; see lib/idempotency.ts
 }
 
 export interface IncomeEntryFilter {
@@ -566,6 +574,7 @@ export interface CreatePlanInput {
   lockInMonths?: number;
   lockInFeeCents?: number;
   active?: boolean;
+  idempotencyKey?: string;    // one-time key per submit intent; see lib/idempotency.ts
 }
 
 export interface UpdatePlanPatch {

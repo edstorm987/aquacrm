@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth";
 import { AGENCY_ROLES, type AgencyProduct, type Client, type ClientMilestone } from "@/server/types";
 import { ensureDefaultAgencyProducts, listAgencyProducts } from "@/server/agencyProducts";
@@ -18,7 +19,10 @@ import { listTradingCompanies } from "@/server/tradingCompanies";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { formatUkDate } from "@/lib/formatDateTime";
 import { clientRelationshipId } from "@/server/clientRelationships";
+import { ensureAgencyMasterSiteKey, masterTagSnippet } from "@/server/websiteSources";
+import { connectionLinkOrigin } from "@/lib/server/portalConnections";
 import DevelopmentPage from "../development/page";
+import { AquaTagsWorkspace } from "./_AquaTagsWorkspace";
 import {
   FulfilmentWorkspace,
   type FulfilmentAttentionItem,
@@ -37,7 +41,7 @@ interface SearchParams {
   status?: string;
 }
 
-const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "clients", "portals"];
+const VALID_VIEWS: readonly FulfilmentView[] = ["overview", "stages", "services", "technical", "clients", "portals", "tags"];
 
 export default async function FulfilmentPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await ensureHydrated();
@@ -72,6 +76,16 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   const { portals, products: portalProducts } = portalWorkspaceData(agencyId, session.userId);
   const settings = getAgencyWorkspaceSettings(agencyId);
 
+  // The Aqua Tags control tower lives here as a Fulfilment view — technical
+  // delivery owns setting up a site's tag, tracking and routing. Built only when
+  // shown, mirroring `technical` below; the master key is generate-once.
+  let tagsWorkspace: ReactNode;
+  if (view === "tags") {
+    const tagKey = ensureAgencyMasterSiteKey(agencyId);
+    await flushPendingWrites();
+    tagsWorkspace = <AquaTagsWorkspace snippet={masterTagSnippet(connectionLinkOrigin(), tagKey)} siteKey={tagKey} />;
+  }
+
   return <FulfilmentWorkspace
     view={view}
     products={productRecords}
@@ -95,6 +109,7 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
         status: requested.status,
       })} />
     ) : undefined}
+    tagsWorkspace={tagsWorkspace}
     canManage={session.role === "agency-owner" || session.role === "agency-manager"}
   />;
 }

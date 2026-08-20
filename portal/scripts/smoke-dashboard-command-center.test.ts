@@ -395,7 +395,10 @@ describe("dashboard command centre surface", () => {
     assert.doesNotMatch(stationNav, /Radar workspace/);
     assert.doesNotMatch(stationNav, /Omega Dashboard/);
     assert.doesNotMatch(stationNav, /label="Calendar"/);
-    assert.match(stationNav, /sm:grid-cols-3/);
+    // Three permanent stations, widening to four only when the founder-gated Dev
+    // Team station is shown. Non-founders must keep the exact three-column nav.
+    assert.match(stationNav, /showDevTeam \? "sm:grid-cols-4" : "sm:grid-cols-3"/);
+    assert.match(stationNav, /\{showDevTeam \? <StationButton[^\n]*label="Dev Console"/);
     assert.match(stationNav, /activeMode: CommandStationMode/);
     assert.match(stationNav, /onSelect: \(mode: CommandStationMode\) => void/);
     assert.match(stationNav, /aria-pressed=\{active\}/);

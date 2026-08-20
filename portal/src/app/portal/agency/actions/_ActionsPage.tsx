@@ -5,6 +5,9 @@ import { listExternalAssistantActionProposals } from "@/lib/server/externalAssis
 import { requireRole } from "@/lib/server/auth";
 import { isAssistantConfigured } from "@/lib/server/openaiAssistant";
 import { listOperationalAlerts } from "@/lib/server/operationalAlerts";
+import { listOperationalAlertViews } from "@/lib/server/operationalAlertPreferences";
+import { withResolutionContext } from "@/lib/inbox/resolutionContext";
+import { inferResolutionFocus } from "@/lib/inbox/resolutionFocus";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
@@ -38,10 +41,17 @@ export async function AgencyActionsPage({
   const initialTasks = listAgencyTasks(session.agencyId);
   const calendarIntegration = getCommandCalendarIntegrationSnapshot(session.agencyId, session.userId);
   const acceptedSourceIds = new Set(initialTasks.filter(task => task.status !== "done").map(task => task.sourceId).filter((id): id is string => Boolean(id)));
-  const [businessRadar, operationalAlerts] = await Promise.all([
+  const [businessRadar, liveAlerts] = await Promise.all([
     getCachedBusinessIssueRadar(session.agencyId),
     listOperationalAlerts(session.agencyId, now),
   ]);
+  // Read through the same preferences Master Inbox uses, rather than the raw
+  // list. On the raw list, parking or dismissing an item here held only until
+  // the next refresh — the alert came straight back, while the inbox had it
+  // hidden. Two views of one queue disagreeing is worse than either alone.
+  // This also carries the deferral count, so work put off repeatedly says so.
+  const operationalAlerts = listOperationalAlertViews(session.agencyId, session.userId, liveAlerts, now)
+    .filter(alert => alert.state !== "parked");
   const actions: GeneratedAction[] = [];
   const calendarEvents: GeneratedAction[] = [];
   const leadsInstall = getInstall({ agencyId: session.agencyId }, "leads-pipeline");
@@ -99,17 +109,68 @@ export async function AgencyActionsPage({
     new Date(`${plan.date}T12:00:00`).getTime(),
   )));
 
+  const commandRecommendations = buildBusinessRecommendedActions({
+    radar: businessRadar,
+    alerts: operationalAlerts,
+    existingTaskTitles: initialTasks.filter(task => task.status !== "done").map(task => task.title),
+    now,
+    limit: 5,
+  }).filter(recommendation => !acceptedSourceIds.has(recommendation.id));
+
+  // ── Needs-attention alerts as first-class actions ──────────────────────
+  //
+  // These already reached this page, but only through
+  // buildBusinessRecommendedActions, which drops every `notice` alert and caps
+  // the result at five. That silently hid the bulk of the inbox from Actions —
+  // including the classify-enquiry and company-membership questions, which are
+  // `notice` by design and so could never appear.
+  //
+  // They enter the same queue as every other generated action, so they are
+  // still approval-gated rather than becoming committed tasks on sight, and
+  // they keep the resolution context already stamped on their href.
+  const recommendedAlertIds = new Set(
+    commandRecommendations.flatMap(recommendation => recommendation.sourceAlertIds ?? []),
+  );
+  for (const alert of operationalAlerts) {
+    // Skip anything already surfaced as a recommendation or already accepted
+    // as a task — the same job must not appear twice in one queue.
+    if (recommendedAlertIds.has(alert.id)) continue;
+    if (acceptedSourceIds.has(`attention:${alert.id}`)) continue;
+    actions.push({
+      ...signal(
+        `attention:${alert.id}`,
+        alert.title,
+        alert.detail,
+        alert.href,
+        "Needs attention",
+        alert.severity === "critical" ? "urgent" : alert.severity === "warning" ? "high" : "normal",
+        alert.occurredAt,
+        alert.clientId,
+      ),
+      origin: "inbox",
+      // Carried from the alert rather than re-derived: the check already said
+      // what kind of job this is.
+      resolutionKind: alert.kind,
+      deferrals: alert.deferrals,
+      firstDeferredAt: alert.firstDeferredAt,
+      // Evidence lands on the record itself. The trailing segment of an alert
+      // id is the record that tripped it (`task:task_abc`,
+      // `invoice:cli_1:INV-9`), so annotated rows get an exact hit and pages
+      // without annotation fall back to the focus section rather than
+      // breaking.
+      evidenceHref: withResolutionContext(alert.href, {
+        alertId: alert.id,
+        focus: inferResolutionFocus(alert.id),
+        record: alert.id.split(":").pop(),
+      }),
+    });
+  }
+
   return <ActionsWorkspace
     initialTasks={initialTasks}
     initialExternalProposals={listExternalAssistantActionProposals(session.agencyId)}
     generatedActions={actions.filter(action => !acceptedSourceIds.has(action.id)).sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER))}
-    commandRecommendations={buildBusinessRecommendedActions({
-      radar: businessRadar,
-      alerts: operationalAlerts,
-      existingTaskTitles: initialTasks.filter(task => task.status !== "done").map(task => task.title),
-      now,
-      limit: 5,
-    }).filter(recommendation => !acceptedSourceIds.has(recommendation.id))}
+    commandRecommendations={commandRecommendations}
     recommendationsGeneratedAt={businessRadar.generatedAt}
     advisorConfigured={isAssistantConfigured(session.agencyId)}
     team={team}

@@ -162,10 +162,17 @@ export interface AquaPlugin {
   icon?: ReactNode;
   core?: boolean;
   scopePolicy?: ScopePolicy;
+  // Erasure disposition — "retain" excludes this plugin's client data from the
+  // client-erasure sweep (legal hold). Default "delete". See clientErasure.ts.
+  dataDisposition?: "delete" | "retain";
   requires?: string[];
   conflicts?: string[];
   onInstall?: (ctx: PluginCtx, setupAnswers: Record<string, string>) => Promise<void>;
   onUninstall?: (ctx: PluginCtx) => Promise<void>;
+  // Right-to-be-forgotten. Strips the subject's PII from this plugin's records
+  // while keeping the de-identified financial shell (legal hold). Takes
+  // precedence over `dataDisposition`. See clientErasure.ts.
+  onEraseClient?: (ctx: PluginCtx, clientId: string) => Promise<void>;
   onEnable?: (ctx: PluginCtx) => Promise<void>;
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;

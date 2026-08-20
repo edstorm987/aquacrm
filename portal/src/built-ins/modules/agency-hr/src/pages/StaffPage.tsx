@@ -1,38 +1,45 @@
-// Server-rendered Staff page. Mounted at `/portal/agency/agency-hr` and
-// `/portal/agency/agency-hr/staff` via the manifest. Reads the directory
-// + departments through the per-request container, then hands a flat
-// payload to the client `StaffList`.
+// Retired surface. This page used to render a second agency staff directory at
+// `/portal/agency/agency-hr` and `/portal/agency/agency-hr/staff`, duplicating
+// the core one at `/portal/agency/people`. Finance already treats `people.ts`
+// as canonical (agency-hr rows arrive as `legacyStaff`, merged and deduped by
+// email), so the plugin copy could only ever drift stale — an operator adding
+// someone in one directory could not find them in the other.
+//
+// P5 (2026-08-20) retires it. The manifest still maps both paths here so old
+// bookmarks resolve rather than 404, and this component sends them on to the
+// canonical directory. The agency-hr catch-all redirects first in practice;
+// this is the second layer, and it is what keeps the behaviour true even if the
+// route wiring changes. `ErrorBoundary` deliberately re-throws NEXT_REDIRECT,
+// so the redirect is not swallowed by the plugin page wrapper.
+//
+// Departments / Leave / Employees / Roles / Settings are untouched — they have
+// no core equivalent and remain the plugin's reason to exist.
 
+import { redirect } from "next/navigation";
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
-import { containerFor } from "../server/foundationAdapter";
-import { StaffList } from "../components/StaffList";
 
 export const API_BASE = "/api/portal/agency-hr";
 
+// The one canonical staff directory.
+export const CANONICAL_STAFF_HREF = "/portal/agency/people";
+
+// Preserve the query string across the redirect — dropping `?dept=…&status=…`
+// would silently discard whatever the operator was filtering by.
+export function canonicalStaffHref(
+  searchParams?: Record<string, string | string[] | undefined>,
+): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams ?? {})) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) for (const entry of value) query.append(key, entry);
+    else query.append(key, value);
+  }
+  const suffix = query.toString();
+  return suffix ? `${CANONICAL_STAFF_HREF}?${suffix}` : CANONICAL_STAFF_HREF;
+}
+
+// `redirect()` returns `never`; returning it keeps this a valid plugin page
+// component (a component may not resolve to `void`).
 export default async function StaffPage(props: PluginPageProps) {
-  const { staff, departments } = containerFor({
-    agencyId: props.agencyId,
-    storage: props.storage,
-  });
-
-  const [list, depts] = await Promise.all([
-    staff.list(),
-    departments.list(),
-  ]);
-
-  // Only agency-owner / agency-manager can mutate the directory.
-  // agency-staff sees the read-only view.
-  const canMutate = props.install.config.canStaffEdit
-    ? true
-    : ["agency-owner", "agency-manager"].includes(
-        // PluginPageProps doesn't carry the role directly — the foundation's
-        // catch-all wrapper sets `actor` (the userId) but role gating happens
-        // at the manifest level via `visibleToRoles`. Here we err on the
-        // permissive side for agency admins; a stricter check would fetch
-        // the user record. Foundation can override via `install.config.canStaffEdit`.
-        // Defaulting to true so the v1 admin UI is functional.
-        "agency-owner",
-      );
-
-  return <StaffList staff={list} departments={depts} apiBase={API_BASE} canMutate={canMutate} />;
+  return redirect(canonicalStaffHref(props.searchParams));
 }

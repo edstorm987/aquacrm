@@ -15,6 +15,22 @@ export type PortalProductKey =
 
 export type PortalProductMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
+/**
+ * The four phases of a portal journey, named once so every screen agrees.
+ *
+ * These used to be spelled differently in five places ("In progress" /
+ * "Designing", "Review & delivery" / "Review & launch", "Live care"…). One
+ * map, imported everywhere, so the standard Website journey reads the same
+ * whether Ed is looking at the portal tab, the product editor, or the studio:
+ * Onboarding → Design → Develop → Published.
+ */
+export const PORTAL_PHASE_LABELS: Record<PortalProductMode, string> = {
+  onboarding: "Onboarding",
+  designing: "Design",
+  "developed-launch": "Develop",
+  maintenance: "Published",
+};
+
 export interface PortalProductSelection {
   id: string;
   catalogKey?: PortalProductKey;

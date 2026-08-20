@@ -378,6 +378,9 @@ export interface LeadJourneyEvent {
 export interface Lead {
   id: string;
   agencyId: AgencyId;
+  // The canonical human this lead belongs to. Set by the foundation Person
+  // layer; the lead survives reclassification rather than being deleted.
+  personId?: string;
   clientId?: ClientId;             // never set in v1 (agency-scope)
   companyId?: string;              // primary trading company for fulfilment
   companyIds?: string[];           // complete cross-brand relationship history
@@ -523,6 +526,8 @@ export type ContactType = "lead" | "customer" | "account" | "vendor" | "employee
 export interface Contact {
   id: string;
   agencyId: AgencyId;
+  // The canonical human this contact belongs to. See `Lead.personId`.
+  personId?: string;
   clientId?: ClientId;
   email: string;                   // canonical
   name?: string;

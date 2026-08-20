@@ -23,6 +23,7 @@ interface Body {
   planIncludes?: unknown;
   billingCadence?: unknown;
   welcomeNote?: unknown;
+  welcomeVideoUrl?: unknown;
   supportEmail?: unknown;
   supportPhone?: unknown;
   supportWhatsappUrl?: unknown;
@@ -129,6 +130,9 @@ export async function POST(req: NextRequest) {
   const portalPlanIncludes = cleanPlanIncludes(body.planIncludes);
   const portalBillingCadence = cleanBillingCadence(body.billingCadence);
   const portalWelcomeNote = cleanText(body.welcomeNote, 900);
+  // The welcome video shown on the customer's setup screen. A URL, validated
+  // like the other links — an embed address from YouTube, Vimeo or Loom.
+  const portalWelcomeVideoUrl = cleanSupportUrl(body.welcomeVideoUrl);
   const portalSupportEmail = cleanEmail(body.supportEmail);
   const portalSupportPhone = cleanText(body.supportPhone, 60);
   const portalSupportWhatsappUrl = cleanSupportUrl(body.supportWhatsappUrl);
@@ -182,6 +186,7 @@ export async function POST(req: NextRequest) {
       portalPlanIncludes,
       portalBillingCadence,
       portalWelcomeNote,
+      portalWelcomeVideoUrl,
       portalSupportEmail,
       portalSupportPhone,
       portalSupportWhatsappUrl,
@@ -234,7 +239,11 @@ export async function POST(req: NextRequest) {
   const { token } = signMagicToken({ email: portalLoginEmail, clientId: client.id, agencyId });
   const magicUrl = new URL("/login/magic", req.nextUrl.origin);
   magicUrl.searchParams.set("token", token);
-  magicUrl.searchParams.set("return", "/portal/customer");
+  // Setup rather than the portal itself. A first-timer has no password yet,
+  // and the portal would send them straight back here anyway — landing them on
+  // the welcome makes that deliberate instead of a bounce. Anybody who has
+  // already been through it is passed on to the portal by `/setup`.
+  magicUrl.searchParams.set("return", "/setup");
 
   const result = await deliverMagicLink({
     email: portalLoginEmail,

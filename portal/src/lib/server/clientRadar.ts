@@ -9,6 +9,7 @@ import { cleanClientRequests } from "@/lib/clientRequests";
 import { clientServiceCapabilities, inheritedClientServiceKeys } from "@/lib/clientServiceWorkspace";
 import type { ClientRadarSnapshot } from "@/lib/businessRadar";
 import type { ClientContract } from "@/lib/clientContracts";
+import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
 import { resolvePortalProductAssignment } from "@/lib/productAssignments";
 import { portalWorkspaceProgress } from "@/lib/portalProductWorkspaces";
 import type { RadarTelemetrySnapshot } from "@/lib/server/radarTelemetry";
@@ -93,6 +94,7 @@ export async function buildClientRadarFleet(
         requestsObserved: Array.isArray(metadata.clientRequests),
         requests,
         contracts,
+        telemetryEvents: Array.isArray(metadata.telemetryEvents) ? metadata.telemetryEvents as ClientTelemetryEvent[] : undefined,
       }),
       products: assignments.map(assignment => {
         const configured = productById.get(assignment.id);

@@ -71,18 +71,19 @@ test("customer profiles preserve company-scoped demographic and buying intellige
   assert.equal(((await empty.json()) as { profiles: unknown[] }).profiles.length, 0);
 });
 
-test("Marketing opens as a dashboard before exposing configuration tools", () => {
+test("Marketing opens on Pulse before exposing configuration tools", () => {
   const page = readFileSync("src/app/portal/agency/marketing/page.tsx", "utf8");
   const workspace = readFileSync("src/app/portal/agency/marketing/_CustomerProfilesWorkspace.tsx", "utf8");
   const routes = readFileSync("src/built-ins/modules/agency-marketing/src/api/routes.ts", "utf8");
   const campaigns = readFileSync("src/app/portal/agency/leads-pipeline/campaigns/_CampaignsWorkspace.tsx", "utf8");
   const campaignService = readFileSync("src/built-ins/modules/leads-pipeline/src/server/campaigns.ts", "utf8");
 
-  assert.match(page, /if \(view === "overview"\)/);
-  assert.match(page, /Open marketing workspace/);
-  assert.match(page, /Back to dashboard/);
+  // P6: the overview tab was retired into Pulse, which now opens the workspace.
+  assert.ok(!/view === "overview"/.test(page), "there is no overview view left to route");
+  assert.match(page, /view === "pulse"/);
+  assert.match(page, /<MarketingAtAGlance/, "the overview counts survive as a strip on Pulse");
   assert.match(page, /Customer profiles/);
-  assert.match(page, /MarketingOverviewDashboard/);
+  assert.match(page, /view === "customers" \?/, "customer profiles live on the Customers tab");
   assert.match(workspace, /Demographics/);
   assert.match(workspace, /Business and decision profile/);
   assert.match(workspace, /Needs and buying behaviour/);

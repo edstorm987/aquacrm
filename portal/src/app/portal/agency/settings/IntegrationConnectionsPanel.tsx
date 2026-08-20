@@ -11,6 +11,7 @@ import {
   KeyRound,
   Mail,
   MessageSquareText,
+  MessagesSquare,
   Pencil,
   Plus,
   RefreshCw,
@@ -54,6 +55,7 @@ const providerIcon: Record<IntegrationProvider, typeof Mail> = {
   resend: Mail,
   smtp: Server,
   twilio: MessageSquareText,
+  meta: MessagesSquare,
   stripe: CreditCard,
   github: Code2,
   vercel: Cloud,
@@ -140,6 +142,24 @@ export function IntegrationConnectionsPanel({ clients, canManage, initialProvide
       ) : null}
 
       {notice ? <p role="status" className="rounded-md border border-black/10 bg-black/[0.03] px-3 py-2 text-xs leading-5 text-black/60">{notice}</p> : null}
+
+      {!loading && vaultAvailable && !connections.some(connection => connection.provider === "resend" || connection.provider === "smtp") ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-emerald-900/20 bg-emerald-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Mail className="mt-0.5 shrink-0 text-emerald-700" size={18} />
+            <div>
+              <p className="text-sm font-semibold text-black/80">Start here — connect an email sender</p>
+              <p className="mt-1 text-xs leading-5 text-black/55">A verified email sender is what lets you reply to website enquiries and send customers their login codes. Connect Resend (quickest) or your own SMTP mailbox.</p>
+            </div>
+          </div>
+          {canManage ? (
+            <div className="flex shrink-0 gap-2">
+              <button onClick={() => setModal({ provider: "resend" })} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/80"><Plus size={14} /> Connect Resend</button>
+              <button onClick={() => setModal({ provider: "smtp" })} className="inline-flex min-h-9 items-center rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/65 hover:border-black/30">Use SMTP</button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
         {visibleCatalog.map(definition => (

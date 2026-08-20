@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertTriangle, Clock3, Eye, Map, Radar, RadioTower, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Clock3, Eye, Hammer, Map, Radar, RadioTower, ShieldCheck } from "lucide-react";
 
-export type CommandStationMode = "executive" | "day" | "battle";
+export type CommandStationMode = "executive" | "day" | "battle" | "devteam";
 export type CommandStationAttention = {
   count: number;
   tone: "critical" | "warning" | "info" | "clear";
@@ -15,12 +15,15 @@ export function CommandStationNav({
   attentionProtection,
   onAttentionProtectionChange,
   onSelect,
+  showDevTeam = false,
 }: {
   attention: Record<CommandStationMode, CommandStationAttention>;
   activeMode: CommandStationMode;
   attentionProtection: boolean;
   onAttentionProtectionChange: (enabled: boolean) => void;
   onSelect: (mode: CommandStationMode) => void;
+  /** Dev Team is founder + Dev Mode only. Gated server-side; false hides the station entirely. */
+  showDevTeam?: boolean;
 }) {
   const radarAttention = attention.executive;
   const radarAlarm = radarAttention.tone === "critical" || radarAttention.tone === "warning";
@@ -49,10 +52,11 @@ export function CommandStationNav({
         </span>
       </span>
     </div>
-    <nav className="relative grid grid-cols-1 bg-[#041119]/96 sm:grid-cols-3" aria-label="Executive command controls">
+    <nav className={`relative grid grid-cols-1 bg-[#041119]/96 ${showDevTeam ? "sm:grid-cols-4" : "sm:grid-cols-3"}`} aria-label="Executive command controls">
       <StationButton active={activeMode === "day"} attention={attention.day} tone="gold" onClick={() => onSelect("day")} icon={<Clock3 size={18} />} label="Day command" detail="Clock in, plan today and record progress" />
       <StationButton active={activeMode === "executive"} attention={attention.executive} onClick={() => onSelect("executive")} icon={<Radar size={18} />} label="Command Centre" detail={`${attention.executive.count} alerts · unified executive watch`} />
       <StationButton active={activeMode === "battle"} attention={attention.battle} tone="gold" onClick={() => onSelect("battle")} icon={<Map size={18} />} label="Battle Table" detail="Strategy, projections, targets and executive decisions" />
+      {showDevTeam ? <StationButton active={activeMode === "devteam"} attention={attention.devteam} tone="aqua" onClick={() => onSelect("devteam")} icon={<Hammer size={18} />} label="Dev Console" detail="Findings, queues, workers and the library" /> : null}
     </nav>
   </div>;
 }

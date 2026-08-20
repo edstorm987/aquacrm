@@ -91,6 +91,63 @@ export function updateTradingCompany(
   return updated;
 }
 
+/**
+ * Tombstone a brand that has been promoted into its own agency.
+ *
+ * The brand record STAYS here, in the origin tenant, carrying the id of the
+ * agency it became. That is deliberate and does three jobs:
+ *
+ *   • it makes promotion IDEMPOTENT — a second POST finds the tombstone,
+ *     creates nothing and returns the agency that already exists;
+ *   • it makes promotion RESUMABLE — later phases move records into the agency
+ *     this one created, and they need to know which agency that is;
+ *   • it keeps the origin agency's own history able to explain where a brand
+ *     went, which a deleted record could not.
+ *
+ * Idempotent itself: an already-tombstoned company is returned unchanged, so
+ * the first promotion's `promotedAt` is never overwritten by a later call.
+ * Returns `null` when the company does not belong to this agency — the caller
+ * must not distinguish that from "does not exist".
+ */
+export function markTradingCompanyPromoted(
+  agencyId: string,
+  companyId: string,
+  promotedAgencyId: string,
+  actorUserId: string,
+): TradingCompany | null {
+  const existing = getTradingCompany(agencyId, companyId);
+  if (!existing) return null;
+  if (existing.promotedAgencyId) return existing;
+  const now = Date.now();
+  const updated: TradingCompany = {
+    ...existing,
+    promotedAgencyId,
+    promotedAt: now,
+    updatedAt: now,
+  };
+  mutate(state => { state.tradingCompanies[companyId] = updated; });
+  logActivity({
+    agencyId,
+    actorUserId,
+    category: "settings",
+    action: "trading_company.promoted",
+    message: `Promoted trading company \u201C${updated.name}\u201D into its own agency.`,
+    metadata: { companyId, promotedAgencyId },
+  });
+  return updated;
+}
+
+/**
+ * Has this brand already become its own agency? Phase 3 promotes nothing, so
+ * the brand deliberately stays visible in the origin agency's portfolio — a
+ * tombstoned company whose records have not moved yet must not vanish from the
+ * list that still owns them. Callers use this to badge it, and to refuse a
+ * second promotion.
+ */
+export function isTradingCompanyPromoted(agencyId: string, companyId: string): boolean {
+  return Boolean(getTradingCompany(agencyId, companyId)?.promotedAgencyId);
+}
+
 export function recordBelongsToCompany(companyIds: string[] | undefined, activeCompanyId: string | null): boolean {
   if (!activeCompanyId) return true;
   return !companyIds?.length || companyIds.includes(activeCompanyId);

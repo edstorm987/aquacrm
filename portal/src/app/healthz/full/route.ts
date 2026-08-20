@@ -21,48 +21,18 @@
 import { NextResponse } from "next/server";
 import { ensureHydrated, getState } from "@/server/storage";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
+import { databaseStorageHealth, primaryDbProbeStatus } from "@/lib/server/databaseStorageHealth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const BOOT_AT = Date.now();
 
-interface ProbeResult {
-  ok: boolean;
-  db: "connected" | "down" | "untested";
-  error?: string;
-}
-
-async function probeDb(): Promise<ProbeResult> {
-  const explicit = (process.env.PORTAL_BACKEND ?? "").toLowerCase();
-  const wantsPostgres = explicit === "postgres" || (!explicit && !!process.env.DATABASE_URL);
-  const wantsSupabase = explicit === "supabase" || (
-    !explicit
-    && !process.env.DATABASE_URL
-    && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)
-    && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
-  );
-  try {
-    if (wantsPostgres) {
-      const { getPool } = await import("@/server/storagePostgres");
-      const pool = getPool();
-      await pool.query("SELECT 1");
-      return { ok: true, db: "connected" };
-    }
-    if (wantsSupabase) {
-      const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-      const { error } = await createSupabaseAdminClient().from("app_datastores").select("app_key").limit(1);
-      if (error) throw error;
-      return { ok: true, db: "connected" };
-    }
-    return { ok: true, db: "untested" };
-  } catch (e) {
-    return {
-      ok: false,
-      db: "down",
-      error: e instanceof Error ? e.message : String(e),
-    };
-  }
+// Deep DB probe is the promoted, shared `databaseStorageHealth()` (radar upgrade
+// Stage 4) — the same probe Radar's Infra sweep uses. `primaryDbProbeStatus`
+// projects it back to this route's original `{ ok, db, error }` shape.
+async function probeDb(): Promise<{ ok: boolean; db: "connected" | "down" | "untested"; error?: string }> {
+  return primaryDbProbeStatus(await databaseStorageHealth());
 }
 
 export async function GET(): Promise<NextResponse> {

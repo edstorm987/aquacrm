@@ -5,6 +5,7 @@
 
 import type {
   AquaPlugin,
+  ErasureSubject,
   HealthStatus,
   PluginCtx,
 } from "./src/lib/aquaPluginTypes";
@@ -149,6 +150,28 @@ const manifest: AquaPlugin = {
       { name: fromName, email: fromEmail, isDefault: true },
       ctx.actor,
     );
+  },
+
+  // Right-to-be-forgotten. Raw comms → DELETE (the disposition policy's clearest
+  // delete category — the same treatment the live `inbox_*` scrub applies).
+  //
+  // Why this hook has to exist: `EmailMessage.clientId` is optional, and the
+  // path that matters most does NOT set it — a leads-pipeline campaign blast
+  // goes to a LEAD, who may only become a client later. So the generic
+  // clientId value-scan finds nothing, and the recipient's address survives
+  // erasure in `to[]`, in `idempotencyKey`/`externalRef`, and in the
+  // `email/idem/<key>` STORAGE KEY NAME (which no value-scan can reach).
+  // We match on the erased client's own addresses, and on `clientId` for the
+  // messages that do carry it.
+  //
+  // Idempotent — a second run matches nothing.
+  onEraseClient: async (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => {
+    const c = _containerFromCtx({
+      agencyId: ctx.agencyId,
+      storage: ctx.storage,
+    });
+    if (!c) return; // foundation not registered — nothing to erase
+    await c.emails.eraseForAddresses(subject?.emails ?? [], clientId);
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {

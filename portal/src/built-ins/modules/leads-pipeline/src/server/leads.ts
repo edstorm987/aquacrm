@@ -45,8 +45,13 @@ function canonPhone(raw: string): string {
   return `${trimmed.startsWith("+") ? "+" : ""}${digits}`;
 }
 
-function leadLabel(lead: Pick<Lead, "email" | "phone" | "name" | "id">): string {
-  return lead.email || lead.phone || lead.name || lead.id;
+// Activity messages name a lead by **id**, never by email/phone/name. This
+// install is agency-scoped, so its entries carry no `clientId`; `clientErasure`
+// sweeps `state.activity` by `clientId` only, so PII in a message would survive
+// a client erasure forever. Every entry's metadata carries `leadId`, which is
+// what a reader (or the UI) resolves a display label from.
+function leadLabel(lead: Pick<Lead, "id">): string {
+  return lead.id;
 }
 
 function enquiryIdFrom(value: Pick<Lead, "customFields"> | CreateLeadInput): string | undefined {
@@ -504,6 +509,55 @@ export class LeadService {
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.lead.archived", { leadId: id });
     return true;
+  }
+
+  // Right-to-be-forgotten: strip a lead's identity, keep the de-identified
+  // funnel record. Called by the plugin's `onEraseClient` hook for the lead(s)
+  // that converted into the erased client.
+  //
+  // ANONYMISE, not delete — the erasure disposition policy (see
+  // docs/development/plans/plugin-data-erasure.md) assigns relationship /
+  // lifecycle facts to anonymise: drop who they WERE, keep what they DID
+  // (source, timing, stage, journey), the same treatment the live
+  // `brand_enquiries` scrub applies. The email/phone POINTER KEYS hold PII in
+  // the key NAME, so they are deleted outright — a value-scan can never reach
+  // those. `convertedClientId` is kept: with the client record itself deleted
+  // it is a random token, exactly as retained finance records keep theirs, and
+  // it is what makes this hook re-runnable (the contract requires idempotency).
+  //
+  // Leaving an emailless lead is a shape the app already supports — a lead may
+  // be captured phone-only (`upsert` requires an email OR a phone), and
+  // campaign sends already skip leads with no email address.
+  async anonymiseForErasure(id: string, actor: UserId): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    if (existing.email) await this.storage.del(emailPtrKey(existing.email));
+    const phone = canonPhone(existing.phone ?? "");
+    if (phone) await this.storage.del(phonePtrKey(phone));
+    const alreadyAnonymised = !existing.email && !existing.phone && !existing.name && !existing.company;
+    const anonymised: Lead = {
+      ...existing,
+      email: "",
+      name: undefined,
+      phone: undefined,
+      company: undefined,
+      // The canonical Person link is an identity handle, not a funnel fact.
+      personId: undefined,
+      notes: undefined,
+      customFields: undefined,
+    };
+    await this.storage.set(leadKey(id), anonymised);
+    if (!alreadyAnonymised) {
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: actor,
+        category: "leads",
+        action: "leads.lead.anonymised",
+        message: `Anonymised lead ${id} for client erasure — identity removed, funnel record kept.`,
+        metadata: { leadId: id },
+      });
+    }
+    return anonymised;
   }
 
   // ─── CSV import ─────────────────────────────────────────────────────────

@@ -1,19 +1,27 @@
 import "server-only";
+import { cache } from "react";
 
 import { getInstall } from "@/server/pluginInstalls";
+import { getRequestNow } from "@/lib/server/requestNow";
 import { listClients } from "@/server/tenants";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import type { ClientTelemetryEvent } from "@/lib/clientTelemetry";
+import { clientTelemetryRiskSignals } from "@/lib/clientAquaHealth";
 import { listAgencyTasks } from "@/server/tasks";
+import { ownerChatAttention } from "@/server/people";
 import { getUserById } from "@/server/users";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
 import type { ClientContract } from "@/lib/clientContracts";
-import { listWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
+import { getRequestWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
+import { personDisplayName, upsertPerson } from "@/server/persons";
+import { batchOrganisationSuggestions } from "@/server/organisations";
+import { withResolutionContext } from "@/lib/inbox/resolutionContext";
+import { withResolutionContexts } from "@/lib/inbox/resolutionFocus";
 import { listExternalAssistantActionProposals } from "@/lib/server/externalAssistantProposals";
 import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import type { OperationalAlert, OperationalAlertSeverity } from "@/lib/operationalAttention";
@@ -35,6 +43,16 @@ export const OPERATIONAL_ALERT_THRESHOLDS = {
   telemetryErrorWindowHours: 24,
 } as const;
 
+// Request-deduped operational alerts. The agency layout (sidebar attention) and
+// the agency page both compute this same heavy per-render list; wrapping in
+// React cache() (keyed on agencyId, using the shared request `now`) collapses
+// them to ONE computation — and one run of its idempotent read-path side
+// effects (person upserts) — per render. The raw function below is unchanged,
+// so API routes, tests and any non-render caller keep the exact same behaviour.
+export const getRequestOperationalAlerts = cache(
+  (agencyId: string): Promise<OperationalAlert[]> => listOperationalAlerts(agencyId, getRequestNow()),
+);
+
 export async function listOperationalAlerts(agencyId: string, now = Date.now()): Promise<OperationalAlert[]> {
   const clients = listClients(agencyId);
   const alerts: OperationalAlert[] = [];
@@ -52,6 +70,14 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   if (overdueTraining.length) alerts.push({ id: "people:training-overdue", severity: overdueTraining.length >= 4 ? "critical" : "warning", category: "task", title: `${overdueTraining.length} training assignment${overdueTraining.length === 1 ? " is" : "s are"} overdue`, detail: "Review the assigned employee, due date and completion evidence.", href: "/portal/agency/people?view=development", occurredAt: Math.min(...overdueTraining.map(training => training.dueAt ?? now)) });
   const incompleteTerms = peopleEmployees.filter(employee => !employee.title || !employee.startDate || employee.weeklyHours === undefined || !employee.payBasis || !employee.currency);
   if (incompleteTerms.length) alerts.push({ id: "people:employment-terms", severity: "notice", category: "task", title: `${incompleteTerms.length} People record${incompleteTerms.length === 1 ? " needs" : "s need"} complete terms`, detail: "Retain title, start date, hours, pay basis and currency before relying on capacity or payroll calculations.", href: "/portal/agency/people?view=team", occurredAt: Math.min(...incompleteTerms.map(employee => employee.updatedAt)) });
+  const chat = ownerChatAttention(agencyId);
+  if (chat) {
+    const parts = [
+      chat.directCount ? `${chat.directCount} direct message${chat.directCount === 1 ? "" : "s"}` : "",
+      chat.mentionCount ? `${chat.mentionCount} mention${chat.mentionCount === 1 ? "" : "s"}` : "",
+    ].filter(Boolean).join(" and ");
+    alerts.push({ id: "people:chat-attention", kind: "in-app", clearsWhen: "You open Team chat and read the messages waiting for you.", severity: "notice", category: "task", title: `${chat.total} team chat message${chat.total === 1 ? "" : "s"} waiting for you`, detail: `${parts} in Team chat you haven't opened yet.`, href: "/portal/agency/people?view=chat", occurredAt: chat.latestAt });
+  }
 
   for (const document of notificationSettings.complianceAlerts ? listLegalDocuments(agencyId) : []) {
     if (document.status === "archived") continue;
@@ -170,6 +196,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         topic?: string;
       }>;
       telemetryEvents?: ClientTelemetryEvent[];
+      telemetryLastSeenAt?: number;
       commercialPack?: { invoiceNumber?: string; invoiceStatus?: string; dueAt?: number; totalCents?: number; payments?: Array<{ amountCents: number }> };
       contracts?: ClientContract[];
       portalBuiltAt?: number;
@@ -267,6 +294,33 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
         clientName: client.name,
         occurredAt: latest.occurredAt,
       });
+    }
+
+    // ── Client Health: enquiry & traffic (client-health plan, Phase 2) ──────
+    // A firing enquiry/traffic factor becomes a specific, client-scoped alert
+    // with a Fulfilment resolution path — never a bare count. `off-system`: you
+    // act away from the screen (investigate the site, its Aqua tag, marketing)
+    // and it clears when the metric returns to its own evolving baseline — no
+    // in-app Resolve control is offered. Localised block — if you-deserve-it
+    // later shares this file, keep it together and flag the commander.
+    if (notificationSettings.clientAlerts) {
+      for (const signal of clientTelemetryRiskSignals(metadata?.telemetryEvents, now)) {
+        alerts.push({
+          id: `client-health-${signal.id}:${client.id}`,
+          severity: signal.kind === "traffic-silent" ? "critical" : "warning",
+          category: "client",
+          kind: "off-system",
+          clearsWhen: signal.id === "enquiry"
+            ? "Enquiries return to the client's evolving baseline."
+            : "Traffic returns to the client's evolving baseline.",
+          title: `${clientLabel}: ${signal.headline}`,
+          detail: `${signal.detail} Open the client's delivery view to investigate the site and its Aqua tag.`,
+          href: `/portal/clients/${client.id}?tab=systems`,
+          clientId: client.id,
+          clientName: client.name,
+          occurredAt: typeof metadata?.telemetryLastSeenAt === "number" ? metadata.telemetryLastSeenAt : client.updatedAt,
+        });
+      }
     }
 
     const pack = metadata?.commercialPack;
@@ -377,7 +431,7 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
       campaigns.list(),
       leads.list(),
       prospects.list(),
-      listWebsiteEnquiries().catch(() => []),
+      getRequestWebsiteEnquiries().catch(() => []),
     ]);
     const websiteEnquiryById = new Map(websiteEnquiries.map(enquiry => [enquiry.id, enquiry]));
     const alertedEnquiryIds = new Set<string>();
@@ -454,7 +508,22 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
             category: "client",
             title: `Classify enquiry from ${enquiry.name}`,
             detail: `${enquiry.siteName} · Decide whether this is sales, an existing client, supplier, partnership, marketer, recruitment, spam, or another relationship. It will stay out of Journey until classified.`,
-            href: `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`,
+            // Resolve to the person's card, where classification actually
+            // happens. Opening the inbox thread sent the operator to a
+            // conversation instead of somewhere they could act, and left them
+            // no route back if the classification later needed changing.
+            //
+            // The person is resolved HERE rather than read off `enquiry`.
+            // `listWebsiteEnquiries()` does not populate `personId` — only
+            // `synchroniseWebsiteEnquiryIdentities` does, and that runs on the
+            // inbox and clients pages, not on this path. Relying on the field
+            // meant the card link was never reached and every alert quietly
+            // fell back to the inbox.
+            href: withResolutionContext(
+              enquiryPersonHref(agencyId, enquiry)
+                ?? `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`,
+              { alertId: `enquiry-classification:${enquiry.id}`, focus: "classification" },
+            ),
             occurredAt: enquiry.submittedAt,
           });
           continue;
@@ -473,6 +542,37 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
           detail: enquiryDetail(enquiry),
           href: `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`,
           occurredAt: enquiry.submittedAt,
+        });
+      }
+    }
+
+    // ── Company membership questions ──────────────────────────────────
+    //
+    // The system proposes which company somebody belongs to; a human decides.
+    // Grouped by company so a bulk import asks "are these 6 people at Cedar
+    // Dental?" once, rather than firing six near-identical alerts.
+    if (notificationSettings.clientAlerts) {
+      for (const batch of batchOrganisationSuggestions(agencyId)) {
+        const count = batch.people.length;
+        const single = count === 1 ? batch.people[0] : undefined;
+        alerts.push({
+          id: `person-organisation:${batch.organisationId}`,
+          severity: "notice",
+          category: "client",
+          title: single
+            ? `Is ${personDisplayName(single)} part of ${batch.organisationName}?`
+            : `Are ${count} people part of ${batch.organisationName}?`,
+          detail: `${batch.reason}. Confirming groups them under one company so the relationship stays in one place. Saying no is remembered and will not be asked again.`,
+          // A single question resolves on that person's card, where the
+          // evidence for them is visible. A grouped question opens the company
+          // card, which lists everyone proposed.
+          href: withResolutionContext(
+            single
+              ? `/portal/agency/contacts/${encodeURIComponent(single.id)}`
+              : `/portal/agency/contacts/companies/${encodeURIComponent(batch.organisationId)}`,
+            { alertId: `person-organisation:${batch.organisationId}`, focus: "company" },
+          ),
+          occurredAt: Math.min(...batch.people.map(person => person.updatedAt)),
         });
       }
     }
@@ -507,7 +607,40 @@ export async function listOperationalAlerts(agencyId: string, now = Date.now()):
   }
 
   const severityOrder = { critical: 0, warning: 1, notice: 2 };
-  return alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || b.occurredAt - a.occurredAt);
+  // Stamp resolution context on EVERY alert in one place. Doing it at each of
+  // the 44 push sites would drift the moment somebody adds the 45th.
+  return withResolutionContexts(alerts)
+    .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || b.occurredAt - a.occurredAt);
+}
+
+/**
+ * The contact-card href for an enquirer, resolving (and creating if needed)
+ * the canonical Person.
+ *
+ * Creating during alert generation is deliberate. The alternative — link only
+ * when a Person already exists — means the very alert telling you to classify
+ * somebody is the one that cannot open their card, because nothing has
+ * created them yet. `upsertPerson` is idempotent (identity first, then facet),
+ * so repeated alert builds converge on one record.
+ *
+ * Returns null when there is nothing to identify the person by AND no enquiry
+ * id to anchor them to, so the caller can fall back to the inbox.
+ */
+function enquiryPersonHref(agencyId: string, enquiry: WebsiteEnquiry): string | null {
+  if (!enquiry.email && !enquiry.phone && !enquiry.id) return null;
+  try {
+    const { person } = upsertPerson(agencyId, {
+      emails: [enquiry.email],
+      phones: [enquiry.phone],
+      name: enquiry.name,
+      source: `website:${enquiry.siteName}`,
+      facets: { enquiryIds: [enquiry.id] },
+    });
+    return `/portal/agency/contacts/${encodeURIComponent(person.id)}`;
+  } catch {
+    // Never let attention routing fail because a person could not be built.
+    return null;
+  }
 }
 
 function enquiryView(enquiry: WebsiteEnquiry): "forms" | "chatbot" | "support" {

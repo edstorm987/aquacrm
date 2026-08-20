@@ -114,6 +114,17 @@ export async function markInvoicePaidHandler(req: Request, ctx: PluginCtx): Prom
       return json({ ok: true, invoice: inv });
     }
 
+    // Idempotent on a SERVER-derived key, not a client-supplied one: "settle
+    // this invoice" is a single intent per invoice, so `settle:<invoiceId>` is
+    // its stable reference. The balance check above is a check-then-write race —
+    // two concurrent double-clicks (or two admins at once) can both read
+    // paidCents < total and both record the balance. Deriving the payment id
+    // from the key collapses them onto one row. Server-derived also means the
+    // guard holds no matter which UI calls it — nothing to forget to pass.
+    // The nuance it preserves: genuine partial payments come in through
+    // `payments/create` with their own per-submit key, so they still record
+    // normally; and once the balance is covered this handler returns early
+    // anyway, so there is never a legitimate second `settle:` payment.
     const result = await container.payments.record(ctx.actor, {
       invoiceId: inv.id,
       amountCents: inv.totalCents - paidCents,
@@ -121,6 +132,7 @@ export async function markInvoicePaidHandler(req: Request, ctx: PluginCtx): Prom
       method: body.paidVia ?? "manual",
       notes: "Invoice marked paid in Milesymedia.",
       externalRef: body.externalRef,
+      idempotencyKey: `settle:${inv.id}`,
     });
     return json({ ok: true, invoice: result.invoice, payment: result.payment });
   } catch (err) {
@@ -208,8 +220,11 @@ export async function createExpenseHandler(req: Request, ctx: PluginCtx): Promis
     return badRequest("categoryId + amountCents required.");
   }
   try {
-    const exp = await buildContainer(ctx).expenses.create(body, ctx.actor, defaultCurrency(ctx));
-    return json({ ok: true, expense: exp }, 201);
+    // `body.idempotencyKey` (typed on CreateExpenseInput) forwards straight
+    // through: a double-clicked "Add expense" resubmits the same key and gets
+    // the first expense back rather than a second row. See lib/idempotency.ts.
+    const { expense, deduped } = await buildContainer(ctx).expenses.createDetailed(body, ctx.actor, defaultCurrency(ctx));
+    return json({ ok: true, expense, deduped }, 201);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }

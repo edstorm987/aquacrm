@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -63,15 +64,45 @@ import { formatUkDate, isoDateTimeValue, timestampFromValue } from "@/lib/format
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, CommandCalendarEntry, CommandCalendarExternalEvent, CommandCalendarSource, CompanyProfile, DashboardDayPlan, DashboardWeekPlan, DashboardWeeklyEvidenceSnapshot, DashboardWorkSession } from "@/server/types";
 import { ClockOutReviewDialog, type ClockOutReviewDraft } from "./_ClockOutReviewDialog";
 import { CommandCentreKpiTrajectory } from "./_CommandCentreKpiTrajectory";
-import { BattleTableWorkspace, type BattleTablePayload, type BattleTableSection } from "./_BattleTableWorkspace";
-import { CommandIntelligenceWorkspace, type IntelligenceView } from "./_CommandIntelligenceWorkspace";
+import type { BattleTablePayload, BattleTableSection } from "./_BattleTableWorkspace";
+import type { WarRoomIncident } from "./_battleWarRoom";
+import type { IntelligenceView } from "./_CommandIntelligenceWorkspace";
+import { ClientsNeedingAttention } from "./_ClientsNeedingAttention";
+import type { ClientAttentionItem } from "@/lib/server/clientAttention";
 import { RadarPolicyPanel } from "./_RadarPolicyPanel";
-import { RadarInspectionWorkspace, type RadarInspectionTab } from "./radar/RadarInspectionWorkspace";
+import { InfraHealthPanel } from "./_InfraHealthPanel";
+import { FindingGroupBar } from "./_FindingGroupBar";
+import type { RadarInspectionTab } from "./radar/RadarInspectionWorkspace";
 import { CommandStationNav, type CommandStationAttention, type CommandStationMode } from "./_CommandStationNav";
 import { DayCommandSensorPanel } from "./_DayCommandSensorPanel";
 import { DayBriefingPanel, type DayTaskGenerationSummary } from "./_DayBriefingPanel";
 import { DayKpiIntelligencePanel } from "./_DayKpiIntelligencePanel";
 import { WeeklyReviewWorkspace, weeklyReviewDraftFromPlan } from "./_WeeklyReviewWorkspace";
+
+// The non-default stations are code-split. Each renders ONLY behind an explicit
+// station/mode click (battle · intelligence · radar inspector) and never on the
+// canonical Day Command landing — but as static imports they still shipped and
+// parsed (~3,300 lines of client TSX) on every dashboard load. `next/dynamic`
+// moves them into their own chunks, fetched the moment the operator opens that
+// station. Behaviour is identical; only the download timing changes.
+const StationLoading = ({ label }: { label: string }) => (
+  <div className="grid min-h-[24rem] place-items-center text-sm text-[#62e8ff]/60" role="status" aria-live="polite">
+    Loading {label}…
+  </div>
+);
+
+const BattleTableWorkspace = dynamic(
+  () => import("./_BattleTableWorkspace").then(m => m.BattleTableWorkspace),
+  { loading: () => <StationLoading label="Battle Table" /> },
+);
+const CommandIntelligenceWorkspace = dynamic(
+  () => import("./_CommandIntelligenceWorkspace").then(m => m.CommandIntelligenceWorkspace),
+  { loading: () => <StationLoading label="KPI Intelligence" /> },
+);
+const RadarInspectionWorkspace = dynamic(
+  () => import("./radar/RadarInspectionWorkspace").then(m => m.RadarInspectionWorkspace),
+  { loading: () => <StationLoading label="Radar" /> },
+);
 
 export type DashboardSignal = {
   id: string;
@@ -141,10 +172,15 @@ export function DashboardCommandCenter({
   advisorConfigured,
   counts,
   intelligenceSnapshot,
+  clientsNeedingAttention,
   executiveWorkspace,
   calendarWorkspace,
   actionsWorkspace,
   advisorWorkspace,
+  devTeamWorkspace,
+  devTeamVisible = false,
+  devTeamBlockedCount = 0,
+  devTeamLaunchBlockerCount = 0,
   battleTablePayload,
 }: {
   planning: DashboardPlanningPayload;
@@ -159,10 +195,20 @@ export function DashboardCommandCenter({
   advisorConfigured: boolean;
   counts: { activeClients: number; leads: number; delivery: number; products: number };
   intelligenceSnapshot: CommandIntelligenceSnapshot;
+  clientsNeedingAttention: ClientAttentionItem[];
   executiveWorkspace: React.ReactNode;
   calendarWorkspace: React.ReactNode;
   actionsWorkspace: React.ReactNode;
   advisorWorkspace: React.ReactNode;
+  /** Rendered server-side and only when the founder + Dev Mode gate passes; null otherwise. */
+  devTeamWorkspace?: React.ReactNode;
+  /** Mirrors `devDocsAccessible(session)`. False keeps the station out of the nav entirely. */
+  devTeamVisible?: boolean;
+  /** Items in the Dev Team board's Blocked lane — badges the station, and is
+   *  the same number its "Blocked" tile shows. */
+  devTeamBlockedCount?: number;
+  /** The subset of those that are open launch blockers (state.md). */
+  devTeamLaunchBlockerCount?: number;
   battleTablePayload: BattleTablePayload;
 }) {
   const pathname = usePathname();
@@ -170,7 +216,7 @@ export function DashboardCommandCenter({
   const isDayCommandRoute = pathname === "/portal/agency/command-center";
   const requestedStationValue = searchParams.get("station");
   const requestedClockOutReview = searchParams.get("review") === "clock-out";
-  const requestedStation = commandStationMode(requestedStationValue);
+  const requestedStation = commandStationMode(requestedStationValue, devTeamVisible);
   const requestedDayCalendar = requestedStationValue === "calendar";
   const requestedIntelligenceView = intelligenceView(searchParams.get("view"));
   const requestedKpiIds = searchParams.get("kpi")?.split(",").map(value => value.trim()).filter(Boolean) ?? [];
@@ -364,6 +410,17 @@ export function DashboardCommandCenter({
     limit: 5,
   }), [openTasks, radarSnapshot]);
   const serverRecommendedActions = radarSnapshot.generatedAt === businessRadar.generatedAt ? recommendedActions : [];
+  // The Battle Table war room reads the SAME live Radar snapshot this station
+  // holds — so a Radar refresh moves the decisions queue with it instead of the
+  // war room quoting the page's first render forever.
+  const warRoomIncidents = useMemo<WarRoomIncident[]>(() => radarSnapshot.incidents.map(issue => ({
+    id: issue.id,
+    severity: issue.severity,
+    title: issue.title,
+    detail: issue.detail,
+    evidence: issue.evidence,
+    href: issue.href,
+  })), [radarSnapshot.incidents]);
   const topRecommendedActions = useMemo(() => mergeRecommendedActions(
     advisorSuggestions,
     serverRecommendedActions,
@@ -885,6 +942,9 @@ export function DashboardCommandCenter({
 
   function selectCommandStation(mode: CommandStationMode) {
     setActiveStation(mode);
+    // Dev Team renders its own server-streamed station node, so it deliberately
+    // leaves `dashboardMode` untouched — the shared workspace shell is not mounted.
+    if (mode === "devteam") return;
     if (mode === "day") setDashboardMode("day");
     if (mode === "executive") setDashboardMode("radar");
     if (mode === "battle") setDashboardMode("battle");
@@ -930,7 +990,20 @@ export function DashboardCommandCenter({
         : "Radar has no critical or warning incidents",
   };
   const battleAttention = battleTableAttention(battleTablePayload);
-  const stationAttention: Record<CommandStationMode, CommandStationAttention> = { day: dayAttention, executive: executiveAttention, battle: battleAttention };
+  // Dev Team badges the real size of the board's Blocked lane (composed
+  // server-side from state.md + the plan files and passed in), so the nav, the
+  // station's "Blocked" tile and the Working-on board all show ONE number
+  // instead of the nav always reading "clear". The label breaks it down, and an
+  // open launch blocker is critical while merely-stalled work is a warning.
+  const devTeamStalledCount = Math.max(0, devTeamBlockedCount - devTeamLaunchBlockerCount);
+  const devTeamAttention: CommandStationAttention = {
+    count: devTeamBlockedCount,
+    tone: devTeamLaunchBlockerCount ? "critical" : devTeamBlockedCount ? "warning" : "clear",
+    label: devTeamBlockedCount
+      ? `${devTeamBlockedCount} blocked on the Dev Team board — ${devTeamLaunchBlockerCount} open launch blocker${devTeamLaunchBlockerCount === 1 ? "" : "s"} and ${devTeamStalledCount} stalled plan${devTeamStalledCount === 1 ? "" : "s"}`
+      : "Nothing is blocked on the Dev Team board",
+  };
+  const stationAttention: Record<CommandStationMode, CommandStationAttention> = { day: dayAttention, executive: executiveAttention, battle: battleAttention, devteam: devTeamAttention };
 
   return (
     <div className="grid gap-5">
@@ -948,7 +1021,8 @@ export function DashboardCommandCenter({
       /> : null}
       <CommandStationNav
         attention={stationAttention}
-        activeMode={activeStation === "day" ? "day" : activeStation === "battle" ? "battle" : "executive"}
+        activeMode={activeStation === "day" ? "day" : activeStation === "battle" ? "battle" : activeStation === "devteam" ? "devteam" : "executive"}
+        showDevTeam={devTeamVisible}
         attentionProtection={attentionProtection}
         onAttentionProtectionChange={enabled => {
           setAttentionProtectionState(enabled);
@@ -956,7 +1030,7 @@ export function DashboardCommandCenter({
         }}
         onSelect={selectCommandStation}
       />
-      {activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{executiveWorkspace}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceSnapshot} onOpen={openIntelligence} /></div> : activeStation === "battle" ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceSnapshot} onOpenIntelligence={openIntelligence} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
+      {activeStation === "devteam" ? <div className="grid min-w-0 gap-0" data-testid="dev-team-station">{devTeamWorkspace}</div> : activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{executiveWorkspace}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceSnapshot} onOpen={openIntelligence} /></div> : activeStation === "battle" ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceSnapshot} onOpenIntelligence={openIntelligence} radarIncidents={warRoomIncidents} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
       <header className="mm-command-workspace-header flex min-h-14 shrink-0 items-center gap-3 border-b border-[#62e8ff]/25 bg-[#020b11] px-3 text-white shadow-[0_8px_24px_rgba(0,20,28,.16)] sm:px-5">
         <span className="mm-command-workspace-emblem grid size-8 shrink-0 place-items-center border border-[#62e8ff]/35 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><Compass size={16} /></span>
         <div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/55">Aqua command network · Integrated station</p><p className="truncate text-sm font-semibold">{activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "Command Centre · KPI Intelligence" : "Command Centre · Radar Workspace"}</p></div>
@@ -1004,6 +1078,7 @@ export function DashboardCommandCenter({
               <div className="grid xl:grid-cols-[minmax(460px,1.25fr)_minmax(360px,.85fr)]">
                 <div className="mm-direct-radar-feed min-w-0 border-b border-white/10 px-4 py-4 sm:px-6 xl:border-b-0 xl:border-r">
                   <div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2.5"><span className="relative grid size-8 shrink-0 place-items-center border border-[#62e8ff]/25 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><RadioTower size={14} /><span className="absolute -right-0.5 -top-0.5 size-1.5 animate-pulse bg-[#68f5d0] shadow-[0_0_6px_#68f5d0]" /></span><div className="min-w-0"><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Direct Radar feed</p><h3 className="mt-1 text-sm font-semibold text-white">What the business radar noticed</h3></div></div><span className="shrink-0 text-[9px] font-semibold uppercase text-[#68f5d0]">{radarSnapshot.incidents.length} live</span></div>
+                  <div className="mt-3"><FindingGroupBar groups={radarSnapshot.findingGroups} /></div>
                   <div className="mt-3 divide-y divide-white/10 border-y border-white/10">
                     {directRadarFeed.map(issue => {
                       const acceptedTask = radarTasksBySource.get(issue.id);
@@ -1030,6 +1105,7 @@ export function DashboardCommandCenter({
                   </ol>
                 </div>
               </div>
+              <InfraHealthPanel infra={businessRadar.infra} />
               {(statusMessage || operationError) ? <div role={operationError ? "alert" : "status"} aria-live="polite" className={`border-t px-4 py-2.5 text-xs sm:px-6 ${operationError ? "border-red-300/20 bg-red-400/10 text-red-100" : "border-[#68f5d0]/20 bg-[#68f5d0]/[0.06] text-[#91f4dc]"}`}>{operationError || statusMessage}</div> : null}
             </section>
           )}
@@ -1250,6 +1326,8 @@ export function DashboardCommandCenter({
           <DayCommandSensorPanel radar={radarSnapshot} intelligence={intelligenceSnapshot} onOpenRadar={() => setActiveStation("executive")} onOpenIntelligence={openIntelligence} />
         </div>
       </div>
+
+      <ClientsNeedingAttention items={clientsNeedingAttention} />
 
       <section className="mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="week-plan-heading">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5">
@@ -2313,10 +2391,18 @@ function calendarDay(value: number): string {
   return formatUkDate(value, { day: "2-digit" }, "--");
 }
 
-function commandStationMode(value: string | null): CommandSurfaceMode | null {
+/**
+ * Resolve `?station=` to a surface. `devteam` is GUARDED: it only resolves when
+ * the Dev Team station is actually visible (founder + Dev Mode, decided
+ * server-side), so a founder can refresh or bookmark `?station=devteam` while a
+ * hand-typed URL still cannot land anyone else on a station that isn't there —
+ * they fall through to the default, exactly as before.
+ */
+function commandStationMode(value: string | null, devTeamVisible = false): CommandSurfaceMode | null {
   if (value === "calendar") return "day";
   if (value === "omega") return "executive";
   if (value === "radar-inspector") return "radar";
+  if (value === "devteam") return devTeamVisible ? "devteam" : null;
   return value && ["executive", "day", "battle", "intelligence", "radar"].includes(value)
     ? value as CommandSurfaceMode
     : null;
@@ -2366,9 +2452,13 @@ function capitalWarningAttention(company: CompanyProfile): number {
 }
 
 function battleTableSection(value: string | null): BattleTableSection {
-  return value && ["overview", "intelligence", "strategy", "projections", "objectives", "capacity", "plans", "capital", "reviews", "systems"].includes(value)
+  // The war room is the Battle Table's front door, so an unrecognised (or
+  // absent) `battle` parameter lands there rather than on a planning form.
+  // Every existing deep link — ?battle=capacity, ?battle=systems and the rest —
+  // still opens its own drill-in section.
+  return value && ["warroom", "overview", "intelligence", "strategy", "projections", "objectives", "capacity", "plans", "capital", "reviews", "systems"].includes(value)
     ? value as BattleTableSection
-    : "overview";
+    : "warroom";
 }
 
 function radarTargetFromSearchParams(searchParams: Pick<URLSearchParams, "get">): Omit<RadarInspectorTarget, "version"> {

@@ -6,6 +6,13 @@
 //   - `contact:<id>`              — Contact row
 //   - `contacts/index`            — id list
 //   - `contacts/email/<canon>`    — id pointer (idempotent merge key)
+//
+// ── No PII in activity messages (right-to-be-forgotten) ────────────────────
+// Every message below names the contact by **id**, never by email/name/phone.
+// This install is agency-scoped, so its activity entries carry no `clientId`;
+// `clientErasure` sweeps `state.activity` by `clientId` only, so an email in a
+// message would survive a client erasure forever. The metadata carries
+// `contactId`, which is what a reader (or the UI) resolves a label from.
 
 import { canonEmail, makeId } from "../lib/ids";
 import { now } from "../lib/time";
@@ -158,7 +165,7 @@ export class ContactService {
       actorUserId: actor,
       category: "leads",
       action: "leads.contact.created",
-      message: `Added ${contact.type} contact ${contact.email}.`,
+      message: `Added ${contact.type} contact ${id}.`,
       metadata: { contactId: id, type: contact.type, source: contact.source },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.contact.created", { contactId: id });
@@ -217,7 +224,7 @@ export class ContactService {
       actorUserId: actor,
       category: "leads",
       action: "leads.contact.promoted",
-      message: `Promoted lead ${lead.email} to customer contact.`,
+      message: `Promoted lead ${lead.id} to customer contact ${result.contact.id}.`,
       metadata: { leadId: lead.id, contactId: result.contact.id },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.contact.promoted", {
@@ -242,7 +249,7 @@ export class ContactService {
       actorUserId: actor,
       category: "leads",
       action: "leads.contact.updated",
-      message: `Updated contact ${updated.email}.`,
+      message: `Updated contact ${id}.`,
       metadata: { contactId: id, fields: Object.keys(patch) },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.contact.updated", { contactId: id });
@@ -269,7 +276,7 @@ export class ContactService {
       actorUserId: actor,
       category: "leads",
       action: "leads.contact.archived",
-      message: `Archived contact ${existing.email}.`,
+      message: `Archived contact ${id}.`,
       metadata: { contactId: id, type: existing.type },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.contact.updated", { contactId: id, archived: true });

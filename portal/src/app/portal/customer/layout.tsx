@@ -46,6 +46,12 @@ export default async function CustomerLayout({ children }: { children: ReactNode
 
   // End-customer must be tied to a client.
   if (!session.clientId) redirect("/login");
+
+  // Never been through setup — they were signed in by a link and have no
+  // password of their own yet. Dropping them straight into the portal leaves
+  // somebody who cannot get back in once the link is used.
+  const setupUser = getUserById(session.userId);
+  if (setupUser && !setupUser.welcomeCompletedAt) redirect("/setup");
   const client = getClientForAgency(session.agencyId, session.clientId);
   if (!client) notFound();
 

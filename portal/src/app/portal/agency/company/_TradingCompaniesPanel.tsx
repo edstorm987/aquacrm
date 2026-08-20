@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, ExternalLink, Gauge, Info, Link2, Pencil, Plus, X } from "lucide-react";
+import { Building2, ExternalLink, Gauge, Info, Link2, Pencil, Plus, Radio, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { TradingCompany } from "@/server/types";
@@ -120,6 +120,9 @@ export function TradingCompaniesPanel({
               <span className="text-[10px] font-semibold uppercase text-black/40">Client-facing brand</span>
               {company.website ? <a href={company.website} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/55" aria-label={`Open ${company.name} website`}>Open website <ExternalLink size={13} /></a> : canEdit ? <button type="button" onClick={() => setEditing(company)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/55"><Link2 size={13} />Connect website</button> : <span className="text-xs text-black/35">Not connected</span>}
             </div>
+            <Link href="/portal/agency/fulfilment?view=tags" className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline" aria-label={`Set up the Aqua tag for ${company.name}`}>
+              <Radio size={13} aria-hidden /> Set up Aqua tag &rarr;
+            </Link>
           </article>
         ))}
       </div>

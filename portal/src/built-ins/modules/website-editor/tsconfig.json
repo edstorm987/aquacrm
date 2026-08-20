@@ -24,7 +24,8 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@plugin/*": ["./src/*"]
+      "@plugin/*": ["./src/*"],
+      "@/*": ["../../../../src/*"]
     }
   },
   "include": ["index.ts", "src/**/*"],

@@ -6,7 +6,11 @@ import { blockStylesToCss } from "../blockStyles";
 type HoverAnim = "none" | "lift" | "glow" | "shrink" | "shine" | "wiggle";
 
 export default function ButtonBlock({ block, editorMode }: BlockRenderProps) {
-  const label = (block.props.label as string | undefined) ?? "Button";
+  // "Click me" is the registry's declared default for this prop. It used to say
+  // "Button" here, so a button block that arrived without a `label` — an import,
+  // a hand-edited tree — rendered a word the editor never offered. One default,
+  // declared in blockRegistry.ts.
+  const label = (block.props.label as string | undefined) ?? "Click me";
   const href = (block.props.href as string | undefined) ?? "#";
   const variant = (block.props.variant as "primary" | "secondary" | "ghost" | undefined) ?? "primary";
   const hoverAnim = ((block.props.hoverAnim as HoverAnim | undefined) ?? "lift");

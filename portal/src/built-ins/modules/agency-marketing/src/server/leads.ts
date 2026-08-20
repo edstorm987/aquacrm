@@ -135,11 +135,54 @@ export class LeadService {
       actorUserId: actor,
       category: "marketing",
       action: "lead.created",
-      message: `New lead ${email}${input.name ? ` (${input.name})` : ""}.`,
+      // No address/name in the message: this install is agency-scoped, so its
+      // entries carry no `clientId` and the erasure sweep (clientId-only) could
+      // never scrub them. The metadata carries `leadId`.
+      message: `New lead ${id}.`,
       metadata: { leadId: id, campaignId: input.campaignId, source: row.source },
     });
     this.events.emit({ agencyId: this.agencyId }, "lead.created", { leadId: id });
     return row;
+  }
+
+  // Right-to-be-forgotten: delete every marketing lead captured at one of
+  // `addresses`, plus the `leads/by-email/<email>` pointer whose KEY NAME holds
+  // the address, and each index entry. Called by `onEraseClient`.
+  //
+  // DELETE, not anonymise: a marketing lead is marketing PII — the policy's
+  // clearest delete category. The row carries NO `clientId` (it predates the
+  // person being a client), so the address is the only link back to them.
+  //
+  // Idempotent: a second run finds nothing and returns 0.
+  async eraseForAddresses(addresses: readonly string[]): Promise<number> {
+    let erased = 0;
+    for (const address of new Set(addresses.map(a => a.trim().toLowerCase()).filter(Boolean))) {
+      const existing = await this.getByEmail(address);
+      await this.storage.del(byEmailKey(address));
+      if (!existing) continue;
+      await this.storage.del(leadKey(existing.id));
+      const ix = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
+      await this.storage.set(LEAD_INDEX_KEY, ix.filter(value => value !== existing.id));
+      if (existing.campaignId) {
+        const cIx = (await this.storage.get<string[]>(byCampaignKey(existing.campaignId))) ?? [];
+        await this.storage.set(byCampaignKey(existing.campaignId), cIx.filter(value => value !== existing.id));
+      }
+      if (existing.assignedStaffId) {
+        const sIx = (await this.storage.get<string[]>(byStaffKey(existing.assignedStaffId))) ?? [];
+        await this.storage.set(byStaffKey(existing.assignedStaffId), sIx.filter(value => value !== existing.id));
+      }
+      erased++;
+    }
+    if (erased) {
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        category: "marketing",
+        action: "lead.erased",
+        message: `Erased ${erased} marketing lead${erased === 1 ? "" : "s"} for a client erasure.`,
+        metadata: { erased },
+      });
+    }
+    return erased;
   }
 
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
@@ -207,7 +250,7 @@ export class LeadService {
         actorUserId: actor,
         category: "marketing",
         action,
-        message: `Lead ${next.email}: ${existing.status} → ${patch.status}.`,
+        message: `Lead ${id}: ${existing.status} → ${patch.status}.`,
         metadata: { leadId: id, fromStatus: existing.status, toStatus: patch.status },
       });
       this.events.emit({ agencyId: this.agencyId }, action, { leadId: id, status: patch.status });
@@ -237,7 +280,7 @@ export class LeadService {
       actorUserId: actor,
       category: "marketing",
       action: "lead.contacted",
-      message: `Contacted ${existing.email}.`,
+      message: `Contacted lead ${id}.`,
       metadata: { leadId: id, note },
     });
     this.events.emit({ agencyId: this.agencyId }, "lead.contacted", { leadId: id });

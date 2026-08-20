@@ -12,6 +12,8 @@ import type {
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
 
+import { listRowIds } from "./rowIndex";
+
 const CAT_INDEX_KEY = "categories/index";
 const catKey = (id: string): string => `categories/by-id/${id}`;
 
@@ -35,8 +37,10 @@ export class CategoryService {
     private events: EventBusPort,
   ) {}
 
+  // Index + row scan (see server/rowIndex.ts): a category lost to a concurrent
+  // create would silently drop its expenses out of every picker and report.
   async list(): Promise<ExpenseCategory[]> {
-    const ids = (await this.storage.get<string[]>(CAT_INDEX_KEY)) ?? [];
+    const ids = await listRowIds(this.storage, CAT_INDEX_KEY, "categories/by-id/");
     const out: ExpenseCategory[] = [];
     for (const id of ids) {
       const row = await this.storage.get<ExpenseCategory>(catKey(id));

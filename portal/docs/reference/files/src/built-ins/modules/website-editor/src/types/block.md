@@ -1,0 +1,99 @@
+# `src/built-ins/modules/website-editor/src/types/block.ts`
+
+← [File index](../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
+
+**What it is:** Block — leaf unit of an EditorPage tree.  Faithful port of `02 felicias aqua portal work/src/portal/server/types.ts` (sections covering Block, BlockStyles, BlockVariant, BlockA11y, BlockSeo, SplitTestGroup, SplitTestStatus, SplitTestResult). The plugin re-exports these so the lifted block components and renderer can import from `@plugin/types/block` without touching the foundation type module.  `type` remains an open string so other plugins (ecommerce, blog, etc.) can extend the registry. The website-editor plugin contributes the canonical block types; their values are aliased in `BlockType` for in-tree references.
+
+## Exports (10)
+
+- `type BlockType`
+- `interface BlockStyles (32 members)`
+- `interface BlockA11y (7 members)`
+- `interface BlockSeo (2 members)`
+- `interface BlockVariant (5 members)`
+- `interface Block (9 members)`
+- `type SplitTestStatus`
+- `interface SplitTestGroup (13 members)`
+- `interface SplitTestResult (5 members)`
+- `type BlockTreeJSON`
+
+## Used by (77)
+
+- [`scripts/smoke-public-media-promotion.test.ts`](../../../../../../scripts/smoke-public-media-promotion.test.md)
+- [`scripts/smoke-website-visual-builder.test.ts`](../../../../../../scripts/smoke-website-visual-builder.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/brand-page-templates.test.ts`](../__smoke__/brand-page-templates.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/incubator-template.test.ts`](../__smoke__/incubator-template.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r008-blog.test.ts`](../__smoke__/r008-blog.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r009-notion-incubator-blocks.test.ts`](../__smoke__/r009-notion-incubator-blocks.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r010-incubator-template-preset.test.ts`](../__smoke__/r010-incubator-template-preset.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r015-forms-as-block.test.ts`](../__smoke__/r015-forms-as-block.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r017-block-library-polish.test.ts`](../__smoke__/r017-block-library-polish.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r019-mobile-viewport.test.ts`](../__smoke__/r019-mobile-viewport.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r020-code-mode.test.ts`](../__smoke__/r020-code-mode.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r021-undo-redo.test.ts`](../__smoke__/r021-undo-redo.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r022-version-history.test.ts`](../__smoke__/r022-version-history.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r023-find-replace.test.ts`](../__smoke__/r023-find-replace.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r028-block-group-reuse.test.ts`](../__smoke__/r028-block-group-reuse.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r031-a11y.test.ts`](../__smoke__/r031-a11y.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r032-i18n.test.ts`](../__smoke__/r032-i18n.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r033-static-export.test.ts`](../__smoke__/r033-static-export.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r034-version-diff.test.ts`](../__smoke__/r034-version-diff.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r035-draft-published.test.ts`](../__smoke__/r035-draft-published.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r037-structured-data.test.ts`](../__smoke__/r037-structured-data.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r038-image-srcset.test.ts`](../__smoke__/r038-image-srcset.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r039-block-schema-migration.test.ts`](../__smoke__/r039-block-schema-migration.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r042-page-templates.test.ts`](../__smoke__/r042-page-templates.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r043-webhook-block.test.ts`](../__smoke__/r043-webhook-block.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/r045-jsonld-injection.test.ts`](../__smoke__/r045-jsonld-injection.test.md)
+- [`src/built-ins/modules/website-editor/src/__smoke__/template-marketplace.test.ts`](../__smoke__/template-marketplace.test.md)
+- [`src/built-ins/modules/website-editor/src/api/handlers/blog.ts`](../api/handlers/blog.md)
+- [`src/built-ins/modules/website-editor/src/api/handlers/components.ts`](../api/handlers/components.md)
+- [`src/built-ins/modules/website-editor/src/api/handlers/formSubmissionHost.ts`](../api/handlers/formSubmissionHost.md)
+- [`src/built-ins/modules/website-editor/src/api/handlers/pageVersions.ts`](../api/handlers/pageVersions.md)
+- [`src/built-ins/modules/website-editor/src/api/handlers/templates.ts`](../api/handlers/templates.md)
+- [`src/built-ins/modules/website-editor/src/components/BlockRenderer.tsx`](../components/BlockRenderer.md)
+- [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../components/blockRegistry.md)
+- [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](../components/blockStyles.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/BlogPostBlock.tsx`](../components/blocks/BlogPostBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/blocks/MemberGateBlock.tsx`](../components/blocks/MemberGateBlock.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/Canvas.tsx`](../components/canvas/Canvas.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/PropertiesPanel.tsx`](../components/canvas/PropertiesPanel.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/Sidebar.tsx`](../components/canvas/Sidebar.md)
+- [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](../components/canvas/blockTreeOps.md)
+- [`src/built-ins/modules/website-editor/src/components/editor/CodeModePanel.tsx`](../components/editor/CodeModePanel.md)
+- [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](../components/editor/EditorBlockStage.md)
+- [`src/built-ins/modules/website-editor/src/components/editor/FindReplaceModal.tsx`](../components/editor/FindReplaceModal.md)
+- [`src/built-ins/modules/website-editor/src/components/editor/SaveAsTemplateButton.tsx`](../components/editor/SaveAsTemplateButton.md)
+- [`src/built-ins/modules/website-editor/src/components/editor/VersionDiffPanel.tsx`](../components/editor/VersionDiffPanel.md)
+- [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](../components/pageTemplates.md)
+- [`src/built-ins/modules/website-editor/src/components/variantResolver.ts`](../components/variantResolver.md)
+- [`src/built-ins/modules/website-editor/src/lib/a11yAudit.ts`](../lib/a11yAudit.md)
+- [`src/built-ins/modules/website-editor/src/lib/blockSchemaMigrations.ts`](../lib/blockSchemaMigrations.md)
+- [`src/built-ins/modules/website-editor/src/lib/blockTreeDiff.ts`](../lib/blockTreeDiff.md)
+- [`src/built-ins/modules/website-editor/src/lib/blockTreeJson.ts`](../lib/blockTreeJson.md)
+- [`src/built-ins/modules/website-editor/src/lib/draftPublished.ts`](../lib/draftPublished.md)
+- [`src/built-ins/modules/website-editor/src/lib/editorHistory.ts`](../lib/editorHistory.md)
+- [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](../lib/editorPages.md)
+- [`src/built-ins/modules/website-editor/src/lib/findReplace.ts`](../lib/findReplace.md)
+- [`src/built-ins/modules/website-editor/src/lib/i18n.ts`](../lib/i18n.md)
+- [`src/built-ins/modules/website-editor/src/lib/pageTemplates.ts`](../lib/pageTemplates.md)
+- [`src/built-ins/modules/website-editor/src/lib/portalStarters.ts`](../lib/portalStarters.md)
+- [`src/built-ins/modules/website-editor/src/lib/responsiveImage.ts`](../lib/responsiveImage.md)
+- [`src/built-ins/modules/website-editor/src/lib/splitTests.ts`](../lib/splitTests.md)
+- [`src/built-ins/modules/website-editor/src/lib/structuredData.ts`](../lib/structuredData.md)
+- [`src/built-ins/modules/website-editor/src/lib/useEditorHistory.ts`](../lib/useEditorHistory.md)
+- [`src/built-ins/modules/website-editor/src/lib/viewport.ts`](../lib/viewport.md)
+- [`src/built-ins/modules/website-editor/src/lib/webhookBlock.ts`](../lib/webhookBlock.md)
+- [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](../pages/EditorPage.md)
+- [`src/built-ins/modules/website-editor/src/server/blog.ts`](../server/blog.md)
+- [`src/built-ins/modules/website-editor/src/server/components.ts`](../server/components.md)
+- [`src/built-ins/modules/website-editor/src/server/extensionPorts.ts`](../server/extensionPorts.md)
+- [`src/built-ins/modules/website-editor/src/server/incubatorTemplate.ts`](../server/incubatorTemplate.md)
+- [`src/built-ins/modules/website-editor/src/server/pageVersions.ts`](../server/pageVersions.md)
+- [`src/built-ins/modules/website-editor/src/server/portalVariants.ts`](../server/portalVariants.md)
+- [`src/built-ins/modules/website-editor/src/server/publicMediaPromotion.ts`](../server/publicMediaPromotion.md)
+- [`src/built-ins/modules/website-editor/src/server/starterLoader.ts`](../server/starterLoader.md)
+- [`src/built-ins/modules/website-editor/src/server/staticExport.ts`](../server/staticExport.md)
+- [`src/built-ins/modules/website-editor/src/server/templateMarketplace.ts`](../server/templateMarketplace.md)
+- [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](./editorPage.md)
+

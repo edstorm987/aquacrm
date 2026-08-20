@@ -4,6 +4,34 @@ import { before, test } from "node:test";
 import { readFileSync } from "node:fs";
 import { operationalAlertBelongsToClient, operationalAlertMatchesHref, operationalAlertMatchesHrefPrefix } from "../src/lib/operationalAttention";
 
+/**
+ * The destination without the resolution context appended centrally.
+ *
+ * Alerts now carry `?resolve=&focus=` so the destination can explain why you
+ * were sent there. These assertions are about WHERE an alert points, so strip
+ * the context rather than pinning the literal string — otherwise every future
+ * change to the resolution layer breaks tests that do not care about it.
+ */
+function destination(href: string | undefined): string {
+  if (!href) return "";
+  // Split the fragment off FIRST. A URL is path?query#hash, so splitting on
+  // "?" first swallows the hash into the query — and the proposal alerts
+  // deep-link with #external-proposal-<id>.
+  const hashIndex = href.indexOf("#");
+  const hash = hashIndex >= 0 ? href.slice(hashIndex) : "";
+  const withoutHash = hashIndex >= 0 ? href.slice(0, hashIndex) : href;
+
+  const [path, query] = withoutHash.split("?");
+  if (!query) return `${path}${hash}`;
+  const params = new URLSearchParams(query);
+  params.delete("resolve");
+  params.delete("focus");
+  params.delete("record");
+  const rest = params.toString();
+  return `${path}${rest ? `?${decodeURIComponent(rest)}` : ""}${hash}`;
+}
+
+
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
 require.cache[serverOnlyPath] = {
@@ -23,6 +51,7 @@ type SidebarAttention = typeof import("../src/lib/server/sidebarAttention");
 type AlertPreferences = typeof import("../src/lib/server/operationalAlertPreferences");
 type Proposals = typeof import("../src/lib/server/externalAssistantProposals");
 type Tasks = typeof import("../src/server/tasks");
+type Resolution = typeof import("../src/lib/server/resolutionPlans");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -32,6 +61,7 @@ let sidebarAttention: SidebarAttention;
 let alertPreferences: AlertPreferences;
 let proposals: Proposals;
 let tasks: Tasks;
+let resolution: Resolution;
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -43,6 +73,7 @@ before(async () => {
   alertPreferences = await import("../src/lib/server/operationalAlertPreferences");
   proposals = await import("../src/lib/server/externalAssistantProposals");
   tasks = await import("../src/server/tasks");
+  resolution = await import("../src/lib/server/resolutionPlans");
   await storage.ensureHydrated();
   await storage.reset();
 });
@@ -94,7 +125,7 @@ test("finance rules feed the shared notification collector", async () => {
 
   const result = await alerts.listOperationalAlerts(agency.id, now);
   assert.match(result.find(alert => alert.id === "finance:expense-evidence")?.title ?? "", /1 paid expense need receipt evidence/);
-  assert.equal(result.find(alert => alert.id === "finance:expense-evidence")?.href, "/portal/agency/agency-finance/expenses?evidence=missing");
+  assert.equal(destination(result.find(alert => alert.id === "finance:expense-evidence")?.href), "/portal/agency/agency-finance/expenses?evidence=missing");
   assert.match(result.find(alert => alert.id === "finance:expense-review")?.title ?? "", /1 expense await review/);
   assert.match(result.find(alert => alert.id === "finance:overdue-invoices")?.title ?? "", /1 invoice is overdue/);
 });
@@ -161,7 +192,7 @@ test("budget pots raise cross-module funding and overspend alerts", async () => 
   assert.equal(result.find(alert => alert.id === "finance:budget-unfunded:growth")?.severity, "warning");
   assert.match(result.find(alert => alert.id === "finance:budget-unfunded:growth")?.detail ?? "", /£30/);
   assert.equal(result.find(alert => alert.id === "finance:budget-over:gear")?.severity, "critical");
-  assert.equal(result.find(alert => alert.id === "finance:budget-over:gear")?.href, "/portal/agency/agency-finance/budgets");
+  assert.equal(destination(result.find(alert => alert.id === "finance:budget-over:gear")?.href), "/portal/agency/agency-finance/budgets");
 });
 
 test("client social and paid-media delivery raises exact operational alerts", async () => {
@@ -185,7 +216,46 @@ test("client social and paid-media delivery raises exact operational alerts", as
   assert.equal(budgetAlert?.severity, "critical");
   assert.match(budgetAlert?.title ?? "", /Example Client · Retained growth/);
   assert.equal(result.find(alert => alert.id === `client-marketing-access:${client.id}`)?.severity, "warning");
-  assert.equal(result.find(alert => alert.id === `client-marketing-approvals:${client.id}`)?.href, `/portal/clients/${client.id}?tab=marketing`);
+  assert.equal(destination(result.find(alert => alert.id === `client-marketing-approvals:${client.id}`)?.href), `/portal/clients/${client.id}?tab=marketing`);
+});
+
+test("client health raises specific enquiry and traffic attention alerts", async () => {
+  const now = Date.parse("2026-08-14T12:00:00Z");
+  const DAY = 86_400_000;
+  const agency = tenants.createAgency({ name: "Client Health Alerts", slug: "client-health-alerts" });
+  let seq = 0;
+  const ev = (type: string, occurredAt: number) => ({ id: `evt_${(seq += 1)}`, type, occurredAt, receivedAt: occurredAt });
+  const client = tenants.createClient(agency.id, {
+    name: "Quiet Client",
+    workspaceLabel: "Website care",
+    metadata: {
+      telemetryLastSeenAt: now - DAY,
+      telemetryEvents: [
+        ...Array.from({ length: 5 }, () => ev("form", now - 45 * DAY)),
+        ...Array.from({ length: 4 }, () => ev("form", now - 75 * DAY)),
+        // no enquiries in the trailing 30 days → "no enquiries this month"
+        ...Array.from({ length: 40 }, () => ev("pageview", now - 45 * DAY)),
+        ...Array.from({ length: 40 }, () => ev("pageview", now - 75 * DAY)),
+        ...Array.from({ length: 8 }, () => ev("pageview", now - 10 * DAY)), // ~80% traffic drop
+      ],
+    },
+  });
+
+  const result = await alerts.listOperationalAlerts(agency.id, now);
+  const enquiryAlert = result.find(alert => alert.id === `client-health-enquiry:${client.id}`);
+  const trafficAlert = result.find(alert => alert.id === `client-health-traffic:${client.id}`);
+
+  assert.equal(enquiryAlert?.severity, "warning");
+  assert.equal(enquiryAlert?.kind, "off-system");
+  assert.match(enquiryAlert?.title ?? "", /Quiet Client.*no enquiries this month/);
+  assert.match(enquiryAlert?.detail ?? "", /baseline of 4\.5 per month/);
+  // The central stamper appends a `resolve=` context param, so match the base.
+  assert.ok(enquiryAlert?.href.startsWith(`/portal/clients/${client.id}?tab=systems`), enquiryAlert?.href);
+  assert.match(enquiryAlert?.clearsWhen ?? "", /Enquiries return to/);
+  assert.equal(enquiryAlert?.clientId, client.id);
+
+  assert.equal(trafficAlert?.severity, "warning");
+  assert.match(trafficAlert?.title ?? "", /traffic down \d+%/);
 });
 
 test("finance operations warns about compliance and people payments", async () => {
@@ -219,7 +289,64 @@ test("finance operations warns about compliance and people payments", async () =
   assert.equal(result.find(alert => alert.id === "finance:obligations-overdue")?.severity, "critical");
   assert.match(result.find(alert => alert.id === "finance:obligations-overdue")?.title ?? "", /1 finance obligation is overdue/);
   assert.equal(result.find(alert => alert.id === "finance:people-payments-due")?.severity, "critical");
-  assert.equal(result.find(alert => alert.id === "finance:people-payments-due")?.href, "/portal/agency/agency-finance/operations");
+  assert.equal(destination(result.find(alert => alert.id === "finance:people-payments-due")?.href), "/portal/agency/agency-finance/operations");
+});
+
+test("a missed instalment resolves to a multi-step collect plan via the canonical payment-plan key", async () => {
+  // Regression: resolutionPlans read `client.metadata.paymentPlans`, but plans
+  // are persisted under `client.metadata.clientPaymentPlans` (client-payment-
+  // plans route + every other reader). The mismatched key meant the resolver
+  // never found the plan and silently returned null — the "Collect …" steps and
+  // the instalment evidence never appeared on a payment-plan alert.
+  await storage.reset();
+  const now = Date.parse("2026-08-14T12:00:00Z");
+  const DAY = 86_400_000;
+  const agency = tenants.createAgency({ name: "Instalments", slug: "instalment-resolution" });
+  const client = tenants.createClient(agency.id, {
+    name: "Retainer Client",
+    metadata: {
+      clientPaymentPlans: [{
+        id: "plan-1",
+        title: "Website build",
+        currency: "gbp",
+        status: "active",
+        customerVisible: true,
+        createdAt: now - 30 * DAY,
+        updatedAt: now - 30 * DAY,
+        milestones: [
+          { id: "m-deposit", title: "Deposit", amountCents: 40_000, dueAt: now - 5 * DAY, status: "invoiced" },
+          { id: "m-launch", title: "Launch", amountCents: 60_000, dueAt: now + 20 * DAY, status: "planned" },
+        ],
+      }],
+    },
+  });
+
+  const alertId = `payment-plan:${client.id}:plan-1:m-deposit`;
+
+  const plan = await resolution.resolutionPlanFor(agency.id, alertId);
+  assert.ok(plan, "resolver must find the plan under the canonical clientPaymentPlans key");
+  assert.match(plan!.title, /Collect .*Deposit/);
+  assert.equal(plan!.steps.length, 2);
+  assert.ok(plan!.steps.some(step => step.focus === "payment"), "a step must record the payment");
+
+  const evidence = await resolution.resolutionEvidenceFor(agency.id, alertId, now);
+  assert.ok(evidence, "instalment evidence must resolve from the canonical key too");
+  assert.match(evidence!.summary, /instalment on Retainer Client/);
+
+  // Proof we read the RIGHT key, not just any key: nothing persists under the
+  // legacy `paymentPlans`, so a resolver still reading it would return non-null
+  // here. Post-fix it reads `clientPaymentPlans` (absent) → null.
+  const legacyOnly = tenants.createClient(agency.id, {
+    name: "Legacy Key",
+    metadata: {
+      paymentPlans: [{
+        id: "plan-x", title: "X", currency: "gbp", status: "active", customerVisible: true,
+        createdAt: now, updatedAt: now,
+        milestones: [{ id: "m-x", title: "X", amountCents: 1, dueAt: now, status: "planned" }],
+      }],
+    },
+  });
+  assert.equal(await resolution.resolutionPlanFor(agency.id, `payment-plan:${legacyOnly.id}:plan-x:m-x`), null);
 });
 
 test("live notifications are exposed to global workspace search", () => {
@@ -276,7 +403,7 @@ test("pending external AI proposals feed Actions attention and parked proposals 
   const proposalAlert = pendingAlerts.find(alert => alert.id === `external-proposal:${proposal.id}`);
   assert.equal(proposalAlert?.severity, "critical");
   assert.equal(proposalAlert?.category, "task");
-  assert.equal(proposalAlert?.href, `/portal/agency/actions#external-proposal-${proposal.id}`);
+  assert.equal(destination(proposalAlert?.href), `/portal/agency/actions#external-proposal-${proposal.id}`);
 
   const marked = sidebarAttention.addSidebarAttention([{
     id: "main",
@@ -406,4 +533,29 @@ test("attention links resolve to the narrowest matching workspace tab", () => {
   assert.equal(operationalAlertBelongsToClient({ ...clientAlert, clientId: "one" }, "one"), true);
   assert.equal(operationalAlertBelongsToClient({ ...clientAlert, clientId: "two" }, "one"), false);
   assert.equal(operationalAlertBelongsToClient({ ...clientAlert, clientId: undefined }, "one"), true);
+});
+
+test("unread owner direct messages + @mentions surface as a Needs-attention alert", async () => {
+  const now = Date.parse("2026-08-10T09:00:00Z");
+  const agency = tenants.createAgency({ name: "Chat Attention", slug: "chat-attention-alerts" });
+  const { createUser } = await import("../src/server/users");
+  const people = await import("../src/server/people");
+  const owner = createUser({ email: "owner@chat-alert.test", password: "Smoke-pass-123!", name: "Ed Founder", role: "agency-owner", agencyId: agency.id });
+  const sam = createUser({ email: "sam@chat-alert.test", password: "Smoke-pass-123!", name: "Sam Taylor", role: "agency-staff", agencyId: agency.id });
+
+  // Sam sends Ed a direct message → an unread direct for the owner.
+  const direct = people.ensureDirectChannel(agency.id, owner.id, sam.id);
+  people.postPeopleMessage({ agencyId: agency.id, channelId: direct.id, authorUserId: sam.id, body: "Hi Ed, can you review the quote?" });
+
+  const result = await alerts.listOperationalAlerts(agency.id, now);
+  const chatAlert = result.find(alert => alert.id === "people:chat-attention");
+  assert.ok(chatAlert, "chat-attention alert is present in the operational alert list");
+  assert.equal(chatAlert.kind, "in-app");
+  assert.equal(destination(chatAlert.href), "/portal/agency/people?view=chat");
+  assert.match(chatAlert.title, /team chat message/);
+
+  // Reading the channel clears the alert (its own resolution path).
+  people.markChannelRead(agency.id, direct.id, owner.id);
+  const cleared = await alerts.listOperationalAlerts(agency.id, now);
+  assert.equal(cleared.find(alert => alert.id === "people:chat-attention"), undefined);
 });

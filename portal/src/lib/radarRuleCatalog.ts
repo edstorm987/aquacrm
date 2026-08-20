@@ -1,4 +1,5 @@
-import type { AdvisorDomain, RadarRuleLens } from "@/lib/businessRadar";
+import type { AdvisorDomain, RadarCheckTier, RadarDataDependency, RadarRuleLens } from "@/lib/businessRadar";
+import { classifyRadarCheck } from "@/lib/radarClassification";
 
 export interface RadarSignalFamilyDefinition {
   id: string;
@@ -14,6 +15,9 @@ export interface BusinessRadarRuleDefinition {
   lens: RadarRuleLens;
   lensLabel: string;
   description: string;
+  /** Classification metadata (radar upgrade Stage 2). Every catalogue rule is `kpi` scope. */
+  tier: RadarCheckTier;
+  dataDependency: RadarDataDependency;
 }
 
 export const RADAR_RULE_LENSES: ReadonlyArray<{ id: RadarRuleLens; label: string; description: string }> = [
@@ -65,6 +69,7 @@ const DOMAIN_SIGNAL_FAMILIES: Record<AdvisorDomain, readonly RadarSignalFamilyDe
     ["target-breaches", "Lead response breaches", "Enquiries outside the configured response target."],
     ["pipeline-leads", "Pipeline lead volume", "Lead records currently available to the sales pipeline."],
     ["enquiry-linkage", "Enquiry-to-contact linkage", "Inbound enquiries linked to a lead or contact record."],
+    ["enquiry-routing", "Enquiry routing coverage", "Tagged website sources pointing their enquiries at a specific client or company rather than the agency catch-all."],
   ]),
   inbox: families([
     ["conversation-volume", "Conversation volume", "Social and direct message conversations in the master inbox."],
@@ -177,6 +182,7 @@ const DOMAIN_SIGNAL_FAMILIES: Record<AdvisorDomain, readonly RadarSignalFamilyDe
     ["release-errors", "Release-linked errors", "Errors correlated with a release or deployment."],
     ["monitoring-silence", "Monitoring silence", "Live properties that have stopped reporting."],
     ["telemetry-integrity", "Telemetry integrity", "Valid event shapes, timestamps, sessions, and property linkage."],
+    ["injection-coverage", "Tag injection coverage", "Tagged sites configured to inject third-party tools (analytics, pixels, verification) through the Aqua Tag."],
   ]),
   team: families([
     ["team-size", "Team size", "Active users with access to the workspace."],
@@ -224,6 +230,7 @@ const DOMAIN_SIGNAL_FAMILIES: Record<AdvisorDomain, readonly RadarSignalFamilyDe
     ["inbox-ingestion", "Inbox ingestion", "Webhook and message ingestion from connected channels."],
     ["storage-activity", "Persistence activity", "Durable business records and recent writes."],
     ["blind-spot-control", "Blind spot control", "Sources that are disconnected, unavailable, or uninstrumented."],
+    ["portal-connections", "Portal connections", "Client software linked into their portals, and whether it still reports."],
   ]),
 };
 
@@ -237,6 +244,8 @@ export const BUSINESS_RADAR_RULE_CATALOG: readonly BusinessRadarRuleDefinition[]
     lens: lens.id,
     lensLabel: lens.label,
     description: `${lens.description} ${family.description}`,
+    // Catalogue rules are all evaluated in-state during the Pulse build (scope "kpi").
+    ...classifyRadarCheck({ scope: "kpi", lens: lens.id }),
   }))));
 
 export const RADAR_CHECKS_PER_DOMAIN = RADAR_RULE_LENSES.length * 12;

@@ -18,6 +18,7 @@ import {
   PackageCheck,
   PanelLeftOpen,
   PanelsTopLeft,
+  Radio,
   Settings2,
   Sparkles,
   UsersRound,
@@ -29,7 +30,7 @@ import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import type { AgencyProduct, SopDocument, TradingCompany } from "@/server/types";
 import { clientWorkspaceDisplayName, clientWorkspaceHref } from "@/lib/clientWorkspace";
 
-export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "clients" | "portals";
+export type FulfilmentView = "overview" | "stages" | "services" | "technical" | "clients" | "portals" | "tags";
 
 export interface FulfilmentProductRecord {
   id: string;
@@ -110,6 +111,7 @@ const VIEW_ITEMS: Array<{ id: FulfilmentView; label: string; icon: typeof Gauge 
   { id: "stages", label: "Stage board", icon: FolderKanban },
   { id: "services", label: "Services", icon: Layers3 },
   { id: "technical", label: "Technical delivery", icon: Code2 },
+  { id: "tags", label: "Aqua tags", icon: Radio },
   { id: "clients", label: "Client workspaces", icon: UsersRound },
   { id: "portals", label: "Portals", icon: PanelsTopLeft },
 ];
@@ -136,6 +138,7 @@ export function FulfilmentWorkspace({
   focusedProductId,
   productEditor,
   technicalWorkspace,
+  tagsWorkspace,
   canManage,
 }: {
   view: FulfilmentView;
@@ -155,6 +158,7 @@ export function FulfilmentWorkspace({
     defaults: { taxRatePercent: number; paymentTermsDays: number };
   };
   technicalWorkspace?: ReactNode;
+  tagsWorkspace?: ReactNode;
   canManage: boolean;
 }) {
   const activeServices = clients.reduce((total, client) => total + client.products.length, 0);
@@ -225,6 +229,7 @@ export function FulfilmentWorkspace({
         </div>
       ) : null}
       {view === "technical" ? <div className="pt-6">{technicalWorkspace}</div> : null}
+      {view === "tags" ? <div className="pt-6">{tagsWorkspace}</div> : null}
       {view === "clients" ? <ClientDelivery clients={clients} focusedClientId={focusedClientId} focusedProductId={focusedProductId} /> : null}
       {view === "portals" ? (
         <div className="pt-6">

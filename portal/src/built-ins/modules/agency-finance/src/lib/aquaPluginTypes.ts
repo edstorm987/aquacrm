@@ -148,6 +148,9 @@ export interface AquaPlugin {
   icon?: ReactNode;
   core?: boolean;
   scopePolicy?: ScopePolicy;
+  // Erasure disposition — "retain" excludes this plugin's client data from the
+  // client-erasure sweep (legal hold). Default "delete". See clientErasure.ts.
+  dataDisposition?: "delete" | "retain";
   requires?: string[];
   conflicts?: string[];
   onInstall?: (ctx: PluginCtx, setupAnswers: Record<string, string>) => Promise<void>;

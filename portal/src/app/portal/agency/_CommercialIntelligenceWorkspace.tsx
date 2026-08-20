@@ -22,12 +22,22 @@ import {
 
 import type {
   CommercialFormulaMetric,
-  CommercialIntelligenceSnapshot,
   CommercialMetricCategory,
   CommercialPersonRow,
   CommercialRecordState,
   CommandKpiStatus,
 } from "@/lib/commandIntelligence";
+import type { CommercialIntelligenceSnapshotWithMeasurement } from "@/lib/commercialIntelligence";
+
+/**
+ * The lineage honesty flags are optional on the wire, so a snapshot built
+ * before they existed still renders. Only an explicit `false` downgrades a
+ * stage to "not monitored" — see `commercialIntelligence.ts`.
+ */
+type CommercialIntelligenceSnapshot = Omit<CommercialIntelligenceSnapshotWithMeasurement, "lineage"> & {
+  lineage: Omit<CommercialIntelligenceSnapshotWithMeasurement["lineage"], "pageviewsMeasured" | "formsMeasured">
+    & { pageviewsMeasured?: boolean; formsMeasured?: boolean };
+};
 
 type FormulaFilter = CommercialMetricCategory | "all";
 type RecordStateFilter = CommercialRecordState | "all";
@@ -99,25 +109,34 @@ function LifecycleHeader({ snapshot }: { snapshot: CommercialIntelligenceSnapsho
 }
 
 function LineagePlot({ snapshot, onState }: { snapshot: CommercialIntelligenceSnapshot; onState: (value: RecordStateFilter) => void }) {
+  // A Radar `value: 0` is not a measurement. When the tag is not monitoring the
+  // estate the funnel must say so rather than assert that nobody visited.
+  const pageviewsMeasured = snapshot.lineage.pageviewsMeasured !== false;
+  const formsMeasured = snapshot.lineage.formsMeasured !== false;
   const points = [
-    { label: "Pageviews", value: snapshot.lineage.pageviews, state: "all" as const, evidence: "Aqua Tag" },
-    { label: "Forms", value: snapshot.lineage.forms, state: "all" as const, evidence: "Tracked forms" },
-    { label: "Leads", value: snapshot.lineage.leads, state: "all" as const, evidence: "Retained people" },
-    { label: "Contacted", value: snapshot.lineage.contacted, state: "contacted" as const, evidence: "Touches or progress" },
-    { label: "Meetings", value: snapshot.lineage.meetings, state: "meeting" as const, evidence: "Meeting or later" },
-    { label: "Proposals", value: snapshot.lineage.proposals, state: "proposal" as const, evidence: "Proposal or later" },
-    { label: "Won", value: snapshot.lineage.won, state: "won" as const, evidence: "Conversion record" },
-    { label: "Active clients", value: snapshot.lineage.activeClients, state: "client" as const, evidence: "Active portfolio" },
-    { label: "Churned", value: snapshot.lineage.churnedClients, state: "churned" as const, evidence: "Closed portfolio" },
+    { label: "Pageviews", value: snapshot.lineage.pageviews, state: "all" as const, evidence: pageviewsMeasured ? "Aqua Tag" : "Not monitored", measured: pageviewsMeasured },
+    { label: "Forms", value: snapshot.lineage.forms, state: "all" as const, evidence: formsMeasured ? "Tracked forms" : "Not monitored", measured: formsMeasured },
+    { label: "Leads", value: snapshot.lineage.leads, state: "all" as const, evidence: "Retained people", measured: true },
+    { label: "Contacted", value: snapshot.lineage.contacted, state: "contacted" as const, evidence: "Touches or progress", measured: true },
+    { label: "Meetings", value: snapshot.lineage.meetings, state: "meeting" as const, evidence: "Meeting or later", measured: true },
+    { label: "Proposals", value: snapshot.lineage.proposals, state: "proposal" as const, evidence: "Proposal or later", measured: true },
+    { label: "Won", value: snapshot.lineage.won, state: "won" as const, evidence: "Conversion record", measured: true },
+    { label: "Active clients", value: snapshot.lineage.activeClients, state: "client" as const, evidence: "Active portfolio", measured: true },
+    { label: "Churned", value: snapshot.lineage.churnedClients, state: "churned" as const, evidence: "Closed portfolio", measured: true },
   ];
   return <section className="border-b border-[#62e8ff]/16 p-4 sm:p-5" aria-labelledby="lineage-heading">
     <Heading eyebrow="ACQUISITION LINEAGE · CI-01A" title="Attention to retained relationship" detail="Select a stage to filter the exact record ledger below. Ratios between adjacent stages are directional where sources use different windows." icon={<Target size={15} />} id="lineage-heading" />
     <div className="mt-4 grid grid-cols-2 border-l border-t border-[#62e8ff]/14 sm:grid-cols-3 xl:grid-cols-9">
       {points.map((point, index) => {
         const previous = points[index - 1];
-        const progression = previous?.value ? point.value / previous.value * 100 : null;
+        const progression = point.measured && previous?.measured && previous.value ? point.value / previous.value * 100 : null;
+        const detail = index === 0
+          ? point.measured ? "Estate exposure" : "Nothing monitored yet"
+          : !point.measured ? "Not measured — no Aqua Tag reading"
+          : previous && !previous.measured ? "Prior stage not monitored"
+          : progression === null ? "No prior sample" : `${Math.round(progression)}% from prior`;
         return <button key={point.label} onClick={() => onState(point.state)} className="group relative min-h-[112px] border-b border-r border-[#62e8ff]/14 p-3 text-left hover:bg-[#62e8ff]/[0.06]">
-          <span className="text-[7px] font-semibold uppercase text-white/28">{String(index + 1).padStart(2, "0")} · {point.evidence}</span><strong className="mt-2 block text-2xl tabular-nums text-white/82">{point.value.toLocaleString()}</strong><span className="mt-1 block text-[10px] font-semibold text-[#8ef1ff]">{point.label}</span><span className="mt-2 block text-[8px] text-white/26">{index === 0 ? "Estate exposure" : progression === null ? "No prior sample" : `${Math.round(progression)}% from prior`}</span>
+          <span className="text-[7px] font-semibold uppercase text-white/28">{String(index + 1).padStart(2, "0")} · {point.evidence}</span><strong className={`mt-2 block text-2xl tabular-nums ${point.measured ? "text-white/82" : "text-white/38"}`}>{point.measured ? point.value.toLocaleString() : "—"}</strong><span className="mt-1 block text-[10px] font-semibold text-[#8ef1ff]">{point.label}</span><span className="mt-2 block text-[8px] text-white/26">{detail}</span>
           {index < points.length - 1 ? <ArrowRight size={12} className="absolute right-[-7px] top-1/2 z-10 hidden -translate-y-1/2 bg-[#020b11] text-[#62e8ff]/40 xl:block" /> : null}
         </button>;
       })}

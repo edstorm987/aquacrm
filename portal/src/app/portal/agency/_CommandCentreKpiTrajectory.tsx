@@ -46,6 +46,7 @@ export function CommandCentreKpiTrajectory({
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-[8px] font-semibold uppercase ${critical ? "text-red-300" : attention ? "text-amber-300" : "text-[#68f5d0]"}`}>{attention} stations on watch</span>
+          <button type="button" onClick={() => onOpen([])} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.05] px-2.5 text-[8px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1] hover:text-white" title="Search and plot any KPI in the explorer"><BarChart3 size={11} /> Explore all KPIs</button>
           <button type="button" onClick={() => onOpen(allKpiIds)} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 border border-[#e5c479]/18 px-2.5 text-[8px] font-semibold uppercase text-[#e5c479] hover:bg-[#e5c479]/[0.06] hover:text-white">Open all five <ArrowUpRight size={10} /></button>
         </div>
       </div>

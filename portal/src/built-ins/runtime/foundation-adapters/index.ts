@@ -12,6 +12,7 @@ export { phaseStoreAdapter } from "./phaseStoreAdapter";
 export { activityLogAdapter } from "./activityLogAdapter";
 export { eventBusAdapter } from "./eventBusAdapter";
 export { portalVariantAdapter } from "./portalVariantAdapter";
+export { publicMediaAdapter } from "./publicMediaAdapter";
 
 import { clientStoreAdapter } from "./clientStoreAdapter";
 import { pluginInstallStoreAdapter } from "./pluginInstallStoreAdapter";
@@ -21,6 +22,7 @@ import { phaseStoreAdapter } from "./phaseStoreAdapter";
 import { activityLogAdapter } from "./activityLogAdapter";
 import { eventBusAdapter } from "./eventBusAdapter";
 import { portalVariantAdapter } from "./portalVariantAdapter";
+import { publicMediaAdapter } from "./publicMediaAdapter";
 import type { PluginServices } from "@/built-ins/runtime/_types";
 
 // Singleton — adapters are stateless wrappers around module-level
@@ -35,4 +37,5 @@ export const FOUNDATION_SERVICES: PluginServices = {
   activity: activityLogAdapter,
   events: eventBusAdapter,
   variants: portalVariantAdapter,
+  publicMedia: publicMediaAdapter,
 };

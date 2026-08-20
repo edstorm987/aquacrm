@@ -33,6 +33,10 @@ const manifest: AquaPlugin = {
 
   core: false,
   scopePolicy: "client",
+  // Legal hold by default: payouts are payment records. A bespoke
+  // `onEraseClient` (below) refines this — strips affiliate PII, keeps the
+  // de-identified payout — and takes precedence over this flag.
+  dataDisposition: "retain",
   requires: ["ecommerce"],
 
   navItems: [
@@ -202,6 +206,28 @@ const manifest: AquaPlugin = {
     await c.codes.list();
     await c.attributions.list();
     await c.payouts.list();
+  },
+
+  // Right-to-be-forgotten. Attributions + payouts are already de-identified
+  // financial records (amounts, dates, txn refs — no names) and are retained
+  // untouched as the legal-hold commission record. Only the Affiliate row
+  // carries embedded PII (the person's display name + payout email), so we
+  // strip those, keeping the id, commission terms, lifetime earnings, Stripe
+  // account ref (payment handle), and the pseudonymous user token — a
+  // de-identified shell. The affiliate's identity record lives in the
+  // top-level `endCustomers` collection and is deleted by the erasure sweep.
+  // Idempotent. Storage layout (see contacts-style docs): `affiliates/index`
+  // (id list) → `affiliates/by-id/<id>` (Affiliate row).
+  onEraseClient: async (ctx: PluginCtx, clientId: string) => {
+    const ids = (await ctx.storage.get<string[]>("affiliates/index")) ?? [];
+    for (const id of ids) {
+      const key = `affiliates/by-id/${id}`;
+      const row = await ctx.storage.get<Record<string, unknown>>(key);
+      if (!row || row.clientId !== clientId) continue;
+      row.displayName = "[erased]";
+      delete row.payoutEmail;
+      await ctx.storage.set(key, row);
+    }
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {

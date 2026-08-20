@@ -1,0 +1,23 @@
+# `src/app/api/portal/inbox/conversations/route.ts`
+
+← [File index](../../../../../../../files-index.md) · Area: App routes & UI — src/app/
+
+_No file-level doc-comment. Purpose inferred from its path (App routes & UI — src/app/) and its exports below._
+
+## Exports (2)
+
+- `async GET()`
+- `async PATCH(request: NextRequest)`
+
+## Depends on (5)
+
+- [`src/lib/server/auth.ts`](../../../../../lib/server/auth.md)
+- [`src/lib/server/clientRecordLedger.ts`](../../../../../lib/server/clientRecordLedger.md)
+- [`src/lib/server/identityResolution.ts`](../../../../../lib/server/identityResolution.md)
+- [`src/lib/server/inboxStore.ts`](../../../../../lib/server/inboxStore.md)
+- [`src/server/storage.ts`](../../../../../server/storage.md)
+
+## Used by
+
+_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+

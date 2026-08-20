@@ -1,4 +1,5 @@
-import { makeId } from "../lib/ids";
+import { deriveRecordId, normaliseIdempotencyKey } from "../lib/idempotency";
+import { listRowIds } from "./rowIndex";
 import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type { CreateIncomeEntryInput, Currency, IncomeEntry, IncomeEntryFilter } from "../lib/domain";
@@ -15,8 +16,10 @@ export class IncomeService {
     private events: EventBusPort,
   ) {}
 
+  // Index + row scan (see server/rowIndex.ts): income recorded concurrently
+  // must not fall out of the books because two writes raced on the index.
   async list(filter: IncomeEntryFilter = {}): Promise<IncomeEntry[]> {
-    const ids = (await this.storage.get<string[]>(INDEX_KEY)) ?? [];
+    const ids = await listRowIds(this.storage, INDEX_KEY, "income/by-id/");
     const rows: IncomeEntry[] = [];
     for (const id of ids) {
       const row = await this.storage.get<IncomeEntry>(entryKey(id));
@@ -30,13 +33,23 @@ export class IncomeService {
     return rows.sort((a, b) => b.receivedAt - a.receivedAt);
   }
 
+  // Idempotent on `input.idempotencyKey`: a resubmit of the same intent returns
+  // the first entry instead of double-recording income. See lib/idempotency.ts.
   async create(actor: UserId, input: CreateIncomeEntryInput, defaultCurrency: Currency = "gbp"): Promise<IncomeEntry> {
     const title = input.title.trim().slice(0, 180);
     if (!title) throw new Error("Income description is required.");
     if (!Number.isFinite(input.amountCents) || input.amountCents <= 0) throw new Error("Income amount must be greater than zero.");
+
+    const key = normaliseIdempotencyKey(input.idempotencyKey);
+    const id = deriveRecordId("inc", key);
+    if (key) {
+      const existing = await this.storage.get<IncomeEntry>(entryKey(id));
+      if (existing && existing.agencyId === this.agencyId) return existing;
+    }
+
     const timestamp = now();
     const entry: IncomeEntry = {
-      id: makeId("inc"),
+      id,
       agencyId: this.agencyId,
       clientId: input.clientId?.trim() || undefined,
       title,

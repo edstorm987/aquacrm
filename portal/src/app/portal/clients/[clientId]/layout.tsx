@@ -9,6 +9,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth";
+import { devDocsAccessible } from "@/lib/server/devDocs";
 import { ALL_ROLES } from "@/server/types";
 import { getClientForAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
@@ -193,6 +194,8 @@ export default async function ClientLayout({
             sidebarVariant="client"
             isDemo={session.isDemo}
             showcaseMode={Boolean(session.showcaseReturnAgencyId)}
+            devModeActive={Boolean(session.devReturnAgencyId)}
+            devConsole={devDocsAccessible(session)}
             privacyTerms={[
               client.name,
               client.ownerEmail ?? "",

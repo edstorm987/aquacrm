@@ -6,8 +6,13 @@ import type {
   BusinessIssueRadar,
   BusinessIssueSeverity,
   BusinessMetricSignal,
+  BusinessRadarCheck,
+  BusinessRadarIncident,
   BusinessRadarIssue,
   BusinessSignalStatus,
+  RadarCoverageManifest,
+  RadarFindingGroup,
+  RadarFindingGroupSummary,
   SpeedToLeadRadar,
 } from "@/lib/businessRadar";
 import {
@@ -17,6 +22,12 @@ import {
   buildCommercialLifecycleSnapshot,
 } from "@/lib/commercialLifecycle";
 import { buildRadarCheckMatrix, summarizeRadarChecks } from "@/lib/radarCheckEngine";
+import { classifyRadarCheck, RADAR_FINDING_GROUP_LABELS } from "@/lib/radarClassification";
+import { buildInfraHealthChecks } from "@/lib/radarInfraChecks";
+import { resolveRadarCoverage, type RadarCoverageInputEntity } from "@/lib/radarCoverageRegistry";
+import { ensureRadarSeedingRegistered } from "./radarSeeding";
+import { listAgencyProducts } from "@/server/agencyProducts";
+import { listTradingCompanies } from "@/server/tradingCompanies";
 import { buildRadarCorrelationIssues } from "@/lib/radarCorrelations";
 import { applyAdaptiveRadarPolicy } from "@/lib/radarPolicyEngine";
 import { RADAR_CHECKS_PER_DOMAIN, RADAR_RULE_LENSES } from "@/lib/radarRuleCatalog";
@@ -36,7 +47,7 @@ import { listUsersForAgency } from "@/server/users";
 import { listInboxSnapshot } from "./inboxStore";
 import { buildCompanyHealthSnapshot } from "./companyHealthSnapshot";
 import { listOperationalAlerts, type OperationalAlert } from "./operationalAlerts";
-import { listWebsiteEnquiries, type WebsiteEnquiry } from "./websiteEnquiries";
+import { getRequestWebsiteEnquiries, type WebsiteEnquiry } from "./websiteEnquiries";
 import { isLeadJourneyEligible } from "@/lib/enquiryClassification";
 import { buildRadarObservations } from "./radarObservations";
 import { buildRadarMemoryDigest, buildRadarMemoryIssues } from "./radarMemory";
@@ -96,6 +107,7 @@ export async function buildBusinessIssueRadar(
   now = Date.now(),
   inputs: RadarInputs = {},
 ): Promise<BusinessIssueRadar> {
+  ensureRadarSeedingRegistered();
   const state = getState();
   const settings = getAgencyWorkspaceSettings(agencyId);
   const clients = listClients(agencyId, { includeArchived: true });
@@ -111,7 +123,7 @@ export async function buildBusinessIssueRadar(
   const [companyResult, alertResult, enquiryResult, inboxResult, leadResult] = await Promise.allSettled([
     inputs.company ? Promise.resolve(inputs.company) : buildCompanyHealthSnapshot(agencyId, now),
     inputs.operationalAlerts ? Promise.resolve(inputs.operationalAlerts) : listOperationalAlerts(agencyId, now),
-    listWebsiteEnquiries(500),
+    getRequestWebsiteEnquiries(500),
     listInboxSnapshot(agencyId),
     leadInstall ? listRadarLeads(agencyId, leadInstall.id) : Promise.resolve([]),
   ]);
@@ -433,14 +445,22 @@ export async function buildBusinessIssueRadar(
   const sourceSentinels = buildSourceSentinelChecks(coverage, now);
   const propertySentinels = buildPropertySentinelChecks(telemetry, now);
   const syntheticSentinels = buildSyntheticCanaryChecks(telemetry, syntheticProbes, now);
+  // Infra scope: DB/storage health from the latest Infra sweep snapshot (radar
+  // upgrade Stage 4). The Pulse only reads the snapshot — the probe runs in the
+  // Infra sweep — so this stays I/O-free.
+  const infraChecks = buildInfraHealthChecks(state.radarInfraHealth, now);
   const historicalChecks = evidenceLayer.checks;
-  const checksBeforeWatchdog = [...catalogMatrix.checks, ...commercialChecks, ...clientChecks, ...sourceSentinels, ...propertySentinels, ...syntheticSentinels, ...historicalChecks];
+  const checksBeforeWatchdog = [...catalogMatrix.checks, ...commercialChecks, ...clientChecks, ...sourceSentinels, ...propertySentinels, ...syntheticSentinels, ...infraChecks, ...historicalChecks];
+  // Coverage manifest (radar upgrade Stage 6): resolve every monitorable entity
+  // to a detector pack, so the watchdog can prove nothing is silently un-watched.
+  const coverageManifest = resolveRadarCoverage(collectRadarCoverageEntities(agencyId, state, clients, telemetry));
   const watchdogChecks = buildRadarWatchdogChecks({
     checks: checksBeforeWatchdog,
     coverage,
     telemetry,
     correlationIssues,
     evidence: evidenceLayer.digest,
+    coverageManifest,
     now,
   });
   const rawChecks = [...checksBeforeWatchdog, ...watchdogChecks];
@@ -518,6 +538,7 @@ export async function buildBusinessIssueRadar(
       syntheticSentinels: syntheticSentinels.length,
       commercialLifecycleChecks: commercialChecks.length,
       historicalChecks: historicalChecks.length,
+      infraChecks: infraChecks.length,
       watchdogChecks: watchdogChecks.length,
       monitoredProperties: telemetry.properties.length,
       syntheticProperties: telemetry.properties.filter(property => property.expectedLive).length,
@@ -529,6 +550,8 @@ export async function buildBusinessIssueRadar(
       historicalAnomalies: evidenceLayer.digest.anomalousSeries,
       clientChecks: clientChecks.length,
       monitoredClients: clientRadars.length,
+      monitoredEntities: coverageManifest.entries.length,
+      coverageGaps: coverageManifest.gaps,
     },
     speedToLead,
     commercial,
@@ -540,6 +563,9 @@ export async function buildBusinessIssueRadar(
     domains: adaptive.domains,
     evidence: evidenceLayer.digest,
     adaptive: adaptive.adaptive,
+    infra: state.radarInfraHealth,
+    findingGroups: summariseFindingGroups(adaptive.incidents),
+    coverageManifest,
   } satisfies Omit<BusinessIssueRadar, "memory">;
   const memory = buildRadarMemoryDigest(agencyId, radar, now);
   const withMemory = applyAdaptiveRadarPolicy({
@@ -562,9 +588,10 @@ export async function buildBusinessIssueRadar(
     },
     issues: withMemory.issues,
     incidents: withMemory.incidents,
-    checks: withMemory.checks,
+    checks: withMemory.checks.map(stampRadarCheckClassification),
     domains: withMemory.domains,
     adaptive: withMemory.adaptive,
+    findingGroups: summariseFindingGroups(withMemory.incidents),
     memory,
   };
   reconcileAgencyTasksWithRadar(agencyId, result, now);
@@ -749,4 +776,56 @@ function issueSort(left: BusinessRadarIssue, right: BusinessRadarIssue): number 
 
 function readable(value: string): string {
   return value.replace(/^aqua-/, "").replace(/[-_]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+/**
+ * Gather every monitorable entity for the coverage manifest (radar upgrade
+ * Stage 6). `active` marks entities with real evidence (the rest are honestly
+ * `calibrating`). Telemetry properties come pre-resolved (agency + client).
+ */
+function collectRadarCoverageEntities(
+  agencyId: string,
+  state: ReturnType<typeof getState>,
+  clients: ReturnType<typeof listClients>,
+  telemetry: ReturnType<typeof buildRadarTelemetrySnapshot>,
+): RadarCoverageInputEntity[] {
+  const installs = Object.values(state.pluginInstalls).filter(install => install.agencyId === agencyId && install.enabled);
+  const portalConnections = Object.values(state.portalConnections ?? {}).filter(connection => connection.agencyId === agencyId);
+  return [
+    ...clients.map(client => ({ type: "client" as const, id: client.id, label: client.name, active: client.status === "active" })),
+    ...listAgencyProducts(agencyId).map(product => ({ type: "product" as const, id: product.id, label: product.name, active: true })),
+    ...telemetry.properties.map(property => ({ type: "property" as const, id: property.id, label: property.label, active: Boolean(property.lastSeenAt) })),
+    ...installs.map(install => ({ type: "integration" as const, id: install.id, label: readable(install.pluginId), active: pluginRecordCount(state, install.id) > 0 })),
+    ...portalConnections.map(connection => ({ type: "portal-connection" as const, id: connection.id, label: connection.label, active: connection.status === "active" })),
+    ...listTradingCompanies(agencyId).map(company => ({ type: "trading-company" as const, id: company.id, label: company.name, active: true })),
+  ];
+}
+
+/**
+ * Stamp a check with its sweep tier + data dependency (radar upgrade Stage 2).
+ * Derived from the check's own scope/lens so the classification travels with the
+ * serialized radar for the UI to filter on. Additive — never mutates status.
+ */
+function stampRadarCheckClassification<Check extends BusinessRadarCheck>(check: Check): Check {
+  return { ...check, ...classifyRadarCheck(check) };
+}
+
+/**
+ * Roll incidents up into their top-level problem buckets (radar upgrade Stage 5),
+ * ordered by severity weight then incident count. Only buckets with a live
+ * incident appear.
+ */
+function summariseFindingGroups(incidents: readonly BusinessRadarIncident[]): RadarFindingGroupSummary[] {
+  const groups = new Map<RadarFindingGroup, RadarFindingGroupSummary>();
+  for (const incident of incidents) {
+    const summary = groups.get(incident.group) ?? { group: incident.group, label: RADAR_FINDING_GROUP_LABELS[incident.group], incidents: 0, critical: 0, warning: 0, watch: 0 };
+    summary.incidents += 1;
+    if (incident.severity === "critical") summary.critical += 1;
+    else if (incident.severity === "warning") summary.warning += 1;
+    else summary.watch += 1;
+    groups.set(incident.group, summary);
+  }
+  return [...groups.values()].sort((left, right) =>
+    (right.critical * 100 + right.warning * 10 + right.watch) - (left.critical * 100 + left.warning * 10 + left.watch)
+    || right.incidents - left.incidents);
 }

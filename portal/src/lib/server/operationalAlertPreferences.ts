@@ -22,17 +22,22 @@ export function listOperationalAlertViews(
   return alerts.flatMap<OperationalAlertView>(alert => {
     const preference = preferences[preferenceKey(agencyId, userId, alert.id)];
     const changed = Boolean(preference && alert.occurredAt > preference.alertOccurredAt);
-    if (!preference || changed) return [{ ...alert, state: "unread" as const, attention: true }];
+    // Deferral history survives the alert changing underneath. The job was put
+    // off five times; a new figure on the same job does not reset that.
+    const history = preference?.deferrals
+      ? { deferrals: preference.deferrals, firstDeferredAt: preference.firstDeferredAt }
+      : {};
+    if (!preference || changed) return [{ ...alert, ...history, state: "unread" as const, attention: true }];
     if (preference.state === "dismissed") {
       return alert.persistentUntilResolved
-        ? [{ ...alert, state: "read" as const, attention: false }]
+        ? [{ ...alert, ...history, state: "read" as const, attention: false }]
         : [];
     }
     if (preference.state === "parked" && (preference.parkedUntil ?? 0) > now) {
-      return [{ ...alert, state: "parked" as const, attention: false, parkedUntil: preference.parkedUntil }];
+      return [{ ...alert, ...history, state: "parked" as const, attention: false, parkedUntil: preference.parkedUntil }];
     }
-    if (preference.state === "parked") return [{ ...alert, state: "unread" as const, attention: true }];
-    return [{ ...alert, state: "read" as const, attention: false }];
+    if (preference.state === "parked") return [{ ...alert, ...history, state: "unread" as const, attention: true }];
+    return [{ ...alert, ...history, state: "read" as const, attention: false }];
   });
 }
 
@@ -57,6 +62,11 @@ export function setOperationalAlertPreference({
       delete state.operationalAlertPreferences[key];
       return;
     }
+    const existing = state.operationalAlertPreferences[key];
+    // Counted on park only. Reading an item is not putting it off, and
+    // dismissing it is a decision — neither should inflate the tally that
+    // says "you keep avoiding this".
+    const deferrals = (existing?.deferrals ?? 0) + (action === "park" ? 1 : 0);
     const preference: OperationalAlertPreference = {
       agencyId,
       userId,
@@ -65,6 +75,7 @@ export function setOperationalAlertPreference({
       alertOccurredAt: alert.occurredAt,
       updatedAt: now,
       ...(action === "park" && parkedUntil ? { parkedUntil } : {}),
+      ...(deferrals ? { deferrals, firstDeferredAt: existing?.firstDeferredAt ?? now } : {}),
     };
     state.operationalAlertPreferences[key] = preference;
   });

@@ -3,11 +3,12 @@
 // getActive / setActive helpers and re-scopes from `siteId` only to
 // `(agencyId, clientId, siteId)` triple per 04's tenancy model.
 
-import type { PluginStorage } from "../lib/aquaPluginTypes";
+import type { PluginStorage, PublicMediaPort } from "../lib/aquaPluginTypes";
 import type { AgencyId, ClientId } from "../lib/tenancy";
 import type { PortalRole } from "../lib/portalRole";
 import { pageId as makePageId, slugify } from "../lib/ids";
 import { storageKeys } from "./storage-keys";
+import { promoteBlockTreeMedia } from "./publicMediaPromotion";
 import type {
   CreatePageInput,
   EditorPage,
@@ -126,13 +127,24 @@ export async function publishPage(
   clientId: ClientId,
   siteId: string,
   id: string,
+  opts?: { publicMedia?: PublicMediaPort },
 ): Promise<EditorPage | null> {
   const page = await getPage(storage, agencyId, clientId, siteId, id);
   if (!page) return null;
+  let blocks = page.draftBlocks ?? page.blocks;
+  // Auto-public on publish: push inline data-URL media to the public CDN
+  // bucket and rewrite the published blocks to the durable public URLs. Only
+  // runs when the foundation wired the port; otherwise blocks publish as-is.
+  const port = opts?.publicMedia;
+  if (port && Array.isArray(blocks)) {
+    const { blocks: promoted } = await promoteBlockTreeMedia(blocks, dataUrl =>
+      port.store({ agencyId, clientId, siteId, dataUrl }).then(r => r.publicUrl));
+    blocks = promoted;
+  }
   const next: EditorPage = {
     ...page,
     status: "published",
-    blocks: page.draftBlocks ?? page.blocks,
+    blocks,
     draftBlocks: undefined,
     publishedAt: Date.now(),
     updatedAt: Date.now(),

@@ -30,7 +30,10 @@ const WORKSPACES: Record<string, { label: string; backHref: string; items: Works
     label: "People operations",
     backHref: "/portal/agency?station=battle&battle=systems",
     items: [
-      { path: "", label: "People", href: "/portal/agency/agency-hr", icon: UsersRound },
+      // P5 — the plugin's own Staff directory is retired; this row links out to
+      // the canonical one so the panel ("People operations") and the row do not
+      // both read "People". `/portal/agency/agency-hr` redirects here anyway.
+      { path: "", label: "Staff directory", href: "/portal/agency/people", icon: UsersRound },
       { path: "departments", label: "Departments", href: "/portal/agency/agency-hr/departments", icon: Network },
       { path: "leave", label: "Leave", href: "/portal/agency/agency-hr/leave", icon: CalendarDays },
       { path: "employees", label: "Employees", href: "/portal/agency/agency-hr/employees", icon: UserRoundCheck },

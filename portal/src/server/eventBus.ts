@@ -24,6 +24,13 @@ export type AquaEventName =
   | "client.archived"
   | "client.stage_changed"
   | "website-enquiry.received"
+  // Canonical people
+  | "person.created"
+  | "person.updated"
+  | "person.classified"
+  | "organisation.created"
+  | "organisation.updated"
+  | "action.completed"
   // Auth
   | "user.signed_up"
   | "user.signed_in"

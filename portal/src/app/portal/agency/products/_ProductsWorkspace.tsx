@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowDown, ArrowRight, ArrowUp, Building2, Check, ChevronRight, FolderOpen, Grid2X2, Layers3, Lightbulb, ListChecks, Package, Plus, Rocket, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
 import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule, AgencyProductWorkspaceStage, AgencyProductWorkspaceStep, SopDocument, TradingCompany } from "@/server/types";
 import { AGENCY_PRODUCT_CATEGORIES } from "@/lib/agencyProductCategories";
-import { PORTAL_PRODUCT_CATALOG } from "@/lib/portalProducts";
+import { PORTAL_PRODUCT_CATALOG, PORTAL_PHASE_LABELS } from "@/lib/portalProducts";
 import { defaultProductInternalWorkspace, PRODUCT_STAGE_PORTAL_MODES, PRODUCT_WORKSPACE_MODULES } from "@/lib/productInternalWorkspace";
 
 export type Draft = {
@@ -569,7 +569,7 @@ export function ProductEditor({ draft, products, sops, companies, onClose, onSav
                   <summary className="cursor-pointer text-sm font-semibold text-black/75">Lifecycle stage copy</summary>
                   <p className="mt-1 text-xs leading-5 text-black/45">Optional custom guidance for each client portal stage. Template defaults remain available when these are blank.</p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {(Object.entries({ onboarding: "Onboarding", designing: "Designing", "developed-launch": "Review & launch", maintenance: "Live care" }) as Array<[AgencyProductPortalMode, string]>).map(([stage, label]) => <Field key={stage} label={label}><textarea rows={3} value={form.portalStageFocus[stage]} onChange={event => setForm(value => ({ ...value, portalStageFocus: { ...value.portalStageFocus, [stage]: event.target.value } }))} className={`${control} py-2`} /></Field>)}
+                    {(Object.entries(PORTAL_PHASE_LABELS) as Array<[AgencyProductPortalMode, string]>).map(([stage, label]) => <Field key={stage} label={label}><textarea rows={3} value={form.portalStageFocus[stage]} onChange={event => setForm(value => ({ ...value, portalStageFocus: { ...value.portalStageFocus, [stage]: event.target.value } }))} className={`${control} py-2`} /></Field>)}
                   </div>
                 </details>
                 <Link href={clientContext ? `/portal/agency/portals/editor?scope=client&clientId=${encodeURIComponent(clientContext.clientId)}&mode=onboarding&section=home&context=client-workspace` : form.id ? `/portal/agency/portals/editor?scope=template&productId=${encodeURIComponent(form.id)}` : "/portal/agency/portals?view=templates"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-black/[0.025] px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.05]">{clientContext ? "Edit this client's portal experience" : form.id ? "Edit this product's portal template" : "Open portal template library"} <ArrowRight size={13} /></Link>

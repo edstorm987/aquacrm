@@ -120,10 +120,11 @@ describe("lead wait-time tracing", () => {
   });
 
   it("wires the timing ledger into Journey, Inbox and repeat-enquiry alerts", async () => {
-    const [workspace, page, inbox, alerts, statusRoute, handlers] = await Promise.all([
+    const [workspace, page, inbox, detailCard, alerts, statusRoute, handlers] = await Promise.all([
       readFile(new URL("../src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/pipelines/[slug]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/inbox/_MasterInbox.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/app/portal/agency/inbox/_EnquiryDetailCard.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/lib/server/operationalAlerts.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/portal/website-enquiries/status/route.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/built-ins/modules/leads-pipeline/src/api/handlers.ts", import.meta.url), "utf8"),
@@ -132,7 +133,8 @@ describe("lead wait-time tracing", () => {
     assert.match(workspace, /Time and journey trace/);
     assert.match(workspace, /Wait-time watch/);
     assert.match(page, /cardUpdatedAtByLeadId/);
-    assert.match(inbox, /Elapsed since enquiry/);
+    // The enquiry timeline (including the elapsed trace) now lives in the detail card.
+    assert.match(detailCard, /Elapsed since enquiry/);
     assert.match(inbox, /firstRespondedAt/);
     assert.match(alerts, /lastEnquiryRespondedAt/);
     assert.match(statusRoute, /inboxStatusHistory/);

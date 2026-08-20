@@ -19,6 +19,9 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const HEALTHZ_FULL = join(ROOT, "src", "app", "healthz", "full", "route.ts");
+// The deep DB probe was promoted out of the route into the shared
+// databaseStorageHealth() (radar upgrade Stage 4); the route now delegates to it.
+const DB_HEALTH = join(ROOT, "src", "lib", "server", "databaseStorageHealth.ts");
 const ERROR_TSX = join(ROOT, "src", "app", "error.tsx");
 const OBS = join(ROOT, "src", "lib", "server", "observability.ts");
 const REQ_LOG = join(ROOT, "src", "lib", "server", "requestLog.ts");
@@ -94,7 +97,8 @@ describe("Observability — /healthz/full route (R030, source-marker)", () => {
     assert.equal(existsSync(HEALTHZ_FULL), true);
     const src = readFileSync(HEALTHZ_FULL, "utf8");
     assert.ok(src.includes("export async function GET"));
-    assert.ok(src.includes('SELECT 1'));
+    // The route delegates the probe to the shared databaseStorageHealth().
+    assert.ok(src.includes("databaseStorageHealth"));
     assert.ok(src.includes('"connected"'));
     assert.ok(src.includes('"down"'));
     assert.ok(src.includes('"untested"'));
@@ -103,11 +107,14 @@ describe("Observability — /healthz/full route (R030, source-marker)", () => {
   });
 
   it("supports Postgres, Supabase, and an honest untested branch", () => {
-    const src = readFileSync(HEALTHZ_FULL, "utf8");
-    assert.ok(src.includes("wantsPostgres"));
-    assert.ok(src.includes("wantsSupabase"));
+    // These branches now live in the promoted, shared probe (used by both
+    // healthz/full and Radar's Infra sweep).
+    const src = readFileSync(DB_HEALTH, "utf8");
+    assert.ok(src.includes('SELECT 1'));
+    assert.ok(src.includes('"postgres"'));
+    assert.ok(src.includes('"supabase"'));
     assert.ok(src.includes('from("app_datastores")'));
-    assert.ok(src.match(/db:\s*"untested"/));
+    assert.ok(src.match(/status:\s*"untested"/));
   });
 
   it("reports plugins count + uptime + sha + env", () => {

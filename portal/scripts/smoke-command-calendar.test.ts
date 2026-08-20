@@ -84,7 +84,13 @@ test("due reminders and targets feed operational attention", async () => {
   const result = await alerts.listOperationalAlerts(agency.id, now);
   assert.equal(result.find(alert => alert.id === `calendar-reminder:${reminder.id}`)?.severity, "notice");
   assert.equal(result.find(alert => alert.id === `calendar-reminder:${target.id}`)?.severity, "warning");
-  assert.equal(result.find(alert => alert.id === `calendar-reminder:${target.id}`)?.href, "/portal/agency?station=calendar");
+  // Alerts now carry resolution context (?resolve=&focus=) appended centrally,
+  // so assert the destination rather than the exact string — the point of this
+  // check is that the reminder lands on the calendar station.
+  const reminderHref = result.find(alert => alert.id === `calendar-reminder:${target.id}`)?.href ?? "";
+  const reminderUrl = new URL(reminderHref, "https://aquacrm.local");
+  assert.equal(reminderUrl.pathname, "/portal/agency");
+  assert.equal(reminderUrl.searchParams.get("station"), "calendar");
 });
 
 test("the Command Calendar provides one inspectable planning surface", () => {

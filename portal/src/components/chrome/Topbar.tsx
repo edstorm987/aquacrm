@@ -18,6 +18,7 @@ import { PortalSearch } from "@/components/chrome/PortalSearch";
 import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
 import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
+import { DevConsoleControl } from "@/components/chrome/DevConsoleControl";
 import { Sparkles } from "lucide-react";
 import type { SidebarVariant } from "@/components/chrome/Sidebar";
 
@@ -42,6 +43,14 @@ interface Props {
   isDemo?: boolean;
   showcaseMode?: boolean;
   publicShowcase?: boolean;
+  /** Dev Mode (local/dev only) — surfaces the demo-persona toggle in the
+   *  account menu. Both flags default off; only the agency layout sets them. */
+  canUseDevMode?: boolean;
+  devModeActive?: boolean;
+  /** Founder + Dev Mode — mount the ambient Dev Console peek. Server-decided:
+   *  each layout passes `canUseDevMode() && effectiveRole(session).isFounder`,
+   *  so turning Dev Mode off removes the icon everywhere at once. */
+  devConsole?: boolean;
   /** Phase preview cookie active for this scope — show "Exit preview" → phases admin. */
   previewActive?: boolean;
   notifications?: ReactNode;
@@ -52,7 +61,7 @@ interface Props {
   searchRecordsEnabled?: boolean;
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, showcaseMode, publicShowcase, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
@@ -77,6 +86,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           showcaseMode={showcaseMode}
           sensitiveTerms={[email, name ?? "", ...(privacyTerms ?? [])]}
         />
+        {devConsole && !publicShowcase && !showcaseMode ? <DevConsoleControl /> : null}
         {!publicShowcase ? radarControl : null}
         {publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}
         <div className="hidden sm:block"><ColorModeToggle /></div>
@@ -88,7 +98,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           >
             <span aria-hidden>←</span> Back to portal account
           </Link>
-        ) : isDemo && !showcaseMode && !publicShowcase ? (
+        ) : isDemo && !showcaseMode && !publicShowcase && !devModeActive ? (
           <Link
             href="/"
             aria-label="Back to the marketing site"
@@ -100,7 +110,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         {publicShowcase ? (
           <span className="mm-public-showcase-visitor hidden rounded-md border border-black/10 bg-white px-2 py-1 font-medium text-black/55 sm:inline">Demo visitor</span>
         ) : (
-          <div className="mm-private-chrome"><ProfileMenu email={email} role={role} name={name} avatarUrl={avatarUrl} /></div>
+          <div className="mm-private-chrome"><ProfileMenu email={email} role={role} name={name} avatarUrl={avatarUrl} canUseDevMode={canUseDevMode} devModeActive={devModeActive} /></div>
         )}
       </div>
     </header>

@@ -63,7 +63,7 @@ export const STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument = {
       focus: "Share the details and inspiration that will help us understand your world.",
     },
     designing: {
-      label: "In progress",
+      label: "Design",
       eyebrow: "Work in progress",
       heading: "The work is taking shape.",
       body: "{providerName} is turning the agreed direction into something real. Your feedback keeps every decision purposeful.",
@@ -71,7 +71,7 @@ export const STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument = {
       focus: "Review the direction, leave focused feedback, and approve what comes next.",
     },
     "developed-launch": {
-      label: "Review & delivery",
+      label: "Develop",
       eyebrow: "Coming together",
       heading: "Your delivery is nearly ready.",
       body: "The final details are coming together. Review the latest work, share any last notes, and confirm delivery.",
@@ -79,7 +79,7 @@ export const STUNNING_STANDARD_PORTAL: ClientPortalDesignDocument = {
       focus: "Review the latest work and confirm the final delivery details.",
     },
     maintenance: {
-      label: "Live care",
+      label: "Published",
       eyebrow: "Always looked after",
       heading: "Your digital home is live.",
       body: "{providerName} is keeping an eye on the important things while you use support and ongoing improvements as needed.",

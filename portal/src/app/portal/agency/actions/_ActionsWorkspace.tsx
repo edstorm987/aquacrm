@@ -7,8 +7,19 @@ import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBu
 import type { AdvisorActionSuggestion } from "@/lib/advisorActions";
 import {
   buildProtectedAttentionWindow,
+  promoteForDeferrals,
   type ProtectedAttentionWindow,
 } from "@/lib/attentionProtection";
+import { AttentionControls } from "@/components/attention/AttentionControls";
+import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
+import { EvidenceCard } from "@/components/attention/EvidenceCard";
+import { CompletedRegister } from "@/components/attention/CompletedRegister";
+import { DeferralNote } from "@/components/attention/DeferralNote";
+
+import { TaskChecklist } from "@/components/attention/TaskChecklist";
+import { TaskTemplateModal } from "@/components/attention/TaskTemplates";
+
+import { TodayView } from "./_TodayView";
 import { dateInputValue, formatUkDate } from "@/lib/formatDateTime";
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, ExternalAssistantActionProposal, SopDocument } from "@/server/types";
 import { useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
@@ -22,6 +33,24 @@ export type GeneratedAction = {
   dueAt?: number;
   priority: "normal" | "high" | "urgent";
   clientId?: string;
+  // Defaults to "crm" for the pipeline-derived signals that predate this.
+  // Needs-attention alerts set "inbox" so they are not mislabelled.
+  origin?: Extract<AgencyTaskOrigin, "crm" | "inbox">;
+  /** Lands on the exact record behind this, not the list containing it. */
+  evidenceHref?: string;
+  /**
+   * How many times this has been put off, and since when.
+   *
+   * Off-system work is the case that needs it: nothing in Aqua does the job,
+   * so the only pressure to act is knowing how long you have not.
+   */
+  deferrals?: number;
+  firstDeferredAt?: number;
+  /**
+   * How it can be dealt with, declared by the check. Named apart from `kind`
+   * above, which is the badge label ("Needs attention"), not a classification.
+   */
+  resolutionKind?: ResolutionKind;
 };
 
 export type TeamMember = { id: string; name: string; email: string };
@@ -30,7 +59,10 @@ type CalendarConnectionView = Omit<CommandCalendarConnection, "encryptedAccessTo
 type CalendarIntegrationState = { configured: boolean; connections: CalendarConnectionView[]; sources: CommandCalendarSource[]; events: CommandCalendarExternalEvent[] };
 
 export type ActionsView = "list" | "calendar";
-type ActionSource = "all" | AgencyTaskOrigin;
+// "completed" is a view, not an origin — it shows finished work from every
+// origin at once.
+// "today" and "completed" are views over the same work, not origins.
+type ActionSource = "all" | "today" | "completed" | AgencyTaskOrigin;
 type ActionSort = "priority" | "due-soon" | "newest" | "oldest" | "recently-updated";
 type UnifiedActionItem =
   | { type: "task"; id: string; source: AgencyTaskOrigin; priority: AgencyTaskPriority; dueAt?: number; createdAt: number; updatedAt: number; task: AgencyTask }
@@ -77,12 +109,17 @@ export function ActionsWorkspace({
   const [calendarEntries, setCalendarEntries] = useState(initialCalendarEntries);
   const [calendarIntegration, setCalendarIntegration] = useState(initialCalendarIntegration);
   const [externalProposals, setExternalProposals] = useState(initialExternalProposals);
+  const notificationAttention = useNotificationAttention();
   const [crmIntake, setCrmIntake] = useState(generatedActions);
+  // One list. Needs-attention work and pipeline signals are both "things Aqua
+  // noticed that you have not accepted yet" — splitting them made you check
+  // two tabs for the same job. The per-row origin badge keeps the provenance.
   const [source, setSource] = useState<ActionSource>("all");
   const [sort, setSort] = useState<ActionSort>("priority");
   const [view, setView] = useState<ActionsView>(initialView);
   const [showDone, setShowDone] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [pickingTemplate, setPickingTemplate] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
   const [month, setMonth] = useState(startOfMonth(new Date()));
@@ -118,7 +155,9 @@ export function ActionsWorkspace({
   }), [advisorReviewedAt, advisorSuggestions, crmIntake, externalProposals, liveRecommendations, openTasks, recommendationsGeneratedAt, showDone, sort, tasks]);
   const protectedWindow = useMemo(() => buildProtectedAttentionWindow(unifiedItems, {
     groupKey: item => item.source,
-    urgencyRank: item => priorityRank(item.priority),
+    // Work put off repeatedly is promoted a tier, so it breaks out of the
+    // reserve rather than being hidden by the very act of deferring it.
+    urgencyRank: item => promoteForDeferrals(priorityRank(item.priority), deferralsOf(item)),
     enabled: attention?.focusProtectionEnabled ?? true,
   }), [attention?.focusProtectionEnabled, unifiedItems]);
   const unifiedWindow = useMemo(
@@ -254,6 +293,62 @@ export function ActionsWorkspace({
     }
   }
 
+  // Park and dismiss route through the same provider Master Inbox uses, so an
+  // item parked here is parked there too. Two independent stores would let the
+  // same alert be live in one place and parked in the other.
+  async function handleAttentionAction(action: GeneratedAction, kind: "park" | "dismiss", until?: number) {
+    const alertId = action.id.startsWith("attention:") ? action.id.slice("attention:".length) : action.id;
+    const ok = await notificationAttention?.updateAlert(alertId, kind, until);
+    // Only drop it from view once the server confirmed — otherwise a failed
+    // call silently looks like success and the item comes back on refresh.
+    if (ok) setCrmIntake(current => current.filter(item => item.id !== action.id));
+  }
+
+  // Off-system work is finished elsewhere; all Aqua can do is record it.
+  // Logged as completed AND dismissed, so it both leaves the queue and appears
+  // in the register — recording it without clearing it would leave the
+  // operator looking at work they have already done.
+  async function markAttentionDone(action: GeneratedAction) {
+    const alertId = alertIdOf(action);
+    setAddingSuggestionId(action.id);
+    try {
+      const response = await fetch("/api/portal/attention/completed", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sourceId: alertId, title: action.title, detail: action.detail }),
+      });
+      const result = await response.json() as { ok: boolean };
+      if (!result.ok) return;
+      await notificationAttention?.updateAlert(alertId, "dismiss");
+      setCrmIntake(current => current.filter(item => item.id !== action.id));
+    } finally {
+      setAddingSuggestionId(null);
+    }
+  }
+
+  // A postponed action lands on a real date so it reappears then, and shows up
+  // in the calendar alongside everything else committed to that day. Hiding it
+  // instead would make it somebody's forgotten problem.
+  async function postponeTask(task: AgencyTask, until: number) {
+    setAddingSuggestionId(task.id);
+    try {
+      await patchTask(task.id, { dueAt: until });
+    } finally {
+      setAddingSuggestionId(null);
+    }
+  }
+
+  async function completeTask(task: AgencyTask) {
+    setAddingSuggestionId(task.id);
+    try {
+      // Goes through the same patch as anywhere else, so it lands in the
+      // completed register rather than just disappearing.
+      await patchTask(task.id, { status: "done" });
+    } finally {
+      setAddingSuggestionId(null);
+    }
+  }
+
   async function acceptCrmAction(action: GeneratedAction) {
     setAddingSuggestionId(action.id);
     setAcceptanceError("");
@@ -263,10 +358,10 @@ export function ActionsWorkspace({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           title: action.title,
-          notes: `${action.detail}\n\nAccepted from AquaCRM's live workspace signals.`,
+          notes: `${action.detail}\n\nAccepted from ${action.origin === "inbox" ? "a Needs attention alert" : "AquaCRM's live workspace signals"}.`,
           priority: action.priority,
           dueAt: action.dueAt,
-          origin: "crm",
+          origin: action.origin ?? "crm",
           sourceId: action.id,
           sourceHref: action.href,
           clientId: action.clientId,
@@ -316,7 +411,13 @@ export function ActionsWorkspace({
   return <div className={`mx-auto flex w-full flex-col gap-5 ${initialView === "calendar" ? "max-w-none" : "max-w-7xl"}`}>
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{initialView === "calendar" ? "Schedule" : "Work"}</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">{heading}</h1><p className="mt-2 text-sm text-black/50">{description}</p></div>
-      {initialView !== "calendar" ? <button type="button" onClick={() => setAdding(true)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white sm:w-auto"><Plus size={16} />Add task</button> : null}
+      {initialView !== "calendar" ? <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+        {/* Offered beside the blank form rather than inside it: reaching for a
+            template is a decision about which job this is, made before there
+            is anything to type. */}
+        <button type="button" onClick={() => setPickingTemplate(true)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-black/15 px-4 text-sm font-semibold text-black/70 hover:bg-black/[0.035] sm:flex-none"><BookOpen size={16} />Use a template</button>
+        <button type="button" onClick={() => setAdding(true)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white sm:flex-none"><Plus size={16} />Add task</button>
+      </div> : null}
     </header>
 
     {initialView !== "calendar" ? <section aria-label="Action controls" className="overflow-hidden rounded-lg border border-black/10 bg-white">
@@ -352,6 +453,8 @@ export function ActionsWorkspace({
       onDelete={deleteTask}
       onAcceptSuggestion={acceptSuggestion}
       onAcceptCrm={acceptCrmAction}
+      onAttentionAction={handleAttentionAction}
+      onMarkDone={markAttentionDone}
       onProposalDecision={decideExternalProposal}
       onAdvisorReview={requestAdvisorReview}
       onDismissAdvisor={id => setAdvisorSuggestions(current => current.filter(item => item.id !== id))}
@@ -360,9 +463,18 @@ export function ActionsWorkspace({
       {source === "radar" ? <CommandRecommendations recommendations={liveRecommendations} generatedAt={recommendationsGeneratedAt} addingId={addingSuggestionId} onAdd={suggestion => acceptSuggestion(suggestion, "radar")} /> : null}
       {source === "advisor" ? <ExternalAiProposalInbox proposals={externalProposals} team={team} busyId={proposalBusyId} onDecision={decideExternalProposal} /> : null}
       {source === "advisor" ? <AdvisorPanel configured={advisorConfigured} suggestions={advisorSuggestions} busy={advisorBusy} reviewedAt={advisorReviewedAt} error={advisorError} addingId={addingSuggestionId} onReview={requestAdvisorReview} onAdd={suggestion => acceptSuggestion(suggestion, "advisor")} onDismiss={id => setAdvisorSuggestions(current => current.filter(item => item.id !== id))} /> : null}
-      {source === "crm" ? <CrmIntake actions={crmIntake} addingId={addingSuggestionId} onAccept={acceptCrmAction} /> : null}
+      {source === "crm" ? <CrmIntake actions={crmIntake} addingId={addingSuggestionId} onAccept={acceptCrmAction} onAttentionAction={handleAttentionAction} onMarkDone={markAttentionDone} /> : null}
+      {source === "today" ? <TodayView
+        tasks={tasks}
+        entries={calendarEntries}
+        busyId={addingSuggestionId}
+        onComplete={task => void completeTask(task)}
+        onPostpone={(task, until) => void postponeTask(task, until)}
+        onOpenCalendar={() => setView("calendar")}
+      /> : null}
+      {source === "completed" ? <section aria-labelledby="completed-heading" className="overflow-hidden rounded-lg border border-black/10 bg-white"><header className="border-b border-black/10 bg-black/[0.02] px-4 py-4 sm:px-5"><h2 id="completed-heading" className="text-lg font-semibold text-black/82">Completed</h2><p className="mt-1 text-xs leading-5 text-black/48">Everything you have resolved, accepted or judged not worth acting on.</p></header><CompletedRegister /></section> : null}
 
-      <section aria-label="Accepted actions" className="grid gap-3">
+      <section data-resolution-focus="task" aria-label="Accepted actions" className="grid gap-3">
         <div className="flex flex-wrap items-end justify-between gap-2 border-b border-black/10 pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Accepted actions</p><h2 className="mt-1 text-lg font-semibold text-black/80">{`${sourceLabel(source)} tasks`}</h2></div><span className="text-xs text-black/40">{visibleTasks.length} shown</span></div>
         {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} clients={clients} sops={sops} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
         {!visibleTasks.length ? <div className="py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">No accepted tasks in this view</h2><p className="mt-1 text-xs text-black/42">Create one manually or approve a suggested task above.</p></div> : null}
@@ -384,19 +496,24 @@ export function ActionsWorkspace({
     />}
 
     {adding ? <TaskModal team={team} clients={clients} sops={sops} onClose={() => setAdding(false)} onCreated={task => { setTasks(current => [task, ...current]); setAdding(false); }} /> : null}
+    {pickingTemplate ? <TaskTemplateModal sops={sops} onClose={() => setPickingTemplate(false)} onCreated={task => { setTasks(current => [task, ...current]); setPickingTemplate(false); setEditing(task.id); }} /> : null}
   </div>;
 }
 
 function ActionSourceFilters({ source, counts, onChange }: { source: ActionSource; counts: Record<ActionSource, number>; onChange: (source: ActionSource) => void }) {
   const options: Array<{ id: ActionSource; label: string; icon: React.ReactNode }> = [
     { id: "all", label: "All", icon: <Layers3 size={15} /> },
+    { id: "today", label: "Today", icon: <CalendarCheck2 size={15} /> },
     { id: "radar", label: "Radar", icon: <Radar size={15} /> },
     { id: "advisor", label: "Advisor", icon: <Bot size={15} /> },
     { id: "manual", label: "Manual", icon: <UserRound size={15} /> },
     { id: "crm", label: "CRM", icon: <Workflow size={15} /> },
+    { id: "completed", label: "Completed", icon: <CheckCircle2 size={15} /> },
   ];
   return <div role="tablist" aria-label="Filter actions by source" className="flex w-full gap-1 overflow-x-auto p-1.5">
-    {options.map(option => <button key={option.id} type="button" role="tab" aria-selected={source === option.id} onClick={() => onChange(option.id)} className={`inline-flex min-h-10 min-w-max flex-1 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition ${source === option.id ? "bg-black text-white shadow-sm" : "text-black/52 hover:bg-black/[0.04] hover:text-black/75"}`}>{option.icon}<span>{option.label}</span><span className={`grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[9px] tabular-nums ${source === option.id ? "bg-white/15 text-white" : "bg-black/[0.055] text-black/45"}`}>{counts[option.id]}</span></button>)}
+    {options.map(option => <button key={option.id} type="button" role="tab" aria-selected={source === option.id} onClick={() => onChange(option.id)} className={`inline-flex min-h-10 min-w-max flex-1 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition ${source === option.id ? "bg-black text-white shadow-sm" : "text-black/52 hover:bg-black/[0.04] hover:text-black/75"}`}>{option.icon}<span>{option.label}</span>{/* No badge on Completed: its contents load separately, so a number
+          here would always read 0 and be a lie about an empty register. */}
+      {option.id === "completed" ? null : <span className={`grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[9px] tabular-nums ${source === option.id ? "bg-white/15 text-white" : "bg-black/[0.055] text-black/45"}`}>{counts[option.id]}</span>}</button>)}
   </div>;
 }
 
@@ -416,6 +533,8 @@ function UnifiedActionQueue({
   onDelete,
   onAcceptSuggestion,
   onAcceptCrm,
+  onAttentionAction,
+  onMarkDone,
   onProposalDecision,
   onAdvisorReview,
   onDismissAdvisor,
@@ -436,12 +555,14 @@ function UnifiedActionQueue({
   onDelete: (id: string) => void;
   onAcceptSuggestion: (suggestion: AdvisorActionSuggestion, origin: "radar" | "advisor") => void;
   onAcceptCrm: (action: GeneratedAction) => void;
+  onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>;
+  onMarkDone?: (action: GeneratedAction) => Promise<void>;
   onProposalDecision: (proposal: ExternalAssistantActionProposal, decision: "accept" | "park" | "reject", options?: { assigneeUserId?: string; dueAt?: number }) => void;
   onAdvisorReview: () => void;
   onDismissAdvisor: (id: string) => void;
   onOpenSource: (source: ActionSource) => void;
 }) {
-  return <section aria-labelledby="unified-actions-heading" className="grid gap-3">
+  return <section data-resolution-focus="task" aria-labelledby="unified-actions-heading" className="grid gap-3">
     <header className="flex flex-wrap items-end justify-between gap-3 border-b border-black/10 pb-3">
       <div>
         <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-brand">Unified priority queue</p><span title="Committed tasks and approval candidates are ranked together. Source icons show where each item came from." className="inline-flex items-center gap-1 rounded-full bg-black/[0.045] px-2 py-0.5 text-[10px] font-medium text-black/48"><Info size={10} />System ranked</span></div>
@@ -456,7 +577,7 @@ function UnifiedActionQueue({
       if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} clients={clients} sops={sops} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
       if (item.type === "suggestion") return <UnifiedSuggestionCard key={item.id} suggestion={item.suggestion} source={item.source} busy={addingId === item.id} onAccept={() => onAcceptSuggestion(item.suggestion, item.source)} onDismiss={item.source === "advisor" ? () => onDismissAdvisor(item.id) : undefined} />;
       if (item.type === "proposal") return <ExternalProposalRow key={item.id} proposal={item.proposal} team={team} busy={proposalBusyId === item.id} onDecision={onProposalDecision} unified />;
-      return <UnifiedCrmCard key={item.id} action={item.action} busy={addingId === item.id} onAccept={() => onAcceptCrm(item.action)} />;
+      return <UnifiedCrmCard key={item.id} action={item.action} busy={addingId === item.id} onAccept={() => onAcceptCrm(item.action)} onAttentionAction={onAttentionAction} onMarkDone={onMarkDone} />;
     })}
     {!window.focus.length ? <div className="rounded-lg border border-dashed border-black/12 bg-white py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">The unified queue is clear</h2><p className="mt-1 text-xs text-black/42">New tasks and approval candidates will be ranked here automatically.</p></div> : null}
   </section>;
@@ -470,21 +591,47 @@ function ActionReserveSummary({ window, onOpenSource }: { window: ProtectedAtten
 }
 
 function UnifiedSuggestionCard({ suggestion, source, busy, onAccept, onDismiss }: { suggestion: AdvisorActionSuggestion; source: "radar" | "advisor"; busy: boolean; onAccept: () => void; onDismiss?: () => void }) {
+  const [showEvidence, setShowEvidence] = useState(false);
+  // A radar suggestion carries the incident it came from; that is the id the
+  // evidence builder keys on.
+  const alertId = suggestion.sourceAlertIds?.[0] ?? suggestion.id;
   return <article className={`mm-surface-card mm-hover-lift rounded-lg border bg-white transition ${suggestion.priority === "urgent" ? "border-red-200" : "border-black/10"}`}>
     <div className="grid min-h-20 gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-4">
       <span className={`grid size-9 place-items-center rounded-md ${source === "radar" ? "bg-teal-50 text-teal-700" : "bg-violet-50 text-violet-700"}`}>{source === "radar" ? <Radar size={16} /> : <Bot size={16} />}</span>
       <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{suggestion.title}</strong><SourceBadge origin={source} /><Priority value={suggestion.priority} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{suggestion.detail}</p><p className="mt-1 line-clamp-2 text-[10px] leading-4 text-black/35"><strong className="font-semibold text-black/50">Evidence:</strong> {suggestion.evidence || "Open the linked source to inspect the supporting records."} · Due {formatUkDate(suggestion.dueAt, { day: "numeric", month: "short" })}</p></div>
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end"><Link href={suggestion.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/52 hover:text-black">Evidence <ArrowUpRight size={13} /></Link>{onDismiss ? <button type="button" onClick={onDismiss} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/42 hover:text-black"><X size={13} />Dismiss</button> : null}<button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept"}</button></div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end"><button type="button" onClick={() => setShowEvidence(open => !open)} aria-expanded={showEvidence} title="Show the measurements behind this" className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold ${showEvidence ? "border-black/25 bg-black/[0.045] text-black/80" : "border-black/15 text-black/60 hover:bg-black/[0.035]"}`}><Search size={13} />Evidence</button>{onDismiss ? <button type="button" onClick={onDismiss} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/42 hover:text-black"><X size={13} />Dismiss</button> : null}<button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept"}</button></div>
     </div>
+    {showEvidence ? <div className="border-t border-black/[0.07] bg-black/[0.012]"><EvidenceCard alertId={alertId} fallback={{ title: suggestion.title, detail: suggestion.detail, href: suggestion.href }} /></div> : null}
   </article>;
 }
 
-function UnifiedCrmCard({ action, busy, onAccept }: { action: GeneratedAction; busy: boolean; onAccept: () => void }) {
-  return <article className={`mm-surface-card mm-hover-lift rounded-lg border bg-white transition ${action.priority === "urgent" ? "border-red-200" : "border-black/10"}`}>
+function UnifiedCrmCard({ action, busy, onAccept, onAttentionAction, onMarkDone }: { action: GeneratedAction; busy: boolean; onAccept: () => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
+  const [showEvidence, setShowEvidence] = useState(false);
+  const alertId = alertIdOf(action);
+  return <article data-resolution-record={action.id} className={`mm-surface-card mm-hover-lift scroll-mt-24 rounded-lg border bg-white transition ${action.priority === "urgent" ? "border-red-200" : "border-black/10"}`}>
     <div className="grid min-h-20 gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-4">
       <span className="grid size-9 place-items-center rounded-md bg-sky-50 text-sky-700"><Workflow size={16} /></span>
-      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><SourceBadge origin="crm" /><Pill>{action.kind}</Pill><Priority value={action.priority} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{action.detail}{action.dueAt ? ` · Due ${formatUkDate(action.dueAt, { day: "numeric", month: "short" })}` : ""}</p></div>
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end"><Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/52 hover:text-black">Source <ArrowUpRight size={13} /></Link><button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept"}</button></div>
+      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><SourceBadge origin={action.origin ?? "crm"} /><Pill>{action.kind}</Pill><Priority value={action.priority} /><DeferralNote deferrals={action.deferrals} firstDeferredAt={action.firstDeferredAt} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{action.detail}{action.dueAt ? ` · Due ${formatUkDate(action.dueAt, { day: "numeric", month: "short" })}` : ""}</p></div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        {/* Inbox work carries the same controls it has in Master Inbox.
+            The operator should not have to learn a second set of buttons for
+            the same job depending on which screen they opened it from. */}
+        {/* Every generated action carries the same controls. A pipeline signal
+            is no less actionable than an inbox one, and giving it only a
+            "Source" link made half the queue feel like a dead end. */}
+        <AttentionControls
+          title={action.title}
+          kind={action.resolutionKind ?? "in-app"}
+          resolveHref={action.href}
+          busy={busy}
+          evidenceOpen={showEvidence}
+          onToggleEvidence={() => setShowEvidence(open => !open)}
+          onMarkDone={onMarkDone ? () => void onMarkDone(action) : undefined}
+          onPark={onAttentionAction ? (until: number) => void onAttentionAction(action, "park", until) : undefined}
+          onDismiss={onAttentionAction ? () => void onAttentionAction(action, "dismiss") : undefined}
+        />
+        <button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept"}</button>
+      </div>
     </div>
   </article>;
 }
@@ -493,13 +640,13 @@ function ApprovalBadge() {
   return <span title="This is a recommendation, not committed work. Accept it to assign ownership and track resolution." className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"><Info size={10} />Approval required</span>;
 }
 
-function CrmIntake({ actions, addingId, onAccept }: { actions: GeneratedAction[]; addingId: string | null; onAccept: (action: GeneratedAction) => void }) {
+function CrmIntake({ actions, addingId, onAccept, onAttentionAction, onMarkDone }: { actions: GeneratedAction[]; addingId: string | null; onAccept: (action: GeneratedAction) => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
   return <section aria-labelledby="crm-intake-heading" className="overflow-hidden rounded-lg border border-sky-200/70 bg-white">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-100 bg-sky-50/55 px-4 py-4 sm:px-5">
       <div className="flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-md bg-sky-100 text-sky-700"><Workflow size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">CRM intake</p><h2 id="crm-intake-heading" className="mt-1 text-lg font-semibold text-black/82">{actions.length} live signal{actions.length === 1 ? "" : "s"} awaiting approval</h2><p className="mt-1 text-xs leading-5 text-black/48">AquaCRM can spot the work, but it does not enter your committed list until you accept it.</p></div></div>
       <Pill>Approval required</Pill>
     </header>
-    <div className="divide-y divide-black/[0.07]">{actions.map(action => <GeneratedCard key={action.id} action={action} busy={addingId === action.id} onAccept={() => onAccept(action)} />)}{!actions.length ? <div className="px-5 py-7 text-center"><Check className="mx-auto text-emerald-600" size={20} /><p className="mt-2 text-sm font-semibold text-black/68">CRM intake is clear</p><p className="mt-1 text-xs text-black/42">New follow-ups and workspace signals will wait here for your approval.</p></div> : null}</div>
+    <div className="divide-y divide-black/[0.07]">{actions.map(action => <GeneratedCard key={action.id} action={action} busy={addingId === action.id} onAccept={() => onAccept(action)} onAttentionAction={onAttentionAction} onMarkDone={onMarkDone} />)}{!actions.length ? <div className="px-5 py-7 text-center"><Check className="mx-auto text-emerald-600" size={20} /><p className="mt-2 text-sm font-semibold text-black/68">CRM intake is clear</p><p className="mt-1 text-xs text-black/42">New follow-ups and workspace signals will wait here for your approval.</p></div> : null}</div>
   </section>;
 }
 
@@ -517,7 +664,7 @@ function ExternalAiProposalInbox({
   const actionable = proposals.filter(proposal => proposal.status === "pending");
   const parked = proposals.filter(proposal => proposal.status === "parked");
   const decided = proposals.filter(proposal => proposal.status === "accepted" || proposal.status === "rejected").slice(0, 12);
-  return <section id="external-ai-proposals" aria-labelledby="external-ai-proposals-heading" className="scroll-mt-20 overflow-hidden rounded-lg border border-cyan-200/80 bg-white">
+  return <section data-resolution-focus="approval" id="external-ai-proposals" aria-labelledby="external-ai-proposals-heading" className="scroll-mt-20 overflow-hidden rounded-lg border border-cyan-200/80 bg-white">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-cyan-100 bg-cyan-50/55 px-4 py-4 sm:px-5">
       <div className="flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-md bg-cyan-100 text-cyan-800"><Inbox size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">External AI proposal inbox</p><h2 id="external-ai-proposals-heading" className="mt-1 text-lg font-semibold text-black/82">{actionable.length} proposal{actionable.length === 1 ? "" : "s"} awaiting your decision</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-black/48">Outside assistants can place evidence here, but only you can turn it into owned work. Approval preserves the evidence and activates Radar reconciliation.</p></div></div>
       <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-cyan-800 shadow-sm">Human approval boundary</span>
@@ -551,6 +698,36 @@ function ExternalProposalRow({ proposal, team, busy, onDecision, unified = false
   </article>;
 }
 
+/**
+ * One ranked recommendation, with its measurements one click away.
+ *
+ * A row of its own because it holds open/closed state, and because this is the
+ * case that needed the evidence card most: "drifted from its median" cannot be
+ * acted on until you can see the median it drifted from.
+ */
+function RecommendationRow({ item, index, addingId, onAdd }: { item: AdvisorActionSuggestion; index: number; addingId: string | null; onAdd: (suggestion: AdvisorActionSuggestion) => void }) {
+  const [showEvidence, setShowEvidence] = useState(false);
+  // Radar recommendations carry the incident they were built from; that is the
+  // id the evidence builder keys on.
+  const alertId = item.sourceAlertIds?.[0] ?? item.id;
+
+  return <li className="px-4 py-3 sm:px-5">
+    <div className="grid gap-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-start">
+      <span className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${item.priority === "urgent" ? "bg-red-700 text-white" : item.priority === "high" ? "bg-amber-100 text-amber-800" : "bg-black/[0.05] text-black/55"}`}>{index + 1}</span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-black/82">{item.title}</h3><Pill>{item.category}</Pill><span className={`text-[10px] font-semibold uppercase ${item.confidence === "high" ? "text-emerald-700" : item.confidence === "medium" ? "text-amber-700" : "text-black/38"}`}>{item.confidence} confidence</span></div>
+        <p className="mt-1 text-xs leading-5 text-black/48">{item.detail}</p>
+        <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-black/35"><strong className="font-semibold text-black/50">Evidence:</strong> {item.evidence || "Open the linked source to inspect the supporting records."}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <button type="button" onClick={() => setShowEvidence(open => !open)} aria-expanded={showEvidence} title="Show the measurements behind this" className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold ${showEvidence ? "border-black/25 bg-black/[0.045] text-black/80" : "border-black/15 text-black/60 hover:bg-black/[0.035]"}`}><Search size={13} />Evidence</button>
+        <button type="button" onClick={() => onAdd(item)} disabled={addingId === item.id} title={`Accept ${item.title} as a Radar task`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{addingId === item.id ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{addingId === item.id ? "Accepting..." : "Accept task"}</button>
+      </div>
+    </div>
+    {showEvidence ? <div className="mt-3 rounded-md border border-black/10 bg-black/[0.012]"><EvidenceCard alertId={alertId} /></div> : null}
+  </li>;
+}
+
 function CommandRecommendations({ recommendations, generatedAt, addingId, onAdd }: { recommendations: AdvisorActionSuggestion[]; generatedAt: number; addingId: string | null; onAdd: (suggestion: AdvisorActionSuggestion) => void }) {
   return <section aria-labelledby="command-recommendations-heading" className="mm-surface-card overflow-hidden rounded-lg border border-black/10 bg-white">
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 px-4 py-4 sm:px-5">
@@ -566,18 +743,7 @@ function CommandRecommendations({ recommendations, generatedAt, addingId, onAdd 
       <Link href="/portal/agency/radar?view=incidents" className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/58 hover:bg-black/[0.03] sm:w-auto">Inspect Radar <ArrowUpRight size={13} /></Link>
     </header>
     <ol className="divide-y divide-black/[0.07]">
-      {recommendations.map((item, index) => <li key={item.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:items-start sm:px-5">
-        <span className={`grid size-8 place-items-center rounded-full text-xs font-semibold ${item.priority === "urgent" ? "bg-red-700 text-white" : item.priority === "high" ? "bg-amber-100 text-amber-800" : "bg-black/[0.05] text-black/55"}`}>{index + 1}</span>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-black/82">{item.title}</h3><Pill>{item.category}</Pill><span className={`text-[10px] font-semibold uppercase ${item.confidence === "high" ? "text-emerald-700" : item.confidence === "medium" ? "text-amber-700" : "text-black/38"}`}>{item.confidence} confidence</span></div>
-          <p className="mt-1 text-xs leading-5 text-black/48">{item.detail}</p>
-          <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-black/35"><strong className="font-semibold text-black/50">Evidence:</strong> {item.evidence || "Open the linked source to inspect the supporting records."}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          <Link href={item.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/52 hover:text-black">Open evidence <ArrowUpRight size={13} /></Link>
-          <button type="button" onClick={() => onAdd(item)} disabled={addingId === item.id} title={`Accept ${item.title} as a Radar task`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{addingId === item.id ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{addingId === item.id ? "Accepting..." : "Accept task"}</button>
-        </div>
-      </li>)}
+      {recommendations.map((item, index) => <RecommendationRow key={item.id} item={item} index={index} addingId={addingId} onAdd={onAdd} />)}
       {!recommendations.length ? <li className="px-5 py-8 text-center"><ShieldCheck className="mx-auto text-emerald-600" size={22} /><p className="mt-2 text-sm font-semibold text-black/68">No defensible action is being forced</p><p className="mt-1 text-xs text-black/42">Radar will add a recommendation when evidence shows a gap, risk, or missed target.</p></li> : null}
     </ol>
   </section>;
@@ -651,6 +817,7 @@ function TaskEditor({ task, team, clients, sops, onPatch, onDelete }: { task: Ag
       <label className="grid gap-1 text-[10px] font-medium text-black/45">Reminder<input type="datetime-local" value={draft.reminderAt} onChange={event => setDraft(current => ({ ...current, reminderAt: event.target.value }))} className="min-h-10 rounded-md border border-black/15 bg-white px-2 text-xs" /></label>
       <Select label="Repeats" value={draft.recurrence} onChange={value => setDraft(current => ({ ...current, recurrence: value as AgencyTaskRecurrence }))} options={[["none","Does not repeat"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]]} />
     </div>
+    <div className="px-3 pb-3"><TaskChecklist task={task} sops={sops} onChange={next => onPatch(next)} /></div>
     {task.expectedOutcome || task.evidence?.length || task.reconciliation ? <section aria-label="Task evidence and reconciliation" className="overflow-hidden rounded-md border border-black/10 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5"><span className="inline-flex items-center gap-2 text-xs font-semibold text-black/65"><ShieldCheck size={14} />Evidence and resolution</span>{task.reconciliation ? <ReconciliationBadge status={task.reconciliation.status} /> : null}</div>
       <div className="grid gap-3 px-3 py-3 text-xs leading-5 text-black/48">
@@ -665,8 +832,13 @@ function TaskEditor({ task, team, clients, sops, onPatch, onDelete }: { task: Ag
   </div>;
 }
 
-function GeneratedCard({ action, busy, onAccept }: { action: GeneratedAction; busy: boolean; onAccept: () => void }) {
-  return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"><span className={`grid size-9 place-items-center rounded-md ${action.priority === "urgent" ? "bg-red-50 text-red-600" : action.priority === "high" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}><Workflow size={15} /></span><div className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><Pill>{action.kind}</Pill><Priority value={action.priority} /></span><p className="mt-1 text-xs leading-5 text-black/45">{action.detail}{action.dueAt ? ` · ${formatUkDate(action.dueAt, { dateStyle: "medium" })}` : ""}</p></div><div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto sm:justify-end"><Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link><button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept task"}</button></div></article>;
+function GeneratedCard({ action, busy, onAccept, onAttentionAction, onMarkDone }: { action: GeneratedAction; busy: boolean; onAccept: () => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
+  const [showEvidence, setShowEvidence] = useState(false);
+  const alertId = action.id.startsWith("attention:") ? action.id.slice("attention:".length) : action.id;
+  return <div data-resolution-record={action.id} className="scroll-mt-24">
+    <article className="grid gap-3 scroll-mt-24 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"><span className={`grid size-9 place-items-center rounded-md ${action.priority === "urgent" ? "bg-red-50 text-red-600" : action.priority === "high" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}><Workflow size={15} /></span><div className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><Pill>{action.kind}</Pill><Priority value={action.priority} /><DeferralNote deferrals={action.deferrals} firstDeferredAt={action.firstDeferredAt} /></span><p className="mt-1 text-xs leading-5 text-black/45">{action.detail}{action.dueAt ? ` · ${formatUkDate(action.dueAt, { dateStyle: "medium" })}` : ""}</p></div><div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto sm:justify-end">{action.origin === "inbox" ? <AttentionControls title={action.title} kind={action.resolutionKind ?? "in-app"} resolveHref={action.href} busy={busy} evidenceOpen={showEvidence} onToggleEvidence={() => setShowEvidence(open => !open)} onMarkDone={() => void onMarkDone?.(action)} onPark={(until: number) => void onAttentionAction?.(action, "park", until)} onDismiss={() => void onAttentionAction?.(action, "dismiss")} /> : <Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link>}<button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept task"}</button></div></article>
+    {showEvidence ? <div className="border-t border-black/[0.07] bg-black/[0.012]"><EvidenceCard alertId={alertId} fallback={{ title: action.title, detail: action.detail, href: action.href }} /></div> : null}
+  </div>;
 }
 
 function CalendarView({ month, tasks, actions, entries, integration, team, onNavigate, onToday, onTaskCreated, onTaskUpdated, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; clients: ActionClient[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
@@ -917,7 +1089,7 @@ function SopPicker({ sops, selected, onChange }: { sops: SopDocument[]; selected
 
 function ModeButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) { return <button type="button" onClick={onClick} title={label} className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2 text-xs font-medium ${active ? "bg-black text-white" : "text-black/50"}`}>{icon}<span>{label}</span></button>; }
 function SourceBadge({ origin }: { origin: AgencyTaskOrigin }) {
-  const style = origin === "radar" ? "bg-teal-50 text-teal-700" : origin === "advisor" ? "bg-violet-50 text-violet-700" : origin === "crm" ? "bg-sky-50 text-sky-700" : "bg-black/[0.045] text-black/48";
+  const style = origin === "radar" ? "bg-teal-50 text-teal-700" : origin === "advisor" ? "bg-violet-50 text-violet-700" : origin === "crm" ? "bg-sky-50 text-sky-700" : origin === "inbox" ? "bg-amber-50 text-amber-800" : "bg-black/[0.045] text-black/48";
   const detail = origin === "radar"
     ? "Business Radar found this from live checks and retained evidence."
     : origin === "advisor"
@@ -946,14 +1118,24 @@ function sameDay(a: number, b: number) { const x = new Date(a), y = new Date(b);
 function overlapsDay(start: number | undefined, end: number | undefined, day: Date) { if (!start && !end) return false; const dayStart = startOfDay(day.getTime()), dayEnd = dayStart + 86_400_000 - 1; return (start ?? end ?? 0) <= dayEnd && (end ?? start ?? 0) >= dayStart; }
 function calendarDays(month: Date) { const first = startOfMonth(month); const offset = (first.getDay() + 6) % 7; const start = new Date(first.getFullYear(), first.getMonth(), 1 - offset); return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)); }
 function taskOrigin(task: AgencyTask): AgencyTaskOrigin { return task.origin ?? "manual"; }
-function sourceLabel(source: Exclude<ActionSource, "all">): string { return source === "crm" ? "CRM" : source.charAt(0).toUpperCase() + source.slice(1); }
+function sourceLabel(source: Exclude<ActionSource, "all">): string { return source === "crm" ? "CRM" : source === "inbox" ? "Needs attention" : source.charAt(0).toUpperCase() + source.slice(1); }
 function normaliseTitle(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, " "); }
 function clientIdFromHref(href: string): string | undefined { return href.match(/^\/portal\/clients\/([^/?#]+)/)?.[1]; }
 
 function sourceCountMap(tasks: AgencyTask[], radar: AdvisorActionSuggestion[], advisor: AdvisorActionSuggestion[], crm: GeneratedAction[], proposals: ExternalAssistantActionProposal[]): Record<ActionSource, number> {
   const pendingProposals = proposals.filter(proposal => proposal.status === "pending").length;
-  const counts: Record<ActionSource, number> = { all: 0, radar: radar.length, advisor: advisor.length + pendingProposals, manual: 0, crm: crm.length };
+  // Today is derivable, so show the real figure rather than a zero that
+  // contradicts the list underneath it.
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  const dueToday = tasks.filter(task =>
+    task.status !== "done" && (task.dueAt ?? task.startAt ?? 0) > 0
+    && (task.dueAt ?? task.startAt ?? 0) <= endOfToday.getTime()).length;
+  const counts: Record<ActionSource, number> = { all: 0, radar: radar.length, advisor: advisor.length + pendingProposals, manual: 0, crm: crm.length, inbox: 0, today: dueToday, completed: 0 };
   for (const task of tasks) counts[taskOrigin(task)] += 1;
+  // `completed` is deliberately excluded from `all`: the All queue is
+  // outstanding work, and folding finished items into it would make the
+  // headline number grow as you clear things.
   counts.all = counts.radar + counts.advisor + counts.manual + counts.crm;
   return counts;
 }
@@ -1003,6 +1185,19 @@ function sortTasks(tasks: AgencyTask[], sort: ActionSort): AgencyTask[] {
   if (sort === "oldest") return rows.sort((a, b) => a.createdAt - b.createdAt);
   if (sort === "recently-updated") return rows.sort((a, b) => b.updatedAt - a.updatedAt);
   return rows.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER) || b.updatedAt - a.updatedAt);
+}
+
+/** The alert id behind a generated action, whatever wrapper it arrived in. */
+function alertIdOf(action: GeneratedAction): string {
+  return action.id.startsWith("attention:") ? action.id.slice("attention:".length) : action.id;
+}
+
+/**
+ * Only inbox-derived rows carry a deferral count — a task or an Advisor
+ * suggestion has never been "put off", it has simply not been done yet.
+ */
+function deferralsOf(item: UnifiedActionItem): number | undefined {
+  return item.type === "crm" ? item.action.deferrals : undefined;
 }
 
 function priorityRank(priority: AgencyTaskPriority): number { return priority === "urgent" ? 0 : priority === "high" ? 1 : priority === "normal" ? 2 : 3; }

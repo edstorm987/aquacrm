@@ -49,3 +49,23 @@ export function localDateTimeInputValue(value: unknown): string {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 16);
 }
+
+/**
+ * Compact relative age: "just now" / "3m ago" / "5h ago" / "2d ago" /
+ * "4mo ago" / "1y ago". Isomorphic (server + client) — pass `nowMs` so it's
+ * deterministic and usable from client components.
+ */
+export function relativeAge(mtimeMs: number, nowMs: number): string {
+  const diff = Math.max(0, nowMs - mtimeMs);
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(diff / 60_000);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(diff / 3_600_000);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(diff / 86_400_000);
+  if (day < 30) return `${day}d ago`;
+  const mon = Math.floor(day / 30);
+  if (mon < 12) return `${mon}mo ago`;
+  return `${Math.floor(day / 365)}y ago`;
+}

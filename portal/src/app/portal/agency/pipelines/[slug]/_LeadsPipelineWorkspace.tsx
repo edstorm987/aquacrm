@@ -230,6 +230,82 @@ interface ClientConversionPackage {
   billingCadence: string;
 }
 
+const CLOSE_LEAD_CHANNELS: Array<{ value: string; label: string }> = [
+  { value: "stripe", label: "Stripe — card pay-link" },
+  { value: "bank-transfer", label: "Bank transfer" },
+  { value: "cash", label: "Cash" },
+  { value: "other", label: "Other" },
+];
+
+// P4b: close a just-converted lead in one step — runs the tested close-deal
+// orchestration (contract + issued invoice + routed payment) on the new client.
+// Reuses the existing convert flow; adds nothing to leads-pipeline's server.
+function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId: string; clientName: string; suggestedAmount: string }; onClose: () => void; onClosed: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null>(null);
+  const [form, setForm] = useState({ title: "", amount: target.suggestedAmount || "", channel: "stripe", contractSummary: "" });
+  // One-time key so a double-clicked close bills once (this modal is mounted
+  // fresh per close intent, so a new close naturally gets a new key).
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `idem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
+  );
+
+  async function run() {
+    const amount = parseFloat(form.amount);
+    if (!form.title.trim() || !Number.isFinite(amount) || amount <= 0) { setError("Add a deal title and a positive amount."); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tenants/close-deal", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId: target.clientId, title: form.title.trim(), amountCents: Math.round(amount * 100), currency: "gbp", channel: form.channel, contractSummary: form.contractSummary.trim() || undefined, idempotencyKey }),
+      });
+      const data = await res.json().catch(() => null) as { ok?: boolean; error?: string; invoiceNumber?: string; payLink?: string; paymentInstruction?: string } | null;
+      if (!res.ok || !data?.ok) { setError(data?.error ?? "Could not close the deal."); return; }
+      setResult(data);
+      onClosed();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputClass = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black";
+  return (
+    <div className="fixed inset-0 z-[95] grid place-items-center bg-black/40 p-4">
+      <div role="dialog" aria-modal="true" aria-label="Close the deal" className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-black/90">Close the deal — {target.clientName}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50">✕</button>
+        </div>
+        {result ? (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-emerald-800">Deal closed ✓</p>
+            <p className="text-xs text-black/60">Contract sent{result.invoiceNumber ? ` · invoice ${result.invoiceNumber} issued` : ""}.</p>
+            {result.payLink ? <a href={result.payLink} target="_blank" rel="noreferrer" className="inline-block rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Open the Stripe pay-link →</a> : null}
+            {result.paymentInstruction ? <p className="text-xs text-black/50">{result.paymentInstruction}</p> : null}
+            <div className="pt-2"><button type="button" onClick={onClose} className="rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Done</button></div>
+          </div>
+        ) : (
+          <form onSubmit={event => { event.preventDefault(); void run(); }} className="space-y-3">
+            <label className="grid gap-1 text-xs font-medium text-black/60">What did you agree?<input className={inputClass} placeholder="Website build + care plan" value={form.title} disabled={busy} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} autoFocus /></label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-xs font-medium text-black/60">Amount (£)<input type="number" step="0.01" min="0.01" className={inputClass} placeholder="0.00" value={form.amount} disabled={busy} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></label>
+              <label className="grid gap-1 text-xs font-medium text-black/60">Take payment by<select className={inputClass} value={form.channel} disabled={busy} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}>{CLOSE_LEAD_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
+            </div>
+            <label className="grid gap-1 text-xs font-medium text-black/60">Contract summary <span className="font-normal text-black/35">(optional)</span><input className={inputClass} placeholder="Scope, terms" value={form.contractSummary} disabled={busy} onChange={e => setForm(f => ({ ...f, contractSummary: e.target.value }))} /></label>
+            {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
+            <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium">Cancel</button><button type="submit" disabled={busy} className="rounded-md bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? "Closing…" : "Close the deal"}</button></div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, importHref, campaignsHref, boards, brands, products }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
   const [clock, setClock] = useState(referenceNow);
@@ -237,7 +313,8 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [convertedClient, setConvertedClient] = useState<{ id: string; name: string } | null>(null);
+  const [convertedClient, setConvertedClient] = useState<{ id: string; name: string; value?: string } | null>(null);
+  const [closeFor, setCloseFor] = useState<{ clientId: string; clientName: string; suggestedAmount: string } | null>(null);
   const [query, setQuery] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
@@ -605,7 +682,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
       };
       if (!data.ok) throw new Error(data.error ?? "Could not convert lead.");
       setSuccess(clientWorkspaceNotice(data));
-      if (data.client?.id) setConvertedClient({ id: data.client.id, name: data.client.name });
+      if (data.client?.id) setConvertedClient({ id: data.client.id, name: data.client.name, value: conversion.projectValue });
       setConversionLead(null);
       router.refresh();
     } catch (err) {
@@ -982,7 +1059,10 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
                 <Link href={`/client-preview/${convertedClient.id}?section=home`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
                   Preview portal
                 </Link>
-                <Link href={`/portal/clients/${convertedClient.id}?tab=systems&systemView=properties`} className="rounded-md bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-900">
+                <button type="button" onClick={() => setCloseFor({ clientId: convertedClient.id, clientName: convertedClient.name, suggestedAmount: convertedClient.value ?? "" })} className="rounded-md bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-900">
+                  Close the deal
+                </button>
+                <Link href={`/portal/clients/${convertedClient.id}?tab=systems&systemView=properties`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
                   Open Development
                 </Link>
               </div>
@@ -990,6 +1070,8 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           </div>
         </div>
       )}
+
+      {closeFor ? <CloseLeadDealModal target={closeFor} onClose={() => setCloseFor(null)} onClosed={() => router.refresh()} /> : null}
 
       {workFilter === "scouting" ? (
         <div id="scouting" className="scroll-mt-24">
@@ -1523,7 +1605,7 @@ function LeadInternalWorkspace({
             <LeadTimingTrace lead={lead} events={lead.journeyEvents ?? []} clock={clock} />
           </section>
 
-          <section id="lead-record" className="rounded-lg border border-black/10 bg-white p-5">
+          <section id="lead-record" data-resolution-focus="meeting" className="rounded-lg border border-black/10 bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">Complete record</p>

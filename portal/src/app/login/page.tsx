@@ -5,8 +5,23 @@ import nextDynamic from "next/dynamic";
 import { isGoogleOAuthConfigured } from "@/lib/server/oauthGoogle";
 import { getCurrentUser, getSession } from "@/lib/server/auth";
 import { resolvePostLoginPath } from "@/lib/server/postLoginRedirect";
-import { getAuthBrand } from "@/lib/authBrand";
+import { resolveAuthBrand, type ResolvedAuthBrand } from "@/lib/authBrand";
+import { ensureHydrated } from "@/server/storage";
+import { listAgencies } from "@/server/tenants";
 import type { Metadata } from "next";
+
+// `?brand=` used to be matched against a hardcoded list of four fronts. Ed now
+// signs in from several of his own company websites into ONE AquaCRM, so the
+// value is matched against real agency records too.
+//
+// The guard is unchanged and load-bearing: `resolveAuthBrand` falls back to the
+// neutral AquaCRM front for anything it does not recognise, so a stale, guessed
+// or hostile `?brand=` can never paint this page with an unrelated client's
+// name. See `src/lib/authBrand.ts`.
+async function brandFor(value: string | undefined): Promise<ResolvedAuthBrand> {
+  await ensureHydrated();
+  return resolveAuthBrand(value, listAgencies());
+}
 
 // Code-split: form bundle only ships when /login renders, and the
 // nav + card chrome paint without waiting for it.
@@ -26,7 +41,7 @@ export async function generateMetadata({
   searchParams: Promise<{ brand?: string }>;
 }): Promise<Metadata> {
   const params = await searchParams;
-  const brand = getAuthBrand(params.brand);
+  const brand = await brandFor(params.brand);
   return {
     title: `Sign in · ${brand.name}`,
     description: `Secure access to your ${brand.name} workspace.`,
@@ -39,7 +54,7 @@ export default async function LoginPage({
   searchParams: Promise<{ brand?: string; next?: string }>;
 }) {
   const params = await searchParams;
-  const brand = getAuthBrand(params.brand);
+  const brand = await brandFor(params.brand);
   const contactHref = brand.id === "aquacrm"
     ? brand.homeUrl.startsWith("http")
       ? new URL("/contact/", brand.homeUrl).toString()

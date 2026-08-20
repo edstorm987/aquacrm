@@ -1,4 +1,9 @@
-@import "@xyflow/react/dist/style.css";
+/* @xyflow/react's base stylesheet is NOT imported here — it used to sit on this
+   line and therefore shipped on EVERY route, though only the automations canvas
+   renders React Flow. It now lives in `portal/agency/automations/_AutomationsCanvas.tsx`
+   (the lazy-loaded chunk that owns every @xyflow/react import), so it downloads with
+   the canvas and nowhere else. The `.react-flow__*` overrides below are all at least
+   two classes deep, so they still beat the base sheet whatever order it loads in. */
 @import "tailwindcss";
 
 .aqua-automation-flow .react-flow__pane { cursor: grab; }
@@ -3082,6 +3087,50 @@ html[data-performance-mode="true"] .mm-command-transition {
 html[data-performance-mode="true"] .mm-client-workspace-transition {
   display: none !important;
 }
+
+/* Dev Mode load-in reuses the command-transition system but sits above the
+   native command/client transitions so it cleanly covers whichever one the
+   landing path fires. The performance-mode hide above already applies to it
+   (it also carries the .mm-command-transition class). Two-class selector so it
+   wins over `.mm-command-transition { z-index: 10000 }` regardless of source
+   order. `pointer-events: none` is the fail-safe: purely decorative, it can
+   NEVER intercept the switcher / Exit even if it somehow lingers. */
+.mm-command-transition.mm-devmode-loadin {
+  z-index: 10002;
+  pointer-events: none;
+}
+
+/* Dev Mode POV switcher — themed for light + dark. This app has NO Tailwind
+   darkMode config; theming is done with `html[data-color-mode]` overrides on
+   component classes (see .mm-showcase-control). The switcher is portal-level
+   (not topbar-scoped), so these are un-scoped. Base = light; dark below. */
+.mm-dev-mode-switcher {
+  border-color: rgb(14 116 144 / 0.4);
+  background: #ecfeff;
+  color: #0e4a54;
+}
+.mm-dev-mode-switcher-label { color: #0e7490; }
+.mm-dev-mode-switcher-personas,
+.mm-dev-mode-switcher-exit { border-left: 1px solid rgb(14 116 144 / 0.28); }
+.mm-dev-mode-switcher-persona { color: #0e4a54; }
+.mm-dev-mode-switcher-persona[data-active="false"]:hover,
+.mm-dev-mode-switcher-exit:hover:not(:disabled) { background: #cffafe; }
+.mm-dev-mode-switcher-persona[data-active="false"]:disabled,
+.mm-dev-mode-switcher-exit:disabled { opacity: 0.5; }
+.mm-dev-mode-switcher-persona[data-active="true"] { background: #0e7490; color: #ffffff; }
+
+html[data-color-mode="dark"] .mm-dev-mode-switcher {
+  border-color: rgb(45 212 191 / 0.38);
+  background: #0c2a2f;
+  color: #a5f3ea;
+}
+html[data-color-mode="dark"] .mm-dev-mode-switcher-label { color: #5eead4; }
+html[data-color-mode="dark"] .mm-dev-mode-switcher-personas,
+html[data-color-mode="dark"] .mm-dev-mode-switcher-exit { border-left-color: rgb(45 212 191 / 0.24); }
+html[data-color-mode="dark"] .mm-dev-mode-switcher-persona { color: #a5f3ea; }
+html[data-color-mode="dark"] .mm-dev-mode-switcher-persona[data-active="false"]:hover,
+html[data-color-mode="dark"] .mm-dev-mode-switcher-exit:hover:not(:disabled) { background: #123a40; }
+html[data-color-mode="dark"] .mm-dev-mode-switcher-persona[data-active="true"] { background: #0e7490; color: #ffffff; }
 
 .mm-dialog-panel,
 .mm-portal-root [role="dialog"][aria-modal="true"]:not(.fixed) {
@@ -7464,4 +7513,73 @@ html[data-color-mode="dark"] .mm-drawer-panel-left[data-sidebar-variant="client"
   .mm-private-sidebar[data-sidebar-variant="client"] .mm-sidebar-link:hover .mm-sidebar-link-icon {
     transform: none !important;
   }
+}
+
+/* ── Resolution spotlight ──────────────────────────────────────────────────
+   Applied by ResolutionSpotlight to whichever element carries
+   `data-resolution-focus` matching the in-progress resolution. Defined once
+   here so any page becomes resolvable by adding the attribute alone — no
+   component changes, no prop threading.
+
+   The pulse runs for a few seconds then settles to a static ring: a marker
+   that pulses forever becomes wallpaper, and the operator stops seeing it. */
+.aqua-resolution-target {
+  position: relative;
+  border-radius: 0.5rem;
+  outline: 2px solid rgb(245 158 11);
+  outline-offset: 3px;
+  animation: aqua-resolution-pulse 1.4s ease-out 3;
+}
+
+.aqua-resolution-target::after {
+  content: "Needs your action";
+  position: absolute;
+  top: -0.75rem;
+  left: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  background: rgb(245 158 11);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  pointer-events: none;
+}
+
+@keyframes aqua-resolution-pulse {
+  0%   { box-shadow: 0 0 0 0 rgb(245 158 11 / 0.45); }
+  70%  { box-shadow: 0 0 0 10px rgb(245 158 11 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(245 158 11 / 0); }
+}
+
+/* Respect a reduced-motion preference: keep the ring, drop the pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .aqua-resolution-target { animation: none; }
+}
+
+/* ── Connect flow ────────────────────────────────────────────────────────────
+   The connect screens are their own place: reached from somebody else's
+   software, outside the portal chrome, and the one moment where Aqua is
+   introducing itself. The motion is decorative and stops entirely for anybody
+   who has asked for less of it. */
+
+@keyframes aq-orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(6%, -4%, 0) scale(1.08); }
+  66%      { transform: translate3d(-5%, 5%, 0) scale(0.95); }
+}
+
+.aq-orb   { animation: aq-orb-drift 26s ease-in-out infinite; will-change: transform; }
+.aq-orb-2 { animation-duration: 34s; animation-delay: -8s; }
+.aq-orb-3 { animation-duration: 30s; animation-delay: -16s; }
+
+@keyframes aq-scene-in {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.aq-scene { animation: aq-scene-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aq-orb, .aq-scene { animation: none; }
 }

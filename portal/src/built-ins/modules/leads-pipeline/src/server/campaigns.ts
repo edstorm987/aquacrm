@@ -184,7 +184,7 @@ export class CampaignService {
           actorUserId: actor,
           category: "leads",
           action: "leads.campaign.send_skip",
-          message: `Skipped ${lead.phone || lead.name || lead.id}: no email address.`,
+          message: `Skipped lead ${lead.id}: no email address.`,
           metadata: { campaignId: id, leadId: lead.id, reason: "missing_email" },
         });
         continue;
@@ -197,7 +197,10 @@ export class CampaignService {
           bodyHtml: campaign.bodyHtml,
           bodyText: campaign.bodyText,
           triggeredByPlugin: PLUGIN_ID,
-          externalRef: `campaign:${id}:${lead.email}`,
+          // Keyed by lead id, not address: this ref becomes the email-sender
+          // idempotency key, which lands in a STORAGE KEY NAME — PII there
+          // survives any value-based erasure sweep. The id is just as unique.
+          externalRef: `campaign:${id}:${lead.id}`,
         });
         await this.leads.stampLastEmailedAt(lead.id, sendStamp, actor);
         sent += 1;
@@ -209,7 +212,7 @@ export class CampaignService {
           actorUserId: actor,
           category: "leads",
           action: "leads.campaign.send_skip",
-          message: `Skipped ${lead.email}: ${err instanceof Error ? err.message : String(err)}`,
+          message: `Skipped lead ${lead.id}: ${err instanceof Error ? err.message : String(err)}`,
           metadata: { campaignId: id, leadId: lead.id },
         });
       }

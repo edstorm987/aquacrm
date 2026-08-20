@@ -4,6 +4,7 @@ import { getUserById } from "@/server/users";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AvatarUploader } from "./AvatarUploader";
+import { TwoFactorPanel } from "./TwoFactorPanel";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { ArrowLeft, ArrowRight, KeyRound, ShieldCheck, UserRound } from "lucide-react";
 
@@ -110,6 +111,8 @@ export default async function AccountPage() {
             </button>
           </div>
         </form>
+
+        <TwoFactorPanel />
 
         <details className="mm-surface-card group mt-5 rounded-lg border p-4 text-sm sm:p-5">
           <summary className="flex cursor-pointer list-none items-center gap-3 text-black/75">

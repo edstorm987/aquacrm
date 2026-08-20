@@ -6,7 +6,8 @@
 //   plans/by-id/<id>          → Plan
 //   plans/by-client/<cid>     → string (single plan id)  // v1: 1 plan/client
 
-import { makeId } from "../lib/ids";
+import { deriveRecordId, normaliseIdempotencyKey } from "../lib/idempotency";
+import { listRowIds } from "./rowIndex";
 import { now } from "../lib/time";
 import type { AgencyId, ClientId, UserId } from "../lib/tenancy";
 import type {
@@ -32,8 +33,10 @@ export class PlanService {
     return p.agencyId === this.agencyId;
   }
 
+  // Index + row scan (see server/rowIndex.ts). `plans/by-client/<id>` is a
+  // single-value key, not an array, so it overwrites cleanly and needs nothing.
   async list(includeInactive = false): Promise<Plan[]> {
-    const ids = (await this.storage.get<string[]>(INDEX_KEY)) ?? [];
+    const ids = await listRowIds(this.storage, INDEX_KEY, "plans/by-id/");
     const out: Plan[] = [];
     for (const id of ids) {
       const p = await this.storage.get<Plan>(planKey(id));
@@ -55,12 +58,22 @@ export class PlanService {
     return this.get(id);
   }
 
+  // Idempotent on `input.idempotencyKey`: a resubmit of the same intent returns
+  // the first plan instead of creating a duplicate. See lib/idempotency.ts.
   async create(actor: UserId, input: CreatePlanInput): Promise<Plan> {
     if (!input.label.trim()) throw new Error("agency-finance: plan label required");
     if (input.monthlyAmountCents < 0) throw new Error("agency-finance: monthlyAmountCents must be >= 0");
+
+    const key = normaliseIdempotencyKey(input.idempotencyKey);
+    const id = deriveRecordId("plan", key);
+    if (key) {
+      const existing = await this.get(id);
+      if (existing) return existing;
+    }
+
     const t = now();
     const plan: Plan = {
-      id: makeId("plan"),
+      id,
       agencyId: this.agencyId,
       tier: input.tier,
       label: input.label.trim(),

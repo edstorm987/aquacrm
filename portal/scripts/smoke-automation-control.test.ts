@@ -132,6 +132,11 @@ test("active graphs reject loops and the custom AI registry stays tenant scoped"
 
 test("automation control centre is mounted with real integrations and navigation", () => {
   const workspace = readFileSync("src/app/portal/agency/automations/_AutomationsWorkspace.tsx", "utf8");
+  // The React Flow canvas was extracted into its own module so `@xyflow/react`
+  // (the heaviest client dependency) code-splits out of this route's initial
+  // bundle; the workspace lazy-loads it. The contract is unchanged — a real
+  // canvas is still mounted — so assert it where it now lives.
+  const canvas = readFileSync("src/app/portal/agency/automations/_AutomationsCanvas.tsx", "utf8");
   const page = readFileSync("src/app/portal/agency/automations/page.tsx", "utf8");
   const data = readFileSync("src/app/portal/agency/automations/_automationWorkspaceData.ts", "utf8");
   const marketing = readFileSync("src/app/portal/agency/marketing/page.tsx", "utf8");
@@ -140,7 +145,10 @@ test("automation control centre is mounted with real integrations and navigation
   const sweep = readFileSync("src/app/api/internal/sweep/route.ts", "utf8");
   const sidebar = readFileSync("src/lib/chrome/sidebarLayout.ts", "utf8");
 
-  assert.match(workspace, /<ReactFlow/);
+  assert.match(canvas, /<ReactFlow/);
+  // ...and the workspace really mounts that canvas (lazily), so the split
+  // can't silently drop it.
+  assert.match(workspace, /_AutomationsCanvas/);
   assert.match(workspace, /Unanswered enquiry reminder/);
   assert.match(workspace, /Custom AI registry/);
   assert.match(workspace, /Run history/);

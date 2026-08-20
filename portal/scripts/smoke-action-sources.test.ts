@@ -7,7 +7,12 @@ const read = (path: string) => readFileSync(path, "utf8");
 test("Actions exposes all four task sources plus the combined view", () => {
   const workspace = read("src/app/portal/agency/actions/_ActionsWorkspace.tsx");
 
-  assert.match(workspace, /type ActionSource = "all" \| AgencyTaskOrigin/);
+  // "today" and "completed" were added as VIEWS over the same work; the four
+  // origins are unchanged, which is what this test is actually guarding.
+  assert.match(workspace, /type ActionSource = "all" \| "today" \| "completed" \| AgencyTaskOrigin/);
+  for (const origin of ["radar", "advisor", "manual", "crm"]) {
+    assert.match(workspace, new RegExp(`id: "${origin}"`), `the ${origin} source must remain`);
+  }
   for (const source of ["all", "radar", "advisor", "manual", "crm"]) {
     assert.match(workspace, new RegExp(`id: "${source}"`));
   }
@@ -52,7 +57,8 @@ test("Radar, Advisor and CRM suggestions require acceptance before task creation
   assert.match(workspace, /acceptSuggestion\(suggestion, "radar"\)/);
   assert.match(workspace, /acceptSuggestion\(suggestion, "advisor"\)/);
   assert.match(workspace, /async function acceptCrmAction/);
-  assert.match(workspace, /origin: "crm"/);
+  assert.match(workspace, /origin: action\.origin \?\? "crm"/,
+    "an accepted action must record where it came from, not always claim CRM");
   assert.match(workspace, /Accepted actions/);
   assert.match(workspace, /awaiting approval/);
   assert.match(page, /acceptedSourceIds\.has\(action\.id\)/);

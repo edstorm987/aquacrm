@@ -40,7 +40,8 @@ interface RouteProps {
 export default async function PipelineView({ params, searchParams }: RouteProps) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
-  const agency = getAgency(session.agencyId)!;
+  const agency = getAgency(session.agencyId);
+  if (!agency) redirect("/login");
   const { slug } = await params;
   const query = await searchParams;
   ensureDefaultAgencyProducts(agency.id);

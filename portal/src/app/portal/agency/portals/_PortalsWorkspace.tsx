@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { PortalProductDefinition } from "@/lib/portalProducts";
+import { PORTAL_PHASE_LABELS } from "@/lib/portalProducts";
 
 export type PortalWorkspaceRecord = {
   id: string;
@@ -55,12 +56,7 @@ export type PortalTemplateProductRecord = {
 type View = "library" | "templates";
 type Filter = "all" | "ready" | "needs-setup" | "access-sent" | "live";
 
-const MODE_LABELS: Record<PortalWorkspaceRecord["portalMode"], string> = {
-  onboarding: "Onboarding",
-  designing: "Designing",
-  "developed-launch": "Review & launch",
-  maintenance: "Live care",
-};
+const MODE_LABELS: Record<PortalWorkspaceRecord["portalMode"], string> = PORTAL_PHASE_LABELS;
 
 export function PortalsWorkspace({
   portals,

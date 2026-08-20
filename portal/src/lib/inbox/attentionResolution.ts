@@ -19,6 +19,12 @@ export function resolveAttentionAction(alert: OperationalAlert): AttentionResolu
       opensInboxThread: Boolean(url?.searchParams.get("thread") || url?.searchParams.get("form")),
     };
   }
+  if (pathname.startsWith("/portal/agency/contacts")) {
+    return resolution(
+      "this person's contact card",
+      "Set the relationship, confirm their company, and record what you know.",
+    );
+  }
   if (pathname.startsWith("/portal/agency/actions")) return resolution("the exact task", "Complete, reassign, reschedule, or edit the action.");
   if (pathname.startsWith("/portal/agency/agency-finance/invoices")) return resolution("overdue invoices", "Record payment or create the required follow-up.");
   if (pathname.startsWith("/portal/agency/agency-finance/expenses")) return resolution("the filtered expense records", "Attach evidence, approve the record, or update its status.");

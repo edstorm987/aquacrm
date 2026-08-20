@@ -157,6 +157,14 @@ export interface HealthStatus {
 
 export type ScopePolicy = "agency" | "client" | "either";
 
+/** Who is being erased — resolved by the sweep from the client record, which is
+ *  deleted moments later. Mirrors `built-ins/runtime/_types.ts`. */
+export interface ErasureSubject {
+  emails: string[];
+  name?: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface AquaPlugin {
   id: string;
   name: string;
@@ -178,6 +186,11 @@ export interface AquaPlugin {
   onEnable?: (ctx: PluginCtx) => Promise<void>;
   onDisable?: (ctx: PluginCtx) => Promise<void>;
   onConfigure?: (ctx: PluginCtx) => Promise<void>;
+  // Right-to-be-forgotten hook — the client-erasure sweep calls this so the
+  // plugin can erase every record it holds for `clientId` from its own
+  // storage, including identifiers held in storage *keys* the generic
+  // value-scan can't reach. Idempotent; must not throw on "nothing to erase".
+  onEraseClient?: (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => Promise<void>;
 
   setup?: SetupStep[];
 

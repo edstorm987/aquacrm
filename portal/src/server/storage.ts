@@ -21,6 +21,13 @@ import {
 } from "./storagePatch";
 
 const empty = (): PortalState => ({
+  // These four are declared optional on PortalState, which is why they were
+  // omitted here and — far worse — from parseBlob. Anything optional that is
+  // still a COLLECTION must start empty and round-trip like the rest.
+  agencyMasterTagKeys: {},
+  websiteSources: {},
+  websiteSiteConfigs: {},
+  enquiryContactDetails: {},
   agencies: {},
   tradingCompanies: {},
   clients: {},
@@ -32,6 +39,9 @@ const empty = (): PortalState => ({
   activity: [],
   clientRecordLedger: {},
   identityResolutionReviews: {},
+  persons: {},
+  organisations: {},
+  completedActions: {},
   pipelines: {},
   pipelineCards: {},
   assistant: {},
@@ -39,6 +49,8 @@ const empty = (): PortalState => ({
   externalAssistantActionProposals: {},
   integrationConnections: {},
   tasks: {},
+  taskTemplates: {},
+  portalConnections: {},
   notepadFolders: {},
   notepadNotes: {},
   automationFolders: {},
@@ -71,12 +83,24 @@ const empty = (): PortalState => ({
   radarMemory: {},
   radarSyntheticProbes: {},
   radarEvidence: {},
+  customKpis: {},
   operationalAlertPreferences: {},
   peopleApplications: {},
   peopleEmployees: {},
   peopleLeaveRequests: {},
   peopleShifts: {},
   peopleTrainingAssignments: {},
+  peopleFreelancerJobs: {},
+  peopleRecognitions: {},
+  peopleFeedback: {},
+  peopleProcessConfig: {},
+  freelancerAccessConfig: {},
+  freelancerJobOverride: {},
+  peopleContracts: {},
+  peopleChannels: {},
+  peopleMessages: {},
+  peopleChannelReads: {},
+  peopleTrainingModules: {},
 });
 
 // ─── Backend interface ────────────────────────────────────────────────────
@@ -94,7 +118,14 @@ interface Backend {
 
 // ─── File backend (dev default) ───────────────────────────────────────────
 
-const DATA_FILE = resolve(process.cwd(), ".data", "portal-state.json");
+// The file-backend sandbox. `PORTAL_DATA_FILE` (absolute, or relative to the
+// project root) points a process at its OWN state file so two dev servers can
+// run side by side without overwriting each other's sandbox — that shared
+// `.data/portal-state.json` was why a second worker's `dev:verify` silently
+// clobbered the first. Unset → the original path, so nothing existing changes.
+const DATA_FILE = process.env.PORTAL_DATA_FILE
+  ? resolve(process.cwd(), process.env.PORTAL_DATA_FILE)
+  : resolve(process.cwd(), ".data", "portal-state.json");
 
 const fileBackend: Backend = {
   kind: "file",
@@ -173,6 +204,55 @@ const supabaseBackend: Backend = {
   },
 };
 
+/**
+ * A test process must never be able to reach the shared dev sandbox.
+ *
+ * The file backend is the DEFAULT and its default path is the one dev server's
+ * `.data/portal-state.json`. Only ~a quarter of the smoke files pin
+ * `PORTAL_BACKEND=memory`, so the rest inherited that default and flushed their
+ * own seeded state straight over the sandbox: running the FULL suite — which
+ * the contract in CLAUDE.md requires before calling any behaviour change done —
+ * silently emptied Ed's workspace (0 agencies, 0 clients, 0 users). It happened
+ * for real on 2026-08-20 and was restored from a worker's fork.
+ *
+ * So: under `node --test`, an unpinned process gets memory, never the file. A
+ * test that genuinely wants a file sandbox still gets one by setting
+ * `PORTAL_DATA_FILE` to its own path — which is the isolation `sandbox:fork`
+ * already gives every worker. `PORTAL_BACKEND` set explicitly still wins, so
+ * nothing that deliberately chose a backend changes behaviour.
+ */
+function inTestRunner(): boolean {
+  // node:test sets this in every child process it spawns per test file.
+  return Boolean(process.env.NODE_TEST_CONTEXT);
+}
+
+/**
+ * The shared sandbox is OPT-IN, not opt-out.
+ *
+ * Guessing which processes are "safe" was the wrong shape: node:test children
+ * were covered, but a plain `npx tsx scripts/whatever.ts` was not, and several
+ * of those create agencies (scripts/verify-marketing-runtime.ts says in its own
+ * header "run with PORTAL_BACKEND=memory" — relying on whoever runs it to
+ * remember). Five fixture tenants — Golden Fixture Co, F, Marketing Runtime Co —
+ * turned up in Ed's workspace on 2026-08-20 that way.
+ *
+ * So the ONE shared file is now reachable only by a process that says out loud
+ * it is the dev server (`PORTAL_ALLOW_SHARED_STATE=1`, set by the dev:sandbox*
+ * scripts). Everything else gets memory unless it names its OWN file through
+ * `PORTAL_DATA_FILE` — which is exactly what `npm run sandbox:fork` does, so
+ * workers are unaffected.
+ */
+const SHARED_STATE_PATH = resolve(process.cwd(), ".data", "portal-state.json");
+
+function mayTouchSharedState(): boolean {
+  if (process.env.PORTAL_ALLOW_SHARED_STATE === "1") return true;
+  // A process that named its own file is never touching the shared one.
+  if (process.env.PORTAL_DATA_FILE) {
+    return resolve(process.cwd(), process.env.PORTAL_DATA_FILE) !== SHARED_STATE_PATH;
+  }
+  return false;
+}
+
 function pickBackend(): Backend {
   const explicit = (process.env.PORTAL_BACKEND ?? "").toLowerCase();
   switch (explicit) {
@@ -183,6 +263,7 @@ function pickBackend(): Backend {
     case "file":
     case "":
     default: {
+
       // Implicit promotion: when `DATABASE_URL` is set but PORTAL_BACKEND
       // wasn't explicitly chosen, prefer Postgres over file. This makes
       // production deploys "set DATABASE_URL and go" while keeping
@@ -193,6 +274,10 @@ function pickBackend(): Backend {
         process.env.NEXT_PUBLIC_SUPABASE_URL &&
         process.env.SUPABASE_SERVICE_ROLE_KEY
       ) return supabaseBackend;
+      // The file backend is the only one that can reach the shared sandbox, so
+      // the guard belongs HERE — not at the top of this function, where it also
+      // swallowed an explicit supabase/postgres/kv choice.
+      if (!mayTouchSharedState()) return memoryBackend;
       return fileBackend;
     }
   }
@@ -334,6 +419,18 @@ function parseBlob(raw: string): PortalState {
   try {
     const parsed = JSON.parse(raw) as Partial<PortalState>;
     return {
+      // ⚠ Every collection MUST be rebuilt here. This object is the whole of
+      // state — there is no `...parsed` — so a field omitted from this list is
+      // silently DESTROYED on every hydration and then written back out empty
+      // on the next save. These four were missing: the Aqua Tag master site
+      // keys, its website sources and per-site config, and operator-added
+      // enquiry contact details never survived a restart. Proven by sentinel
+      // round-trip, 2026-08-20. `smoke-state-roundtrip` now fails if a new
+      // collection is added without a line here.
+      agencyMasterTagKeys: parsed.agencyMasterTagKeys ?? {},
+      websiteSources: parsed.websiteSources ?? {},
+      websiteSiteConfigs: parsed.websiteSiteConfigs ?? {},
+      enquiryContactDetails: parsed.enquiryContactDetails ?? {},
       agencies: parsed.agencies ?? {},
       tradingCompanies: parsed.tradingCompanies ?? {},
       clients: parsed.clients ?? {},
@@ -345,6 +442,9 @@ function parseBlob(raw: string): PortalState {
       activity: Array.isArray(parsed.activity) ? parsed.activity : [],
       clientRecordLedger: parsed.clientRecordLedger ?? {},
       identityResolutionReviews: parsed.identityResolutionReviews ?? {},
+      persons: parsed.persons ?? {},
+      organisations: parsed.organisations ?? {},
+      completedActions: parsed.completedActions ?? {},
       pipelines: parsed.pipelines ?? {},
       pipelineCards: parsed.pipelineCards ?? {},
       assistant: parsed.assistant ?? {},
@@ -352,6 +452,8 @@ function parseBlob(raw: string): PortalState {
       externalAssistantActionProposals: parsed.externalAssistantActionProposals ?? {},
       integrationConnections: parsed.integrationConnections ?? {},
       tasks: parsed.tasks ?? {},
+      taskTemplates: parsed.taskTemplates ?? {},
+      portalConnections: parsed.portalConnections ?? {},
       notepadFolders: parsed.notepadFolders ?? {},
       notepadNotes: parsed.notepadNotes ?? {},
       automationFolders: parsed.automationFolders ?? {},
@@ -384,12 +486,25 @@ function parseBlob(raw: string): PortalState {
       radarMemory: parsed.radarMemory ?? {},
       radarSyntheticProbes: parsed.radarSyntheticProbes ?? {},
       radarEvidence: parsed.radarEvidence ?? {},
+      customKpis: parsed.customKpis ?? {},
+      radarInfraHealth: parsed.radarInfraHealth,
       operationalAlertPreferences: parsed.operationalAlertPreferences ?? {},
       peopleApplications: parsed.peopleApplications ?? {},
       peopleEmployees: parsed.peopleEmployees ?? {},
       peopleLeaveRequests: parsed.peopleLeaveRequests ?? {},
       peopleShifts: parsed.peopleShifts ?? {},
       peopleTrainingAssignments: parsed.peopleTrainingAssignments ?? {},
+      peopleFreelancerJobs: parsed.peopleFreelancerJobs ?? {},
+      peopleRecognitions: parsed.peopleRecognitions ?? {},
+      peopleFeedback: parsed.peopleFeedback ?? {},
+      peopleProcessConfig: parsed.peopleProcessConfig ?? {},
+      freelancerAccessConfig: parsed.freelancerAccessConfig ?? {},
+      freelancerJobOverride: parsed.freelancerJobOverride ?? {},
+      peopleContracts: parsed.peopleContracts ?? {},
+      peopleChannels: parsed.peopleChannels ?? {},
+      peopleMessages: parsed.peopleMessages ?? {},
+      peopleChannelReads: parsed.peopleChannelReads ?? {},
+      peopleTrainingModules: parsed.peopleTrainingModules ?? {},
     };
   } catch {
     return empty();

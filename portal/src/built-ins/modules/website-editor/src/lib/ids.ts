@@ -1,37 +1,13 @@
 // Lightweight id generator. Mirrors T2's pattern; avoids a runtime dep on
 // `nanoid` so the plugin keeps its `dependencies` empty.
+//
+// `makeId`/`slugify` moved to `src/lib/elements/ids.ts` in P1 — the migration
+// runner needs them and no longer lives in this plugin. Re-exported here so
+// every call site is unchanged; the domain-specific helpers below stay put.
 
-const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+export { makeId, slugify } from "@/lib/elements/ids";
 
-export function makeId(prefix: string, length = 12): string {
-  let id = "";
-  const cryptoApi = (globalThis as unknown as { crypto?: Crypto }).crypto;
-  if (cryptoApi?.getRandomValues) {
-    const bytes = new Uint8Array(length);
-    cryptoApi.getRandomValues(bytes);
-    for (let i = 0; i < length; i++) {
-      const byte = bytes[i] ?? 0;
-      const ch = ALPHABET[byte % ALPHABET.length] ?? "0";
-      id += ch;
-    }
-  } else {
-    for (let i = 0; i < length; i++) {
-      const ch = ALPHABET[Math.floor(Math.random() * ALPHABET.length)] ?? "0";
-      id += ch;
-    }
-  }
-  return `${prefix}_${id}`;
-}
-
-export function slugify(s: string): string {
-  return (
-    s
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || `slug-${Date.now()}`
-  );
-}
+import { makeId } from "@/lib/elements/ids";
 
 export const blockId = (type: string) => makeId(`blk-${type}`, 8);
 export const pageId = () => makeId("page", 10);

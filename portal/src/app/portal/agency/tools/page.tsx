@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, CalendarDays, ChevronRight, Mail, Megaphone, NotebookPen, UsersRound, Wrench } from "lucide-react";
+import { Activity, CalendarDays, ChevronRight, Mail, Megaphone, Network, NotebookPen, UsersRound, Wrench } from "lucide-react";
 
 const QUICK_TOOLS = [
   {
@@ -29,11 +29,26 @@ const WORKSPACE_TOOLS = [
     icon: Activity,
   },
   {
-    href: "/portal/agency/agency-hr",
+    // P5 — the canonical staff directory. This card used to open the agency-hr
+    // copy at /portal/agency/agency-hr; that surface is retired and redirects
+    // here.
+    href: "/portal/agency/people",
     label: "People operations",
-    detail: "Manage staff, departments, leave, employee records, roles, and HR configuration.",
+    detail: "The agency staff directory — people, roles, pay, and status.",
     action: "Open people operations",
     icon: UsersRound,
+  },
+  {
+    // The agency-hr plugin's surviving pages. They need their own entry point:
+    // the AquaOasis agency sidebar override (sidebarLayout.ts) filters the nav
+    // down to a fixed list of core ids, so no agency-hr row ever reaches the
+    // sidebar, and with the Staff surface retired this card is the only way in.
+    // Departments is the landing page; its workspace nav reaches the rest.
+    href: "/portal/agency/agency-hr/departments",
+    label: "People records",
+    detail: "Org chart of departments, leave requests, employee records, roles, and HR configuration.",
+    action: "Open people records",
+    icon: Network,
   },
   {
     href: "/portal/agency/email-sender",

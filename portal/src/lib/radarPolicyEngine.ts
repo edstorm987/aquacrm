@@ -11,6 +11,7 @@ import type {
   RadarCheckStatus,
 } from "@/lib/businessRadar";
 import { summarizeRadarChecks } from "@/lib/radarCheckEngine";
+import { radarFindingGroup } from "@/lib/radarClassification";
 import type { RadarPolicyConfiguration, RadarPolicyRule } from "@/server/types";
 
 const DAY = 86_400_000;
@@ -301,6 +302,7 @@ function groupIncidents(issues: BusinessRadarIssue[], checks: BusinessRadarCheck
       issueIds: findings.map(finding => finding.id),
       checkIds: matchingChecks.map(check => check.id),
       findingCount: findings.length + matchingChecks.length,
+      group: radarFindingGroup(primary),
     };
   }).sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || right.findingCount - left.findingCount);
 }

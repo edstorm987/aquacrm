@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { AgencyProduct, CompanyObjective, CompanyPlan, CompanyProfile, CompanyQuarterlyReview, LegalDocument, SopDocument, TradingCompany } from "@/server/types";
 import { calculateCompanyHealth } from "@/lib/companyHealth";
 import { LegalCompliancePanel } from "./_LegalCompliancePanel";
+import { CompliancePosturePanel } from "./_CompliancePosturePanel";
 import { ProductsWorkspace } from "../products/_ProductsWorkspace";
 import { CompanyConnectionsWorkspace } from "./_CompanyConnectionsWorkspace";
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
@@ -338,7 +339,15 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
         />
       ) : null}
 
-      {view === "legal" ? <LegalCompliancePanel initialDocuments={legalDocuments} canEdit={canEdit} /> : null}
+      {view === "legal" ? (
+        <div data-resolution-focus="evidence">
+          {/* Posture first, register second: the register answers "what do I hold?",
+              the posture answers "where am I exposed and what is still missing?" —
+              which is the question Ed actually opens this tab with. */}
+          <CompliancePosturePanel canEdit={canEdit} />
+          <LegalCompliancePanel initialDocuments={legalDocuments} canEdit={canEdit} />
+        </div>
+      ) : null}
 
       {dialog === "objective" ? <ObjectiveDialog onClose={() => setDialog(null)} onAdd={async item => { const next = { ...company, objectives: [...company.objectives, item] }; setCompany(next); if (await save(next)) setDialog(null); }} /> : null}
       {dialog === "plan" ? <PlanDialog onClose={() => setDialog(null)} onAdd={async item => { const next = { ...company, plans: [...company.plans, item] }; setCompany(next); if (await save(next)) setDialog(null); }} /> : null}
@@ -433,7 +442,7 @@ function CompanyDashboard({
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <DashboardLink title="Service brands" value={String(activeBrands)} detail={`${tradingCompanies.length} total service brands`} icon={<Building2 size={16} />} href="/portal/agency/company?view=companies" />
-        <DashboardLink title="People operations" value={String(staffCount)} detail="Staff, departments, leave and roles" icon={<UsersRound size={16} />} href="/portal/agency/agency-hr" />
+        <DashboardLink title="People operations" value={String(staffCount)} detail="Staff, departments, leave and roles" icon={<UsersRound size={16} />} href="/portal/agency/people" />
         <DashboardAction title="Products" value={String(productCount)} detail="Offers, packages, pricing and welcome packs" icon={<Package size={16} />} onClick={() => onSelect("products")} />
         <DashboardAction title="Connections" value={actuals.leadCount ? String(actuals.leadCount) : "Open"} detail="Website, tools, integrations and client links" icon={<PlugZap size={16} />} onClick={() => onSelect("connections")} />
         <DashboardAction title="Compliance" value={String(legalCount)} detail="Policies, contracts and legal documents" icon={<ShieldCheck size={16} />} onClick={() => onSelect("legal")} />

@@ -217,6 +217,10 @@ export interface AquaPlugin {
 
   core?: boolean;
 
+  // Erasure disposition — "retain" excludes this plugin's client data from the
+  // client-erasure sweep (legal hold). Default "delete". See clientErasure.ts.
+  dataDisposition?: "delete" | "retain";
+
   requires?: string[];
   conflicts?: string[];
 

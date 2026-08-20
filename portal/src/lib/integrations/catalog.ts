@@ -1,4 +1,4 @@
-export type IntegrationProvider = "resend" | "smtp" | "twilio" | "stripe" | "github" | "vercel" | "openai" | "google-search-console";
+export type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "google-search-console";
 
 export type IntegrationFieldKind = "text" | "email" | "url" | "password";
 
@@ -73,6 +73,21 @@ export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
       { id: "whatsappFrom", label: "WhatsApp sender number", kind: "text", placeholder: "+44...", help: "The WhatsApp-enabled number approved for this Twilio account." },
       { id: "voiceFrom", label: "Voice caller ID", kind: "text", placeholder: "+44...", help: "An outbound voice-capable Twilio number customers should see when you call." },
       { id: "agentPhone", label: "Your answering phone", kind: "text", placeholder: "+44...", help: "Twilio rings this private number first, then bridges the customer using the selected caller ID." },
+    ],
+  },
+  {
+    id: "meta",
+    name: "Meta messaging",
+    category: "Communication",
+    description: "Connect Instagram and Facebook messaging so social conversations arrive in Master Inbox.",
+    setupUrl: "https://developers.facebook.com/apps",
+    setupLabel: "Open Meta for Developers",
+    outcome: "AquaCRM stores your Meta app credentials encrypted. Connect each Instagram or Facebook account from the social inbox using Meta's consent screen.",
+    fields: [
+      { id: "appId", label: "App ID", kind: "text", required: true, placeholder: "1234567890123456", help: "From your Meta app dashboard under App settings → Basic." },
+      { id: "appSecret", label: "App Secret", kind: "password", secret: true, required: true, placeholder: "Meta app secret", help: "App settings → Basic → App Secret. AquaCRM encrypts it and never shows it again." },
+      { id: "webhookVerifyToken", label: "Webhook verify token", kind: "password", secret: true, required: true, placeholder: "A strong token you choose", help: "Invent any strong string, then paste the same value into your Meta app's Messenger/Instagram webhook “Verify token” field." },
+      { id: "graphApiVersion", label: "Graph API version", kind: "text", required: true, placeholder: "v21.0", help: "The Meta Graph API version your app targets, for example v21.0." },
     ],
   },
   {

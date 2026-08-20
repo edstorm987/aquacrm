@@ -65,7 +65,7 @@ export function BudgetPotsWorkspace({ initialPots, position, companies, apiBase 
     router.refresh();
   }
 
-  return <section className="mx-auto w-full max-w-6xl space-y-7 pb-12">
+  return <section data-resolution-focus="budget" className="mx-auto w-full max-w-6xl space-y-7 pb-12">
     <FinanceNav active="budgets" />
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-5">
       <div>

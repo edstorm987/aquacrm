@@ -24,8 +24,103 @@ export type BusinessIssueSeverity = "critical" | "warning" | "watch";
 export type BusinessSignalStatus = BusinessIssueSeverity | "healthy" | "unknown";
 export type AdvisorCoverageStatus = "connected" | "empty" | "disconnected" | "unavailable";
 export type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind" | "learning" | "inactive";
-export type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog";
+export type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog" | "infra";
+/**
+ * Which sweep refreshes a check (radar upgrade Stage 2). `instant` = in-state
+ * derivation the Pulse assembles live; `probe` = a network/DB round-trip run by
+ * the Deep/Infra sweeps; `rollup` = needs retained history from the Evidence
+ * sweep. See `lib/radarClassification.ts` and the sweep scheduler.
+ */
+export type RadarCheckTier = "instant" | "probe" | "rollup";
+/**
+ * What a check's answer depends on. `in-state` = current PortalState only;
+ * `derived` = needs retained evidence history or another derived signal;
+ * `external` = needs data from outside AquaCRM (a live probe or tag telemetry).
+ * Makes "why is this blind?" answerable: external dep down vs. not-yet-instrumented.
+ */
+export type RadarDataDependency = "in-state" | "derived" | "external";
+/**
+ * Top-level "what kind of problem" bucket above the {domain}:{category} grouping
+ * (radar upgrade Stage 5). The operator sees the kind of problem before drilling
+ * into domain detail. Derived by `radarFindingGroup` in `lib/radarClassification.ts`.
+ */
+export type RadarFindingGroup =
+  | "infrastructure"
+  | "commercial"
+  | "compliance"
+  | "delivery"
+  | "reliability"
+  | "people";
 export type RadarEntityType = "client" | "product" | "property";
+
+// ─── Coverage seeding (radar upgrade Stage 6 — auto-coverage for new entities) ─
+/** Entity types with a declared radar detector-pack template. */
+export type RadarCoverageEntityType =
+  | "client"
+  | "product"
+  | "property"
+  | "integration"
+  | "portal-connection"
+  | "trading-company";
+/** `calibrating` = seeded but still accruing evidence; `active` = evidence-backed. */
+export type RadarCoverageState = "calibrating" | "active";
+
+export interface RadarCoverageManifestEntry {
+  type: RadarCoverageEntityType;
+  id: string;
+  label: string;
+  packId: string;
+  /** `bespoke` = a template exists for this type; `fallback` = the generic pack caught it. */
+  template: "bespoke" | "fallback";
+  state: RadarCoverageState;
+}
+
+/** Proof that every monitorable entity resolves to a radar pack (Part E). */
+export interface RadarCoverageManifest {
+  entries: RadarCoverageManifestEntry[];
+  covered: number; // entries on a bespoke template
+  fallback: number; // entries caught by the generic fallback
+  gaps: number; // entries resolving to no pack at all (should always be 0)
+  calibrating: number;
+  byType: Record<RadarCoverageEntityType, number>;
+}
+
+// ─── Infra health (radar upgrade Stage 4 — DB & storage health) ─────────────
+export type RadarInfraBackend = "file" | "memory" | "postgres" | "supabase" | "unknown";
+export type RadarInfraProbeStatus = "connected" | "down" | "untested";
+
+/** One database's reachability + latency (+ row counts for the primary). */
+export interface RadarInfraDatabaseHealth {
+  id: string; // "primary" or an external target id
+  label: string;
+  backend: RadarInfraBackend;
+  status: RadarInfraProbeStatus;
+  latencyMs: number | null;
+  external: boolean;
+  error?: string;
+  /** Row counts of key tables — best-effort, primary only; omitted where unavailable. */
+  rowCounts?: Record<string, number>;
+}
+
+/**
+ * Storage health. Total Supabase Storage bytes is NOT available from the
+ * service-role client, so `measurable` is false and `bucketBytes` is null —
+ * shown honestly as "not available in-app" rather than faked (plan Part D §4).
+ */
+export interface RadarInfraStorageHealth {
+  backend: RadarInfraBackend;
+  bucketBytes: number | null;
+  measurable: boolean;
+  note: string;
+}
+
+/** The Infra sweep's latest snapshot; written to `radarInfraHealth`, read by the Pulse. */
+export interface RadarInfraHealthSnapshot {
+  checkedAt: number;
+  primary: RadarInfraDatabaseHealth;
+  external: RadarInfraDatabaseHealth[];
+  storage: RadarInfraStorageHealth;
+}
 export type RadarRuleLens =
   | "connection"
   | "freshness"
@@ -93,6 +188,8 @@ export interface BusinessRadarCheck {
   lens: RadarRuleLens;
   lensLabel: string;
   scope: RadarCheckScope;
+  tier?: RadarCheckTier;
+  dataDependency?: RadarDataDependency;
   status: RadarCheckStatus;
   title: string;
   detail: string;
@@ -176,6 +273,18 @@ export interface BusinessRadarIncident extends BusinessRadarIssue {
   issueIds: string[];
   checkIds: string[];
   findingCount: number;
+  /** Top-level problem bucket (radar upgrade Stage 5). */
+  group: RadarFindingGroup;
+}
+
+/** Per-bucket incident roll-up (radar upgrade Stage 5) — "what kind of problem" at a glance. */
+export interface RadarFindingGroupSummary {
+  group: RadarFindingGroup;
+  label: string;
+  incidents: number;
+  critical: number;
+  warning: number;
+  watch: number;
 }
 
 export interface BusinessRadarConclusion {
@@ -283,6 +392,8 @@ export interface RadarEvidenceSeriesSummary {
   hourlyRollupCount: number;
   latestValue?: number;
   latestStatus?: RadarEvidencePoint["status"];
+  /** Rolling/learned baseline — the median of the recent window (Phase 5B). Evolves as the metric grows; `undefined` under 3 points. Additive; does not affect anomaly detection. */
+  rollingBaseline?: number;
   recentPoints: RadarEvidencePoint[];
   recentHourly: RadarEvidenceHourlyRollup[];
 }
@@ -362,6 +473,7 @@ export interface BusinessIssueRadar {
     syntheticSentinels: number;
     commercialLifecycleChecks: number;
     historicalChecks: number;
+    infraChecks: number;
     watchdogChecks: number;
     monitoredProperties: number;
     syntheticProperties: number;
@@ -373,6 +485,8 @@ export interface BusinessIssueRadar {
     historicalAnomalies: number;
     clientChecks?: number;
     monitoredClients?: number;
+    monitoredEntities?: number;
+    coverageGaps?: number;
   };
   speedToLead: SpeedToLeadRadar;
   commercial: CommercialLifecycleSnapshot;
@@ -385,6 +499,12 @@ export interface BusinessIssueRadar {
   memory: RadarMemoryDigest;
   evidence: RadarEvidenceDigest;
   adaptive: BusinessRadarAdaptiveState;
+  /** Latest Infra sweep snapshot (radar upgrade Stage 4). Absent until an Infra sweep has run. */
+  infra?: RadarInfraHealthSnapshot;
+  /** Incidents rolled up into top-level problem buckets (radar upgrade Stage 5). */
+  findingGroups: RadarFindingGroupSummary[];
+  /** Coverage manifest — every monitorable entity resolved to a pack (radar upgrade Stage 6). */
+  coverageManifest: RadarCoverageManifest;
 }
 
 export type AdvisorRadarDigest = BusinessIssueRadar["summary"] & {

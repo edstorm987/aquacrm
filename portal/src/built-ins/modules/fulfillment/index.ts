@@ -22,6 +22,10 @@ const fulfillmentPlugin: AquaPlugin = {
 
   core: true,
 
+  // Legal hold: deliverable proof (what was delivered, phase/checklist
+  // completion) survives client erasure as the legal-defence record.
+  dataDisposition: "retain",
+
   // No required deps — fulfillment is foundational. It indirectly relies
   // on the plugin runtime (T1) and on the website-editor plugin (T3) for
   // applying starter portal variants, but those are foundation services

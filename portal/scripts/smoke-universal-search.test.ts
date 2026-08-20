@@ -61,7 +61,18 @@ test("universal search indexes the complete Command Centre intelligence and Rada
   assert.match(searchApi, /scope=\$\{encodeURIComponent\(scope\.id\)\}/);
   assert.match(searchApi, /command-scope-kpi:/);
   assert.match(commandCentre, /requestedStationValue = searchParams\.get\("station"\)/);
-  assert.match(commandCentre, /requestedStation = commandStationMode\(requestedStationValue\)/);
+  // The `?station=` a search result links to must still be resolved by
+  // `commandStationMode`. It now takes a second argument (the founder-only
+  // `devteam` station is admitted only when visible), so this pins the call
+  // AND — the part that actually matters for search — that every station value
+  // search emits is still accepted by the resolver.
+  assert.match(commandCentre, /requestedStation = commandStationMode\(requestedStationValue\b/);
+  for (const station of ["battle", "intelligence"]) {
+    assert.match(searchApi, new RegExp(`station=${station}`));
+    assert.match(commandCentre, new RegExp(`"${station}"`));
+  }
+  assert.match(commandCentre, /\["executive", "day", "battle", "intelligence", "radar"\]\.includes\(value\)/);
+  assert.match(commandCentre, /if \(value === "calendar"\) return "day";/);
   assert.match(commandCentre, /searchParams\.get\("kpi"\)/);
   assert.match(commandCentre, /searchParams\.get\("scope"\)/);
   assert.match(searchApi, /snapshot\.commercialIntelligence\.formulas/);

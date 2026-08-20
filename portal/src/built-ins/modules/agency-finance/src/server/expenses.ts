@@ -6,7 +6,7 @@
 //   expenses/by-staff/<staffId>    → string[] of expense ids
 //   expenses/index                 → string[] of all expense ids
 
-import { makeId } from "../lib/ids";
+import { deriveRecordId, normaliseIdempotencyKey } from "../lib/idempotency";
 import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type {
@@ -21,10 +21,16 @@ import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
 import type { CategoryService } from "./categories";
 import type { BudgetService } from "./budgets";
 
+import { listRowIds } from "./rowIndex";
+
 const EXP_INDEX_KEY = "expenses/index";
 const expKey = (id: string): string => `expenses/by-id/${id}`;
-const byCategoryKey = (cat: string): string => `expenses/by-category/${cat}`;
-const byStaffKey = (staff: string): string => `expenses/by-staff/${staff}`;
+// `expenses/by-category/<id>` and `expenses/by-staff/<id>` used to be maintained
+// here on every create and every re-category/re-assign. Nothing read by-staff at
+// all, and by-category was read only by `listForCategory`, which now filters
+// through `list()` like every other query. Two more racy read-modify-writes per
+// expense, for indexes no query used. Removed; stragglers in existing stores are
+// inert (unread keys in the plugin's own slice).
 
 export class ExpenseService {
   constructor(
@@ -37,11 +43,7 @@ export class ExpenseService {
   ) {}
 
   async list(filter?: ExpenseFilter): Promise<Expense[]> {
-    const indexedIds = (await this.storage.get<string[]>(EXP_INDEX_KEY)) ?? [];
-    const storedIds = (await this.storage.list("expenses/by-id/"))
-      .map(key => key.slice("expenses/by-id/".length))
-      .filter(Boolean);
-    const ids = [...new Set([...indexedIds, ...storedIds])];
+    const ids = await listRowIds(this.storage, EXP_INDEX_KEY, "expenses/by-id/");
     const out: Expense[] = [];
     for (const id of ids) {
       const row = await this.storage.get<Expense>(expKey(id));
@@ -62,17 +64,28 @@ export class ExpenseService {
     return row && row.agencyId === this.agencyId ? row : null;
   }
 
+  // Through `list` rather than a `by-category` array: same filter, and it can't
+  // miss an expense whose index slot was lost to a concurrent create.
   async listForCategory(categoryId: string): Promise<Expense[]> {
-    const ids = (await this.storage.get<string[]>(byCategoryKey(categoryId))) ?? [];
-    const out: Expense[] = [];
-    for (const id of ids) {
-      const row = await this.storage.get<Expense>(expKey(id));
-      if (row) out.push(row);
-    }
-    return out;
+    return this.list({ categoryId });
   }
 
+  // Record an expense. Idempotent on `input.idempotencyKey`: a resubmit of the
+  // SAME intent (a double-clicked "Add expense" / a retry) returns the first
+  // expense instead of double-counting money-out through P&L, budget-pot burn
+  // and every margin derived from them. A genuinely separate expense is a new
+  // intent → a new key → a new id → recorded normally, even at the identical
+  // amount (two £50 taxi receipts on one day are both real). Without a key,
+  // behaviour is unchanged — a fresh random id every call. See lib/idempotency.ts.
   async create(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<Expense> {
+    return (await this.createDetailed(input, actor, defaultCurrency)).expense;
+  }
+
+  // Same create, and additionally reports whether this call was an accidental
+  // resubmit that reused an existing expense. `create` keeps the plain-`Expense`
+  // shape every existing caller expects; the HTTP handler uses this one so the
+  // response can say `deduped` honestly.
+  async createDetailed(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<{ expense: Expense; deduped: boolean }> {
     if (input.amountCents <= 0) throw new Error("amountCents must be > 0.");
     if ((input.taxCents ?? 0) < 0 || (input.taxCents ?? 0) > input.amountCents) {
       throw new Error("taxCents must be between 0 and amountCents.");
@@ -86,7 +99,18 @@ export class ExpenseService {
     const currency = input.currency ?? defaultCurrency;
     if (input.budgetPotId) await this.assertBudgetPot(input.budgetPotId, currency);
 
-    const id = makeId("exp");
+    // The id is DERIVED from the key, so a raced resubmit lands on the same
+    // storage slot (an overwrite) rather than becoming a second row — a
+    // read-then-check "have I seen this key?" lookup races between its read and
+    // its write; a deterministic id does not.
+    const key = normaliseIdempotencyKey(input.idempotencyKey);
+    const id = deriveRecordId("exp", key);
+    if (key) {
+      const prior = await this.storage.get<Expense>(expKey(id));
+      // Return the first expense; don't re-write, re-log or re-emit.
+      if (prior && prior.agencyId === this.agencyId) return { expense: prior, deduped: true };
+    }
+
     const ts = now();
     const row: Expense = {
       id,
@@ -136,16 +160,6 @@ export class ExpenseService {
     if (!ix.includes(id)) {
       await this.storage.set(EXP_INDEX_KEY, [...ix, id]);
     }
-    const cIx = (await this.storage.get<string[]>(byCategoryKey(input.categoryId))) ?? [];
-    if (!cIx.includes(id)) {
-      await this.storage.set(byCategoryKey(input.categoryId), [...cIx, id]);
-    }
-    if (input.staffId) {
-      const sIx = (await this.storage.get<string[]>(byStaffKey(input.staffId))) ?? [];
-      if (!sIx.includes(id)) {
-        await this.storage.set(byStaffKey(input.staffId), [...sIx, id]);
-      }
-    }
     await this.activity.logActivity({
       agencyId: this.agencyId,
       actorUserId: actor,
@@ -163,7 +177,7 @@ export class ExpenseService {
       },
     });
     this.events.emit({ agencyId: this.agencyId, clientId: input.clientId }, "expense.created", { expenseId: id });
-    return row;
+    return { expense: row, deduped: false };
   }
 
   async update(id: string, patch: UpdateExpensePatch, actor: UserId): Promise<Expense | null> {
@@ -225,15 +239,6 @@ export class ExpenseService {
       updatedAt: now(),
     };
     await this.storage.set(expKey(id), next);
-
-    if (categoryId !== existing.categoryId) {
-      await this.removeFromIndex(byCategoryKey(existing.categoryId), id);
-      await this.addToIndex(byCategoryKey(categoryId), id);
-    }
-    if (nextStaffId !== existing.staffId) {
-      if (existing.staffId) await this.removeFromIndex(byStaffKey(existing.staffId), id);
-      if (nextStaffId) await this.addToIndex(byStaffKey(nextStaffId), id);
-    }
 
     const changedFields = Object.keys(patch).filter(key => {
       const field = key as keyof UpdateExpensePatch;

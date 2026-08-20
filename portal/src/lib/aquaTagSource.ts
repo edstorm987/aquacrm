@@ -8,6 +8,7 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
   if (!siteKey || !script || !script.src) return;
 
   const endpoint = new URL("/api/telemetry/collect", script.src).toString();
+  const captureEndpoint = new URL("/api/public/form-capture", script.src).toString();
   const preferenceKey = "aqua-cookie-preferences";
   const consentEvent = "aqua:consent-updated";
   const anonymousKey = "aqua-anonymous-id";
@@ -93,6 +94,86 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     || (category === "preferences" && preferences && preferences.preferences)
     || (category === "analytics" && preferences && preferences.analytics)
     || (category === "marketing" && preferences && preferences.marketing);
+
+  // ── Consent-gated tag manager ───────────────────────────────────────────
+  // Tools configured for this site (GA4/GTM/PostHog/pixels/Search Console) are
+  // fetched once from the config endpoint and each is injected only when its
+  // consent category is granted — retroactively when the visitor later opts in,
+  // the same way analytics starts. v1 is an allow-list by id/key: the server
+  // validates every value, so nothing arbitrary reaches the page. Every step is
+  // wrapped — a failing tool must never break the site or the enquiry capture.
+  const configEndpoint = new URL("/api/public/aqua-tag-config?key=" + encodeURIComponent(siteKey) + "&host=" + encodeURIComponent(location.host), script.src).toString();
+  let injectionConfig = [];
+  const injectedKeys = {};
+  const injectScript = src => {
+    const element = document.createElement("script");
+    element.async = true;
+    element.src = src;
+    (document.head || document.documentElement).appendChild(element);
+    return element;
+  };
+  let gtagLoaded = false;
+  const gtagConfig = id => {
+    window.dataLayer = window.dataLayer || [];
+    if (!window.gtag) { window.gtag = function () { window.dataLayer.push(arguments); }; window.gtag("js", new Date()); }
+    if (!gtagLoaded) { injectScript("https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(id)); gtagLoaded = true; }
+    window.gtag("config", id);
+  };
+  const injectTool = item => {
+    const value = item.value;
+    if (item.kind === "gsc-verification") {
+      const meta = document.createElement("meta");
+      meta.setAttribute("name", "google-site-verification");
+      meta.setAttribute("content", value);
+      (document.head || document.documentElement).appendChild(meta);
+    } else if (item.kind === "ga4" || item.kind === "google-ads") {
+      gtagConfig(value);
+    } else if (item.kind === "gtm") {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ "gtm.start": Date.now(), event: "gtm.js" });
+      injectScript("https://www.googletagmanager.com/gtm.js?id=" + encodeURIComponent(value));
+    } else if (item.kind === "meta-pixel") {
+      if (!window.fbq) {
+        const fbq = function () { fbq.callMethod ? fbq.callMethod.apply(fbq, arguments) : fbq.queue.push(arguments); };
+        window.fbq = fbq; fbq.push = fbq; fbq.loaded = true; fbq.version = "2.0"; fbq.queue = [];
+        injectScript("https://connect.facebook.net/en_US/fbevents.js");
+      }
+      window.fbq("init", value);
+      window.fbq("track", "PageView");
+    } else if (item.kind === "posthog") {
+      injectScript("https://app.posthog.com/static/array.js").addEventListener("load", () => {
+        try { if (window.posthog && window.posthog.init) window.posthog.init(value, { api_host: "https://app.posthog.com" }); } catch { /* posthog init is best-effort */ }
+      });
+    } else if (item.kind === "linkedin") {
+      window._linkedin_partner_id = value;
+      window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
+      window._linkedin_data_partner_ids.push(value);
+      injectScript("https://snap.licdn.com/li.lms-analytics/insight.min.js");
+    }
+  };
+  const runInjections = () => {
+    for (const item of injectionConfig) {
+      if (!item || !item.kind || !item.value) continue;
+      const key = item.kind + ":" + item.value;
+      if (injectedKeys[key]) continue;
+      // Fail CLOSED. An item with no consent category — or one this tag does
+      // not recognise — is HELD, never treated as "necessary". Defaulting an
+      // unlabelled tool to "necessary" would fire it before consent, so a
+      // server-side config gap could silently leak an analytics/marketing tag.
+      // (permitted() returns falsy for undefined + unknown categories.)
+      if (!permitted(item.consentCategory)) continue;
+      injectedKeys[key] = true;
+      try { injectTool(item); } catch { /* one tool failing must never break the page or the others */ }
+    }
+  };
+  const loadInjections = () => {
+    // No fetch (very old browsers) → no injections, never a thrown init.
+    if (typeof fetch !== "function") return;
+    fetch(configEndpoint, { mode: "cors", credentials: "omit" })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => { if (data && Array.isArray(data.injections)) { injectionConfig = data.injections; runInjections(); } })
+      .catch(() => {});
+  };
 
   const editableElements = () => document.querySelectorAll(explorerSelector).length;
   const explorerCapabilities = () => ({
@@ -369,6 +450,8 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     if (!next) return false;
     const previouslyAllowedAnalytics = Boolean(preferences && preferences.analytics);
     preferences = next;
+    // A newly-granted category lets its held tools fire now, retroactively.
+    runInjections();
     if (recordChoice) {
       send("consent", {
         consentVersion: next.version,
@@ -383,6 +466,7 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
   };
 
   preferences = readPreferences();
+  loadInjections();
   window.addEventListener(consentEvent, event => {
     const supplied = event instanceof CustomEvent ? event.detail : null;
     applyPreferences(supplied || readPreferences(), true);
@@ -408,14 +492,143 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     };
   }
   window.addEventListener("popstate", pageview);
+  // ── What a form actually contained ──────────────────────────────────────
+  //
+  // The telemetry event above is analytics: it counts submissions and strips
+  // personal data on purpose. That is why the inbox never knew which form a
+  // message came from or what was typed into it — the only path carrying the
+  // answers was whatever the website chose to POST itself, and everything
+  // outside a fixed dozen keys was dropped.
+  //
+  // This captures the submission as it stands and posts it separately. It runs
+  // on public websites, so it is deliberately narrow about what it will touch.
+
+  const sensitiveName = /(pass|pwd|secret|token|csrf|nonce|otp|cvv|cvc|card|iban|sortcode|sort_code|account_number|ssn|nino)/i;
+
+  // Never leaves the page. A login form, a payment field or a CSRF token is
+  // not an enquiry, and hoovering them up would be a breach dressed as a
+  // feature — no configuration mistake should be able to switch this off.
+  const captureableField = field => {
+    if (!field || !field.name) return false;
+    if (field.disabled) return false;
+    const type = (field.type || "text").toLowerCase();
+    if (type === "password" || type === "hidden" || type === "file" || type === "search") return false;
+    if (sensitiveName.test(field.name)) return false;
+    if (/^(cc-|current-password|new-password)/i.test(field.autocomplete || "")) return false;
+    if (typeof field.closest === "function" && field.closest("[data-aqua-ignore]")) return false;
+    return true;
+  };
+
+  const labelFor = field => {
+    const wrapping = typeof field.closest === "function" ? field.closest("label") : null;
+    if (wrapping && wrapping.textContent) return wrapping.textContent.trim().slice(0, 120);
+    const id = field.id;
+    if (id && typeof document.querySelector === "function" && typeof CSS !== "undefined" && CSS.escape) {
+      const label = document.querySelector('label[for="' + CSS.escape(id) + '"]');
+      if (label && label.textContent) return label.textContent.trim().slice(0, 120);
+    }
+    if (typeof field.getAttribute !== "function") return undefined;
+    return field.getAttribute("aria-label") || field.getAttribute("placeholder") || undefined;
+  };
+
+  // A form is captured when the site marked it, or when it plainly asks for a
+  // way to reply. Anything else — search boxes, filters, logins — is left
+  // alone: capturing every form on a site would collect far more than anybody
+  // consented to hand over.
+  const capturableForm = form => {
+    const dataset = form.dataset || {};
+    const find = selector => typeof form.querySelector === "function" ? form.querySelector(selector) : null;
+    if (typeof form.closest === "function" && form.closest("[data-aqua-ignore]")) return false;
+    if (dataset.aquaIgnore !== undefined) return false;
+    if (dataset.aquaForm !== undefined || dataset.aquaCapture !== undefined) return true;
+    if (find('input[type="password"]')) return false;
+    return Boolean(find('input[type="email"], input[type="tel"], input[name*="email" i], input[name*="phone" i]'));
+  };
+
+  const readField = field => {
+    const type = (field.type || field.tagName.toLowerCase()).toLowerCase();
+    if (type === "checkbox") return field.checked ? (field.value && field.value !== "on" ? field.value : "Yes") : "";
+    if (type === "radio") return field.checked ? field.value : "";
+    if (field.tagName === "SELECT" && field.multiple) {
+      return Array.from(field.selectedOptions).map(option => option.textContent.trim() || option.value).join(", ");
+    }
+    if (field.tagName === "SELECT") {
+      const option = field.selectedOptions && field.selectedOptions[0];
+      return option ? (option.textContent.trim() || option.value) : field.value;
+    }
+    return typeof field.value === "string" ? field.value : "";
+  };
+
+  const captureSubmission = form => {
+    const fields = [];
+    const seen = new Map();
+    for (const field of Array.from(form.elements || [])) {
+      if (!captureableField(field)) continue;
+      const value = readField(field);
+      if (!value || !value.trim()) continue;
+      // Radio groups and repeated checkboxes share one name; joining keeps the
+      // whole answer rather than whichever happened to be last.
+      if (seen.has(field.name)) {
+        const existing = seen.get(field.name);
+        existing.value = (existing.value + ", " + value.trim()).slice(0, 2000);
+        continue;
+      }
+      const entry = {
+        key: field.name.slice(0, 120),
+        label: labelFor(field),
+        value: value.trim().slice(0, 2000),
+        type: (field.type || field.tagName.toLowerCase()).toLowerCase(),
+      };
+      seen.set(field.name, entry);
+      fields.push(entry);
+      if (fields.length >= 60) break;
+    }
+    return fields;
+  };
+
   document.addEventListener("submit", event => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
+    const formName = form.dataset.aquaForm || form.dataset.milesymediaForm || form.getAttribute("name") || form.id || "Website form";
     send("form", {
-      formName: form.dataset.aquaForm || form.dataset.milesymediaForm || form.getAttribute("name") || form.id || "Website form",
+      formName,
       experimentId: form.dataset.aquaExperiment || form.dataset.milesymediaExperiment || undefined,
       variant: form.dataset.aquaVariant || form.dataset.milesymediaVariant || undefined,
     });
+
+    // Everything below is wrapped, not just the request.
+    //
+    // This handler runs inside the website's own submit event on somebody
+    // else's site. A throw here — an exotic form, a element without the DOM
+    // methods this assumes, a browser quirk — would surface as their contact
+    // form breaking, which is a far worse outcome than a missing capture. The
+    // guard covers reading the form as well as sending it, because reading is
+    // where the assumptions are.
+    try {
+      if (!capturableForm(form)) return;
+      const fields = captureSubmission(form);
+      if (!fields.length) return;
+      const payload = {
+        siteKey,
+        propertyId: propertyId || undefined,
+        formName,
+        formId: form.id || undefined,
+        purpose: (form.dataset && form.dataset.aquaPurpose) || undefined,
+        pageUrl: safeUrl(location.href),
+        pagePath: location.pathname,
+        submittedAt: new Date().toISOString(),
+        fields,
+      };
+      // keepalive so the record survives the navigation a submit usually causes.
+      fetch(captureEndpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+        mode: "cors",
+        credentials: "omit",
+      }).catch(() => {});
+    } catch { /* a failed capture must never break the website's own submit */ }
   }, true);
   document.addEventListener("click", event => {
     const target = event.target instanceof Element
