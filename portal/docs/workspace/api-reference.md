@@ -359,3 +359,8 @@ consent events, or the `inbox_*` store).
 Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 1. **Inbox area** (`inbox/connections|conversations|messages|meta/callback`, `webhooks/meta`, `cron/inbox`, `internal/sweep`, `identity-resolution`) reaches Supabase via `lib/server/inboxStore.ts` — its **own** client on `inbox_*` tables, gated by `useSupabase()` with a local-JSON dev fallback. If you'd rather not count the inbox store, the live count drops to ~50.
 2. **`search`** and **`identity-resolution`** read `brand_enquiries` indirectly via `lib/server/websiteEnquiries.ts`.
+| `/api/portal/governance` | GET | Governance snapshot: compliance posture, legal register, sub-processors, security (owner/manager) | agency | new 2026-08-20 |
+| `/api/portal/governance/hipaa` | POST | Toggle the HIPAA readiness track (owner-only); returns HIPAA_HONESTY | agency | new 2026-08-20 |
+| `/api/portal/governance/legal` | POST | Add a legal-register record (owner/manager) | agency | new 2026-08-20 |
+| `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
+| `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |
