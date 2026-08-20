@@ -131,7 +131,7 @@ export function PortalsWorkspace({
         <div className="inline-flex w-full overflow-x-auto rounded-md border border-black/10 bg-white p-1 sm:w-auto" role="tablist" aria-label="Portal workspace views">
           <ViewButton active={view === "library"} onClick={() => chooseView("library")} icon={<LayoutPanelTop size={16} />} label="All portals" />
           <ViewButton active={view === "templates"} onClick={() => chooseView("templates")} icon={<Eye size={16} />} label="Demo templates" />
-          <ViewButton active={false} onClick={openEditor} icon={<MonitorCog size={16} />} label="Aqua Engine" />
+          <ViewButton active={false} onClick={openEditor} icon={<MonitorCog size={16} />} label="Dev Editor Engine" />
         </div>
       </header>
 
@@ -215,7 +215,7 @@ function CanonicalPortalTemplatePreview({
           </div>
           <div className="flex flex-wrap gap-2">
             {previewClient ? <Link href={previewHref} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03]"><Eye size={15} /> View portal <ArrowUpRight size={14} /></Link> : null}
-            <Link href={editorHref} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85"><MonitorCog size={15} /> Aqua Engine</Link>
+            <Link href={editorHref} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85"><MonitorCog size={15} /> Dev Editor Engine</Link>
           </div>
         </div>
 
@@ -361,7 +361,7 @@ function PortalCard({ portal }: { portal: PortalWorkspaceRecord }) {
               <Eye size={15} /> View portal <ArrowUpRight size={14} />
             </Link>
           ) : null}
-          {isBuilt ? <Link href={`/portal/agency/portals/editor?scope=client&clientId=${portal.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03]"><MonitorCog size={15} /> Aqua Engine</Link> : null}
+          {isBuilt ? <Link href={`/portal/agency/portals/editor?scope=client&clientId=${portal.id}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-sm font-semibold text-black/70 hover:bg-black/[0.03]"><MonitorCog size={15} /> Dev Editor Engine</Link> : null}
           <Link href={setupHref} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBuilt ? "border border-black/12 bg-white text-black/70 hover:bg-black/[0.03]" : "bg-black text-white hover:bg-black/85"}`}>
             {isBuilt ? <MailCheck size={15} /> : hasServices ? <Sparkles size={15} /> : <PackagePlus size={15} />}{isBuilt ? "Access & setup" : hasServices ? "Create portal" : "Assign service"}
           </Link>

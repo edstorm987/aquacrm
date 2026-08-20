@@ -65,10 +65,11 @@ const PORTAL_BLOCK_TYPES = [
  * no reason is a bug someone hid.
  */
 const INTENDED_DIFFERENCES: Array<{ key: string; reason: string }> = [
-  // 2026-08-20 Aqua Engine rename (Ed): the media block's empty-state hint said
-  // "in the portal editor"; the editor's one name is now Aqua Engine, so the
-  // client-visible copy changed with it. Baseline re-captured for this reason.
-  { key: "media", reason: "empty-state hint copy: 'portal editor' → 'Aqua Engine'" },
+  // 2026-08-20 Dev Editor Engine rename (Ed): the editor's one name became
+  // "Dev Editor Engine" (was "Aqua Engine", earlier "the portal editor"). The
+  // media block's empty-state hint names the editor, so the client-visible copy
+  // changed with it. Baseline re-captured for this reason.
+  { key: "media", reason: "empty-state hint copy: 'Aqua Engine' → 'Dev Editor Engine'" },
 ];
 
 interface Capture {

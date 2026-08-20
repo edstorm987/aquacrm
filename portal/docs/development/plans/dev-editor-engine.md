@@ -1,7 +1,26 @@
 # The Dev Editor Engine (was "Aqua Engine")
 
-**Status:** planned — Ed's grand-unification vision 2026-08-20. BIG epic, phased. Most pieces
+**Status:** in progress — Ed's grand-unification vision 2026-08-20. BIG epic, phased. Most pieces
 ALREADY EXIST; the work is unification + install-tiering + rename, not building from scratch.
+
+**Done (2026-08-20):**
+- **Phase 1 — Rename.** Every user-facing "Aqua Engine" label is now "Dev Editor Engine" across
+  the 11 label sites (website-editor module name + labels/hints/aria in ExpensesList,
+  clients/[clientId] page + _FulfilmentPortalPreview, fulfilment/_AquaTagsWorkspace,
+  products/[productId]/_ProductRolloutCentre, inbox/_WebsiteSourcesConfig, portals/_PortalsWorkspace,
+  portals/editor/_ClientPortalStudio, customer/_PortalPageComposition media hint, dev-team/editor/_Section).
+  Tests pinning the old label updated (smoke-client-portal-studio, smoke-portals-workspace). The
+  client-visible media-block hint changed, so the portal-element parity intended-difference was
+  re-declared and the baseline re-captured.
+- **Phase 2 — Editor points at the real engine.** `src/app/portal/dev-team/editor/page.tsx` was a
+  redirect to the app-config editor; it now mounts the existing git-backed `CodeWorkspace`
+  (`lib/server/siteEditor/**`) under a shipyard PageHeader titled "Dev Editor Engine", founder +
+  Dev Mode gated. The app-config editor still lives at Tools → Editor (`editor/_Section.tsx`).
+  Reused wholesale — nothing rebuilt.
+
+**Still open:** Phase 3 (unify blocks + code+git + app-config behind engine.ts adapters with target
+detection), Phase 4 (installable module + tiers), Phase 5 (client-workspace install + GitHub+AquaTag+Vercel
+setup flow).
 
 ## Rename
 "Aqua Engine" → **DEV EDITOR ENGINE** (Ed: more fitting). Same thing we renamed "Studio" to
@@ -52,10 +71,10 @@ earlier; this is the final name. It is the ONE engine that edits everything.
    itself and "just works". Codify this as the install flow.
 
 ## Phases (high level — this is multi-sprint)
-1. **Rename** Aqua Engine → Dev Editor Engine (labels + docs; cheap, do first).
-2. **Point the Dev Team editor at the real engine** — replace the app-config-only editor with
-   the siteEditor code+git engine (`_CodeWorkspace` machinery) surfaced in Dev Team. (This is the
-   immediate "editor is wrong" fix; folds into the Dev Team shell lane's Editor item.)
+1. ~~**Rename** Aqua Engine → Dev Editor Engine (labels + docs; cheap, do first).~~ **DONE 2026-08-20.**
+2. ~~**Point the Dev Team editor at the real engine** — replace the app-config-only editor with
+   the siteEditor code+git engine (`_CodeWorkspace` machinery) surfaced in Dev Team.~~ **DONE 2026-08-20.**
+   (This was the immediate "editor is wrong" fix; folds into the Dev Team shell lane's Editor item.)
 3. **Unify** blocks + code+git + app-config behind engine.ts adapters, with target detection.
 4. **Make it an installable module** with tiers (features map + editing modes).
 5. **Client-workspace install** (fulfilment micro view) + the GitHub+AquaTag+Vercel setup flow.

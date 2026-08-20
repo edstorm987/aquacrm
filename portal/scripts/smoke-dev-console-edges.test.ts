@@ -328,12 +328,16 @@ describe("Dev Console panel — what a load may repaint, and what it must say", 
 });
 
 describe("Dev Console surfaces — no in-app navigation through the redirect stubs", () => {
-  // The 2026-08-20 restructure left eight compatibility stubs. They exist for
+  // The 2026-08-20 restructure left compatibility stubs. They exist for
   // bookmarks and external links; routing in-app traffic through one costs two
   // server renders (the stub boots the dev-team layout, runs the gate, builds
   // the sidebar, then 307s) and leaves the surface one pruning away from
   // breaking.
-  const STUBS = ["working", "auditor", "logs", "updates", "tasks", "inspector", "editor", "api"];
+  //
+  // `editor` was one of them, but is no longer a stub: the Dev Editor Engine
+  // work (2026-08-20) turned `editor/page.tsx` into the real code + git engine
+  // surface (it mounts CodeWorkspace), so it is deliberately NOT listed here.
+  const STUBS = ["working", "auditor", "logs", "updates", "tasks", "inspector", "api"];
 
   it("every stub really is a redirect, so this list stays honest", () => {
     for (const stub of STUBS) {

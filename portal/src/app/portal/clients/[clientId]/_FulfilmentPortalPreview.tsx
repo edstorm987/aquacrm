@@ -404,7 +404,7 @@ export function FulfilmentPortalPreview({
 
         <aside className="h-fit rounded-md border border-black/10 bg-white xl:sticky xl:top-20">
           <div className="border-b border-black/10 px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Aqua Engine</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-black/38">Dev Editor Engine</p>
             <h3 className="mt-1 text-lg font-semibold text-black/85">Client experience</h3>
           </div>
 

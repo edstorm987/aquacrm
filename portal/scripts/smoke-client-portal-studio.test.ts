@@ -558,7 +558,7 @@ describe("client portal studio surface", () => {
     assert.match(views, /data\.presentation\.stages/);
     assert.match(workspace, /Stunning Standard/);
     assert.match(workspace, /> View portal/);
-    assert.match(workspace, /> Aqua Engine/);
+    assert.match(workspace, /> Dev Editor Engine/);
     assert.match(workspace, /> View template/);
     assert.match(workspace, /> Edit template/);
     assert.match(workspace, /productId=/);

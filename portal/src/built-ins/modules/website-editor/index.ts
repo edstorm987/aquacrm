@@ -11,7 +11,7 @@ import { BLOCK_DESCRIPTORS } from "./src/components/blockRegistry";
 
 const websiteEditorPlugin: AquaPlugin = {
   id: "website-editor",
-  name: "Aqua Engine",
+  name: "Dev Editor Engine",
   version: "0.1.0",
   status: "stable",
   category: "content",

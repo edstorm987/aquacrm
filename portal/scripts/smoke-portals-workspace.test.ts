@@ -23,7 +23,7 @@ describe("agency portals workspace", () => {
     assert.ok(data.includes("listAgencyProducts"));
     assert.ok(workspace.includes('label="All portals"'));
     assert.ok(workspace.includes('label="Demo templates"'));
-    assert.ok(workspace.includes('label="Aqua Engine"'));
+    assert.ok(workspace.includes('label="Dev Editor Engine"'));
     assert.ok(workspace.includes("Search client, email, plan or brand"));
     assert.ok(workspace.includes("/portal/agency/portals/editor"));
   });

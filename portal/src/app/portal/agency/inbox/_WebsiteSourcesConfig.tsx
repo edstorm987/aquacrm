@@ -263,7 +263,7 @@ export function WebsiteSourcesConfig() {
                   <Link
                     href={`/portal/clients/${source.destinationClientId}/sites`}
                     className="inline-flex min-h-9 items-center gap-1 rounded-md border border-black/12 px-2 text-xs font-semibold text-black/60 hover:border-black/25 hover:text-black"
-                    title="Seed this tagged site into Aqua Engine — discover its repo, edit, publish"
+                    title="Seed this tagged site into Dev Editor Engine — discover its repo, edit, publish"
                   >
                     <Code2 size={13} aria-hidden /> Editor
                   </Link>

@@ -1219,7 +1219,7 @@ export default async function ClientHome({
             <nav aria-label="Technical workspace views" className="grid gap-px overflow-hidden border border-black/10 bg-black/10 sm:grid-cols-3">
               <Link href={clientWorkspaceHref(client.id, "systems")} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "monitoring" ? "text-brand" : "text-black/58"}`}><MonitorCog size={17} /> Monitoring</Link>
               <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "properties" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "properties" ? "text-brand" : "text-black/58"}`}><Boxes size={17} /> Properties and deployments</Link>
-              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "website" ? "text-brand" : "text-black/58"}`}><Globe2 size={17} /> Aqua Engine</Link>
+              <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "website" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "website" ? "text-brand" : "text-black/58"}`}><Globe2 size={17} /> Dev Editor Engine</Link>
             </nav>
             {systemView === "monitoring" ? (
               <div className="grid gap-6">
@@ -1236,7 +1236,7 @@ export default async function ClientHome({
               />
             ) : (
               <section className="border-y border-black/10 bg-white py-6">
-                <h2 className="text-lg font-medium text-black/90">Aqua Engine</h2>
+                <h2 className="text-lg font-medium text-black/90">Dev Editor Engine</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">Visually build pages and responsive sections, add custom code, preview every device, and publish when {client.name} is ready.</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <WebsiteBuilderLauncher clientId={client.id} ready={installs.some(install => install.pluginId === "website-editor" && install.enabled)} />

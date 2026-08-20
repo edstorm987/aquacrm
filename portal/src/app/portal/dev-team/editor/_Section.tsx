@@ -53,7 +53,7 @@ export async function EditorSection({ tabs }: { tabs?: ReactNode }) {
       <PageHeader
         icon={<SquarePen size={20} />}
         title="Editor"
-        subtitle="Edit AquaCRM itself — the same edit-preview-publish loop as Aqua Engine everywhere else."
+        subtitle="Edit AquaCRM itself — the same edit-preview-publish loop as Dev Editor Engine everywhere else."
         meta={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {tabs}
