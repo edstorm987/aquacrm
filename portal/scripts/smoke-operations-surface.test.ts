@@ -26,6 +26,7 @@ function panel(panels: NavPanel[], id: string): NavPanel | undefined {
 // The business functions that make up the Operations surface, paired with the
 // route each one still resolves to (routes are UNCHANGED by this regrouping).
 const OPERATIONS: { id: string; href: string }[] = [
+  { id: "operations-home", href: "/portal/agency/operations" },
   { id: "pipelines",   href: "/portal/clients?view=journey" },
   { id: "fulfilment",  href: "/portal/agency/fulfilment" },
   { id: "aqua-tags",   href: "/portal/agency/fulfilment?view=tags" },
@@ -90,11 +91,12 @@ describe("agency Operations surface (IA v2)", () => {
   it("orders the Operations surface as a delegation-friendly sequence", () => {
     const ops = panel(ownerSidebar(), "ops");
     const ids = ops!.items.map(item => item.id);
-    // Journey, Fulfilment, Aqua tags, Marketing, Finance, People, Freelancers,
-    // SOP library, Governance — then owner-only "You deserve it" trailing.
+    // Overview (the hub front door) leads, then Journey, Fulfilment, Aqua tags,
+    // Marketing, Finance, People, Freelancers, SOP library, Governance — then
+    // owner-only "You deserve it" trailing.
     assert.deepEqual(
       ids,
-      ["pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
+      ["operations-home", "pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
       "Operations rows follow the delegation order",
     );
   });

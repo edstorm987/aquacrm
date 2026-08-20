@@ -89,6 +89,7 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       // (panelId: "ops"). Only Command Centre (home) and Inbox & actions stay
       // on "main". Routes are UNCHANGED; only the sidebar grouping moves. See
       // docs/development/plans/information-architecture-v2.md.
+      items.push({ id: "operations-home", label: "Overview",       href: "/portal/agency/operations",      panelId: "ops",  order: -7.5 });
       items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "ops",  order: -7 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "ops",  order: -6 });
       // Aqua Tags — the tag control tower is a Fulfilment view (?view=tags); this is its only sidebar entry.
@@ -245,6 +246,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const commandCentreIds = ["home", "inbox"];
     // Operations surface — the business functions, in delegation order.
     const operationsIds = [
+      "operations-home",
       "pipelines", "fulfilment", "aqua-tags", "marketing",
       "finance", "people", "freelancers", "sop-library", "governance",
       "you-deserve-it",

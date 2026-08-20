@@ -20,6 +20,7 @@ import {
   Settings,
   Tags,
   UsersRound,
+  Workflow,
   Wrench,
 } from "lucide-react";
 
@@ -89,6 +90,13 @@ const WORKSPACE_GROUPS: WorkspaceGroup[] = [
         detail: "Your day, business monitoring, decisions, strategy, and Radar in one place.",
         action: "Open command centre",
         icon: LayoutDashboard,
+      },
+      {
+        href: "/portal/agency/operations",
+        label: "Operations",
+        detail: "The business-functions hub — Journey, Fulfilment, Finance, Staff, and the rest, in delegation order.",
+        action: "Open operations",
+        icon: Workflow,
       },
       {
         href: "/portal/agency/inbox",

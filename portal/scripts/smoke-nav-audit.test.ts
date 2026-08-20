@@ -171,8 +171,8 @@ describe("standalone portal nav audit", () => {
     );
     assert.deepEqual(
       opsPanel!.items.map(item => item.id),
-      ["pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
-      "the business functions group under Operations in delegation order",
+      ["operations-home", "pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
+      "the Operations surface leads with its Overview hub, then the business functions in delegation order",
     );
   });
 
@@ -185,7 +185,7 @@ describe("standalone portal nav audit", () => {
     for (const id of ["home", "inbox"]) {
       assert.ok(command.includes(`"${id}"`), `${id} missing from the Command Centre allow-list`);
     }
-    for (const id of ["fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "aqua-tags"]) {
+    for (const id of ["operations-home", "fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "aqua-tags"]) {
       assert.ok(operations.includes(`"${id}"`), `${id} missing from the Operations allow-list`);
     }
     assert.ok(!canonical.includes('"actions"'), "Actions merged into the inbox row; not a standalone canonical id");

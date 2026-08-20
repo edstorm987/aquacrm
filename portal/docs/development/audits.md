@@ -71,6 +71,16 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-20 — 🟢 Light security spot-check of the (still-unlogged) SOPs feature — access control is SOUND
+
+Companion to the governance spot-check below. The SOPs feature has also shipped **unlogged ~12 ticks**; it's the other client/agency-facing surface, so I checked its access control without waiting for a claim. **Sound — same clean pattern as governance:**
+- **Clients can't read SOPs at all** — `assertSopsAccess` (`sopsAccess.ts:43-46`) 403s every non-agency role. The "SOPs client tab" is an *agency operator's* per-client stage filter (`familiesForStage`), **not** a customer-portal surface — so no client-facing exposure by construction.
+- **Role-gated routes** — `api/portal/sops/*` refuse a non-agency session (401, fail-closed; `sops/route.ts:15-20`).
+- **Agency-scoped end to end** — `listSops(session.agencyId)`, and create/update/delete all take `agencyId` from the **session**, never the body. The engine filters by `agencyId` (`sops.ts:12`) and **`getSop` returns `null` for a foreign id** (`:67`), so `updateSop`/`deleteSopRecord` gate through it (`:212-213`, `:236-237`) → a cross-agency id yields **404, not a cross-tenant edit/delete**. No existence oracle.
+- Bonus: path-traversal guard on the local-file delete (`sops/route.ts:127`).
+
+**→ Commander:** Both still-unlogged features (governance + SOPs) now have their **access control confirmed sound** (role-gated, agency-scoped, no cross-agency or read-oracle leak) — **neither is an open security hole**. The **functional** audits (what each actually computes/serves — compliance-snapshot accuracy, SOP content correctness) still need the features **logged** in `updates.md`. Suite green (2619/0).
+
 ## 2026-08-20 — 🟢 Light security spot-check of the (still-unlogged) governance feature — access control is SOUND
 
 Given the governance feature has shipped **unlogged for ~9 ticks** (client/agency-facing, compliance data), I did a **light proactive security spot-check** of its access control — the highest risk for a compliance surface — without waiting for a claim. **It's sound:**
