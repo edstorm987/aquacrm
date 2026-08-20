@@ -74,7 +74,9 @@ const CATEGORY_DESTINATION: Record<OperationalAlertCategory, string> = {
 
 export function destinationForOperationalAlert(alert: OperationalAlert): string {
   const href = alert.href;
-  if (href.startsWith("/portal/agency/actions")) return "actions";
+  // Actions merged into the inbox ("Inbox & actions" nav row) — action alerts
+  // now light the inbox row's attention badge, not a separate (removed) actions row.
+  if (href.startsWith("/portal/agency/actions")) return "inbox";
   if (href.startsWith("/portal/agency/inbox")) return "inbox";
   if (href.startsWith("/portal/agency/marketing") || href.includes("tab=marketing")) return "marketing";
   if (href.startsWith("/portal/agency/fulfilment") || href.startsWith("/portal/agency/portals") || href.startsWith("/portal/agency/development") || href.startsWith("/portal/agency/performance") || href.includes("tab=fulfilment") || href.includes("tab=delivery") || href.includes("tab=portal") || href.includes("tab=systems") || href.includes("tab=properties")) return "fulfilment";

@@ -41,6 +41,13 @@ interface Props {
   sidebarVariant?: SidebarVariant;
   /** Sandboxed demo session — show "Back to website" exit. */
   isDemo?: boolean;
+  /** The topbar exit link. Defaults preserve today's behaviour for every
+   *  existing caller: href "/" (the marketing site) labelled "Back to website".
+   *  Dev Team passes a ROLE-dependent home (resolvePostLoginPath) + "Back to
+   *  home" so the way out lands on the operator's own portal, never the
+   *  marketing site or a hardcoded agency route. */
+  homeHref?: string;
+  homeLabel?: string;
   showcaseMode?: boolean;
   publicShowcase?: boolean;
   /** Dev Mode (local/dev only) — surfaces the demo-persona toggle in the
@@ -61,7 +68,7 @@ interface Props {
   searchRecordsEnabled?: boolean;
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
@@ -98,13 +105,17 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           >
             <span aria-hidden>←</span> Back to portal account
           </Link>
-        ) : isDemo && !showcaseMode && !publicShowcase && !devModeActive ? (
+        ) : homeHref || (isDemo && !showcaseMode && !publicShowcase && !devModeActive) ? (
+          // One exit link. Existing callers pass neither prop → href "/" +
+          // "Back to website" (unchanged demo behaviour). A caller that passes
+          // homeHref (Dev Team → resolvePostLoginPath) shows it regardless of
+          // demo/dev-mode, so the role-home exit is always the way out there.
           <Link
-            href="/"
-            aria-label="Back to the marketing site"
+            href={homeHref ?? "/"}
+            aria-label={homeLabel ?? "Back to website"}
             className="inline-flex size-9 items-center justify-center gap-1.5 rounded-md border border-black/10 bg-white text-black/70 hover:bg-black/5 sm:size-auto sm:px-2 sm:py-1"
           >
-            <span aria-hidden>←</span><span className="hidden sm:inline">Back to website</span>
+            <span aria-hidden>←</span><span className="hidden sm:inline">{homeLabel ?? "Back to website"}</span>
           </Link>
         ) : null}
         {publicShowcase ? (

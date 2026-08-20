@@ -80,8 +80,11 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
     if (isAgencyRole(input.role)) {
       // AquaOasis-Web canonical sidebar: the business's daily operating areas.
       // rows under Agency OS, in this order. Everything else stays parked.
-      items.push({ id: "inbox",       label: "Master inbox",       href: "/portal/agency/inbox",           panelId: "main", order: -9 });
-      items.push({ id: "actions",     label: "Actions",            href: "/portal/agency/actions",         panelId: "main", order: -8 });
+      // Inbox and Actions are one destination now: Actions is a tab inside the
+      // Master Inbox (?view=actions). One row, so the founder has a single
+      // "what needs to happen" surface — see
+      // docs/development/plans/inbox-actions-unification.md.
+      items.push({ id: "inbox",       label: "Inbox & actions",    href: "/portal/agency/inbox",           panelId: "main", order: -9 });
       items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "main", order: -7 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "main", order: -6 });
       // Aqua Tags — the tag control tower is a Fulfilment view (?view=tags); this is its only sidebar entry.
@@ -228,7 +231,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const canonicalMainIds = new Set([
-          "home", "inbox", "actions", "pipelines", "fulfilment", "aqua-tags",
+          "home", "inbox", "pipelines", "fulfilment", "aqua-tags",
       "finance", "people", "you-deserve-it", "marketing", "sop-library", "tools",
     ]);
     const canonicalOrder = [...canonicalMainIds];

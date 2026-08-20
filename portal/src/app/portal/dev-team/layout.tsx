@@ -6,19 +6,22 @@ import {
   ScanEye,
   Wrench,
   Library,
-  LogOut,
+  MessagesSquare,
   NotebookPen,
   Route,
+  SquarePen,
   UserRound,
 } from "lucide-react";
 
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { DevTeamTransition } from "@/components/chrome/DevTeamTransition";
+import { LibrarianDrawerControl } from "@/components/chrome/LibrarianDrawerControl";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Topbar } from "@/components/chrome/Topbar";
 import { requireRole } from "@/lib/server/auth/auth";
+import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { devIconPreference } from "@/lib/server/devIconPreference";
@@ -74,12 +77,17 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
       { id: "findings", label: "Findings", href: "/portal/dev-team/findings", icon: ico(ScanEye, "findings"), panelId: "main" as const, order: 5 },
       { id: "library", label: "Library", href: "/portal/dev-team/library", icon: ico(Library, "library"), panelId: "main" as const, order: 20 },
       { id: "tools", label: "Tools", href: "/portal/dev-team/tools", icon: ico(Wrench, "tools"), panelId: "main" as const, order: 30 },
+      // The editor (currently the app-config edit→preview→publish loop; the
+      // route is slated to grow into the full Dev Editor Engine) is a
+      // first-class sidebar item now, not buried under Tools.
+      { id: "editor", label: "Editor", href: "/portal/dev-team/editor", icon: ico(SquarePen, "editor"), panelId: "main" as const, order: 40 },
+      // Team chat — the Dev Team's comms. v1 surfaces the existing TeamChat
+      // (staff↔founder). v2: AI workers post into it; v3: staff-portal bridge.
+      { id: "chat", label: "Team chat", href: "/portal/dev-team/chat", icon: ico(MessagesSquare, "working"), panelId: "main" as const, order: 50 },
       { id: "notes", label: "Notes", href: "/portal/dev-team/notes", icon: ico(NotebookPen, "notes"), panelId: "main" as const, order: 70 },
-      // Leaving is plain navigation back to the normal workspace — entering
-      // never changed who you are, so there is nothing to restore. (Lives in
-      // the main panel because SidebarFooter only renders its own two known
-      // items and would drop this one.)
-      { id: "exit-dev-team", label: "← Leave Dev Team", href: "/portal/agency", icon: <LogOut size={16} strokeWidth={1.8} />, panelId: "main" as const, order: 80 },
+      // The way OUT is now the topbar's role-dependent "Back to home" (it lands
+      // on the operator's own portal, unlike the old hardcoded /portal/agency
+      // exit which was wrong for hired staff). No sidebar exit item.
     ],
   }, {
     id: "settings",
@@ -569,6 +577,16 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
             tenantLabel="Dev Team"
             currentPath={currentPath}
             searchRecordsEnabled={false}
+            // The Dev Team's assistant is the LIBRARIAN — a reskin of the agency
+            // Advisor over the SAME side-panel drawer. Passing it here stops the
+            // Topbar falling through to the full-page /portal/agency/assistant
+            // link (the "full page + glitches back to agency" bug).
+            advisorControl={<LibrarianDrawerControl agencyId={session.agencyId} userId={session.userId} userName={user?.name ?? session.email} />}
+            // Role-dependent way out: land on the operator's OWN portal home
+            // (owner → agency, hired staff → their staff portal), never the
+            // marketing site or a hardcoded agency route.
+            homeHref={resolvePostLoginPath(session)}
+            homeLabel="Back to home"
             devConsole={devDocsAccessible(session) && (await devIconPreference())}
             isDemo={session.isDemo}
             devModeActive={Boolean(session.devReturnAgencyId)}

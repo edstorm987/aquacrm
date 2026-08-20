@@ -62,7 +62,11 @@ test("Aqua Advisor remains available globally with history, memory, and voice", 
   assert.match(drawer, /createPortal/);
   assert.match(drawer, /setPortalRoot\(document\.body\)/);
   assert.match(drawer, /openRef\.current/);
-  assert.match(drawer, /Aqua Advisor reply is ready/);
+  // The notice is now templated on the assistant's name (the drawer is reskinned
+  // per assistant — e.g. the Dev Team's Librarian), and DEFAULTS to the Advisor
+  // so every agency/clients caller is unchanged.
+  assert.match(drawer, /\$\{assistantName\} reply is ready/);
+  assert.match(drawer, /assistantName = "Aqua Advisor"/);
   assert.match(drawer, /aria-live="polite"/);
   assert.match(drawer, /event\.key === "Escape"/);
   assert.match(drawer, /aqua-advisor:open/);

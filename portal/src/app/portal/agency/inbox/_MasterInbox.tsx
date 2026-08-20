@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WebsiteSourcesConfig } from "./_WebsiteSourcesConfig";
 import { IntegrationConnectionsPanel } from "@/app/portal/agency/settings/IntegrationConnectionsPanel";
-import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, ArrowRight, Bell, Bot, Building2, Check, ChevronDown, CircleCheck, Clock3, ExternalLink, FileText, Inbox, LifeBuoy, ListChecks, Mail, MessageCircle, Phone, Radio, RotateCcw, Search, Send, Trash2, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 
 import type { OperationalAlertView } from "@/lib/intelligence/operationalAttention";
 import type { WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
@@ -64,7 +64,7 @@ type Update = {
   ts: number;
 };
 
-type View = "all" | "attention" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
+type View = "all" | "attention" | "actions" | "social" | "forms" | "chatbot" | "support" | "conversations" | "updates" | "channels";
 
 // Company routing, on the read side.
 //
@@ -102,11 +102,11 @@ function companyFilterOptions(items: Array<Pick<WebsiteEnquiry, "routedCompanyId
     .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
 }
 
-export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[]; canErase: boolean; canManageChannels: boolean; channelClients: Array<{ id: string; name: string }> }) {
+export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients, actionsSlot }: { referenceNow: number; alerts: OperationalAlertView[]; websiteForms: WebsiteEnquiry[]; websiteFormsError: string | null; conversations: Conversation[]; socialInbox: InboxSnapshot; socialInboxError: string | null; metaReadiness: MetaInboxReadiness; currentUserId: string; communicationReadiness: OutboundCommunicationReadiness; clientProfiles: UnifiedClientProfile[]; updates: Update[]; canErase: boolean; canManageChannels: boolean; channelClients: Array<{ id: string; name: string }>; actionsSlot?: ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedView = searchParams.get("view");
-  const initialView: View = requestedView === "all" || requestedView === "attention" || requestedView === "social" || requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations" || requestedView === "updates" || requestedView === "channels"
+  const initialView: View = requestedView === "all" || requestedView === "attention" || requestedView === "actions" || requestedView === "social" || requestedView === "forms" || requestedView === "chatbot" || requestedView === "support" || requestedView === "conversations" || requestedView === "updates" || requestedView === "channels"
     ? requestedView
     : "attention";
   const [view, setView] = useState<View>(initialView);
@@ -296,6 +296,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
 
     <nav className="flex gap-6 overflow-x-auto border-b border-black/10" aria-label="Inbox view">
       <Tab active={view === "attention"} onClick={() => setView("attention")} label="Needs attention" count={attentionAlerts.length} icon={AlertTriangle} attentionAll />
+      <Tab active={view === "actions"} onClick={() => setView("actions")} label="Actions" icon={ListChecks} />
       <Tab active={view === "all"} onClick={() => setView("all")} label="All" count={websiteForms.filter(item => item.status !== "resolved").length + socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0) + conversations.filter(item => item.status === "open").length} icon={Inbox} />
       <Tab active={view === "social"} onClick={() => setView("social")} label="Social inbox" count={socialInbox.conversations.reduce((sum, item) => sum + item.unreadCount, 0)} icon={Radio} />
       <Tab active={view === "forms"} onClick={() => setView("forms")} label="Enquiries" count={websiteForms.filter(item => item.channel === "form" && item.status !== "resolved").length} icon={FileText} attentionHref="/portal/agency/inbox?view=forms" />
@@ -306,7 +307,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       <Tab active={view === "channels"} onClick={() => setView("channels")} label="Channels" icon={Inbox} />
     </nav>
 
-    {view !== "all" && view !== "channels" && view !== "social" ? <div className="flex flex-wrap gap-2"><label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label>{view === "forms" || view === "chatbot" || view === "support" ? <select value={classificationFilter} onChange={event => setClassificationFilter(event.target.value as WebsiteEnquiryClassification | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by classification"><option value="all">Every classification</option>{WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}</select> : null}{(view === "forms" || view === "chatbot" || view === "support") && companyOptions.length ? <select value={companyFilter} onChange={event => setCompanyFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by company"><option value={COMPANY_FILTER_ALL}>Every destination</option><option value={COMPANY_FILTER_NONE}>Agency inbox only</option>{companyOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select> : null}</div> : null}
+    {view !== "all" && view !== "channels" && view !== "social" && view !== "actions" ? <div className="flex flex-wrap gap-2"><label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label>{view === "forms" || view === "chatbot" || view === "support" ? <select value={classificationFilter} onChange={event => setClassificationFilter(event.target.value as WebsiteEnquiryClassification | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by classification"><option value="all">Every classification</option>{WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}</select> : null}{(view === "forms" || view === "chatbot" || view === "support") && companyOptions.length ? <select value={companyFilter} onChange={event => setCompanyFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by company"><option value={COMPANY_FILTER_ALL}>Every destination</option><option value={COMPANY_FILTER_NONE}>Agency inbox only</option>{companyOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select> : null}</div> : null}
 
     {view === "all" ? <UnifiedInboxWorkspace
       websiteForms={websiteForms}
@@ -318,6 +319,8 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       clientProfiles={clientProfiles}
       focusThreadKey={focusThreadKey}
     /> : null}
+
+    {view === "actions" ? actionsSlot ?? null : null}
 
     {view === "attention" ? <section>
       <SectionHeader title="What needs you now" detail="Every signal has an exact resolution path. Fix it now, remind yourself later, or dismiss it until the evidence changes." />

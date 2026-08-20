@@ -14,6 +14,7 @@ import { synchroniseInboxIdentityResolutions } from "@/lib/server/inbox/inboxSer
 import { clearIdentityResolutionReviews } from "@/lib/server/identityResolution";
 
 import { MasterInbox } from "./_MasterInbox";
+import { AgencyActionsPage } from "../actions/_ActionsPage";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { cleanClientRequests } from "@/lib/clients/clientRequests";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
@@ -125,6 +126,7 @@ export default async function AgencyInboxPage() {
 
   return <MasterInbox
     referenceNow={Date.now()}
+    actionsSlot={<AgencyActionsPage />}
     alerts={alerts}
     websiteForms={websiteForms}
     websiteFormsError={websiteFormsResult.error}

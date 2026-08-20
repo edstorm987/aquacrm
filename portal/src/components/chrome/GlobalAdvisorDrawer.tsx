@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { BellRing, Sparkles, X } from "lucide-react";
@@ -38,12 +38,32 @@ export function GlobalAdvisorDrawer({
   model,
   userName,
   coverage,
+  // ── Reskin seam ──────────────────────────────────────────────────────────
+  // The drawer machinery (portal, transitions, lazy chat, notice toast) is the
+  // SAME for every Dev-Team / agency assistant; only the chrome around it
+  // changes. These props default to the Aqua Advisor identity, so every
+  // existing caller (agency / clients) is byte-for-byte unchanged — a new
+  // assistant (Librarian, and later an assistant PICKER) is a matter of passing
+  // a different name / label / icon / theme + a header node.
+  assistantName = "Aqua Advisor",
+  label = "Advisor",
+  icon,
+  buttonClassName = "mm-has-attention-badge relative inline-flex size-9 items-center justify-center gap-2 overflow-visible rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3",
+  /** Optional strip rendered at the top of the drawer. This is the SEAM the
+   *  future assistant picker lives in (one drawer, swappable assistant); for
+   *  now a caller may pass a simple identity header. */
+  pickerHeader,
 }: {
   initialWorkspace: AssistantWorkspaceState;
   configured: boolean;
   model: string;
   userName: string;
   coverage: Coverage;
+  assistantName?: string;
+  label?: string;
+  icon?: ReactNode;
+  buttonClassName?: string;
+  pickerHeader?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   // Mount the heavy chat only after the drawer's first open, then keep it
@@ -93,7 +113,7 @@ export function GlobalAdvisorDrawer({
   }
 
   function handleDone() {
-    if (!openRef.current) setNotice("Aqua Advisor reply is ready.");
+    if (!openRef.current) setNotice(`${assistantName} reply is ready.`);
   }
 
   return (
@@ -101,13 +121,13 @@ export function GlobalAdvisorDrawer({
       <button
         type="button"
         onClick={openDrawer}
-        aria-label={notice ? "Open Aqua Advisor, reply ready" : "Open Aqua Advisor"}
+        aria-label={notice ? `Open ${assistantName}, reply ready` : `Open ${assistantName}`}
         aria-expanded={open}
         aria-controls="aqua-advisor-drawer"
-        className="mm-has-attention-badge relative inline-flex size-9 items-center justify-center gap-2 overflow-visible rounded-md border border-black/10 bg-white/60 text-black/55 transition hover:bg-white hover:text-black xl:w-auto xl:px-3"
+        className={buttonClassName}
       >
-        <Sparkles size={16} />
-        <span className="hidden text-xs font-semibold xl:inline">Advisor</span>
+        {icon ?? <Sparkles size={16} />}
+        <span className="hidden text-xs font-semibold xl:inline">{label}</span>
         {notice ? <span className="mm-attention-badge absolute -right-1 -top-1 size-2 rounded-full bg-brand" aria-hidden /> : null}
       </button>
 
@@ -118,12 +138,16 @@ export function GlobalAdvisorDrawer({
               id="aqua-advisor-drawer"
               role="dialog"
               aria-modal="false"
-              aria-label="Aqua Advisor"
+              aria-label={assistantName}
               className={[
                 "mm-portal-root mm-advisor-drawer mm-drawer-panel-right pointer-events-auto absolute inset-y-0 right-0 flex flex-col bg-[#fbfaf8] shadow-2xl transition-transform duration-300",
                 open ? "translate-x-0" : "translate-x-full",
               ].join(" ")}
             >
+              {/* Assistant-picker seam: when a caller supplies a header it sits
+                  above the chat, ready to grow into a picker (one drawer,
+                  swappable assistant). Advisor callers pass none → unchanged. */}
+              {pickerHeader ?? null}
               {mounted ? (
                 <AssistantWorkspace
                   initialWorkspace={initialWorkspace}

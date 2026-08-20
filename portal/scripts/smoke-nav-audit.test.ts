@@ -124,7 +124,8 @@ describe("standalone portal nav audit", () => {
     const src = read(SIDEBAR_LAYOUT);
     const block = agencyMainItemBlock(src);
     const expected = [
-      ["actions", "/portal/agency/actions"],
+      // Inbox + Actions merged into one row (view=actions is a tab inside the
+      // Master Inbox). There is no longer a standalone Actions nav item.
       ["fulfilment", "/portal/agency/fulfilment"],
       ["pipelines", "/portal/clients?view=journey"],
       ["marketing", "/portal/agency/marketing"],
@@ -145,6 +146,8 @@ describe("standalone portal nav audit", () => {
     assert.ok(!block.includes('id: "command-center"'), "Day Command should live in the Command Centre station strip");
     assert.ok(!block.includes('id: "company"'), "executive Company work should live in Battle Table rather than the sidebar");
     assert.ok(!block.includes('id: "development"'), "technical delivery should live inside Fulfilment rather than the sidebar");
+    assert.ok(!block.includes('href: "/portal/agency/actions"'), "Actions merged into the inbox row; no standalone Actions nav item");
+    assert.ok(block.includes('label: "Inbox & actions"'), "the inbox row now covers inbox and actions");
     assert.ok(!block.includes('id: "sales"'), "sales should live inside Pipelines");
     assert.ok(!block.includes('id: "products"'), "products should live in Battle Table's executive systems map");
     assert.ok(!block.includes('id: "fulfillment", label: "Fulfilment"'), "duplicate Fulfilment main nav item should stay removed");
@@ -152,7 +155,7 @@ describe("standalone portal nav audit", () => {
     assert.ok(read(PEOPLE_HUB).includes('label="Contacts"'), "contacts should remain available inside Journey");
     assert.ok(read(CLIENTS_PAGE).includes(': "journey";'), "Journey should be the default people-hub view");
 
-    const priorityOrder = ["home", "inbox", "actions", "pipelines", "fulfilment", "finance", "people", "you-deserve-it", "marketing", "sop-library", "tools"];
+    const priorityOrder = ["home", "inbox", "pipelines", "fulfilment", "finance", "people", "you-deserve-it", "marketing", "sop-library", "tools"];
     const canonical = read(SIDEBAR_LAYOUT).match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
     const positions = priorityOrder.map(id => canonical.indexOf(`"${id}"`));
     assert.ok(positions.every(position => position >= 0), "priority navigation order is incomplete");
@@ -162,9 +165,10 @@ describe("standalone portal nav audit", () => {
   it("allows only the canonical agency main ids through the AquaOasis-Web override", () => {
     const src = read(SIDEBAR_LAYOUT);
     const canonical = src.match(/const canonicalMainIds = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
-    for (const id of ["home", "actions", "inbox", "fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "sop-library", "tools"]) {
+    for (const id of ["home", "inbox", "fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "sop-library", "tools"]) {
       assert.ok(canonical.includes(`"${id}"`), `${id} missing from canonical allow-list`);
     }
+    assert.ok(!canonical.includes('"actions"'), "Actions merged into the inbox row; not a standalone canonical id");
     assert.ok(!canonical.includes('"command-center"'), "Day Command should not be a standalone sidebar item");
     assert.ok(!canonical.includes('"clients"'), "clients should be merged into the Journey sidebar item");
     assert.ok(!canonical.includes('"development"'), "technical delivery should live inside Fulfilment rather than the main sidebar");
