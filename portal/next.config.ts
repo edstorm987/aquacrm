@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import { fileURLToPath } from "node:url";
+
+// Real filesystem path of this app root. `new URL(".", import.meta.url).pathname`
+// percent-encodes spaces (this project lives under ".../Web Development/..."), and
+// Turbopack cannot canonicalize an encoded path — which is why dev was pinned to
+// --webpack. `fileURLToPath` decodes it, so Turbopack works and dev cold-compiles fast.
+const APP_ROOT = fileURLToPath(new URL(".", import.meta.url));
 
 // Strict by default. We do NOT use `eslint.ignoreDuringBuilds` or
 // `typescript.ignoreBuildErrors` — every build runs the full ESLint +
@@ -46,9 +53,9 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react"],
   },
   // Anchor Turbopack + output-file tracing at this app root for Vercel.
-  outputFileTracingRoot: new URL(".", import.meta.url).pathname,
+  outputFileTracingRoot: APP_ROOT,
   turbopack: {
-    root: new URL(".", import.meta.url).pathname,
+    root: APP_ROOT,
   },
   async rewrites() {
     return {

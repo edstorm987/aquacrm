@@ -4,9 +4,9 @@
   "private": true,
   "description": "AquaCRM website, business operating system, and secure client portals.",
   "scripts": {
-    "dev": "next dev --webpack -p 3032",
-    "dev:sandbox": "PORTAL_ALLOW_SHARED_STATE=1 PORTAL_BACKEND=file PORTAL_DEV_MODE=true next dev --webpack -p 3032",
-    "dev:verify": "PORTAL_BACKEND=file PORTAL_DEV_MODE=true next dev --webpack",
+    "dev": "next dev --turbopack -p 3032",
+    "dev:sandbox": "PORTAL_ALLOW_SHARED_STATE=1 PORTAL_BACKEND=file PORTAL_DEV_MODE=true next dev --turbopack -p 3032",
+    "dev:verify": "PORTAL_BACKEND=file PORTAL_DEV_MODE=true next dev --turbopack",
     "dev:all": "npm run dev",
     "build": "next build --webpack && node scripts/prepare-vercel-root-manifest.mjs",
     "start": "next start -p 3032",
@@ -80,8 +80,8 @@
     "cleanup:development:duplicates": "tsx scripts/purge-duplicate-development-artifacts.ts",
     "launch:audit": "tsx scripts/launch-audit.ts",
     "launch:audit:production-handoff": "VERCEL_ENV=production node --env-file='../Dev Team/vercel-env.local' ./node_modules/tsx/dist/cli.mjs scripts/launch-audit.ts",
-    "dev:sandbox:real": "PORTAL_ALLOW_SHARED_STATE=1 PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --webpack -p 3032",
-    "dev:worker": "PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --webpack",
+    "dev:sandbox:real": "PORTAL_ALLOW_SHARED_STATE=1 PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --turbopack -p 3032",
+    "dev:worker": "PORTAL_BACKEND=file PORTAL_DEV_MODE=true PORTAL_DEV_AGENCY=milesymedia next dev --turbopack",
     "sandbox:fork": "node scripts/fork-sandbox.mjs",
     "worker:checkin": "node scripts/worker-checkin.mjs",
     "worker:thoughts": "node scripts/worker-thoughts.mjs"
