@@ -28,15 +28,16 @@ const linksTo = (page: string, href: string) => page.includes(`href: "${href}"`)
 const SELF_HREF = "/portal/agency/operations";
 
 describe("agency Operations hub — complete business-functions launcher", () => {
-  it("is a mounted page reachable from the sidebar Operations group", () => {
+  it("is a mounted page reachable as the single Operations sidebar row", () => {
     assert.ok(existsSync(HUB_PAGE), "Operations hub page should be mounted");
     const panels = buildSidebar({ role: "agency-owner", scope: "agency", installedPlugins: [] });
+    // Operations is one rendered row (on main) that lands on the hub.
+    const operationsRow = panels.flatMap(panel => panel.items).find(item => item.href === SELF_HREF);
+    assert.ok(operationsRow, "a sidebar row should land on the Operations hub");
+    // The functions live in the hidden, search-only Operations panel.
     const ops = panels.find(panel => panel.id === "ops");
-    assert.ok(ops, "sidebar should assemble an Operations group");
-    assert.ok(
-      ops!.items.some(item => item.href === SELF_HREF),
-      "sidebar Operations group should carry the Overview row that lands on the hub",
-    );
+    assert.ok(ops, "an Operations functions panel should assemble");
+    assert.equal(ops!.hidden, true, "the Operations functions panel is search-only (hidden)");
   });
 
   it("lists every Operations function the sidebar carries", () => {
@@ -44,7 +45,7 @@ describe("agency Operations hub — complete business-functions launcher", () =>
     const panels = buildSidebar({ role: "agency-owner", scope: "agency", installedPlugins: [] });
     const ops = panels.find(panel => panel.id === "ops")!;
     const hrefs = ops.items.map(item => item.href);
-    assert.ok(hrefs.length >= 10, `Operations group should assemble the business functions, got ${hrefs.length}`);
+    assert.ok(hrefs.length >= 10, `Operations functions panel should assemble the business functions, got ${hrefs.length}`);
 
     const missing = hrefs.filter(href => href !== SELF_HREF && !linksTo(page, href));
     assert.deepEqual(

@@ -180,6 +180,27 @@ const CLIENT_SERVICE_TONES: Array<[string, string]> = [
   ["client-service-custom-", "slate"],
 ];
 
+// The single "Operations" row (operations-home) stands in for its collapsed
+// functions. It lights up when you are inside any of their agency routes, and
+// (via OPERATIONS_ATTENTION_DESTINATIONS) rolls up their attention badges — the
+// function rows themselves live on the hidden, search-only Operations panel and
+// never render, so without this the operator would lose both signals.
+const OPERATIONS_ACTIVE_PREFIXES = [
+  "/portal/agency/fulfilment",
+  "/portal/agency/agency-finance",
+  "/portal/agency/marketing",
+  "/portal/agency/people",
+  "/portal/agency/freelancers",
+  "/portal/agency/sop-library",
+  "/portal/agency/governance",
+  "/portal/agency/you-deserve-it",
+  // Fulfilment's widened surfaces (the old Fulfilment row matched these too).
+  "/portal/agency/development",
+  "/portal/agency/performance",
+  "/portal/agency/portals",
+];
+const OPERATIONS_ATTENTION_DESTINATIONS = ["pipelines", "fulfilment", "marketing", "finance", "people"];
+
 function navIcon(id: string): typeof Circle {
   return NAV_ICONS[id] ?? CLIENT_SERVICE_ICONS.find(([prefix]) => id.startsWith(prefix))?.[1] ?? Circle;
 }
@@ -261,6 +282,11 @@ export function SidebarNavLink({
       ? clientOverviewAtRoot
       : id === "home"
         ? pathname === href
+    : id === "operations-home"
+      ? pathname === href
+        || pathname.startsWith(`${href}/`)
+        || pathname === "/portal/clients"
+        || OPERATIONS_ACTIVE_PREFIXES.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`))
     : id === "fulfilment"
       ? pathname === href
         || pathname.startsWith(`${href}/`)
@@ -280,12 +306,15 @@ export function SidebarNavLink({
   const attentionContext = useNotificationAttention();
   const clientAttention = clientAttentionSpec(id, href);
   const attentionHrefs = clientAttention?.hrefs ?? [href];
+  // The collapsed "Operations" row rolls up its functions' badges.
+  const rollupDestinations = id === "operations-home" ? OPERATIONS_ATTENTION_DESTINATIONS : undefined;
   const liveAttention = useAttentionMatches({
     navId: id,
     hrefs: attentionHrefs,
     clientId: clientAttention?.clientId,
     clientCategories: clientAttention?.categories,
     allForClient: clientAttention?.allForClient,
+    destinations: rollupDestinations,
   });
   const reserveAttention = useAttentionMatches({
     navId: id,
@@ -293,6 +322,7 @@ export function SidebarNavLink({
     clientId: clientAttention?.clientId,
     clientCategories: clientAttention?.categories,
     allForClient: clientAttention?.allForClient,
+    destinations: rollupDestinations,
     pool: "reserve",
   });
   const unresolvedAttention = useUnresolvedAttentionMatches({

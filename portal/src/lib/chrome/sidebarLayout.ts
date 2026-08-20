@@ -24,6 +24,13 @@ export interface NavPanel {
   label: string;
   order: number;
   items: NavItem[];
+  /**
+   * Search-only panel: the chrome keeps its items reachable from Topbar
+   * quick-search but the Sidebar/MobileNav do NOT render it as a nav group.
+   * Used for the Operations functions — they live as cards on the Operations
+   * hub, not as nested sidebar rows, but must stay jump-to-able from search.
+   */
+  hidden?: boolean;
 }
 
 const DEFAULT_PANELS: { id: PanelId; label: string; order: number }[] = [
@@ -85,11 +92,15 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       // "what needs to happen" surface — see
       // docs/development/plans/inbox-actions-unification.md.
       items.push({ id: "inbox",       label: "Inbox & actions",    href: "/portal/agency/inbox",           panelId: "main", order: -9 });
-      // IA v2 — the business functions group under the "Operations" surface
-      // (panelId: "ops"). Only Command Centre (home) and Inbox & actions stay
-      // on "main". Routes are UNCHANGED; only the sidebar grouping moves. See
+      // IA v2 — Operations is ONE sidebar row (like Tools) that lands on the
+      // Operations hub; the business functions live as cards on that hub, not as
+      // nested sidebar rows. The function items below stay registered (panelId
+      // "ops") so Topbar quick-search can still jump straight to them, but the
+      // agency override marks that "ops" panel hidden so the Sidebar/MobileNav
+      // never render it. Command Centre (home), Inbox & actions and Operations
+      // are the only rendered rows on "main". Routes are UNCHANGED. See
       // docs/development/plans/information-architecture-v2.md.
-      items.push({ id: "operations-home", label: "Overview",       href: "/portal/agency/operations",      panelId: "ops",  order: -7.5 });
+      items.push({ id: "operations-home", label: "Operations",     href: "/portal/agency/operations",      panelId: "main", order: -8 });
       items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "ops",  order: -7 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "ops",  order: -6 });
       // Aqua Tags — the tag control tower is a Fulfilment view (?view=tags); this is its only sidebar entry.
@@ -242,11 +253,13 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const settings = sorted.find(p => p.id === "settings");
     const main = sorted.find(p => p.id === "main");
     const toolsPanel = sorted.find(p => p.id === "tools");
-    // Command Centre surface — only these two rows stay on "main".
-    const commandCentreIds = ["home", "inbox"];
-    // Operations surface — the business functions, in delegation order.
+    // Command Centre surface — home, Inbox & actions, and the single Operations
+    // row all stay on "main" as flat rendered rows.
+    const commandCentreIds = ["home", "inbox", "operations-home"];
+    // Operations functions — the business functions, in delegation order. These
+    // render as cards on the Operations hub (not as sidebar rows); they live in
+    // a hidden, search-only panel so quick-search still reaches them.
     const operationsIds = [
-      "operations-home",
       "pipelines", "fulfilment", "aqua-tags", "marketing",
       "finance", "people", "freelancers", "sop-library", "governance",
       "you-deserve-it",
@@ -280,6 +293,10 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
         id: "ops",
         label: "Operations",
         order: 50,
+        // Search-only: the single "Operations" row on main lands on the hub,
+        // and these functions render as cards there — the Sidebar/MobileNav
+        // skip this panel, but Topbar quick-search keeps its items.
+        hidden: true,
         items: operationsItems,
       });
     }

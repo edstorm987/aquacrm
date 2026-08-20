@@ -35,7 +35,7 @@ The single source of truth for what every folder is and what's left. Companion t
 | Command Centre | now / your day (staff: employee portal) | exists |
 | Inbox & Actions | attention + doing (unified) | DONE |
 | Executive | direction — Battle Table, Data Engine, capital | TO DO (next) |
-| Operations | the business functions, role-configurable (delegation) | Governance in; container in progress |
+| Operations | the business functions, role-configurable (delegation) | DONE — single sidebar row → hub of function cards (functions hidden/search-only; badges + active-state roll up) |
 | Tools | utilities + directory | DONE |
 
 ## What's left

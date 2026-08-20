@@ -155,24 +155,30 @@ describe("standalone portal nav audit", () => {
     assert.ok(read(PEOPLE_HUB).includes('label="Contacts"'), "contacts should remain available inside Journey");
     assert.ok(read(CLIENTS_PAGE).includes(': "journey";'), "Journey should be the default people-hub view");
 
-    // IA v2 — Command Centre (home) and Inbox & actions stay on "main"; every
-    // business function groups under the labelled "Operations" panel. Routes
-    // are unchanged; this is a sidebar re-grouping.
+    // IA v2 — Command Centre (home), Inbox & actions, and the single Operations
+    // row are the only rendered rows on "main". The Operations functions live as
+    // cards on the hub, held in a hidden, search-only "ops" panel (not rendered
+    // as nested sidebar rows). Routes are unchanged; this is a sidebar re-grouping.
     const panels = buildSidebar({ role: "agency-owner", scope: "agency", installedPlugins: [] });
     const mainPanel = panels.find(panel => panel.id === "main");
     const opsPanel = panels.find(panel => panel.id === "ops");
     assert.ok(mainPanel, "a Command Centre (main) panel assembles");
     assert.ok(opsPanel, "an Operations (ops) panel assembles");
-    assert.equal(opsPanel!.label, "Operations", "the Operations surface carries its label");
+    assert.equal(opsPanel!.hidden, true, "the Operations functions panel is search-only (hidden), not a rendered nav group");
     assert.deepEqual(
       mainPanel!.items.map(item => item.id),
-      ["home", "inbox"],
-      "only Command Centre + Inbox & actions stay on the main panel",
+      ["home", "inbox", "operations-home"],
+      "Command Centre, Inbox & actions, and the single Operations row are the rendered main rows",
+    );
+    assert.equal(
+      mainPanel!.items.find(item => item.id === "operations-home")?.href,
+      "/portal/agency/operations",
+      "the Operations row lands on the Operations hub",
     );
     assert.deepEqual(
       opsPanel!.items.map(item => item.id),
-      ["operations-home", "pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
-      "the Operations surface leads with its Overview hub, then the business functions in delegation order",
+      ["pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
+      "the hidden Operations panel carries the business functions in delegation order (search-only)",
     );
   });
 
@@ -182,10 +188,10 @@ describe("standalone portal nav audit", () => {
     const command = src.match(/const commandCentreIds = \[([\s\S]*?)\];/)?.[1] ?? "";
     const operations = src.match(/const operationsIds = \[([\s\S]*?)\];/)?.[1] ?? "";
     const canonical = `${command}${operations}`;
-    for (const id of ["home", "inbox"]) {
+    for (const id of ["home", "inbox", "operations-home"]) {
       assert.ok(command.includes(`"${id}"`), `${id} missing from the Command Centre allow-list`);
     }
-    for (const id of ["operations-home", "fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "aqua-tags"]) {
+    for (const id of ["fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "aqua-tags"]) {
       assert.ok(operations.includes(`"${id}"`), `${id} missing from the Operations allow-list`);
     }
     assert.ok(!canonical.includes('"actions"'), "Actions merged into the inbox row; not a standalone canonical id");

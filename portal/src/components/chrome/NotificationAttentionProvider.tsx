@@ -162,6 +162,7 @@ export function useAttentionMatches({
   prefixHrefs = [],
   categories = [],
   clientCategories = [],
+  destinations = [],
   clientId,
   allForClient = false,
   navId,
@@ -172,6 +173,12 @@ export function useAttentionMatches({
   prefixHrefs?: string[];
   categories?: OperationalAlertCategory[];
   clientCategories?: OperationalAlertCategory[];
+  /**
+   * Roll up several alert destinations onto one row: match if the alert's
+   * destination is in this set. Used by the single "Operations" row to
+   * aggregate the badges of its collapsed functions (finance/fulfilment/…).
+   */
+  destinations?: string[];
   clientId?: string;
   allForClient?: boolean;
   navId?: string;
@@ -179,6 +186,7 @@ export function useAttentionMatches({
   pool?: "focus" | "reserve" | "all";
 }): OperationalAlertView[] {
   const context = useNotificationAttention();
+  const destinationsKey = destinations.join(",");
   return useMemo(() => {
     const live = !context ? [] : pool === "focus"
       ? context.attentionWindow.focus
@@ -193,12 +201,14 @@ export function useAttentionMatches({
       if (navId && destinationForOperationalAlert(alert) === navId) {
         return navId.startsWith("client-") ? belongsToClient : true;
       }
+      if (destinations.length && destinations.includes(destinationForOperationalAlert(alert))) return true;
       if (navId?.startsWith("client-") && hrefs.some(href => operationalAlertMatchesHref(alert, href))) return true;
       if (categories.includes(alert.category)) return true;
       return hrefs.some(href => operationalAlertMatchesHref(alert, href))
         || prefixHrefs.some(href => operationalAlertMatchesHrefPrefix(alert, href));
     });
-  }, [all, allForClient, categories, clientCategories, clientId, context, hrefs, navId, pool, prefixHrefs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, allForClient, categories, clientCategories, clientId, context, hrefs, navId, pool, prefixHrefs, destinationsKey]);
 }
 
 export function useUnresolvedAttentionMatches({

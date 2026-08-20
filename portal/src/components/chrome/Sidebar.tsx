@@ -36,7 +36,10 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
   // to the footer's expandable Settings — single source of truth, no
   // duplicate Settings entries elsewhere in the sidebar.
   const settingsPanel = panels.find(p => p.id === "settings");
-  const mainPanels = panels.filter(p => p.id !== "settings");
+  // Skip the "settings" panel (rendered in the footer) and any hidden panel
+  // (search-only — e.g. the Operations functions, which live as cards on the
+  // Operations hub rather than as nested sidebar rows).
+  const mainPanels = panels.filter(p => p.id !== "settings" && !p.hidden);
   const settingsItems = settingsPanel?.items.map(i => ({ label: i.label, href: i.href })) ?? [];
 
   return (

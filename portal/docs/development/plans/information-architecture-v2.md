@@ -61,9 +61,13 @@ falls out for free: Operations is the toggled set.
 ## Phases
 1. **Executive surface** — new top-level; move the strategic stations (Battle Table, Radar,
    Command Intelligence, Capital/Ownership) into it; Command Centre keeps the daily view.
-2. **Operations container** — new top-level that nests the business functions as sub-areas
-   (Journey, Fulfilment, Finance, People, Marketing, SOPs, Governance). Old top-level items become
-   Operations sub-nav; every old route redirects so nothing breaks.
+2. **Operations container** — DONE (2026-08-21). Shipped as a single "Operations" sidebar row (like
+   Tools) that lands on the `/portal/agency/operations` hub; the business functions (Journey,
+   Fulfilment, Finance, Staff, Marketing, SOPs, Governance, …) render as **cards on that hub**, not
+   as nested sidebar rows. They live in a hidden, search-only `ops` panel (NavPanel.hidden) so
+   Topbar quick-search still reaches them, and the single row rolls up their attention badges +
+   highlights when you are inside any of their routes. Every old route resolves unchanged (no
+   redirects needed). Guards: smoke-operations-surface / -hub / -attention-rollup, smoke-nav-audit.
 3. **Role-configurable Operations** — grants drive what appears; wire to the plugin features + roles.
 4. **Staff portal mirror** — the same five surfaces for staff, Operations scoped to grants.
 5. **Retire the flat sidebar** — the sprawl is gone; five surfaces remain.
