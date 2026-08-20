@@ -64,3 +64,20 @@ each control, and all three breakpoints. Refine by eye. No `dangerouslySetInnerH
 `src/app/portal/dev-team/**` (41 tsx) + the dev-team block in `src/app/globals.css`
 (or a scoped stylesheet). Disjoint from the profile-toggles lane (chrome components) and the
 enquiry-read-scoping lane (enquiry/server code).
+
+## Dev Team cutscene / loader (Ed, 2026-08-20)
+> "give the dev team a proper cutscene to fit with the theme, a proper loader that just puts
+> this all together."
+
+Command Centre already has its naval bridge cutscene — `CommandCenterTransition` renders
+"AQUA COMMAND NETWORK · BRIDGE HANDSHAKE → Entering command deck · Synchronising Radar,
+evidence, watch control, and bridge stations" (radar sweep animation, cyan HUD). The Dev Team
+gets its OWN, same family, forge/shipyard register:
+- **Concept:** "Entering the shipyard" / "Firing the forge" — the yard where the vessel is built.
+- **Dark (forge):** ember glow ignition, sparks, anvil/hammer/hull motifs, a "forge coming to
+  temperature" progress feel; naval yard framing ("AQUA SHIPYARD · SLIPWAY 01" etc.).
+- **Light (mill):** timber-yard / boat-shop framing, sawdust motes, routed-edge reveal.
+- Built as a sibling transition component to `CommandCenterTransition` (reuse its structure),
+  gated by Cinematic mode (respects the new cinematic toggle + prefers-reduced-motion), fired
+  when entering the Dev Team workspace. Uses the shipyard token set from this plan so it
+  themes correctly in both modes.
