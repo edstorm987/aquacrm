@@ -81,7 +81,7 @@ function renderInline(text: string, depth = 0): ReactNode[] {
       );
     } else if (m[3] !== undefined) {
       out.push(
-        <code key={key++} className="rounded bg-[#f2f4f0] px-1 py-px text-[12px] text-[color:var(--dt-muted)]">
+        <code key={key++} className="rounded bg-[color:var(--dev-bg)] px-1 py-px text-[12px] text-[color:var(--dt-muted)]">
           {m[3]}
         </code>,
       );
@@ -94,12 +94,12 @@ function renderInline(text: string, depth = 0): ReactNode[] {
           <Link
             key={key++}
             href={libraryDocHref(resolveDocHref(DOC_DIR, href))}
-            className="text-[#0b6f6d] underline decoration-[#bcd9d7] underline-offset-2 transition hover:decoration-[#0b6f6d]"
+            className="text-[color:var(--dev-accent)] underline decoration-[color:var(--dev-accent-line)] underline-offset-2 transition hover:decoration-[color:var(--dev-accent)]"
           >
             {renderInline(label, depth + 1)}
           </Link>
         ) : (
-          <span key={key++} className="text-[#3f6f6c]">
+          <span key={key++} className="text-[color:var(--dev-accent)]">
             {renderInline(label, depth + 1)}
           </span>
         ),
@@ -149,7 +149,7 @@ function EntryCard({ entry }: { entry: DevUpdateEntry }) {
                     key={i}
                     className="flex items-start gap-2.5 py-2.5 text-sm leading-relaxed text-[color:var(--dt-muted)] first:pt-0 last:pb-0"
                   >
-                    <span aria-hidden className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#cfd8d3]" />
+                    <span aria-hidden className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--dev-line)]" />
                     <span className="min-w-0 break-words">{renderInline(bullet)}</span>
                   </li>
                 ))}
@@ -210,7 +210,7 @@ export async function UpdatesSection({ tabs }: { tabs?: ReactNode }) {
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-[color:var(--dt-faint)]">
                   {prettyDate(group.date, today)}
                 </h2>
-                <span aria-hidden className="h-px flex-1 bg-[#e6e9e2]" />
+                <span aria-hidden className="h-px flex-1 bg-[color:var(--dev-line)]" />
                 <span className="text-[11px] tabular-nums text-[color:var(--dt-faint)]">
                   {group.entries.length} update{group.entries.length === 1 ? "" : "s"}
                 </span>
@@ -225,7 +225,7 @@ export async function UpdatesSection({ tabs }: { tabs?: ReactNode }) {
 
       <p className="text-[11px] text-[color:var(--dt-faint)]">
         Live from{" "}
-        <Link href={libraryDocHref(UPDATES_DOC_REL)} className="underline decoration-[#d8ded9] underline-offset-2 hover:text-[color:var(--dt-faint)]">
+        <Link href={libraryDocHref(UPDATES_DOC_REL)} className="underline decoration-[color:var(--dev-line)] underline-offset-2 hover:text-[color:var(--dt-faint)]">
           <code className="text-[color:var(--dt-faint)]">{UPDATES_DOC_REL}</code>
         </Link>{" "}
         — the same running record every worker writes to. New entries are inserted at the top; existing ones are never rewritten.

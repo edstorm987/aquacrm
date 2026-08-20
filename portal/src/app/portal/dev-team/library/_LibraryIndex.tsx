@@ -32,7 +32,7 @@ function HeroRow({ entry, nowMs }: { entry: DevDocEntry; nowMs: number }) {
         <div className="flex min-w-0 items-center gap-3">
           <span
             aria-hidden
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[color:var(--dt-hairline)] text-[color:var(--dt-faint)] transition-colors group-hover:bg-[#e6f1f0] group-hover:text-[#0b6f6d]"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[color:var(--dt-hairline)] text-[color:var(--dt-faint)] transition-colors group-hover:bg-[color:var(--dev-accent-soft)] group-hover:text-[color:var(--dev-accent)]"
           >
             <FileText size={15} />
           </span>
@@ -79,7 +79,7 @@ export function LibraryIndexView({ index, tabs }: { index: DevDocsIndex; tabs?: 
               key={f.path}
               className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-raised)] py-1 pl-2 pr-2.5 text-[11px]"
             >
-              <FolderIcon size={12} className="text-[#0b6f6d]" />
+              <FolderIcon size={12} className="text-[color:var(--dev-accent)]" />
               <span className="font-medium text-[color:var(--dt-ink)]">{f.name}</span>
               <span className="tabular-nums text-[color:var(--dt-faint)]">{f.count}</span>
             </span>
@@ -94,7 +94,7 @@ export function LibraryIndexView({ index, tabs }: { index: DevDocsIndex; tabs?: 
           index.total > HERO_LIMIT ? (
             <Link
               href="/portal/dev-team/library?view=recent"
-              className="inline-flex items-center gap-1 rounded-full bg-[#e6f1f0] px-2.5 py-1 text-[11px] font-medium text-[#0b6f6d] transition-colors hover:bg-[#d7ecea]"
+              className="inline-flex items-center gap-1 rounded-full bg-[color:var(--dev-accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--dev-accent)] transition-colors hover:bg-[color:var(--dev-accent-line)]"
             >
               View all
               <ArrowRight size={11} />

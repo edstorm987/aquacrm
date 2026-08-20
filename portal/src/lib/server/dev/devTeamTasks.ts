@@ -1,9 +1,10 @@
 import "server-only";
 
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 import { scanWorkerSignals, type WorkerCheckIn } from "@/lib/server/dev/devTeamWorkers";
 
 // Individual TASKS, not just plans.
@@ -249,18 +250,20 @@ export async function scanTasks(opts: { onlyActive?: boolean } = {}): Promise<Pl
 
   const built = await Promise.all(
     names.filter(n => n.toLowerCase().endsWith(".md")).sort().map(async (fileName): Promise<PlanTasks | null> => {
-      let md: string;
-      try {
-        md = await readFile(join(dirAbs, fileName), "utf8");
-      } catch {
-        return null;
-      }
-      const phases = parsePhases(md);
-      if (!phases.length) return null;
+      // Memoise the per-file PARSE (phases + title) by mtime — the dominant cost
+      // is running parsePhases over every plan on every request. The worker join
+      // below stays live (it depends on check-ins, which change independently).
+      const parsed = await readParsedFile("tasks", join(dirAbs, fileName), (md): { planTitle: string; phases: ParsedPhase[] } | null => {
+        const phases = parsePhases(md);
+        if (!phases.length) return null;
+        const name = basename(fileName).replace(/\.md$/i, "");
+        return { planTitle: firstHeading(md) ?? name.replace(/[-_]+/g, " "), phases };
+      });
+      if (!parsed) return null;
+      const { planTitle, phases } = parsed;
 
       const planName = basename(fileName).replace(/\.md$/i, "");
       const planRelPath = `${PLANS_DIR_REL}/${fileName}`;
-      const planTitle = firstHeading(md) ?? planName.replace(/[-_]+/g, " ");
       const mine = checkIns.filter(c => c.plan && c.plan.toLowerCase() === planName.toLowerCase());
 
       const tasks: DevTask[] = phases.map(phase => {

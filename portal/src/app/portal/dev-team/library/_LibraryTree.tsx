@@ -39,7 +39,7 @@ function Node({ node, nowMs, depth }: { node: DevDocTreeNode; nowMs: number; dep
           href={libraryDocHref(node.path)}
           className="group -mx-1 flex items-center gap-2 rounded-md px-1.5 py-[3px] transition-colors hover:bg-[color:var(--dt-hover)]"
         >
-          <FileText size={13} className="shrink-0 text-[color:var(--dt-faint)] transition-colors group-hover:text-[#0b6f6d]" />
+          <FileText size={13} className="shrink-0 text-[color:var(--dt-faint)] transition-colors group-hover:text-[color:var(--dev-accent)]" />
           <span className="truncate text-sm text-[color:var(--dt-muted)] group-hover:text-[color:var(--dt-ink)]">
             {node.entry?.title ?? node.name}
           </span>
@@ -66,7 +66,7 @@ function FolderNode({ node, nowMs, depth }: { node: DevDocTreeNode; nowMs: numbe
           className={`shrink-0 text-[color:var(--dt-faint)] transition-transform duration-150 ${open ? "rotate-90" : ""}`}
         />
         {open ? (
-          <FolderOpen size={14} className="shrink-0 text-[#0b6f6d]" />
+          <FolderOpen size={14} className="shrink-0 text-[color:var(--dev-accent)]" />
         ) : (
           <Folder size={14} className="shrink-0 text-[color:var(--dt-faint)]" />
         )}

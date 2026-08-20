@@ -19,6 +19,7 @@ import { readdir, stat, open, readFile } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { join, resolve, relative, basename, sep } from "node:path";
 
+import { memoiseByStat, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
 import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import type { SessionPayload } from "@/server/types";
@@ -134,18 +135,18 @@ async function walk(absDir: string, acc: string[]): Promise<void> {
 }
 
 async function buildEntry(abs: string, relPath: string): Promise<DevDocEntry | null> {
-  let st;
-  try {
-    st = await stat(abs);
-  } catch {
-    return null;
-  }
-  const bareName = basename(relPath).replace(/\.md$/i, "");
-  const derived = relPath.startsWith(GENERATED_PREFIX);
-  const title = derived
-    ? bareName
-    : (await firstHeadingTitle(abs)) ?? humaniseFilename(bareName);
-  return { relPath, title, mtimeMs: st.mtimeMs, sizeBytes: st.size };
+  // Memoise by mtime: the cost is the `firstHeadingTitle` read on ~1,700 docs,
+  // and the tree is re-scanned on every Dev Docs request. The stat mtime/size
+  // that validated the cache doubles as the entry's own fields, so no second
+  // stat is needed.
+  return memoiseByStat("docEntry", abs, async ({ mtimeMs, size }) => {
+    const bareName = basename(relPath).replace(/\.md$/i, "");
+    const derived = relPath.startsWith(GENERATED_PREFIX);
+    const title = derived
+      ? bareName
+      : (await firstHeadingTitle(abs)) ?? humaniseFilename(bareName);
+    return { relPath, title, mtimeMs, sizeBytes: size };
+  });
 }
 
 /** Build the folder tree from a flat entry list. Folders first, then newest-first. */
@@ -311,10 +312,5 @@ export function parseBlockers(markdown: string): DevDocBlocker[] {
 
 /** Gate-free internal read of state.md's blockers (page gates before calling). */
 export async function scanBlockers(): Promise<DevDocBlocker[]> {
-  try {
-    const raw = await readFile(join(PROJECT_ROOT, "docs", "context", "state.md"), "utf8");
-    return parseBlockers(raw);
-  } catch {
-    return [];
-  }
+  return (await readParsedFile("blockers", join(PROJECT_ROOT, "docs", "context", "state.md"), parseBlockers)) ?? [];
 }

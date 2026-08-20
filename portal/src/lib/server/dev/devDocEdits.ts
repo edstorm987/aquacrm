@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidatePath } from "@/lib/server/dev/devMarkdownCache";
 import type { SessionPayload } from "@/server/types";
 
 // Editing docs from inside the app, with attribution.
@@ -133,6 +134,10 @@ export async function saveDevDoc(input: {
   }
 
   await writeFile(abs, input.content, "utf8");
+  // A Library edit can rewrite a plan, state.md, the roadmap, audits.md or a
+  // finding — any of which a dev reader has memoised. Bust every namespace that
+  // cached THIS file so the edit is visible on the next read, mtime tick or not.
+  invalidatePath(abs);
   const after = await stat(abs);
 
   const entry: DocEdit = {

@@ -75,11 +75,11 @@ export function LiveWorkers() {
           <span
             className={[
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-              liveNow ? "bg-[#e6f1ea] text-[#2f7d4f]" : "bg-[color:var(--dt-hairline)] text-[color:var(--dt-faint)]",
+              liveNow ? "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]" : "bg-[color:var(--dt-hairline)] text-[color:var(--dt-faint)]",
             ].join(" ")}
           >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${liveNow ? "animate-pulse bg-[#2f7d4f]" : "bg-[#a2ada6]"}`}
+              className={`h-1.5 w-1.5 rounded-full ${liveNow ? "animate-pulse bg-[color:var(--dev-success)]" : "bg-[color:var(--dev-faint)]"}`}
               aria-hidden
             />
             {liveNow ? "Active" : "Quiet"}
@@ -121,7 +121,7 @@ export function LiveWorkers() {
                     <li key={worker.name} className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
                       <CircleDot
                         size={13}
-                        className={`mt-0.5 shrink-0 ${active ? "text-[#2f7d4f]" : "text-[#c4cdc7]"}`}
+                        className={`mt-0.5 shrink-0 ${active ? "text-[color:var(--dev-success)]" : "text-[color:var(--dev-line)]"}`}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">

@@ -66,7 +66,7 @@ function Swatch({ value }: { value: string }) {
   return (
     <span
       aria-hidden
-      className="inline-block h-3.5 w-3.5 shrink-0 rounded border border-[#d8ded6] align-middle"
+      className="inline-block h-3.5 w-3.5 shrink-0 rounded border border-[color:var(--dev-line)] align-middle"
       style={{ background: value }}
     />
   );
@@ -204,8 +204,8 @@ export function AppConfigEditor({
   return (
     <div className="flex flex-col gap-4" data-testid="dev-team-app-config-editor">
       {applied ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-[#cfe6d6] bg-[#f3f9f5] p-4">
-          <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#e6f1ea] text-[#2f7d4f]">
+        <div className="flex items-start gap-3 rounded-2xl border border-[color:var(--dev-success-line)] bg-[color:var(--dev-success-soft)] p-4">
+          <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]">
             <Check size={15} />
           </span>
           <div className="min-w-0 text-sm">
@@ -216,15 +216,15 @@ export function AppConfigEditor({
       ) : null}
 
       {error ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-[#eed3cf] bg-[#fdf5f4] p-4 text-sm">
-          <span aria-hidden className="mt-0.5 text-[#b4443a]"><TriangleAlert size={16} /></span>
-          <p className="text-[#8a3b33]">{error}</p>
+        <div className="flex items-start gap-3 rounded-2xl border border-[color:var(--dev-danger-line)] bg-[color:var(--dev-danger-soft)] p-4 text-sm">
+          <span aria-hidden className="mt-0.5 text-[color:var(--dev-danger)]"><TriangleAlert size={16} /></span>
+          <p className="text-[color:var(--dev-danger)]">{error}</p>
         </div>
       ) : null}
 
       {invalid.length > 0 ? (
-        <div className="rounded-2xl border border-[#eed3cf] bg-[#fdf5f4] p-4 text-sm">
-          <div className="flex items-center gap-2 font-medium text-[#8a3b33]">
+        <div className="rounded-2xl border border-[color:var(--dev-danger-line)] bg-[color:var(--dev-danger-soft)] p-4 text-sm">
+          <div className="flex items-center gap-2 font-medium text-[color:var(--dev-danger)]">
             <TriangleAlert size={15} />
             Nothing was saved — {invalid.length} value{invalid.length === 1 ? " needs" : "s need"} fixing
           </div>
@@ -275,8 +275,8 @@ export function AppConfigEditor({
           )}
 
           {preview.rejected.length > 0 ? (
-            <div className="mt-3 rounded-xl border border-[#eed3cf] bg-[#fdf5f4] p-3 text-sm">
-              <div className="font-medium text-[#8a3b33]">These could not be applied</div>
+            <div className="mt-3 rounded-xl border border-[color:var(--dev-danger-line)] bg-[color:var(--dev-danger-soft)] p-3 text-sm">
+              <div className="font-medium text-[color:var(--dev-danger)]">These could not be applied</div>
               <ul className="mt-1 flex flex-col gap-1 text-[color:var(--dt-muted)]">
                 {preview.rejected.map(rejection => (
                   <li key={rejection.targetId}>{rejection.detail}</li>
@@ -293,7 +293,7 @@ export function AppConfigEditor({
               type="button"
               disabled={busy || preview.changes.length === 0 || preview.rejected.length > 0}
               onClick={() => void send(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0b6f6d] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#0a5f5d] disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[color:var(--dev-accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Check size={14} />
               {busy ? "Applying…" : `Apply ${preview.changes.length} change${preview.changes.length === 1 ? "" : "s"}`}
@@ -334,7 +334,7 @@ export function AppConfigEditor({
                           type="color"
                           aria-label={`${field.label} colour picker`}
                           disabled={locked}
-                          value={isColourish(value) ? value : "#000000"}
+                          value={isColourish(value) ? value : "var(--dev-ink)"}
                           onChange={event => edit(field.id, event.target.value)}
                           className="h-8 w-9 shrink-0 cursor-pointer rounded border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] p-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                         />
@@ -347,7 +347,7 @@ export function AppConfigEditor({
                           value={value}
                           placeholder={field.placeholder}
                           onChange={event => edit(field.id, event.target.value)}
-                          className={`w-full rounded-lg border bg-[color:var(--dt-surface)] px-2.5 py-1.5 text-sm text-[color:var(--dt-ink)] outline-none transition focus:border-[#0b6f6d] disabled:bg-[color:var(--dt-raised)] disabled:text-[color:var(--dt-faint)] ${problem ? "border-[#d99a91]" : "border-[color:var(--dt-line)]"}`}
+                          className={`w-full rounded-lg border bg-[color:var(--dt-surface)] px-2.5 py-1.5 text-sm text-[color:var(--dt-ink)] outline-none transition focus:border-[color:var(--dev-accent)] disabled:bg-[color:var(--dt-raised)] disabled:text-[color:var(--dt-faint)] ${problem ? "border-[color:var(--dev-danger-line)]" : "border-[color:var(--dt-line)]"}`}
                         />
                       ) : (
                         <input
@@ -359,11 +359,11 @@ export function AppConfigEditor({
                           value={value}
                           placeholder={field.placeholder}
                           onChange={event => edit(field.id, event.target.value)}
-                          className={`w-full rounded-lg border bg-[color:var(--dt-surface)] px-2.5 py-1.5 font-mono text-[13px] text-[color:var(--dt-ink)] outline-none transition focus:border-[#0b6f6d] disabled:bg-[color:var(--dt-raised)] disabled:text-[color:var(--dt-faint)] ${problem ? "border-[#d99a91]" : "border-[color:var(--dt-line)]"}`}
+                          className={`w-full rounded-lg border bg-[color:var(--dt-surface)] px-2.5 py-1.5 font-mono text-[13px] text-[color:var(--dt-ink)] outline-none transition focus:border-[color:var(--dev-accent)] disabled:bg-[color:var(--dt-raised)] disabled:text-[color:var(--dt-faint)] ${problem ? "border-[color:var(--dev-danger-line)]" : "border-[color:var(--dt-line)]"}`}
                         />
                       )}
                     </div>
-                    {problem ? <p className="mt-1 text-xs text-[#b4443a]">{problem.message}</p> : null}
+                    {problem ? <p className="mt-1 text-xs text-[color:var(--dev-danger)]">{problem.message}</p> : null}
                     {changed && !problem ? (
                       <p className="mt-1 text-xs text-[color:var(--dt-faint)]">
                         was <span className="font-mono">{field.value === "" ? "empty" : field.value}</span>
@@ -383,7 +383,7 @@ export function AppConfigEditor({
           type="button"
           disabled={busy || dirty.length === 0 || preview !== null}
           onClick={() => void send(false)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0b6f6d] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#0a5f5d] disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[color:var(--dev-accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Eye size={14} />
           {busy && !preview ? "Checking…" : "Preview changes"}

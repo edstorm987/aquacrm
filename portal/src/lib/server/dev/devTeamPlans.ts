@@ -4,6 +4,7 @@ import { writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidatePath } from "@/lib/server/dev/devMarkdownCache";
 import { localDay } from "@/lib/server/dev/devLocalTime";
 
 // Authoring a plan from the Dev Team portal.
@@ -210,6 +211,10 @@ export async function createPlan(input: NewPlanInput, now = Date.now()): Promise
     }
     throw error;
   }
+
+  // Drop any entry a prior same-slug file left cached (tasks/planStatus), so the
+  // new plan is parsed fresh on the next board/tasks read.
+  invalidatePath(absPath);
 
   return { slug, relPath: `docs/development/plans/${slug}.md`, absPath };
 }

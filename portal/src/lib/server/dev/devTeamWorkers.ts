@@ -198,10 +198,32 @@ async function readSandboxes(): Promise<{ name: string; mtimeMs: number }[]> {
   return out.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
+// Short-lived cache for the worker-activity scan. `scanWorkerSignals` recursively
+// walks `WATCHED` (src, scripts, docs — thousands of files) on every call, which
+// made the Dev Team home render ~5s each hit. The panel it feeds only shows
+// "activity in the last 2h", so a few seconds of staleness is invisible; a 15s TTL
+// turns every subsequent render into a memory read. Keyed on windowMs so the rare
+// non-default caller gets its own entry; `now` is deliberately NOT part of the key
+// (the whole point is to reuse a recent scan). Callers that need a guaranteed-fresh
+// read pass `fresh: true`.
+const SIGNALS_TTL_MS = 15_000;
+const signalsCache = new Map<number, { at: number; value: WorkerSignals }>();
+
 /**
  * Everything the live panel needs. `windowMs` bounds "recent" (default 2h).
+ * Cached for {@link SIGNALS_TTL_MS} to keep the Dev Team home fast; pass
+ * `{ fresh: true }` to force a full re-scan.
  */
-export async function scanWorkerSignals(windowMs = 2 * 60 * 60 * 1000, now = Date.now()): Promise<WorkerSignals> {
+export async function scanWorkerSignals(
+  windowMs = 2 * 60 * 60 * 1000,
+  now = Date.now(),
+  opts: { fresh?: boolean } = {},
+): Promise<WorkerSignals> {
+  const cached = signalsCache.get(windowMs);
+  if (!opts.fresh && cached && now - cached.at < SIGNALS_TTL_MS) {
+    return cached.value;
+  }
+
   const cutoff = now - windowMs;
   const recentFiles: ActiveFile[] = [];
 
@@ -213,7 +235,7 @@ export async function scanWorkerSignals(windowMs = 2 * 60 * 60 * 1000, now = Dat
 
   const [checkIns, sandboxes] = await Promise.all([readCheckIns(), readSandboxes()]);
 
-  return {
+  const value: WorkerSignals = {
     checkIns,
     activeCheckIns: checkIns.filter(checkIn => isCheckInActive(checkIn, now)),
     // Un-truncated on purpose: `recentFiles.length` and `groupActivity()` over
@@ -223,6 +245,8 @@ export async function scanWorkerSignals(windowMs = 2 * 60 * 60 * 1000, now = Dat
     sandboxes,
     scannedAtMs: now,
   };
+  signalsCache.set(windowMs, { at: now, value });
+  return value;
 }
 
 export interface AreaActivity {

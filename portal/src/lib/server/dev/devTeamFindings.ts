@@ -4,6 +4,7 @@ import { readdir, readFile, writeFile, mkdir, stat, unlink } from "node:fs/promi
 import { join, resolve, sep, basename } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidatePath, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 import { localDay, localStamp } from "@/lib/server/dev/devLocalTime";
 import { createPlan, type NewPlanResult } from "@/lib/server/dev/devTeamPlans";
 
@@ -213,6 +214,7 @@ export async function createFinding(input: {
     };
 
     await writeFile(finalAbs, renderFindingMarkdown(finding), "utf8");
+    invalidatePath(finalAbs);
     return finding;
   } catch (error) {
     await Promise.all(images.map(name => unlink(resolve(IMAGES_DIR, name)).catch(() => {})));
@@ -263,10 +265,10 @@ export async function listFindings(): Promise<Finding[]> {
   const out: Finding[] = [];
   for (const name of names) {
     if (!name.toLowerCase().endsWith(".md")) continue;
-    try {
-      const md = await readFile(join(FINDINGS_DIR, name), "utf8");
-      out.push(parseFinding(name.replace(/\.md$/i, ""), md));
-    } catch { /* skip unreadable */ }
+    // Memoise each finding's parse by mtime; the writes below invalidate.
+    const parsed = await readParsedFile("finding", join(FINDINGS_DIR, name), md =>
+      parseFinding(name.replace(/\.md$/i, ""), md));
+    if (parsed) out.push(parsed);
   }
   return out.sort((a, b) => b.createdAt - a.createdAt || b.slug.localeCompare(a.slug));
 }
@@ -294,7 +296,10 @@ export async function updateFinding(
     status: patch.status ?? existing.status,
     planRelPath: patch.planRelPath ?? existing.planRelPath,
   };
-  await writeFile(confine(resolve(FINDINGS_DIR, `${next.slug}.md`)), renderFindingMarkdown(next), "utf8");
+  const abs = confine(resolve(FINDINGS_DIR, `${next.slug}.md`));
+  await writeFile(abs, renderFindingMarkdown(next), "utf8");
+  // A status/plan change must not be served stale from the list cache.
+  invalidatePath(abs);
   return next;
 }
 

@@ -12,7 +12,7 @@ interface ProductSopLinks {
 interface LinkedSop {
   id: string;
   title: string;
-  kind: "written" | "file";
+  kind: "written" | "file" | "interactive";
   resourceType?: "procedure" | "document" | "presentation" | "video" | "audio" | "image" | "spreadsheet";
   category?: string;
   categories?: string[];

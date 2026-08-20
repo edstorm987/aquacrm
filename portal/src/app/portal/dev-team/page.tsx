@@ -62,10 +62,10 @@ function Stat({
 }) {
   const colour: Record<string, string> = {
     muted: "var(--dt-ink)",
-    danger: "#a5443a",
-    ok: "#2f7d4f",
-    accent: "#3f7d52",
-    warn: "#8a7228",
+    danger: "var(--dev-danger)",
+    ok: "var(--dev-success)",
+    accent: "var(--dev-success)",
+    warn: "var(--dev-warning)",
   };
   return (
     <Link
@@ -163,16 +163,16 @@ export default async function DevTeamHomePage() {
                 const late = (item.dueInDays ?? 0) < 0;
                 return (
                   <li key={item.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-                    <span className={`flex w-20 shrink-0 items-center gap-1 text-[11px] tabular-nums ${late ? "font-medium text-[#a5443a]" : "text-[color:var(--dt-muted)]"}`}>
+                    <span className={`flex w-20 shrink-0 items-center gap-1 text-[11px] tabular-nums ${late ? "font-medium text-[color:var(--dev-danger)]" : "text-[color:var(--dt-muted)]"}`}>
                       <CalendarClock size={11} />{fmtTarget(item.target)}
                     </span>
                     <Link
                       href="/portal/dev-team/roadmap"
-                      className="min-w-0 flex-1 truncate text-sm text-[color:var(--dt-ink)] hover:text-[#3f7d52]"
+                      className="min-w-0 flex-1 truncate text-sm text-[color:var(--dt-ink)] hover:text-[color:var(--dev-success)]"
                     >
                       {item.title}
                     </Link>
-                    <span className={`shrink-0 text-[10px] ${late ? "text-[#a5443a]" : "text-[color:var(--dt-faint)]"}`}>
+                    <span className={`shrink-0 text-[10px] ${late ? "text-[color:var(--dev-danger)]" : "text-[color:var(--dt-faint)]"}`}>
                       {dueText(item.dueInDays)}
                     </span>
                   </li>
@@ -186,7 +186,7 @@ export default async function DevTeamHomePage() {
           title="Who's working"
           hint="Live check-ins"
           right={waiting > 0 ? (
-            <Link href="/portal/dev-team/roadmap?view=tasks" className="inline-flex items-center gap-1 text-[11px] text-[#8a7228] hover:underline">
+            <Link href="/portal/dev-team/roadmap?view=tasks" className="inline-flex items-center gap-1 text-[11px] text-[color:var(--dev-warning)] hover:underline">
               <MessageSquare size={11} />{waiting} thought{waiting === 1 ? "" : "s"} waiting
             </Link>
           ) : null}
@@ -200,7 +200,7 @@ export default async function DevTeamHomePage() {
             <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
               {active.map(worker => (
                 <li key={worker.name} className="flex items-start gap-2 py-2 first:pt-0 last:pb-0">
-                  <CircleDot size={11} className="mt-1 shrink-0 animate-pulse text-[#2f6f8f]" />
+                  <CircleDot size={11} className="mt-1 shrink-0 animate-pulse text-[color:var(--dev-info)]" />
                   <div className="min-w-0">
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-medium text-[color:var(--dt-ink)]">{worker.name}</span>
@@ -223,7 +223,7 @@ export default async function DevTeamHomePage() {
         title="Launch readiness"
         hint="Checked against this environment, not the notes"
         right={readiness ? (
-          <Link href="/portal/dev-team/findings?view=auditor" className="text-[11px] text-[color:var(--dt-faint)] hover:text-[#b4443a]">
+          <Link href="/portal/dev-team/findings?view=auditor" className="text-[11px] text-[color:var(--dt-faint)] hover:text-[color:var(--dev-danger)]">
             full audit →
           </Link>
         ) : null}
@@ -237,7 +237,7 @@ export default async function DevTeamHomePage() {
                   <span
                     aria-hidden
                     className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: ok ? "#2f7d4f" : item.required ? "#c0473c" : "#8a7228" }}
+                    style={{ background: ok ? "var(--dev-success)" : item.required ? "var(--dev-danger)" : "var(--dev-warning)" }}
                   />
                   <span className="min-w-0 text-sm">
                     <span className="font-medium text-[color:var(--dt-ink)]">{item.label}</span>
@@ -263,7 +263,7 @@ export default async function DevTeamHomePage() {
           <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
             {open.map((b, i) => (
               <li key={i} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
-                <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#c0473c]" />
+                <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[color:var(--dev-danger)]" />
                 <span className="text-sm">
                   <span className="font-medium text-[color:var(--dt-ink)]">{b.label}</span>
                   {b.detail ? <span className="text-[color:var(--dt-muted)]"> — {b.detail}</span> : null}

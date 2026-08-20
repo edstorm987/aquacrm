@@ -12,7 +12,7 @@ import "server-only";
 // (like devDocs.ts) all reads are confined to the repo `docs/` tree under
 // `PROJECT_ROOT`. The gate lives on the page, not here (mirrors `scanBlockers`).
 
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import {
@@ -20,6 +20,7 @@ import {
   scanBlockers,
   type DevDocBlocker,
 } from "@/lib/server/dev/devDocs";
+import { readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 
 // state.md lives here; worker Plan links are relative to this directory.
 const STATE_DOC_REL = "docs/context/state.md";
@@ -246,12 +247,7 @@ export function parseWorkers(markdown: string): DevTeamWorker[] {
 
 /** Read state.md and parse its in-flight table. Gate-free (page gates). */
 export async function scanWorkers(): Promise<DevTeamWorker[]> {
-  try {
-    const raw = await readFile(join(PROJECT_ROOT, STATE_DOC_REL), "utf8");
-    return parseWorkers(raw);
-  } catch {
-    return [];
-  }
+  return (await readParsedFile("workers", join(PROJECT_ROOT, STATE_DOC_REL), parseWorkers)) ?? [];
 }
 
 // ---- plan statuses ---------------------------------------------------------
@@ -350,9 +346,10 @@ export async function scanPlanStatuses(): Promise<PlanStatus[]> {
   const mdNames = names.filter(n => n.toLowerCase().endsWith(".md")).sort();
 
   const built = await Promise.all(
-    mdNames.map(async (fileName): Promise<PlanStatus | null> => {
-      try {
-        const md = await readFile(join(dirAbs, fileName), "utf8");
+    mdNames.map((fileName): Promise<PlanStatus | null> =>
+      // Memoise the per-file status parse by mtime — every plan is re-read and
+      // re-parsed on each board render, and the status regexes are not cheap.
+      readParsedFile("planStatus", join(dirAbs, fileName), (md): PlanStatus | null => {
         const parsed = parsePlanStatus(md);
         if (!parsed) return null;
         const name = basename(fileName).replace(/\.md$/i, "");
@@ -362,10 +359,8 @@ export async function scanPlanStatuses(): Promise<PlanStatus[]> {
           name,
           title: firstHeading(md) ?? humaniseName(name),
         };
-      } catch {
-        return null;
-      }
-    }),
+      }),
+    ),
   );
   return built.filter((p): p is PlanStatus => p !== null);
 }

@@ -18,10 +18,10 @@ import { LiveWorkers } from "./_LiveWorkers";
 // belongs to whichever page mounts it.
 
 const LANES: { key: keyof BoardLanes; label: string; hint: string; dot: string; ring: string }[] = [
-  { key: "inFlight", label: "In flight", hint: "Being built now", dot: "#2f6f8f", ring: "#cfe0e8" },
-  { key: "shipped", label: "Shipped", hint: "Built + landed", dot: "#2f7d4f", ring: "#cfe6d6" },
-  { key: "blocked", label: "Blocked", hint: "Needs a fix or a decision", dot: "#b4443a", ring: "#eed3cf" },
-  { key: "readyNext", label: "Ready next", hint: "Planned, ready to assign", dot: "#8a7b4f", ring: "#e7e0cd" },
+  { key: "inFlight", label: "In flight", hint: "Being built now", dot: "var(--dev-info)", ring: "var(--dev-info-line)" },
+  { key: "shipped", label: "Shipped", hint: "Built + landed", dot: "var(--dev-success)", ring: "var(--dev-success-line)" },
+  { key: "blocked", label: "Blocked", hint: "Needs a fix or a decision", dot: "var(--dev-danger)", ring: "var(--dev-danger-line)" },
+  { key: "readyNext", label: "Ready next", hint: "Planned, ready to assign", dot: "var(--dev-warning)", ring: "var(--dev-warning-line)" },
 ];
 
 function truncate(s: string, n = 150): string {

@@ -42,13 +42,13 @@ interface Tone {
 
 // required + needs-setup = red/critical · optional = muted · ready = green.
 function toneFor(item: ReadinessItem): Tone {
-  if (item.status === "ready") return { kind: "ok", label: "Ready", dot: "#2f7d4f" };
+  if (item.status === "ready") return { kind: "ok", label: "Ready", dot: "var(--dev-success)" };
   if (item.status === "needs-setup") {
     return item.required
-      ? { kind: "critical", label: "Needs setup", dot: "#b4443a" }
-      : { kind: "warn", label: "Needs setup", dot: "#8a7b4f" };
+      ? { kind: "critical", label: "Needs setup", dot: "var(--dev-danger)" }
+      : { kind: "warn", label: "Needs setup", dot: "var(--dev-warning)" };
   }
-  return { kind: "muted", label: "Optional", dot: "#8a978f" };
+  return { kind: "muted", label: "Optional", dot: "var(--dev-faint)" };
 }
 
 // Sort order within a group (worst first) and the matching kit Pill tone.
@@ -84,9 +84,9 @@ function ReadinessRow({ item }: { item: ReadinessItem }) {
 // ---- findings presentation -------------------------------------------------
 
 function verdictColour(verdict: string): string {
-  if (verdict.includes("🔴")) return "#b4443a";
-  if (verdict.includes("✅")) return "#2f7d4f";
-  return "#8a7b4f";
+  if (verdict.includes("🔴")) return "var(--dev-danger)";
+  if (verdict.includes("✅")) return "var(--dev-success)";
+  return "var(--dev-warning)";
 }
 
 // Soft tinted pill carrying the auditor's exact verdict phrase (e.g. `🔴 REWORK`).
@@ -113,9 +113,9 @@ function EntryRow({ finding, muted = false }: { finding: AuditFinding; muted?: b
   return (
     <li className={`flex items-start gap-3 py-2.5 first:pt-0 last:pb-0 ${muted ? "opacity-75" : ""}`}>
       {muted ? (
-        <CheckCircle2 size={14} aria-hidden className="mt-1 shrink-0 text-[#2f7d4f]" />
+        <CheckCircle2 size={14} aria-hidden className="mt-1 shrink-0 text-[color:var(--dev-success)]" />
       ) : (
-        <CircleDot size={14} aria-hidden className="mt-1 shrink-0 text-[#b4443a]" />
+        <CircleDot size={14} aria-hidden className="mt-1 shrink-0 text-[color:var(--dev-danger)]" />
       )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -129,7 +129,7 @@ function EntryRow({ finding, muted = false }: { finding: AuditFinding; muted?: b
           <p className="mt-1 text-xs leading-snug text-[color:var(--dt-muted)]">{truncate(finding.detail)}</p>
         ) : null}
         {finding.supersededBy ? (
-          <p className="mt-1 text-[11px] leading-snug text-[#2f7d4f]">
+          <p className="mt-1 text-[11px] leading-snug text-[color:var(--dev-success)]">
             Closed by {finding.supersededBy.verdict}
             {finding.supersededBy.date ? ` (${finding.supersededBy.date})` : ""} — {finding.supersededBy.title}
           </p>
@@ -221,14 +221,14 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
           className="mb-4 flex items-start gap-3 rounded-xl border p-3.5"
           style={
             readiness.ready
-              ? { background: "#f1f7f3", borderColor: "#d3e5d9" }
-              : { background: "#fbf1ef", borderColor: "#ecd3ce" }
+              ? { background: "var(--dev-accent-soft)", borderColor: "var(--dev-success-line)" }
+              : { background: "var(--dev-danger-soft)", borderColor: "var(--dev-danger-line)" }
           }
         >
           {readiness.ready ? (
-            <CheckCircle2 size={18} aria-hidden className="mt-0.5 shrink-0" style={{ color: "#2f7d4f" }} />
+            <CheckCircle2 size={18} aria-hidden className="mt-0.5 shrink-0" style={{ color: "var(--dev-success)" }} />
           ) : (
-            <AlertTriangle size={18} aria-hidden className="mt-0.5 shrink-0" style={{ color: "#b4443a" }} />
+            <AlertTriangle size={18} aria-hidden className="mt-0.5 shrink-0" style={{ color: "var(--dev-danger)" }} />
           )}
           <div className="min-w-0 text-sm">
             <span className="font-semibold text-[color:var(--dt-ink)]">
@@ -283,11 +283,11 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
           <div className="flex flex-col gap-5">
             {openBanners.length > 0 ? (
               <div>
-                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#b4443a]">Open now</h3>
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--dev-danger)]">Open now</h3>
                 <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
                   {openBanners.map((f, i) => (
                     <li key={`banner-${i}`} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
-                      <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#c0473c]" />
+                      <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[color:var(--dev-danger)]" />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-2">
                           <span className="min-w-0 font-medium text-[color:var(--dt-ink)]">{truncate(f.title, 160)}</span>
@@ -307,7 +307,7 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
               <div className="flex flex-col gap-5">
                 {unresolvedEntries.length > 0 ? (
                   <div>
-                    <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[#b4443a]">
+                    <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--dev-danger)]">
                       🔴 rulings with no recorded resolution ({unresolvedEntries.length})
                     </h3>
                     <p className="mb-2 text-[11px] leading-snug text-[color:var(--dt-faint)]">
@@ -351,7 +351,7 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
                 <ul className="flex flex-col gap-1.5">
                   {clearedBanners.map((f, i) => (
                     <li key={`cleared-${i}`} className="flex items-start gap-2 text-xs text-[color:var(--dt-muted)]">
-                      <CheckCircle2 size={14} aria-hidden className="mt-0.5 shrink-0 text-[#2f7d4f]" />
+                      <CheckCircle2 size={14} aria-hidden className="mt-0.5 shrink-0 text-[color:var(--dev-success)]" />
                       <span className="min-w-0">{truncate(f.title, 160)}</span>
                     </li>
                   ))}
@@ -370,7 +370,7 @@ export async function AuditorSection({ tabs }: { tabs?: ReactNode }) {
           <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
             {openBlockers.map((b, i) => (
               <li key={i} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
-                <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#c0473c]" />
+                <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[color:var(--dev-danger)]" />
                 <span className="text-sm">
                   <span className="font-medium text-[color:var(--dt-ink)]">{b.label}</span>
                   {b.detail ? <span className="text-[color:var(--dt-muted)]"> — {b.detail}</span> : null}

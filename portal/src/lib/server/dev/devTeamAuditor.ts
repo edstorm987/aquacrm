@@ -20,7 +20,6 @@ import "server-only";
 //     verdict is 🔴 REWORK / 🔴 HELD / any open 🔴 — the record of every rework
 //     ruling, oldest kept for history.
 
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -28,6 +27,7 @@ import {
   scanBlockers,
   type DevDocBlocker,
 } from "@/lib/server/dev/devDocs";
+import { readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 import {
   inspectProductionReadiness,
   type ProductionReadiness,
@@ -387,12 +387,7 @@ export function countStillOpenFindings(findings: AuditFinding[]): number {
 
 /** Read audits.md and parse it. Gate-free (the page gates before calling). */
 export async function scanAuditFindings(): Promise<AuditFinding[]> {
-  try {
-    const raw = await readFile(join(PROJECT_ROOT, AUDITS_DOC_REL), "utf8");
-    return parseAuditFindings(raw);
-  } catch {
-    return [];
-  }
+  return (await readParsedFile("audits", join(PROJECT_ROOT, AUDITS_DOC_REL), parseAuditFindings)) ?? [];
 }
 
 // ---- compose ---------------------------------------------------------------

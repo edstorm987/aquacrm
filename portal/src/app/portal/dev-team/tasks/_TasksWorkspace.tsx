@@ -14,14 +14,14 @@ import type { Thought } from "@/lib/server/dev/devTeamThoughts";
 import { dropLanded, mergeThoughts } from "./_thoughtMerge";
 
 const STATE_STYLE: Record<TaskState, { chip: string; label: string }> = {
-  done:  { chip: "bg-[#e6f1ea] text-[#2f7d4f]", label: "done" },
-  doing: { chip: "bg-[#e4eff5] text-[#2f6f8f]", label: "in progress" },
+  done:  { chip: "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]", label: "done" },
+  doing: { chip: "bg-[color:var(--dev-info-soft)] text-[color:var(--dev-info)]", label: "in progress" },
   todo:  { chip: "bg-[color:var(--dt-hairline)] text-[color:var(--dt-faint)]", label: "to do" },
 };
 
 function StateIcon({ state }: { state: TaskState }) {
-  if (state === "done") return <Check size={13} className="text-[#2f7d4f]" />;
-  if (state === "doing") return <CircleDot size={13} className="animate-pulse text-[#2f6f8f]" />;
+  if (state === "done") return <Check size={13} className="text-[color:var(--dev-success)]" />;
+  if (state === "doing") return <CircleDot size={13} className="animate-pulse text-[color:var(--dev-info)]" />;
   return <CircleDashed size={13} className="text-[color:var(--dt-faint)]" />;
 }
 
@@ -96,7 +96,7 @@ function TaskRow({
             </span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${style.chip}`}>{style.label}</span>
             {task.worker ? (
-              <span className="inline-flex items-center gap-1 text-[11px] text-[#2f6f8f]">
+              <span className="inline-flex items-center gap-1 text-[11px] text-[color:var(--dev-info)]">
                 <UserRound size={10} />{task.worker}
               </span>
             ) : null}
@@ -106,7 +106,7 @@ function TaskRow({
           ) : null}
 
           {thoughts.length > 0 ? (
-            <ul className="mt-2 flex flex-col gap-1.5 border-l-2 border-[#bfe0dd] pl-3">
+            <ul className="mt-2 flex flex-col gap-1.5 border-l-2 border-[color:var(--dev-accent-line)] pl-3">
               {thoughts.map(t => {
                 const readers = readersOf(t);
                 return (
@@ -134,17 +134,17 @@ function TaskRow({
                   ? `What do you think? This reaches ${task.worker}, who is on this task now.`
                   : "What do you think? Nobody is checked in here — this goes to whoever picks this plan up next."}
                 maxLength={2000}
-                className="min-h-[64px] w-full resize-y rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[#0b6f6d]"
+                className="min-h-[64px] w-full resize-y rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-accent)]"
               />
               {error ? (
-                <p className="mt-1 flex items-center gap-1 text-xs text-[#a5443a]">
+                <p className="mt-1 flex items-center gap-1 text-xs text-[color:var(--dev-danger)]">
                   <AlertTriangle size={12} />{error}
                 </p>
               ) : null}
               <div className="mt-1.5 flex items-center gap-2">
                 <button
                   type="button" onClick={send} disabled={busy || !text.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[#0b6f6d] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0a5f5d] disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:opacity-50"
                 >
                   {busy ? <LoaderCircle size={12} className="animate-spin" /> : <Send size={12} />}
                   {busy ? "Sending…" : "Send"}
@@ -160,7 +160,7 @@ function TaskRow({
           ) : (
             <button
               type="button" onClick={() => setOpen(true)}
-              className="mt-1 inline-flex items-center gap-1 text-[11px] text-[color:var(--dt-faint)] transition-colors hover:text-[#0b6f6d]"
+              className="mt-1 inline-flex items-center gap-1 text-[11px] text-[color:var(--dt-faint)] transition-colors hover:text-[color:var(--dev-accent)]"
             >
               <MessageSquarePlus size={11} />
               {thoughts.length ? "Add another thought" : "Leave a thought"}
@@ -213,12 +213,12 @@ export function TasksWorkspace({
               <div className="min-w-0">
                 <Link
                   href={`/portal/dev-team/library?doc=${encodeURIComponent(plan.planRelPath)}`}
-                  className="font-medium text-[color:var(--dt-ink)] hover:text-[#0b6f6d]"
+                  className="font-medium text-[color:var(--dt-ink)] hover:text-[color:var(--dev-accent)]"
                 >
                   {plan.planTitle}
                 </Link>
                 {plan.workers.length > 0 ? (
-                  <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-[#2f6f8f]">
+                  <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-[color:var(--dev-info)]">
                     <CircleDot size={10} className="animate-pulse" />
                     {plan.workers.map(w => w.name).join(", ")}
                   </span>
@@ -230,7 +230,7 @@ export function TasksWorkspace({
             </div>
 
             <div className="mb-3 h-1 w-full overflow-hidden rounded-full bg-[color:var(--dt-hairline)]">
-              <div className="h-full rounded-full bg-[#2f7d4f] transition-[width] duration-500" style={{ width: `${pct}%` }} />
+              <div className="h-full rounded-full bg-[color:var(--dev-success)] transition-[width] duration-500" style={{ width: `${pct}%` }} />
             </div>
 
             <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">

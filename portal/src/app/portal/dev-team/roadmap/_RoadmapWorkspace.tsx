@@ -20,19 +20,19 @@ import type {
 // straight into a plan. Every write goes to the same markdown the workers read.
 
 const HORIZON_LANES: { value: Horizon; label: string; hint: string; hue: string }[] = [
-  { value: "now", label: "Now", hint: "In flight — someone is on it", hue: "#2f6f8f" },
-  { value: "next", label: "Next", hint: "Queued — starts when a slot frees", hue: "#a86a12" },
-  { value: "later", label: "Later", hint: "After launch", hue: "#6d4aa8" },
-  { value: "someday", label: "Someday", hint: "Ideas and requests", hue: "#8a978f" },
-  { value: "shipped", label: "Shipped", hint: "Done and verified", hue: "#2f7d4f" },
+  { value: "now", label: "Now", hint: "In flight — someone is on it", hue: "var(--dev-info)" },
+  { value: "next", label: "Next", hint: "Queued — starts when a slot frees", hue: "var(--dev-warning)" },
+  { value: "later", label: "Later", hint: "After launch", hue: "var(--dev-violet)" },
+  { value: "someday", label: "Someday", hint: "Ideas and requests", hue: "var(--dev-faint)" },
+  { value: "shipped", label: "Shipped", hint: "Done and verified", hue: "var(--dev-success)" },
 ];
 
 const STATUS_TONE: Record<ItemStatus, { chip: string; label: string }> = {
   idea: { chip: "bg-[color:var(--dt-hairline)] text-[color:var(--dt-faint)]", label: "idea" },
-  planned: { chip: "bg-[#e6f1f0] text-[#0b6f6d]", label: "planned" },
-  building: { chip: "bg-[#e4eff5] text-[#2f6f8f]", label: "building" },
-  shipped: { chip: "bg-[#e6f1ea] text-[#2f7d4f]", label: "shipped" },
-  parked: { chip: "bg-[#f6efdd] text-[#8a7228]", label: "parked" },
+  planned: { chip: "bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]", label: "planned" },
+  building: { chip: "bg-[color:var(--dev-info-soft)] text-[color:var(--dev-info)]", label: "building" },
+  shipped: { chip: "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]", label: "shipped" },
+  parked: { chip: "bg-[color:var(--dev-warning-soft)] text-[color:var(--dev-warning)]", label: "parked" },
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -73,8 +73,8 @@ async function send(
 }
 
 function TaskDot({ state }: { state: string }) {
-  if (state === "done") return <Check size={11} className="text-[#2f7d4f]" />;
-  if (state === "doing") return <CircleDot size={11} className="animate-pulse text-[#2f6f8f]" />;
+  if (state === "done") return <Check size={11} className="text-[color:var(--dev-success)]" />;
+  if (state === "doing") return <CircleDot size={11} className="animate-pulse text-[color:var(--dev-info)]" />;
   return <CircleDashed size={11} className="text-[color:var(--dt-faint)]" />;
 }
 
@@ -141,7 +141,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
               <button
                 type="button"
                 onClick={() => setOpen(o => !o)}
-                className="flex items-center gap-1 text-left font-medium text-[color:var(--dt-ink)] transition-colors hover:text-[#3f7d52]"
+                className="flex items-center gap-1 text-left font-medium text-[color:var(--dt-ink)] transition-colors hover:text-[color:var(--dev-success)]"
               >
                 {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 {item.title}
@@ -153,7 +153,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
                 </span>
               ) : null}
               {item.workers.map(w => (
-                <span key={w} className="inline-flex items-center gap-1 text-[11px] text-[#2f6f8f]">
+                <span key={w} className="inline-flex items-center gap-1 text-[11px] text-[color:var(--dev-info)]">
                   <CircleDot size={10} className="animate-pulse" />{w}
                 </span>
               ))}
@@ -170,18 +170,18 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
 
           <div className="shrink-0 text-right">
             {item.target ? (
-              <div className={`inline-flex items-center gap-1 text-[11px] ${due?.overdue ? "text-[#a5443a]" : "text-[color:var(--dt-faint)]"}`}>
+              <div className={`inline-flex items-center gap-1 text-[11px] ${due?.overdue ? "text-[color:var(--dev-danger)]" : "text-[color:var(--dt-faint)]"}`}>
                 <CalendarClock size={11} />
                 {fmtTarget(item.target)}
               </div>
             ) : null}
             {due ? (
-              <div className={`text-[10px] ${due.overdue ? "font-medium text-[#a5443a]" : "text-[color:var(--dt-faint)]"}`}>
+              <div className={`text-[10px] ${due.overdue ? "font-medium text-[color:var(--dev-danger)]" : "text-[color:var(--dt-faint)]"}`}>
                 {due.text}
               </div>
             ) : null}
             {item.shippedOn ? (
-              <div className="text-[10px] text-[#2f7d4f]">shipped {fmtTarget(item.shippedOn)}</div>
+              <div className="text-[10px] text-[color:var(--dev-success)]">shipped {fmtTarget(item.shippedOn)}</div>
             ) : null}
           </div>
         </div>
@@ -207,7 +207,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
               </div>
             ) : (
               <span
-                className="inline-flex min-w-0 flex-1 items-center gap-1 text-[10px] font-medium text-[#8a7228]"
+                className="inline-flex min-w-0 flex-1 items-center gap-1 text-[10px] font-medium text-[color:var(--dev-warning)]"
                 title={`Not found: ${item.missingPlans.join(", ")}`}
               >
                 <AlertTriangle size={10} className="shrink-0" />
@@ -235,7 +235,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
             {item.planLinks.length === 0 ? (
               <p className="text-xs text-[color:var(--dt-faint)]">
                 No plan yet — this is still just an outcome. Write one from{" "}
-                <Link href="/portal/dev-team/plans/new" className="text-[#3f7d52] hover:underline">Write a plan</Link>{" "}
+                <Link href="/portal/dev-team/plans/new" className="text-[color:var(--dev-success)] hover:underline">Write a plan</Link>{" "}
                 and add its name here.
               </p>
             ) : (
@@ -246,12 +246,12 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
                       {plan.relPath ? (
                         <Link
                           href={`/portal/dev-team/library?doc=${encodeURIComponent(plan.relPath)}`}
-                          className="text-xs font-medium text-[color:var(--dt-ink)] hover:text-[#3f7d52]"
+                          className="text-xs font-medium text-[color:var(--dt-ink)] hover:text-[color:var(--dev-success)]"
                         >
                           {plan.title}
                         </Link>
                       ) : (
-                        <span className="text-xs font-medium text-[#a5443a]">{plan.name} — no such plan file</span>
+                        <span className="text-xs font-medium text-[color:var(--dev-danger)]">{plan.name} — no such plan file</span>
                       )}
                       <span className="text-[10px] tabular-nums text-[color:var(--dt-faint)]">
                         {plan.total > 0 ? `${plan.done}/${plan.total} phases` : "no phases"}
@@ -266,7 +266,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
                               {task.title}
                             </span>
                             {task.worker ? (
-                              <span className="shrink-0 text-[10px] text-[#2f6f8f]">· {task.worker}</span>
+                              <span className="shrink-0 text-[10px] text-[color:var(--dev-info)]">· {task.worker}</span>
                             ) : null}
                           </li>
                         ))}
@@ -299,7 +299,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
                   />
                   <button
                     type="button" onClick={save} disabled={busy}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#3f7d52] px-3 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[#356a46] disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-full bg-[color:var(--dev-success)] px-3 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[color:var(--dev-success)] disabled:opacity-50"
                   >
                     {busy ? <LoaderCircle size={11} className="animate-spin" /> : <Check size={11} />}
                     Save
@@ -312,7 +312,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
                   </button>
                   <button
                     type="button" onClick={remove} disabled={busy}
-                    className={`ml-auto inline-flex items-center gap-1 text-[11px] transition-colors disabled:opacity-50 ${confirming ? "font-medium text-[#a5443a]" : "text-[color:var(--dt-faint)] hover:text-[#a5443a]"}`}
+                    className={`ml-auto inline-flex items-center gap-1 text-[11px] transition-colors disabled:opacity-50 ${confirming ? "font-medium text-[color:var(--dev-danger)]" : "text-[color:var(--dt-faint)] hover:text-[color:var(--dev-danger)]"}`}
                   >
                     <Trash2 size={11} />{confirming ? "Really remove it?" : "Remove"}
                   </button>
@@ -320,14 +320,14 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
               ) : (
                 <button
                   type="button" onClick={() => setEditing(true)}
-                  className="text-[11px] text-[color:var(--dt-faint)] transition-colors hover:text-[#3f7d52]"
+                  className="text-[11px] text-[color:var(--dt-faint)] transition-colors hover:text-[color:var(--dev-success)]"
                 >
                   Change status, horizon or date
                 </button>
               )}
             </div>
             {error ? (
-              <p className="mt-1 flex items-center gap-1 text-[11px] text-[#a5443a]">
+              <p className="mt-1 flex items-center gap-1 text-[11px] text-[color:var(--dev-danger)]">
                 <AlertTriangle size={11} />{error}
               </p>
             ) : null}
@@ -370,7 +370,7 @@ function AddItem({ planNames }: { planNames: string[] }) {
     return (
       <button
         type="button" onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 self-start rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-4 py-2 text-sm font-medium text-[color:var(--dt-ink)] transition-all hover:-translate-y-0.5 hover:border-[#3f7d52] hover:text-[#3f7d52]"
+        className="inline-flex items-center gap-1.5 self-start rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-4 py-2 text-sm font-medium text-[color:var(--dt-ink)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--dev-success)] hover:text-[color:var(--dev-success)]"
       >
         <Plus size={14} /> Add something to the roadmap
       </button>
@@ -388,13 +388,13 @@ function AddItem({ planNames }: { planNames: string[] }) {
           value={title} autoFocus onChange={e => setTitle(e.target.value)}
           placeholder="What do you want to exist?"
           maxLength={120}
-          className="w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[#3f7d52]"
+          className="w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-success)]"
         />
         <textarea
           value={why} onChange={e => setWhy(e.target.value)}
           placeholder="Why it matters — one line."
           maxLength={400}
-          className="min-h-[56px] w-full resize-y rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[#3f7d52]"
+          className="min-h-[56px] w-full resize-y rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-success)]"
         />
         <div className="flex flex-wrap gap-2">
           <select
@@ -423,18 +423,18 @@ function AddItem({ planNames }: { planNames: string[] }) {
           value={plans} onChange={e => setPlans(e.target.value)}
           list="dt-plan-names"
           placeholder="Existing plans that deliver it (comma separated) — optional"
-          className="w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-xs text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[#3f7d52]"
+          className="w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-xs text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-success)]"
         />
         <datalist id="dt-plan-names">
           {planNames.map(n => <option key={n} value={n} />)}
         </datalist>
         {error ? (
-          <p className="flex items-center gap-1 text-xs text-[#a5443a]"><AlertTriangle size={12} />{error}</p>
+          <p className="flex items-center gap-1 text-xs text-[color:var(--dev-danger)]"><AlertTriangle size={12} />{error}</p>
         ) : null}
         <div className="flex items-center gap-2">
           <button
             type="button" onClick={add} disabled={busy || !title.trim()}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[#3f7d52] px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#356a46] disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-success)] px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-success)] disabled:opacity-50"
           >
             {busy ? <LoaderCircle size={12} className="animate-spin" /> : <FilePlus2 size={12} />}
             {busy ? "Adding…" : "Add to roadmap"}
@@ -472,7 +472,7 @@ export function RoadmapWorkspace({
               const due = dueLabel(item.dueInDays);
               return (
                 <li key={item.id} className="flex items-center gap-3">
-                  <span className={`w-24 shrink-0 text-xs tabular-nums ${due?.overdue ? "font-medium text-[#a5443a]" : "text-[color:var(--dt-muted)]"}`}>
+                  <span className={`w-24 shrink-0 text-xs tabular-nums ${due?.overdue ? "font-medium text-[color:var(--dev-danger)]" : "text-[color:var(--dt-muted)]"}`}>
                     {fmtTarget(item.target)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm text-[color:var(--dt-ink)]">{item.title}</span>
@@ -481,7 +481,7 @@ export function RoadmapWorkspace({
                       read as complete. */}
                   {item.missingPlans.length > 0 ? (
                     <span
-                      className="hidden w-28 shrink-0 items-center justify-end gap-1 text-[10px] font-medium text-[#8a7228] sm:flex"
+                      className="hidden w-28 shrink-0 items-center justify-end gap-1 text-[10px] font-medium text-[color:var(--dev-warning)] sm:flex"
                       title={`Not found: ${item.missingPlans.join(", ")}`}
                     >
                       <AlertTriangle size={10} />
@@ -490,11 +490,11 @@ export function RoadmapWorkspace({
                   ) : item.total > 0 ? (
                     <span className="hidden w-28 shrink-0 sm:block">
                       <span className="block h-1 overflow-hidden rounded-full bg-[color:var(--dt-hairline)]">
-                        <span className="block h-full rounded-full bg-[#3f7d52]" style={{ width: `${item.pct}%` }} />
+                        <span className="block h-full rounded-full bg-[color:var(--dev-success)]" style={{ width: `${item.pct}%` }} />
                       </span>
                     </span>
                   ) : null}
-                  <span className={`w-28 shrink-0 text-right text-[11px] ${due?.overdue ? "text-[#a5443a]" : "text-[color:var(--dt-faint)]"}`}>
+                  <span className={`w-28 shrink-0 text-right text-[11px] ${due?.overdue ? "text-[color:var(--dev-danger)]" : "text-[color:var(--dt-faint)]"}`}>
                     {due?.text}
                   </span>
                 </li>

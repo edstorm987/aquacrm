@@ -54,19 +54,19 @@ export function NewPlanForm() {
 
   if (created) {
     return (
-      <div className="rounded-2xl border border-[#bfe0dd] bg-[#f4faf9] p-6">
+      <div className="rounded-2xl border border-[color:var(--dev-accent-line)] bg-[color:var(--dev-accent-soft)] p-6">
         <div className="flex items-start gap-3">
-          <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-[#0b6f6d]" />
+          <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-[color:var(--dev-accent)]" />
           <div className="min-w-0">
             <h2 className="font-medium text-[color:var(--dt-ink)]">Plan created</h2>
             <p className="mt-1 text-sm text-[color:var(--dt-muted)]">
-              Saved as <code className="font-mono text-xs text-[#0b6f6d]">{created.relPath}</code>. It&apos;s already
+              Saved as <code className="font-mono text-xs text-[color:var(--dev-accent)]">{created.relPath}</code>. It&apos;s already
               on the board under <strong>Ready next</strong> and in the Library — ready to hand to a worker.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href={`/portal/dev-team/library?doc=${encodeURIComponent(created.relPath)}`}
-                className="rounded-full bg-[#0b6f6d] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0a5f5d]"
+                className="rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)]"
               >
                 Read it
               </Link>
@@ -94,7 +94,7 @@ export function NewPlanForm() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none transition-colors placeholder:text-[color:var(--dt-faint)] focus:border-[#0b6f6d]";
+    "w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none transition-colors placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-accent)]";
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
@@ -138,7 +138,7 @@ export function NewPlanForm() {
                 className={[
                   "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                   priority === p.value
-                    ? "border-[#bfe0dd] bg-[#e6f1f0] text-[#0b6f6d]"
+                    ? "border-[color:var(--dev-accent-line)] bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]"
                     : "border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] text-[color:var(--dt-muted)] hover:border-[color:var(--dt-line)]",
                 ].join(" ")}
               >
@@ -179,7 +179,7 @@ export function NewPlanForm() {
       </details>
 
       {error ? (
-        <div className="flex items-start gap-2 rounded-xl border border-[#eed3cf] bg-[#fbe9e6] px-4 py-3 text-sm text-[#a5443a]">
+        <div className="flex items-start gap-2 rounded-xl border border-[color:var(--dev-danger-line)] bg-[color:var(--dev-danger-soft)] px-4 py-3 text-sm text-[color:var(--dev-danger)]">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -189,7 +189,7 @@ export function NewPlanForm() {
         <button
           type="submit"
           disabled={busy || !title.trim() || !goal.trim()}
-          className="inline-flex items-center gap-2 rounded-full bg-[#0b6f6d] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a5f5d] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <LoaderCircle size={15} className="animate-spin" /> : null}
           {busy ? "Creating…" : "Create plan"}

@@ -34,6 +34,7 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidatePath, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 
 /** The running record. Repo-relative — also the Library link target. */
 export const UPDATES_DOC_REL = "docs/development/updates.md";
@@ -242,12 +243,9 @@ function updatesDocPath(): string {
 
 /** Read the real updates log and parse it. Gate-free — the page/route gates. */
 export async function scanUpdates(limit: number = MAX_ENTRIES): Promise<DevUpdateEntry[]> {
-  try {
-    const raw = await readFile(updatesDocPath(), "utf8");
-    return parseUpdates(raw, limit);
-  } catch {
-    return [];
-  }
+  // Keyed per limit — different caps parse to different lists — and mtime-guarded.
+  // `appendUpdateEntry` invalidates every cap for this file after a write.
+  return (await readParsedFile(`updates:${limit}`, updatesDocPath(), md => parseUpdates(md, limit))) ?? [];
 }
 
 // ---- write (insert-only) ---------------------------------------------------
@@ -412,6 +410,8 @@ export async function appendUpdateEntry(
       if (!sameFile(before, justBefore)) continue;
 
       await writeFile(abs, next, "utf8");
+      // The next read must see the new entry even within the same mtime tick.
+      invalidatePath(abs);
       return entry;
     }
     throw new Error("The updates log is being written by another process — try again in a moment.");

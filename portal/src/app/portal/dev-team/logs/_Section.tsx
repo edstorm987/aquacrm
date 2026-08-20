@@ -63,7 +63,7 @@ export async function LogsSection({ tabs }: { tabs?: ReactNode }) {
           <ul className="flex flex-col divide-y divide-[color:var(--dt-hairline)]">
             {signals.checkIns.map(worker => (
               <li key={worker.name} className="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
-                <CircleDot size={13} className="mt-0.5 shrink-0" style={{ color: "#2f7d4f" }} />
+                <CircleDot size={13} className="mt-0.5 shrink-0" style={{ color: "var(--dev-success)" }} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-sm font-medium text-[color:var(--dt-ink)]">{worker.name}</span>
@@ -124,7 +124,7 @@ export async function LogsSection({ tabs }: { tabs?: ReactNode }) {
                 <div className="flex items-baseline justify-between gap-3">
                   <Link
                     href={`/portal/dev-team/library?doc=${encodeURIComponent(edit.relPath)}`}
-                    className="min-w-0 truncate font-mono text-xs text-[#0b6f6d] hover:underline"
+                    className="min-w-0 truncate font-mono text-xs text-[color:var(--dev-accent)] hover:underline"
                   >
                     {edit.relPath}
                   </Link>
@@ -133,7 +133,7 @@ export async function LogsSection({ tabs }: { tabs?: ReactNode }) {
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[color:var(--dt-muted)]">
-                  <UserRound size={11} className="text-[#0b6f6d]" />
+                  <UserRound size={11} className="text-[color:var(--dev-accent)]" />
                   {edit.author}
                   {edit.note ? <span className="text-[color:var(--dt-faint)]">— {edit.note}</span> : null}
                 </div>

@@ -67,7 +67,7 @@ export function UpdateComposer({ today }: { today: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group flex w-full items-center gap-3 rounded-2xl border border-dashed border-[#d5ddd7] bg-[color:var(--dt-surface)]/60 px-5 py-4 text-left transition-all duration-150 hover:border-[color:var(--dt-line)] hover:bg-[color:var(--dt-surface)] hover:shadow-[0_8px_24px_-14px_rgba(20,35,31,0.25)]"
+        className="group flex w-full items-center gap-3 rounded-2xl border border-dashed border-[color:var(--dev-line)] bg-[color:var(--dt-surface)]/60 px-5 py-4 text-left transition-all duration-150 hover:border-[color:var(--dt-line)] hover:bg-[color:var(--dt-surface)] hover:shadow-[0_8px_24px_-14px_rgba(20,35,31,0.25)]"
       >
         <span
           aria-hidden
@@ -111,7 +111,7 @@ export function UpdateComposer({ today }: { today: string }) {
           maxLength={MAX_TITLE}
           autoFocus
           placeholder="What shipped — e.g. Updates page: the dev changelog, readable in-app"
-          className="mt-1 w-full rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dt-raised)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none transition placeholder:text-[color:var(--dt-faint)] focus:border-[#b7cbc8] focus:bg-[color:var(--dt-surface)]"
+          className="mt-1 w-full rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dt-raised)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none transition placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-accent-line)] focus:bg-[color:var(--dt-surface)]"
         />
       </label>
 
@@ -127,12 +127,12 @@ export function UpdateComposer({ today }: { today: string }) {
           onChange={e => setBody(e.target.value)}
           rows={5}
           placeholder={"One line = one bullet.\nWhat changed, and which docs you updated."}
-          className="mt-1 w-full resize-y rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dt-raised)] px-3 py-2 text-sm leading-relaxed text-[color:var(--dt-ink)] outline-none transition placeholder:text-[color:var(--dt-faint)] focus:border-[#b7cbc8] focus:bg-[color:var(--dt-surface)]"
+          className="mt-1 w-full resize-y rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dt-raised)] px-3 py-2 text-sm leading-relaxed text-[color:var(--dt-ink)] outline-none transition placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-accent-line)] focus:bg-[color:var(--dt-surface)]"
         />
       </label>
 
       {error ? (
-        <p role="alert" className="mt-3 rounded-xl bg-[#fbe9e6] px-3 py-2 text-xs text-[#a5443a]">
+        <p role="alert" className="mt-3 rounded-xl bg-[color:var(--dev-danger-soft)] px-3 py-2 text-xs text-[color:var(--dev-danger)]">
           {error}
         </p>
       ) : null}

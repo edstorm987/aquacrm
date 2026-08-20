@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
 // (off-white page, white cards, muted-green text) with a deep-teal accent that
 // gives the internal workspace its own quiet identity.
 
-export const ACCENT = "#0b6f6d";
-export const ACCENT_SOFT = "#e6f1f0";
+export const ACCENT = "var(--dev-accent)";
+export const ACCENT_SOFT = "var(--dev-accent-soft)";
 
 // Colour carries MEANING here, it isn't decoration. Each section owns a hue, so
 // you learn the place by its colour before you read the label — and the hue is
@@ -33,19 +33,19 @@ export interface Accent {
 }
 
 export const ACCENTS: Record<string, Accent> = {
-  roadmap: { fg: "#3f7d52", bg: "color-mix(in srgb, #3f7d52 15%, transparent)", line: "color-mix(in srgb, #3f7d52 38%, transparent)", glow: "rgba(63,125,82,0.18)" },
-  findings:{ fg: "#a86a12", bg: "color-mix(in srgb, #a86a12 15%, transparent)", line: "color-mix(in srgb, #a86a12 38%, transparent)", glow: "rgba(168,106,18,0.18)" },
-  working: { fg: "#2f6f8f", bg: "color-mix(in srgb, #2f6f8f 15%, transparent)", line: "color-mix(in srgb, #2f6f8f 38%, transparent)", glow: "rgba(47,111,143,0.18)" },
-  library: { fg: "#0b6f6d", bg: "color-mix(in srgb, #0b6f6d 15%, transparent)", line: "color-mix(in srgb, #0b6f6d 38%, transparent)", glow: "rgba(11,111,109,0.18)" },
-  docs: { fg: "#6d4aa8", bg: "color-mix(in srgb, #6d4aa8 15%, transparent)", line: "color-mix(in srgb, #6d4aa8 38%, transparent)", glow: "rgba(109,74,168,0.18)" },
-  auditor: { fg: "#b4443a", bg: "color-mix(in srgb, #b4443a 15%, transparent)", line: "color-mix(in srgb, #b4443a 38%, transparent)", glow: "rgba(180,68,58,0.18)" },
-  inspector: { fg: "#8a3f86", bg: "color-mix(in srgb, #8a3f86 15%, transparent)", line: "color-mix(in srgb, #8a3f86 38%, transparent)", glow: "rgba(138,63,134,0.18)" },
-  tools: { fg: "#3f51a8", bg: "color-mix(in srgb, #3f51a8 15%, transparent)", line: "color-mix(in srgb, #3f51a8 38%, transparent)", glow: "rgba(63,81,168,0.18)" },
-  editor: { fg: "#3f51a8", bg: "color-mix(in srgb, #3f51a8 15%, transparent)", line: "color-mix(in srgb, #3f51a8 38%, transparent)", glow: "rgba(63,81,168,0.18)" },
-  api: { fg: "#0e7490", bg: "color-mix(in srgb, #0e7490 15%, transparent)", line: "color-mix(in srgb, #0e7490 38%, transparent)", glow: "rgba(14,116,144,0.18)" },
-  updates: { fg: "#b45309", bg: "color-mix(in srgb, #b45309 15%, transparent)", line: "color-mix(in srgb, #b45309 38%, transparent)", glow: "rgba(180,83,9,0.18)" },
-  notes: { fg: "#4a5c6a", bg: "color-mix(in srgb, #4a5c6a 15%, transparent)", line: "color-mix(in srgb, #4a5c6a 38%, transparent)", glow: "rgba(74,92,106,0.18)" },
-  default:  { fg: ACCENT, bg: ACCENT_SOFT, line: "#bfe0dd", glow: "rgba(11,111,109,0.18)" },
+  roadmap: { fg: "var(--dev-success)", bg: "color-mix(in srgb, var(--dev-success) 15%, transparent)", line: "color-mix(in srgb, var(--dev-success) 38%, transparent)", glow: "rgba(63,125,82,0.18)" },
+  findings:{ fg: "var(--dev-warning)", bg: "color-mix(in srgb, var(--dev-warning) 15%, transparent)", line: "color-mix(in srgb, var(--dev-warning) 38%, transparent)", glow: "rgba(168,106,18,0.18)" },
+  working: { fg: "var(--dev-info)", bg: "color-mix(in srgb, var(--dev-info) 15%, transparent)", line: "color-mix(in srgb, var(--dev-info) 38%, transparent)", glow: "rgba(47,111,143,0.18)" },
+  library: { fg: "var(--dev-accent)", bg: "color-mix(in srgb, var(--dev-accent) 15%, transparent)", line: "color-mix(in srgb, var(--dev-accent) 38%, transparent)", glow: "rgba(11,111,109,0.18)" },
+  docs: { fg: "var(--dev-violet)", bg: "color-mix(in srgb, var(--dev-violet) 15%, transparent)", line: "color-mix(in srgb, var(--dev-violet) 38%, transparent)", glow: "rgba(109,74,168,0.18)" },
+  auditor: { fg: "var(--dev-danger)", bg: "color-mix(in srgb, var(--dev-danger) 15%, transparent)", line: "color-mix(in srgb, var(--dev-danger) 38%, transparent)", glow: "rgba(180,68,58,0.18)" },
+  inspector: { fg: "var(--dev-purple)", bg: "color-mix(in srgb, var(--dev-purple) 15%, transparent)", line: "color-mix(in srgb, var(--dev-purple) 38%, transparent)", glow: "rgba(138,63,134,0.18)" },
+  tools: { fg: "var(--dev-indigo)", bg: "color-mix(in srgb, var(--dev-indigo) 15%, transparent)", line: "color-mix(in srgb, var(--dev-indigo) 38%, transparent)", glow: "rgba(63,81,168,0.18)" },
+  editor: { fg: "var(--dev-indigo)", bg: "color-mix(in srgb, var(--dev-indigo) 15%, transparent)", line: "color-mix(in srgb, var(--dev-indigo) 38%, transparent)", glow: "rgba(63,81,168,0.18)" },
+  api: { fg: "var(--dev-cyan)", bg: "color-mix(in srgb, var(--dev-cyan) 15%, transparent)", line: "color-mix(in srgb, var(--dev-cyan) 38%, transparent)", glow: "rgba(14,116,144,0.18)" },
+  updates: { fg: "var(--dev-warning)", bg: "color-mix(in srgb, var(--dev-warning) 15%, transparent)", line: "color-mix(in srgb, var(--dev-warning) 38%, transparent)", glow: "rgba(180,83,9,0.18)" },
+  notes: { fg: "var(--dev-slate)", bg: "color-mix(in srgb, var(--dev-slate) 15%, transparent)", line: "color-mix(in srgb, var(--dev-slate) 38%, transparent)", glow: "rgba(74,92,106,0.18)" },
+  default:  { fg: ACCENT, bg: ACCENT_SOFT, line: "var(--dev-accent-line)", glow: "rgba(11,111,109,0.18)" },
 };
 
 export function accentFor(key?: string): Accent {
@@ -53,10 +53,10 @@ export function accentFor(key?: string): Accent {
 }
 
 // Text / border tokens (light — the app's private area is light-mode).
-export const INK = "#14231f";
-export const MUTED = "#5b6b66";
-export const FAINT = "#8a978f";
-export const HAIR = "#e6e9e2";
+export const INK = "var(--dev-ink)";
+export const MUTED = "var(--dev-ink-muted)";
+export const FAINT = "var(--dev-faint)";
+export const HAIR = "var(--dev-line)";
 
 export function PageHeader({
   icon,
@@ -199,10 +199,10 @@ export function Pill({
 }) {
   const tones: Record<string, string> = {
     muted: "bg-[color:var(--dt-hairline)] text-[color:var(--dt-muted)]",
-    danger: "bg-[#fbe9e6] text-[#a5443a]",
-    ok: "bg-[#e6f1ea] text-[#2f7d4f]",
-    accent: "bg-[#e6f1f0] text-[#0b6f6d]",
-    warn: "bg-[#f6efdd] text-[#8a7228]",
+    danger: "bg-[color:var(--dev-danger-soft)] text-[color:var(--dev-danger)]",
+    ok: "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]",
+    accent: "bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]",
+    warn: "bg-[color:var(--dev-warning-soft)] text-[color:var(--dev-warning)]",
   };
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
@@ -269,7 +269,7 @@ export function ViewTabs({ section, active }: { section: keyof typeof SECTION_VI
             aria-current={on ? "page" : undefined}
             className="rounded-full px-3 py-1 text-xs font-medium transition-colors"
             style={on
-              ? { background: a.fg, color: "#fff" }
+              ? { background: a.fg, color: "var(--dev-on-accent)" }
               : { color: "var(--dt-muted)" }}
           >
             {view.label}

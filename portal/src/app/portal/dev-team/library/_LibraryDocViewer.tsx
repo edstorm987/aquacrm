@@ -25,14 +25,14 @@ export function LibraryDocViewer({ doc, nowMs }: { doc: DevDocContent; nowMs: nu
       <div className="flex items-center justify-between gap-3">
         <Link
           href={LIBRARY_BASE}
-          className="group inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[color:var(--dt-muted)] transition-colors hover:text-[#0b6f6d]"
+          className="group inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[color:var(--dt-muted)] transition-colors hover:text-[color:var(--dev-accent)]"
         >
           <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
           Library
         </Link>
         <Link
           href={`/portal/dev-team/docs?doc=${encodeURIComponent(doc.relPath)}`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--dt-line)] px-3 py-1.5 text-xs font-medium text-[color:var(--dt-muted)] transition-colors hover:border-[#bfe0dd] hover:text-[#0b6f6d]"
+          className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--dt-line)] px-3 py-1.5 text-xs font-medium text-[color:var(--dt-muted)] transition-colors hover:border-[color:var(--dev-accent-line)] hover:text-[color:var(--dev-accent)]"
         >
           <FileEdit size={13} />
           Edit this doc

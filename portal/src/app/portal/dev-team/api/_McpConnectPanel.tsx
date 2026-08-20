@@ -59,8 +59,8 @@ export interface McpConnectView {
 }
 
 const STATUS_TONE: Record<McpKeyView["status"], string> = {
-  active: "bg-[#e6f1ea] text-[#2f7d4f]",
-  expired: "bg-[#f6efdd] text-[#8a7228]",
+  active: "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]",
+  expired: "bg-[color:var(--dev-warning-soft)] text-[color:var(--dev-warning)]",
   revoked: "bg-[color:var(--dt-hairline)] text-[color:var(--dt-muted)]",
 };
 
@@ -146,7 +146,7 @@ export function McpConnectPanel({ view }: { view: McpConnectView }) {
                 value={selected?.id ?? ""}
                 onChange={event => setSelectedId(event.target.value)}
                 aria-label="Select an API key"
-                className="h-9 rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-2.5 text-xs text-[color:var(--dt-ink)] outline-none focus:border-[#0b6f6d]"
+                className="h-9 rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-2.5 text-xs text-[color:var(--dt-ink)] outline-none focus:border-[color:var(--dev-accent)]"
               >
                 {view.keys.map(key => (
                   <option key={key.id} value={key.id}>
@@ -159,7 +159,7 @@ export function McpConnectPanel({ view }: { view: McpConnectView }) {
               type="button"
               onClick={downloadSetup}
               disabled={!selected}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0b6f6d] px-3 text-xs font-medium text-white transition-colors hover:bg-[#0a5f5d] disabled:opacity-40"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[color:var(--dev-accent)] px-3 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:opacity-40"
             >
               <Download size={13} />
               Setup document
@@ -189,7 +189,7 @@ export function McpConnectPanel({ view }: { view: McpConnectView }) {
 
             <div className="mt-3 flex flex-wrap gap-1.5">
               {selected.permissions.map(permission => (
-                <span key={permission} className="rounded-full bg-[#e6f1f0] px-2 py-0.5 font-mono text-[10px] text-[#0b6f6d]">{permission}</span>
+                <span key={permission} className="rounded-full bg-[color:var(--dev-accent-soft)] px-2 py-0.5 font-mono text-[10px] text-[color:var(--dev-accent)]">{permission}</span>
               ))}
               {selected.modules.map(module => (
                 <span key={module} className="rounded-full bg-[color:var(--dt-hairline)] px-2 py-0.5 font-mono text-[10px] text-[color:var(--dt-muted)]">{module}</span>
@@ -197,14 +197,14 @@ export function McpConnectPanel({ view }: { view: McpConnectView }) {
             </div>
 
             {selected.unmanaged ? (
-              <p className="mt-3 rounded-lg bg-[#f6efdd] px-3 py-2 text-[11px] leading-5 text-[#8a7228]">
+              <p className="mt-3 rounded-lg bg-[color:var(--dev-warning-soft)] px-3 py-2 text-[11px] leading-5 text-[color:var(--dev-warning)]">
                 This is the <strong>environment token</strong>, not a managed key — it is set in the server&apos;s
                 environment and <strong>cannot be revoked from this screen</strong>. Revoking every managed key does
                 not lock the workspace down while this is configured. Remove it from the environment and restart.
               </p>
             ) : null}
             {selected.status !== "active" ? (
-              <p className="mt-3 rounded-lg bg-[#f0f2ee] px-3 py-2 text-[11px] leading-5 text-[#5b6b66]">
+              <p className="mt-3 rounded-lg bg-[color:var(--dev-hairline)] px-3 py-2 text-[11px] leading-5 text-[color:var(--dev-ink-muted)]">
                 This key is <strong>{selected.status}</strong> — the tools below are what its scope <em>would</em>{" "}
                 expose. Right now it grants nothing: every call with it is rejected at authentication, before any tool
                 is reached.
@@ -218,13 +218,13 @@ export function McpConnectPanel({ view }: { view: McpConnectView }) {
               <ul className="mt-3 flex flex-col divide-y divide-[color:var(--dt-hairline)] rounded-xl border border-[color:var(--dt-line)]">
                 {selected.tools.map(tool => (
                   <li key={tool.name} className="flex items-start gap-3 px-4 py-3">
-                    <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#e6f1f0] text-[#0b6f6d]">
+                    <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]">
                       {tool.readOnly ? <ShieldCheck size={14} /> : <KeyRound size={14} />}
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <code className="text-xs font-semibold text-[color:var(--dt-ink)]">{tool.name}</code>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${tool.readOnly ? "bg-[#e6f1ea] text-[#2f7d4f]" : "bg-[#f6efdd] text-[#8a7228]"}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${tool.readOnly ? "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]" : "bg-[color:var(--dev-warning-soft)] text-[color:var(--dev-warning)]"}`}>
                           {tool.readOnly ? "read-only" : "proposes only"}
                         </span>
                         <span className="text-[11px] text-[color:var(--dt-faint)]">{tool.title}</span>

@@ -140,8 +140,8 @@ export function InspectorClient({
 
   return (
     <section className="flex flex-col gap-5">
-      <div className="flex items-start gap-2.5 rounded-xl border border-[color:var(--dt-line)] bg-[#f6f9f5] px-4 py-3 text-xs leading-relaxed text-[color:var(--dt-muted)]">
-        <FlaskConical size={15} aria-hidden="true" className="mt-px shrink-0 text-[#0b6f6d]" />
+      <div className="flex items-start gap-2.5 rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dev-success-soft)] px-4 py-3 text-xs leading-relaxed text-[color:var(--dt-muted)]">
+        <FlaskConical size={15} aria-hidden="true" className="mt-px shrink-0 text-[color:var(--dev-accent)]" />
         <p>
           {active ? (
             <>
@@ -161,7 +161,7 @@ export function InspectorClient({
       {error ? (
         <p
           role="alert"
-          className="rounded-xl border border-[#e7c9c9] bg-[#fbeeee] px-4 py-2.5 text-sm text-[#8a2f2f]"
+          className="rounded-xl border border-[color:var(--dev-danger-line)] bg-[color:var(--dev-danger-soft)] px-4 py-2.5 text-sm text-[color:var(--dev-danger)]"
         >
           {error}
         </p>
@@ -182,7 +182,7 @@ export function InspectorClient({
                 className={
                   "group flex flex-col rounded-2xl border p-5 " +
                   (isCurrent
-                    ? "border-[#bfe0dd] bg-[#f4faf9]"
+                    ? "border-[color:var(--dev-accent-line)] bg-[color:var(--dev-accent-soft)]"
                     : "border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[color:var(--dt-line)] hover:shadow-[0_8px_24px_-10px_rgba(20,35,31,0.22)]")
                 }
               >
@@ -219,7 +219,7 @@ export function InspectorClient({
                       "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-colors " +
                       (isCurrent
                         ? "cursor-default bg-[color:var(--dt-hairline)] text-[color:var(--dt-muted)]"
-                        : "bg-[#0b6f6d] text-white hover:bg-[#0a5f5d] disabled:cursor-default disabled:opacity-60")
+                        : "bg-[color:var(--dev-accent)] text-white hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-default disabled:opacity-60")
                     }
                   >
                     {isBusy ? (

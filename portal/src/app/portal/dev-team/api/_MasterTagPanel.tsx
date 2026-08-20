@@ -35,10 +35,10 @@ export interface MasterTagView {
 }
 
 const CONSENT_TONE: Record<string, string> = {
-  necessary: "bg-[#e6f1ea] text-[#2f7d4f]",
-  preferences: "bg-[#e6f1f0] text-[#0b6f6d]",
-  analytics: "bg-[#f6efdd] text-[#8a7228]",
-  marketing: "bg-[#fbe9e6] text-[#a5443a]",
+  necessary: "bg-[color:var(--dev-success-soft)] text-[color:var(--dev-success)]",
+  preferences: "bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]",
+  analytics: "bg-[color:var(--dev-warning-soft)] text-[color:var(--dev-warning)]",
+  marketing: "bg-[color:var(--dev-danger-soft)] text-[color:var(--dev-danger)]",
 };
 
 export function MasterTagPanel({ view }: { view: MasterTagView }) {
@@ -61,14 +61,14 @@ export function MasterTagPanel({ view }: { view: MasterTagView }) {
         </p>
         <Link
           href="/portal/agency/fulfilment?view=tags"
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 text-xs font-medium text-[#0b6f6d] transition-colors hover:border-[color:var(--dt-line)]"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 text-xs font-medium text-[color:var(--dev-accent)] transition-colors hover:border-[color:var(--dt-line)]"
         >
           Detect, route &amp; configure
           <ArrowUpRight size={13} />
         </Link>
       </div>
 
-      <div className="mt-4 rounded-xl border border-[color:var(--dt-line)] bg-[#14231f] p-4">
+      <div className="mt-4 rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dev-ink)] p-4">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">Paste into every site</span>
           <button
@@ -84,7 +84,7 @@ export function MasterTagPanel({ view }: { view: MasterTagView }) {
       </div>
 
       {view.originIsFallback ? (
-        <p className="mt-2 rounded-lg bg-[#f6efdd] px-3 py-2 text-[11px] leading-5 text-[#8a7228]">
+        <p className="mt-2 rounded-lg bg-[color:var(--dev-warning-soft)] px-3 py-2 text-[11px] leading-5 text-[color:var(--dev-warning)]">
           <strong>Don&apos;t paste this one anywhere real.</strong> It points at{" "}
           <code className="font-mono">{view.origin}</code>, which no visitor&apos;s browser can reach — every call the
           tag makes would fail silently. Set <code className="font-mono">NEXT_PUBLIC_PORTAL_BASE_URL</code> to the
@@ -103,7 +103,7 @@ export function MasterTagPanel({ view }: { view: MasterTagView }) {
 
       <div className="mt-5 border-t border-[color:var(--dt-line)] pt-5">
         <div className="flex items-center gap-2">
-          <ShieldCheck size={14} className="text-[#0b6f6d]" />
+          <ShieldCheck size={14} className="text-[color:var(--dev-accent)]" />
           <h3 className="text-sm font-semibold text-[color:var(--dt-ink)]">What the tag may inject</h3>
         </div>
         <p className="mt-1 text-xs leading-5 text-[color:var(--dt-muted)]">

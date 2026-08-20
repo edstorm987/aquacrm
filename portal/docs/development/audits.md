@@ -71,6 +71,26 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-20 — 📋 UNLOGGED product feature landed (SOPs) — green, but not in the queue; please log for audit
+
+**Caught by the periodic full-suite check** (+28 tests → 2553, **green**; `updates.md` top unchanged). Most of the growth is internal dev-team tooling (`smoke-dev-team-perf`/`-ui`, `DevTeamTransition.tsx`, the churning `dev-tasks-parse`) — low product risk, actively iterated. **But it includes a new client-facing product feature with no `updates.md` entry:** **SOPs (Standard Operating Procedures)** — `src/app/portal/clients/[clientId]/_ClientSopsTab.tsx` + `smoke-sop-interactive.test.ts` (interactive SOPs on a client tab). It's green/tested, but **invisible to the docs-driven audit queue** — I can't verify a feature I have no claim for.
+
+**→ Commander:** A real **client-facing SOPs feature** shipped **unlogged**. Please add an `updates.md` entry (what it does + its contracts — especially client-scoping / who may view + edit SOPs) so it enters the audit queue; I'll then audit it against that claim. I'm **not** reverse-engineering it from tests this tick (no claim to verify against, and that's error-prone). Suite green; the rest of the +28 is internal tooling. Recurring theme: substantial work keeps landing unlogged — the periodic full-suite run is the only thing surfacing it.
+
+## 2026-08-20 — ✅ PASS — Three profile-menu toggles: Cinematic mode · real Performance mode · dev-icon toggle (closes my tick-67 stale-pin red)
+
+**Verdict:** ✅ PASS. The `performanceMode → cinematicMode` rename I flagged at tick 67 is now **logged + its stale test pins updated** (suite green — my tick-67 red is resolved). All three toggles are sound: **cinematic mode** renames + migrates the old value (default plays; old perf=1 → cinematic off); **real performance mode** is a new server-readable cookie that gates two heavy fetches, **default OFF = byte-for-byte today**; the **dev-icon toggle** is correctly **ANDed with the founder gate** — a non-founder can't summon the Dev Console icon via the cookie — and it fixes a profile-menu nav bug.
+
+**Audited:**
+- **Ran the test myself:** `smoke-profile-toggles` **15/0** (cinematic default + migration, perf/dev-icon cookie parsers, skip-path markers, no-navigate assertion). Full suite green (2525/0); the tick-67 stale pins (`smoke-dev-mode`/`-console`/`-transition`) are updated to the new names.
+- **Dev-icon toggle stays founder-gated — VERIFIED (the one security-relevant part).** `agency/layout.tsx:144` computes `devConsole = devDocsAccessible(session) && devIconVisible` — the founder gate **AND** the icon preference. Topbar renders the Dev Console only when `devConsole && !publicShowcase && !showcaseMode` (`:89`). So a non-founder (`devDocsAccessible` false) never sees the icon regardless of the `aqua_dev_icon` cookie; the toggle is a founder *preference* on the gate, not a replacement. The nav bug is fixed (the "Dev Mode" row no longer `window.location.assign`s; entering the workspace is the popover CTA).
+- **Cinematic = behaviour-preserving rename + migration.** `cinematicMode.ts` `cinematicModeEnabled()` defaults **true** (cutscenes play), migrates the old `aqua-performance-mode` value (perf on → cinematic off) on first read; the 3 transition consumers skip when disabled; CSS re-keyed to `data-cinematic-mode`.
+- **Real performance mode — default-safe + honest.** New `aqua_perf_mode` cookie (server-read `performanceModePreference()`, **default false**); when ON, `agency/layout` + `page` skip the `getRequestOperationalAlerts` Supabase sweep + keep `scanDevTeamBoard` off the landing critical path. **Off = no behaviour change.** Honestly caveated: only the two heaviest repeated costs are gated; radar/intelligence panels are a documented larger follow-up.
+
+**Findings:** none. UI-preference toggles, correctly gated (dev-icon ANDed with the founder gate), behaviour-preserving rename with migration, perf-mode default-safe, nav bug fixed.
+
+**→ Commander:** Mark **three profile toggles done** — cinematic rename+migration (behaviour-preserving), real perf-mode (server-read, default-off = byte-for-byte, two heavy fetches gated with an honest follow-up caveat), dev-icon toggle correctly founder-gated (`devDocsAccessible && devIconVisible` — no non-founder bypass) + nav bug fixed. Suite green; **my tick-67 stale-pin red is resolved** (rename logged + pins updated).
+
 ## 2026-08-20 — 🟡 RED (stale test pins from an unlogged rename) — `performanceMode → cinematicMode`; not a behavioural regression
 
 **Caught by the periodic full-suite check** (unlogged: `updates.md` top unchanged, count stable 2507). Suite is **RED — 6 fail** (was 0 last tick), but they're **stale source-shape test pins from an unlogged rename**, not product regressions — verified by reading the failing assertions:

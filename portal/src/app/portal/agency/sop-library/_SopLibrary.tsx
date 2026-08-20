@@ -18,6 +18,7 @@ import {
   Plus,
   Save,
   Search,
+  Sparkles,
   Tags,
   Trash2,
   Video,
@@ -27,6 +28,12 @@ import {
 
 import type { SopDocument } from "@/server/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { BlockRenderer } from "@/lib/elements/BlockRenderer";
+// Load-bearing side-effect: populates the shared element registry the
+// BlockRenderer resolves against, so interactive SOP blocks render with real
+// components instead of degrading to empty fragments. Mirrors how the portal
+// storefront renderer pulls in the same library.
+import "@/built-ins/modules/website-editor/src/components/blockRegistry";
 
 type EditorDraft = {
   id?: string;
@@ -51,6 +58,7 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<SopDocument | null>(null);
   const [organisingSop, setOrganisingSop] = useState<SopDocument | null>(null);
+  const [viewingInteractive, setViewingInteractive] = useState<SopDocument | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<{ category: string; replacementCategory: string } | null>(null);
   const [error, setError] = useState("");
 
@@ -293,7 +301,7 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
                 <span className="mm-area-icon grid size-10 shrink-0 place-items-center rounded-md">
                   {resourceIcon(sop)}
                 </span>
-                <button type="button" onClick={() => sop.kind === "written" ? setEditor({
+                <button type="button" onClick={() => sop.kind === "interactive" ? setViewingInteractive(sop) : sop.kind === "written" ? setEditor({
                   id: sop.id,
                   title: sop.title,
                   category: sop.category ?? "",
@@ -351,6 +359,7 @@ export function SopLibrary({ initialSops, initialCategories }: { initialSops: So
         onSaved={sop => { upsert(sop); setOrganisingSop(null); }}
         onError={setError}
       /> : null}
+      {viewingInteractive ? <InteractiveSopViewer sop={viewingInteractive} onClose={() => setViewingInteractive(null)} /> : null}
       {deletingCategory ? <Modal title="Delete category" onClose={() => setDeletingCategory(null)}>
         <div className="grid gap-4">
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -656,7 +665,22 @@ function uniqueStrings(values: string[]): string[] {
   }).map(value => value.trim()).sort((a, b) => a.localeCompare(b));
 }
 
+function InteractiveSopViewer({ sop, onClose }: { sop: SopDocument; onClose: () => void }) {
+  return <Modal title={sop.title} onClose={onClose} wide>
+    <div className="grid gap-4">
+      <p className="text-xs text-black/45">Interactive SOP · read-only preview</p>
+      <div className="rounded-lg border border-black/10 bg-white p-4">
+        {sop.blocks && sop.blocks.length
+          ? <BlockRenderer blocks={sop.blocks} />
+          : <p className="py-8 text-center text-sm text-black/40">This interactive SOP has no content yet.</p>}
+      </div>
+      <div className="flex justify-end"><button type="button" onClick={onClose} className={secondaryButton}>Close</button></div>
+    </div>
+  </Modal>;
+}
+
 function resourceIcon(sop: SopDocument, size = 17): React.ReactNode {
+  if (sop.kind === "interactive") return <Sparkles size={size} />;
   if (sop.kind === "written") return <PenLine size={size} />;
   if (sop.resourceType === "presentation") return <Presentation size={size} />;
   if (sop.resourceType === "video") return <Video size={size} />;
@@ -667,6 +691,7 @@ function resourceIcon(sop: SopDocument, size = 17): React.ReactNode {
 }
 
 function resourceLabel(sop: SopDocument): string {
+  if (sop.kind === "interactive") return "Interactive SOP";
   if (sop.kind === "written") return "Written SOP";
   const labels: Record<string, string> = {
     presentation: "Presentation",

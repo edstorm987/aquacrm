@@ -1,9 +1,10 @@
 import "server-only";
 
-import { readFile, readdir, writeFile, mkdir, rename } from "node:fs/promises";
+import { readdir, writeFile, mkdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { PROJECT_ROOT } from "@/lib/server/dev/devDocs";
+import { invalidateFile, readParsedFile } from "@/lib/server/dev/devMarkdownCache";
 import { localDay } from "@/lib/server/dev/devLocalTime";
 import { scanPlanStatuses, type PlanStatus } from "@/lib/server/dev/devTeamBoard";
 import { scanTasks, type DevTask } from "@/lib/server/dev/devTeamTasks";
@@ -476,11 +477,9 @@ export function renderRoadmap(items: RoadmapItem[], preamble?: string): string {
 
 /** The document as written — items and the header above them. */
 async function readDoc(): Promise<{ preamble?: string; items: RoadmapItem[] }> {
-  try {
-    return parseRoadmapDoc(await readFile(roadmapPath(), "utf8"));
-  } catch {
-    return { items: [] };
-  }
+  // Memoised by mtime; `writeItems` invalidates the same key so a same-process
+  // write is never served a stale roadmap.
+  return (await readParsedFile("roadmap", roadmapPath(), parseRoadmapDoc)) ?? { items: [] };
 }
 
 export async function readItems(): Promise<RoadmapItem[]> {
@@ -495,6 +494,9 @@ async function writeItems(items: RoadmapItem[], preamble?: string): Promise<void
   const temp = `${path}.${process.pid}.tmp`;
   await writeFile(temp, renderRoadmap(items, preamble), "utf8");
   await rename(temp, path);
+  // Bust the read cache for THIS file so the next read reflects the write even
+  // if the rename landed inside the same mtime tick with an identical size.
+  invalidateFile("roadmap", path);
 }
 
 /**

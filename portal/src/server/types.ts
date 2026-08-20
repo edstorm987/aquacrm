@@ -3,6 +3,12 @@
 // means it can be safely imported from edge / middleware / client code
 // when the bundler tree-shakes the unused symbols.
 
+// Type-only import — erased by `isolatedModules`, so it introduces no runtime
+// dependency and this module stays edge/client-safe. `block.ts` is itself
+// dependency-free and only type-imports back from here, so the cycle is
+// compile-time only.
+import type { BlockTreeJSON } from "@/lib/elements/block";
+
 // ─── Tenant identity ──────────────────────────────────────────────────────
 //
 // Three nested levels: Agency → Client → End-customer. Every row in the
@@ -1598,9 +1604,17 @@ export interface SopDocument {
   category?: string;
   categories?: string[];
   tags: string[];
-  kind: "written" | "file";
+  kind: "written" | "file" | "interactive";
   resourceType?: "procedure" | "document" | "presentation" | "video" | "audio" | "image" | "spreadsheet";
   content?: string;
+  /**
+   * Interactive SOP content — an element-engine block tree (the same
+   * vocabulary websites, portals and product stages render). Present only when
+   * `kind === "interactive"`; `written` uses `content` (markdown) and `file`
+   * uses the upload fields. Additive: existing kinds never carry it. Rendered
+   * read-only in the library via the shared `BlockRenderer`.
+   */
+  blocks?: BlockTreeJSON;
   fileName?: string;
   contentType?: string;
   size?: number;

@@ -206,7 +206,7 @@ export async function ApiSection({ tabs, searchParams }: { tabs?: ReactNode; sea
         right={<Pill tone="warn"><TriangleAlert size={11} /> Not a Supabase table</Pill>}
       >
         <div className="flex items-start gap-3">
-          <span aria-hidden className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#f6efdd] text-[#8a7228]">
+          <span aria-hidden className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[color:var(--dev-warning-soft)] text-[color:var(--dev-warning)]">
             <Database size={15} />
           </span>
           <div className="text-sm leading-6 text-[color:var(--dt-muted)]">

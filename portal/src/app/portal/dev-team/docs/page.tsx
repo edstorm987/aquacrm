@@ -127,7 +127,7 @@ export default async function DevDocsEditPage({ searchParams }: { searchParams: 
                 <div className="flex items-baseline justify-between gap-3">
                   <Link
                     href={`/portal/dev-team/docs?doc=${encodeURIComponent(edit.relPath)}`}
-                    className="min-w-0 truncate font-mono text-xs text-[#0b6f6d] hover:underline"
+                    className="min-w-0 truncate font-mono text-xs text-[color:var(--dev-accent)] hover:underline"
                   >
                     {edit.relPath}
                   </Link>
@@ -136,7 +136,7 @@ export default async function DevDocsEditPage({ searchParams }: { searchParams: 
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[color:var(--dt-muted)]">
-                  <UserRound size={11} className="text-[#0b6f6d]" />
+                  <UserRound size={11} className="text-[color:var(--dev-accent)]" />
                   {edit.author}
                   {edit.note ? <span className="text-[color:var(--dt-faint)]">— {edit.note}</span> : null}
                 </div>

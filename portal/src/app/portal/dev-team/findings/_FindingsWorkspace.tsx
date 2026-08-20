@@ -18,9 +18,9 @@ const SEVERITIES: { value: FindingSeverity; label: string; hint: string }[] = [
 ];
 
 const SEV_STYLE: Record<FindingSeverity, string> = {
-  blocker: "bg-[#fbe9e6] text-[#a5443a]",
-  bug: "bg-[#f6efdd] text-[#8a7228]",
-  polish: "bg-[#e6f1f0] text-[#0b6f6d]",
+  blocker: "bg-[color:var(--dev-danger-soft)] text-[color:var(--dev-danger)]",
+  bug: "bg-[color:var(--dev-warning-soft)] text-[color:var(--dev-warning)]",
+  polish: "bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]",
   idea: "bg-[color:var(--dt-hairline)] text-[color:var(--dt-muted)]",
 };
 
@@ -159,8 +159,8 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
 
   const open = findings.filter(f => f.status === "open");
   const rest = findings.filter(f => f.status !== "open");
-  const statusButton = "inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-2 py-1 text-[11px] font-medium text-[color:var(--dt-muted)] transition-colors hover:border-[#bfe0dd] hover:text-[#0b6f6d] disabled:cursor-not-allowed disabled:opacity-40";
-  const input = "w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[#0b6f6d]";
+  const statusButton = "inline-flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-2 py-1 text-[11px] font-medium text-[color:var(--dt-muted)] transition-colors hover:border-[color:var(--dev-accent-line)] hover:text-[color:var(--dev-accent)] disabled:cursor-not-allowed disabled:opacity-40";
+  const input = "w-full rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-2 text-sm text-[color:var(--dt-ink)] outline-none placeholder:text-[color:var(--dt-faint)] focus:border-[color:var(--dev-accent)]";
 
   return (
     <div className="flex flex-col gap-6">
@@ -168,7 +168,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
       <section className="rounded-2xl border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] p-5">
         <div className="mb-3 flex items-center gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-[color:var(--dt-faint)]">Capture what you saw</h2>
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#e6f1f0] px-2 py-0.5 text-[11px] font-medium text-[#0b6f6d]">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--dev-accent-soft)] px-2 py-0.5 text-[11px] font-medium text-[color:var(--dev-accent)]">
             <ClipboardPaste size={11} /> paste a screenshot anywhere
           </span>
         </div>
@@ -186,7 +186,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
             {SEVERITIES.map(s => (
               <button key={s.value} type="button" onClick={() => setSeverity(s.value)} aria-pressed={severity === s.value}
                 className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                  severity === s.value ? "border-[#bfe0dd] bg-[#e6f1f0] text-[#0b6f6d]" : "border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] text-[color:var(--dt-muted)] hover:border-[color:var(--dt-line)]"
+                  severity === s.value ? "border-[color:var(--dev-accent-line)] bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]" : "border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] text-[color:var(--dt-muted)] hover:border-[color:var(--dt-line)]"
                 }`}>
                 <SevIcon s={s.value} />{s.label}
               </button>
@@ -205,11 +205,11 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
             addImages([...e.dataTransfer.files]);
           }}
           className={`mt-3 rounded-xl border-2 border-dashed p-3 transition-colors ${
-            dragOver ? "border-[#0b6f6d] bg-[#e6f1f0]" : "border-[color:var(--dt-line)] bg-[color:var(--dt-raised)]"
+            dragOver ? "border-[color:var(--dev-accent)] bg-[color:var(--dev-accent-soft)]" : "border-[color:var(--dt-line)] bg-[color:var(--dt-raised)]"
           }`}
         >
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-[#0b6f6d] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0a5f5d]">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)]">
               <Upload size={13} />
               Add screenshots
               <input
@@ -234,7 +234,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
                   <img src={src} alt={`Attachment ${i + 1}`} className="h-24 w-auto rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)]" />
                   <button type="button" onClick={() => setShots(prev => prev.filter((_, n) => n !== i))}
                     aria-label={`Remove attachment ${i + 1}`}
-                    className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-[#14231f] text-white transition-transform hover:scale-110">
+                    className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-[color:var(--dev-ink)] text-white transition-transform hover:scale-110">
                     <X size={11} />
                   </button>
                 </div>
@@ -248,16 +248,16 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
         </div>
 
         {error ? (
-          <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-[#eed3cf] bg-[#fbe9e6] px-3 py-2 text-sm text-[#a5443a]">
+          <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-[color:var(--dev-danger-line)] bg-[color:var(--dev-danger-soft)] px-3 py-2 text-sm text-[color:var(--dev-danger)]">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />{error}
           </p>
         ) : null}
         {justSaved ? (
-          <p className="mt-3 flex items-center gap-1.5 text-sm text-[#2f7d4f]"><Check size={15} /> Saved “{justSaved}”.</p>
+          <p className="mt-3 flex items-center gap-1.5 text-sm text-[color:var(--dev-success)]"><Check size={15} /> Saved “{justSaved}”.</p>
         ) : null}
 
         <button type="button" onClick={save} disabled={busy || !title.trim()}
-          className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#0b6f6d] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a5f5d] disabled:cursor-not-allowed disabled:opacity-50">
+          className="mt-3 inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           {busy ? <LoaderCircle size={15} className="animate-spin" /> : null}
           {busy ? "Saving…" : "Save finding"}
         </button>
@@ -271,18 +271,18 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
             <p className="mt-0.5 text-xs text-[color:var(--dt-faint)]">Tick the ones that belong together, then turn them into a plan.</p>
           </div>
           <button type="button" onClick={makePlan} disabled={planning || picked.size === 0}
-            className="inline-flex items-center gap-2 rounded-full bg-[#0b6f6d] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0a5f5d] disabled:cursor-not-allowed disabled:opacity-40">
+            className="inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40">
             {planning ? <LoaderCircle size={13} className="animate-spin" /> : null}
             {planning ? "Creating…" : `Make a plan${picked.size ? ` (${picked.size})` : ""}`}
           </button>
         </div>
 
         {planned ? (
-          <div className="mb-3 rounded-xl border border-[#bfe0dd] bg-[#f4faf9] px-4 py-3 text-sm">
+          <div className="mb-3 rounded-xl border border-[color:var(--dev-accent-line)] bg-[color:var(--dev-accent-soft)] px-4 py-3 text-sm">
             <span className="font-medium text-[color:var(--dt-ink)]">Plan created from {planned.count} finding{planned.count === 1 ? "" : "s"}.</span>{" "}
-            <Link href={`/portal/dev-team/library?doc=${encodeURIComponent(planned.relPath)}`} className="text-[#0b6f6d] underline">Read it</Link>
+            <Link href={`/portal/dev-team/library?doc=${encodeURIComponent(planned.relPath)}`} className="text-[color:var(--dev-accent)] underline">Read it</Link>
             {" · "}
-            <Link href="/portal/dev-team/roadmap?view=now" className="text-[#0b6f6d] underline">See the board</Link>
+            <Link href="/portal/dev-team/roadmap?view=now" className="text-[color:var(--dev-accent)] underline">See the board</Link>
           </div>
         ) : null}
 
@@ -298,7 +298,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
                     if (e.target.checked) next.add(f.slug); else next.delete(f.slug);
                     return next;
                   })}
-                  className="mt-1 h-4 w-4 shrink-0 accent-[#0b6f6d]" />
+                  className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--dev-accent)]" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-[color:var(--dt-ink)]">{f.title}</span>
@@ -340,7 +340,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
                 <span className="flex shrink-0 items-center gap-2">
                   {f.planRelPath ? (
                     <Link href={`/portal/dev-team/library?doc=${encodeURIComponent(f.planRelPath)}`}
-                      className="text-[11px] text-[#0b6f6d] hover:underline">plan</Link>
+                      className="text-[11px] text-[color:var(--dev-accent)] hover:underline">plan</Link>
                   ) : null}
                   <span className="rounded-full bg-[color:var(--dt-hairline)] px-2 py-0.5 text-[11px] text-[color:var(--dt-muted)]">{f.status}</span>
                   {f.status === "fixed" ? (
