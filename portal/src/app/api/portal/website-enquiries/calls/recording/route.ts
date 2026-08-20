@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 
@@ -29,8 +30,8 @@ export async function POST(request: Request) {
     if (!AUDIO_TYPES.has(file.type)) return NextResponse.json({ ok: false, error: "This audio recording format is not supported." }, { status: 415 });
 
     const supabase = await createScopedSupabaseClient();
-    const { data, error } = await supabase.from("brand_enquiries").select("id, name, metadata").eq("id", enquiryId).maybeSingle();
-    if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
+    const data = await loadOwnedEnquiry<{ id: string; name: string; metadata: Record<string, unknown> | null }>(
+      supabase, { id: enquiryId, agencyId: session.agencyId, columns: ["name"] });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
     const metadata = data.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, unknown> : {};
     if (metadata.activeCallRecordingConsent !== true) {

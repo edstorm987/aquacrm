@@ -2,6 +2,8 @@ import "server-only";
 
 import { createClient, type User } from "@supabase/supabase-js";
 
+import { isMissingAgencyIdColumn } from "./enquiryAgencyColumn";
+
 function requireAdminConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -38,6 +40,15 @@ interface ProvisionIdentityInput {
   password: string;
   name?: string;
   role: "owner" | "staff" | "client";
+  /**
+   * The agency this identity belongs to. Stamped onto `profiles.agency_id` so
+   * `current_profile_agency_id()` is non-null for this user, which is what turns
+   * the null-tolerant `brand_enquiries` policy from "internal users manage
+   * EVERY agency" into real per-tenant scoping. Optional: callers that cannot
+   * determine an agency (e.g. a client whose agency is unknown at setup) omit
+   * it, and the profile is created without the column exactly as before.
+   */
+  agencyId?: string;
 }
 
 export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
@@ -58,12 +69,29 @@ export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
     throw new Error(error?.message ?? "Could not create the Supabase sign-in.");
   }
 
-  const { error: profileError } = await admin.from("profiles").upsert({
+  const agencyId = input.agencyId?.trim() || undefined;
+  const baseProfile = {
     id: data.user.id,
     email,
     full_name: input.name?.trim() || email.split("@")[0],
     role: input.role,
-  });
+  };
+
+  // `agency_id` is added to `profiles` by the hand-applied migration, so the
+  // generated Supabase types (which brand the row to reject unknown columns)
+  // do not know it yet — hence the cast. The runtime column check below covers
+  // the pre-migration window where the column genuinely is not there.
+  const stampedProfile = { ...baseProfile, agency_id: agencyId };
+  let { error: profileError } = await admin
+    .from("profiles")
+    .upsert((agencyId ? stampedProfile : baseProfile) as never);
+  if (profileError && agencyId && isMissingAgencyIdColumn(profileError)) {
+    // `profiles.agency_id` is added by the same hand-applied migration as
+    // `brand_enquiries.agency_id`. Before it runs, provisioning must not break:
+    // retry without the column. The tenant scoping it enables simply switches on
+    // once Ed applies the migration and this path stops being taken.
+    ({ error: profileError } = await admin.from("profiles").upsert(baseProfile));
+  }
   if (profileError) {
     await admin.auth.admin.deleteUser(data.user.id);
     throw new Error(`Could not create the account profile: ${profileError.message}`);

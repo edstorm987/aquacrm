@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { PUBLIC_AQUA_SITES, publicAquaSiteName } from "@/lib/public/publicSites";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isMissingAgencyIdColumn } from "@/lib/supabase/enquiryAgencyColumn";
+import { isMissingAgencyIdColumn, isMissingAgencyIdColumnRead } from "@/lib/supabase/enquiryAgencyColumn";
+import { pickTenantOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { resolveAgencyByMasterSiteKey, resolveWebsiteSourceRouting } from "@/server/websiteSources";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import {
@@ -206,19 +207,35 @@ export async function POST(req: NextRequest) {
     // Match on whichever contact detail the form actually collected. A form
     // that asked for neither cannot be tied to an enquiry, and is kept on its
     // own rather than guessed onto somebody else's record.
-    type EnquiryRow = { id: string; metadata: Record<string, unknown> | null };
+    //
+    // TENANT SCOPING (multi-tenant isolation). The admin client bypasses RLS,
+    // so a bare newest-by-email match would attach this submission to whichever
+    // agency happened to have the most recent row for that address — enriching,
+    // or overwriting metadata on, a STRANGER'S enquiry. So a match is accepted
+    // only when its tenancy equals the submission's own resolved agency
+    // (`masterAgencyId`): candidates are fetched newest-first and the first one
+    // that belongs to this agency is taken; a newer cross-tenant row can never
+    // shadow it. With no resolved agency there is nothing to scope to, so the
+    // capture is held on its own rather than risking a cross-tenant attach.
+    type EnquiryRow = { id: string; agency_id?: string | null; metadata: Record<string, unknown> | null };
     let match: EnquiryRow | null = null;
-    if (email || phone) {
-      const query = supabase
-        .from("brand_enquiries")
-        .select("id, metadata")
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const { data } = email
-        ? await query.eq("email", email)
-        : await query.eq("phone", phone);
-      match = (data?.[0] as EnquiryRow | undefined) ?? null;
+    if (masterAgencyId && (email || phone)) {
+      const runQuery = (withAgencyColumn: boolean) => {
+        const query = supabase
+          .from("brand_enquiries")
+          .select(withAgencyColumn ? "id, agency_id, metadata" : "id, metadata")
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        return email ? query.eq("email", email) : query.eq("phone", phone);
+      };
+      // Select agency_id when it exists; before the hand-applied migration the
+      // column is absent, so retry without it and let metadata.agencyId decide.
+      let { data, error } = await runQuery(true);
+      if (error && isMissingAgencyIdColumnRead(error)) {
+        ({ data, error } = await runQuery(false));
+      }
+      match = pickTenantOwnedEnquiry((data ?? []) as unknown as EnquiryRow[], masterAgencyId);
     }
 
     if (match) {

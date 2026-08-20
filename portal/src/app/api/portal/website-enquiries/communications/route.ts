@@ -14,6 +14,7 @@ import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLead
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, readInboxMedia, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
@@ -76,14 +77,13 @@ export async function POST(request: Request) {
     if (!sender) return NextResponse.json({ ok: false, error: "The selected send-as account is no longer connected." }, { status: 409 });
 
     const supabase = await createScopedSupabaseClient();
-    const { data, error } = await supabase
-      .from("brand_enquiries")
-      .select("id, brand_slug, name, email, phone, message, metadata")
-      .eq("id", enquiryId)
-      .maybeSingle();
-    if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
+    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
+      id: enquiryId,
+      agencyId: session.agencyId,
+      columns: ["brand_slug", "name", "email", "phone", "message"],
+    });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
-    const enquiry = data as EnquiryRow;
+    const enquiry = data;
     const media = await Promise.all(attachmentTokens.map(async token => {
       const payload = verifyInboxMediaToken(token);
       if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "website" || payload.targetId !== enquiry.id) throw new Error("An attachment is invalid or has expired.");

@@ -77,6 +77,9 @@ export async function POST(request: NextRequest) {
           password,
           name: user.name,
           role: "client",
+          // A client identity carries its agency where the account records one,
+          // so its profile is tenant-stamped like staff; omitted when unknown.
+          agencyId: user.agencyId || undefined,
         });
       }
     } catch (error) {

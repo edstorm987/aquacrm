@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
       password,
       name,
       role: "staff",
+      agencyId,
     });
     const user = createUser({
       name,

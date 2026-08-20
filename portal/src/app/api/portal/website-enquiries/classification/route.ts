@@ -12,6 +12,7 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { pipelinePort } from "@/lib/server/leadsPipelinePorts";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { getInstall } from "@/server/pluginInstalls";
 import { classifyPerson, upsertPerson } from "@/server/persons";
 import { deleteCard, getPipelineBySlug, listCards } from "@/server/pipelines";
@@ -45,15 +46,14 @@ export async function PATCH(request: Request) {
     const classification = body.classification;
 
     const supabase = await createScopedSupabaseClient();
-    const { data, error } = await supabase
-      .from("brand_enquiries")
-      .select("id, brand_slug, name, email, phone, contact_method, services, message, source_url, campaign, created_at, metadata")
-      .eq("id", enquiryId)
-      .maybeSingle();
-    if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
+    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
+      id: enquiryId,
+      agencyId: session.agencyId,
+      columns: ["brand_slug", "name", "email", "phone", "contact_method", "services", "message", "source_url", "campaign", "created_at"],
+    });
     if (!data) return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
 
-    const enquiry = data as EnquiryRow;
+    const enquiry = data;
     const currentMetadata = enquiry.metadata ?? {};
     const previousClassification = isWebsiteEnquiryClassification(currentMetadata.enquiryClassification)
       ? currentMetadata.enquiryClassification

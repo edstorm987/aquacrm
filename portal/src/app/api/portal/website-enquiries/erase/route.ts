@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { ensureHydrated } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 
@@ -24,13 +25,14 @@ export async function POST(request: Request) {
 
     const supabase = await createScopedSupabaseClient();
     // Load first, so a missing one is a clean 404 rather than a silent no-op,
-    // and so nothing outside this agency's brands can be reached by id.
-    const { data, error } = await supabase
-      .from("brand_enquiries")
-      .select("id, brand_slug")
-      .eq("id", enquiryId)
-      .maybeSingle();
-    if (error) throw new Error(`Could not load the enquiry: ${error.message}`);
+    // and — via the ownership guard — so nothing outside this agency can be
+    // reached by id. A foreign enquiry returns null identically to a missing
+    // one (no existence oracle), and the row is never deleted.
+    const data = await loadOwnedEnquiry(supabase, {
+      id: enquiryId,
+      agencyId: session.agencyId,
+      columns: ["brand_slug"],
+    });
     if (!data) return NextResponse.json({ ok: false, error: "That enquiry was not found." }, { status: 404 });
 
     // `.select("id")` makes the delete LOUD under row-level security: a policy

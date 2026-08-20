@@ -476,6 +476,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-enquiry-tenant-isolation.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-env-secrets.test.ts`
 
 _No exported symbols (internal/side-effect module)._

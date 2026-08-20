@@ -2,7 +2,7 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md)
 
-**Status: BUILDING — phases 1, 2 and 5 done; phase 3 written and waiting on Ed's `db push`; phase 4 first reduction landed 2026-08-20 (23→13 call sites, pinned). The headline premise of this plan was wrong and has been corrected.**
+**Status: BUILDING — phases 1, 2 and 5 done; phase 3 written and waiting on Ed's `db push`; phase 4 first reduction landed 2026-08-20 (23→13 call sites, pinned). App-level `brand_enquiries` tenant isolation landed 2026-08-20 as defence-in-depth (see below). The headline premise of this plan was wrong and has been corrected.**
 
 This plan was written around "RLS is not in the repo". It is. The policies live
 in **[`../../../../supabase/migrations/`](../../../../supabase/README.md)** — a
@@ -68,6 +68,18 @@ tenant isolation, and it must not be sold as such.**
    applied. **Ed applies it: `supabase db push` from `aquaCRM/supabase/`, then
    run `rls-verify.sql` in the SQL editor.** Nothing here has touched the live
    database.
+
+   **App-level isolation now closes this at the code layer too (2026-08-20),** so
+   the table is not exposed cross-tenant during the pre-migration window (when RLS
+   is inert because `profiles.agency_id` is unpopulated). New guard
+   `src/lib/supabase/ownedEnquiry.ts` (`loadOwnedEnquiry` / `pickTenantOwnedEnquiry`,
+   owning by `agency_id` else `metadata.agencyId`) is loaded by every
+   website-enquiries route (`erase`, `classification`, `status`, `reply`, `lead`,
+   `communications`, `calls`, `calls/recording[/content]`) and by `form-capture`'s
+   admin-client matcher. `provisionSupabaseIdentity` now stamps `profiles.agency_id`
+   (retry-without-column pre-migration) from the callers that know the agency, so
+   applying the migration flips RLS from inert to enforcing with no further code
+   change. Proof: `scripts/smoke-enquiry-tenant-isolation.test.ts`.
 
 Secondary: `clients`, `client_portals`, `client_portal_members` and
 `audit_events` exist, are policed, are empty, and are queried by no portal code

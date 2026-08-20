@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
       const passwordCheck = validatePassword(password);
       if (!passwordCheck.ok) return error(passwordCheck.error || "Choose a stronger temporary password.");
       if (getUser(application.email)) return error("A user with this email already exists. Link the existing employee record instead.", 409);
-      await provisionSupabaseIdentity({ email: application.email, password, name: application.name, role: "staff" });
+      await provisionSupabaseIdentity({ email: application.email, password, name: application.name, role: "staff", agencyId });
       const user = createUser({ email: application.email, password, name: application.name, role: "agency-staff", agencyId, mustChangePassword: true });
       const employmentType = text(body.employmentType, 40) as PeopleEmploymentType;
       const employee = createPeopleEmployee({
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
       } else {
         const passwordCheck = validatePassword(password);
         if (!passwordCheck.ok) return error(passwordCheck.error || "Choose a stronger temporary password.");
-        await provisionSupabaseIdentity({ email: employee.email, password, name: employee.name, role: "staff" });
+        await provisionSupabaseIdentity({ email: employee.email, password, name: employee.name, role: "staff", agencyId });
         user = createUser({ email: employee.email, password, name: employee.name, role: "agency-staff", agencyId, mustChangePassword: true });
       }
       const updated = updatePeopleEmployee(agencyId, employee.id, { userId: user.id, status: "active" }, session.userId);

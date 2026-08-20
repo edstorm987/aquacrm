@@ -28,6 +28,40 @@ map stays trustworthy.
 
 ---
 
+## 2026-08-20 — Website-enquiry tenant isolation: an app-level ownership guard on brand_enquiries (worker)
+- **The hole (HIGH, multi-tenant isolation).** `brand_enquiries` RLS is
+  null-tolerant AND `profiles.agency_id` was never populated, so
+  `current_profile_agency_id()` is null for everyone and the policy degrades to
+  "any internal user manages EVERY agency's enquiries". The website-enquiries
+  routes addressed rows by id alone (ids are enumerable, not secret), so an owner
+  of one agency could erase / reply to / read another agency's enquiries.
+- **The fix (defence in depth, works before AND after the hand-applied
+  `agency_id` migration).**
+  - New shared guard `src/lib/supabase/ownedEnquiry.ts`: `loadOwnedEnquiry()`
+    loads a row by id and returns it only if it belongs to the caller's agency
+    (`agency_id` column, else `metadata.agencyId`); a foreign row returns null
+    identically to a missing one (no existence oracle). It projects `agency_id`
+    and retries without it on the pre-migration `42703` (new
+    `isMissingAgencyIdColumnRead` in `enquiryAgencyColumn.ts`).
+    `pickTenantOwnedEnquiry()` is the admin-client matcher counterpart.
+  - Every website-enquiries route now loads through the guard with
+    `session.agencyId`: `erase`, `classification`, `status`, `reply`, `lead`,
+    `communications`, `calls` (+ `calls/recording`, `calls/recording/content`).
+  - `form-capture` (admin client, RLS-bypass) now scopes its email/phone match to
+    the resolved `masterAgencyId` — fetch candidates, accept one only if its
+    tenancy matches; otherwise hold the capture rather than attach to a stranger.
+  - **Root cause:** `provisionSupabaseIdentity` now stamps `profiles.agency_id`
+    (optional input; retries without the column pre-migration). Callers that know
+    the agency pass it: `agency/users`, `people` (hire/provision), `customer/setup`.
+    Once Ed applies the migration, RLS itself scopes the table with no code change.
+- **Tests:** `scripts/smoke-enquiry-tenant-isolation.test.ts` — guard predicate,
+  foreign-id-looks-like-missing (pre + post migration), form-capture cross-tenant
+  matcher, and the REAL erase handler driven in-process proving an agency-B owner
+  cannot erase an agency-A enquiry (row survives) while the owner still can. Full
+  smoke suite green (2506 pass / 1 skip); `tsc --noEmit` clean.
+- **Docs:** this entry; [plans/rls-enable.md](plans/rls-enable.md) status note.
+  Untouched: the migration SQL and all other routes.
+
 ## 2026-08-20 — MFA phases 3+4: session assurance, side doors closed, recovery codes (worker)
 
 - **Session assurance:** every session-minting auth route now stamps `aal` onto `lk_session_v1` — "aal2" only when a second factor (TOTP or recovery code) was actually verified by the minting flow; password-only/magic/Google sign-ins say "aal1"; absence fails closed. Read with `sessionAssurance` / `sessionHasSecondFactor` (`lib/server/auth/mfa.ts`). Additive optional fields on `SessionPayload` + `issueSession`.

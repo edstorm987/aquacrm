@@ -7,6 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { ensureHydrated } from "@/server/storage";
 
 export const runtime = "nodejs";
@@ -21,8 +22,10 @@ export async function GET(request: NextRequest) {
     const callId = request.nextUrl.searchParams.get("callId")?.trim() ?? "";
     if (!enquiryId || !callId) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
     const supabase = await createScopedSupabaseClient();
-    const { data, error } = await supabase.from("brand_enquiries").select("metadata").eq("id", enquiryId).maybeSingle();
-    if (error || !data) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
+    // Ownership-guarded so another agency's recording cannot be streamed by id;
+    // a foreign enquiry returns null exactly as a missing one.
+    const data = await loadOwnedEnquiry(supabase, { id: enquiryId, agencyId: session.agencyId });
+    if (!data) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
     const metadata = data.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, unknown> : {};
     const calls = Array.isArray(metadata.inboxCalls) ? metadata.inboxCalls as Array<Record<string, unknown>> : [];
     const call = calls.find(item => item && item.id === callId);

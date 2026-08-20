@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import type { WebsiteEnquiryStatus } from "@/lib/server/websiteEnquiries";
 import { ensureHydrated } from "@/server/storage";
 
@@ -27,15 +28,10 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = await createScopedSupabaseClient();
-    const { data, error } = await supabase
-      .from("brand_enquiries")
-      .select("id, metadata")
-      .eq("id", enquiryId)
-      .maybeSingle();
-    if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
+    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, { id: enquiryId, agencyId: session.agencyId });
     if (!data) return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
 
-    const enquiry = data as EnquiryRow;
+    const enquiry = data;
     const now = new Date().toISOString();
     const currentMetadata = enquiry.metadata ?? {};
     const history = Array.isArray(currentMetadata.inboxStatusHistory)

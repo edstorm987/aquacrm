@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
@@ -64,15 +65,14 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createScopedSupabaseClient();
-    const { data, error } = await supabase
-      .from("brand_enquiries")
-      .select("id, brand_slug, name, email, message, metadata")
-      .eq("id", enquiryId)
-      .maybeSingle();
-    if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
+    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
+      id: enquiryId,
+      agencyId: session.agencyId,
+      columns: ["brand_slug", "name", "email", "message"],
+    });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
 
-    const enquiry = data as EnquiryRow;
+    const enquiry = data;
     const recipient = enquiry.email?.trim().toLowerCase() ?? "";
     if (!EMAIL.test(recipient)) {
       return NextResponse.json({ ok: false, error: "This enquiry does not have a valid email address to reply to." }, { status: 400 });

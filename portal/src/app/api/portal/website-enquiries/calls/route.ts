@@ -6,6 +6,7 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { initiatePhoneCall, resolveCommunicationSender } from "@/lib/server/email/outboundCommunications";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import { createScopedSupabaseClient, type ScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import type { WebsiteEnquiryCall } from "@/lib/server/websiteEnquiries";
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     if (!enquiryId || !senderId) return NextResponse.json({ ok: false, error: "Enquiry and call identity are required." }, { status: 400 });
     const sender = resolveCommunicationSender(session.agencyId, senderId, "call");
     if (!sender) return NextResponse.json({ ok: false, error: "The selected call identity is not available." }, { status: 409 });
-    const { supabase, enquiry } = await loadEnquiry(enquiryId);
+    const { supabase, enquiry } = await loadEnquiry(enquiryId, session.agencyId);
     if (!enquiry.phone?.trim()) return NextResponse.json({ ok: false, error: "This enquiry has no phone number." }, { status: 400 });
     const initiation = await initiatePhoneCall({ agencyId: session.agencyId, sender, customerPhone: enquiry.phone });
     if (initiation.reason) return NextResponse.json({ ok: false, error: initiation.reason }, { status: 502 });
@@ -92,7 +93,7 @@ export async function PATCH(request: Request) {
     if (!enquiryId || !callId || !outcome || !OUTCOMES.has(outcome)) {
       return NextResponse.json({ ok: false, error: "Enquiry, call and outcome are required." }, { status: 400 });
     }
-    const { supabase, enquiry } = await loadEnquiry(enquiryId);
+    const { supabase, enquiry } = await loadEnquiry(enquiryId, session.agencyId);
     const metadata = enquiry.metadata ?? {};
     const calls = readCalls(metadata);
     const existing = calls.find(call => call.id === callId);
@@ -151,12 +152,13 @@ export async function PATCH(request: Request) {
   }
 }
 
-async function loadEnquiry(id: string): Promise<{ supabase: ScopedSupabaseClient; enquiry: EnquiryRow }> {
+async function loadEnquiry(id: string, agencyId: string): Promise<{ supabase: ScopedSupabaseClient; enquiry: EnquiryRow }> {
   const supabase = await createScopedSupabaseClient();
-  const { data, error } = await supabase.from("brand_enquiries").select("id, name, phone, metadata").eq("id", id).maybeSingle();
-  if (error) throw new Error(`Could not load website enquiry: ${error.message}`);
-  if (!data) throw new Error("website_enquiry_not_found");
-  return { supabase, enquiry: data as EnquiryRow };
+  // Ownership-guarded: an enquiry outside this agency returns null exactly as a
+  // missing one, so call mode can never be driven against another tenant's row.
+  const enquiry = await loadOwnedEnquiry<EnquiryRow>(supabase, { id, agencyId, columns: ["name", "phone"] });
+  if (!enquiry) throw new Error("website_enquiry_not_found");
+  return { supabase, enquiry };
 }
 
 function readCalls(metadata: Record<string, unknown>): WebsiteEnquiryCall[] {
