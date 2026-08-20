@@ -47,3 +47,31 @@ The single source of truth for what every folder is and what's left. Companion t
 1. Executive surface → 2. `src/engines/` move → 3. finish each engine → 4. Operations container → 5. launch-hardening (Ed's track, parallel).
 
 Every item is a written plan in `docs/development/plans/`. This file + the artifact index them.
+
+## The concrete `src/engines/` layout (decided — so the move is unambiguous)
+The engines currently span three layers: client-safe (`src/lib/*`), server-only
+(`src/lib/server/*`), and state (`src/server/*`). Preserve that split INSIDE each engine
+with a `server/` subfolder, so the client/server boundary the app relies on is never lost:
+
+```
+src/engines/
+├── editor/                  # Dev Editor Engine
+│   ├── (from src/lib/editing/ + src/lib/elements/)   ← client-safe
+│   └── server/              (from src/lib/server/siteEditor/)   ← server-only (git/github)
+├── sop/                     # SOP Engine
+│   └── server/              (from src/server/sops.ts + sopGuides.ts)   ← state layer
+│       # UI stays in app/portal/agency/sop-library/ (that is a WORKSPACE, not the engine)
+└── data/                    # Data Engine (Radar + KPI)
+    ├── (from src/lib/radar/ + src/lib/performance/[kpi] + src/lib/intelligence/)  ← client-safe
+    └── server/              (from src/lib/server/radar/ + src/lib/server/kpi/)   ← server-only
+```
+
+Rules:
+- The **engine** is the reusable logic. Its **UI/screens stay in `app/portal/*`** (those are
+  Workspaces — the cars — not the engine).
+- The `server/` subfolder keeps `import "server-only"` modules separate, exactly as `lib/server/`
+  does today, so nothing leaks a server module into a client bundle.
+- The move is mechanical + manifest-driven (rewrite every import: `@/lib/editing/*` →
+  `@/engines/editor/*`, etc.), suite-guarded, same protocol as the 2026-08-20 `src/lib` reorg.
+  Add an `@/engines/*` tsconfig path alias.
+- Run it on a CLEAN tree with NO other lane active (it rewrites imports across the whole codebase).
