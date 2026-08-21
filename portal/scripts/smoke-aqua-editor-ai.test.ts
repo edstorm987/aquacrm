@@ -81,6 +81,34 @@ describe("Aqua Editor AI — the assist depth", () => {
     assert.ok(!/save-draft|publish/.test(panel), "the assistant panel must not write to the portal itself");
   });
 
+  it("gives every mode its own skin, so they cannot be confused for each other", async () => {
+    const { MODE_SKINS } = await import("../src/components/editing/EditorModeSwitch");
+    const ids = EDITING_MODES.map(mode => mode.id);
+    for (const id of ids) {
+      assert.ok(MODE_SKINS[id], `${id} has no skin`);
+      assert.match(MODE_SKINS[id].accent, /^#[0-9a-f]{6}$/i, `${id}'s accent is not a colour`);
+    }
+    // Four identical-looking modes are four modes you must READ to tell apart.
+    const accents = new Set(ids.map(id => MODE_SKINS[id].accent));
+    assert.equal(accents.size, ids.length, "two modes share an accent");
+  });
+
+  it("puts the depth switch in the top bar, not buried in the rail", () => {
+    const studio = read("src", "app", "portal", "agency", "portals", "editor", "_ClientPortalStudio.tsx");
+    assert.match(studio, /<EditorModeSwitch/);
+    // …and the surface repaints with the mode rather than one control.
+    assert.match(studio, /data-editing-mode=\{editingModeId\}/);
+    assert.match(studio, /--mode-accent/);
+  });
+
+  it("plays the cutscene only on a CHANGE, and only when motion is wanted", () => {
+    const sw = read("src", "components", "editing", "EditorModeSwitch.tsx");
+    assert.match(sw, /cinematicModeEnabled\(\)/, "respects cinematic mode");
+    assert.match(sw, /prefers-reduced-motion/, "respects reduced motion");
+    assert.match(sw, /first\.current/, "arriving is not a transition");
+    assert.match(sw, /pointer-events-none/, "a cutscene must never swallow a click");
+  });
+
   it("is wired into both editor doors", () => {
     for (const route of [
       ["src", "app", "portal", "agency", "portals", "editor", "page.tsx"],

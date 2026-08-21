@@ -21,6 +21,7 @@ import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
 import { AquaEditorAI } from "@/components/editing/AquaEditorAI";
 import { EditorCodeCanvas } from "@/components/editing/EditorCodeCanvas";
 import { AddMenu, fileAddOptions, type AddOption } from "@/components/editing/AddMenu";
+import { EditorModeSwitch, modeSkin } from "@/components/editing/EditorModeSwitch";
 import { BreakpointControl, DEFAULT_BREAKPOINT, breakpointLabel, breakpointSize, type Breakpoint } from "@/components/editing/BreakpointControl";
 import type { EditorAssistantProps } from "@/engines/editor/server/editorAssistant";
 import { elementSource, repoRelativePath } from "@/engines/editor/editing/elementSource";
@@ -650,15 +651,34 @@ export function ClientPortalStudio({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#111311] text-white">
-      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 border-b border-white/10 bg-[#151715] px-3 xl:flex xl:min-h-[68px] xl:gap-3 xl:px-4">
+    <div
+      className="fixed inset-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#111311] text-white"
+      data-editing-mode={editingModeId}
+      // Every accent in the editor reads from these, so a mode change repaints
+      // the whole surface rather than one control.
+      style={{
+        ["--mode-accent" as string]: modeSkin(editingModeId).accent,
+        ["--mode-soft" as string]: modeSkin(editingModeId).soft,
+        ["--mode-line" as string]: modeSkin(editingModeId).line,
+      }}
+    >
+      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 border-b bg-[#151715] px-3 xl:flex xl:min-h-[68px] xl:gap-3 xl:px-4" style={{ borderBottomColor: "var(--mode-line)" }}>
         <Link href={backHref} onClick={event => { if (!confirmDraftDiscard()) event.preventDefault(); }} aria-label={backLabel} title={backLabel} className="my-2 grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/70 hover:bg-white/5 hover:text-white xl:my-0">
           <ArrowLeft size={18} />
         </Link>
         <div className="hidden min-w-40 xl:block">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300/75">Dev Editor</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--mode-accent)" }}>Dev Editor</p>
           <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{projectName || (scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name)}</p>
         </div>
+
+        {/* How deep you want to go leads the bar: it is the single most
+            important choice in the editor, and it used to be a small select
+            buried in the right rail. */}
+        <EditorModeSwitch
+          mode={editingModeId}
+          onChange={next => changeMode(next)}
+          available={portalTarget ? undefined : ["assist", "developer"]}
+        />
 
         {/* The primary switch is what the CANVAS shows — the live thing, its
             code, or both. Template vs Client is a narrower question (which
@@ -748,7 +768,7 @@ export function ClientPortalStudio({
         {portalTarget ? (
           <div className="col-start-3 row-start-1 flex shrink-0 items-center justify-self-end gap-2 xl:col-auto xl:row-auto">
             <button type="button" onClick={saveDraft} disabled={!canManage || busy || !dirty} className="hidden min-h-10 items-center gap-2 rounded-md border border-white/12 px-3 text-xs font-semibold text-white/75 enabled:hover:bg-white/5 disabled:opacity-35 md:inline-flex">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />} Save draft</button>
-            <button type="button" onClick={publish} disabled={!canManage || busy || !record} aria-label="Publish portal" aria-busy={busy} className="inline-flex size-10 items-center justify-center gap-2 rounded-md bg-cyan-300 text-xs font-bold text-[#102124] hover:bg-cyan-200 disabled:opacity-40 sm:w-auto sm:px-3">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Upload size={15} />}<span className="hidden sm:inline">Publish</span></button>
+            <button type="button" onClick={publish} disabled={!canManage || busy || !record} aria-label="Publish portal" aria-busy={busy} style={{ background: "var(--mode-accent)" }} className="inline-flex size-10 items-center justify-center gap-2 rounded-md text-xs font-bold text-[#0d120f] hover:brightness-110 disabled:opacity-40 sm:w-auto sm:px-3">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Upload size={15} />}<span className="hidden sm:inline">Publish</span></button>
           </div>
         ) : null}
       </header>
@@ -891,21 +911,6 @@ export function ClientPortalStudio({
               </button>
             </div>
 
-            {/* Depth sits with the panel it governs, on one quiet row. */}
-            <div className="flex shrink-0 items-center gap-1.5 border-b border-white/10 px-3 py-1.5">
-              <Gauge size={12} aria-hidden className="shrink-0 text-white/25" />
-              <select
-                aria-label="How deep do you want to go?"
-                title={editingMode(editingModeId).summary}
-                value={editingModeId}
-                onChange={event => changeMode(event.target.value as EditingMode)}
-                className="min-h-7 min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-[11px] font-medium text-white/65 outline-none hover:border-white/12 hover:bg-white/[0.04] focus:border-cyan-300/40"
-              >
-                {EDITING_MODES.map(option => (
-                  <option key={option.id} value={option.id} className="bg-[#141614]">{option.label}</option>
-                ))}
-              </select>
-            </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {portalDocument && record ? (
@@ -963,11 +968,12 @@ export function ClientPortalStudio({
                 aria-label={item.label}
                 title={item.label}
                 className={`relative grid size-10 place-items-center rounded-md transition ${
-                  active ? "bg-white/[0.08] text-cyan-300" : "text-white/35 hover:bg-white/[0.05] hover:text-white/80"
+                  active ? "bg-white/[0.08]" : "text-white/35 hover:bg-white/[0.05] hover:text-white/80"
                 }`}
+                style={active ? { color: "var(--mode-accent)" } : undefined}
               >
                 <Icon size={17} aria-hidden />
-                {active ? <span aria-hidden className="absolute -left-1.5 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-cyan-300" /> : null}
+                {active ? <span aria-hidden className="absolute -left-1.5 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full" style={{ background: "var(--mode-accent)" }} /> : null}
               </button>
             );
           })}
