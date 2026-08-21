@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, Gauge, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelRightClose, PanelRightOpen, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, Gauge, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, MousePointerClick, Palette, PanelRightClose, PanelRightOpen, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/portal/clientPortalDesign";
@@ -11,6 +11,7 @@ import {
   createPortalBlock,
   createPortalCustomPage,
   portalBuilder,
+  portalPageBlocks,
   portalBuilderId,
   portalSlug,
   uniquePortalSlug,
@@ -991,6 +992,54 @@ function Inspector({
   }
 
   if (tab === "content") {
+    // ── Selection drives this panel ──────────────────────────────────────
+    // Agreed with Ed (docs/development/plans/dev-editor-inspector.md): you
+    // select a thing on the canvas and the panel shows THAT thing. The page
+    // is the default selection, so its introduction stays reachable without
+    // scrolling past every block on it.
+    const pageBlocks: ClientPortalPageBlock[] = customPageId
+      ? portalBuilder(document).customPages.find(page => page.id === customPageId)?.blocks ?? []
+      : portalPageBlocks(document, section);
+    const selectedBlock = selectedBlockId
+      ? pageBlocks.find(item => item.id === selectedBlockId)
+      : undefined;
+
+    if (selectedBlock) {
+      const name = selectedBlock.type === "system-content"
+        ? "Live workspace"
+        : CLIENT_PORTAL_BLOCK_REGISTRY.find(item => item.type === selectedBlock.type)?.label ?? selectedBlock.type;
+      return (
+        <div className="grid gap-4">
+          {/* What is selected, and the way back out of it. */}
+          <div className="flex items-center gap-2 rounded-md border border-cyan-300/25 bg-cyan-300/[0.06] px-2.5 py-2">
+            <MousePointerClick size={13} aria-hidden className="shrink-0 text-cyan-300/80" />
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-cyan-100">{name}</span>
+            <button
+              type="button"
+              onClick={() => selectBlock("")}
+              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-cyan-200/70 hover:bg-cyan-300/10 hover:text-cyan-100"
+            >
+              Edit the page instead
+            </button>
+          </div>
+          <PortalBlockEditor
+            block={selectedBlock}
+            disabled={editingDisabled}
+            update={updater => edit(current => {
+              const blocks: ClientPortalPageBlock[] = customPageId
+                ? portalBuilder(current).customPages.find(page => page.id === customPageId)?.blocks ?? []
+                : portalPageBlocks(current, section);
+              const target = blocks.find(item => item.id === selectedBlock.id);
+              if (target) updater(target);
+            })}
+            duplicate={() => {}}
+            remove={() => {}}
+            productOptions={productOptions}
+          />
+        </div>
+      );
+    }
+
     if (customPageId) {
       return <div><InspectorHeading eyebrow="Custom page" title="Compose this page in Builder" body="Custom pages are assembled from ordered blocks. Open Builder to edit content, live data, layout and destinations together." /></div>;
     }
@@ -999,9 +1048,13 @@ function Inspector({
     return (
       <div className="grid gap-6">
         <InspectorHeading eyebrow={SECTION_LABELS[section]} title="Page introduction" body="Tokens such as {firstName}, {providerName}, {projectLabel}, {stageHeading}, and {stageBody} stay dynamic." />
-        <Field label="Eyebrow" value={page.eyebrow} onChange={value => edit(current => { current.pages[section].eyebrow = value; })} disabled={editingDisabled} />
-        <Field label="Heading" value={page.title} onChange={value => edit(current => { current.pages[section].title = value; })} disabled={editingDisabled} />
-        <Field label="Introduction" value={page.body} multiline onChange={value => edit(current => { current.pages[section].body = value; })} disabled={editingDisabled} />
+        <p className="-mt-3 flex items-center gap-1.5 text-[10px] text-white/30">
+          <MousePointerClick size={11} aria-hidden /> Click anything on the page to edit just that piece.
+        </p>
+        {/* Named by what you can see, not by the design term for it. */}
+        <Field label="Small label above" value={page.eyebrow} onChange={value => edit(current => { current.pages[section].eyebrow = value; })} disabled={editingDisabled} />
+        <Field label="Headline" value={page.title} onChange={value => edit(current => { current.pages[section].title = value; })} disabled={editingDisabled} />
+        <Field label="Paragraph" value={page.body} multiline onChange={value => edit(current => { current.pages[section].body = value; })} disabled={editingDisabled} />
         {section === "home" ? (
           <div className="grid gap-4 border-t border-white/10 pt-6">
             <InspectorHeading eyebrow="Home" title="Home panels" body="Edit the supporting labels and client-care panel beneath the main stage area." />
