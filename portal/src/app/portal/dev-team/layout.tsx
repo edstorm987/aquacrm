@@ -145,6 +145,74 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
           --dev-violet: #b79ae6; --dev-purple: #cf8ac9; --dev-indigo: #8f9ee8;
           --dev-cyan: #4bb6d4; --dev-slate: #93a7b5; --dev-glow: rgba(255,122,47,0.5);
         }
+        /* The CHROME adopts the workspace theme.
+           Command Centre already does this — its shell themes the topbar and
+           sidebar to match the station. Dev Team themed only its main content,
+           so a plain white topbar and sidebar sat around a mill-yard (or forge)
+           workspace and the shell stopped at the content edge.
+           Marked important for the same reason as the hover rules below: the
+           themed chrome is selected at html[data-color-mode][data-portal-shell]
+           strength, which outranks any class selector here. Scoped to this
+           shell, so no other workspace changes. Popovers (profile, notification
+           centre, radar, search, dev console) are excluded — they carry their
+           own surfaces. */
+        .mm-dev-team-shell .mm-portal-topbar {
+          background: var(--dt-surface) !important;
+          border-bottom-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar .mm-private-chrome > p:first-child {
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar .mm-private-chrome > p:last-child {
+          color: var(--dt-muted) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar
+          :is(button, a):not(.mm-profile-menu :is(button, a)):not(.mm-notification-centre :is(button, a)):not(.mm-radar-popover :is(button, a)):not(#aqua-workspace-search :is(button, a)):not(.mm-dev-console-panel :is(button, a)):not(.mm-pinned-menu :is(button, a)) {
+          background: var(--dt-raised) !important;
+          border-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar
+          :is(button, a):not(.mm-profile-menu :is(button, a)):not(.mm-notification-centre :is(button, a)):not(.mm-radar-popover :is(button, a)):not(#aqua-workspace-search :is(button, a)):not(.mm-dev-console-panel :is(button, a)):not(.mm-pinned-menu :is(button, a)):hover {
+          background: var(--dt-hover) !important;
+          border-color: var(--dev-accent-line) !important;
+        }
+        .mm-dev-team-shell .mm-private-sidebar {
+          background: var(--dt-surface) !important;
+          border-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-private-sidebar .mm-sidebar-tenant {
+          background: var(--dt-surface) !important;
+        }
+        /* Dark (the forge). The generic dark theme sets the chrome surface at
+           html[data-color-mode="dark"] strength — higher specificity than the
+           class-only rules above, so in dark mode it won and the chrome sat on
+           the neutral #1A1B18 instead of the forge's warm #1e1813. Re-state the
+           same intent at matching specificity so the forge wins in its own
+           workspace. */
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-portal-topbar,
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-private-sidebar,
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-private-sidebar .mm-sidebar-tenant {
+          background: var(--dt-surface) !important;
+          background-color: var(--dt-surface) !important;
+          border-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+        }
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-pinned-bar {
+          background: var(--dt-bg) !important;
+          background-color: var(--dt-bg) !important;
+        }
+        /* The pinned strip rides directly under the topbar — same surface. */
+        .mm-dev-team-shell .mm-pinned-bar {
+          background: var(--dt-bg) !important;
+          border-bottom-color: var(--dt-hairline) !important;
+        }
+        .mm-dev-team-shell .mm-pinned-bar .mm-pinned-bar-label {
+          color: var(--dt-faint) !important;
+        }
+
         /* This workspace carries more nav items than any other scope, so at a
            laptop height the list overflowed and collided with the pinned
            footer — "My profile" printed straight over "Leave Dev Team". Give
