@@ -3354,13 +3354,12 @@ html[data-color-mode="dark"] .mm-dev-mode-switcher-persona[data-active="true"] {
 
   /* Active row = the icon sits on a solid, high-contrast tile. Without an
      explicit hover rule the icon tile gets no hover response and reads as flat
-     / "downed out" when you mouse over it. Give it a real, contrast-preserving
-     lift (brighten + scale + deeper glow) so hovering the active/on-contrast
-     icon always brightens — never dulls. */
+     / "downed out" when you mouse over it. A brighten + slight scale is a
+     theme-agnostic lift that always brightens (never dulls) and — unlike a
+     coloured drop-shadow — doesn't turn muddy on dark shells like Dev Team. */
   .mm-sidebar-link.is-active:hover .mm-sidebar-link-icon {
     filter: brightness(1.09) saturate(1.05);
     transform: scale(1.07);
-    box-shadow: 0 5px 14px color-mix(in srgb, var(--nav-tone) 36%, transparent);
   }
 }
 

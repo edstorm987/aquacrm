@@ -76,7 +76,7 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
   }, [query, tree]);
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-4">
+    <div className="grid w-full gap-4">
       <header className="grid gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Development</p>
@@ -146,7 +146,7 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
               className="h-9 w-full rounded-md border border-black/10 pl-7 pr-2 text-xs outline-none focus:border-brand"
             />
           </div>
-          <div className="max-h-[70vh] overflow-y-auto p-1.5">
+          <div className="max-h-[82vh] overflow-y-auto p-1.5">
             {/* A spinner that never resolves reads as a hang. When the read
                 failed, say so once and stop. */}
             {!tree && (meta?.needsGitHub || meta?.error) ? (
@@ -192,7 +192,7 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
                   <Lock size={13} aria-hidden className="text-black/35" />{file.reason}
                 </p>
               ) : (
-                <pre className="max-h-[70vh] overflow-auto px-3 py-3 text-[11px] leading-5 text-black/80">
+                <pre className="max-h-[82vh] overflow-auto px-3 py-3 text-[11px] leading-5 text-black/80">
                   <code>{file?.contents}</code>
                 </pre>
               )}
