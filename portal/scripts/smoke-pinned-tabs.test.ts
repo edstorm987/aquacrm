@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import {
   findPin, isPinned, MAX_PINS_PER_LOCATION, normalizePins, pinsAt, removePin, setPin, togglePin,
   type PinnedTab,
-} from "../src/components/chrome/pinnedTabs";
+} from "../src/components/chrome/pinnedTabsStore";
 
 const entry = (href: string, label = href) => ({ href, label });
 

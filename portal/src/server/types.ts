@@ -2659,6 +2659,51 @@ export interface IntegrationConnection {
   updatedAt: number;
 }
 
+/**
+ * What a dev project IS — it changes which engine surfaces make sense.
+ * A website gets the visual/block editor; software is code-only; a portal is
+ * an Aqua-hosted client workspace.
+ */
+export type DevProjectKind = "software" | "website" | "portal";
+
+/**
+ * A Dev Editor Engine project — the binding that was missing.
+ *
+ * Everything it points at already existed but was scattered: the repo/branch
+ * were typed ad-hoc into the code workspace, GitHub + Vercel credentials lived
+ * in `integrationConnections` (resolved per-agency, never per-project), and the
+ * Aqua Tag was mapped elsewhere. This record ties one project's pieces together
+ * so the engine can host MANY projects, each with its own repo and its own
+ * token, and so injecting Dev Mode into a client workspace can reuse the same
+ * engine by pointing at that client's project.
+ *
+ * Secrets are NOT stored here. `githubConnectionId` / `vercelConnectionId`
+ * reference `IntegrationConnection`s; the token is resolved at call time via
+ * `resolveIntegrationConnectionValues`, so the vault stays the only place a
+ * credential lives.
+ */
+export interface DevProject {
+  id: string;
+  agencyId: string;
+  name: string;
+  kind: DevProjectKind;
+  /** "owner/repository" — blank reads the local working tree (dev convenience). */
+  repository: string;
+  /** Branch or ref the engine reads. Defaults to "main". */
+  ref: string;
+  /** IntegrationConnection ids (provider github / vercel). Never raw tokens. */
+  githubConnectionId?: string;
+  vercelConnectionId?: string;
+  /** Mapping an Aqua Tag is what unlocks the visual editor for this project. */
+  aquaTagId?: string;
+  /** Set when this project is a specific client's workspace (Dev Mode injection). */
+  clientId?: string;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface RadarMemoryIssueState {
   id: string;
   domain: string;
@@ -3255,6 +3300,8 @@ export interface PortalState {
   externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
   externalAssistantActionProposals: Record<string, ExternalAssistantActionProposal>;
   integrationConnections: Record<string, IntegrationConnection>;
+  // Dev Editor Engine projects — repo + connections + tag + kind. See DevProject.
+  devProjects: Record<string, DevProject>;
   tasks: Record<string, AgencyTask>;
   // Saved task sequences. See AgencyTaskTemplate.
   taskTemplates: Record<string, AgencyTaskTemplate>;

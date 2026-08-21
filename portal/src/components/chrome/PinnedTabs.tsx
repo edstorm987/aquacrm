@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, PanelLeft, PanelTop, Pin, Star, Trash2, X } from "lucide-react";
 
-import { findPin, isPinned, pinsAt, usePinnedTabs, type PinLocation } from "./pinnedTabs";
+import { findPin, isPinned, pinsAt, usePinnedTabs, type PinLocation } from "./pinnedTabsStore";
 
 // The full current location (path + query) — a pin must remember ?tab=…/?view=…
 // so it returns you to the exact working view, not just the base route.

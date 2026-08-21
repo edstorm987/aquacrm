@@ -297,6 +297,15 @@ export const PROMOTION_DISPOSITION = {
     needsConfirmation: true,
   },
 
+  devProjects: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "POINTS AT CREDENTIALS. A dev project holds no secret itself, but it binds a repository to specific github/vercel connection ids — and those connections deliberately do not transfer. Copying the project without them yields a project that resolves the WRONG tenant's token or none at all, so which repo/connections a promoted portal should own is a human decision.",
+    needsConfirmation: true,
+  },
+
   // ─── Work ───────────────────────────────────────────────────────────────
   tasks: {
     disposition: "move",
@@ -737,7 +746,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so a 79th collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 79;
+export const PROMOTION_COLLECTION_COUNT = 80;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

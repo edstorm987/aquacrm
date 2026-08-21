@@ -8,7 +8,9 @@ import { AGENCY_ROLES } from "@/server/types";
 import { buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
 import { hashFile } from "@/engines/editor/server/codeAdapter";
 import { GitHubNotConfigured, readRepoFile, readRepoTree } from "@/engines/editor/server/githubSource";
+import { devProjectGitHubToken, getDevProject } from "@/engines/editor/server/devProjects";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
+import type { DevProject } from "@/server/types";
 
 /**
  * The repository's files, for code mode.
@@ -61,13 +63,19 @@ async function walk(directory: string, out: Array<{ path: string; size: number }
 }
 
 /**
- * The GitHub connection for this agency, or nothing.
+ * The GitHub connection to read a repository with.
  *
- * Falls back to the environment token so a single-tenant deployment works
- * without anybody wiring a connection first.
+ * Resolution order, most specific first:
+ *   1. the project's OWN bound connection (multi-project, multi-token)
+ *   2. the agency's github connection
+ *   3. the environment token (single-tenant deployments)
+ *
+ * `project` is optional, so callers that pass none behave exactly as before.
  */
-function githubSourceFor(agencyId: string, repository: string, ref: string) {
-  const token = resolveIntegrationValues(agencyId, "github").token || process.env.GITHUB_TOKEN?.trim();
+function githubSourceFor(agencyId: string, repository: string, ref: string, project?: DevProject | null) {
+  const token = (project ? devProjectGitHubToken(agencyId, project) : null)
+    || resolveIntegrationValues(agencyId, "github").token
+    || process.env.GITHUB_TOKEN?.trim();
   if (!token) throw new GitHubNotConfigured();
   return { repository, ref, token };
 }
@@ -78,14 +86,19 @@ export async function GET(request: NextRequest) {
     const session = await requireRole([...AGENCY_ROLES]);
 
     const requested = request.nextUrl.searchParams.get("path");
-    const repository = request.nextUrl.searchParams.get("repo")?.trim();
-    const ref = request.nextUrl.searchParams.get("ref")?.trim() || "main";
+    // A project supplies its own repo/ref (and its own token) — the engine's
+    // multi-project path. Explicit repo/ref params still win, so the ad-hoc
+    // "type a repository" behaviour is unchanged.
+    const projectId = request.nextUrl.searchParams.get("project")?.trim();
+    const project = projectId ? getDevProject(session.agencyId, projectId) : null;
+    const repository = request.nextUrl.searchParams.get("repo")?.trim() || project?.repository || "";
+    const ref = request.nextUrl.searchParams.get("ref")?.trim() || project?.ref || "main";
 
     // A repository named means GitHub. Without one the working tree is read,
     // which is the same repository when Aqua is editing itself.
     if (repository) {
       try {
-        const source = githubSourceFor(session.agencyId, repository, ref);
+        const source = githubSourceFor(session.agencyId, repository, ref, project);
         if (!requested) {
           const head = await readRepoTree(source);
           return NextResponse.json({
