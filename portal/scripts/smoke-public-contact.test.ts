@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -18,8 +18,13 @@ const enquiryReader = readFileSync(join(ROOT, "src/lib/server/websiteEnquiries.t
 const enquiryStatusRoute = readFileSync(join(ROOT, "src/app/api/portal/website-enquiries/status/route.ts"), "utf8");
 const clientRequestRoute = readFileSync(join(ROOT, "src/app/api/tenants/client-requests/route.ts"), "utf8");
 const publicSites = readFileSync(join(ROOT, "src/lib/public/publicSites.ts"), "utf8");
-const aquaChatbot = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/ChatBot.tsx"), "utf8");
-const aquaSupport = readFileSync(join(ROOT, "../../aquaoasis-web/website/components/SupportForm.tsx"), "utf8");
+// The aquaoasis-web files live in a SIBLING checkout, not this repository. Read
+// them only when that checkout is present, and skip their test (visibly) when it
+// is not — a missing sibling must not take the eight in-repo contracts down with it.
+const AQUAOASIS_ROOT = join(ROOT, "../../aquaoasis-web");
+const hasAquaOasis = existsSync(join(AQUAOASIS_ROOT, "website/components/ChatBot.tsx"));
+const aquaChatbot = hasAquaOasis ? readFileSync(join(AQUAOASIS_ROOT, "website/components/ChatBot.tsx"), "utf8") : "";
+const aquaSupport = hasAquaOasis ? readFileSync(join(AQUAOASIS_ROOT, "website/components/SupportForm.tsx"), "utf8") : "";
 
 test("public website enquiries are captured as unclassified intake before sales routing", () => {
   assert.match(route, /leads\.upsert\(/);
@@ -64,6 +69,9 @@ test("chatbot, support, and website forms preserve exact source context", () => 
   assert.match(enquiryReader, /inferChannel/);
   assert.match(enquiryReader, /triageWebsiteEnquiry/);
   assert.match(enquiryReader, /Outage or security/);
+});
+
+test("aquaoasis chatbot and support forms declare their channel", { skip: hasAquaOasis ? false : "aquaoasis-web sibling checkout not present" }, () => {
   assert.match(aquaChatbot, /channel: "chatbot"/);
   assert.match(aquaSupport, /channel: "support"/);
 });
