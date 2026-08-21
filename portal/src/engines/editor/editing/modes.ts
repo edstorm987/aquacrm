@@ -10,7 +10,7 @@
  * So the mode is chosen once and gates the tabs. Same editor, three depths.
  */
 
-export type EditingMode = "assist" | "visual" | "developer";
+export type EditingMode = "assist" | "simple" | "visual" | "developer";
 
 export interface EditingModeDefinition {
   id: EditingMode;
@@ -32,6 +32,12 @@ export const EDITING_MODES: EditingModeDefinition[] = [
     // The shallowest depth of all: you do not learn the tool, you talk to it.
     // Content rides along so an answer can be applied by hand without switching
     // mode — the assistant proposes, a person still accepts.
+    tabs: ["assistant", "content"],
+  },
+  {
+    id: "simple",
+    label: "Just the words",
+    summary: "Change the text and nothing else. Nothing here can break the layout.",
     tabs: ["assistant", "content"],
   },
   {

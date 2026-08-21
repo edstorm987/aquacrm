@@ -6,11 +6,11 @@ import {
 } from "../src/engines/editor/editing/modes.ts";
 
 describe("choosing how deep to go", () => {
-  it("offers three modes: Just tell it, Visual builder, Dev", () => {
+  it("offers four modes", () => {
     // The old four-rung ladder had a "Just the words" depth nobody chose. Ed's
     // call: three modes, and the browser is a TOGGLE rather than a mode.
-    assert.deepEqual(EDITING_MODES.map(mode => mode.id), ["assist", "visual", "developer"]);
-    assert.deepEqual(EDITING_MODES.map(mode => mode.label), ["Just tell it", "Visual builder", "Dev"]);
+    assert.deepEqual(EDITING_MODES.map(mode => mode.id), ["assist", "simple", "visual", "developer"]);
+    assert.deepEqual(EDITING_MODES.map(mode => mode.label), ["Just tell it", "Just the words", "Visual builder", "Dev"]);
   });
 
   it("gives the visual mode everything except code", () => {

@@ -268,7 +268,7 @@ export function EditorCodeCanvas({
       ) : null}
 
       {/* The open file */}
-      <div className="relative flex min-w-0 flex-1 flex-col bg-[#151815]">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#151815]">
         {meta?.needsGitHub ? (
           <div className="m-4 flex items-start gap-2 rounded-md border border-amber-300/25 bg-amber-300/[0.06] p-3 text-[11px] leading-5 text-amber-200/90">
             <Plug size={13} aria-hidden className="mt-0.5 shrink-0" />

@@ -56,6 +56,8 @@ describe("the editor adapts to its target", () => {
     assert.match(studio, /projectKind === "software" \? "developer" : "visual"/);
     // The browser is a toggle now, so a repo simply has no browser pane
     // (portalTarget is false); there is no canvas-view string to assert.
-    assert.match(studio, /const browserPane = portalTarget && showBrowser/);
+    // The browser is part of the ONE editor, not a portal privilege — it is
+    // always toggleable, and takes a URL when there is no portal behind it.
+    assert.match(studio, /const browserPane = showBrowser/);
   });
 });

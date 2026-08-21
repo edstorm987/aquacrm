@@ -169,8 +169,10 @@ export function ClientPortalStudio({
   // mode choice and hid the browser behind a mode named "Both".)
   //   • showBrowser — bring the live page in, at any mode
   //   • splitBrowsers — a second browser beside the first, for comparing
-  const [showBrowser, setShowBrowser] = useState(true);
+  const [showBrowser, setShowBrowser] = useState(projectKind !== "software");
   const [splitBrowsers, setSplitBrowsers] = useState(false);
+  // Where the browser points when there is no client portal behind it.
+  const [browserUrl, setBrowserUrl] = useState("");
   const [breakpoint, setBreakpoint] = useState<Breakpoint>(DEFAULT_BREAKPOINT);
   // How the split is divided, as a fraction of the canvas given to the LEFT
   // pane. Dragged, not fixed — sometimes you want a sliver of preview beside
@@ -197,7 +199,7 @@ export function ClientPortalStudio({
   // Dev shows code; the other two are page-first. The browser can always be
   // brought in or put away on top of that.
   const codePane = editingModeId === "developer";
-  const browserPane = portalTarget && showBrowser;
+  const browserPane = showBrowser;
   const [projects, setProjects] = useState<StudioDevProject[]>([]);
   const selectedProject = projects.find(item => item.id === projectId) ?? null;
 
@@ -713,10 +715,10 @@ export function ClientPortalStudio({
         {/* How deep you want to go leads the bar: it is the single most
             important choice in the editor, and it used to be a small select
             buried in the right rail. */}
+        <span aria-hidden className="mx-1 hidden h-7 w-px shrink-0 bg-white/10 xl:block" />
         <EditorModeSwitch
           mode={editingModeId}
           onChange={next => changeMode(next)}
-          available={portalTarget ? undefined : ["assist", "developer"]}
         />
 
         {/* The primary switch is what the CANVAS shows — the live thing, its
@@ -724,7 +726,7 @@ export function ClientPortalStudio({
             portal am I previewing) and moves down to the secondary row. */}
         {/* The browser is a TOGGLE, not a mode. Dev with the page beside it is
             the same Dev — it should not need a mode called "Both". */}
-        {portalTarget ? (
+        {(
           <div className="col-start-2 row-start-1 inline-flex shrink-0 items-center gap-0.5 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto">
             <button
               type="button"
@@ -749,7 +751,7 @@ export function ClientPortalStudio({
               <Columns2 size={15} aria-hidden />
             </button>
           </div>
-        ) : null}
+        )}
 
         <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
           {portalTarget && browserPane && !lockToClient ? (
@@ -865,14 +867,49 @@ export function ClientPortalStudio({
                 className="min-h-0 overflow-auto p-4 lg:p-6"
                 style={codePane || splitBrowsers ? { width: `${splitRatio * 100}%`, flexShrink: 0 } : { flex: 1 }}
               >
-                <PreviewFrame
-                  label={splitBrowsers ? "Draft — your unpublished changes" : undefined}
-                  loading={loading}
-                  url={frameUrl}
-                  frameKey={frameKey}
-                  breakpoint={breakpoint}
-                  innerRef={previewRef}
-                />
+                {portalTarget ? (
+                  <PreviewFrame
+                    label={splitBrowsers ? "Draft — your unpublished changes" : undefined}
+                    loading={loading}
+                    url={frameUrl}
+                    frameKey={frameKey}
+                    breakpoint={breakpoint}
+                    innerRef={previewRef}
+                  />
+                ) : (
+                  <div className="grid gap-2">
+                    {/* A UNIVERSAL editor: the thing you are building might be a
+                        site, an app, a game, an API console — anything with a
+                        URL. So the browser just asks where to point, and never
+                        assumes what you are making. */}
+                    <form
+                      className="flex items-center gap-1.5"
+                      onSubmit={event => { event.preventDefault(); setFrameKey(value => value + 1); }}
+                    >
+                      <Globe size={13} aria-hidden className="shrink-0 text-white/30" />
+                      <input
+                        value={browserUrl}
+                        onChange={event => setBrowserUrl(event.target.value)}
+                        placeholder="http://localhost:3000 — anything you are running"
+                        aria-label="Preview URL"
+                        className="h-8 min-w-0 flex-1 rounded-md border border-white/12 bg-white/[0.05] px-2.5 text-[11px] text-white/85 outline-none placeholder:text-white/25 focus:border-cyan-300/40"
+                      />
+                    </form>
+                    {browserUrl.trim() ? (
+                      <PreviewFrame
+                        loading={false}
+                        url={browserUrl.trim()}
+                        frameKey={frameKey}
+                        breakpoint={breakpoint}
+                        innerRef={previewRef}
+                      />
+                    ) : (
+                      <p className="rounded-md border border-dashed border-white/12 px-3 py-6 text-center text-[11px] text-white/35">
+                        Point the browser at what you are building.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -1207,7 +1244,7 @@ function Inspector({
   // portal document (the "code" tab here is the portal's own custom CSS/JS,
   // not the repository — that is the Repo tab, handled above).
   if (!document || !record) {
-    return <p className="px-1 py-3 text-xs text-white/45">Nothing here for a repository — use the Repo tab.</p>;
+    return <p className="px-1 py-3 text-xs text-white/45">These tools apply to an Aqua-hosted portal. This project is not one — use Repo, Code or the Assistant.</p>;
   }
 
   if (tab === "code") {

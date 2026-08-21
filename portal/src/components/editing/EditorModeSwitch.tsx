@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Code2, Gauge, MessageSquareText, Paintbrush } from "lucide-react";
+import { Code2, MessageSquareText, Paintbrush, Type } from "lucide-react";
 
 import { EDITING_MODES, editingMode, type EditingMode } from "@/engines/editor/editing/modes";
 import { cinematicModeEnabled } from "@/lib/chrome/cinematicMode";
@@ -36,6 +36,10 @@ export const MODE_SKINS: Record<EditingMode, ModeSkin> = {
     accent: "#a78bfa", soft: "rgba(167,139,250,0.14)", line: "rgba(167,139,250,0.42)",
     label: "Just tell it", blurb: "The page and the assistant, together.", icon: MessageSquareText,
   },
+  simple: {
+    accent: "#fbbf24", soft: "rgba(251,191,36,0.14)", line: "rgba(251,191,36,0.42)",
+    label: "Just the words", blurb: "Change the text. Nothing can break.", icon: Type,
+  },
   visual: {
     accent: "#f472b6", soft: "rgba(244,114,182,0.14)", line: "rgba(244,114,182,0.42)",
     label: "Visual builder", blurb: "Build it on top of the live page.", icon: Paintbrush,
@@ -57,7 +61,11 @@ export function EditorModeSwitch({
 }: {
   mode: EditingMode;
   onChange: (next: EditingMode) => void;
-  /** Modes worth offering here — a repository has no "Design it". */
+  /**
+   * Optional narrowing. Deliberately unused by the editor: it is a UNIVERSAL
+   * editor, and hiding modes based on what we guess you are building is how it
+   * started refusing to show a browser to somebody making a game.
+   */
   available?: EditingMode[];
 }) {
   const options = EDITING_MODES.filter(item => !available || available.includes(item.id));
@@ -81,11 +89,10 @@ export function EditorModeSwitch({
   return (
     <>
       <div
-        className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-white/10 bg-black/25 p-1"
+        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/12 bg-black/30 p-1"
         role="group"
-        aria-label="How deep do you want to go?"
+        aria-label="Editor mode"
       >
-        <Gauge size={12} aria-hidden className="mx-1 shrink-0 text-white/25" />
         {options.map(option => {
           const skin = modeSkin(option.id);
           const Icon = skin.icon;
@@ -97,13 +104,15 @@ export function EditorModeSwitch({
               onClick={() => onChange(option.id)}
               aria-pressed={active}
               title={editingMode(option.id).summary}
-              className="inline-flex min-h-8 items-center gap-1.5 rounded px-2.5 text-[11px] font-semibold transition"
+              className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-xs font-semibold transition"
               style={active
                 ? { background: skin.soft, color: skin.accent, boxShadow: `inset 0 0 0 1px ${skin.line}` }
                 : { color: "rgba(255,255,255,0.45)" }}
             >
-              <Icon size={13} aria-hidden />
-              <span className="hidden sm:inline">{skin.label}</span>
+              <Icon size={15} aria-hidden />
+              {/* Always labelled: this is the primary control in the editor, and a
+                  row of unlabelled glyphs is something you have to learn. */}
+              <span>{skin.label}</span>
             </button>
           );
         })}

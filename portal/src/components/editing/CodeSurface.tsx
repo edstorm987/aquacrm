@@ -68,7 +68,10 @@ export function CodeSurface({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-hidden [&_.cm-editor]:h-full [&_.cm-editor]:bg-transparent [&_.cm-gutters]:border-r [&_.cm-gutters]:border-white/5 [&_.cm-gutters]:bg-transparent [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-[11px] [&_.cm-scroller]:leading-5"
+      // h-full + min-h-0 so the editor is BOUNDED by the pane; without a
+      // bound, CodeMirror grows to fit the document and the scroll happens on
+      // the page (or not at all) instead of inside .cm-scroller.
+      className="min-h-0 h-full flex-1 overflow-hidden [&_.cm-editor]:h-full [&_.cm-editor]:max-h-full [&_.cm-editor]:bg-transparent [&_.cm-gutters]:border-r [&_.cm-gutters]:border-white/5 [&_.cm-gutters]:bg-transparent [&_.cm-scroller]:overflow-auto [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-[11px] [&_.cm-scroller]:leading-5"
       onKeyDown={event => {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
