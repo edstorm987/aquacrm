@@ -5,7 +5,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import { buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
+import { MAX_PREVIEW_BYTES, buildFileTree, describeFile, imageContentType, isHiddenPath, isImagePath } from "@/engines/editor/server/fileTree";
 import { hashFile } from "@/engines/editor/server/codeAdapter";
 import { GitHubNotConfigured, readRepoFile, readRepoTree } from "@/engines/editor/server/githubSource";
 import { getDevProject, resolveDevProjectGitHubSource } from "@/lib/server/dev/devProjects";
@@ -155,6 +155,19 @@ export async function GET(request: NextRequest) {
 
     const described = describeFile(requested, info.size);
     if (!described.editable) {
+      // Images preview instead of dead-ending at "not a text file" — the same
+      // shape the GitHub path returns, so the pane treats both sources alike.
+      if (isImagePath(requested) && info.size <= MAX_PREVIEW_BYTES) {
+        const bytes = await readFile(target);
+        return NextResponse.json({
+          ok: true,
+          path: requested,
+          editable: false,
+          reason: described.reason,
+          size: info.size,
+          preview: `data:${imageContentType(requested)};base64,${bytes.toString("base64")}`,
+        });
+      }
       return NextResponse.json({ ok: true, path: requested, editable: false, reason: described.reason });
     }
 

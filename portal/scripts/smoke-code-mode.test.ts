@@ -41,9 +41,15 @@ describe("what can be opened", () => {
 
   it("refuses binaries, and says why rather than hiding them", () => {
     // A file that simply vanishes from the tree reads as a bug in the editor.
-    const file = describeFile("public/logo.png");
+    const file = describeFile("assets/brand.zip");
     assert.equal(file.editable, false);
     assert.match(file.reason ?? "", /not a text file/);
+
+    // Images are binary too, but they PREVIEW rather than dead-ending —
+    // still never editable as text. Pinned in smoke-editor-image-preview.
+    const image = describeFile("public/logo.png");
+    assert.equal(image.editable, false);
+    assert.match(image.reason ?? "", /preview/i);
   });
 
   it("refuses a file too large to edit in a browser", () => {
@@ -110,7 +116,9 @@ describe("code mode is the same loop as the visual editor", () => {
       assert.equal(document.targets.length, 2);
       const binary = document.targets.find(target => target.id.endsWith(".png"));
       assert.equal(binary?.kind, "indirect");
-      assert.match(binary?.definedAt ?? "", /not a text file/);
+      // An image previews in the pane, but for the EDITING loop it stays
+      // indirect — there is no text to patch.
+      assert.match(binary?.definedAt ?? "", /preview/i);
     });
   });
 

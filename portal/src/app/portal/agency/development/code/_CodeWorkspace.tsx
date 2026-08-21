@@ -52,7 +52,7 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
   const [count, setCount] = useState(0);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const [file, setFile] = useState<{ contents?: string; reason?: string; fingerprint?: string; editable: boolean } | null>(null);
+  const [file, setFile] = useState<{ contents?: string; reason?: string; fingerprint?: string; editable: boolean; preview?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -264,7 +264,17 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
                   </span>
                 ) : null}
               </header>
-              {file?.editable === false ? (
+              {file?.preview ? (
+                <div className="grid gap-2 p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the repo, not an optimizable asset */}
+                  <img
+                    src={file.preview}
+                    alt={open ?? "Image preview"}
+                    className="max-h-[65vh] w-auto max-w-full justify-self-start rounded border border-black/10 bg-[conic-gradient(#0000000a_90deg,transparent_90deg_180deg,#0000000a_180deg_270deg,transparent_270deg)] bg-[length:16px_16px]"
+                  />
+                  <p className="text-[11px] text-black/45">{file.reason}</p>
+                </div>
+              ) : file?.editable === false ? (
                 <p className="flex items-center gap-2 px-4 py-6 text-xs text-black/55">
                   <Lock size={13} aria-hidden className="text-black/35" />{file.reason}
                 </p>
