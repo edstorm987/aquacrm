@@ -6,10 +6,11 @@ import {
 } from "../src/engines/editor/editing/modes.ts";
 
 describe("choosing how deep to go", () => {
-  it("shows somebody fixing a typo only the words", () => {
-    // Six tabs in front of somebody who came to change one sentence is noise,
-    // and they cannot accidentally rearrange the page.
-    assert.deepEqual(editingMode("simple").tabs, ["assistant", "content"]);
+  it("offers three modes: Just tell it, Visual builder, Dev", () => {
+    // The old four-rung ladder had a "Just the words" depth nobody chose. Ed's
+    // call: three modes, and the browser is a TOGGLE rather than a mode.
+    assert.deepEqual(EDITING_MODES.map(mode => mode.id), ["assist", "visual", "developer"]);
+    assert.deepEqual(EDITING_MODES.map(mode => mode.label), ["Just tell it", "Visual builder", "Dev"]);
   });
 
   it("gives the visual mode everything except code", () => {
@@ -50,14 +51,14 @@ describe("switching mode without landing nowhere", () => {
   it("moves to the mode's first tab when the current one is gone", () => {
     // Switching from Developer to "Just the words" while sitting on code must
     // land somewhere real rather than on a blank panel.
-    assert.equal(tabForMode("simple", "code"), "assistant");
+    assert.equal(tabForMode("assist", "code"), "assistant");
     assert.equal(tabForMode("visual", "repository"), "assistant");
   });
 
   it("answers whether a tab is offered", () => {
     // The assistant accompanies every depth now — see smoke-aqua-editor-ai.
-    assert.equal(modeAllowsTab("simple", "assistant"), true);
-    assert.equal(modeAllowsTab("simple", "repository"), false);
+    assert.equal(modeAllowsTab("assist", "assistant"), true);
+    assert.equal(modeAllowsTab("assist", "repository"), false);
     assert.equal(modeAllowsTab("developer", "repository"), true);
   });
 });

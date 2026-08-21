@@ -26,8 +26,8 @@ describe("Aqua Editor AI — the assist depth", () => {
   it("offers 'assist' as a mode, ahead of the hands-on depths", () => {
     assert.deepEqual(
       EDITING_MODES.map(mode => mode.id),
-      ["assist", "simple", "visual", "developer"],
-      "the ladder runs shallowest (talk to it) to deepest (developer)",
+      ["assist", "visual", "developer"],
+      "three modes: Just tell it / Visual builder / Dev",
     );
   });
 
@@ -41,7 +41,7 @@ describe("Aqua Editor AI — the assist depth", () => {
     // It used to appear only in "Just tell it", so unless you changed the
     // depth selector you never saw it at all. Aqua Editor AI accompanies
     // whatever depth you are working at; only the hands-on tabs vary.
-    for (const mode of ["assist", "simple", "visual", "developer"] as const) {
+    for (const mode of ["assist", "visual", "developer"] as const) {
       assert.equal(modeAllowsTab(mode, "assistant"), true, `${mode} should carry the assistant tab`);
     }
   });

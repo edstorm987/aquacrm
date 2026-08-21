@@ -10,7 +10,7 @@
  * So the mode is chosen once and gates the tabs. Same editor, three depths.
  */
 
-export type EditingMode = "assist" | "simple" | "visual" | "developer";
+export type EditingMode = "assist" | "visual" | "developer";
 
 export interface EditingModeDefinition {
   id: EditingMode;
@@ -28,32 +28,22 @@ export const EDITING_MODES: EditingModeDefinition[] = [
   {
     id: "assist",
     label: "Just tell it",
-    summary: "Describe the change in your own words. Point at anything on the page, attach a file, and Aqua Editor AI does the rest.",
+    summary: "The page and the assistant, together. Point at anything and describe the change.",
     // The shallowest depth of all: you do not learn the tool, you talk to it.
     // Content rides along so an answer can be applied by hand without switching
     // mode — the assistant proposes, a person still accepts.
     tabs: ["assistant", "content"],
   },
   {
-    id: "simple",
-    label: "Just the words",
-    summary: "Change the text and nothing else. Nothing here can break the layout.",
-    // Content, plus the assistant. Aqua Editor AI is a COMPANION to whatever
-    // depth you are working at, not a depth of its own — hiding it unless you
-    // switched the selector to "Just tell it" meant most people never found
-    // it. Every depth keeps it; only the hands-on tabs vary.
-    tabs: ["assistant", "content"],
-  },
-  {
     id: "visual",
-    label: "Design it",
-    summary: "Move blocks, change pages and set the brand, without touching code.",
+    label: "Visual builder",
+    summary: "Build it — blocks, pages and brand, on top of the live page.",
     tabs: ["assistant", "builder", "content", "pages", "brand", "versions"],
   },
   {
     id: "developer",
-    label: "Developer",
-    summary: "Everything, including custom code and the site's repository.",
+    label: "Dev",
+    summary: "The code and the repository. Bring the browser in when you need to see it.",
     tabs: ["assistant", "builder", "content", "pages", "brand", "code", "repository", "versions"],
   },
 ];

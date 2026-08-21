@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Code2, Gauge, MessageSquareText, Paintbrush, Type } from "lucide-react";
+import { Code2, Gauge, MessageSquareText, Paintbrush } from "lucide-react";
 
 import { EDITING_MODES, editingMode, type EditingMode } from "@/engines/editor/editing/modes";
 import { cinematicModeEnabled } from "@/lib/chrome/cinematicMode";
@@ -34,19 +34,15 @@ export interface ModeSkin {
 export const MODE_SKINS: Record<EditingMode, ModeSkin> = {
   assist: {
     accent: "#a78bfa", soft: "rgba(167,139,250,0.14)", line: "rgba(167,139,250,0.42)",
-    label: "Just tell it", blurb: "Describe the change. It does the rest.", icon: MessageSquareText,
-  },
-  simple: {
-    accent: "#fbbf24", soft: "rgba(251,191,36,0.14)", line: "rgba(251,191,36,0.42)",
-    label: "Just the words", blurb: "Change the text. Nothing can break.", icon: Type,
+    label: "Just tell it", blurb: "The page and the assistant, together.", icon: MessageSquareText,
   },
   visual: {
     accent: "#f472b6", soft: "rgba(244,114,182,0.14)", line: "rgba(244,114,182,0.42)",
-    label: "Design it", blurb: "Move blocks, pages and brand.", icon: Paintbrush,
+    label: "Visual builder", blurb: "Build it on top of the live page.", icon: Paintbrush,
   },
   developer: {
     accent: "#34d399", soft: "rgba(52,211,153,0.14)", line: "rgba(52,211,153,0.42)",
-    label: "Developer", blurb: "Everything, including the code.", icon: Code2,
+    label: "Dev", blurb: "The code and the repository.", icon: Code2,
   },
 };
 

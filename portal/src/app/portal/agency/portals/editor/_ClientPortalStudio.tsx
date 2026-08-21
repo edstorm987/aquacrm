@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, Gauge, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, MousePointerClick, Palette, PanelRightClose, PanelRightOpen, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, Gauge, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Columns2, Globe, Monitor, MousePointerClick, Palette, PanelRightClose, PanelRightOpen, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Settings, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/portal/clientPortalDesign";
@@ -62,7 +62,6 @@ interface StudioDevProject {
   repository: string;
   ref: string;
 }
-type CanvasView = "live" | "code" | "split" | "compare";
 
 type PortalDesignRecord = {
   id: string;
@@ -165,7 +164,13 @@ export function ClientPortalStudio({
   // What the CANVAS shows. "live" is the running portal; "code" is the file
   // tree + open file; "split" is both, which is how you actually work — see a
   // change and the source that made it at the same time.
-  const [canvasView, setCanvasView] = useState<CanvasView>(projectKind === "software" ? "code" : "live");
+  // The MODE decides the base layout; two toggles decide what rides along.
+  // (This replaces a Live/Code/Both/Compare view picker that duplicated the
+  // mode choice and hid the browser behind a mode named "Both".)
+  //   • showBrowser — bring the live page in, at any mode
+  //   • splitBrowsers — a second browser beside the first, for comparing
+  const [showBrowser, setShowBrowser] = useState(true);
+  const [splitBrowsers, setSplitBrowsers] = useState(false);
   const [breakpoint, setBreakpoint] = useState<Breakpoint>(DEFAULT_BREAKPOINT);
   // How the split is divided, as a fraction of the canvas given to the LEFT
   // pane. Dragged, not fixed — sometimes you want a sliver of preview beside
@@ -189,6 +194,10 @@ export function ClientPortalStudio({
   const [projectId, setProjectId] = useState(initialProjectId);
   // A repository is not a portal. Everything portal-shaped is gated on this.
   const portalTarget = projectKind !== "software";
+  // Dev shows code; the other two are page-first. The browser can always be
+  // brought in or put away on top of that.
+  const codePane = editingModeId === "developer";
+  const browserPane = portalTarget && showBrowser;
   const [projects, setProjects] = useState<StudioDevProject[]>([]);
   const selectedProject = projects.find(item => item.id === projectId) ?? null;
 
@@ -308,7 +317,9 @@ export function ClientPortalStudio({
       // You cannot point at something you cannot see: "Just tell it" needs the
       // visual pane, and the picker armed so a click captures straight away
       // rather than after finding a button first.
-      if (portalTarget) setCanvasView(current => (current === "code" ? "split" : current));
+      // "Just tell it" is the page AND the assistant together — bring the
+      // browser in so there is something to point at.
+      if (portalTarget) setShowBrowser(true);
       setPicking(true);
     } else {
       setPicking(false);
@@ -357,7 +368,7 @@ export function ClientPortalStudio({
   // confirmed publish) is a separate piece of work, and an "add file" that
   // silently does nothing is worse than one that says why.
   const addOptions: AddOption[] = useMemo(() => {
-    if (canvasView === "code") {
+    if (codePane) {
       // A repository-backed project is committed and published, not written to
       // this server — so creation is offered only for the local workspace.
       if (selectedProject?.repository) {
@@ -406,7 +417,7 @@ export function ClientPortalStudio({
         setTab("content");
       },
     }));
-  }, [canManage, canvasView, customPageId, portalDocument, section]);
+  }, [canManage, codePane, customPageId, portalDocument, section]);
 
   const publishedFrameUrl = useMemo(() => frameUrl.replace("portalDraft=1&", "").replace("&portalDraft=1", ""), [frameUrl]);
 
@@ -711,17 +722,37 @@ export function ClientPortalStudio({
         {/* The primary switch is what the CANVAS shows — the live thing, its
             code, or both. Template vs Client is a narrower question (which
             portal am I previewing) and moves down to the secondary row. */}
+        {/* The browser is a TOGGLE, not a mode. Dev with the page beside it is
+            the same Dev — it should not need a mode called "Both". */}
         {portalTarget ? (
-          <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Canvas view">
-            <TopToggle active={canvasView === "live"} onClick={() => setCanvasView("live")} label="Live" />
-            <TopToggle active={canvasView === "code"} onClick={() => setCanvasView("code")} label="Code" />
-            <TopToggle active={canvasView === "split"} onClick={() => setCanvasView("split")} label="Both" />
-            <TopToggle active={canvasView === "compare"} onClick={() => setCanvasView("compare")} label="Compare" />
+          <div className="col-start-2 row-start-1 inline-flex shrink-0 items-center gap-0.5 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto">
+            <button
+              type="button"
+              onClick={() => setShowBrowser(value => !value)}
+              aria-pressed={showBrowser}
+              title={showBrowser ? "Hide the browser" : "Show the browser"}
+              aria-label={showBrowser ? "Hide the browser" : "Show the browser"}
+              className={`grid size-8 place-items-center rounded ${showBrowser ? "text-white" : "text-white/40 hover:text-white/75"}`}
+              style={showBrowser ? { background: "var(--mode-soft)", boxShadow: "inset 0 0 0 1px var(--mode-line)" } : undefined}
+            >
+              <Globe size={15} aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSplitBrowsers(value => !value); setShowBrowser(true); }}
+              aria-pressed={splitBrowsers}
+              title={splitBrowsers ? "One browser" : "Two browsers side by side"}
+              aria-label={splitBrowsers ? "One browser" : "Two browsers side by side"}
+              className={`grid size-8 place-items-center rounded ${splitBrowsers ? "text-white" : "text-white/40 hover:text-white/75"}`}
+              style={splitBrowsers ? { background: "var(--mode-soft)", boxShadow: "inset 0 0 0 1px var(--mode-line)" } : undefined}
+            >
+              <Columns2 size={15} aria-hidden />
+            </button>
           </div>
         ) : null}
 
         <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
-          {portalTarget && canvasView !== "code" && !lockToClient ? (
+          {portalTarget && browserPane && !lockToClient ? (
             <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Editing scope">
               <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
               <TopToggle active={scope === "client"} disabled={busy} onClick={() => changeScope("client")} label="Client" />
@@ -783,7 +814,7 @@ export function ClientPortalStudio({
             </select>
           ) : null}
           <div className="flex min-w-0 items-center justify-end gap-2 sm:justify-start">
-            {canvasView !== "code" ? <BreakpointControl value={breakpoint} onChange={setBreakpoint} /> : null}
+            {browserPane ? <BreakpointControl value={breakpoint} onChange={setBreakpoint} /> : null}
             <button type="button" onClick={() => setFrameKey(value => value + 1)} title="Refresh preview" aria-label="Refresh preview" className="hidden size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white sm:grid"><RefreshCw size={16} /></button>
             <Link href={frameUrl.replace("embedded=1&", "")} target="_blank" rel="noreferrer" title="Open portal in new tab" aria-label="Open portal in new tab" className="grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white"><ExternalLink size={16} /></Link>
             {scope === "client" ? <Link href={`/client-preview/${clientId}?manage=1`} target="_blank" rel="noreferrer" title="Manage live product workspaces" aria-label="Manage live product workspaces" className="grid size-10 shrink-0 place-items-center rounded-md border border-cyan-300/25 text-cyan-300/75 hover:bg-cyan-300/10 hover:text-cyan-200"><PanelsTopLeft size={16} /></Link> : null}
@@ -810,12 +841,12 @@ export function ClientPortalStudio({
                 rather than as another control elsewhere in the chrome. */}
             <AddMenu
               options={addOptions}
-              label={canvasView === "code" ? "Add to the repository" : "Add to this page"}
-              title={canvasView === "code" ? "Add to the repository" : "Add to this page"}
+              label={codePane ? "Add to the repository" : "Add to this page"}
+              title={codePane ? "Add to the repository" : "Add to this page"}
             />
             <p className="min-w-0 flex-1 truncate" role="status" aria-live="polite">{notice}{dirty ? " · save the draft to refresh preview" : ""}</p>
             <p className="hidden shrink-0 sm:block">
-              {canvasView === "code"
+              {codePane
                 ? (selectedProject?.repository || "This workspace")
                 : `${scope === "template" ? selectedTemplate?.productId ? "Product template" : "Master template" : "Client override"} · ${breakpointLabel(breakpoint)}`}
             </p>
@@ -826,15 +857,16 @@ export function ClientPortalStudio({
               sometimes you want a sliver of preview beside a wide file, and
               sometimes the reverse. */}
           <div ref={splitRef} className="flex min-h-0 flex-1">
-            {canvasView !== "code" ? (
+            {/* Browser pane(s). Present at any mode when the browser is on —
+                in Dev it sits beside the code, which is what the old "Both"
+                view was for. */}
+            {browserPane ? (
               <div
                 className="min-h-0 overflow-auto p-4 lg:p-6"
-                style={canvasView === "split" || canvasView === "compare"
-                  ? { width: `${splitRatio * 100}%`, flexShrink: 0 }
-                  : { flex: 1 }}
+                style={codePane || splitBrowsers ? { width: `${splitRatio * 100}%`, flexShrink: 0 } : { flex: 1 }}
               >
                 <PreviewFrame
-                  label={canvasView === "compare" ? "Draft — your unpublished changes" : undefined}
+                  label={splitBrowsers ? "Draft — your unpublished changes" : undefined}
                   loading={loading}
                   url={frameUrl}
                   frameKey={frameKey}
@@ -844,8 +876,8 @@ export function ClientPortalStudio({
               </div>
             ) : null}
 
-            {/* The divider. Drag it; double-click to even the panes. */}
-            {canvasView === "split" || canvasView === "compare" ? (
+            {/* Drag to re-balance whenever two things share the canvas. */}
+            {browserPane && (codePane || splitBrowsers) ? (
               <div
                 role="separator"
                 aria-orientation="vertical"
@@ -862,8 +894,7 @@ export function ClientPortalStudio({
                   if (!host) return;
                   const move = (moveEvent: PointerEvent) => {
                     const bounds = host.getBoundingClientRect();
-                    const ratio = (moveEvent.clientX - bounds.left) / bounds.width;
-                    setSplitRatio(Math.min(0.8, Math.max(0.2, ratio)));
+                    setSplitRatio(Math.min(0.8, Math.max(0.2, (moveEvent.clientX - bounds.left) / bounds.width)));
                   };
                   const up = () => {
                     window.removeEventListener("pointermove", move);
@@ -878,7 +909,8 @@ export function ClientPortalStudio({
               </div>
             ) : null}
 
-            {canvasView === "compare" ? (
+            {/* The SECOND browser — draft against what the client sees now. */}
+            {browserPane && splitBrowsers ? (
               <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
                 <PreviewFrame
                   label="Live — what the client sees now"
@@ -890,9 +922,28 @@ export function ClientPortalStudio({
               </div>
             ) : null}
 
-            {canvasView === "code" || canvasView === "split" ? (
+            {/* Dev's code canvas. */}
+            {codePane && !splitBrowsers ? (
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <EditorCodeCanvas projectId={projectId || undefined} repository={repository} focus={sourceFocus} />
+              </div>
+            ) : null}
+
+            {/* Nothing to show: a page-first mode with the browser put away. */}
+            {!browserPane && !codePane ? (
+              <div className="grid flex-1 place-items-center px-6 text-center">
+                <div>
+                  <Globe size={22} aria-hidden className="mx-auto text-white/20" />
+                  <p className="mt-2 text-xs text-white/40">The browser is hidden.</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowBrowser(true)}
+                    className="mt-2 text-[11px] font-semibold"
+                    style={{ color: "var(--mode-accent)" }}
+                  >
+                    Bring it back
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>
@@ -1006,6 +1057,18 @@ export function ClientPortalStudio({
             );
           })}
           <span aria-hidden className="my-1 h-px w-6 bg-white/10" />
+          {/* Settings — where the project's repository, branch, connections,
+              Aqua Tag and keys are configured. It lives on the rail because
+              "point this editor at something else" is a thing you reach for
+              from inside the editor, not a thing you go hunting for. */}
+          <Link
+            href="/portal/dev-team/editor"
+            title="Editor settings — repositories, connections, Aqua Tags and keys"
+            aria-label="Editor settings — repositories, connections, Aqua Tags and keys"
+            className="grid size-10 place-items-center rounded-md text-white/35 transition hover:bg-white/[0.05] hover:text-white/80"
+          >
+            <Settings size={17} aria-hidden />
+          </Link>
           <button
             type="button"
             onClick={() => setInspectorOpen(value => !value)}
