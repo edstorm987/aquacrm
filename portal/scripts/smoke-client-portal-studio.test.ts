@@ -485,7 +485,9 @@ describe("client portal studio surface", () => {
     // no longer inline in the route — so assert it where it now lives.
     const studioLoader = await readFile(new URL("../src/engines/editor/server/portalStudio.ts", import.meta.url), "utf8");
 
-    for (const label of ["Portal studio", "Template", "Client", "Lifecycle stage", "Portal page", "Builder", "Content", "Pages", "Brand", "Code", "Versions", "Visual composition", "Add a portal component", "Custom portal layer", "Portal CSS", "JavaScript", "Save draft", "Publish"]) {
+    // Rebranded 2026-08-21: the surface is the Dev Editor, not a portal-only
+    // studio — it now edits portals, websites and repositories.
+    for (const label of ["Dev Editor", "Template", "Client", "Lifecycle stage", "Portal page", "Builder", "Content", "Pages", "Brand", "Code", "Versions", "Visual composition", "Add a portal component", "Custom portal layer", "Portal CSS", "JavaScript", "Save draft", "Publish"]) {
       assert.match(studio, new RegExp(label));
     }
     assert.match(studio, /\/client-preview\/\$\{clientId\}/);

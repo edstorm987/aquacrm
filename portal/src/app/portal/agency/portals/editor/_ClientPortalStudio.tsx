@@ -18,6 +18,8 @@ import {
 import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/engines/editor/editing/modes";
 import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
 import { AquaEditorAI } from "@/components/editing/AquaEditorAI";
+import { EditorCodeCanvas } from "@/components/editing/EditorCodeCanvas";
+import { BreakpointControl, DEFAULT_BREAKPOINT, breakpointLabel, breakpointSize, type Breakpoint } from "@/components/editing/BreakpointControl";
 import type { EditorAssistantProps } from "@/engines/editor/server/editorAssistant";
 import { elementSource, repoRelativePath } from "@/engines/editor/editing/elementSource";
 import { PORTAL_SCOPE, scopeForSection } from "@/engines/editor/editing/fileRelevance";
@@ -57,7 +59,7 @@ interface StudioDevProject {
   repository: string;
   ref: string;
 }
-type Device = "desktop" | "mobile";
+type CanvasView = "live" | "code" | "split";
 
 type PortalDesignRecord = {
   id: string;
@@ -141,7 +143,11 @@ export function ClientPortalStudio({
   const [mode, setMode] = useState<ClientPortalMode>(initialMode);
   const [section, setSection] = useState<ClientPortalSectionId>(initialSection);
   const [customPageId, setCustomPageId] = useState("");
-  const [device, setDevice] = useState<Device>("desktop");
+  // What the CANVAS shows. "live" is the running portal; "code" is the file
+  // tree + open file; "split" is both, which is how you actually work — see a
+  // change and the source that made it at the same time.
+  const [canvasView, setCanvasView] = useState<CanvasView>("live");
+  const [breakpoint, setBreakpoint] = useState<Breakpoint>(DEFAULT_BREAKPOINT);
   const [tab, setTab] = useState<InspectorTab>("content");
   // Defaults to the visual mode: a first-time opener should meet a designer's
   // tool rather than a developer's.
@@ -152,6 +158,7 @@ export function ClientPortalStudio({
   // connection — "plug in any repo" without the browser holding a token.
   const [projectId, setProjectId] = useState("");
   const [projects, setProjects] = useState<StudioDevProject[]>([]);
+  const selectedProject = projects.find(item => item.id === projectId) ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -542,22 +549,26 @@ export function ClientPortalStudio({
           <ArrowLeft size={18} />
         </Link>
         <div className="hidden min-w-40 xl:block">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300/75">Portal studio</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300/75">Dev Editor</p>
           <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name}</p>
         </div>
 
-        {lockToClient ? (
-          <div className="col-start-2 row-start-1 inline-flex min-h-10 shrink-0 items-center gap-2 justify-self-start rounded-md border border-cyan-300/20 bg-cyan-300/[0.06] px-3 text-xs font-semibold text-cyan-200 xl:col-auto xl:row-auto" aria-label="Editing client portal">
-            <PanelsTopLeft size={15} /> Client portal
-          </div>
-        ) : (
-          <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Editing scope">
-            <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
-            <TopToggle active={scope === "client"} disabled={busy} onClick={() => changeScope("client")} label="Client" />
-          </div>
-        )}
+        {/* The primary switch is what the CANVAS shows — the live thing, its
+            code, or both. Template vs Client is a narrower question (which
+            portal am I previewing) and moves down to the secondary row. */}
+        <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Canvas view">
+          <TopToggle active={canvasView === "live"} onClick={() => setCanvasView("live")} label="Live" />
+          <TopToggle active={canvasView === "code"} onClick={() => setCanvasView("code")} label="Code" />
+          <TopToggle active={canvasView === "split"} onClick={() => setCanvasView("split")} label="Both" />
+        </div>
 
         <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
+          {canvasView !== "code" && !lockToClient ? (
+            <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Editing scope">
+              <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
+              <TopToggle active={scope === "client"} disabled={busy} onClick={() => changeScope("client")} label="Client" />
+            </div>
+          ) : null}
           {scope === "template" ? (
             <select aria-label="Portal template" value={templateId} disabled={busy} onChange={event => changeTemplate(event.target.value)} className="col-span-2 h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none disabled:opacity-45 sm:col-span-1 sm:min-w-52 sm:max-w-72 sm:shrink-0">
               {templates.map(template => <option key={template.id} value={template.id} className="bg-[#1a1c1a]">{template.name}{template.active ? "" : " (archived)"}</option>)}
@@ -614,10 +625,7 @@ export function ClientPortalStudio({
             </select>
           ) : null}
           <div className="flex min-w-0 items-center justify-end gap-2 sm:justify-start">
-            <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Preview device">
-              <IconToggle active={device === "desktop"} onClick={() => setDevice("desktop")} label="Desktop"><Monitor size={16} /></IconToggle>
-              <IconToggle active={device === "mobile"} onClick={() => setDevice("mobile")} label="Mobile"><Smartphone size={16} /></IconToggle>
-            </div>
+            {canvasView !== "code" ? <BreakpointControl value={breakpoint} onChange={setBreakpoint} /> : null}
             <button type="button" onClick={() => setFrameKey(value => value + 1)} title="Refresh preview" aria-label="Refresh preview" className="hidden size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white sm:grid"><RefreshCw size={16} /></button>
             <Link href={frameUrl.replace("embedded=1&", "")} target="_blank" rel="noreferrer" title="Open portal in new tab" aria-label="Open portal in new tab" className="grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white"><ExternalLink size={16} /></Link>
             {scope === "client" ? <Link href={`/client-preview/${clientId}?manage=1`} target="_blank" rel="noreferrer" title="Manage live product workspaces" aria-label="Manage live product workspaces" className="grid size-10 shrink-0 place-items-center rounded-md border border-cyan-300/25 text-cyan-300/75 hover:bg-cyan-300/10 hover:text-cyan-200"><PanelsTopLeft size={16} /></Link> : null}
@@ -634,16 +642,46 @@ export function ClientPortalStudio({
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#242724]">
           <div className="flex min-h-10 shrink-0 items-center justify-between border-b border-white/8 bg-[#1b1e1b] px-4 text-[11px] text-white/45">
             <p className="truncate" role="status" aria-live="polite">{notice}{dirty ? " · save the draft to refresh preview" : ""}</p>
-            <p className="hidden shrink-0 sm:block">{scope === "template" ? selectedTemplate?.productId ? "Product template" : "Master template" : "Client override"} · {device === "mobile" ? "390 × 844" : "Responsive desktop"}</p>
+            <p className="hidden shrink-0 sm:block">
+              {canvasView === "code"
+                ? (selectedProject?.repository || "This workspace")
+                : `${scope === "template" ? selectedTemplate?.productId ? "Product template" : "Master template" : "Client override"} · ${breakpointLabel(breakpoint)}`}
+            </p>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-7">
-            <div className={`mx-auto overflow-hidden rounded-md border border-white/12 bg-white shadow-[0_24px_80px_rgba(0,0,0,.35)] transition-[width] ${device === "mobile" ? "w-[390px] max-w-full" : "w-full max-w-[1440px]"}`}>
-              {loading || !frameUrl ? (
-                <div className="grid h-[70vh] place-items-center bg-[#f2f0eb] text-sm text-black/45">Loading the real portal...</div>
-              ) : (
-                <iframe ref={previewRef} key={`${frameKey}:${frameUrl}`} title="Client portal draft preview" src={frameUrl} className={`block w-full bg-white ${device === "mobile" ? "h-[844px]" : "h-[calc(100vh-180px)] min-h-[680px]"}`} />
-              )}
-            </div>
+
+          {/* The canvas. Live is the running thing; code is the file tree and
+              the open file; both is the pair side by side, which is how the
+              work is actually done. */}
+          <div className="flex min-h-0 flex-1">
+            {canvasView !== "code" ? (
+              <div className={`min-h-0 flex-1 overflow-auto p-4 lg:p-7 ${canvasView === "split" ? "border-r border-white/8" : ""}`}>
+                <div
+                  className="mx-auto overflow-hidden rounded-md border border-white/12 bg-white shadow-[0_24px_80px_rgba(0,0,0,.35)] transition-[width]"
+                  style={{ width: Math.min(breakpointSize(breakpoint).width, 1440), maxWidth: "100%" }}
+                >
+                  {loading || !frameUrl ? (
+                    <div className="grid h-[70vh] place-items-center bg-[#f2f0eb] text-sm text-black/45">Loading the real portal...</div>
+                  ) : (
+                    <iframe
+                      ref={previewRef}
+                      key={`${frameKey}:${frameUrl}`}
+                      title="Client portal draft preview"
+                      src={frameUrl}
+                      className="block w-full bg-white"
+                      style={{ height: breakpoint.id === "responsive" || breakpoint.id === "custom"
+                        ? "calc(100vh - 190px)"
+                        : breakpointSize(breakpoint).height }}
+                    />
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {canvasView !== "live" ? (
+              <div className={`flex min-h-0 min-w-0 flex-col ${canvasView === "split" ? "w-[46%] shrink-0" : "flex-1"}`}>
+                <EditorCodeCanvas projectId={projectId || undefined} repository={repository} focus={sourceFocus} />
+              </div>
+            ) : null}
           </div>
         </main>
 
