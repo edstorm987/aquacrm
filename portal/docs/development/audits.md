@@ -71,6 +71,12 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-21 — 🟢 Banner's one "observed red" is RESOLVED — `smoke-dev-tasks-parse.test.ts` now 13/13
+
+The top banner (written 2026-08-20) flags one red observed after its count was taken: `smoke-dev-tasks-parse.test.ts` failing **12 pass / 1 fail** in isolation, from a stale `/BLOCKED on Ed/i` assertion pinning a plan phase that had since shipped ("✅ Cohere — SHIPPED"). **That red no longer reproduces.** Re-ran the file alone today: the same **13 tests → 13 pass / 0 fail** (the one stale assertion was corrected, not deleted — count unchanged, the fail is gone), and it's likewise clean in the full suite.
+
+**→ Commander:** the banner's ⚠ "one red observed since" can be **cleared** — the dev-tasks-parse test is green in both isolation (13/13) and suite. **No open reds.** (Banner's headline pass count `2382` is also stale now — live full-suite is **2631 / 0**, `tsc` last verified clean.)
+
 ## 2026-08-20 — 🟢 Light security spot-check of the (still-unlogged) SOPs feature — access control is SOUND
 
 Companion to the governance spot-check below. The SOPs feature has also shipped **unlogged ~12 ticks**; it's the other client/agency-facing surface, so I checked its access control without waiting for a claim. **Sound — same clean pattern as governance:**

@@ -15,6 +15,7 @@ import type { NavPanel } from "@/lib/chrome/sidebarLayout";
 import type { ReactNode } from "react";
 import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PortalSearch } from "@/components/chrome/PortalSearch";
+import { PinCurrentControl, PinnedTabsBar } from "@/components/chrome/PinnedTabs";
 import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
 import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
@@ -73,12 +74,14 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
   return (
+    <>
     <header className="mm-portal-topbar relative z-40 flex min-h-14 shrink-0 items-center justify-between gap-1.5 border-b border-black/10 bg-white/40 px-3 py-2 backdrop-blur-xl sm:gap-2 sm:px-4 md:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-3">
         {panels && tenantLabel && currentPath && (
           <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} sidebarVariant={sidebarVariant} />
         )}
         <TopbarBackButton />
+        {!publicShowcase ? <PinCurrentControl userKey={email ?? "anon"} label={title} /> : null}
         <div className="mm-private-chrome hidden min-w-0 sm:block">
           <p className="truncate text-sm font-semibold text-black/80">{title}</p>
           {subtitle ? <p className="truncate text-[11px] text-black/40">{subtitle}</p> : null}
@@ -125,5 +128,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         )}
       </div>
     </header>
+    {!publicShowcase ? <PinnedTabsBar userKey={email ?? "anon"} /> : null}
+    </>
   );
 }
