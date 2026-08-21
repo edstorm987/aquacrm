@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (1)
 
-- [`src/lib/server/siteEditor/fileTree.ts`](../../../../../lib/server/siteEditor/fileTree.md)
+- [`src/engines/editor/server/fileTree.ts`](../../../../../engines/editor/server/fileTree.md)
 
 ## Used by (1)
 

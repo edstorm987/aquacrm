@@ -9,13 +9,14 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `async POST(request: Request)`
 - `async PATCH(request: Request)`
 
-## Depends on (7)
+## Depends on (8)
 
 - [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/email/outboundCommunications.ts`](../../../../../lib/server/email/outboundCommunications.md)
 - [`src/lib/server/websiteEnquiries.ts`](../../../../../lib/server/websiteEnquiries.md)
 - [`src/lib/server/websiteEnquiryLeadSync.ts`](../../../../../lib/server/websiteEnquiryLeadSync.md)
-- [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/ownedEnquiry.ts`](../../../../../lib/supabase/ownedEnquiry.md)
+- [`src/lib/supabase/scoped.ts`](../../../../../lib/supabase/scoped.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 

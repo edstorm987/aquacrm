@@ -6,7 +6,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Exports (3)
 
-- `interface NavPanel (4 members)`
+- `interface NavPanel (5 members)`
 - `interface BuildSidebarInput (7 members)`
 - `buildSidebar(input: BuildSidebarInput): NavPanel[]`
 
@@ -16,10 +16,15 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/built-ins/runtime/_types.ts`](../../built-ins/runtime/_types.md)
 - [`src/server/types.ts`](../../server/types.md)
 
-## Used by (10)
+## Used by (15)
 
 - [`scripts/smoke-dev-docs.test.ts`](../../../scripts/smoke-dev-docs.test.md)
+- [`scripts/smoke-inbox-actions.test.ts`](../../../scripts/smoke-inbox-actions.test.md)
 - [`scripts/smoke-nav-audit.test.ts`](../../../scripts/smoke-nav-audit.test.md)
+- [`scripts/smoke-operations-attention-rollup.test.ts`](../../../scripts/smoke-operations-attention-rollup.test.md)
+- [`scripts/smoke-operations-hub.test.ts`](../../../scripts/smoke-operations-hub.test.md)
+- [`scripts/smoke-operations-surface.test.ts`](../../../scripts/smoke-operations-surface.test.md)
+- [`scripts/smoke-tools-directory.test.ts`](../../../scripts/smoke-tools-directory.test.md)
 - [`src/app/portal/agency/layout.tsx`](../../app/portal/agency/layout.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 - [`src/app/portal/dev-team/layout.tsx`](../../app/portal/dev-team/layout.md)

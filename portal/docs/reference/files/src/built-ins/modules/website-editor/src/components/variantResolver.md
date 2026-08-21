@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/elements/variantResolver.ts`](../../../../../lib/elements/variantResolver.md)
+- [`src/engines/editor/elements/variantResolver.ts`](../../../../../engines/editor/elements/variantResolver.md)
 
 ## Used by (1)
 

@@ -21,7 +21,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (105)
+## Used by (108)
 
 - [`src/app/api/assistant/route.ts`](../app/api/assistant/route.md)
 - [`src/app/api/auth/end-customer/signup/route.ts`](../app/api/auth/end-customer/signup/route.md)
@@ -95,6 +95,12 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](../built-ins/runtime/foundation-adapters/_foundationPorts.md)
 - [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](../built-ins/runtime/foundation-adapters/activityLogAdapter.md)
 - [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](../built-ins/runtime/foundation-adapters/portalVariantAdapter.md)
+- [`src/engines/data/server/kpi/customKpis.ts`](../engines/data/server/kpi/customKpis.md)
+- [`src/engines/data/server/kpi/kpiSavedViews.ts`](../engines/data/server/kpi/kpiSavedViews.md)
+- [`src/engines/data/server/kpi/kpiTargets.ts`](../engines/data/server/kpi/kpiTargets.md)
+- [`src/engines/editor/server/devProjects.ts`](../engines/editor/server/devProjects.md)
+- [`src/engines/sop/server/sopGuides.ts`](../engines/sop/server/sopGuides.md)
+- [`src/engines/sop/server/sops.ts`](../engines/sop/server/sops.md)
 - [`src/lib/server/assistants/advisorSkillsService.ts`](../lib/server/assistants/advisorSkillsService.md)
 - [`src/lib/server/assistants/externalAssistantApi.ts`](../lib/server/assistants/externalAssistantApi.md)
 - [`src/lib/server/assistants/externalAssistantKeys.ts`](../lib/server/assistants/externalAssistantKeys.md)
@@ -104,8 +110,6 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/lib/server/inbox/inboxService.ts`](../lib/server/inbox/inboxService.md)
 - [`src/lib/server/integrations/googleCalendar.ts`](../lib/server/integrations/googleCalendar.md)
 - [`src/lib/server/integrations/integrationConnections.ts`](../lib/server/integrations/integrationConnections.md)
-- [`src/lib/server/kpi/customKpis.ts`](../lib/server/kpi/customKpis.md)
-- [`src/lib/server/kpi/kpiTargets.ts`](../lib/server/kpi/kpiTargets.md)
 - [`src/lib/server/seeds/demoSeed.ts`](../lib/server/seeds/demoSeed.md)
 - [`src/server/agencyBootstrap.ts`](./agencyBootstrap.md)
 - [`src/server/agencyProducts.ts`](./agencyProducts.md)
@@ -125,7 +129,6 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/people.ts`](./people.md)
 - [`src/server/performanceExperiments.ts`](./performanceExperiments.md)
 - [`src/server/portalEditor.ts`](./portalEditor.md)
-- [`src/server/sops.ts`](./sops.md)
 - [`src/server/tasks.ts`](./tasks.md)
 - [`src/server/tradingCompanies.ts`](./tradingCompanies.md)
 

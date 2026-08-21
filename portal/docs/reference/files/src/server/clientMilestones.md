@@ -30,9 +30,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/performance/page.tsx`](../app/portal/agency/performance/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../app/portal/customer/_CustomerPortalViews.md)
+- [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](../engines/data/server/kpi/companyHealthSnapshot.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../engines/data/server/radar/clientRadarService.md)
 - [`src/lib/server/auth/showcaseMode.ts`](../lib/server/auth/showcaseMode.md)
 - [`src/lib/server/brandPortfolioService.ts`](../lib/server/brandPortfolioService.md)
 - [`src/lib/server/clients/clientTelemetryService.ts`](../lib/server/clients/clientTelemetryService.md)
-- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../lib/server/kpi/companyHealthSnapshot.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../lib/server/radar/clientRadarService.md)
 

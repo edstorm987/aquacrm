@@ -10,8 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `getSupabasePublicConfig(): SupabasePublicConfig | null`
 - `requireSupabasePublicConfig(): SupabasePublicConfig`
 
-## Used by (3)
+## Used by (4)
 
+- [`src/app/portal/agency/governance/_governanceData.ts`](../../app/portal/agency/governance/_governanceData.md)
 - [`src/lib/server/auth/auth.ts`](../server/auth/auth.md)
 - [`src/lib/supabase/route.ts`](./route.md)
 - [`src/lib/supabase/server.ts`](./server.md)

@@ -28,7 +28,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 
-## Used by (1)
+## Used by (2)
 
 - [`src/app/portal/agency/actions/_ActionsPage.tsx`](./_ActionsPage.md)
+- [`src/app/portal/agency/actions/_TodayView.tsx`](./_TodayView.md)
 

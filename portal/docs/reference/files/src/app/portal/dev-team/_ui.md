@@ -24,13 +24,15 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `SECTION_VIEWS: Record<string, SectionView[]>`
 - `ViewTabs({ section, active }: { section: keyof typeof SECTION_VIEWS | string; active: string })`
 
-## Used by (19)
+## Used by (21)
 
 - [`src/app/portal/dev-team/api/_Section.tsx`](./api/_Section.md)
 - [`src/app/portal/dev-team/auditor/_Section.tsx`](./auditor/_Section.md)
+- [`src/app/portal/dev-team/chat/page.tsx`](./chat/page.md)
 - [`src/app/portal/dev-team/docs/page.tsx`](./docs/page.md)
 - [`src/app/portal/dev-team/editor/_AppConfigEditor.tsx`](./editor/_AppConfigEditor.md)
 - [`src/app/portal/dev-team/editor/_Section.tsx`](./editor/_Section.md)
+- [`src/app/portal/dev-team/editor/page.tsx`](./editor/page.md)
 - [`src/app/portal/dev-team/findings/_Section.tsx`](./findings/_Section.md)
 - [`src/app/portal/dev-team/findings/page.tsx`](./findings/page.md)
 - [`src/app/portal/dev-team/inspector/InspectorClient.tsx`](./inspector/InspectorClient.md)

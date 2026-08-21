@@ -8,9 +8,10 @@
 
 - `async GET(req: NextRequest)`
 
-## Depends on (8)
+## Depends on (9)
 
 - [`src/lib/server/auth/auth.ts`](../../../../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/mfa.ts`](../../../../../../lib/server/auth/mfa.md)
 - [`src/lib/server/auth/postLoginRedirect.ts`](../../../../../../lib/server/auth/postLoginRedirect.md)
 - [`src/lib/server/integrations/oauthGoogle.ts`](../../../../../../lib/server/integrations/oauthGoogle.md)
 - [`src/server/activity.ts`](../../../../../../server/activity.md)
@@ -19,7 +20,7 @@
 - [`src/server/tenants.ts`](../../../../../../server/tenants.md)
 - [`src/server/users.ts`](../../../../../../server/users.md)
 
-## Used by
+## Used by (1)
 
-_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+- [`scripts/smoke-mfa-doors.test.ts`](../../../../../../../scripts/smoke-mfa-doors.test.md)
 

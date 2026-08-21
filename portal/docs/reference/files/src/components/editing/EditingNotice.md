@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Depends on (1)
 
-- [`src/lib/editing/leases.ts`](../../lib/editing/leases.md)
+- [`src/engines/editor/editing/leases.ts`](../../engines/editor/editing/leases.md)
 
 ## Used by
 

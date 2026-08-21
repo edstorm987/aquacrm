@@ -8,12 +8,13 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 - `ProfileMenu({ email, role, name, avatarUrl, accountLabel = "AquaCRM account", canUseDevMode = false, devModeActive = false }: Props)`
 
-## Depends on (6)
+## Depends on (7)
 
 - [`src/components/chrome/ColorModeToggle.tsx`](./ColorModeToggle.md)
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](./NotificationAttentionProvider.md)
 - [`src/components/chrome/QuickNoteWindow.tsx`](./QuickNoteWindow.md)
-- [`src/lib/chrome/devModeLoadIn.ts`](../../lib/chrome/devModeLoadIn.md)
+- [`src/lib/chrome/cinematicMode.ts`](../../lib/chrome/cinematicMode.md)
+- [`src/lib/chrome/devIconPreference.ts`](../../lib/chrome/devIconPreference.md)
 - [`src/lib/chrome/performanceMode.ts`](../../lib/chrome/performanceMode.md)
 - [`src/server/types.ts`](../../server/types.md)
 

@@ -23,10 +23,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 - [`src/app/portal/customer/_CustomerPortalActions.tsx`](../../app/portal/customer/_CustomerPortalActions.md)
 - [`src/app/portal/customer/_portalData.ts`](../../app/portal/customer/_portalData.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../../engines/data/server/radar/clientRadarService.md)
 - [`src/lib/clients/clientAquaHealth.ts`](./clientAquaHealth.md)
 - [`src/lib/server/closeDeal.ts`](../server/closeDeal.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../server/inbox/operationalAlerts.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../server/radar/clientRadarService.md)
 - [`src/lib/server/resolutionPlans.ts`](../server/resolutionPlans.md)
 - [`src/server/contractTemplates.ts`](../../server/contractTemplates.md)
 

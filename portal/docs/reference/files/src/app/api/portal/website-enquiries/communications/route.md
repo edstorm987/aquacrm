@@ -8,7 +8,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `async POST(request: Request)`
 
-## Depends on (10)
+## Depends on (11)
 
 - [`src/lib/brands/tradingBrands.ts`](../../../../../lib/brands/tradingBrands.md)
 - [`src/lib/inbox/media.ts`](../../../../../lib/inbox/media.md)
@@ -17,7 +17,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/lib/server/email/transactionalEmail.ts`](../../../../../lib/server/email/transactionalEmail.md)
 - [`src/lib/server/inbox/inboxMedia.ts`](../../../../../lib/server/inbox/inboxMedia.md)
 - [`src/lib/server/websiteEnquiryLeadSync.ts`](../../../../../lib/server/websiteEnquiryLeadSync.md)
-- [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/ownedEnquiry.ts`](../../../../../lib/supabase/ownedEnquiry.md)
+- [`src/lib/supabase/scoped.ts`](../../../../../lib/supabase/scoped.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 

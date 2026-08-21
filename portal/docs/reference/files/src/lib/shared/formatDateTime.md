@@ -15,7 +15,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `localDateTimeInputValue(value: unknown): string`
 - `relativeAge(mtimeMs: number, nowMs: number): string`
 
-## Used by (94)
+## Used by (95)
 
 - [`scripts/smoke-date-resilience.test.ts`](../../../scripts/smoke-date-resilience.test.md)
 - [`scripts/smoke-dev-docs.test.ts`](../../../scripts/smoke-dev-docs.test.md)
@@ -44,6 +44,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/dev-docs/_DevDocsIndex.tsx`](../../app/portal/agency/dev-docs/_DevDocsIndex.md)
 - [`src/app/portal/agency/dev-docs/_DocTree.tsx`](../../app/portal/agency/dev-docs/_DocTree.md)
 - [`src/app/portal/agency/fulfilment/page.tsx`](../../app/portal/agency/fulfilment/page.md)
+- [`src/app/portal/agency/governance/_GovernanceWorkspace.tsx`](../../app/portal/agency/governance/_GovernanceWorkspace.md)
 - [`src/app/portal/agency/inbox/_EnquiryCommunications.tsx`](../../app/portal/agency/inbox/_EnquiryCommunications.md)
 - [`src/app/portal/agency/inbox/_EnquiryDetailCard.tsx`](../../app/portal/agency/inbox/_EnquiryDetailCard.md)
 - [`src/app/portal/agency/inbox/_MasterInbox.tsx`](../../app/portal/agency/inbox/_MasterInbox.md)
@@ -101,14 +102,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/components/chrome/PortalSearch.tsx`](../../components/chrome/PortalSearch.md)
 - [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](../../components/marketing/ClientMarketingServiceWorkspace.md)
 - [`src/components/people/TeamChat.tsx`](../../components/people/TeamChat.md)
+- [`src/engines/data/radar/radarCheckEngine.ts`](../../engines/data/radar/radarCheckEngine.md)
+- [`src/engines/data/radar/radarSentinels.ts`](../../engines/data/radar/radarSentinels.md)
+- [`src/engines/data/radar/radarSyntheticChecks.ts`](../../engines/data/radar/radarSyntheticChecks.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/radarTelemetry.ts`](../../engines/data/server/radar/radarTelemetry.md)
 - [`src/lib/clients/clientAquaHealth.ts`](../clients/clientAquaHealth.md)
 - [`src/lib/performance/performanceAnalytics.ts`](../performance/performanceAnalytics.md)
-- [`src/lib/radar/radarCheckEngine.ts`](../radar/radarCheckEngine.md)
-- [`src/lib/radar/radarSentinels.ts`](../radar/radarSentinels.md)
-- [`src/lib/radar/radarSyntheticChecks.ts`](../radar/radarSyntheticChecks.md)
 - [`src/lib/server/assistants/externalAssistantApi.ts`](../server/assistants/externalAssistantApi.md)
 - [`src/lib/server/inbox/inboxStore.ts`](../server/inbox/inboxStore.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../server/inbox/operationalAlerts.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../server/radar/businessIssueRadar.md)
-- [`src/lib/server/radar/radarTelemetry.ts`](../server/radar/radarTelemetry.md)
 

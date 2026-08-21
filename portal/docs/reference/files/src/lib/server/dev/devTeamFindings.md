@@ -22,10 +22,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `interface PlanFromFindings (3 members)`
 - `async planFromFindings(findings: Finding[], options: { title?: string; goal?: string; now?: number } = {}): Promise<PlanFromFindings>`
 
-## Depends on (3)
+## Depends on (4)
 
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
 - [`src/lib/server/dev/devLocalTime.ts`](./devLocalTime.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 - [`src/lib/server/dev/devTeamPlans.ts`](./devTeamPlans.md)
 
 ## Used by (10)

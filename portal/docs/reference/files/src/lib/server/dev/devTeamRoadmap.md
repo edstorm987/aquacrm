@@ -35,10 +35,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `interface Collision (4 members)`
 - `findCollisions(items: RoadmapItemView[]): Collision[]`
 
-## Depends on (5)
+## Depends on (6)
 
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
 - [`src/lib/server/dev/devLocalTime.ts`](./devLocalTime.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 - [`src/lib/server/dev/devTeamBoard.ts`](./devTeamBoard.md)
 - [`src/lib/server/dev/devTeamTasks.ts`](./devTeamTasks.md)
 - [`src/lib/server/dev/devTeamWorkers.ts`](./devTeamWorkers.md)

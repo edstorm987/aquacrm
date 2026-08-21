@@ -2,14 +2,14 @@
 
 ← [File index](../../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
 
-**What it is:** Pure functions for manipulating the element tree.  Implementation moved to `src/lib/elements/blockTreeOps.ts` in P1. Re-exported here verbatim.  `import "../blockRegistry"` is load-bearing: `createBlock()` reads `defaultProps` through the shared `src/lib/elements/registry` lookup, and this plugin's registry is what fills it.
+**What it is:** Pure functions for manipulating the element tree.  Implementation moved to `src/engines/editor/elements/blockTreeOps.ts` in P1. Re-exported here verbatim.  `import "../blockRegistry"` is load-bearing: `createBlock()` reads `defaultProps` through the shared `src/engines/editor/elements/registry` lookup, and this plugin's registry is what fills it.
 
 _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
 - [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../blockRegistry.md)
-- [`src/lib/elements/blockTreeOps.ts`](../../../../../../lib/elements/blockTreeOps.md)
+- [`src/engines/editor/elements/blockTreeOps.ts`](../../../../../../engines/editor/elements/blockTreeOps.md)
 
 ## Used by (4)
 

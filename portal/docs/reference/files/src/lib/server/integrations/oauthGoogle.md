@@ -17,10 +17,11 @@
 - `async exchangeAndVerify(config: GoogleOAuthConfig, code: string, deps: ExchangeDeps = {}): Promise<{ ok: true; claims: GoogleIdTokenClaims } | { ok: false; error: string }>`
 - `async verifyIdToken(idToken: string, expectedAudience: string, deps: ExchangeDeps = {}): Promise<{ ok: true; claims: GoogleIdTokenClaims } | { ok: false; error: string }>`
 
-## Used by (6)
+## Used by (7)
 
 - [`scripts/smoke-auth-oauth.test.ts`](../../../../scripts/smoke-auth-oauth.test.md)
 - [`scripts/smoke-google-oauth.test.ts`](../../../../scripts/smoke-google-oauth.test.md)
+- [`scripts/smoke-mfa-doors.test.ts`](../../../../scripts/smoke-mfa-doors.test.md)
 - [`src/app/api/auth/oauth/google/callback/route.ts`](../../../app/api/auth/oauth/google/callback/route.md)
 - [`src/app/api/auth/oauth/google/start/route.ts`](../../../app/api/auth/oauth/google/start/route.md)
 - [`src/app/login/page.tsx`](../../../app/login/page.md)

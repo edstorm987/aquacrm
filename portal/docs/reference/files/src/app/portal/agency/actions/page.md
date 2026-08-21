@@ -6,11 +6,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Exports (1)
 
-- `default async AgencyActionsPage()`
-
-## Depends on (1)
-
-- [`src/app/portal/agency/actions/_ActionsPage.tsx`](./_ActionsPage.md)
+- `default AgencyActionsPage()`
 
 ## Used by
 

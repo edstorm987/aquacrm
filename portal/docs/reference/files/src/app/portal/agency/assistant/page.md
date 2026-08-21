@@ -11,12 +11,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (9)
 
 - [`src/app/portal/agency/assistant/AssistantWorkspace.tsx`](./AssistantWorkspace.md)
-- [`src/lib/radar/businessRadar.ts`](../../../../lib/radar/businessRadar.md)
+- [`src/engines/data/radar/businessRadar.ts`](../../../../engines/data/radar/businessRadar.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../../../engines/data/server/radar/businessIssueRadar.md)
 - [`src/lib/server/assistants/assistantBusinessContext.ts`](../../../../lib/server/assistants/assistantBusinessContext.md)
 - [`src/lib/server/assistants/assistantStore.ts`](../../../../lib/server/assistants/assistantStore.md)
 - [`src/lib/server/assistants/openaiAssistant.ts`](../../../../lib/server/assistants/openaiAssistant.md)
 - [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../../../../lib/server/radar/businessIssueRadar.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/users.ts`](../../../../server/users.md)
 

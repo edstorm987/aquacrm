@@ -14,9 +14,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `parsePhases(md: string): ParsedPhase[]`
 - `async scanTasks(opts: { onlyActive?: boolean } = {}): Promise<PlanTasks[]>`
 
-## Depends on (2)
+## Depends on (3)
 
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 - [`src/lib/server/dev/devTeamWorkers.ts`](./devTeamWorkers.md)
 
 ## Used by (3)

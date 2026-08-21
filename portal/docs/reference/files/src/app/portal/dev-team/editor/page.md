@@ -4,9 +4,19 @@
 
 _No file-level doc-comment. Purpose inferred from its path (App routes & UI — src/app/) and its exports below._
 
-## Exports (1)
+## Exports (2)
 
-- `default DevTeameditorRedirect()`
+- `dynamic`
+- `default async DevEditorProjectsPage()`
+
+## Depends on (6)
+
+- [`src/app/portal/dev-team/_ui.tsx`](../_ui.md)
+- [`src/app/portal/dev-team/editor/setup/_DevEditorSetup.tsx`](./setup/_DevEditorSetup.md)
+- [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
+- [`src/lib/server/dev/devDocs.ts`](../../../../lib/server/dev/devDocs.md)
+- [`src/server/storage.ts`](../../../../server/storage.md)
+- [`src/server/types.ts`](../../../../server/types.md)
 
 ## Used by
 

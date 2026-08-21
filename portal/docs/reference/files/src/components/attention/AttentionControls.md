@@ -13,7 +13,8 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 - [`src/lib/inbox/resolutionExplain.ts`](../../lib/inbox/resolutionExplain.md)
 
-## Used by (1)
+## Used by (2)
 
 - [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](../../app/portal/agency/actions/_ActionsWorkspace.md)
+- [`src/app/portal/agency/actions/_TodayView.tsx`](../../app/portal/agency/actions/_TodayView.md)
 

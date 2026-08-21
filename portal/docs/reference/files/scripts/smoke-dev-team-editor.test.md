@@ -10,7 +10,7 @@ _No exported symbols (side-effect / internal module)._
 
 - [`scripts/dev-console-request-scope.ts`](./dev-console-request-scope.md)
 - [`src/app/api/portal/dev-team/editor/route.ts`](../src/app/api/portal/dev-team/editor/route.md)
-- [`src/lib/editing/engine.ts`](../src/lib/editing/engine.md)
+- [`src/engines/editor/editing/engine.ts`](../src/engines/editor/editing/engine.md)
 - [`src/lib/server/auth/auth.ts`](../src/lib/server/auth/auth.md)
 - [`src/lib/server/editing/appConfigAdapter.ts`](../src/lib/server/editing/appConfigAdapter.md)
 - [`src/server/agencySettings.ts`](../src/server/agencySettings.md)

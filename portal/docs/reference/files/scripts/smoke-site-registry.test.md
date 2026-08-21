@@ -8,8 +8,8 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/server/siteEditor/registry.ts`](../src/lib/server/siteEditor/registry.md)
-- [`src/lib/server/siteEditor/sourceStamp.ts`](../src/lib/server/siteEditor/sourceStamp.md)
+- [`src/engines/editor/server/registry.ts`](../src/engines/editor/server/registry.md)
+- [`src/engines/editor/server/sourceStamp.ts`](../src/engines/editor/server/sourceStamp.md)
 
 ## Used by
 

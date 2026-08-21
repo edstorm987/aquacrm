@@ -9,7 +9,7 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (2)
 
 - [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](./blockRegistry.md)
-- [`src/lib/elements/BlockRenderer.tsx`](../../../../../lib/elements/BlockRenderer.md)
+- [`src/engines/editor/elements/BlockRenderer.tsx`](../../../../../engines/editor/elements/BlockRenderer.md)
 
 ## Used by (3)
 

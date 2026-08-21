@@ -43,7 +43,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 - [`src/app/portal/customer/_portalData.ts`](../../app/portal/customer/_portalData.md)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../../built-ins/modules/leads-pipeline/src/api/handlers.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../server/radar/clientRadarService.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../../engines/data/server/radar/clientRadarService.md)
 - [`src/server/clientPortalSetup.ts`](../../server/clientPortalSetup.md)
 - [`src/server/productWorkspaces.ts`](../../server/productWorkspaces.md)
 

@@ -8,11 +8,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `default async SopLibraryPage()`
 
-## Depends on (5)
+## Depends on (6)
 
 - [`src/app/portal/agency/sop-library/_SopLibrary.tsx`](./_SopLibrary.md)
+- [`src/engines/sop/server/sopGuides.ts`](../../../../engines/sop/server/sopGuides.md)
+- [`src/engines/sop/server/sops.ts`](../../../../engines/sop/server/sops.md)
 - [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
-- [`src/server/sops.ts`](../../../../server/sops.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

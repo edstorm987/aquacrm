@@ -8,7 +8,7 @@
 
 - `default async ClientLayout({ children, params, }: { children: ReactNode; params: Promise<{ clientId: string }>; })`
 
-## Depends on (25)
+## Depends on (26)
 
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](../../../../components/chrome/AdvisorDrawerControl.md)
 - [`src/components/chrome/ClientRadarQuickLookControl.tsx`](../../../../components/chrome/ClientRadarQuickLookControl.md)
@@ -25,6 +25,7 @@
 - [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/lib/server/clients/clientPortalProvider.ts`](../../../../lib/server/clients/clientPortalProvider.md)
 - [`src/lib/server/dev/devDocs.ts`](../../../../lib/server/dev/devDocs.md)
+- [`src/lib/server/devIconPreference.ts`](../../../../lib/server/devIconPreference.md)
 - [`src/lib/server/inbox/operationalAlertPreferences.ts`](../../../../lib/server/inbox/operationalAlertPreferences.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../../../../lib/server/inbox/operationalAlerts.md)
 - [`src/lib/server/portal/previewPhase.ts`](../../../../lib/server/portal/previewPhase.md)

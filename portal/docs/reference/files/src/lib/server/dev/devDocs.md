@@ -21,13 +21,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `parseBlockers(markdown: string): DevDocBlocker[]`
 - `async scanBlockers(): Promise<DevDocBlocker[]>`
 
-## Depends on (3)
+## Depends on (4)
 
 - [`src/lib/server/auth/effectiveRole.ts`](../auth/effectiveRole.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 - [`src/lib/server/dev/devModeAccess.ts`](./devModeAccess.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (49)
+## Used by (55)
 
 - [`scripts/smoke-dev-console-topbar.test.ts`](../../../../scripts/smoke-dev-console-topbar.test.md)
 - [`scripts/smoke-dev-docs.test.ts`](../../../../scripts/smoke-dev-docs.test.md)
@@ -41,6 +42,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/api/portal/dev-team/thoughts/route.ts`](../../../app/api/portal/dev-team/thoughts/route.md)
 - [`src/app/api/portal/dev-team/updates/route.ts`](../../../app/api/portal/dev-team/updates/route.md)
 - [`src/app/api/portal/dev-team/workers/route.ts`](../../../app/api/portal/dev-team/workers/route.md)
+- [`src/app/api/portal/dev/editor-activity/route.ts`](../../../app/api/portal/dev/editor-activity/route.md)
+- [`src/app/api/portal/dev/projects/route.ts`](../../../app/api/portal/dev/projects/route.md)
+- [`src/app/api/portal/site-editor/files/route.ts`](../../../app/api/portal/site-editor/files/route.md)
 - [`src/app/portal/agency/dev-docs/_DevDocViewer.tsx`](../../../app/portal/agency/dev-docs/_DevDocViewer.md)
 - [`src/app/portal/agency/dev-docs/_DevDocsIndex.tsx`](../../../app/portal/agency/dev-docs/_DevDocsIndex.md)
 - [`src/app/portal/agency/dev-docs/_DocTree.tsx`](../../../app/portal/agency/dev-docs/_DocTree.md)
@@ -51,8 +55,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/page.tsx`](../../../app/portal/clients/page.md)
 - [`src/app/portal/dev-team/api/_Section.tsx`](../../../app/portal/dev-team/api/_Section.md)
 - [`src/app/portal/dev-team/auditor/_Section.tsx`](../../../app/portal/dev-team/auditor/_Section.md)
+- [`src/app/portal/dev-team/chat/page.tsx`](../../../app/portal/dev-team/chat/page.md)
 - [`src/app/portal/dev-team/docs/page.tsx`](../../../app/portal/dev-team/docs/page.md)
 - [`src/app/portal/dev-team/editor/_Section.tsx`](../../../app/portal/dev-team/editor/_Section.md)
+- [`src/app/portal/dev-team/editor/page.tsx`](../../../app/portal/dev-team/editor/page.md)
+- [`src/app/portal/dev-team/editor/studio/page.tsx`](../../../app/portal/dev-team/editor/studio/page.md)
 - [`src/app/portal/dev-team/findings/_Section.tsx`](../../../app/portal/dev-team/findings/_Section.md)
 - [`src/app/portal/dev-team/inspector/_Section.tsx`](../../../app/portal/dev-team/inspector/_Section.md)
 - [`src/app/portal/dev-team/layout.tsx`](../../../app/portal/dev-team/layout.md)

@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/elements/AnimateOnScroll.tsx`](../../../../../lib/elements/AnimateOnScroll.md)
+- [`src/engines/editor/elements/AnimateOnScroll.tsx`](../../../../../engines/editor/elements/AnimateOnScroll.md)
 
 ## Used by (1)
 

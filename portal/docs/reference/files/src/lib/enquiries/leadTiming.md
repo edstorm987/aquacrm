@@ -25,5 +25,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](../../app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.md)
 - [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](../../app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.md)
 - [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](../../app/portal/agency/pipelines/[slug]/_ScoutingCommand.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
 

@@ -30,7 +30,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/pipelines/[slug]/page.tsx`](../../app/portal/agency/pipelines/[slug]/page.md)
 - [`src/app/portal/clients/_PeopleHub.tsx`](../../app/portal/clients/_PeopleHub.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../server/inbox/operationalAlerts.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../server/radar/businessIssueRadar.md)
 - [`src/lib/server/websiteEnquiries.ts`](../server/websiteEnquiries.md)
 

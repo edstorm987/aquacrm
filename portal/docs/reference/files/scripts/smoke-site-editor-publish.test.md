@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/server/siteEditor/registry.ts`](../src/lib/server/siteEditor/registry.md)
+- [`src/engines/editor/server/registry.ts`](../src/engines/editor/server/registry.md)
 
 ## Used by
 

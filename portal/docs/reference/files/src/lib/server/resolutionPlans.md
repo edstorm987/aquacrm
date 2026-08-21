@@ -13,6 +13,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (17)
 
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/radarEvidenceVault.ts`](../../engines/data/server/radar/radarEvidenceVault.md)
 - [`src/lib/clients/clientContracts.ts`](../clients/clientContracts.md)
 - [`src/lib/clients/clientPaymentPlans.ts`](../clients/clientPaymentPlans.md)
 - [`src/lib/clients/clientWorkspace.ts`](../clients/clientWorkspace.md)
@@ -21,8 +23,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/inbox/resolutionEvidence.ts`](../inbox/resolutionEvidence.md)
 - [`src/lib/inbox/resolutionExplain.ts`](../inbox/resolutionExplain.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](./inbox/operationalAlerts.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](./radar/businessIssueRadar.md)
-- [`src/lib/server/radar/radarEvidenceVault.ts`](./radar/radarEvidenceVault.md)
 - [`src/lib/server/websiteEnquiries.ts`](./websiteEnquiries.md)
 - [`src/server/completedActions.ts`](../../server/completedActions.md)
 - [`src/server/organisations.ts`](../../server/organisations.md)

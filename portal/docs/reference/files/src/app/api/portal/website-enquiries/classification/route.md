@@ -8,7 +8,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `async PATCH(request: Request)`
 
-## Depends on (12)
+## Depends on (13)
 
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../../../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
 - [`src/lib/brands/tradingBrands.ts`](../../../../../lib/brands/tradingBrands.md)
@@ -16,7 +16,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/leadsPipelinePorts.ts`](../../../../../lib/server/leadsPipelinePorts.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../../lib/server/pluginStorage.md)
-- [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/ownedEnquiry.ts`](../../../../../lib/supabase/ownedEnquiry.md)
+- [`src/lib/supabase/scoped.ts`](../../../../../lib/supabase/scoped.md)
 - [`src/server/persons.ts`](../../../../../server/persons.md)
 - [`src/server/pipelines.ts`](../../../../../server/pipelines.md)
 - [`src/server/pluginInstalls.ts`](../../../../../server/pluginInstalls.md)

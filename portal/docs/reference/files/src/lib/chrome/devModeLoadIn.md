@@ -9,11 +9,10 @@
 - `DEV_MODE_LOADIN_KEY`
 - `DEV_MODE_LOADIN_WORKSPACE`
 
-## Used by (5)
+## Used by (4)
 
 - [`src/app/portal/dev-team/inspector/InspectorClient.tsx`](../../app/portal/dev-team/inspector/InspectorClient.md)
 - [`src/components/chrome/DevConsolePanel.tsx`](../../components/chrome/DevConsolePanel.md)
 - [`src/components/chrome/DevModeLoadIn.tsx`](../../components/chrome/DevModeLoadIn.md)
 - [`src/components/chrome/DevModeSwitcher.tsx`](../../components/chrome/DevModeSwitcher.md)
-- [`src/components/chrome/ProfileMenu.tsx`](../../components/chrome/ProfileMenu.md)
 

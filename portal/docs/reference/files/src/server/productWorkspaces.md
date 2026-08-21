@@ -30,6 +30,6 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/api/tenants/product-workspaces/route.ts`](../app/api/tenants/product-workspaces/route.md)
 - [`src/app/portal/agency/fulfilment/page.tsx`](../app/portal/agency/fulfilment/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../lib/server/radar/clientRadarService.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../engines/data/server/radar/clientRadarService.md)
 - [`src/server/clientPortalSetup.ts`](./clientPortalSetup.md)
 

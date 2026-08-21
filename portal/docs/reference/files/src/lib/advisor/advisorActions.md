@@ -12,9 +12,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (4)
 
+- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
 - [`src/lib/inbox/resolutionEvidence.ts`](../inbox/resolutionEvidence.md)
 - [`src/lib/inbox/resolutionExplain.ts`](../inbox/resolutionExplain.md)
-- [`src/lib/radar/businessRadar.ts`](../radar/businessRadar.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (6)

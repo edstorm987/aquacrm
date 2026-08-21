@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `async readCheckIns(): Promise<WorkerCheckIn[]>`
 - `isCheckInActive(checkIn: WorkerCheckIn, now = Date.now()): boolean`
 - `async readActiveCheckIns(now = Date.now()): Promise<WorkerCheckIn[]>`
-- `async scanWorkerSignals(windowMs = 2 * 60 * 60 * 1000, now = Date.now()): Promise<WorkerSignals>`
+- `async scanWorkerSignals(windowMs = 2 * 60 * 60 * 1000, now = Date.now(), opts: { fresh?: boolean } = {}): Promise<WorkerSignals>`
 - `interface AreaActivity (4 members)`
 - `groupActivity(files: ActiveFile[]): AreaActivity[]`
 
@@ -22,10 +22,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
 
-## Used by (8)
+## Used by (9)
 
 - [`src/app/api/portal/dev-team/console/route.ts`](../../../app/api/portal/dev-team/console/route.md)
 - [`src/app/api/portal/dev-team/workers/route.ts`](../../../app/api/portal/dev-team/workers/route.md)
+- [`src/app/api/portal/dev/editor-activity/route.ts`](../../../app/api/portal/dev/editor-activity/route.md)
 - [`src/app/portal/agency/_DevTeamStation.tsx`](../../../app/portal/agency/_DevTeamStation.md)
 - [`src/app/portal/dev-team/logs/_Section.tsx`](../../../app/portal/dev-team/logs/_Section.md)
 - [`src/app/portal/dev-team/page.tsx`](../../../app/portal/dev-team/page.md)

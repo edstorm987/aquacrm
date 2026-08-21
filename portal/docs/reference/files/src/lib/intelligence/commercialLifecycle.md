@@ -16,13 +16,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/radar/businessRadar.ts`](../radar/businessRadar.md)
+- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
 - [`src/server/types.ts`](../../server/types.md)
 
-## Used by (4)
+## Used by (5)
 
 - [`scripts/smoke-commercial-lifecycle-radar.test.ts`](../../../scripts/smoke-commercial-lifecycle-radar.test.md)
-- [`src/lib/radar/businessRadar.ts`](../radar/businessRadar.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../server/radar/businessIssueRadar.md)
-- [`src/lib/server/radar/radarObservations.ts`](../server/radar/radarObservations.md)
+- [`src/app/portal/agency/commandPerformance.ts`](../../app/portal/agency/commandPerformance.md)
+- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/radarObservations.ts`](../../engines/data/server/radar/radarObservations.md)
 

@@ -19,5 +19,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/company/_CompanyWorkspace.tsx`](../../app/portal/agency/company/_CompanyWorkspace.md)
 - [`src/app/portal/agency/company/page.tsx`](../../app/portal/agency/company/page.md)
 - [`src/app/portal/agency/page.tsx`](../../app/portal/agency/page.md)
-- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../server/kpi/companyHealthSnapshot.md)
+- [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](../../engines/data/server/kpi/companyHealthSnapshot.md)
 

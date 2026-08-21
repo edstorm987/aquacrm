@@ -21,7 +21,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/elements/portalElements.ts`](../elements/portalElements.md)
+- [`src/engines/editor/elements/portalElements.ts`](../../engines/editor/elements/portalElements.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (7)

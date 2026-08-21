@@ -6,14 +6,15 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Exports (1)
 
-- `GlobalAdvisorDrawer({ initialWorkspace, configured, model, userName, coverage, }: { initialWorkspace: AssistantWorkspaceState; configured: boolean; model: string; userName: string; coverage: Coverage; })`
+- `GlobalAdvisorDrawer({ initialWorkspace, configured, model, userName, coverage, // ── Reskin seam ────────────────────────────────────────────────────────── // The drawer machinery (portal, transitions, lazy chat, notice toast) is the // SA…`
 
 ## Depends on (2)
 
-- [`src/lib/radar/businessRadar.ts`](../../lib/radar/businessRadar.md)
+- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
 - [`src/server/types.ts`](../../server/types.md)
 
-## Used by (1)
+## Used by (2)
 
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](./AdvisorDrawerControl.md)
+- [`src/components/chrome/LibrarianDrawerControl.tsx`](./LibrarianDrawerControl.md)
 

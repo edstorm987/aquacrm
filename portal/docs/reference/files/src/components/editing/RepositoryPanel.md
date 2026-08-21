@@ -6,12 +6,12 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Exports (1)
 
-- `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope }: { repository: string; onRepositoryChange: (value: string) => void; /** A file and line to open, set by clicking an element in the preview. */ focus?:…`
+- `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope, projectId }: { repository: string; onRepositoryChange: (value: string) => void; /** * A Dev Editor Engine project. When set, the SERVER resolves the re…`
 
 ## Depends on (2)
 
-- [`src/lib/editing/fileRelevance.ts`](../../lib/editing/fileRelevance.md)
-- [`src/lib/server/siteEditor/fileTree.ts`](../../lib/server/siteEditor/fileTree.md)
+- [`src/engines/editor/editing/fileRelevance.ts`](../../engines/editor/editing/fileRelevance.md)
+- [`src/engines/editor/server/fileTree.ts`](../../engines/editor/server/fileTree.md)
 
 ## Used by (1)
 
