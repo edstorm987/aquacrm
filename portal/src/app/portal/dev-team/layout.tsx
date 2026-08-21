@@ -20,6 +20,7 @@ import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Topbar } from "@/components/chrome/Topbar";
+import { NotificationCentreButton } from "@/components/chrome/NotificationCentreButton";
 import { requireRole } from "@/lib/server/auth/auth";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
@@ -81,9 +82,6 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
       // route is slated to grow into the full Dev Editor Engine) is a
       // first-class sidebar item now, not buried under Tools.
       { id: "editor", label: "Editor", href: "/portal/dev-team/editor", icon: ico(SquarePen, "editor"), panelId: "main" as const, order: 40 },
-      // Team chat — the Dev Team's comms. v1 surfaces the existing TeamChat
-      // (staff↔founder). v2: AI workers post into it; v3: staff-portal bridge.
-      { id: "chat", label: "Team chat", href: "/portal/dev-team/chat", icon: ico(MessagesSquare, "working"), panelId: "main" as const, order: 50 },
       { id: "notes", label: "Notes", href: "/portal/dev-team/notes", icon: ico(NotebookPen, "notes"), panelId: "main" as const, order: 70 },
       // The way OUT is now the topbar's role-dependent "Back to home" (it lands
       // on the operator's own portal, unlike the old hardcoded /portal/agency
@@ -636,6 +634,7 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             inspecting={Boolean(session.previewReturnUserId)}
+            notifications={<NotificationCentreButton />}
             title="Dev Team"
             subtitle="Internal workspace"
             role={session.role}

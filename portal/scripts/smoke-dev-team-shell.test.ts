@@ -96,9 +96,11 @@ describe("Dev Team shell — sidebar items", () => {
     assert.match(src, /id: "editor".*href: "\/portal\/dev-team\/editor"/s);
   });
 
-  it("adds a Team chat sidebar item at the chat route, with a page that mounts TeamChat", () => {
-    assert.match(src, /id: "chat".*href: "\/portal\/dev-team\/chat"/s);
-    assert.ok(existsSync(join(ROOT, CHAT_PAGE)), "chat/page.tsx must exist");
+  it("keeps the Team chat ROUTE while it is off the sidebar", () => {
+    // Ed removed the sidebar row 2026-08-21; the page stays reachable so
+    // nothing that links to it breaks, and restoring the row is one line.
+    assert.ok(!/id: "chat"/.test(src), "Team chat should not have a sidebar row");
+    assert.ok(existsSync(join(ROOT, CHAT_PAGE)), "chat/page.tsx must still exist");
     const page = read(CHAT_PAGE);
     assert.match(page, /import \{ TeamChat \} from "@\/components\/people\/TeamChat"/);
     assert.match(page, /<TeamChat \/>/);

@@ -20,6 +20,7 @@ import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/engi
 import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
 import { AquaEditorAI } from "@/components/editing/AquaEditorAI";
 import { EditorCodeCanvas } from "@/components/editing/EditorCodeCanvas";
+import { DevEditorSetup } from "@/app/portal/dev-team/editor/setup/_DevEditorSetup";
 import { AddMenu, fileAddOptions, type AddOption } from "@/components/editing/AddMenu";
 import { EditorModeSwitch, modeSkin } from "@/components/editing/EditorModeSwitch";
 import { BreakpointControl, DEFAULT_BREAKPOINT, breakpointLabel, breakpointSize, type Breakpoint } from "@/components/editing/BreakpointControl";
@@ -52,7 +53,7 @@ export type PortalStudioTemplate = {
 };
 
 type Scope = "template" | "client";
-type InspectorTab = "assistant" | "builder" | "content" | "pages" | "brand" | "code" | "repository" | "versions";
+type InspectorTab = "settings" | "assistant" | "builder" | "content" | "pages" | "brand" | "code" | "repository" | "versions";
 
 /** A Dev Editor Engine project, as the picker needs it. */
 interface StudioDevProject {
@@ -100,6 +101,9 @@ const SECTION_LABELS: Record<ClientPortalSectionId, string> = {
 const tabs: Array<{ id: InspectorTab; label: string; icon: typeof FileText }> = [
   // Aqua Editor AI — the shallowest depth: describe it instead of building it.
   { id: "assistant", label: "Assistant", icon: Sparkles },
+  // Configuring what the editor points AT belongs inside the editor — going
+  // out to another screen to change a branch loses your place.
+  { id: "settings", label: "Settings", icon: Settings },
   { id: "builder", label: "Builder", icon: LayoutTemplate },
   { id: "content", label: "Content", icon: FileText },
   { id: "pages", label: "Pages", icon: Layers3 },
@@ -229,7 +233,10 @@ export function ClientPortalStudio({
   // that is the Repo tab. A repository has no use for either it or the rest.
   const PORTAL_ONLY_TABS = new Set(["builder", "content", "pages", "brand", "versions", "code"]);
   const allowedTabs = tabs.filter(item =>
-    editingMode(editingModeId).tabs.includes(item.id) && (portalTarget || !PORTAL_ONLY_TABS.has(item.id)),
+    // Settings is always reachable: it is how you point the editor somewhere
+    // else, which you must be able to do from wherever you are.
+    item.id === "settings"
+      || (editingMode(editingModeId).tabs.includes(item.id) && (portalTarget || !PORTAL_ONLY_TABS.has(item.id))),
   );
 
   // A tab can stop being offered underneath you — switching mode, or opening a
@@ -1094,18 +1101,6 @@ export function ClientPortalStudio({
             );
           })}
           <span aria-hidden className="my-1 h-px w-6 bg-white/10" />
-          {/* Settings — where the project's repository, branch, connections,
-              Aqua Tag and keys are configured. It lives on the rail because
-              "point this editor at something else" is a thing you reach for
-              from inside the editor, not a thing you go hunting for. */}
-          <Link
-            href="/portal/dev-team/editor"
-            title="Editor settings — repositories, connections, Aqua Tags and keys"
-            aria-label="Editor settings — repositories, connections, Aqua Tags and keys"
-            className="grid size-10 place-items-center rounded-md text-white/35 transition hover:bg-white/[0.05] hover:text-white/80"
-          >
-            <Settings size={17} aria-hidden />
-          </Link>
           <button
             type="button"
             onClick={() => setInspectorOpen(value => !value)}
@@ -1212,6 +1207,19 @@ function Inspector({
   selectBlock: (blockId: string) => void;
 }) {
   const editingDisabled = !canManage || busy;
+
+  if (tab === "settings") {
+    return (
+      <div className="mm-editor-settings grid gap-3 text-white/80">
+        <InspectorHeading
+          eyebrow="This project"
+          title="Settings"
+          body="What the editor is pointed at — repository, branch, connections, Aqua Tag and keys. Changing it here keeps you in the editor."
+        />
+        <DevEditorSetup />
+      </div>
+    );
+  }
 
   if (tab === "assistant") {
     // No payload (assistant not wired on this route) — say so plainly rather
