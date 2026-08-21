@@ -8,6 +8,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
 import { hashFile } from "@/engines/editor/server/codeAdapter";
 import { GitHubNotConfigured, readRepoFile, readRepoTree } from "@/engines/editor/server/githubSource";
+import { getDevProject, resolveDevProjectGitHubSource } from "@/lib/server/dev/devProjects";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 
 /**
@@ -78,14 +79,36 @@ export async function GET(request: NextRequest) {
     const session = await requireRole([...AGENCY_ROLES]);
 
     const requested = request.nextUrl.searchParams.get("path");
-    const repository = request.nextUrl.searchParams.get("repo")?.trim();
-    const ref = request.nextUrl.searchParams.get("ref")?.trim() || "main";
+    const projectId = request.nextUrl.searchParams.get("project")?.trim();
+    let repository = request.nextUrl.searchParams.get("repo")?.trim();
+    let ref = request.nextUrl.searchParams.get("ref")?.trim() || "main";
+
+    // A project pins the repository, the ref, AND which connection's token
+    // reads it — the whole point of selecting one instead of typing a repo.
+    let projectSource: { repository: string; ref: string; token: string } | null | undefined;
+    if (projectId) {
+      const project = getDevProject(session.agencyId, projectId);
+      if (!project) {
+        return NextResponse.json({ ok: false, error: "That project could not be found." }, { status: 404 });
+      }
+      projectSource = resolveDevProjectGitHubSource(session.agencyId, project);
+      if (!projectSource) {
+        return NextResponse.json({
+          ok: false,
+          needsGitHub: true,
+          error: "Connect GitHub in Company → Connections (or bind one to this project) to read its repository.",
+          href: "/portal/agency/company?view=connections&integration=github",
+        }, { status: 409 });
+      }
+      repository = projectSource.repository;
+      ref = projectSource.ref;
+    }
 
     // A repository named means GitHub. Without one the working tree is read,
     // which is the same repository when Aqua is editing itself.
     if (repository) {
       try {
-        const source = githubSourceFor(session.agencyId, repository, ref);
+        const source = projectSource ?? githubSourceFor(session.agencyId, repository, ref);
         if (!requested) {
           const head = await readRepoTree(source);
           return NextResponse.json({

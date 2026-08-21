@@ -29,6 +29,251 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface TenantOption (4 members)`
 
 
+## `src/engines/data/radar/`
+
+### `src/engines/data/radar/businessRadar.ts`
+
+- `radarDigest(radar: BusinessIssueRadar): AdvisorRadarDigest`
+- `type AdvisorDomain = | "company" | "sales" | "inbox" | "clients" | "finance" | "delivery" | "marketing" | "operations" | "compliance" | "development" | "team" | "systems"`
+- `type BusinessIssueSeverity = "critical" | "warning" | "watch"`
+- `type BusinessSignalStatus = BusinessIssueSeverity | "healthy" | "unknown"`
+- `type AdvisorCoverageStatus = "connected" | "empty" | "disconnected" | "unavailable"`
+- `type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind" | "learning" | "inactive"`
+- `type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog" | "infra"`
+- `type RadarCheckTier = "instant" | "probe" | "rollup"` — Which sweep refreshes a check (radar upgrade Stage 2). `instant` = in-state derivation the Pulse assembles live; `probe` = a network/DB round-trip run by the Deep/Infra sweeps; `r…
+- `type RadarDataDependency = "in-state" | "derived" | "external"` — What a check's answer depends on. `in-state` = current PortalState only; `derived` = needs retained evidence history or another derived signal; `external` = needs data from outsid…
+- `type RadarFindingGroup = | "infrastructure" | "commercial" | "compliance" | "delivery" | "reliability" | "people"` — Top-level "what kind of problem" bucket above the {domain}:{category} grouping (radar upgrade Stage 5). The operator sees the kind of problem before drilling into domain detail. D…
+- `type RadarEntityType = "client" | "product" | "property"`
+- `type RadarCoverageEntityType = | "client" | "product" | "property" | "integration" | "portal-connection" | "trading-company"` — Entity types with a declared radar detector-pack template.
+- `type RadarCoverageState = "calibrating" | "active"` — `calibrating` = seeded but still accruing evidence; `active` = evidence-backed.
+- `type RadarInfraBackend = "file" | "memory" | "postgres" | "supabase" | "unknown"` — ─── Infra health (radar upgrade Stage 4 — DB & storage health) ─────────────
+- `type RadarInfraProbeStatus = "connected" | "down" | "untested"`
+- `type RadarRuleLens = | "connection" | "freshness" | "threshold" | "trend" | "anomaly" | "integrity" | "continuity" | "baseline" | "confidence" | "forecast" | "volatility" | "resilience"`
+- `type RadarSourceDatasetStatus = "available" | "empty" | "unavailable"`
+- `type AdvisorRadarDigest = BusinessIssueRadar["summary"] & { generatedAt: number; speedToLead: SpeedToLeadRadar; commercial: CommercialLifecycleSnapshot; topIssues: BusinessRadarIssue[]; topIncidents: BusinessRadarIncide…`
+- `interface RadarCoverageManifestEntry (6 members)`
+- `interface RadarCoverageManifest (6 members)` — Proof that every monitorable entity resolves to a radar pack (Part E).
+- `interface RadarInfraDatabaseHealth (8 members)` — One database's reachability + latency (+ row counts for the primary).
+- `interface RadarInfraStorageHealth (4 members)` — Storage health. Total Supabase Storage bytes is NOT available from the service-role client, so `measurable` is false and `bucketBytes` is null — shown honestly as "not available i…
+- `interface RadarInfraHealthSnapshot (4 members)` — The Infra sweep's latest snapshot; written to `radarInfraHealth`, read by the Pulse.
+- `interface BusinessRadarIssue (10 members)`
+- `interface RadarEntityReference (4 members)`
+- `interface BusinessMetricSignal (11 members)`
+- `interface AdvisorCoverageSource (7 members)`
+- `interface BusinessRadarCheck (28 members)`
+- `interface ClientRadarPackSummary (11 members)`
+- `interface ClientRadarSnapshot (13 members)`
+- `interface RadarDomainSummary (16 members)`
+- `interface BusinessRadarIncident (4 members)`
+- `interface RadarFindingGroupSummary (6 members)` — Per-bucket incident roll-up (radar upgrade Stage 5) — "what kind of problem" at a glance.
+- `interface BusinessRadarConclusion (6 members)`
+- `interface BusinessRadarAdaptiveState (11 members)`
+- `interface SpeedToLeadRadar (12 members)`
+- `interface RadarMemoryPoint (5 members)`
+- `interface RadarMemoryDigest (19 members)`
+- `interface RadarEvidenceMovement (8 members)`
+- `interface RadarEvidenceDigest (9 members)`
+- `interface RadarEvidenceSeriesSummary (16 members)`
+- `interface RadarEvidenceInspectionIndex (5 members)`
+- `interface RadarEvidenceSeriesInspection (2 members)`
+- `interface RadarSourceDatasetSummary (11 members)`
+- `interface RadarSourceDataIndex (6 members)`
+- `interface RadarSourceDatasetInspection (5 members)`
+- `interface BusinessIssueRadar (16 members)`
+
+### `src/engines/data/radar/clientRadar.ts`
+
+- `buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSnapshot`
+- `interface ClientRadarProductInput (6 members)`
+- `interface ClientRadarPropertyInput (8 members)`
+- `interface ClientRadarMilestoneInput (5 members)`
+- `interface ClientRadarAlertInput (6 members)`
+- `interface ClientRadarInput (17 members)`
+
+### `src/engines/data/radar/radarCheckEngine.ts`
+
+- `buildRadarCheckMatrix(observations: readonly RadarObservation[], coverage: readonly AdvisorCoverageSource[], now = Date.now()): { checks: BusinessRadarCheck[]; domains: RadarDomainSummary[] }`
+- `summarizeRadarChecks(checks: readonly BusinessRadarCheck[], coverage: readonly AdvisorCoverageSource[]): RadarDomainSummary[]`
+- `interface RadarObservation (22 members)`
+
+### `src/engines/data/radar/radarClassification.ts`
+
+- `radarCheckTier(scope: RadarCheckScope): RadarCheckTier`
+- `radarDataDependency(check: RadarClassifiable): RadarDataDependency`
+- `classifyRadarCheck(check: RadarClassifiable): RadarClassification`
+- `radarFindingGroup(input: { domain: AdvisorDomain; id: string }): RadarFindingGroup` — Classify a finding (issue or incident) into its top-level problem bucket. Reliability and Infrastructure are cross-domain overrides applied first (a blind spot or a DB outage is t…
+- `RADAR_TIER_BY_SCOPE: Record<RadarCheckScope, RadarCheckTier>` — Scope → tier. Scope is the authoritative record of how a check is produced.
+- `RADAR_FINDING_GROUP_LABELS: Record<RadarFindingGroup, string>` — Human labels for the finding groups.
+- `interface RadarClassifiable (2 members)` — The shape needed to classify — every RadarCheck and catalogue rule has these.
+- `interface RadarClassification (2 members)`
+
+### `src/engines/data/radar/radarCorrelations.ts`
+
+- `buildRadarCorrelationIssues(observations: readonly RadarObservation[], checks: readonly BusinessRadarCheck[], now: number): BusinessRadarIssue[]`
+
+### `src/engines/data/radar/radarCoverageRegistry.ts`
+
+- `coverageTemplateFor(type: string): RadarCoverageTemplate` — Resolve an entity type to its template, falling back to the generic pack.
+- `resolveRadarCoverage(entities: readonly RadarCoverageInputEntity[]): RadarCoverageManifest` — Resolve every entity to its pack, producing the coverage manifest the watchdog uses to prove seeding worked. Unknown types resolve to the generic fallback (never a gap); a `gap` o…
+- `RADAR_COVERAGE_TEMPLATES: Record<RadarCoverageEntityType | "generic", RadarCoverageTemplate>`
+- `interface RadarCoverageTemplate (6 members)` — Radar coverage registry + seeder (radar upgrade Stage 6, Part E). A declarative **detector-pack template per entity type** plus a **generic fallback**, so every monitorable entity…
+- `interface RadarCoverageInputEntity (4 members)`
+
+### `src/engines/data/radar/radarInfraChecks.ts`
+
+- `buildInfraHealthChecks(snapshot: RadarInfraHealthSnapshot | undefined, now: number): BusinessRadarCheck[]` — Build the infra-scope checks from the latest Infra sweep snapshot. With no snapshot yet (sweep hasn't run), emit a single honest `learning` check rather than silence, so uninstrum…
+
+### `src/engines/data/radar/radarPolicyEngine.ts`
+
+- `resolveRadarPolicy(configuration: RadarPolicyConfiguration, domain: AdvisorDomain, familyId?: string, checkId?: string): ResolvedRadarPolicy`
+- `applyAdaptiveRadarPolicy(input: AdaptiveRadarInput): AdaptiveRadarResult`
+- `interface RadarBusinessContext (8 members)`
+- `interface AdaptiveRadarResult (5 members)`
+- `interface ResolvedRadarPolicy (10 members)`
+
+### `src/engines/data/radar/radarRuleCatalog.ts`
+
+- `radarRulesForDomain(domain: AdvisorDomain): readonly BusinessRadarRuleDefinition[]`
+- `RADAR_RULE_LENSES: ReadonlyArray<{ id: RadarRuleLens; label: string; description: string }>`
+- `RADAR_SIGNAL_FAMILIES = DOMAIN_SIGNAL_FAMILIES`
+- `BUSINESS_RADAR_RULE_CATALOG: readonly BusinessRadarRuleDefinition[]`
+- `RADAR_CHECKS_PER_DOMAIN = RADAR_RULE_LENSES.length * 12`
+- `interface RadarSignalFamilyDefinition (3 members)`
+- `interface BusinessRadarRuleDefinition (9 members)`
+
+### `src/engines/data/radar/radarSentinels.ts`
+
+- `buildSourceSentinelChecks(coverage: readonly AdvisorCoverageSource[], now: number): BusinessRadarCheck[]`
+- `buildPropertySentinelChecks(telemetry: RadarTelemetrySnapshot, now: number): BusinessRadarCheck[]`
+- `buildRadarWatchdogChecks(input: { checks: readonly BusinessRadarCheck[]; coverage: readonly AdvisorCoverageSource[]; telemetry: RadarTelemetrySnapshot; correlationIssues: readonly BusinessRadarIssue[]; evidence?: RadarE…`
+
+### `src/engines/data/radar/radarSyntheticChecks.ts`
+
+- `buildSyntheticCanaryChecks(telemetry: RadarTelemetrySnapshot, probes: Record<string, RadarSyntheticProbeResult>, now: number): BusinessRadarCheck[]`
+- `buildSyntheticCanaryIssues(telemetry: RadarTelemetrySnapshot, probes: Record<string, RadarSyntheticProbeResult>, now: number): BusinessRadarIssue[]`
+
+### `src/engines/data/radar/radarSyntheticSafety.ts`
+
+- `isReservedSyntheticHostname(hostname: string): boolean`
+- `isUnsafeSyntheticAddress(address: string): boolean`
+
+
+## `src/engines/data/server/kpi/`
+
+### `src/engines/data/server/kpi/companyHealthSnapshot.ts`
+
+- `async buildCompanyHealthSnapshot(agencyId: string, now = Date.now())`
+- `getRequestCompanyHealth = cache(` — collapses them to one build. The raw function below is unchanged.
+- `interface CompanyHealthActuals (13 members)`
+- `interface CompanyRevenueGrowthPoint (2 members)`
+
+### `src/engines/data/server/kpi/customKpis.ts`
+
+- `listCustomKpis(agencyId: string): CustomKpiDefinition[]`
+- `createCustomKpi(agencyId: string, input: CreateCustomKpiInput, opts: { actorUserId: string; now?: number }): CustomKpiDefinition` — Create a custom KPI. Throws on an unknown op or a missing numerator id.
+- `deleteCustomKpi(agencyId: string, id: string, opts: { actorUserId: string }): CustomKpiDefinition[]` — Delete a custom KPI by id.
+- `interface CreateCustomKpiInput (6 members)`
+
+### `src/engines/data/server/kpi/kpiRegistryService.ts`
+
+- `async buildKpiRegistry(input: KpiRegistryInput): Promise<KpiDescriptor[]>` — Build the KPI registry for an agency: run the command-intelligence snapshot and project its KPIs into descriptors. Phase 1 registers the 20 command KPIs; every descriptor carries …
+- `buildEvidenceDescriptors(agencyId: string): KpiDescriptor[]` — Register every retained radar-evidence series for an agency as an evidence-kind descriptor. This is the vault-backed series provider the plan anticipated — it reads the durable ti…
+- `type KpiRegistryInput = Parameters<typeof buildCommandIntelligenceSnapshot>[0]` — Same inputs as the command-intelligence builder (radar + evidence + scope).
+
+### `src/engines/data/server/kpi/kpiSavedViews.ts`
+
+- `listSharedKpiViews(agencyId: string): SharedKpiComparisonView[]` — The agency's shared saved KPI views, newest last (save order).
+- `saveSharedKpiView(agencyId: string, input: SaveSharedKpiViewInput, opts: { actorUserId: string; now?: number }): SharedKpiComparisonView` — Save (or replace, by case-insensitive name — the same replace-on-same-name semantics the private browser half applies) one shared view. Throws on a missing name or an empty KPI se…
+- `deleteSharedKpiView(agencyId: string, id: string, opts: { actorUserId: string }): SharedKpiComparisonView[]` — Delete one shared view by id. Returns the remaining views.
+- `interface SaveSharedKpiViewInput (6 members)`
+
+### `src/engines/data/server/kpi/kpiTargets.ts`
+
+- `getKpiTargetsConfig(agencyId: string): KpiTargetsConfig` — The agency's persisted KPI targets config (empty if none set).
+- `setKpiTarget(agencyId: string, kpiId: string, patch: { baselineValue?: number | null; targetValue?: number | null }, opts: { companyId?: string; actorUserId: string; now?: number }): KpiTargetsConfig` — Set (or update) a KPI target/baseline override, versioned. Returns the new config.
+- `clearKpiTarget(agencyId: string, kpiId: string, opts: { companyId?: string; actorUserId: string; now?: number }): KpiTargetsConfig` — Clear a KPI override at the agency or company level. Returns the new config.
+
+
+## `src/engines/data/server/radar/`
+
+### `src/engines/data/server/radar/businessIssueRadar.ts`
+
+- `invalidateBusinessIssueRadarCache(agencyId: string): void`
+- `getCachedBusinessIssueRadar(agencyId: string, now = Date.now()): Promise<BusinessIssueRadar>`
+- `async buildBusinessIssueRadar(agencyId: string, now = Date.now(), inputs: RadarInputs = {}): Promise<BusinessIssueRadar>`
+
+### `src/engines/data/server/radar/clientRadarService.ts`
+
+- `async buildClientRadarFleet(agencyId: string, options: ClientRadarFleetOptions = {}): Promise<ClientRadarSnapshot[]>`
+- `async buildClientRadar(agencyId: string, clientId: string, options: Omit<ClientRadarFleetOptions, "clients"> = {}): Promise<ClientRadarSnapshot | null>`
+
+### `src/engines/data/server/radar/radarEvidenceVault.ts`
+
+- `applyRadarEvidenceBaselines(agencyId: string, observations: readonly RadarObservation[]): RadarObservation[]`
+- `buildRadarEvidenceLayer(agencyId: string, observations: readonly RadarObservation[], now: number, policy?: RadarPolicyConfiguration): RadarEvidenceLayer`
+- `recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar): void`
+- `inspectRadarEvidence(agencyId: string): RadarEvidenceInspectionIndex`
+- `inspectRadarEvidenceSeries(agencyId: string, id: string): RadarEvidenceSeriesInspection | null` — A retained series, found by its own id or by the source it measures. The map is keyed by `series.id`, but a series also records the `sourceId` it was measured from, and for most o…
+- `interface RadarEvidenceLayer (3 members)`
+
+### `src/engines/data/server/radar/radarMemory.ts`
+
+- `buildRadarMemoryDigest(agencyId: string, radar: RadarWithoutMemory, now = radar.generatedAt, includeCurrentSweep = false): RadarMemoryDigest`
+- `recordRadarSweep(agencyId: string, radar: BusinessIssueRadar): RadarMemoryDigest`
+- `getRadarMemoryState(agencyId: string): RadarMemoryState | null`
+- `buildRadarMemoryIssues(memory: RadarMemoryDigest, now: number): BusinessRadarIssue[]`
+
+### `src/engines/data/server/radar/radarObservations.ts`
+
+- `buildRadarObservations(input: RadarObservationInputs): RadarObservation[]`
+- `interface RadarObservationInputs (15 members)`
+
+### `src/engines/data/server/radar/radarSeeding.ts`
+
+- `ensureRadarSeedingRegistered(): void`
+
+### `src/engines/data/server/radar/radarSourceInspection.ts`
+
+- `async inspectRadarSourceData(agencyId: string): Promise<RadarSourceDataIndex>`
+- `async listRadarSourceSearchDatasets(agencyId: string): Promise<RadarSourceSearchDataset[]>`
+- `async inspectRadarSourceDataset(agencyId: string, datasetId: string, offset = 0, limit = 100): Promise<RadarSourceDatasetInspection | null>`
+- `async exportRadarSourceData(agencyId: string, datasetId?: string): Promise<unknown>`
+- `invalidateRadarSourceInspection(agencyId: string): void`
+- `interface RadarSourceSearchDataset (1 members)`
+
+### `src/engines/data/server/radar/radarSweeps.ts`
+
+- `radarSweepForTier(tier: RadarCheckTier): RadarSweepType`
+- `async runRadarDeepSweep(agencyId: string, options: { force?: boolean; now?: number } = {}): Promise<RadarSyntheticProbeResult[]>` — Deep / Synthetic sweep — run the network canaries. `force` runs every target now (the full-scan path); without it, the probe layer respects its own cadence and reuses recent resul…
+- `async runRadarInfraSweep(now = Date.now()): Promise<RadarInfraHealthSnapshot>` — Infra sweep — probe database reachability + latency (primary + external targets) and storage health, and persist the snapshot to `radarInfraHealth` for the Pulse to read. App-wide…
+- `runRadarEvidenceRollup(agencyId: string, radar: BusinessIssueRadar): RadarMemoryDigest` — Evidence rollup — persist temporal memory + the durable evidence vault from a freshly built radar. Returns the memory digest so callers can fold it back into the response (as the …
+- `async runRadarFullSweep(agencyId: string, options: RadarSweepRunOptions = {}): Promise<RadarFullSweepResult>` — Full scan — the explicit "run everything now" path (the scan route's POST). Forces the Deep sweep, rebuilds the Pulse against the fresh probes, reconciles tasks, rolls up evidence…
+- `async runRadarScheduledSweep(agencyId: string, options: RadarSweepRunOptions = {}): Promise<RadarScheduledSweepResult>` — Scheduled sweep — the background cadence path (the `cron/inbox` loop, one call per active agency). Runs the Deep sweep at its own cadence (no force), rebuilds the Pulse, rolls up …
+- `async runRadarProbeRefresh(agencyId: string, options: RadarSweepRunOptions = {}): Promise<RadarProbeRefreshResult>` — Fast probe refresh for one agency (dedicated probe cadence, `cron/radar-probes`). Runs only the Deep sweep (synthetic canaries, respecting their own cadence) and invalidates the P…
+- `RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinition>` — The sweep taxonomy. This is descriptive metadata today; Stage 2 wires the `tier` classification to it and Stage 4 gives `infra` a real probe. The `pulse` sweep never does I/O — it…
+- `RADAR_TIER_TO_SWEEP: Record<RadarCheckTier, RadarSweepType>` — Tier → the primary sweep responsible for refreshing checks of that tier (radar upgrade Stage 2). Total over every tier, so the scheduler can always resolve "which sweep produces t…
+- `type RadarSweepType = "pulse" | "deep" | "infra" | "evidence" | "compliance"` — The named kinds of Radar sweep, split by cost + cadence + data source.
+- `type RadarSweepCost = "cheap" | "medium" | "expensive"` — Rough cost band — cheap in-state CPU vs. a real network / DB round-trip.
+- `interface RadarSweepDefinition (8 members)`
+- `interface RadarSweepRunOptions (1 members)`
+- `interface RadarFullSweepResult (2 members)`
+- `interface RadarScheduledSweepResult (5 members)`
+- `interface RadarProbeRefreshResult (4 members)`
+
+### `src/engines/data/server/radar/radarSyntheticProbes.ts`
+
+- `async runAgencySyntheticProbes(agencyId: string, options: { force?: boolean; now?: number } = {}): Promise<RadarSyntheticProbeResult[]>`
+- `listAgencySyntheticProbes(agencyId: string): RadarSyntheticProbeResult[]`
+- `discoverRadarSyntheticTargets(agencyId: string): RadarSyntheticTarget[]`
+- `interface RadarSyntheticTarget (3 members)`
+
+### `src/engines/data/server/radar/radarTelemetry.ts`
+
+- `buildRadarTelemetrySnapshot(agencyWebsite: AgencyWebsiteProject | undefined, clients: Client[], syntheticProbes: Record<string, RadarSyntheticProbeResult> = {}, now = Date.now()): RadarTelemetrySnapshot`
+- `interface RadarTelemetryProperty (22 members)`
+- `interface RadarTelemetrySnapshot (3 members)`
+
+
 ## `src/engines/editor/editing/`
 
 ### `src/engines/editor/editing/elementSource.ts`
@@ -304,6 +549,35 @@ Every exported function, class, type and const in this area, with its real signa
 - `sourceKey(location: SourceLocation): string` — The key a location has in the registry.
 - `SOURCE_ATTRIBUTE = "data-aqua-src"` — Where a rendered element came from. The whole editor rests on not having to answer this by inspection. Working backwards from a rendered `<h1>` to the JSX that produced it means g…
 - `interface SourceLocation (3 members)`
+
+
+## `src/engines/sop/server/`
+
+### `src/engines/sop/server/sopGuides.ts`
+
+- `listSopGuides(agencyId: string): SopGuide[]`
+- `getSopGuide(agencyId: string, id: string): SopGuide | null`
+- `createSopGuide(input: CreateSopGuideInput): SopGuide`
+- `updateSopGuide(agencyId: string, id: string, patch: UpdateSopGuidePatch, actorUserId: string): SopGuide | null`
+- `deleteSopGuide(agencyId: string, id: string): SopGuide | null`
+- `interface CreateSopGuideInput (7 members)`
+- `interface UpdateSopGuidePatch (5 members)`
+
+### `src/engines/sop/server/sops.ts`
+
+- `listSops(agencyId: string): SopDocument[]`
+- `listSopCategories(agencyId: string): string[]`
+- `createSopCategory(agencyId: string, category: string, actorUserId: string): string`
+- `getSop(agencyId: string, id: string): SopDocument | null`
+- `createWrittenSop(input: { agencyId: string; title: string; content: string; category?: string; categories?: string[]; tags?: string[]; actorUserId: string }): SopDocument`
+- `validateSopBlockTree(blocks: BlockTreeJSON): SopBlockProblem[]` — Validate an interactive SOP's block tree by COMPOSING the element engine's own validators — never re-implementing them. Structural integrity (a string id, a string type, unique id…
+- `createInteractiveSop(input: { agencyId: string; title: string; blocks: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[]; resourceType?: SopDocument["resourceType"]; actorUserId: string }): SopDoc…`
+- `createFileSop(input: Omit<SopDocument, "createdAt" | "updatedAt" | "updatedBy" | "kind" | "tags" | "categories"> & { tags?: string[]; categories?: string[] }): SopDocument`
+- `updateSop(agencyId: string, id: string, patch: { title?: string; content?: string; blocks?: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[] }, actorUserId: string): SopDocument | null`
+- `deleteSopRecord(agencyId: string, id: string): SopDocument | null`
+- `deleteSopCategory(agencyId: string, category: string, replacementCategory: string | undefined, actorUserId: string): DeleteSopCategoryResult | null`
+- `interface SopBlockProblem (4 members)`
+- `interface DeleteSopCategoryResult (4 members)`
 
 
 ## `src/`

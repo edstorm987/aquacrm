@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, GitBranch, LoaderCircle, Lock, Plug, Search, TriangleAlert } from "lucide-react";
+import { ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, FolderGit2, GitBranch, LoaderCircle, Lock, Plug, Plus, Search, TriangleAlert, X } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 
@@ -25,9 +25,28 @@ interface TreeResponse {
   href?: string;
 }
 
+export interface DevProjectRow {
+  id: string;
+  name: string;
+  type: "software" | "website" | "portal";
+  repository: string;
+  ref: string;
+  githubConnectionId?: string;
+  vercelConnectionId?: string;
+  aquaTagSiteId?: string;
+}
+
+interface ConnectionRow {
+  id: string;
+  provider: string;
+  label: string;
+}
+
 export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: string }) {
   const [repository, setRepository] = useState(initialRepository);
   const [ref, setRef] = useState("main");
+  const [projects, setProjects] = useState<DevProjectRow[]>([]);
+  const [projectId, setProjectId] = useState("");
   const [tree, setTree] = useState<TreeDirectory | null>(null);
   const [meta, setMeta] = useState<TreeResponse | null>(null);
   const [count, setCount] = useState(0);
@@ -35,10 +54,23 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
   const [open, setOpen] = useState<string | null>(null);
   const [file, setFile] = useState<{ contents?: string; reason?: string; fingerprint?: string; editable: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  // Recomputed whenever the repository changes so the two never disagree about
-  // which tree is on screen.
-  const query$ = repository ? `?repo=${encodeURIComponent(repository)}&ref=${encodeURIComponent(ref)}` : "";
+  const project = projects.find(entry => entry.id === projectId) ?? null;
+
+  useEffect(() => {
+    fetch("/api/portal/dev/projects", { cache: "no-store" })
+      .then(response => response.json())
+      .then((payload: { ok?: boolean; projects?: DevProjectRow[] }) => setProjects(payload.projects ?? []))
+      .catch(() => setProjects([]));
+  }, []);
+
+  // Recomputed whenever the selection changes so the two never disagree about
+  // which tree is on screen. A selected project carries its repository, ref,
+  // AND which connection's token reads it — the server resolves all three.
+  const query$ = project
+    ? `?project=${encodeURIComponent(project.id)}`
+    : repository ? `?repo=${encodeURIComponent(repository)}&ref=${encodeURIComponent(ref)}` : "";
 
   useEffect(() => {
     setTree(null);
@@ -87,25 +119,70 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs">
-            <GitBranch size={13} aria-hidden className="shrink-0 text-black/35" />
-            <input
-              value={repository}
-              onChange={event => setRepository(event.target.value)}
-              placeholder="owner/repository — blank reads this workspace"
-              aria-label="Repository"
-              className="w-72 max-w-full outline-none placeholder:text-black/30"
-            />
-          </span>
-          {repository ? (
-            <input
-              value={ref}
-              onChange={event => setRef(event.target.value)}
-              aria-label="Branch"
-              className="w-28 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none"
-            />
+          {projects.length ? (
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs">
+              <FolderGit2 size={13} aria-hidden className="shrink-0 text-black/35" />
+              <select
+                value={projectId}
+                onChange={event => setProjectId(event.target.value)}
+                aria-label="Project"
+                className="max-w-56 bg-transparent outline-none"
+              >
+                <option value="">Ad-hoc repository…</option>
+                {projects.map(entry => (
+                  <option key={entry.id} value={entry.id}>{entry.name}</option>
+                ))}
+              </select>
+            </span>
           ) : null}
+          {project ? (
+            // The project pins repository and branch; shown, not editable —
+            // changing them is editing the project, not this screen.
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-black/12 bg-black/[0.03] px-2.5 py-1.5 text-xs text-black/60">
+              <GitBranch size={13} aria-hidden className="shrink-0 text-black/35" />
+              {project.repository} · {project.ref} · {project.type}
+            </span>
+          ) : (
+            <>
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs">
+                <GitBranch size={13} aria-hidden className="shrink-0 text-black/35" />
+                <input
+                  value={repository}
+                  onChange={event => setRepository(event.target.value)}
+                  placeholder="owner/repository — blank reads this workspace"
+                  aria-label="Repository"
+                  className="w-72 max-w-full outline-none placeholder:text-black/30"
+                />
+              </span>
+              {repository ? (
+                <input
+                  value={ref}
+                  onChange={event => setRef(event.target.value)}
+                  aria-label="Branch"
+                  className="w-28 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none"
+                />
+              ) : null}
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreating(value => !value)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/[0.04]"
+          >
+            {creating ? <X size={13} aria-hidden /> : <Plus size={13} aria-hidden />}
+            {creating ? "Close" : "New project"}
+          </button>
         </div>
+
+        {creating ? (
+          <NewProjectForm
+            onSaved={saved => {
+              setProjects(saved.projects);
+              setProjectId(saved.project.id);
+              setCreating(false);
+            }}
+          />
+        ) : null}
 
         {/* Said plainly, with the way to fix it, rather than an empty tree that
             looks like a broken editor. */}
@@ -200,6 +277,100 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+function NewProjectForm({
+  onSaved,
+}: {
+  onSaved: (saved: { project: DevProjectRow; projects: DevProjectRow[] }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<DevProjectRow["type"]>("software");
+  const [repository, setRepository] = useState("");
+  const [ref, setRef] = useState("main");
+  const [githubConnectionId, setGithubConnectionId] = useState("");
+  const [vercelConnectionId, setVercelConnectionId] = useState("");
+  const [connections, setConnections] = useState<ConnectionRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/portal/settings/integrations", { cache: "no-store" })
+      .then(response => response.json())
+      .then((payload: { connections?: ConnectionRow[] }) => setConnections(payload.connections ?? []))
+      .catch(() => setConnections([]));
+  }, []);
+
+  const githubConnections = connections.filter(entry => entry.provider === "github");
+  const vercelConnections = connections.filter(entry => entry.provider === "vercel");
+
+  const save = () => {
+    setSaving(true);
+    setError("");
+    fetch("/api/portal/dev/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "save",
+        name,
+        type,
+        repository,
+        ref,
+        githubConnectionId: githubConnectionId || undefined,
+        vercelConnectionId: vercelConnectionId || undefined,
+      }),
+    })
+      .then(response => response.json())
+      .then((payload: { ok?: boolean; error?: string; project?: DevProjectRow; projects?: DevProjectRow[] }) => {
+        if (!payload.ok || !payload.project) {
+          setError(payload.error || "The project could not be saved.");
+          return;
+        }
+        onSaved({ project: payload.project, projects: payload.projects ?? [] });
+      })
+      .catch(() => setError("The project could not be saved."))
+      .finally(() => setSaving(false));
+  };
+
+  const field = "h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-brand";
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-black/10 bg-white p-3">
+      <p className="text-xs font-semibold text-black/70">New project</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={name} onChange={event => setName(event.target.value)} placeholder="Name" aria-label="Project name" className={`${field} w-44`} />
+        <select value={type} onChange={event => setType(event.target.value as DevProjectRow["type"])} aria-label="Project type" className={`${field} w-28`}>
+          <option value="software">Software</option>
+          <option value="website">Website</option>
+          <option value="portal">Portal</option>
+        </select>
+        <input value={repository} onChange={event => setRepository(event.target.value)} placeholder="owner/repository" aria-label="Project repository" className={`${field} w-56`} />
+        <input value={ref} onChange={event => setRef(event.target.value)} placeholder="main" aria-label="Project branch" className={`${field} w-24`} />
+        <select value={githubConnectionId} onChange={event => setGithubConnectionId(event.target.value)} aria-label="GitHub connection" className={`${field} w-44`}>
+          <option value="">GitHub: workspace default</option>
+          {githubConnections.map(entry => (
+            <option key={entry.id} value={entry.id}>GitHub: {entry.label}</option>
+          ))}
+        </select>
+        <select value={vercelConnectionId} onChange={event => setVercelConnectionId(event.target.value)} aria-label="Vercel connection" className={`${field} w-44`}>
+          <option value="">Vercel: none</option>
+          {vercelConnections.map(entry => (
+            <option key={entry.id} value={entry.id}>Vercel: {entry.label}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !name.trim() || !repository.trim()}
+          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? <LoaderCircle size={13} className="animate-spin" aria-hidden /> : null}
+          Save project
+        </button>
+      </div>
+      {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
     </div>
   );
 }

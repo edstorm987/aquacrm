@@ -296,6 +296,14 @@ export const PROMOTION_DISPOSITION = {
       "CREDENTIAL. Two live connections to one Meta page is not an acceptable outcome, so a transfer is revoke-and-reconnect, never copy — and whether a client-scoped connection transfers at all is a human decision.",
     needsConfirmation: true,
   },
+  devProjects: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Dev Editor Engine projects bind integrationConnections by id, and those connections are revoke-and-reconnect (above), never copied — so a moved project would point at credentials that did not come along. Recreate against the new tenant's connections.",
+    needsConfirmation: true,
+  },
 
   // ─── Work ───────────────────────────────────────────────────────────────
   tasks: {
@@ -737,7 +745,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so a 79th collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 79;
+export const PROMOTION_COLLECTION_COUNT = 80;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

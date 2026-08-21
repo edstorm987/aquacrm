@@ -364,6 +364,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-dev-projects.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-dev-roadmap.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -481,6 +485,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-engines-editor.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-engines-sop-data.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -756,6 +764,14 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-operations-attention-rollup.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-operations-hub.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-operations-surface.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -813,6 +829,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-phases-preview.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-pinned-tabs.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
