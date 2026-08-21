@@ -635,6 +635,7 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
         <Sidebar panels={panels} tenantLabel="Dev Team" currentPath={currentPath} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
+            inspecting={Boolean(session.previewReturnUserId)}
             title="Dev Team"
             subtitle="Internal workspace"
             role={session.role}

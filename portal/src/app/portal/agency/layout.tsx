@@ -128,6 +128,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
+            inspecting={Boolean(session.previewReturnUserId)}
             title={INTERNAL_WORKSPACE_NAME}
             subtitle={INTERNAL_WORKSPACE_SUBTITLE}
             role={session.role}

@@ -17,6 +17,7 @@ import { ColorModeToggle } from "@/components/chrome/ColorModeToggle";
 import { PortalSearch } from "@/components/chrome/PortalSearch";
 import { PinCurrentControl, PinnedTabsBar } from "@/components/chrome/PinnedTabs";
 import { ShowcaseModeControl } from "@/components/chrome/ShowcaseModeControl";
+import { InspectorModeControl } from "@/components/chrome/InspectorModeControl";
 import { PublicShowcaseControl } from "@/components/chrome/PublicShowcaseControl";
 import { PrivacyModeControl } from "@/components/chrome/PrivacyModeControl";
 import { DevConsoleControl } from "@/components/chrome/DevConsoleControl";
@@ -67,9 +68,12 @@ interface Props {
   advisorControl?: ReactNode;
   privacyTerms?: string[];
   searchRecordsEnabled?: boolean;
+  /** Inside somebody else's workspace — show the way OUT. */
+  inspecting?: boolean;
+  inspectingLabel?: string;
 }
 
-export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled }: Props) {
+export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, inspecting, inspectingLabel }: Props) {
   const searchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = role === "agency-owner" || role === "agency-manager";
@@ -98,6 +102,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         />
         {devConsole && !publicShowcase && !showcaseMode ? <DevConsoleControl /> : null}
         {!publicShowcase ? radarControl : null}
+        {inspecting ? <InspectorModeControl label={inspectingLabel} /> : null}
         {publicShowcase ? <PublicShowcaseControl /> : showcaseMode ? <ShowcaseModeControl /> : notifications}
         <div className="hidden sm:block"><ColorModeToggle /></div>
         {previewActive ? (

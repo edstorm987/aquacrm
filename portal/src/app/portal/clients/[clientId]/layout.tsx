@@ -183,6 +183,7 @@ export default async function ClientLayout({
         <Sidebar panels={panels} tenantLabel={client.name} currentPath={currentPath} navAlignment="start" variant="client" />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
+            inspecting={Boolean(session.previewReturnUserId)}
             title={client.name}
             subtitle={`${providerName} · ${client.stage.replaceAll("-", " ")}`}
             role={session.role}
