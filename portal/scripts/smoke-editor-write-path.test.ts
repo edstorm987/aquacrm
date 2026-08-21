@@ -108,6 +108,33 @@ describe("editor write path — the guards", () => {
   });
 });
 
+describe("editor write path — creating files and folders", () => {
+  it("creates via an explicit `create` mode, not by writing to a missing path", () => {
+    assert.match(route, /body\.create === "file" \|\| body\.create === "folder"/);
+    assert.match(route, /mkdir\(created/);
+  });
+
+  it("resolves the PARENT for symlink safety, since the target does not exist yet", () => {
+    assert.match(route, /realSafePath\(dirname\(requested\)/);
+    // …and re-checks the child still lands inside the root.
+    assert.match(route, /created\.startsWith\(realRoot \+ sep\)/);
+  });
+
+  it("will not create inside a hidden location", () => {
+    assert.match(route, /isHiddenPath\(relative\(realRoot, created\)/);
+  });
+
+  it("refuses to clobber something that already exists", () => {
+    assert.match(route, /Something already exists there/);
+    // wx: fail if it appears between the check and the write.
+    assert.match(route, /flag: "wx"/);
+  });
+
+  it("only creates files the editor could then open", () => {
+    assert.match(route, /if \(!describeFile\(requested, 0\)\.editable\)/);
+  });
+});
+
 describe("editor write path — what the tree exposes at all", () => {
   it("hides live operational state, not just build output", () => {
     // .data/ holds the portal state blob AND worker check-in records that

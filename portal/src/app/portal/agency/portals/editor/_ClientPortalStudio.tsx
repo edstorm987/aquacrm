@@ -329,7 +329,28 @@ export function ClientPortalStudio({
   // silently does nothing is worse than one that says why.
   const addOptions: AddOption[] = useMemo(() => {
     if (canvasView === "code") {
-      return fileAddOptions("Needs the repository write path — not wired yet.");
+      // A repository-backed project is committed and published, not written to
+      // this server — so creation is offered only for the local workspace.
+      if (selectedProject?.repository) {
+        return fileAddOptions(undefined, "This project is backed by a repository — create the file there and publish.");
+      }
+      return fileAddOptions(kind => {
+        const suggestion = kind === "folder" ? "src/new-folder" : "src/new-file.ts";
+        const path = window.prompt(`Path for the new ${kind}:`, suggestion)?.trim();
+        if (!path) return;
+        void fetch("/api/portal/site-editor/files", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path, create: kind, contents: "" }),
+        })
+          .then(response => response.json())
+          .then(payload => {
+            setNotice(payload.ok ? `Created ${path}` : payload.error ?? "That could not be created.");
+            // Nudge the code canvas to re-read the tree.
+            if (payload.ok) setFrameKey(value => value + 1);
+          })
+          .catch(() => setNotice("That could not be created."));
+      });
     }
     if (!canManage || !portalDocument) {
       return [{ id: "readonly", group: "Blocks", label: "Editing is read-only here", unavailableReason: "You do not have permission to change this portal." }];

@@ -143,11 +143,33 @@ export function AddMenu({
   );
 }
 
-/** The code-view options. Kept here so both canvas and tree can offer them. */
-export function fileAddOptions(unavailableReason: string): AddOption[] {
+/**
+ * The code-view options.
+ *
+ * `onCreate` receives a path and what to make. When it is absent the options
+ * still SHOW, disabled, with the reason — a repository-backed project cannot
+ * be written to from here (those changes are committed and published), and an
+ * option that silently does nothing is worse than one that says why.
+ */
+export function fileAddOptions(
+  onCreate?: (kind: "file" | "folder") => void,
+  unavailableReason?: string,
+): AddOption[] {
   return [
-    { id: "new-file", group: "Repository", label: "New file", description: "Create a file in this repository.", icon: <FilePlus2 size={13} />, unavailableReason },
-    { id: "new-folder", group: "Repository", label: "New folder", description: "Create a folder.", icon: <FolderPlus size={13} />, unavailableReason },
-    { id: "upload", group: "Repository", label: "Upload files", description: "Drop images, fonts or documents in.", icon: <Upload size={13} />, unavailableReason },
+    {
+      id: "new-file", group: "Repository", label: "New file",
+      description: "Create a file in this repository.", icon: <FilePlus2 size={13} />,
+      onSelect: onCreate ? () => onCreate("file") : undefined, unavailableReason,
+    },
+    {
+      id: "new-folder", group: "Repository", label: "New folder",
+      description: "Create a folder.", icon: <FolderPlus size={13} />,
+      onSelect: onCreate ? () => onCreate("folder") : undefined, unavailableReason,
+    },
+    {
+      id: "upload", group: "Repository", label: "Upload files",
+      description: "Drop images, fonts or documents in.", icon: <Upload size={13} />,
+      unavailableReason: "Uploads need a binary write path — not wired yet.",
+    },
   ];
 }
