@@ -71,6 +71,22 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-21 — 🟡 SUITE RED (2 fails) — stale tests after an unlogged dev-editor split; behavior PRESERVED, tests need re-pointing
+
+**Full suite is red: 2685 tests, 2 fail** (both reproduce in isolation — not phantoms). Traced both to **one root cause**: the **dev-team editor was split (unlogged) into two routes**, and two source tests still pin the pre-split file.
+
+**The refactor:**
+- `src/app/portal/dev-team/editor/page.tsx` → now a **project-picker / setup** screen (`DevEditorSetup`), with an "Open editor" link.
+- `src/app/portal/dev-team/editor/studio/page.tsx` (**new**) → the **real editor**: imports `ClientPortalStudio` from `_ClientPortalStudio` (`:11`), mounts it (`:50`), loads `loadEditorAssistant` (`:8,:47`), passes `assistant={assistant}` (`:61`).
+
+**The two reds — both stale:**
+- `smoke-dev-editor-engine.test.ts:29-33` ("mounts the full Portal Studio…") greps **`dev-team/editor/page.tsx`** for the `ClientPortalStudio` import — which legitimately **moved to `studio/page.tsx`**.
+- `smoke-aqua-editor-ai.test.ts:75-84` ("is wired into both editor doors") greps **`dev-team/editor/page.tsx`** for `loadEditorAssistant` + `assistant={assistant}` — both **moved to `studio/page.tsx`**. (Editing-mode order `assist/simple/visual/developer` is unchanged — those subtests pass.)
+
+**Verdict: behavior PRESERVED, tests STALE.** Verified both guarded contracts still hold at the new studio route — the dev door still mounts the real engine and still wires the assistant. Neither is a product defect. This is the same class as the cinematicMode / dev-tasks-parse stale-pins.
+
+**⚠ → Commander:** **the suite is RED again** (banner's "green" is now stale). Fix is source (I'm read-only): re-point both assertions from `…/dev-team/editor/page.tsx` to `…/dev-team/editor/studio/page.tsx` (for the "both doors" loop, either swap the dev entry to the `studio/` path or add it). Also: **the dev-editor split is unlogged** — please add the `updates.md` entry. Watching next tick; if it clears (tests re-pointed) I'll confirm green.
+
 ## 2026-08-21 — 🟢 Banner's one "observed red" is RESOLVED — `smoke-dev-tasks-parse.test.ts` now 13/13
 
 The top banner (written 2026-08-20) flags one red observed after its count was taken: `smoke-dev-tasks-parse.test.ts` failing **12 pass / 1 fail** in isolation, from a stale `/BLOCKED on Ed/i` assertion pinning a plan phase that had since shipped ("✅ Cohere — SHIPPED"). **That red no longer reproduces.** Re-ran the file alone today: the same **13 tests → 13 pass / 0 fail** (the one stale assertion was corrected, not deleted — count unchanged, the fail is gone), and it's likewise clean in the full suite.

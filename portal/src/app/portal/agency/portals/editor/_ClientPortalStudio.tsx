@@ -123,6 +123,8 @@ export function ClientPortalStudio({
   backLabel = "Back to portals",
   lockToClient = false,
   assistant,
+  initialProjectId = "",
+  projectName,
 }: {
   clients: PortalStudioClient[];
   templates: PortalStudioTemplate[];
@@ -137,6 +139,10 @@ export function ClientPortalStudio({
   lockToClient?: boolean;
   /** Aqua Editor AI's server payload. Absent = the tab is not offered. */
   assistant?: EditorAssistantProps;
+  /** Opened FOR a Dev project — its repo/token drive Code and Repo. */
+  initialProjectId?: string;
+  /** Shown in the identity block, so you can see which project you are in. */
+  projectName?: string;
 }) {
   const [scope, setScope] = useState<Scope>(initialScope);
   const [clientId, setClientId] = useState(initialClientId);
@@ -167,7 +173,7 @@ export function ClientPortalStudio({
   // The Dev Editor Engine project being worked on. Selecting one points the
   // Code/Repo inspectors at THAT repository, read through that project's own
   // connection — "plug in any repo" without the browser holding a token.
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(initialProjectId);
   const [projects, setProjects] = useState<StudioDevProject[]>([]);
   const selectedProject = projects.find(item => item.id === projectId) ?? null;
 
@@ -605,7 +611,7 @@ export function ClientPortalStudio({
         </Link>
         <div className="hidden min-w-40 xl:block">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300/75">Dev Editor</p>
-          <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name}</p>
+          <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{projectName || (scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name)}</p>
         </div>
 
         {/* The primary switch is what the CANVAS shows — the live thing, its

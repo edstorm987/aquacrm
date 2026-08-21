@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Boxes, Check, ExternalLink, Github, LoaderCircle, Plus, Trash2, TriangleAlert, X } from "lucide-react";
+import { Boxes, Check, ExternalLink, Github, LoaderCircle, Plus, SquarePen, Trash2, TriangleAlert, X } from "lucide-react";
 
 import type { DevProject, DevProjectKind } from "@/server/types";
 
@@ -102,10 +102,9 @@ export function DevEditorSetup() {
   return (
     <div className="grid gap-5">
       <header className="grid gap-1">
-        <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--dev-accent)]">
-          <Boxes size={14} aria-hidden /> Dev Editor
-        </p>
-        <h2 className="text-2xl font-semibold text-[color:var(--dt-ink)]">Projects</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-[color:var(--dt-ink)]">
+          <Boxes size={16} aria-hidden className="text-[color:var(--dev-accent)]" /> Projects
+        </h2>
         <p className="max-w-2xl text-sm leading-6 text-[color:var(--dt-muted)]">
           What the editor can be pointed at. A project binds a repository and branch to the
           connections that reach them — change any of it here when a repo moves, a branch
@@ -147,6 +146,12 @@ export function DevEditorSetup() {
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
+                <Link
+                  href={`/portal/dev-team/editor/studio?project=${encodeURIComponent(project.id)}`}
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[color:var(--dev-accent)] px-2.5 text-[11px] font-bold text-[color:var(--dev-on-accent)] hover:bg-[color:var(--dev-accent-hover)]"
+                >
+                  <SquarePen size={11} aria-hidden /> Open editor
+                </Link>
                 <button
                   type="button"
                   onClick={() => { setNotice(null); setDraft(draftFrom(project)); }}

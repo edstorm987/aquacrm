@@ -1,36 +1,30 @@
 import { notFound, redirect } from "next/navigation";
+import { Boxes } from "lucide-react";
 
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { AGENCY_ROLES } from "@/server/types";
 import { ensureHydrated } from "@/server/storage";
-import { loadPortalStudioProps, type PortalStudioQuery } from "@/engines/editor/server/portalStudio";
-import { loadEditorAssistant } from "@/engines/editor/server/editorAssistant";
 
-import { ClientPortalStudio } from "../../agency/portals/editor/_ClientPortalStudio";
+import { PageHeader } from "../_ui";
+import { DevEditorSetup } from "./setup/_DevEditorSetup";
 
-// The Dev Team Editor IS the engine — and the engine's UI already existed.
+// Dev Editor — the PROJECTS WORKSPACE, and the door to the editor.
 //
-// This route used to mount `CodeWorkspace`: a read-only repository tree with a
-// file reader. That is one inspector's worth of the engine, which is why it read
-// as "a third of it, no visual, no simple modes". The full engine is the Portal
-// Studio (`_ClientPortalStudio`): a live canvas over the real portal, the depth
-// selector (just the words / design it / developer) and the Builder, Content,
-// Pages, Brand, Code, Repo and Versions inspectors — the repository browser
-// among them. So this route now mounts THAT, via the shared engine loader, and
-// the two doors cannot drift.
+// Ed's shape: pressing "Editor" must not drop you straight into a full-screen
+// canvas over whatever project happened to be first. It lands here — what you
+// have, what each one is pointed at — so you add a project, describe it, and
+// then open the editor FOR it. Leaving the editor comes back here, which is
+// what makes working across several projects at once workable.
 //
-// Founder + Dev Mode only — the same layered gate as the layout and every other
-// dev-team surface: role first, then `devDocsAccessible`. The studio's own API
-// routes assert their scope again, so a gate on the page is the screen's guard,
-// not the write's.
+// The editor itself lives at ./studio. This split is Dev-Team only: the agency
+// portals route (/portal/agency/portals/editor) still opens the studio
+// directly, because there a portal is already chosen before you arrive.
+//
+// Founder + Dev Mode only — role first, then `devDocsAccessible`.
 export const dynamic = "force-dynamic";
 
-export default async function DevTeamEditorPage({
-  searchParams,
-}: {
-  searchParams: Promise<PortalStudioQuery>;
-}) {
+export default async function DevEditorProjectsPage() {
   await ensureHydrated();
   let session;
   try {
@@ -40,28 +34,15 @@ export default async function DevTeamEditorPage({
   }
   if (!devDocsAccessible(session)) notFound();
 
-  const agencyId = session.activeAgencyId ?? session.agencyId;
-  const query = await searchParams;
-  // Dev Team opens the engine at its deepest by default — this is the
-  // founder's build surface, not a client-safe view. An explicit ?mode= still
-  // wins, and the client switcher stays available (no lockToClient here).
-  const props = loadPortalStudioProps({ agencyId, userId: session.userId, role: session.role, query });
-  // Aqua Editor AI — the same assistant engine the Advisor and Librarian use.
-  const assistant = await loadEditorAssistant(agencyId, session.userId);
-
   return (
-    <ClientPortalStudio
-      clients={props.clients}
-      templates={props.templates}
-      initialClientId={props.initialClientId}
-      initialTemplateId={props.initialTemplateId}
-      initialScope={props.initialScope}
-      initialMode={props.initialMode}
-      initialSection={props.initialSection}
-      canManage={props.canManage}
-      backHref="/portal/dev-team"
-      backLabel="Back to Dev Team"
-      assistant={assistant}
-    />
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        accent="editor"
+        icon={<Boxes size={20} />}
+        title="Dev Editor"
+        subtitle="Your projects. Add one, point it at a repository, then open the editor for it."
+      />
+      <DevEditorSetup />
+    </div>
   );
 }

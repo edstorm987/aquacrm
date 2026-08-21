@@ -9,7 +9,6 @@ import {
   MessagesSquare,
   NotebookPen,
   Route,
-  Settings2,
   SquarePen,
   UserRound,
 } from "lucide-react";
@@ -82,9 +81,6 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
       // route is slated to grow into the full Dev Editor Engine) is a
       // first-class sidebar item now, not buried under Tools.
       { id: "editor", label: "Editor", href: "/portal/dev-team/editor", icon: ico(SquarePen, "editor"), panelId: "main" as const, order: 40 },
-      // The editor is full-screen, so its configuration cannot live inside it
-      // without fighting the canvas — it gets its own row.
-      { id: "editor-setup", label: "Editor setup", href: "/portal/dev-team/editor/setup", icon: ico(Settings2, "editor"), panelId: "main" as const, order: 41 },
       // Team chat — the Dev Team's comms. v1 surfaces the existing TeamChat
       // (staff↔founder). v2: AI workers post into it; v3: staff-portal bridge.
       { id: "chat", label: "Team chat", href: "/portal/dev-team/chat", icon: ico(MessagesSquare, "working"), panelId: "main" as const, order: 50 },

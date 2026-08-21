@@ -75,7 +75,7 @@ describe("Aqua Editor AI — the assist depth", () => {
   it("is wired into both editor doors", () => {
     for (const route of [
       ["src", "app", "portal", "agency", "portals", "editor", "page.tsx"],
-      ["src", "app", "portal", "dev-team", "editor", "page.tsx"],
+      ["src", "app", "portal", "dev-team", "editor", "studio", "page.tsx"],
     ]) {
       const page = read(...route);
       assert.match(page, /loadEditorAssistant/, `${route.join("/")} should load the assistant`);

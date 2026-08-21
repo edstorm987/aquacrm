@@ -26,10 +26,10 @@ function read(...parts: string[]): string {
 
 describe("dev editor engine — the dev-team editor points at the real engine", () => {
   it("mounts the full Portal Studio through the shared engine loader", () => {
-    const page = read("src", "app", "portal", "dev-team", "editor", "page.tsx");
+    const page = read("src", "app", "portal", "dev-team", "editor", "studio", "page.tsx");
 
     // The engine's UI, wholesale — the same studio the portals route mounts.
-    assert.match(page, /import\s*\{\s*ClientPortalStudio\s*\}\s*from\s*["']\.\.\/\.\.\/agency\/portals\/editor\/_ClientPortalStudio["']/);
+    assert.match(page, /import\s*\{\s*ClientPortalStudio\s*\}\s*from\s*["'][./]+agency\/portals\/editor\/_ClientPortalStudio["']/);
     assert.match(page, /<ClientPortalStudio\b/);
     // …fed by the engine loader, so the two doors cannot drift apart.
     assert.match(page, /loadPortalStudioProps/);
@@ -40,7 +40,9 @@ describe("dev editor engine — the dev-team editor points at the real engine", 
       "the editor page still redirects to the app-config editor");
 
     // The way back into Dev Team survives the full-screen studio.
-    assert.match(page, /backHref="\/portal\/dev-team"/);
+    // Leaving the editor returns to the PROJECTS workspace, which is what
+    // makes working across several projects at once workable.
+    assert.match(page, /backHref="\/portal\/dev-team\/editor"/);
   });
 
   it("keeps the repository browser reachable — it is the studio's Repo tab", () => {
@@ -51,7 +53,7 @@ describe("dev editor engine — the dev-team editor points at the real engine", 
   });
 
   it("is founder + Dev Mode gated, the same layered gate as the rest of dev-team", () => {
-    const page = read("src", "app", "portal", "dev-team", "editor", "page.tsx");
+    const page = read("src", "app", "portal", "dev-team", "editor", "studio", "page.tsx");
     assert.match(page, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/);
     assert.match(page, /devDocsAccessible\(session\)/);
     assert.match(page, /notFound\(\)/);
