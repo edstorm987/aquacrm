@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/portal/clientPortalDesign";
@@ -17,6 +17,8 @@ import {
 } from "@/lib/portal/clientPortalBuilder";
 import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/engines/editor/editing/modes";
 import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
+import { AquaEditorAI } from "@/components/editing/AquaEditorAI";
+import type { EditorAssistantProps } from "@/engines/editor/server/editorAssistant";
 import { elementSource, repoRelativePath } from "@/engines/editor/editing/elementSource";
 import { PORTAL_SCOPE, scopeForSection } from "@/engines/editor/editing/fileRelevance";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
@@ -45,7 +47,7 @@ export type PortalStudioTemplate = {
 };
 
 type Scope = "template" | "client";
-type InspectorTab = "builder" | "content" | "pages" | "brand" | "code" | "repository" | "versions";
+type InspectorTab = "assistant" | "builder" | "content" | "pages" | "brand" | "code" | "repository" | "versions";
 
 /** A Dev Editor Engine project, as the picker needs it. */
 interface StudioDevProject {
@@ -92,6 +94,8 @@ const SECTION_LABELS: Record<ClientPortalSectionId, string> = {
  * person and restrictive to the next.
  */
 const tabs: Array<{ id: InspectorTab; label: string; icon: typeof FileText }> = [
+  // Aqua Editor AI — the shallowest depth: describe it instead of building it.
+  { id: "assistant", label: "Assistant", icon: Sparkles },
   { id: "builder", label: "Builder", icon: LayoutTemplate },
   { id: "content", label: "Content", icon: FileText },
   { id: "pages", label: "Pages", icon: Layers3 },
@@ -114,6 +118,7 @@ export function ClientPortalStudio({
   backHref = "/portal/agency/portals?view=templates",
   backLabel = "Back to portals",
   lockToClient = false,
+  assistant,
 }: {
   clients: PortalStudioClient[];
   templates: PortalStudioTemplate[];
@@ -126,6 +131,8 @@ export function ClientPortalStudio({
   backHref?: string;
   backLabel?: string;
   lockToClient?: boolean;
+  /** Aqua Editor AI's server payload. Absent = the tab is not offered. */
+  assistant?: EditorAssistantProps;
 }) {
   const [scope, setScope] = useState<Scope>(initialScope);
   const [clientId, setClientId] = useState(initialClientId);
@@ -665,6 +672,8 @@ export function ClientPortalStudio({
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {portalDocument && record ? (
               <Inspector
+                assistant={assistant}
+                assistantTarget={scope === "template" ? (selectedTemplate?.name || "a portal template") : (selectedClient?.name || "a client portal")}
                 repository={repository}
                 onRepositoryChange={setRepository}
                 sourceFocus={sourceFocus}
@@ -711,7 +720,7 @@ export function ClientPortalStudio({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {portalDocument && record ? (
-                <Inspector repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} picking={picking} onPickElement={() => setPicking(value => !value)} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} />
+                <Inspector assistant={assistant} assistantTarget={scope === "template" ? (selectedTemplate?.name || "a portal template") : (selectedClient?.name || "a client portal")} repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} picking={picking} onPickElement={() => setPicking(value => !value)} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} />
               ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
             <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-[#111311] p-3">
@@ -726,6 +735,8 @@ export function ClientPortalStudio({
 }
 
 function Inspector({
+  assistant,
+  assistantTarget,
   repository,
   projectId,
   onRepositoryChange,
@@ -757,6 +768,8 @@ function Inspector({
   selectedBlockId,
   selectBlock,
 }: {
+  assistant?: EditorAssistantProps;
+  assistantTarget: string;
   repository: string;
   projectId?: string;
   onRepositoryChange: (value: string) => void;
@@ -789,6 +802,26 @@ function Inspector({
   selectBlock: (blockId: string) => void;
 }) {
   const editingDisabled = !canManage || busy;
+
+  if (tab === "assistant") {
+    // No payload (assistant not wired on this route) — say so plainly rather
+    // than render an empty panel that looks broken.
+    if (!assistant) {
+      return <p className="px-1 py-3 text-xs text-white/45">Aqua Editor AI is not available on this screen.</p>;
+    }
+    return (
+      <AquaEditorAI
+        initialWorkspace={assistant.initialWorkspace}
+        configured={assistant.configured}
+        model={assistant.model}
+        userName={assistantTarget}
+        coverage={assistant.coverage}
+        context={{ target: assistantTarget, section, element: sourceFocus }}
+        picking={picking}
+        onPickElement={onPickElement}
+      />
+    );
+  }
 
   if (tab === "builder") {
     return <PortalBuilderInspector section={section} customPageId={customPageId} document={document} disabled={editingDisabled} edit={edit} productOptions={productOptions} selectCustomPage={selectCustomPage} selectedBlockId={selectedBlockId} selectBlock={selectBlock} />;

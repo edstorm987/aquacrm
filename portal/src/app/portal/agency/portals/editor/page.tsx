@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import { loadPortalStudioProps, type PortalStudioQuery } from "@/engines/editor/server/portalStudio";
+import { loadEditorAssistant } from "@/engines/editor/server/editorAssistant";
 import { ClientPortalStudio } from "./_ClientPortalStudio";
 
 // The Portal Studio's own route. The loader it used to carry inline now lives
@@ -26,6 +27,8 @@ export default async function ClientPortalEditorPage({
   const agencyId = session.activeAgencyId ?? session.agencyId;
   const query = await searchParams;
   const props = loadPortalStudioProps({ agencyId, userId: session.userId, role: session.role, query });
+  // Aqua Editor AI — the same assistant engine the Advisor and Librarian use.
+  const assistant = await loadEditorAssistant(agencyId, session.userId);
 
   return (
     <ClientPortalStudio
@@ -40,6 +43,7 @@ export default async function ClientPortalEditorPage({
       backHref={props.lockToClient ? clientWorkspaceHref(props.initialClientId, "portal") : undefined}
       backLabel={props.lockToClient ? "Back to client portal" : undefined}
       lockToClient={props.lockToClient}
+      assistant={assistant}
     />
   );
 }

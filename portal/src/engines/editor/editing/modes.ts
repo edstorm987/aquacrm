@@ -10,7 +10,7 @@
  * So the mode is chosen once and gates the tabs. Same editor, three depths.
  */
 
-export type EditingMode = "simple" | "visual" | "developer";
+export type EditingMode = "assist" | "simple" | "visual" | "developer";
 
 export interface EditingModeDefinition {
   id: EditingMode;
@@ -25,6 +25,15 @@ export interface EditingModeDefinition {
 }
 
 export const EDITING_MODES: EditingModeDefinition[] = [
+  {
+    id: "assist",
+    label: "Just tell it",
+    summary: "Describe the change in your own words. Point at anything on the page, attach a file, and Aqua Editor AI does the rest.",
+    // The shallowest depth of all: you do not learn the tool, you talk to it.
+    // Content rides along so an answer can be applied by hand without switching
+    // mode — the assistant proposes, a person still accepts.
+    tabs: ["assistant", "content"],
+  },
   {
     id: "simple",
     label: "Just the words",
@@ -49,8 +58,10 @@ export const EDITING_MODES: EditingModeDefinition[] = [
 
 export function editingMode(id: string | null | undefined): EditingModeDefinition {
   // Defaults to the visual mode rather than the deepest one: a first-time
-  // opener should meet a designer's tool, not a developer's.
-  return EDITING_MODES.find(mode => mode.id === id) ?? EDITING_MODES[1];
+  // opener should meet a designer's tool, not a developer's. Named explicitly
+  // rather than indexed, so adding a mode to the list cannot silently move it.
+  return EDITING_MODES.find(mode => mode.id === id)
+    ?? EDITING_MODES.find(mode => mode.id === "visual")!;
 }
 
 /** Whether a tab is offered in this mode. */

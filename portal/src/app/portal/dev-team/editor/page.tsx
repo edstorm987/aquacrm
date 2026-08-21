@@ -5,6 +5,7 @@ import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { AGENCY_ROLES } from "@/server/types";
 import { ensureHydrated } from "@/server/storage";
 import { loadPortalStudioProps, type PortalStudioQuery } from "@/engines/editor/server/portalStudio";
+import { loadEditorAssistant } from "@/engines/editor/server/editorAssistant";
 
 import { ClientPortalStudio } from "../../agency/portals/editor/_ClientPortalStudio";
 
@@ -45,6 +46,8 @@ export default async function DevTeamEditorPage({
   // founder's build surface, not a client-safe view. An explicit ?mode= still
   // wins, and the client switcher stays available (no lockToClient here).
   const props = loadPortalStudioProps({ agencyId, userId: session.userId, role: session.role, query });
+  // Aqua Editor AI — the same assistant engine the Advisor and Librarian use.
+  const assistant = await loadEditorAssistant(agencyId, session.userId);
 
   return (
     <ClientPortalStudio
@@ -58,6 +61,7 @@ export default async function DevTeamEditorPage({
       canManage={props.canManage}
       backHref="/portal/dev-team"
       backLabel="Back to Dev Team"
+      assistant={assistant}
     />
   );
 }
