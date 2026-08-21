@@ -480,6 +480,10 @@ describe("client portal studio surface", () => {
       readFile(new URL("../src/app/api/portal/client-portal-design/route.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/server/clientPortalSetup.ts", import.meta.url), "utf8"),
     ]);
+    // The studio's data loader moved into the editor engine so the Dev Team
+    // editor can mount the SAME studio. The contract is unchanged — it is just
+    // no longer inline in the route — so assert it where it now lives.
+    const studioLoader = await readFile(new URL("../src/engines/editor/server/portalStudio.ts", import.meta.url), "utf8");
 
     for (const label of ["Portal studio", "Template", "Client", "Lifecycle stage", "Portal page", "Builder", "Content", "Pages", "Brand", "Code", "Versions", "Visual composition", "Add a portal component", "Custom portal layer", "Portal CSS", "JavaScript", "Save draft", "Publish"]) {
       assert.match(studio, new RegExp(label));
@@ -495,8 +499,11 @@ describe("client portal studio surface", () => {
     assert.match(studio, /Refresh draft from master/);
     assert.match(studio, /row-start-2/);
     assert.match(studio, /aria-live="polite"/);
-    assert.match(editorPage, /ensureProductPortalTemplates/);
-    assert.match(editorPage, /query\.productId/);
+    assert.match(studioLoader, /ensureProductPortalTemplates/);
+    assert.match(studioLoader, /query\.productId/);
+    // …and the route still mounts the studio through that loader.
+    assert.match(editorPage, /loadPortalStudioProps/);
+    assert.match(editorPage, /<ClientPortalStudio/);
     assert.match(preview, /portalScope/);
     assert.match(preview, /portalMode/);
     assert.match(portalData, /resolveClientPortalDesign/);
