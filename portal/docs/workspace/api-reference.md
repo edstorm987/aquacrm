@@ -10,7 +10,7 @@ touches **live Supabase**.
 > `docs/reference/`, no script rebuilds these rows, so they drift silently as
 > routes land. Counts were last reconciled against the filesystem on
 > **2026-08-20 (second pass, evening)** — they had drifted again by 5 in a day
-> (`auth/switch-agency`, `portal/agency/companies/[companyId]/promote`,
+> (`auth/switch-agency`, `portal/agency/companies/[companyId]/portal`,
 > `portal/compliance/frameworks`, `portal/compliance/posture`, and one more under
 > `dev-team/*`). This page lags by construction; **re-run the `find` before you
 > trust any number here**:
@@ -207,7 +207,7 @@ not live.
 | `/api/portal/mfa/enrol` | GET | Report whether a verified factor is enrolled (no side effects) | authenticated (Supabase user) | **LIVE (auth)** |
 | `/api/portal/mfa/enrol` | POST | Start Supabase TOTP MFA enrolment | authenticated (Supabase user) | **LIVE (auth)** |
 | `/api/portal/mfa/verify` | POST | Verify TOTP code / raise session to aal2 | authenticated (Supabase user) | **LIVE (auth)** |
-| `/api/portal/agency/companies/[companyId]/promote` | GET, POST | **Promote a trading company into its own agency.** GET = the read-only preview (what would move, re-key, seed, be left behind, and what a human still has to decide); POST = create the tenant, grant the promoter membership, re-mint their cookie, tombstone the brand. **It MOVES NO RECORDS** — creating a tenant is cheap and reversible, relocating live records across a tenant boundary is not, so they are separate phases | agency owner/manager (promoter must be a member) | |
+| `/api/portal/agency/companies/[companyId]/portal` | GET, POST | **Promote a trading company into its own agency.** GET = the read-only preview (what would move, re-key, seed, be left behind, and what a human still has to decide); POST = create the tenant, grant the promoter membership, re-mint their cookie, tombstone the brand. **It MOVES NO RECORDS** — creating a tenant is cheap and reversible, relocating live records across a tenant boundary is not, so they are separate phases | agency owner/manager (promoter must be a member) | |
 | `/api/portal/compliance/posture` | GET | Compliance posture for one company or the agency-wide scope. **Read-only, and it never returns a verdict** — it reports what the app can see *and what it cannot*; `assertPostureHonesty` violations are surfaced in the response rather than swallowed. An unknown `?companyId` 404s rather than silently falling back to agency-wide | agency owner/manager/staff | |
 | `/api/portal/compliance/frameworks` | POST | Switch the **optional per-company HIPAA readiness track** on/off. It switches on a *checklist* — it confers nothing, changes no technical control, and the response says so on every success. Only `framework:"hipaa"` is accepted; GDPR always applies and cannot be turned off | agency owner/manager | |
 
@@ -350,14 +350,14 @@ not live.
 | top-level `src/app/*` | 9 | `find src/app -name route.ts -not -path 'src/app/api/*'` |
 | **Total** | **206** | `find src/app -name route.ts \| wc -l` |
 
-⚠ **Counts below are from 2026-08-20 and are STALE.** Re-measured 2026-08-21:
-`find src/app -name route.ts` = **214** (was 206), `api/portal` = **126** (was 118).
-The three endpoints added 2026-08-21 — `site-editor/files` POST, `dev/projects`,
-`dev/editor-activity` — are documented above; the remaining count drift has not
-been re-diffed path-by-path. Do not trust the totals row until it is.
-
-The 2026-08-20 statement was: every row present, and a path-by-path diff against
-`find src/app/api -name route.ts` came back **empty in both directions** — nothing documented is missing
+Counts re-verified against the filesystem **2026-08-21**: `find src/app -name
+route.ts` = **214**, `find src/app/api -name route.ts` = **205**,
+`api/portal` = **126**. A path-by-path diff of this page against the filesystem
+was re-run on 2026-08-21 and now comes back **empty in both directions** — it
+had drifted twice: three endpoints added that day were undocumented
+(`site-editor/files` POST, `dev/projects`, `dev/editor-activity`), and this page
+still named `…/companies/[companyId]/promote` after the route was renamed to
+`…/portal`. Both directions fixed. Nothing documented is missing
 from source, nothing in source is missing here.
 
 **~57 of the 206 touch live Supabase** (auth/admin, `brand_enquiries`, Storage,

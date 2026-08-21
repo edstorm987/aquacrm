@@ -37,7 +37,7 @@ file are **all fixed and source-verified**; the Dev Console is our internal work
 
 **Still genuinely open** (source-verified 2026-08-20, in priority order):
 1. 🟠 **Published-site SIGNUP block still 400s.** The login half of [issues.md #14](../development/issues.md) was fixed — `api/auth/login/route.ts:124` now accepts `formData()` and 303-redirects. **`api/auth/signup/route.ts:53` still parses `req.json()` only** (zero `formData` references in the file), so `SignupFormBlock.tsx:8`'s native `<form method="POST">` to `/api/auth/signup` still navigates a real visitor onto a raw `{"ok":false,"error":"Invalid JSON."}`. Public-facing. See the narrowed brief in [next-wave-briefs.md](next-wave-briefs.md).
-2. 🔴 **First git commit** — Ed's call; the only open launch blocker (see Blockers below).
+2. ✅ **First git commit — DONE 2026-08-21.** Committed and pushed to `work/2026-08-20-parallel-session`. What is left is Ed's call on WHEN to merge to `main`, since that deploys production (see Blockers below).
 3. MFA phases 3+4 · RLS-as-repo-SQL · the unwalked browser sweeps.
 
 ## 🗄 HISTORICAL — session log, 2026-08-19 (late) · superseded by the ground-truth table above
