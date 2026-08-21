@@ -23,6 +23,7 @@ type Body = {
   action?: "save" | "delete";
   id?: string;
   name?: string;
+  description?: string;
   kind?: DevProjectKind;
   repository?: string;
   ref?: string;
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
         agencyId: session.agencyId,
         id: body.id,
         name: body.name ?? "",
+        description: body.description,
         kind: body.kind,
         repository: body.repository,
         ref: body.ref,

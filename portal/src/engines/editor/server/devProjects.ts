@@ -55,6 +55,7 @@ export interface SaveDevProjectInput {
   agencyId: string;
   id?: string;
   name: string;
+  description?: string;
   kind?: DevProjectKind;
   repository?: string;
   ref?: string;
@@ -88,6 +89,7 @@ export function saveDevProject(input: SaveDevProjectInput): DevProject {
     id: existing?.id ?? `devproj_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
     agencyId: input.agencyId,
     name,
+    description: clean(input.description, 400) || undefined,
     kind,
     repository: normalizeRepository(input.repository),
     ref: clean(input.ref, 120) || "main",

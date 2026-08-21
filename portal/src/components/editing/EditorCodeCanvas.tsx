@@ -88,6 +88,11 @@ export function EditorCodeCanvas({
     ? `?project=${encodeURIComponent(projectId)}`
     : repository ? `?repo=${encodeURIComponent(repository)}&ref=main` : "";
 
+  // Where you were last time, per project/repository. Reopening an editor and
+  // being dumped at an empty root — having to hunt back to the four files you
+  // were working across — is the thing this avoids.
+  const sessionKey = `mm-dev-editor-session:${projectId || repository || "workspace"}`;
+
   useEffect(() => {
     setTree(null);
     setOpen(null);
@@ -119,8 +124,34 @@ export function EditorCodeCanvas({
       .finally(() => setLoading(false));
   }, [open, search, files]);
 
-  // Changing repository/project invalidates everything that was open.
-  useEffect(() => { setOpenPaths([]); setOpenPath(null); setFiles({}); setBuffers({}); }, [search]);
+  // Changing repository/project invalidates everything that was open, then
+  // restores whatever was open for the NEW target last time.
+  useEffect(() => {
+    setFiles({});
+    setBuffers({});
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(sessionKey) ?? "null") as
+        | { openPaths?: unknown; active?: unknown }
+        | null;
+      const paths = Array.isArray(saved?.openPaths)
+        ? saved!.openPaths.filter((item): item is string => typeof item === "string").slice(0, 12)
+        : [];
+      setOpenPaths(paths);
+      setOpenPath(typeof saved?.active === "string" && paths.includes(saved.active) ? saved.active : paths[0] ?? null);
+    } catch {
+      setOpenPaths([]);
+      setOpenPath(null);
+    }
+  }, [sessionKey]);
+
+  // …and remember it as it changes.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(sessionKey, JSON.stringify({ openPaths, active: open }));
+    } catch {
+      // Storage full or disabled — resuming is a convenience, not a contract.
+    }
+  }, [sessionKey, openPaths, open]);
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();

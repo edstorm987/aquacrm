@@ -2686,6 +2686,17 @@ export interface DevProject {
   id: string;
   agencyId: string;
   name: string;
+  /**
+   * What it is, in Ed's own words — free text, not a category.
+   *
+   * There WAS a software/website/portal selector here. Ed's call: a project is
+   * often all three at once, so forcing one label was a lie, and worse, the
+   * editor changed shape based on it. The editor now adapts to what is
+   * CONNECTED (a repository, an Aqua Tag, a client) rather than to a declared
+   * type, and this field is a note for humans.
+   */
+  description?: string;
+  /** Retained so existing records keep loading; no longer drives the editor. */
   kind: DevProjectKind;
   /** "owner/repository" — blank reads the local working tree (dev convenience). */
   repository: string;

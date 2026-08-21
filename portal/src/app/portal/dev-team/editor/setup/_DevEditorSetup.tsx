@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Boxes, Check, ExternalLink, Github, LoaderCircle, Plus, SquarePen, Trash2, TriangleAlert, X } from "lucide-react";
 
-import type { DevProject, DevProjectKind } from "@/server/types";
+import type { DevProject } from "@/server/types";
 
 // ─── DEV EDITOR — setup ──────────────────────────────────────────────────────
 //
@@ -18,16 +18,11 @@ import type { DevProject, DevProjectKind } from "@/server/types";
 
 interface ConnectionOption { id: string; label: string; provider: string; status?: string }
 
-const KINDS: { id: DevProjectKind; label: string; hint: string }[] = [
-  { id: "software", label: "Software", hint: "Code only — the full editor." },
-  { id: "website", label: "Website", hint: "Visual editing unlocks with an Aqua Tag." },
-  { id: "portal", label: "Portal", hint: "An Aqua-hosted client workspace." },
-];
 
 const BLANK = {
   id: "",
   name: "",
-  kind: "software" as DevProjectKind,
+  description: "",
   repository: "",
   ref: "main",
   githubConnectionId: "",
@@ -41,7 +36,7 @@ function draftFrom(project: DevProject): Draft {
   return {
     id: project.id,
     name: project.name,
-    kind: project.kind,
+    description: project.description ?? "",
     repository: project.repository ?? "",
     ref: project.ref ?? "main",
     githubConnectionId: project.githubConnectionId ?? "",
@@ -134,12 +129,12 @@ export function DevEditorSetup() {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[color:var(--dt-ink)]">{project.name}</p>
+                {project.description ? <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[color:var(--dt-faint)]">{project.description}</p> : null}
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[color:var(--dt-muted)]">
                   <span className="inline-flex items-center gap-1">
                     <Github size={11} aria-hidden />
                     {project.repository || "this workspace"}{project.repository ? ` · ${project.ref}` : ""}
                   </span>
-                  <span className="capitalize">{project.kind}</span>
                   <span>{project.githubConnectionId ? "Own token" : "Agency token"}</span>
                   {project.vercelConnectionId ? <span>Vercel</span> : null}
                   {project.aquaTagId ? <span className="text-[color:var(--dev-accent)]">Aqua Tag mapped</span> : null}
@@ -187,7 +182,7 @@ export function DevEditorSetup() {
             action: "save",
             id: draft.id || undefined,
             name: draft.name,
-            kind: draft.kind,
+            description: draft.description,
             repository: draft.repository,
             ref: draft.ref,
             githubConnectionId: draft.githubConnectionId || undefined,
@@ -269,34 +264,23 @@ function ProjectForm({ draft, setDraft, github, vercel, busy, onSave }: {
         </label>
       </div>
 
-      <fieldset className="grid gap-1.5">
-        <legend className="text-[11px] font-semibold text-[color:var(--dt-muted)]">What is it?</legend>
-        <div className="flex flex-wrap gap-2">
-          {KINDS.map(option => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => set("kind", option.id)}
-              title={option.hint}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-semibold ${
-                draft.kind === option.id
-                  ? "border-[color:var(--dev-accent-line)] bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]"
-                  : "border-[color:var(--dt-line)] text-[color:var(--dt-muted)] hover:text-[color:var(--dt-ink)]"
-              }`}
-            >
-              {draft.kind === option.id ? <Check size={11} aria-hidden /> : null}{option.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] text-[color:var(--dt-faint)]">{KINDS.find(item => item.id === draft.kind)?.hint}</p>
-      </fieldset>
+      <label className="grid gap-1 text-[11px] font-semibold text-[color:var(--dt-muted)]">
+        What is it? <span className="font-normal">— in your words; a project is often several things at once</span>
+        <textarea
+          value={draft.description}
+          onChange={event => set("description", event.target.value)}
+          rows={2}
+          placeholder="e.g. the CRM itself — Next.js app, its own website, and the client portals it serves"
+          className={`${field} resize-y py-2 leading-5`}
+        />
+      </label>
 
-      {draft.kind !== "software" ? (
+      {(
         <label className="grid gap-1 text-[11px] font-semibold text-[color:var(--dt-muted)]">
           Aqua Tag id <span className="font-normal">— mapping a tag unlocks the visual editor</span>
           <input value={draft.aquaTagId} onChange={event => set("aquaTagId", event.target.value)} placeholder="Optional" className={field} />
         </label>
-      ) : null}
+      )}
 
       <div className="flex items-center gap-2">
         <button
