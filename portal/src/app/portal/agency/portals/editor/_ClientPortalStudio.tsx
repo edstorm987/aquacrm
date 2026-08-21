@@ -125,6 +125,7 @@ export function ClientPortalStudio({
   assistant,
   initialProjectId = "",
   projectName,
+  projectKind,
 }: {
   clients: PortalStudioClient[];
   templates: PortalStudioTemplate[];
@@ -143,6 +144,15 @@ export function ClientPortalStudio({
   initialProjectId?: string;
   /** Shown in the identity block, so you can see which project you are in. */
   projectName?: string;
+  /**
+   * What the project IS. A "software" project has no client portal, so every
+   * portal-shaped part of this screen — the client selector, the lifecycle,
+   * the portal pages, the draft/publish pair and the Builder/Content/Pages/
+   * Brand inspectors — is not just irrelevant, it is misleading. It also must
+   * not FETCH a portal design: loading somebody's portal draft because you
+   * opened a repository is the bug this prop exists to kill.
+   */
+  projectKind?: "software" | "website" | "portal";
 }) {
   const [scope, setScope] = useState<Scope>(initialScope);
   const [clientId, setClientId] = useState(initialClientId);
@@ -154,7 +164,7 @@ export function ClientPortalStudio({
   // What the CANVAS shows. "live" is the running portal; "code" is the file
   // tree + open file; "split" is both, which is how you actually work — see a
   // change and the source that made it at the same time.
-  const [canvasView, setCanvasView] = useState<CanvasView>("live");
+  const [canvasView, setCanvasView] = useState<CanvasView>(projectKind === "software" ? "code" : "live");
   const [breakpoint, setBreakpoint] = useState<Breakpoint>(DEFAULT_BREAKPOINT);
   // How the split is divided, as a fraction of the canvas given to the LEFT
   // pane. Dragged, not fixed — sometimes you want a sliver of preview beside
@@ -168,12 +178,16 @@ export function ClientPortalStudio({
   const [tab, setTab] = useState<InspectorTab>("content");
   // Defaults to the visual mode: a first-time opener should meet a designer's
   // tool rather than a developer's.
-  const [editingModeId, setEditingModeId] = useState<EditingMode>("visual");
+  // A repository's tools (code, repo) live at the developer depth, so opening
+  // one in "Design it" left a rail with nothing but the assistant in it.
+  const [editingModeId, setEditingModeId] = useState<EditingMode>(projectKind === "software" ? "developer" : "visual");
   const [repository, setRepository] = useState("");
   // The Dev Editor Engine project being worked on. Selecting one points the
   // Code/Repo inspectors at THAT repository, read through that project's own
   // connection — "plug in any repo" without the browser holding a token.
   const [projectId, setProjectId] = useState(initialProjectId);
+  // A repository is not a portal. Everything portal-shaped is gated on this.
+  const portalTarget = projectKind !== "software";
   const [projects, setProjects] = useState<StudioDevProject[]>([]);
   const selectedProject = projects.find(item => item.id === projectId) ?? null;
 
@@ -199,7 +213,10 @@ export function ClientPortalStudio({
    * the picker appeared to do nothing at all.
    */
   const pickedAt = useRef(0);
-  const allowedTabs = tabs.filter(item => editingMode(editingModeId).tabs.includes(item.id));
+  const PORTAL_ONLY_TABS = new Set(["builder", "content", "pages", "brand", "versions"]);
+  const allowedTabs = tabs.filter(item =>
+    editingMode(editingModeId).tabs.includes(item.id) && (portalTarget || !PORTAL_ONLY_TABS.has(item.id)),
+  );
 
   /**
    * Clicking the preview to find the code behind it.
@@ -344,6 +361,14 @@ export function ClientPortalStudio({
   const publishedFrameUrl = useMemo(() => frameUrl.replace("portalDraft=1&", "").replace("&portalDraft=1", ""), [frameUrl]);
 
   useEffect(() => {
+    if (!portalTarget) {
+      // Nothing to load: this project is a repository. Say what IS open.
+      setLoading(false);
+      setRecord(null);
+      setPortalDocument(null);
+      setNotice("");
+      return;
+    }
     if (!clientId) {
       setLoading(false);
       setNotice("Create a client before opening the portal studio.");
@@ -592,7 +617,7 @@ export function ClientPortalStudio({
     return () => window.removeEventListener("keydown", saveOnShortcut);
   }, [busy, canManage, dirty, portalDocument, record]);
 
-  if (!clients.length) {
+  if (!clients.length && portalTarget) {
     return (
       <div className="fixed inset-0 z-[80] grid place-items-center bg-[#111311] px-6 text-center text-white">
         <div>
@@ -617,26 +642,28 @@ export function ClientPortalStudio({
         {/* The primary switch is what the CANVAS shows — the live thing, its
             code, or both. Template vs Client is a narrower question (which
             portal am I previewing) and moves down to the secondary row. */}
-        <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Canvas view">
-          <TopToggle active={canvasView === "live"} onClick={() => setCanvasView("live")} label="Live" />
-          <TopToggle active={canvasView === "code"} onClick={() => setCanvasView("code")} label="Code" />
-          <TopToggle active={canvasView === "split"} onClick={() => setCanvasView("split")} label="Both" />
-          <TopToggle active={canvasView === "compare"} onClick={() => setCanvasView("compare")} label="Compare" />
-        </div>
+        {portalTarget ? (
+          <div className="col-start-2 row-start-1 inline-flex shrink-0 justify-self-start rounded-md border border-white/10 bg-black/25 p-1 xl:col-auto xl:row-auto" aria-label="Canvas view">
+            <TopToggle active={canvasView === "live"} onClick={() => setCanvasView("live")} label="Live" />
+            <TopToggle active={canvasView === "code"} onClick={() => setCanvasView("code")} label="Code" />
+            <TopToggle active={canvasView === "split"} onClick={() => setCanvasView("split")} label="Both" />
+            <TopToggle active={canvasView === "compare"} onClick={() => setCanvasView("compare")} label="Compare" />
+          </div>
+        ) : null}
 
         <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
-          {canvasView !== "code" && !lockToClient ? (
+          {portalTarget && canvasView !== "code" && !lockToClient ? (
             <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Editing scope">
               <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
               <TopToggle active={scope === "client"} disabled={busy} onClick={() => changeScope("client")} label="Client" />
             </div>
           ) : null}
-          {scope === "template" ? (
+          {portalTarget && scope === "template" ? (
             <select aria-label="Portal template" value={templateId} disabled={busy} onChange={event => changeTemplate(event.target.value)} className="col-span-2 h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none disabled:opacity-45 sm:col-span-1 sm:min-w-52 sm:max-w-72 sm:shrink-0">
               {templates.map(template => <option key={template.id} value={template.id} className="bg-[#1a1c1a]">{template.name}{template.active ? "" : " (archived)"}</option>)}
             </select>
           ) : null}
-          {lockToClient ? (
+          {!portalTarget ? null : lockToClient ? (
             <div className="flex h-10 min-w-0 items-center rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-white/80 sm:min-w-44 sm:max-w-56 sm:shrink-0" title={selectedClient?.name}>
               <span className="truncate">{selectedClient?.name}</span>
             </div>
@@ -645,10 +672,10 @@ export function ClientPortalStudio({
               {clients.map(client => <option key={client.id} value={client.id} className="bg-[#1a1c1a]">{client.name}{client.built ? "" : " (not built)"}</option>)}
             </select>
           )}
-          <select aria-label="Lifecycle stage" value={mode} onChange={event => setMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
+          {portalTarget ? <select aria-label="Lifecycle stage" value={mode} onChange={event => setMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
             {CLIENT_PORTAL_MODES.map(item => <option key={item} value={item} className="bg-[#1a1c1a]">{portalDocument?.stages[item].label || MODE_LABELS[item]}</option>)}
-          </select>
-          <select aria-label="Portal page" value={selectedCustomPage ? `custom:${selectedCustomPage.id}` : section} onChange={event => {
+          </select> : null}
+          {portalTarget ? <select aria-label="Portal page" value={selectedCustomPage ? `custom:${selectedCustomPage.id}` : section} onChange={event => {
             const value = event.target.value;
             if (value.startsWith("custom:")) {
               setCustomPageId(value.slice(7));
@@ -660,7 +687,7 @@ export function ClientPortalStudio({
           }} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-36 sm:shrink-0">
             <optgroup label="Core pages" className="bg-[#1a1c1a]">{CLIENT_PORTAL_SECTIONS.map(item => <option key={item} value={item}>{portalDocument?.pages[item].label || SECTION_LABELS[item]}</option>)}</optgroup>
             {portalDocument && portalBuilder(portalDocument).customPages.length ? <optgroup label="Custom pages" className="bg-[#1a1c1a]">{portalBuilder(portalDocument).customPages.map(page => <option key={page.id} value={`custom:${page.id}`}>{page.label}</option>)}</optgroup> : null}
-          </select>
+          </select> : null}
           {/* The engine's project. Selecting one points Code/Repo at that
               repository, read through the project's own connection. Hidden
               entirely when no projects exist, so nothing changes until one is
@@ -694,10 +721,15 @@ export function ClientPortalStudio({
           </div>
         </div>
 
-        <div className="col-start-3 row-start-1 flex shrink-0 items-center justify-self-end gap-2 xl:col-auto xl:row-auto">
-          <button type="button" onClick={saveDraft} disabled={!canManage || busy || !dirty} className="hidden min-h-10 items-center gap-2 rounded-md border border-white/12 px-3 text-xs font-semibold text-white/75 enabled:hover:bg-white/5 disabled:opacity-35 md:inline-flex">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />} Save draft</button>
-          <button type="button" onClick={publish} disabled={!canManage || busy || !record} aria-label="Publish portal" aria-busy={busy} className="inline-flex size-10 items-center justify-center gap-2 rounded-md bg-cyan-300 text-xs font-bold text-[#102124] hover:bg-cyan-200 disabled:opacity-40 sm:w-auto sm:px-3">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Upload size={15} />}<span className="hidden sm:inline">Publish</span></button>
-        </div>
+        {/* Draft and Publish move a PORTAL between draft and live. A repository
+            has neither, and its saves happen per file in the code canvas, so
+            offering them here would be offering something that does nothing. */}
+        {portalTarget ? (
+          <div className="col-start-3 row-start-1 flex shrink-0 items-center justify-self-end gap-2 xl:col-auto xl:row-auto">
+            <button type="button" onClick={saveDraft} disabled={!canManage || busy || !dirty} className="hidden min-h-10 items-center gap-2 rounded-md border border-white/12 px-3 text-xs font-semibold text-white/75 enabled:hover:bg-white/5 disabled:opacity-35 md:inline-flex">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />} Save draft</button>
+            <button type="button" onClick={publish} disabled={!canManage || busy || !record} aria-label="Publish portal" aria-busy={busy} className="inline-flex size-10 items-center justify-center gap-2 rounded-md bg-cyan-300 text-xs font-bold text-[#102124] hover:bg-cyan-200 disabled:opacity-40 sm:w-auto sm:px-3">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Upload size={15} />}<span className="hidden sm:inline">Publish</span></button>
+          </div>
+        ) : null}
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -820,8 +852,11 @@ export function ClientPortalStudio({
                   {allowedTabs.find(item => item.id === tab)?.label ?? "Inspector"}
                 </p>
                 <p className="mt-0.5 truncate text-[10px] text-white/35">
-                  {scope === "template" ? selectedTemplate?.name || "Template" : selectedClient?.name || "Client"}
-                  {tab === "repository" || tab === "code" ? "" : ` · ${selectedCustomPage?.label ?? SECTION_LABELS[section] ?? section}`}
+                  {!portalTarget
+                    ? (selectedProject?.repository || projectName || "This workspace")
+                    : `${scope === "template" ? selectedTemplate?.name || "Template" : selectedClient?.name || "Client"}${
+                        tab === "repository" || tab === "code" ? "" : ` · ${selectedCustomPage?.label ?? SECTION_LABELS[section] ?? section}`
+                      }`}
                 </p>
               </div>
               <button

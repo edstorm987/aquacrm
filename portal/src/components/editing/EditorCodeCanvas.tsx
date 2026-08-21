@@ -274,7 +274,7 @@ export function EditorCodeCanvas({
             <div>
               <FileCode2 size={22} aria-hidden className="mx-auto text-white/20" />
               <p className="mt-2 text-xs text-white/40">Choose a file to read it.</p>
-              <p className="mt-1 text-[11px] text-white/25">Or click an element in the live view to jump to its source.</p>
+              <p className="mt-1 text-[11px] text-white/25">Or click an element in a live view to jump to its source.</p>
             </div>
           </div>
         ) : (

@@ -61,6 +61,7 @@ export default async function DevEditorStudioPage({
       assistant={assistant}
       initialProjectId={project?.id ?? ""}
       projectName={project?.name}
+      projectKind={project?.kind}
     />
   );
 }
