@@ -87,9 +87,6 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
           mobile || variant === "client" ? "overflow-y-auto overscroll-contain pr-1" : "",
         ].join(" ")}
       >
-        {/* Longer-term pinned pages sit at the top of the nav, above the panels
-            (self-hides when none are pinned to the sidebar). */}
-        <SidebarPinnedTabs />
         {panels.length === 0 && (
           <p
             data-testid="sidebar-empty-state"
@@ -163,6 +160,9 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             </details>
           );
         })}
+        {/* Longer-term pinned pages sit at the bottom of the nav, under Tools
+            (self-hides when none are pinned to the sidebar). */}
+        <SidebarPinnedTabs />
       </nav>
       {extra && <div className="mt-6 mm-sidebar-extra" data-workspaces="aqua-hq">{extra}</div>}
 

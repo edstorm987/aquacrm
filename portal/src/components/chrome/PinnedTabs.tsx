@@ -185,44 +185,65 @@ export function PinnedTabsBar() {
   );
 }
 
-/** The sidebar section — longer-term pins, rendered in the nav. */
+/**
+ * The sidebar section — longer-term pins, rendered at the bottom of the nav
+ * (under Tools). Styled with the same nav-row primitives as the rest of the
+ * sidebar (mm-sidebar-* classes) so it reads as native chrome; the move/unpin
+ * controls sit as sibling buttons over the row (a button can't nest in a link).
+ */
 export function SidebarPinnedTabs() {
   const currentHref = useCurrentHref();
   const { pins, pin, remove } = usePinnedTabs();
   const items = pinsAt(pins, "sidebar");
   if (!items.length) return null;
   return (
-    <div className="mm-sidebar-pinned mb-2 flex flex-col gap-1 border-b border-black/10 px-1 pb-2">
-      <p className="flex items-center gap-1 px-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-black/35">
-        <Pin size={10} aria-hidden /> Pinned
-      </p>
-      {items.map(item => {
-        const active = item.href === currentHref;
-        return (
-          <span key={item.href} className={`group flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition ${active ? "bg-brand/10 text-brand" : "text-black/75 hover:bg-black/[0.05]"}`}>
-            <Star size={12} className="shrink-0 fill-amber-400 text-amber-500" aria-hidden />
-            <Link href={item.href} className="min-w-0 flex-1 truncate font-medium" title={item.label}>{item.label}</Link>
-            <button
-              type="button"
-              onClick={() => pin({ href: item.href, label: item.label }, "topbar")}
-              aria-label={`Move ${item.label} to topbar`}
-              title="Move to topbar"
-              className="grid size-4 shrink-0 place-items-center rounded text-black/25 opacity-0 transition group-hover:opacity-100 hover:bg-black/10 hover:text-black/70"
-            >
-              <PanelTop size={11} aria-hidden />
-            </button>
-            <button
-              type="button"
-              onClick={() => remove(item.href)}
-              aria-label={`Unpin ${item.label}`}
-              title="Unpin"
-              className="grid size-4 shrink-0 place-items-center rounded text-black/30 opacity-0 transition group-hover:opacity-100 hover:bg-black/10 hover:text-black/70"
-            >
-              <X size={11} aria-hidden />
-            </button>
-          </span>
-        );
-      })}
+    <div className="mm-sidebar-panel" data-panel-id="pinned">
+      <div className="mm-sidebar-heading flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/50">
+        <Pin size={12} aria-hidden className="text-black/40" />
+        <span className="flex-1 truncate">Pinned</span>
+        <span className="rounded-full text-[10px] font-medium tabular-nums text-black/40">{items.length}</span>
+      </div>
+      <ul className="mt-0.5 flex flex-col">
+        {items.map(item => {
+          const active = item.href === currentHref;
+          return (
+            <li key={item.href} className="group relative">
+              <Link
+                href={item.href}
+                data-nav-tone="amber"
+                aria-current={active ? "page" : undefined}
+                title={item.label}
+                className={`mm-sidebar-link flex min-h-10 items-center gap-2 rounded-md px-2 py-2 ${active ? "is-active font-medium" : "text-black/80"}`}
+              >
+                <span className="mm-sidebar-link-icon relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
+                  <Star size={16} className="fill-amber-400 text-amber-500" aria-hidden />
+                </span>
+                <span className="mm-sidebar-link-label flex-1 truncate pr-12">{item.label}</span>
+              </Link>
+              <span className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => pin({ href: item.href, label: item.label }, "topbar")}
+                  aria-label={`Move ${item.label} to topbar`}
+                  title="Move to topbar"
+                  className="grid size-5 shrink-0 place-items-center rounded text-black/30 transition hover:bg-black/10 hover:text-black/70"
+                >
+                  <PanelTop size={12} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(item.href)}
+                  aria-label={`Unpin ${item.label}`}
+                  title="Unpin"
+                  className="grid size-5 shrink-0 place-items-center rounded text-black/30 transition hover:bg-black/10 hover:text-black/70"
+                >
+                  <X size={12} aria-hidden />
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
