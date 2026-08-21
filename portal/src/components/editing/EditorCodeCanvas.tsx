@@ -45,7 +45,7 @@ export function EditorCodeCanvas({
   const [meta, setMeta] = useState<TreeResponse | null>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const [file, setFile] = useState<{ contents?: string; reason?: string; editable?: boolean } | null>(null);
+  const [file, setFile] = useState<{ contents?: string; reason?: string; editable?: boolean; readable?: boolean; kind?: string; dataUrl?: string; truncatedContents?: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
   // In split view the tree competes with the file for width; let it fold away.
   const [treeOpen, setTreeOpen] = useState(true);
@@ -170,11 +170,19 @@ export function EditorCodeCanvas({
               <FileCode2 size={12} aria-hidden className="shrink-0 text-white/35" />
               <span className="truncate font-mono text-white/70">{open}</span>
               {file?.editable === false ? (
-                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[10px] text-white/35"><Lock size={10} aria-hidden /> read-only</span>
+                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[10px] text-white/35" title={file?.reason}><Lock size={10} aria-hidden /> read-only</span>
+              ) : null}
+              {file?.truncatedContents ? (
+                <span className="shrink-0 text-[10px] text-amber-200/70" title="Only the beginning of this file is shown.">truncated</span>
               ) : null}
             </div>
             {loading ? (
               <p className="flex items-center gap-2 px-4 py-6 text-[11px] text-white/45"><LoaderCircle size={12} className="animate-spin" aria-hidden /> Opening…</p>
+            ) : file?.kind === "image" && file.dataUrl ? (
+              <div className="min-h-0 flex-1 overflow-auto p-6">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={file.dataUrl} alt={open} className="mx-auto max-w-full rounded border border-white/10 bg-[#0d0f0d]" />
+              </div>
             ) : file?.contents == null ? (
               <p className="px-4 py-6 text-[11px] text-white/45">{file?.reason ?? "That file could not be read."}</p>
             ) : (

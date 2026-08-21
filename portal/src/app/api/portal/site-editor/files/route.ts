@@ -5,7 +5,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
-import { buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
+import { MAX_READ_BYTES, buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
 import { hashFile } from "@/engines/editor/server/codeAdapter";
 import { GitHubNotConfigured, readRepoFile, readRepoTree } from "@/engines/editor/server/githubSource";
 import { devProjectGitHubToken, getDevProject } from "@/engines/editor/server/devProjects";
@@ -144,15 +144,38 @@ export async function GET(request: NextRequest) {
     if (!info?.isFile()) return NextResponse.json({ ok: false, error: "Not a file." }, { status: 404 });
 
     const described = describeFile(requested, info.size);
-    if (!described.editable) {
-      return NextResponse.json({ ok: true, path: requested, editable: false, reason: described.reason });
+
+    // An image is shown, not read as characters.
+    if (described.kind === "image") {
+      const bytes = await readFile(target);
+      const extension = requested.split(".").pop()?.toLowerCase() ?? "png";
+      const mime = extension === "svg" ? "image/svg+xml" : `image/${extension === "jpg" ? "jpeg" : extension}`;
+      return NextResponse.json({
+        ok: true, path: requested, editable: false, readable: true, kind: "image",
+        dataUrl: `data:${mime};base64,${bytes.toString("base64")}`,
+        size: info.size,
+      });
     }
 
-    const contents = await readFile(target, "utf-8");
+    // Only genuine binaries have nothing to show. Everything else — including
+    // a file too large to EDIT — still returns its contents, because rendering
+    // an empty pane is what made the editor look like it could not see the
+    // repository.
+    if (!described.readable) {
+      return NextResponse.json({ ok: true, path: requested, editable: false, readable: false, kind: described.kind, reason: described.reason });
+    }
+
+    const raw = await readFile(target, "utf-8");
+    const truncated = raw.length > MAX_READ_BYTES;
+    const contents = truncated ? raw.slice(0, MAX_READ_BYTES) : raw;
     return NextResponse.json({
       ok: true,
       path: requested,
-      editable: true,
+      editable: described.editable,
+      readable: true,
+      kind: "text",
+      reason: described.reason,
+      truncatedContents: truncated,
       contents,
       // The same fingerprint the engine checks, so what the editor holds and
       // what a save is judged against cannot drift apart.

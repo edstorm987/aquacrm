@@ -20,6 +20,7 @@ import { EDITING_MODES, editingMode, tabForMode, type EditingMode } from "@/engi
 import { RepositoryPanel } from "@/components/editing/RepositoryPanel";
 import { AquaEditorAI } from "@/components/editing/AquaEditorAI";
 import { EditorCodeCanvas } from "@/components/editing/EditorCodeCanvas";
+import { AddMenu, fileAddOptions, type AddOption } from "@/components/editing/AddMenu";
 import { BreakpointControl, DEFAULT_BREAKPOINT, breakpointLabel, breakpointSize, type Breakpoint } from "@/components/editing/BreakpointControl";
 import type { EditorAssistantProps } from "@/engines/editor/server/editorAssistant";
 import { elementSource, repoRelativePath } from "@/engines/editor/editing/elementSource";
@@ -295,6 +296,45 @@ export function ClientPortalStudio({
   // The same view WITHOUT the draft flag — what a client sees right now.
   // Comparison is draft vs live, which is the question you actually have
   // before publishing.
+  // What the universal "+" offers, by what you are looking at.
+  //
+  // Visual: the real block library (the same registry the Builder palette
+  // uses) — selecting one adds it to the page and selects it, so the panel
+  // immediately shows its settings. Code: file/folder/upload, which are
+  // deliberately NOT selectable yet — the engine's write path (patch +
+  // confirmed publish) is a separate piece of work, and an "add file" that
+  // silently does nothing is worse than one that says why.
+  const addOptions: AddOption[] = useMemo(() => {
+    if (canvasView === "code") {
+      return fileAddOptions("Needs the repository write path — not wired yet.");
+    }
+    if (!canManage || !portalDocument) {
+      return [{ id: "readonly", group: "Blocks", label: "Editing is read-only here", unavailableReason: "You do not have permission to change this portal." }];
+    }
+    const groupLabel: Record<string, string> = {
+      content: "Content blocks",
+      "live-data": "Live data",
+      layout: "Layout",
+    };
+    return CLIENT_PORTAL_BLOCK_REGISTRY.map(item => ({
+      id: item.type,
+      group: groupLabel[item.category] ?? "Blocks",
+      label: item.label,
+      description: item.description,
+      onSelect: () => {
+        const block = createPortalBlock(item.type);
+        edit(current => {
+          const blocks = customPageId
+            ? portalBuilder(current).customPages.find(page => page.id === customPageId)?.blocks
+            : portalBuilder(current).pages[section];
+          blocks?.push(block);
+        });
+        setSelectedBlockId(block.id);
+        setTab("content");
+      },
+    }));
+  }, [canManage, canvasView, customPageId, portalDocument, section]);
+
   const publishedFrameUrl = useMemo(() => frameUrl.replace("portalDraft=1&", "").replace("&portalDraft=1", ""), [frameUrl]);
 
   useEffect(() => {
@@ -656,8 +696,17 @@ export function ClientPortalStudio({
 
       <div className="flex min-h-0 flex-1">
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#242724]">
-          <div className="flex min-h-10 shrink-0 items-center justify-between border-b border-white/8 bg-[#1b1e1b] px-4 text-[11px] text-white/45">
-            <p className="truncate" role="status" aria-live="polite">{notice}{dirty ? " · save the draft to refresh preview" : ""}</p>
+          <div className="flex min-h-11 shrink-0 items-center gap-3 border-b border-white/8 bg-[#1b1e1b] px-3 text-[11px] text-white/45">
+            {/* ONE add affordance. What it offers depends on what you are
+                looking at: blocks and saved components in a visual view, files
+                and folders in the code view. Every future "add" belongs here
+                rather than as another control elsewhere in the chrome. */}
+            <AddMenu
+              options={addOptions}
+              label={canvasView === "code" ? "Add to the repository" : "Add to this page"}
+              title={canvasView === "code" ? "Add to the repository" : "Add to this page"}
+            />
+            <p className="min-w-0 flex-1 truncate" role="status" aria-live="polite">{notice}{dirty ? " · save the draft to refresh preview" : ""}</p>
             <p className="hidden shrink-0 sm:block">
               {canvasView === "code"
                 ? (selectedProject?.repository || "This workspace")
