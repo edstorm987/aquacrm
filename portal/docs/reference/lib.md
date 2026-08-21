@@ -1308,9 +1308,11 @@ Every exported function, class, type and const in this area, with its real signa
 - `saveDevProject(input: SaveDevProjectInput): DevProject`
 - `deleteDevProject(input: { agencyId: string; projectId: string; actorUserId: string; actorEmail?: string; }): DevProject`
 - `resolveDevProjectGitHubSource(agencyId: string, project: DevProject): DevProjectGitHubSource | null` — The repository read spec for a project: repo, ref, and the token that can read it. The project's own GitHub connection wins. Without one — or when the bound connection has been re…
+- `resolveDevProjectVercelConfig(agencyId: string, project: DevProject): DevProjectVercelConfig | null` — The Vercel credentials a project deploys with — the same ladder as GitHub: the project's bound Vercel connection, else the workspace ladder (which env-falls-back for the founder's…
 - `DEV_PROJECT_TYPES: readonly DevProjectType[]` — Dev Editor Engine projects. A project binds a repository to the connections that make it reachable — which GitHub connection's token reads it, which Vercel connection deploys it, …
 - `interface SaveDevProjectInput (11 members)`
 - `interface DevProjectGitHubSource (3 members)`
+- `interface DevProjectVercelConfig (2 members)`
 
 ### `src/lib/server/dev/devTeamAuditor.ts`
 

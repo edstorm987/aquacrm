@@ -166,6 +166,32 @@ export function resolveDevProjectGitHubSource(
   return { repository: project.repository, ref: project.ref, token };
 }
 
+export interface DevProjectVercelConfig {
+  token: string;
+  teamId?: string;
+}
+
+/**
+ * The Vercel credentials a project deploys with — the same ladder as GitHub:
+ * the project's bound Vercel connection, else the workspace ladder (which
+ * env-falls-back for the founder's agency only). Null means nothing this
+ * agency is entitled to can deploy, and the caller says so.
+ *
+ * Shaped to feed `deployProjectPreviewToVercel`'s `config` seam directly.
+ */
+export function resolveDevProjectVercelConfig(
+  agencyId: string,
+  project: DevProject,
+): DevProjectVercelConfig | null {
+  let values: Record<string, string> = {};
+  if (project.vercelConnectionId && getIntegrationConnection(agencyId, project.vercelConnectionId)) {
+    values = resolveIntegrationConnectionValues(agencyId, project.vercelConnectionId);
+  }
+  if (!values.token) values = resolveIntegrationValues(agencyId, "vercel");
+  if (!values.token) return null;
+  return { token: values.token, teamId: values.teamId || undefined };
+}
+
 function requireConnection(
   agencyId: string,
   connectionId: string | undefined,

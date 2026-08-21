@@ -222,6 +222,46 @@ test("with no binding, no workspace connection, and no environment token, resolu
   assert.equal(devProjects.resolveDevProjectGitHubSource(agency.id, project), null);
 });
 
+test("a project's bound Vercel connection wins, with the same ladder and the same founder-only env gate", () => {
+  const agency = tenants.createAgency({ name: "Projects Vercel", slug: "projects-vercel" });
+  const bound = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "vercel",
+    label: "Client deploys",
+    values: { token: "vercel_bound_token", teamId: "team_bound" },
+    actorUserId: "owner",
+  });
+  const project = devProjects.saveDevProject({
+    agencyId: agency.id,
+    name: "Deployable",
+    type: "website",
+    repository: "owner/deployable",
+    vercelConnectionId: bound.id,
+    actorUserId: "owner",
+  });
+  assert.deepEqual(
+    devProjects.resolveDevProjectVercelConfig(agency.id, project),
+    { token: "vercel_bound_token", teamId: "team_bound" },
+  );
+
+  // No binding, no workspace connection, no entitled env values → null, and
+  // the env token must not leak to a non-founder agency.
+  process.env.VERCEL_TOKEN = "vercel_founder_env_token";
+  try {
+    const bare = tenants.createAgency({ name: "Projects Vercel Bare", slug: "projects-vercel-bare" });
+    const unbound = devProjects.saveDevProject({
+      agencyId: bare.id,
+      name: "Undeployable",
+      type: "website",
+      repository: "owner/undeployable",
+      actorUserId: "owner",
+    });
+    assert.equal(devProjects.resolveDevProjectVercelConfig(bare.id, unbound), null);
+  } finally {
+    delete process.env.VERCEL_TOKEN;
+  }
+});
+
 test("the environment token is the FOUNDER'S credential — a non-founder agency never resolves it", () => {
   // The gate under test: resolveIntegrationValues only hands out env values
   // when mayUseEnvironmentCredentials(agencyId) passes. The project resolver

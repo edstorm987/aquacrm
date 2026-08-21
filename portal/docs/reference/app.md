@@ -2301,10 +2301,18 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `CodeWorkspace({ initialRepository = "" }: { initialRepository?: string })`
 - `interface DevProjectRow (8 members)`
+- `interface AquaTagSiteRow (5 members)`
 
 ### `src/app/portal/agency/development/code/page.tsx`
 
 - `default async CodePage()`
+
+### `src/app/portal/agency/development/code/visualEditorDoor.ts`
+
+- `visualEditorDoor(project: VisualEditorProject, site: VisualEditorSite | null): VisualEditorDoorState`
+- `type VisualEditorDoorState = | { kind: "open"; href: string } | { kind: "activate"; clientId: string; href: string } | null`
+- `interface VisualEditorProject (1 members)` — Where a project's VISUAL editor lives, when it has one. The visual editors are keyed by client: the website block editor mounts in the client workspace, the portal studio takes th…
+- `interface VisualEditorSite (2 members)`
 
 
 ## `src/app/portal/agency/development/`

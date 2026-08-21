@@ -489,11 +489,14 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/engines/editor/server/fileTree.ts`
 
+- `isImagePath(path: string): boolean`
+- `imageContentType(path: string): string` — The `data:` MIME for an image path the preview embeds.
 - `isHiddenPath(path: string): boolean`
 - `describeFile(path: string, size?: number): TreeFile`
 - `buildFileTree(entries: Array<{ path: string; size?: number }>): TreeDirectory` — Builds the tree. Directories before files and both alphabetical, which is what every editor does and therefore the only ordering that will not feel broken.
 - `treeFiles(directory: TreeDirectory): TreeFile[]` — Flattens back to paths, for search and for counting.
 - `MAX_EDITABLE_BYTES = 512 * 1_024` — Beyond this a browser editor stops being usable rather than merely slow.
+- `MAX_PREVIEW_BYTES = 1024 * 1_024` — Preview cap. GitHub's contents API only inlines base64 up to ~1 MB anyway; the working-tree path honours the same bound so the two sources agree about which images preview.
 - `interface TreeFile (5 members)` — The repository as a file tree, for the code editor. The visual editor works on the elements a page is built from, so it only ever needed the files that render markup. Code mode is…
 - `interface TreeDirectory (4 members)`
 
@@ -505,7 +508,7 @@ Every exported function, class, type and const in this area, with its real signa
     - `constructor()`
 - `interface GitHubRepoSource (4 members)`
 - `interface RepoHead (3 members)`
-- `interface RepoFile (6 members)`
+- `interface RepoFile (7 members)`
 
 ### `src/engines/editor/server/patch.ts`
 

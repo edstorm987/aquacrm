@@ -468,6 +468,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-editor-image-preview.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-element-engine.test.ts`
 
 _No exported symbols (internal/side-effect module)._
