@@ -18,9 +18,33 @@ ALREADY EXIST; the work is unification + install-tiering + rename, not building 
   Dev Mode gated. The app-config editor still lives at Tools → Editor (`editor/_Section.tsx`).
   Reused wholesale — nothing rebuilt.
 
+- **Phase 2.5 — Dev projects (2026-08-21).** The engine now has a first-class "dev project"
+  entity: `DevProject` (`server/types.ts`) binds {name, type software/website/portal, repository
+  owner/name, ref, githubConnectionId, vercelConnectionId, aquaTagSiteId} — connection IDS into
+  the integration vault, never credentials. `lib/server/dev/devProjects.ts` (CRUD, agency-scoped,
+  validates bindings belong to the agency + right provider) +
+  `resolveDevProjectGitHubSource` (project's bound connection token → workspace connection → env,
+  the same ladder the ad-hoc route walks). `/api/portal/dev/projects` (list any agency role;
+  save/delete owner+manager). `CodeWorkspace` grew a project selector + create form; the
+  site-editor files route takes `?project=` and reads the SELECTED project's repo with ITS
+  connection's token. This is the "GitHub link + Aqua Tag + Vercel per project" setup contract
+  made storable — the aquaTag/vercel slots are bound but not yet consumed (Phases 3-5).
+  Pinned by `scripts/smoke-dev-projects.test.ts`; browser-proven in the sandbox.
+
+- **Phase 2.6 — Aqua Tag opens the visual editor + type switcher (2026-08-21).** The selected
+  project now carries in-place switchers for `type` and `aquaTagSiteId` (both are ordinary
+  project saves), and the tag binding UNLOCKS the visual editor: `code/visualEditorDoor.ts`
+  routes website projects to the tag's destination client's block editor (activate-first via
+  the existing WebsiteBuilderLauncher marketplace-install flow when the plugin isn't on),
+  portal projects to the Client Portal Studio, software projects get no door — unbound or
+  unrouted tags say why in place. Images also preview in the file pane now (read side of #4).
+  Browser-proven except the final open-door hop, which needs a tenant with the fulfillment
+  plugin installed (the bare sandbox can't install plugins at all — pre-existing fixture gap
+  that equally blocks the client-page launcher).
+
 **Still open:** Phase 3 (unify blocks + code+git + app-config behind engine.ts adapters with target
-detection), Phase 4 (installable module + tiers), Phase 5 (client-workspace install + GitHub+AquaTag+Vercel
-setup flow).
+detection — the `type` field on DevProject is the detection input), Phase 4 (installable module +
+tiers), Phase 5 (client-workspace install + the GitHub+AquaTag+Vercel setup flow).
 
 ## Rename
 "Aqua Engine" → **DEV EDITOR ENGINE** (Ed: more fitting). Same thing we renamed "Studio" to

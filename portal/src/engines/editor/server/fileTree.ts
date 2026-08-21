@@ -52,6 +52,34 @@ const TEXT = /\.(tsx?|jsx?|mjs|cjs|css|scss|html?|json|md|mdx|ya?ml|toml|txt|svg
 export const MAX_EDITABLE_BYTES = 512 * 1_024;
 
 /**
+ * Binary files that can still be SHOWN: pictures, rendered as a preview
+ * instead of refused with "not a text file". Editing stays off — there is no
+ * text to edit — but a designer opening `logo.png` should see the logo.
+ */
+const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|ico)$/i;
+
+/**
+ * Preview cap. GitHub's contents API only inlines base64 up to ~1 MB anyway;
+ * the working-tree path honours the same bound so the two sources agree about
+ * which images preview.
+ */
+export const MAX_PREVIEW_BYTES = 1024 * 1_024;
+
+export function isImagePath(path: string): boolean {
+  return IMAGE.test(path);
+}
+
+/** The `data:` MIME for an image path the preview embeds. */
+export function imageContentType(path: string): string {
+  const extension = path.split(".").pop()?.toLowerCase() ?? "";
+  const types: Record<string, string> = {
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
+    webp: "image/webp", avif: "image/avif", bmp: "image/bmp", ico: "image/x-icon",
+  };
+  return types[extension] ?? "application/octet-stream";
+}
+
+/**
  * Templates that deliberately hold no values — `.env.example` and friends.
  *
  * Worth showing: it is how somebody learns which variables a site needs, and
@@ -68,6 +96,15 @@ export function isHiddenPath(path: string): boolean {
 export function describeFile(path: string, size?: number): TreeFile {
   const name = path.split("/").pop() ?? path;
   if (!TEXT.test(path)) {
+    if (isImagePath(path)) {
+      // The reason must match what actually happens: a preview when the bytes
+      // fit, a plain refusal when they do not — "shown as a preview" over an
+      // empty pane reads as a broken editor.
+      if (size !== undefined && size > MAX_PREVIEW_BYTES) {
+        return { path, name, size, editable: false, reason: `An image, too large to preview here (${Math.round(size / 1024)} KB).` };
+      }
+      return { path, name, size, editable: false, reason: "An image — shown as a preview, not edited as text." };
+    }
     return { path, name, size, editable: false, reason: "This is not a text file." };
   }
   if (size !== undefined && size > MAX_EDITABLE_BYTES) {

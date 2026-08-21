@@ -676,6 +676,14 @@ Every exported function, class, type and const in this area, with its real signa
 - `dynamic = "force-dynamic"` — Dev Mode only, same gate as the portal.
 
 
+## `src/app/api/portal/dev/projects/`
+
+### `src/app/api/portal/dev/projects/route.ts`
+
+- `async GET()`
+- `async POST(request: Request)`
+
+
 ## `src/app/api/portal/development/content/`
 
 ### `src/app/api/portal/development/content/route.ts`
@@ -2292,10 +2300,19 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/portal/agency/development/code/_CodeWorkspace.tsx`
 
 - `CodeWorkspace({ initialRepository = "" }: { initialRepository?: string })`
+- `interface DevProjectRow (8 members)`
+- `interface AquaTagSiteRow (5 members)`
 
 ### `src/app/portal/agency/development/code/page.tsx`
 
 - `default async CodePage()`
+
+### `src/app/portal/agency/development/code/visualEditorDoor.ts`
+
+- `visualEditorDoor(project: VisualEditorProject, site: VisualEditorSite | null): VisualEditorDoorState`
+- `type VisualEditorDoorState = | { kind: "open"; href: string } | { kind: "activate"; clientId: string; href: string } | null`
+- `interface VisualEditorProject (1 members)` — Where a project's VISUAL editor lives, when it has one. The visual editors are keyed by client: the website block editor mounts in the client workspace, the portal studio takes th…
+- `interface VisualEditorSite (2 members)`
 
 
 ## `src/app/portal/agency/development/`
@@ -2617,6 +2634,13 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/portal/agency/notepad/page.tsx`
 
 - `default async NotepadPage({ searchParams }: { searchParams: Promise<{ note?: string }> })`
+
+
+## `src/app/portal/agency/operations/`
+
+### `src/app/portal/agency/operations/page.tsx`
+
+- `default OperationsPage()`
 
 
 ## `src/app/portal/agency/`

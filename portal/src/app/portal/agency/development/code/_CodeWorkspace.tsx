@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, GitBranch, LoaderCircle, Lock, Plug, Search, TriangleAlert } from "lucide-react";
+import { ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, FolderGit2, GitBranch, LoaderCircle, Lock, Paintbrush, Plug, Plus, Search, TriangleAlert, X } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
+
+import { visualEditorDoor } from "./visualEditorDoor";
 
 /**
  * Code mode — the repository, browsed and read like an editor.
@@ -25,20 +27,94 @@ interface TreeResponse {
   href?: string;
 }
 
+export interface DevProjectRow {
+  id: string;
+  name: string;
+  type: "software" | "website" | "portal";
+  repository: string;
+  ref: string;
+  githubConnectionId?: string;
+  vercelConnectionId?: string;
+  aquaTagSiteId?: string;
+}
+
+interface ConnectionRow {
+  id: string;
+  provider: string;
+  label: string;
+}
+
+export interface AquaTagSiteRow {
+  id: string;
+  label: string;
+  host: string;
+  destinationClientId?: string;
+  builderReady?: boolean;
+}
+
 export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: string }) {
   const [repository, setRepository] = useState(initialRepository);
   const [ref, setRef] = useState("main");
+  const [projects, setProjects] = useState<DevProjectRow[]>([]);
+  const [aquaTagSites, setAquaTagSites] = useState<AquaTagSiteRow[]>([]);
+  const [projectId, setProjectId] = useState("");
   const [tree, setTree] = useState<TreeDirectory | null>(null);
   const [meta, setMeta] = useState<TreeResponse | null>(null);
   const [count, setCount] = useState(0);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const [file, setFile] = useState<{ contents?: string; reason?: string; fingerprint?: string; editable: boolean } | null>(null);
+  const [file, setFile] = useState<{ contents?: string; reason?: string; fingerprint?: string; editable: boolean; preview?: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [projectError, setProjectError] = useState("");
 
-  // Recomputed whenever the repository changes so the two never disagree about
-  // which tree is on screen.
-  const query$ = repository ? `?repo=${encodeURIComponent(repository)}&ref=${encodeURIComponent(ref)}` : "";
+  const project = projects.find(entry => entry.id === projectId) ?? null;
+
+  useEffect(() => {
+    fetch("/api/portal/dev/projects", { cache: "no-store" })
+      .then(response => response.json())
+      .then((payload: { ok?: boolean; projects?: DevProjectRow[]; aquaTagSites?: AquaTagSiteRow[] }) => {
+        setProjects(payload.projects ?? []);
+        setAquaTagSites(payload.aquaTagSites ?? []);
+      })
+      .catch(() => setProjects([]));
+  }, []);
+
+  // Type and Aqua Tag are edited in place on the selected project — the
+  // switcher IS the project update, not a separate settings screen.
+  const patchProject = (patch: Partial<Pick<DevProjectRow, "type" | "aquaTagSiteId">>) => {
+    if (!project) return;
+    setProjectError("");
+    fetch("/api/portal/dev/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "save",
+        projectId: project.id,
+        name: project.name,
+        type: project.type,
+        repository: project.repository,
+        ref: project.ref,
+        githubConnectionId: project.githubConnectionId,
+        vercelConnectionId: project.vercelConnectionId,
+        aquaTagSiteId: project.aquaTagSiteId,
+        ...patch,
+      }),
+    })
+      .then(response => response.json())
+      .then((payload: { ok?: boolean; error?: string; projects?: DevProjectRow[] }) => {
+        if (!payload.ok) { setProjectError(payload.error || "The project could not be updated."); return; }
+        setProjects(payload.projects ?? []);
+      })
+      .catch(() => setProjectError("The project could not be updated."));
+  };
+
+  // Recomputed whenever the selection changes so the two never disagree about
+  // which tree is on screen. A selected project carries its repository, ref,
+  // AND which connection's token reads it — the server resolves all three.
+  const query$ = project
+    ? `?project=${encodeURIComponent(project.id)}`
+    : repository ? `?repo=${encodeURIComponent(repository)}&ref=${encodeURIComponent(ref)}` : "";
 
   useEffect(() => {
     setTree(null);
@@ -87,25 +163,99 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs">
-            <GitBranch size={13} aria-hidden className="shrink-0 text-black/35" />
-            <input
-              value={repository}
-              onChange={event => setRepository(event.target.value)}
-              placeholder="owner/repository — blank reads this workspace"
-              aria-label="Repository"
-              className="w-72 max-w-full outline-none placeholder:text-black/30"
-            />
-          </span>
-          {repository ? (
-            <input
-              value={ref}
-              onChange={event => setRef(event.target.value)}
-              aria-label="Branch"
-              className="w-28 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none"
-            />
+          {projects.length ? (
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs">
+              <FolderGit2 size={13} aria-hidden className="shrink-0 text-black/35" />
+              <select
+                value={projectId}
+                onChange={event => setProjectId(event.target.value)}
+                aria-label="Project"
+                className="max-w-56 bg-transparent outline-none"
+              >
+                <option value="">Ad-hoc repository…</option>
+                {projects.map(entry => (
+                  <option key={entry.id} value={entry.id}>{entry.name}</option>
+                ))}
+              </select>
+            </span>
           ) : null}
+          {project ? (
+            // The project pins repository and branch; shown, not editable —
+            // changing them is editing the project, not this screen. Type and
+            // Aqua Tag ARE switchable here: the type adapts the engine, the
+            // tag opens the door to the visual editor.
+            <>
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-black/12 bg-black/[0.03] px-2.5 py-1.5 text-xs text-black/60">
+                <GitBranch size={13} aria-hidden className="shrink-0 text-black/35" />
+                {project.repository} · {project.ref}
+              </span>
+              <select
+                value={project.type}
+                onChange={event => patchProject({ type: event.target.value as DevProjectRow["type"] })}
+                aria-label="Project type"
+                className="rounded-md border border-black/12 bg-white px-2 py-1.5 text-xs outline-none"
+              >
+                <option value="software">Software</option>
+                <option value="website">Website</option>
+                <option value="portal">Portal</option>
+              </select>
+              <select
+                value={project.aquaTagSiteId ?? ""}
+                onChange={event => patchProject({ aquaTagSiteId: event.target.value || undefined })}
+                aria-label="Aqua Tag site"
+                className="max-w-44 rounded-md border border-black/12 bg-white px-2 py-1.5 text-xs outline-none"
+              >
+                <option value="">Aqua Tag: none</option>
+                {aquaTagSites.map(site => (
+                  <option key={site.id} value={site.id}>Aqua Tag: {site.label}</option>
+                ))}
+              </select>
+              <VisualEditorDoor project={project} site={aquaTagSites.find(site => site.id === project.aquaTagSiteId) ?? null} />
+            </>
+          ) : (
+            <>
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs">
+                <GitBranch size={13} aria-hidden className="shrink-0 text-black/35" />
+                <input
+                  value={repository}
+                  onChange={event => setRepository(event.target.value)}
+                  placeholder="owner/repository — blank reads this workspace"
+                  aria-label="Repository"
+                  className="w-72 max-w-full outline-none placeholder:text-black/30"
+                />
+              </span>
+              {repository ? (
+                <input
+                  value={ref}
+                  onChange={event => setRef(event.target.value)}
+                  aria-label="Branch"
+                  className="w-28 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none"
+                />
+              ) : null}
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreating(value => !value)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs font-semibold text-black/70 hover:bg-black/[0.04]"
+          >
+            {creating ? <X size={13} aria-hidden /> : <Plus size={13} aria-hidden />}
+            {creating ? "Close" : "New project"}
+          </button>
         </div>
+
+        {projectError ? <p role="alert" className="text-xs text-red-700">{projectError}</p> : null}
+
+        {creating ? (
+          <NewProjectForm
+            aquaTagSites={aquaTagSites}
+            onSaved={saved => {
+              setProjects(saved.projects);
+              setProjectId(saved.project.id);
+              setCreating(false);
+            }}
+          />
+        ) : null}
 
         {/* Said plainly, with the way to fix it, rather than an empty tree that
             looks like a broken editor. */}
@@ -187,7 +337,17 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
                   </span>
                 ) : null}
               </header>
-              {file?.editable === false ? (
+              {file?.preview ? (
+                <div className="grid gap-2 p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the repo, not an optimizable asset */}
+                  <img
+                    src={file.preview}
+                    alt={open ?? "Image preview"}
+                    className="max-h-[65vh] w-auto max-w-full justify-self-start rounded border border-black/10 bg-[conic-gradient(#0000000a_90deg,transparent_90deg_180deg,#0000000a_180deg_270deg,transparent_270deg)] bg-[length:16px_16px]"
+                  />
+                  <p className="text-[11px] text-black/45">{file.reason}</p>
+                </div>
+              ) : file?.editable === false ? (
                 <p className="flex items-center gap-2 px-4 py-6 text-xs text-black/55">
                   <Lock size={13} aria-hidden className="text-black/35" />{file.reason}
                 </p>
@@ -200,6 +360,173 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+function VisualEditorDoor({ project, site }: { project: DevProjectRow; site: AquaTagSiteRow | null }) {
+  const [activating, setActivating] = useState(false);
+  const [error, setError] = useState("");
+  if (project.type === "software") return null;
+  const door = visualEditorDoor(project, site);
+
+  if (door?.kind === "open") {
+    return (
+      <Link
+        href={door.href}
+        className="inline-flex items-center gap-1.5 rounded-md border border-brand/40 bg-brand/[0.06] px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10"
+      >
+        <Paintbrush size={13} aria-hidden />
+        Visual editor
+      </Link>
+    );
+  }
+
+  if (door?.kind === "activate") {
+    // The WebsiteBuilderLauncher flow, verbatim: install the website-editor
+    // plugin for the tag's client, then walk through the same door.
+    const activate = () => {
+      setActivating(true);
+      setError("");
+      fetch("/api/portal/fulfillment/marketplace/install", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clientId: door.clientId, pluginId: "website-editor" }),
+      })
+        .then(response => response.json().then((body: { ok?: boolean; error?: string } | null) => {
+          if (!response.ok || !body?.ok) throw new Error(body?.error ?? "The visual builder could not be activated.");
+          window.location.assign(door.href);
+        }))
+        .catch(caught => {
+          setError(caught instanceof Error ? caught.message : "The visual builder could not be activated.");
+          setActivating(false);
+        });
+    };
+    return (
+      <span className="inline-flex items-center gap-2">
+        <button
+          type="button"
+          onClick={activate}
+          disabled={activating}
+          className="inline-flex items-center gap-1.5 rounded-md border border-brand/40 bg-brand/[0.06] px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10 disabled:opacity-55"
+        >
+          {activating ? <LoaderCircle size={13} className="animate-spin" aria-hidden /> : <Paintbrush size={13} aria-hidden />}
+          {activating ? "Preparing builder…" : "Activate visual builder"}
+        </button>
+        {error ? <span role="alert" className="text-[11px] text-red-700">{error}</span> : null}
+      </span>
+    );
+  }
+
+  // No routed tag, no door — and the reason said in place, not a dead button.
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-black/15 px-2.5 py-1.5 text-[11px] text-black/45">
+      <Paintbrush size={12} aria-hidden className="text-black/30" />
+      {site ? "Route this Aqua Tag site to a client to unlock the visual editor" : "Bind an Aqua Tag site to unlock the visual editor"}
+    </span>
+  );
+}
+
+function NewProjectForm({
+  aquaTagSites,
+  onSaved,
+}: {
+  aquaTagSites: AquaTagSiteRow[];
+  onSaved: (saved: { project: DevProjectRow; projects: DevProjectRow[] }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<DevProjectRow["type"]>("software");
+  const [repository, setRepository] = useState("");
+  const [ref, setRef] = useState("main");
+  const [githubConnectionId, setGithubConnectionId] = useState("");
+  const [vercelConnectionId, setVercelConnectionId] = useState("");
+  const [aquaTagSiteId, setAquaTagSiteId] = useState("");
+  const [connections, setConnections] = useState<ConnectionRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/portal/settings/integrations", { cache: "no-store" })
+      .then(response => response.json())
+      .then((payload: { connections?: ConnectionRow[] }) => setConnections(payload.connections ?? []))
+      .catch(() => setConnections([]));
+  }, []);
+
+  const githubConnections = connections.filter(entry => entry.provider === "github");
+  const vercelConnections = connections.filter(entry => entry.provider === "vercel");
+
+  const save = () => {
+    setSaving(true);
+    setError("");
+    fetch("/api/portal/dev/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "save",
+        name,
+        type,
+        repository,
+        ref,
+        githubConnectionId: githubConnectionId || undefined,
+        vercelConnectionId: vercelConnectionId || undefined,
+        aquaTagSiteId: aquaTagSiteId || undefined,
+      }),
+    })
+      .then(response => response.json())
+      .then((payload: { ok?: boolean; error?: string; project?: DevProjectRow; projects?: DevProjectRow[] }) => {
+        if (!payload.ok || !payload.project) {
+          setError(payload.error || "The project could not be saved.");
+          return;
+        }
+        onSaved({ project: payload.project, projects: payload.projects ?? [] });
+      })
+      .catch(() => setError("The project could not be saved."))
+      .finally(() => setSaving(false));
+  };
+
+  const field = "h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-brand";
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-black/10 bg-white p-3">
+      <p className="text-xs font-semibold text-black/70">New project</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={name} onChange={event => setName(event.target.value)} placeholder="Name" aria-label="Project name" className={`${field} w-44`} />
+        <select value={type} onChange={event => setType(event.target.value as DevProjectRow["type"])} aria-label="Project type" className={`${field} w-28`}>
+          <option value="software">Software</option>
+          <option value="website">Website</option>
+          <option value="portal">Portal</option>
+        </select>
+        <input value={repository} onChange={event => setRepository(event.target.value)} placeholder="owner/repository" aria-label="Project repository" className={`${field} w-56`} />
+        <input value={ref} onChange={event => setRef(event.target.value)} placeholder="main" aria-label="Project branch" className={`${field} w-24`} />
+        <select value={githubConnectionId} onChange={event => setGithubConnectionId(event.target.value)} aria-label="GitHub connection" className={`${field} w-44`}>
+          <option value="">GitHub: workspace default</option>
+          {githubConnections.map(entry => (
+            <option key={entry.id} value={entry.id}>GitHub: {entry.label}</option>
+          ))}
+        </select>
+        <select value={vercelConnectionId} onChange={event => setVercelConnectionId(event.target.value)} aria-label="Vercel connection" className={`${field} w-44`}>
+          <option value="">Vercel: none</option>
+          {vercelConnections.map(entry => (
+            <option key={entry.id} value={entry.id}>Vercel: {entry.label}</option>
+          ))}
+        </select>
+        <select value={aquaTagSiteId} onChange={event => setAquaTagSiteId(event.target.value)} aria-label="Aqua Tag site (new project)" className={`${field} w-44`}>
+          <option value="">Aqua Tag: none</option>
+          {aquaTagSites.map(site => (
+            <option key={site.id} value={site.id}>Aqua Tag: {site.label}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !name.trim() || !repository.trim()}
+          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? <LoaderCircle size={13} className="animate-spin" aria-hidden /> : null}
+          Save project
+        </button>
+      </div>
+      {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
     </div>
   );
 }

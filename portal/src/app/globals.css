@@ -3598,6 +3598,42 @@ html[data-portal-shell="command"] .mm-portal-topbar .mm-notification-centre .mm-
   background: rgb(104 245 208 / 0.09) !important;
 }
 
+/* The Dev Console popover adopts the command shell exactly the way the
+   notification centre above does: same panel ground, same cyan frame, the
+   light-theme utility classes remapped wholesale. The panel's own header is
+   already the shell's dark ground, so it needs no override. */
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover {
+  /* !important because the popover root itself carries `bg-white`, which the
+     dark color-mode remap forces to #1A1B18 !important — the shell must win. */
+  border-color: rgb(98 232 255 / 0.25) !important;
+  background: #07171d !important;
+  color: #eefcff;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="text-black"] {
+  color: rgb(225 246 250 / 0.72) !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="border-black"], [class*="divide-black"]) {
+  border-color: rgb(98 232 255 / 0.13) !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="bg-white"] {
+  background-color: #0a2028 !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="bg-black/"], [class*="bg-[#e6f1f0]"]) {
+  background-color: #081c22 !important;
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover ::placeholder {
+  color: rgb(225 246 250 / 0.35);
+}
+
+html[data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is(a, button):hover {
+  color: #ffffff;
+}
+
 html[data-portal-shell="command"] .mm-portal-topbar .mm-attention-badge,
 html[data-portal-shell="command"] .mm-portal-topbar button > .ring-white {
   --tw-ring-color: #041218;
@@ -5149,10 +5185,10 @@ html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm
   color: #241807;
 }
 
-html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar :is(.mm-profile-menu, .mm-notification-centre, .mm-radar-popover),
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar :is(.mm-profile-menu, .mm-notification-centre, .mm-radar-popover, .mm-dev-console-popover),
 html[data-color-mode="light"][data-portal-shell="command"] #aqua-workspace-search {
-  border-color: rgb(24 102 113 / 0.22);
-  background: #fbfdfc;
+  border-color: rgb(24 102 113 / 0.22) !important;
+  background: #fbfdfc !important;
   color: #102a31;
   box-shadow: 0 22px 64px rgb(24 63 70 / 0.16);
 }
@@ -5168,8 +5204,27 @@ html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm
 html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-profile-menu :is(a, button),
 html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-profile-menu :is(.mm-profile-menu-name, .mm-profile-menu-email),
 html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-notification-centre [class*="text-black"],
-html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-radar-popover [class*="text-black"] {
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-radar-popover [class*="text-black"],
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="text-black"] {
   color: rgb(16 42 49 / 0.75) !important;
+}
+
+/* The light command shell must also undo the base (dark) dev-console remap
+   above — inputs back to paper, section grounds back to the light wash. */
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover [class*="bg-white"] {
+  background-color: #fbfdfc !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="bg-black/"], [class*="bg-[#e6f1f0]"]) {
+  background-color: #eef6f5 !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover :is([class*="border-black"], [class*="divide-black"]) {
+  border-color: rgb(24 102 113 / 0.14) !important;
+}
+
+html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-dev-console-popover ::placeholder {
+  color: rgb(16 42 49 / 0.4);
 }
 
 html[data-color-mode="light"][data-portal-shell="command"] .mm-portal-topbar .mm-profile-menu :is(.mm-profile-menu-account-label, .mm-profile-menu-role) {

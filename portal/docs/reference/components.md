@@ -135,7 +135,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `NotificationAttentionProvider({ initialAlerts, children, clientId, }: { initialAlerts: OperationalAlertView[]; children: ReactNode; clientId?: string; })`
 - `useNotificationAttention(): AttentionContextValue | null`
-- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: string[]; categories?:…`
+- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], destinations = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: str…`
 - `useUnresolvedAttentionMatches({ navId, clientId, }: { navId: string; clientId?: string; }): OperationalAlertView[]`
 - `AttentionDot({ href, hrefs, prefixHref, prefixHrefs, categories, all, className = "", }: { href?: string; hrefs?: string[]; prefixHref?: string; prefixHrefs?: string[]; categories?: OperationalAlertCategory[]; all?: boo…`
 - `attentionTitle(alerts: OperationalAlertView[]): string`
@@ -151,6 +151,11 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/components/chrome/PageReveal.tsx`
 
 - `PageReveal()`
+
+### `src/components/chrome/PinnedTabs.tsx`
+
+- `PinCurrentControl({ userKey, label }: { userKey: string; label: string })` — The ★ toggle that lives in the topbar — pins/unpins the current page.
+- `PinnedTabsBar({ userKey }: { userKey: string })` — The strip of pinned pages, rendered as a thin bar under the topbar header.
 
 ### `src/components/chrome/PortalRouteCanvas.tsx`
 
@@ -242,6 +247,17 @@ Every exported function, class, type and const in this area, with its real signa
 - `async runDevConsoleLoad(input: { read: (part: "core" | "full") => Promise<ConsoleStatus>; sinks: ConsoleLoadSinks; token: { current: number }; }): Promise<void>` — Fire both reads, paint whichever lands, and report honestly if one does not. The guard is ORDERING, not richness. `load()` runs again after every save, so "keep the answer we alre…
 - `type ConsoleStatus = DevConsoleStatus & { activeWorkers?: number }` — The full read, plus the uncapped worker total the route counts alongside the (deliberately sliced) `workers` list. Optional because a server mid-deploy may still answer without it…
 - `interface ConsoleLoadSinks (6 members)` — Everywhere a load writes to. Named so a test can watch each one.
+
+### `src/components/chrome/pinnedTabs.ts`
+
+- `isPinned(pins: PinnedTab[], href: string): boolean` — ─── Pure helpers (no storage) ───────────────────────────────────────────────
+- `addPin(pins: PinnedTab[], entry: PinnedTab): PinnedTab[]` — Add a pin (deduped by href, capped to MAX_PINS keeping the most recent).
+- `removePin(pins: PinnedTab[], href: string): PinnedTab[]`
+- `togglePin(pins: PinnedTab[], entry: PinnedTab): PinnedTab[]`
+- `normalizePins(value: unknown): PinnedTab[]` — Coerce arbitrary parsed JSON into a clean PinnedTab[] (defensive on load).
+- `usePinnedTabs(userKey: string): { pins: PinnedTab[]; toggle: (entry: PinnedTab) => void; remove: (href: string) => void; }` — ─── React hook ──────────────────────────────────────────────────────────────
+- `MAX_PINS = 12` — Keep the bar tidy — a working set, not an archive. Oldest drop off.
+- `interface PinnedTab (2 members)` — thin client layer, guarded for SSR.
 
 ### `src/components/chrome/sidebarCollapseState.ts`
 

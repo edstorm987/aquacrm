@@ -2659,6 +2659,37 @@ export interface IntegrationConnection {
   updatedAt: number;
 }
 
+/** What a dev project is editing — the engine adapts to what it opens. */
+export type DevProjectType = "software" | "website" | "portal";
+
+/**
+ * One project the Dev Editor Engine can open: a repository plus the
+ * connections that make it reachable. The project carries connection IDS, not
+ * credentials — tokens stay inside the integration vault and are resolved per
+ * request via `resolveIntegrationConnectionValues`, so a project row is safe
+ * to list to any agency role.
+ */
+export interface DevProject {
+  id: string;
+  agencyId: string;
+  name: string;
+  type: DevProjectType;
+  /** `owner/name`, exactly as GitHub spells it. */
+  repository: string;
+  /** Branch the engine reads (and later edits). */
+  ref: string;
+  /** IntegrationConnection id, provider `github`. Absent → workspace/env fallback. */
+  githubConnectionId?: string;
+  /** IntegrationConnection id, provider `vercel`, for per-project deploys. */
+  vercelConnectionId?: string;
+  /** WebsiteSource id — the Aqua Tag install this project's site reports as. */
+  aquaTagSiteId?: string;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface RadarMemoryIssueState {
   id: string;
   domain: string;
@@ -3255,6 +3286,8 @@ export interface PortalState {
   externalAssistantApiKeys: Record<string, ExternalAssistantApiKey>;
   externalAssistantActionProposals: Record<string, ExternalAssistantActionProposal>;
   integrationConnections: Record<string, IntegrationConnection>;
+  /** Dev Editor Engine projects — repo + connections per project. See devProjects. */
+  devProjects: Record<string, DevProject>;
   tasks: Record<string, AgencyTask>;
   // Saved task sequences. See AgencyTaskTemplate.
   taskTemplates: Record<string, AgencyTaskTemplate>;

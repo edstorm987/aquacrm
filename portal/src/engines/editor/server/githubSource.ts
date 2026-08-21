@@ -1,6 +1,6 @@
 import "server-only";
 
-import { describeFile, isHiddenPath } from "./fileTree";
+import { MAX_PREVIEW_BYTES, describeFile, imageContentType, isHiddenPath, isImagePath } from "./fileTree";
 import { hashFile } from "./codeAdapter";
 
 /**
@@ -85,6 +85,8 @@ export interface RepoFile {
   contents?: string;
   fingerprint?: string;
   size?: number;
+  /** A `data:` URL for files that render as a picture instead of text. */
+  preview?: string;
 }
 
 /** One file's contents at a ref. */
@@ -99,7 +101,25 @@ export async function readRepoFile(source: GitHubRepoSource, path: string): Prom
     source, `/repos/${source.repository}/contents/${encodeURI(path)}?ref=${encodeURIComponent(source.ref)}`);
 
   const described = describeFile(path, file.size);
-  if (!described.editable) return { path, editable: false, reason: described.reason, size: file.size };
+  if (!described.editable) {
+    // An image is not editable, but it is showable. GitHub already handed the
+    // bytes over as base64, so the preview costs nothing extra to build.
+    if (
+      isImagePath(path)
+      && (file.size ?? 0) <= MAX_PREVIEW_BYTES
+      && file.encoding === "base64"
+      && typeof file.content === "string"
+    ) {
+      return {
+        path,
+        editable: false,
+        reason: described.reason,
+        size: file.size,
+        preview: `data:${imageContentType(path)};base64,${file.content.replace(/\s/g, "")}`,
+      };
+    }
+    return { path, editable: false, reason: described.reason, size: file.size };
+  }
 
   if (file.encoding !== "base64" || typeof file.content !== "string") {
     return { path, editable: false, reason: "GitHub returned this file in a form the editor cannot read." };

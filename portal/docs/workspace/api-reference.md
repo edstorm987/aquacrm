@@ -173,7 +173,8 @@ not live.
 | `/api/portal/finance/expense-attachments/upload` | POST | Upload an expense attachment | agency | **LIVE (Storage)** |
 | `/api/portal/notepad` | GET, POST | Notepad notes/folders CRUD | agency (staff gated by station) | |
 | `/api/portal/contracts/templates` | GET, POST | Contract templates list/create/update/delete | agency (write: owner/manager) | |
-| `/api/portal/site-editor/files` | GET | Read repo/working-tree file tree (code mode) | agency | |
+| `/api/portal/site-editor/files` | GET | Read repo/working-tree file tree (code mode; `project` param reads a dev project's repo via its bound connection) | agency | |
+| `/api/portal/dev/projects` | GET, POST | Dev Editor Engine projects list/save/delete (repo + connection bindings) | agency (write: owner/manager) | |
 | `/api/portal/trading-companies` | GET, POST | Trading companies list/create/update | agency | |
 
 ## `api/portal/*` — calendar
