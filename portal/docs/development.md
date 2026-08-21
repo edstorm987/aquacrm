@@ -91,6 +91,10 @@ reach for them when working on that system:
 - **[Full API reference](workspace/api-reference.md)** — every route file (**201**: 192 under `api/**` + 9 top-level) with method, purpose, scope, live-data flag. ⚠ **Hand-maintained — nothing generates or verifies it**; last reconciled 2026-08-20.
 - **[Every Radar rule](reference/radar-rules.md)** — the complete 2,064-rule enumeration.
 - Regenerate all: `node scripts/generate-file-docs.mjs`, `node scripts/generate-symbol-reference.mjs`, `npx tsx scripts/generate-radar-rules-reference.ts`.
+  ⚠ **None of them prune.** They only add, so a file MOVE leaves orphaned pages
+  describing paths that no longer exist. After any move or delete, run
+  `rm -rf docs/reference/files` first, then regenerate — and PROVE it with
+  `grep -rl "<old/path>" docs/ | wc -l` returning 0.
 
 ---
 
@@ -116,7 +120,10 @@ reach for them when working on that system:
 **After you build anything:**
 1. **Run the full test suite** ([tests.md](development/tests.md)) and extend the nearest test with your new contract. **But a green suite only proves code *shape*, not that the feature runs or is usable** — most tests are static-source contract tests. **Actually run the thing** (click the flow, hit the endpoint against a live server) before claiming it works, and record the real status in [status.md](development/status.md). *A passing test ≠ working ≠ usable.*
 2. **Update the docs that changed:** the relevant [chapter](workspace/), the [feature index](workspace/feature-index.md) if it's a new cross-layer concern, [api-reference](workspace/api-reference.md) if you added an endpoint, [issues.md](development/issues.md) if you found **or fixed** a risk (mark it RESOLVED with evidence — don't delete it), your item's [plan](development/plans/) `**Status:**` line, and [roadmap.md](development/roadmap.md) if you finished or reprioritised an outcome.
-3. **Regenerate the reference** if code changed: `node scripts/generate-symbol-reference.mjs` (and the radar one if you touched the catalogue).
+3. **Regenerate the reference** if code changed: `node scripts/generate-file-docs.mjs`
+   AND `node scripts/generate-symbol-reference.mjs` (and the radar one if you
+   touched the catalogue). If you MOVED or DELETED a file, `rm -rf docs/reference/files`
+   first — neither generator prunes, so orphaned pages survive silently.
 4. **Log it in [updates.md](development/updates.md).**
 
 That loop is the whole point: the project can never drift away from its own
