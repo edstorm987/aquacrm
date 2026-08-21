@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, Plug, Search, TriangleAlert } from "lucide-react";
+import { ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 
@@ -47,6 +47,8 @@ export function EditorCodeCanvas({
   const [open, setOpen] = useState<string | null>(null);
   const [file, setFile] = useState<{ contents?: string; reason?: string; editable?: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
+  // In split view the tree competes with the file for width; let it fold away.
+  const [treeOpen, setTreeOpen] = useState(true);
 
   const search = projectId
     ? `?project=${encodeURIComponent(projectId)}`
@@ -91,7 +93,8 @@ export function EditorCodeCanvas({
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
       {/* Tree */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-white/8 bg-[#1b1e1b] xl:w-72">
+      {treeOpen ? (
+      <div className="flex w-60 shrink-0 flex-col border-r border-white/8 bg-[#1b1e1b] xl:w-72">
         <div className="relative shrink-0 border-b border-white/8 p-2">
           <Search size={13} aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/25" />
           <input
@@ -123,9 +126,10 @@ export function EditorCodeCanvas({
           {meta?.count ? `${meta.count} files` : ""}{meta?.sha ? ` · ${meta.sha.slice(0, 7)}` : ""}
         </p>
       </div>
+      ) : null}
 
       {/* The open file */}
-      <div className="flex min-w-0 flex-1 flex-col bg-[#151815]">
+      <div className="relative flex min-w-0 flex-1 flex-col bg-[#151815]">
         {meta?.needsGitHub ? (
           <div className="m-4 flex items-start gap-2 rounded-md border border-amber-300/25 bg-amber-300/[0.06] p-3 text-[11px] leading-5 text-amber-200/90">
             <Plug size={13} aria-hidden className="mt-0.5 shrink-0" />
@@ -140,6 +144,11 @@ export function EditorCodeCanvas({
 
         {!open ? (
           <div className="grid flex-1 place-items-center px-6 text-center">
+            {!treeOpen ? (
+              <button type="button" onClick={() => setTreeOpen(true)} className="absolute left-2 top-2 grid size-7 place-items-center rounded text-white/35 hover:bg-white/10 hover:text-white/80" aria-label="Show the file tree" title="Show the file tree">
+                <PanelLeftOpen size={14} aria-hidden />
+              </button>
+            ) : null}
             <div>
               <FileCode2 size={22} aria-hidden className="mx-auto text-white/20" />
               <p className="mt-2 text-xs text-white/40">Choose a file to read it.</p>
@@ -148,7 +157,16 @@ export function EditorCodeCanvas({
           </div>
         ) : (
           <>
-            <div className="flex min-h-9 shrink-0 items-center gap-2 border-b border-white/8 px-3 text-[11px]">
+            <div className="flex min-h-9 shrink-0 items-center gap-2 border-b border-white/8 px-2 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setTreeOpen(value => !value)}
+                aria-label={treeOpen ? "Hide the file tree" : "Show the file tree"}
+                title={treeOpen ? "Hide the file tree" : "Show the file tree"}
+                className="grid size-6 shrink-0 place-items-center rounded text-white/35 hover:bg-white/10 hover:text-white/80"
+              >
+                {treeOpen ? <PanelLeftClose size={13} aria-hidden /> : <PanelLeftOpen size={13} aria-hidden />}
+              </button>
               <FileCode2 size={12} aria-hidden className="shrink-0 text-white/35" />
               <span className="truncate font-mono text-white/70">{open}</span>
               {file?.editable === false ? (

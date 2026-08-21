@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, Gauge, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/portal/clientPortalDesign";
@@ -685,29 +685,53 @@ export function ClientPortalStudio({
           </div>
         </main>
 
-        <aside className="hidden w-[340px] shrink-0 flex-col border-l border-white/10 bg-[#141614] lg:flex xl:w-[370px]">
-          <div className="border-b border-white/10 p-2">
-            <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-white/42">
-              How deep do you want to go?
+        <aside className="hidden w-[360px] shrink-0 flex-col border-l border-white/10 bg-[#141614] lg:flex xl:w-[400px]">
+          {/* One header, not three stacked blocks. The depth control and the
+              tab strip are the same decision seen twice — how much am I shown,
+              and which of it am I looking at — so they read as one system:
+              depth on a single compact row, tabs directly beneath it. The
+              mode's explanation moves to the control's tooltip rather than
+              spending four lines of the panel on prose. */}
+          <div className="shrink-0 border-b border-white/10">
+            <div className="flex items-center gap-1.5 px-2 py-2">
+              <Gauge size={13} aria-hidden className="shrink-0 text-white/30" />
               <select
+                aria-label="How deep do you want to go?"
+                title={editingMode(editingModeId).summary}
                 value={editingModeId}
                 onChange={event => changeMode(event.target.value as EditingMode)}
-                className="min-h-9 rounded-md border border-white/12 bg-white/[0.04] px-2 text-[11px] font-medium normal-case tracking-normal text-white/80 outline-none"
+                className="min-h-8 min-w-0 flex-1 rounded-md border border-white/12 bg-white/[0.05] px-2 text-[11px] font-semibold text-white/85 outline-none focus:border-cyan-300/40"
               >
                 {EDITING_MODES.map(option => (
                   <option key={option.id} value={option.id} className="bg-[#141614]">{option.label}</option>
                 ))}
               </select>
-            </label>
-            <p className="mt-1.5 text-[10px] leading-4 text-white/32">{editingMode(editingModeId).summary}</p>
+            </div>
+            {/* Seven tabs will not fit at 360px, so the strip scrolls instead
+                of squeezing every label into an unreadable column. */}
+            <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {allowedTabs.map(item => {
+                const Icon = item.icon;
+                const active = tab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTab(item.id)}
+                    aria-current={active ? "true" : undefined}
+                    className={`relative flex min-h-11 shrink-0 items-center gap-1.5 px-3 text-[11px] font-semibold transition ${
+                      active ? "text-cyan-300" : "text-white/40 hover:text-white/75"
+                    }`}
+                  >
+                    <Icon size={14} aria-hidden />
+                    <span>{item.label}</span>
+                    {active ? <span aria-hidden className="absolute inset-x-1.5 bottom-0 h-0.5 rounded-full bg-cyan-300" /> : null}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="grid border-b border-white/10" style={{ gridTemplateColumns: `repeat(${allowedTabs.length}, minmax(0, 1fr))` }}>
-            {allowedTabs.map(item => {
-              const Icon = item.icon;
-              return <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] font-semibold ${tab === item.id ? "bg-white/[0.07] text-cyan-300" : "text-white/42 hover:bg-white/[0.035] hover:text-white/70"}`}><Icon size={16} /><span>{item.label}</span></button>;
-            })}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {portalDocument && record ? (
               <Inspector
                 assistant={assistant}
