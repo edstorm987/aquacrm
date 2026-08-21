@@ -169,6 +169,20 @@ export function AquaEditorAI({
         />
       </div>
 
+      {/* What you pointed at. Shown explicitly: a capture that only appears
+          inside the composer text is a capture you cannot tell happened. */}
+      {context.element?.path ? (
+        <p className="flex items-start gap-1.5 rounded-md border border-cyan-300/25 bg-cyan-300/[0.06] px-2.5 py-1.5 text-[10px] leading-4 text-cyan-100/90">
+          <Crosshair size={11} aria-hidden className="mt-0.5 shrink-0 text-cyan-300/80" />
+          <span className="min-w-0">
+            <span className="block font-semibold">Pointing at</span>
+            <span className="block truncate font-mono text-cyan-200/70">
+              {context.element.path}{context.element.line ? `:${context.element.line}` : ""}
+            </span>
+          </span>
+        </p>
+      ) : null}
+
       {attachments.length ? (
         <ul className="flex flex-wrap gap-1.5">
           {attachments.map((file, index) => (

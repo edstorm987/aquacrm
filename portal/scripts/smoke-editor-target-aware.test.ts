@@ -36,7 +36,9 @@ describe("the editor adapts to its target", () => {
   });
 
   it("hides every portal-only inspector for a repository", () => {
-    assert.match(studio, /PORTAL_ONLY_TABS = new Set\(\["builder", "content", "pages", "brand", "versions"\]\)/);
+    // "code" is the PORTAL's custom CSS/JS layer, not the repository (that is
+    // the Repo tab), so it is portal-only too.
+    assert.match(studio, /PORTAL_ONLY_TABS = new Set\(\["builder", "content", "pages", "brand", "versions", "code"\]\)/);
     assert.match(studio, /portalTarget \|\| !PORTAL_ONLY_TABS\.has\(item\.id\)/);
   });
 

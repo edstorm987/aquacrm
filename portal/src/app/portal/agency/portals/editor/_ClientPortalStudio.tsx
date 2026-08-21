@@ -214,10 +214,21 @@ export function ClientPortalStudio({
    * the picker appeared to do nothing at all.
    */
   const pickedAt = useRef(0);
-  const PORTAL_ONLY_TABS = new Set(["builder", "content", "pages", "brand", "versions"]);
+  // "code" here is the PORTAL's custom CSS/JS layer, not the repository —
+  // that is the Repo tab. A repository has no use for either it or the rest.
+  const PORTAL_ONLY_TABS = new Set(["builder", "content", "pages", "brand", "versions", "code"]);
   const allowedTabs = tabs.filter(item =>
     editingMode(editingModeId).tabs.includes(item.id) && (portalTarget || !PORTAL_ONLY_TABS.has(item.id)),
   );
+
+  // A tab can stop being offered underneath you — switching mode, or opening a
+  // repository where the portal tools do not apply. Land on a real one rather
+  // than leaving the panel showing a tab nothing can reach.
+  useEffect(() => {
+    if (allowedTabs.length && !allowedTabs.some(item => item.id === tab)) {
+      setTab(allowedTabs[0].id);
+    }
+  }, [allowedTabs, tab]);
 
   /**
    * Clicking the preview to find the code behind it.
@@ -240,9 +251,17 @@ export function ClientPortalStudio({
       const source = elementSource(event.target as Element);
       const path = source ? repoRelativePath(source.fileName) : null;
       setSourceFocus(path ? { path, line: source?.lineNumber } : null);
-      setPicking(false);
       pickedAt.current = event.timeStamp || 1;
-      setTab("repository");
+      if (editingModeId === "assist") {
+        // "Just tell it": clicking IS how you point at what you mean, so the
+        // capture goes to the assistant and the picker STAYS armed — you will
+        // click several things while describing one change.
+        setTab("assistant");
+      } else {
+        // Elsewhere it is a one-shot jump-to-source.
+        setPicking(false);
+        setTab("repository");
+      }
     }
 
     function attach() {
@@ -285,6 +304,15 @@ export function ClientPortalStudio({
     // Switching to "Just the words" while sitting on the code tab must land
     // somewhere real rather than on a blank panel.
     setTab(tabForMode(next, tab) as InspectorTab);
+    if (next === "assist") {
+      // You cannot point at something you cannot see: "Just tell it" needs the
+      // visual pane, and the picker armed so a click captures straight away
+      // rather than after finding a button first.
+      if (portalTarget) setCanvasView(current => (current === "code" ? "split" : current));
+      setPicking(true);
+    } else {
+      setPicking(false);
+    }
   }
   const [record, setRecord] = useState<PortalDesignRecord | null>(null);
   const [portalDocument, setPortalDocument] = useState<ClientPortalDesignDocument | null>(null);
@@ -913,7 +941,7 @@ export function ClientPortalStudio({
 
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {portalDocument && record ? (
+            {(portalDocument && record) || !portalTarget ? (
               <Inspector
                 assistant={assistant}
                 assistantTarget={scope === "template" ? (selectedTemplate?.name || "a portal template") : (selectedClient?.name || "a client portal")}
@@ -1000,7 +1028,7 @@ export function ClientPortalStudio({
               <button type="button" onClick={() => setMobileInspectorOpen(false)} aria-label="Close portal inspector" className="grid place-items-center border-l border-white/10 text-white/55"><X size={17} /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              {portalDocument && record ? (
+              {(portalDocument && record) || !portalTarget ? (
                 <Inspector assistant={assistant} assistantTarget={scope === "template" ? (selectedTemplate?.name || "a portal template") : (selectedClient?.name || "a client portal")} repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} picking={picking} onPickElement={() => setPicking(value => !value)} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} />
               ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
@@ -1062,8 +1090,9 @@ function Inspector({
   mode: ClientPortalMode;
   section: ClientPortalSectionId;
   customPageId: string;
-  document: ClientPortalDesignDocument;
-  record: PortalDesignRecord;
+  /** Absent for a repository — it has no portal document. */
+  document: ClientPortalDesignDocument | null;
+  record: PortalDesignRecord | null;
   canManage: boolean;
   busy: boolean;
   checkpointLabel: string;
@@ -1101,6 +1130,74 @@ function Inspector({
         picking={picking}
         onPickElement={onPickElement}
       />
+    );
+  }
+
+  if (tab === "repository") {
+    // Scoped to the portal, and narrowed again to the page on screen — the
+    // question somebody actually has is "what renders this", not "show me
+    // the repository".
+    return <RepositoryPanel repository={repository} projectId={projectId} onRepositoryChange={onRepositoryChange} focus={sourceFocus} picking={picking} onPickElement={onPickElement} scope={scopeForSection(PORTAL_SCOPE, section)} />;
+  }
+
+  // Everything below edits a PORTAL, so it needs one. A repository has no
+  // portal document (the "code" tab here is the portal's own custom CSS/JS,
+  // not the repository — that is the Repo tab, handled above).
+  if (!document || !record) {
+    return <p className="px-1 py-3 text-xs text-white/45">Nothing here for a repository — use the Repo tab.</p>;
+  }
+
+  if (tab === "code") {
+    const customCode = portalCustomCode(document);
+    const editCode = (update: (current: typeof customCode) => void) => edit(current => {
+      const next = portalCustomCode(current);
+      update(next);
+      current.customCode = next;
+    });
+    return (
+      <div className="grid gap-6">
+        <div>
+          <InspectorHeading
+            eyebrow={scope === "template" && record.productId ? "Product code" : scope === "client" ? "Client override" : "Shared shell"}
+            title="Custom portal layer"
+            body="Scoped CSS can restyle the portal shell. HTML, CSS and JavaScript run inside an isolated extension frame with portal context, but no session or database access."
+          />
+          <label className="mt-5 flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-md border border-white/10 bg-white/[0.035] px-4">
+            <span>
+              <span className="block text-xs font-semibold text-white/78">Enable custom code</span>
+              <span className="mt-1 block text-[10px] text-white/35">Draft and live releases remain independently versioned.</span>
+            </span>
+            <input type="checkbox" checked={customCode.enabled} disabled={editingDisabled} onChange={event => editCode(current => { current.enabled = event.target.checked; })} className="size-4 accent-cyan-300" />
+          </label>
+        </div>
+
+        <div className="grid gap-4 border-t border-white/10 pt-6">
+          <InspectorHeading eyebrow="Portal shell" title="Scoped styling" body="Selectors are contained by the portal root. Use the normal portal classes or your own data attributes without affecting AquaCRM." />
+          <CodeField label="Portal CSS" value={customCode.scopedCss} rows={9} language="CSS" disabled={editingDisabled} onChange={value => editCode(current => { current.scopedCss = value; })} placeholder={".mm-private-sidebar {\n  width: 19rem;\n}\n\n[data-portal-extension] {\n  margin-top: 1.5rem;\n}"} />
+        </div>
+
+        <div className="grid gap-4 border-t border-white/10 pt-6">
+          <InspectorHeading eyebrow="Extension slot" title="Custom component" body="Build a bespoke panel, calculator, interactive guide or product-specific tool. JavaScript receives read-only context through window.AQUA_PORTAL." />
+          <Field label="Accessible extension name" value={customCode.title} onChange={value => editCode(current => { current.title = value; })} disabled={editingDisabled} />
+          <label className="grid gap-2 text-[11px] font-semibold text-white/58">
+            <span>Placement</span>
+            <select value={customCode.placement} disabled={editingDisabled} onChange={event => editCode(current => { current.placement = event.target.value === "before-content" ? "before-content" : "after-content"; })} className="h-10 rounded-md border border-white/10 bg-white/[0.045] px-3 text-xs text-white/78 outline-none focus:border-cyan-300/45 disabled:opacity-50">
+              <option value="before-content" className="bg-[#1a1c1a]">Before page content</option>
+              <option value="after-content" className="bg-[#1a1c1a]">After page content</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-[11px] font-semibold text-white/58">
+            <span>Minimum height · {customCode.minHeight}px</span>
+            <input type="range" min="120" max="1200" step="20" value={customCode.minHeight} disabled={editingDisabled} onChange={event => editCode(current => { current.minHeight = Number(event.target.value); })} className="accent-cyan-300" />
+          </label>
+          <CodeField label="HTML" value={customCode.html} rows={10} language="HTML" disabled={editingDisabled} onChange={value => editCode(current => { current.html = value; })} placeholder={'<section class="product-console">\n  <h2>Your custom workspace</h2>\n  <p id="portal-client"></p>\n</section>'} />
+          <CodeField label="Extension CSS" value={customCode.css} rows={9} language="CSS" disabled={editingDisabled} onChange={value => editCode(current => { current.css = value; })} placeholder={".product-console {\n  padding: 24px;\n  border: 1px solid #d7d1c7;\n  background: #fff;\n}"} />
+          <CodeField label="JavaScript" value={customCode.javascript} rows={10} language="JS" disabled={editingDisabled} onChange={value => editCode(current => { current.javascript = value; })} placeholder={'document.querySelector("#portal-client").textContent =\n  `Prepared for ${window.AQUA_PORTAL.clientName}`;'} />
+          <div className="rounded-md border border-cyan-300/15 bg-cyan-300/[0.035] p-3 text-[10px] leading-5 text-white/42">
+            Available context: <code className="text-cyan-200/75">clientName</code>, <code className="text-cyan-200/75">providerName</code>, <code className="text-cyan-200/75">mode</code> and <code className="text-cyan-200/75">productId</code>. Network requests and parent-app access are blocked inside the extension.
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -1261,66 +1358,6 @@ function Inspector({
     );
   }
 
-  if (tab === "repository") {
-    // Scoped to the portal, and narrowed again to the page on screen — the
-    // question somebody actually has is "what renders this", not "show me
-    // the repository".
-    return <RepositoryPanel repository={repository} projectId={projectId} onRepositoryChange={onRepositoryChange} focus={sourceFocus} picking={picking} onPickElement={onPickElement} scope={scopeForSection(PORTAL_SCOPE, section)} />;
-  }
-
-  if (tab === "code") {
-    const customCode = portalCustomCode(document);
-    const editCode = (update: (current: typeof customCode) => void) => edit(current => {
-      const next = portalCustomCode(current);
-      update(next);
-      current.customCode = next;
-    });
-    return (
-      <div className="grid gap-6">
-        <div>
-          <InspectorHeading
-            eyebrow={scope === "template" && record.productId ? "Product code" : scope === "client" ? "Client override" : "Shared shell"}
-            title="Custom portal layer"
-            body="Scoped CSS can restyle the portal shell. HTML, CSS and JavaScript run inside an isolated extension frame with portal context, but no session or database access."
-          />
-          <label className="mt-5 flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-md border border-white/10 bg-white/[0.035] px-4">
-            <span>
-              <span className="block text-xs font-semibold text-white/78">Enable custom code</span>
-              <span className="mt-1 block text-[10px] text-white/35">Draft and live releases remain independently versioned.</span>
-            </span>
-            <input type="checkbox" checked={customCode.enabled} disabled={editingDisabled} onChange={event => editCode(current => { current.enabled = event.target.checked; })} className="size-4 accent-cyan-300" />
-          </label>
-        </div>
-
-        <div className="grid gap-4 border-t border-white/10 pt-6">
-          <InspectorHeading eyebrow="Portal shell" title="Scoped styling" body="Selectors are contained by the portal root. Use the normal portal classes or your own data attributes without affecting AquaCRM." />
-          <CodeField label="Portal CSS" value={customCode.scopedCss} rows={9} language="CSS" disabled={editingDisabled} onChange={value => editCode(current => { current.scopedCss = value; })} placeholder={".mm-private-sidebar {\n  width: 19rem;\n}\n\n[data-portal-extension] {\n  margin-top: 1.5rem;\n}"} />
-        </div>
-
-        <div className="grid gap-4 border-t border-white/10 pt-6">
-          <InspectorHeading eyebrow="Extension slot" title="Custom component" body="Build a bespoke panel, calculator, interactive guide or product-specific tool. JavaScript receives read-only context through window.AQUA_PORTAL." />
-          <Field label="Accessible extension name" value={customCode.title} onChange={value => editCode(current => { current.title = value; })} disabled={editingDisabled} />
-          <label className="grid gap-2 text-[11px] font-semibold text-white/58">
-            <span>Placement</span>
-            <select value={customCode.placement} disabled={editingDisabled} onChange={event => editCode(current => { current.placement = event.target.value === "before-content" ? "before-content" : "after-content"; })} className="h-10 rounded-md border border-white/10 bg-white/[0.045] px-3 text-xs text-white/78 outline-none focus:border-cyan-300/45 disabled:opacity-50">
-              <option value="before-content" className="bg-[#1a1c1a]">Before page content</option>
-              <option value="after-content" className="bg-[#1a1c1a]">After page content</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-[11px] font-semibold text-white/58">
-            <span>Minimum height · {customCode.minHeight}px</span>
-            <input type="range" min="120" max="1200" step="20" value={customCode.minHeight} disabled={editingDisabled} onChange={event => editCode(current => { current.minHeight = Number(event.target.value); })} className="accent-cyan-300" />
-          </label>
-          <CodeField label="HTML" value={customCode.html} rows={10} language="HTML" disabled={editingDisabled} onChange={value => editCode(current => { current.html = value; })} placeholder={'<section class="product-console">\n  <h2>Your custom workspace</h2>\n  <p id="portal-client"></p>\n</section>'} />
-          <CodeField label="Extension CSS" value={customCode.css} rows={9} language="CSS" disabled={editingDisabled} onChange={value => editCode(current => { current.css = value; })} placeholder={".product-console {\n  padding: 24px;\n  border: 1px solid #d7d1c7;\n  background: #fff;\n}"} />
-          <CodeField label="JavaScript" value={customCode.javascript} rows={10} language="JS" disabled={editingDisabled} onChange={value => editCode(current => { current.javascript = value; })} placeholder={'document.querySelector("#portal-client").textContent =\n  `Prepared for ${window.AQUA_PORTAL.clientName}`;'} />
-          <div className="rounded-md border border-cyan-300/15 bg-cyan-300/[0.035] p-3 text-[10px] leading-5 text-white/42">
-            Available context: <code className="text-cyan-200/75">clientName</code>, <code className="text-cyan-200/75">providerName</code>, <code className="text-cyan-200/75">mode</code> and <code className="text-cyan-200/75">productId</code>. Network requests and parent-app access are blocked inside the extension.
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div>
