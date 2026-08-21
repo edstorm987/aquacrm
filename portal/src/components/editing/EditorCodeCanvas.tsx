@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert, X } from "lucide-react";
+import { Check, ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert, Users, X } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 import { fileColour } from "./codeTheme";
@@ -83,6 +83,36 @@ export function EditorCodeCanvas({
   const [buffers, setBuffers] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  // Who else is in here. Advisory only — the WRITE path is what actually
+  // protects the work, by refusing a save whose fingerprint has moved.
+  const [activity, setActivity] = useState<{ paths: Map<string, number>; workers: string[] }>({ paths: new Map(), workers: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    const read = () => {
+      fetch("/api/portal/dev/editor-activity", { cache: "no-store" })
+        .then(response => response.json())
+        .then(payload => {
+          if (cancelled || !payload?.ok) return;
+          setActivity({
+            paths: new Map((payload.files ?? []).map((f: { path: string; at: number }) => [f.path, f.at])),
+            workers: (payload.workers ?? []).map((w: { name: string }) => w.name),
+          });
+        })
+        // Not available (no Dev Mode) is not an error — just no markers.
+        .catch(() => {});
+    };
+    read();
+    const timer = window.setInterval(read, 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
+
+  function movedAgo(path: string): string | null {
+    const at = activity.paths.get(path);
+    if (!at) return null;
+    const minutes = Math.max(0, Math.round((Date.now() - at) / 60_000));
+    return minutes < 1 ? "just now" : minutes === 1 ? "1 min ago" : `${minutes} min ago`;
+  }
 
   const search = projectId
     ? `?project=${encodeURIComponent(projectId)}`
@@ -225,10 +255,10 @@ export function EditorCodeCanvas({
             </p>
           ) : matches ? (
             matches.length
-              ? matches.map(entry => <FileRow key={entry.path} file={entry} active={entry.path === open} onOpen={path => { setOpen(path); onOpenFile?.(path); }} showPath />)
+              ? matches.map(entry => <FileRow key={entry.path} file={entry} active={entry.path === open} onOpen={path => { setOpen(path); onOpenFile?.(path); }} showPath movedAgo={movedAgo(entry.path)} />)
               : <p className="px-2 py-3 text-[11px] text-white/40">No file matches that.</p>
           ) : (
-            <DirectoryRows directory={tree} depth={0} open={open} onOpen={path => { setOpen(path); onOpenFile?.(path); }} />
+            <DirectoryRows directory={tree} depth={0} open={open} onOpen={path => { setOpen(path); onOpenFile?.(path); }} movedAgo={movedAgo} />
           )}
         </div>
         <p className="shrink-0 border-t border-white/8 px-3 py-1.5 text-[10px] text-white/30">
@@ -328,6 +358,16 @@ export function EditorCodeCanvas({
               {file?.truncatedContents ? (
                 <span className="shrink-0 text-[10px] text-amber-200/70" title="Only the beginning of this file is shown.">truncated</span>
               ) : null}
+              {open && movedAgo(open) ? (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200/90"
+                  title={activity.workers.length
+                    ? `Working right now: ${activity.workers.join(", ")}. Your save is refused if this file moves under you.`
+                    : "Somebody or something else changed this file recently. Your save is refused if it moves under you."}
+                >
+                  <Users size={10} aria-hidden /> changed {movedAgo(open)}
+                </span>
+              ) : null}
               {saveNote ? (
                 <span className={`ml-auto shrink-0 text-[10px] ${saveNote === "Saved" ? "text-emerald-300/80" : "text-amber-200/80"}`} role="status">{saveNote}</span>
               ) : null}
@@ -373,19 +413,19 @@ export function EditorCodeCanvas({
   );
 }
 
-function DirectoryRows({ directory, depth, open, onOpen }: {
-  directory: TreeDirectory; depth: number; open: string | null; onOpen: (path: string) => void;
+function DirectoryRows({ directory, depth, open, onOpen, movedAgo }: {
+  directory: TreeDirectory; depth: number; open: string | null; onOpen: (path: string) => void; movedAgo?: (path: string) => string | null;
 }) {
   return (
     <>
-      {directory.directories.map(child => <DirectoryRow key={child.path} directory={child} depth={depth} open={open} onOpen={onOpen} />)}
-      {directory.files.map(file => <FileRow key={file.path} file={file} active={file.path === open} onOpen={onOpen} />)}
+      {directory.directories.map(child => <DirectoryRow key={child.path} directory={child} depth={depth} open={open} onOpen={onOpen} movedAgo={movedAgo} />)}
+      {directory.files.map(file => <FileRow key={file.path} file={file} active={file.path === open} onOpen={onOpen} movedAgo={movedAgo?.(file.path)} />)}
     </>
   );
 }
 
-function DirectoryRow({ directory, depth, open, onOpen }: {
-  directory: TreeDirectory; depth: number; open: string | null; onOpen: (path: string) => void;
+function DirectoryRow({ directory, depth, open, onOpen, movedAgo }: {
+  directory: TreeDirectory; depth: number; open: string | null; onOpen: (path: string) => void; movedAgo?: (path: string) => string | null;
 }) {
   // Open the branch that contains the current file, so jumping to source from
   // the preview reveals it rather than leaving a collapsed tree.
@@ -403,13 +443,13 @@ function DirectoryRow({ directory, depth, open, onOpen }: {
         {expanded ? <FolderOpen size={12} aria-hidden className="shrink-0 text-cyan-300/50" /> : <Folder size={12} aria-hidden className="shrink-0 text-white/30" />}
         <span className="truncate">{directory.name}</span>
       </button>
-      {expanded ? <DirectoryRows directory={directory} depth={depth + 1} open={open} onOpen={onOpen} /> : null}
+      {expanded ? <DirectoryRows directory={directory} depth={depth + 1} open={open} onOpen={onOpen} movedAgo={movedAgo} /> : null}
     </div>
   );
 }
 
-function FileRow({ file, active, onOpen, showPath }: {
-  file: TreeFile; active: boolean; onOpen: (path: string) => void; showPath?: boolean;
+function FileRow({ file, active, onOpen, showPath, movedAgo }: {
+  file: TreeFile; active: boolean; onOpen: (path: string) => void; showPath?: boolean; movedAgo?: string | null;
 }) {
   return (
     <button
@@ -422,6 +462,13 @@ function FileRow({ file, active, onOpen, showPath }: {
     >
       <FileCode2 size={11} aria-hidden className="shrink-0" style={{ color: fileColour(file.path) }} />
       <span className="truncate">{showPath ? file.path : file.name}</span>
+      {movedAgo ? (
+        <span
+          aria-label={`Changed ${movedAgo} by someone else`}
+          title={`Changed ${movedAgo} — somebody or something else is working in here`}
+          className="ml-auto size-1.5 shrink-0 rounded-full bg-amber-400"
+        />
+      ) : null}
     </button>
   );
 }
