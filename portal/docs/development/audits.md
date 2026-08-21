@@ -71,6 +71,18 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-21 — 🟢 Responsive sweep 14 surfaces × 4 widths — zero regressions
+
+Programmatic browser sweep (authenticated sandbox) of the main surfaces —
+Command Centre · Inbox · Operations hub · Contacts · Fulfilment · Marketing ·
+People · Governance · Portals · SOP library · Development code · Notepad ·
+a client workspace · the staff Team portal — at **375 / 768 / 1280 / 1440**.
+Checked per load: HTTP status, error boundaries, page errors, console errors,
+and body-level horizontal overflow (`scrollWidth > innerWidth`, offenders
+named when found). **All 56 loads clean — nothing to fix.** (The earlier
+favicon-404 and dev-team hydration fixes cleared what would otherwise have
+been console noise on every one of these loads.)
+
 ## 2026-08-21 — 🟢 Dev Team workspace browser audit — 15/15 routes healthy after two real fixes
 
 Walked every Dev Team page in a real browser (authenticated sandbox session,

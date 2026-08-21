@@ -1,5 +1,41 @@
 # Where We Stand
 
+## 2026-08-21 — autonomous build-loop session (shipped + verified)
+
+All built work verifier-checked (adversarial multi-agent pass on the first item),
+tsc 0, full suite green at every commit (2657/0/2 at close — the container
+baseline includes 2 environment skips), browser-proven in the dev:sandbox.
+Committed locally on `claude/aquacrm-build-loop-2sm80k`; nothing pushed.
+
+- **Dev Editor Engine — projects**: a `DevProject` entity binds {name, type
+  software/website/portal, repo owner/name, ref, githubConnectionId,
+  vercelConnectionId, aquaTagSiteId} — vault connection IDS, never credentials.
+  Multi-project create/list/select in CodeWorkspace; the site-editor files route
+  reads the SELECTED project's repo with ITS connection token (`?project=`).
+  Security hardening out of the adversarial pass: NO ungated env-token rung —
+  the environment GitHub/Vercel tokens stay founder-only (a real cross-tenant
+  leak, caught before commit).
+- **Aqua Tag → visual editor**: binding a routed tag to a website/portal project
+  unlocks the door to the client's block editor / Portal Studio (activate-first
+  via the existing launcher install flow); type switchable in place.
+- **Per-project Vercel resolution** shaped for the existing deployer's config seam.
+- **Images preview** in the editor file pane (both sources, size-capped) instead
+  of "not a text file".
+- **Dev Console popover** adopts the command shell in the Command Centre, both
+  variants, like the notification centre.
+- **Dev Team audit (15/15 routes)**: found + fixed a hydration failure on EVERY
+  dev-team page (literal `<style>` in the shipyard CSS comment) and the
+  app-wide /favicon.ico 404. Verdict in audits.md.
+- **Plans for Ed** (all with parseable Phases): editor-write-path (#2-3) ·
+  executive-surface (#10) · dev-editor-client-install (#7) · sop-training-merge
+  (#12) · data-evolving-baselines (#13) · fold-performance-intelligence (#14) ·
+  staff-portal-five-surfaces (#11).
+- **Test repair**: smoke-public-contact no longer loses its eight in-repo
+  contracts when the aquaoasis-web sibling checkout is absent (visible skip).
+- **Responsive sweep (queue 16-20)**: 14 main surfaces × 375/768/1280/1440 —
+  all 56 loads clean (status, boundaries, console, page errors, horizontal
+  overflow). Zero regressions to fix; verdict in audits.md.
+
 ## 2026-08-20 — late-night autonomous session (shipped + verified)
 
 Everything below was built, verifier-CONFIRMED, full-suite green (2589 / 0), tsc 0,
