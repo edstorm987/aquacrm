@@ -14,6 +14,7 @@ import { SidebarFooter } from "./SidebarFooter";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { WORKSPACES } from "@/lib/chrome/workspaces";
 import { SidebarNavLink } from "./SidebarNavLink";
+import { SidebarPinnedTabs } from "./PinnedTabs";
 
 function workspacesForPanel(panelId: string): string {
   return WORKSPACES.filter(w => w.panels.includes(panelId)).map(w => w.id).join(" ");
@@ -86,6 +87,9 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
           mobile || variant === "client" ? "overflow-y-auto overscroll-contain pr-1" : "",
         ].join(" ")}
       >
+        {/* Longer-term pinned pages sit at the top of the nav, above the panels
+            (self-hides when none are pinned to the sidebar). */}
+        <SidebarPinnedTabs />
         {panels.length === 0 && (
           <p
             data-testid="sidebar-empty-state"

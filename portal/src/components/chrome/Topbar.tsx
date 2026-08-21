@@ -81,7 +81,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
           <MobileNav panels={panels} tenantLabel={tenantLabel} currentPath={currentPath} sidebarVariant={sidebarVariant} />
         )}
         <TopbarBackButton />
-        {!publicShowcase ? <PinCurrentControl userKey={email ?? "anon"} label={title} /> : null}
+        {!publicShowcase ? <PinCurrentControl label={title} /> : null}
         <div className="mm-private-chrome hidden min-w-0 sm:block">
           <p className="truncate text-sm font-semibold text-black/80">{title}</p>
           {subtitle ? <p className="truncate text-[11px] text-black/40">{subtitle}</p> : null}
@@ -128,7 +128,7 @@ export function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, 
         )}
       </div>
     </header>
-    {!publicShowcase ? <PinnedTabsBar userKey={email ?? "anon"} /> : null}
+    {!publicShowcase ? <PinnedTabsBar /> : null}
     </>
   );
 }
