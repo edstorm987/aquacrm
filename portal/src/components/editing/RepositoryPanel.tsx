@@ -20,9 +20,16 @@ import { relevantFiles, type RelevanceScope } from "@/engines/editor/editing/fil
  * is a distinct presentation of the same data rather than the same component
  * with a theme prop — one component trying to be both would serve neither.
  */
-export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope }: {
+export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope, projectId }: {
   repository: string;
   onRepositoryChange: (value: string) => void;
+  /**
+   * A Dev Editor Engine project. When set, the SERVER resolves the repository,
+   * branch and access token from that project's own bound connection — which is
+   * what makes "plug in any repo" work without the browser ever holding a
+   * credential. Falls back to the typed `repository` when absent.
+   */
+  projectId?: string;
   /** A file and line to open, set by clicking an element in the preview. */
   focus?: { path: string; line?: number } | null;
   onPickElement?: () => void;
@@ -46,7 +53,11 @@ export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickE
     if (focus?.path) { setOpen(focus.path); setQuery(""); }
   }, [focus?.path, focus?.line]);
 
-  const search = repository ? `?repo=${encodeURIComponent(repository)}&ref=main` : "";
+  // A selected project wins: the server reads its repository, ref and token.
+  // Otherwise fall back to a typed owner/repo (or the local workspace).
+  const search = projectId
+    ? `?project=${encodeURIComponent(projectId)}`
+    : repository ? `?repo=${encodeURIComponent(repository)}&ref=main` : "";
 
   useEffect(() => {
     setTree(null);

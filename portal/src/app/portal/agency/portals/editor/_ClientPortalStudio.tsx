@@ -46,6 +46,15 @@ export type PortalStudioTemplate = {
 
 type Scope = "template" | "client";
 type InspectorTab = "builder" | "content" | "pages" | "brand" | "code" | "repository" | "versions";
+
+/** A Dev Editor Engine project, as the picker needs it. */
+interface StudioDevProject {
+  id: string;
+  name: string;
+  kind: "software" | "website" | "portal";
+  repository: string;
+  ref: string;
+}
 type Device = "desktop" | "mobile";
 
 type PortalDesignRecord = {
@@ -131,6 +140,21 @@ export function ClientPortalStudio({
   // tool rather than a developer's.
   const [editingModeId, setEditingModeId] = useState<EditingMode>("visual");
   const [repository, setRepository] = useState("");
+  // The Dev Editor Engine project being worked on. Selecting one points the
+  // Code/Repo inspectors at THAT repository, read through that project's own
+  // connection — "plug in any repo" without the browser holding a token.
+  const [projectId, setProjectId] = useState("");
+  const [projects, setProjects] = useState<StudioDevProject[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/portal/dev/projects", { cache: "no-store" })
+      .then(response => response.json())
+      .then(payload => { if (!cancelled && payload?.ok) setProjects(payload.projects ?? []); })
+      // Dev Mode only — a 403 here just means no project picker, never an error.
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const [sourceFocus, setSourceFocus] = useState<{ path: string; line?: number } | null>(null);
   const [picking, setPicking] = useState(false);
   const previewRef = useRef<HTMLIFrameElement | null>(null);
@@ -557,6 +581,31 @@ export function ClientPortalStudio({
             <optgroup label="Core pages" className="bg-[#1a1c1a]">{CLIENT_PORTAL_SECTIONS.map(item => <option key={item} value={item}>{portalDocument?.pages[item].label || SECTION_LABELS[item]}</option>)}</optgroup>
             {portalDocument && portalBuilder(portalDocument).customPages.length ? <optgroup label="Custom pages" className="bg-[#1a1c1a]">{portalBuilder(portalDocument).customPages.map(page => <option key={page.id} value={`custom:${page.id}`}>{page.label}</option>)}</optgroup> : null}
           </select>
+          {/* The engine's project. Selecting one points Code/Repo at that
+              repository, read through the project's own connection. Hidden
+              entirely when no projects exist, so nothing changes until one is
+              created. */}
+          {projects.length ? (
+            <select
+              aria-label="Dev project"
+              value={projectId}
+              onChange={event => {
+                const next = event.target.value;
+                setProjectId(next);
+                const project = projects.find(item => item.id === next);
+                // Keep the typed field in step so the Repo tab shows what it reads.
+                setRepository(project?.repository ?? "");
+              }}
+              className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0"
+            >
+              <option value="" className="bg-[#1a1c1a]">This workspace</option>
+              {projects.map(project => (
+                <option key={project.id} value={project.id} className="bg-[#1a1c1a]">
+                  {project.name}{project.repository ? ` · ${project.repository}` : ""}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="flex min-w-0 items-center justify-end gap-2 sm:justify-start">
             <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Preview device">
               <IconToggle active={device === "desktop"} onClick={() => setDevice("desktop")} label="Desktop"><Monitor size={16} /></IconToggle>
@@ -662,7 +711,7 @@ export function ClientPortalStudio({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {portalDocument && record ? (
-                <Inspector repository={repository} onRepositoryChange={setRepository} sourceFocus={sourceFocus} picking={picking} onPickElement={() => setPicking(value => !value)} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} />
+                <Inspector repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} picking={picking} onPickElement={() => setPicking(value => !value)} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} />
               ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
             <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-[#111311] p-3">
@@ -678,6 +727,7 @@ export function ClientPortalStudio({
 
 function Inspector({
   repository,
+  projectId,
   onRepositoryChange,
   sourceFocus,
   picking,
@@ -708,6 +758,7 @@ function Inspector({
   selectBlock,
 }: {
   repository: string;
+  projectId?: string;
   onRepositoryChange: (value: string) => void;
   sourceFocus: { path: string; line?: number } | null;
   picking: boolean;
@@ -848,7 +899,7 @@ function Inspector({
     // Scoped to the portal, and narrowed again to the page on screen — the
     // question somebody actually has is "what renders this", not "show me
     // the repository".
-    return <RepositoryPanel repository={repository} onRepositoryChange={onRepositoryChange} focus={sourceFocus} picking={picking} onPickElement={onPickElement} scope={scopeForSection(PORTAL_SCOPE, section)} />;
+    return <RepositoryPanel repository={repository} projectId={projectId} onRepositoryChange={onRepositoryChange} focus={sourceFocus} picking={picking} onPickElement={onPickElement} scope={scopeForSection(PORTAL_SCOPE, section)} />;
   }
 
   if (tab === "code") {
