@@ -43,10 +43,18 @@ export interface TreeDirectory {
 const HIDDEN = [
   /(^|\/)\.git\//,
   /(^|\/)node_modules\//,
-  /(^|\/)\.next\//,
+  /(^|\/)\.next/,
   /(^|\/)\.vercel\//,
   /(^|\/)\.env($|\.)/,
   /(^|\/)\.DS_Store$/,
+  // Live operational state, not source. `.data/` holds the portal state blob
+  // AND the worker check-in records that OTHER processes rewrite while this
+  // server runs — a file the editor's fingerprint can know nothing about, so
+  // its every save would be a race it cannot see. `.claude/` is tooling state.
+  /(^|\/)\.data\//,
+  /(^|\/)\.claude\//,
+  /(^|\/)\.disabled-node-modules\//,
+  /(^|\/)\.turbo\//,
 ];
 
 /**

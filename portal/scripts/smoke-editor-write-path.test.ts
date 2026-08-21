@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describeFile, MAX_EDITABLE_BYTES } from "../src/engines/editor/server/fileTree";
+import { describeFile, isHiddenPath, MAX_EDITABLE_BYTES } from "../src/engines/editor/server/fileTree";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -41,7 +41,7 @@ describe("editor write path — the guards", () => {
     // The single most important guard: this working tree holds uncommitted
     // work, and a last-write-wins editor would destroy it.
     assert.match(route, /staleFingerprint: true/);
-    assert.match(route, /body\.fingerprint !== hashFile\(current\)/);
+    assert.match(route, /sentFingerprint !== fingerprintFor\(requested, current\)/);
   });
 
   it("refuses to write anything the reader does not call editable", () => {
@@ -57,6 +57,82 @@ describe("editor write path — the guards", () => {
     // On a read-only deployment this is expected, not a crash.
     assert.match(route, /readOnlyFilesystem: true/);
     assert.match(route, /EROFS/);
+  });
+
+  // ── The five defects an adversarial review found, each pinned so it
+  //    cannot come back silently. Every one of these was live. ──────────────
+
+  it("serialises writes per path, so two saves cannot both win the race", () => {
+    // Was: the fingerprint check and the write are two awaits apart, and Next
+    // serves concurrent requests in one process — so two saves both read the
+    // same contents, both hash-matched, and both wrote. The second destroyed
+    // the first and BOTH callers got ok:true.
+    assert.match(route, /withWriteLock\(/);
+    assert.match(route, /const writeLocks = new Map/);
+  });
+
+  it("writes atomically — temp file then rename, never truncate-in-place", () => {
+    // Was: writeFile opens with 'w', truncating the original to zero before a
+    // byte lands. Any failure (ENOSPC, killed dev server) left it destroyed.
+    assert.match(route, /aqua-tmp-/);
+    assert.match(route, /await rename\(temporary, target\)/);
+    assert.match(route, /unlink\(temporary\)/, "a failed write cleans up after itself");
+  });
+
+  it("caps the size of what may be written", () => {
+    // Was: only `typeof contents === "string"` — an unbounded body could
+    // truncate a real file and then die part-way through replacing it.
+    assert.match(route, /MAX_EDITABLE_BYTES/);
+    assert.match(route, /status: 413/);
+  });
+
+  it("binds the fingerprint to the PATH, not just the contents", () => {
+    // Was: content-only hashing answers "does SOME file have this content".
+    // This repo has byte-identical files (nine copies of safeDate.ts), so a
+    // buffer for one could pass the staleness check against another.
+    assert.match(route, /function fingerprintFor\(path: string, contents: string\)/);
+    assert.match(route, /fingerprintFor\(requested, current\)/);
+    assert.ok(!/!==\s*hashFile\(current\)/.test(route), "must not compare a content-only hash");
+  });
+
+  it("resolves symlinks before writing, rather than trusting the lexical path", () => {
+    // Was: resolve() normalises `..` but does not follow links, while write
+    // does — so a link inside the tree pointing out of it was a hole.
+    assert.match(route, /async function realSafePath/);
+    assert.match(route, /realpath\(/);
+    assert.match(route, /const target = await realSafePath\(requested\)/);
+  });
+
+  it("refuses a path containing a null byte", () => {
+    assert.match(route, /includes\("\\0"\)/);
+  });
+});
+
+describe("editor write path — what the tree exposes at all", () => {
+  it("hides live operational state, not just build output", () => {
+    // .data/ holds the portal state blob AND worker check-in records that
+    // OTHER processes rewrite while this server runs — files whose changes
+    // this route's fingerprint can never see.
+    for (const path of [".data/workers/api.json", ".data/portal-state.json", ".claude/settings.json"]) {
+      assert.equal(isHiddenPath(path), true, `${path} must not be reachable`);
+    }
+  });
+
+  it("still hides secrets and git internals", () => {
+    for (const path of [".env", ".env.local", ".git/config", "node_modules/x/index.js"]) {
+      assert.equal(isHiddenPath(path), true, `${path} must not be reachable`);
+    }
+  });
+
+  it("still shows the env TEMPLATE, which teaches what a site needs", () => {
+    assert.equal(isHiddenPath(".env.example"), false);
+  });
+
+  it("skips dot-directories unconditionally when walking", () => {
+    // Was: a NESTED if that only skipped names already handled by the line
+    // above it, so .data/, .claude/ and .next-verify/ were all walked.
+    assert.match(route, /if \(entry\.name\.startsWith\("\."\)\) continue;/);
+    assert.match(route, /entry\.isSymbolicLink\(\)/, "symlinks are not listed as files");
   });
 });
 

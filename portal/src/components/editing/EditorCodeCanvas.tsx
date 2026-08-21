@@ -73,7 +73,14 @@ export function EditorCodeCanvas({
   useEffect(() => { if (focus?.path) { setOpen(focus.path); setQuery(""); } }, [focus?.path, focus?.line]);
 
   useEffect(() => {
-    if (!open) { setFile(null); return; }
+    if (!open) { setFile(null); setDraft(null); return; }
+    // Clear FIRST. Leaving the previous file's buffer and fingerprint in place
+    // while the next one loads meant the Save control was live over a mismatch
+    // — a buffer for one file, aimed at another. The path-bound fingerprint
+    // now refuses that server-side, but the window should not exist at all.
+    setFile(null);
+    setDraft(null);
+    setSaveNote(null);
     setLoading(true);
     const separator = search ? "&" : "?";
     fetch(`/api/portal/site-editor/files${search}${separator}path=${encodeURIComponent(open)}`, { cache: "no-store" })
