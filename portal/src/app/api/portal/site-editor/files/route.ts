@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
+import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { AGENCY_ROLES } from "@/server/types";
 import { MAX_READ_BYTES, buildFileTree, describeFile, isHiddenPath } from "@/engines/editor/server/fileTree";
 import { hashFile } from "@/engines/editor/server/codeAdapter";
@@ -181,6 +182,106 @@ export async function GET(request: NextRequest) {
       // what a save is judged against cannot drift apart.
       fingerprint: hashFile(contents),
       size: info.size,
+    });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
+
+/**
+ * Write a file back.
+ *
+ * This is the one genuinely dangerous thing the editor does, so every guard is
+ * deliberate:
+ *
+ *  • FOUNDER + DEV MODE only. Reading the repository is an agency-role
+ *    concern; rewriting it is not.
+ *  • ORIGIN checked, like every other mutating portal route.
+ *  • The path is resolved and then confined to ROOT — `..` can be spelled many
+ *    ways, and the only reliable question is where it lands.
+ *  • Only files the reader itself calls EDITABLE: text, under the size cap.
+ *  • FINGERPRINT match. The editor sends the hash of what it opened; if the
+ *    file on disk no longer hashes to that, somebody touched it since and the
+ *    save is REFUSED rather than silently overwriting them. This working tree
+ *    carries uncommitted work from several places at once — a last-write-wins
+ *    editor would destroy it, and that loss is not recoverable.
+ *  • Local writes only mean anything where the filesystem is writable. On a
+ *    read-only deployment, say so and point at the repository path rather than
+ *    failing with a stack trace.
+ *
+ * A repository-backed project does NOT write here: that path commits to a
+ * branch through the engine's publish step, which is a separate confirmed
+ * action.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    await ensureHydrated();
+    const session = await requireRole(["agency-owner", "agency-manager"]);
+    if (!devDocsAccessible(session)) {
+      return NextResponse.json({ ok: false, error: "Dev Mode is required to write files." }, { status: 403 });
+    }
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin) {
+      return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => null) as
+      | { path?: string; contents?: string; fingerprint?: string; project?: string }
+      | null;
+    const requested = body?.path?.trim();
+    if (!requested || typeof body?.contents !== "string") {
+      return NextResponse.json({ ok: false, error: "A path and contents are required." }, { status: 400 });
+    }
+
+    // A repository-backed project is committed, never written to this disk.
+    const projectId = body.project?.trim();
+    const project = projectId ? getDevProject(session.agencyId, projectId) : null;
+    if (project?.repository) {
+      return NextResponse.json({
+        ok: false,
+        error: "This project is backed by a repository — changes are committed and published, not written to this workspace.",
+      }, { status: 409 });
+    }
+
+    const target = safePath(requested);
+    if (!target) return NextResponse.json({ ok: false, error: "That path cannot be written." }, { status: 403 });
+
+    const info = await stat(target).catch(() => null);
+    if (!info?.isFile()) return NextResponse.json({ ok: false, error: "Not a file." }, { status: 404 });
+
+    const described = describeFile(requested, info.size);
+    if (!described.editable) {
+      return NextResponse.json({ ok: false, error: described.reason ?? "That file cannot be edited here." }, { status: 409 });
+    }
+
+    const current = await readFile(target, "utf-8");
+    if (!body.fingerprint || body.fingerprint !== hashFile(current)) {
+      return NextResponse.json({
+        ok: false,
+        staleFingerprint: true,
+        error: "This file changed since you opened it. Reopen it and make the change again — saving now would overwrite somebody else's work.",
+      }, { status: 409 });
+    }
+
+    try {
+      await writeFile(target, body.contents, "utf-8");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
+        return NextResponse.json({
+          ok: false,
+          readOnlyFilesystem: true,
+          error: "This deployment's filesystem is read-only. Connect the project to a repository to commit changes instead.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      path: requested,
+      fingerprint: hashFile(body.contents),
+      bytes: Buffer.byteLength(body.contents, "utf-8"),
     });
   } catch (error) {
     return authErrorResponse(error);

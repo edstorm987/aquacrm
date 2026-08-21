@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert } from "lucide-react";
+import { Check, ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 
@@ -45,10 +45,16 @@ export function EditorCodeCanvas({
   const [meta, setMeta] = useState<TreeResponse | null>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const [file, setFile] = useState<{ contents?: string; reason?: string; editable?: boolean; readable?: boolean; kind?: string; dataUrl?: string; truncatedContents?: boolean } | null>(null);
+  const [file, setFile] = useState<{ contents?: string; reason?: string; editable?: boolean; readable?: boolean; kind?: string; dataUrl?: string; truncatedContents?: boolean; fingerprint?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   // In split view the tree competes with the file for width; let it fold away.
   const [treeOpen, setTreeOpen] = useState(true);
+  // The edit buffer. Separate from `file` so the pristine contents (and the
+  // fingerprint they were read at) survive editing — a save is judged against
+  // what was OPENED, which is what stops it overwriting somebody else's work.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
 
   const search = projectId
     ? `?project=${encodeURIComponent(projectId)}`
@@ -72,7 +78,7 @@ export function EditorCodeCanvas({
     const separator = search ? "&" : "?";
     fetch(`/api/portal/site-editor/files${search}${separator}path=${encodeURIComponent(open)}`, { cache: "no-store" })
       .then(response => response.json())
-      .then(payload => setFile(payload))
+      .then(payload => { setFile(payload); setDraft(payload?.contents ?? null); setSaveNote(null); })
       .catch(() => setFile({ editable: false, reason: "That file could not be read." }))
       .finally(() => setLoading(false));
   }, [open, search]);
@@ -88,7 +94,35 @@ export function EditorCodeCanvas({
     return all.filter(entry => entry.path.toLowerCase().includes(needle)).slice(0, 80);
   }, [query, tree]);
 
-  const lines = file?.contents ? file.contents.split("\n") : null;
+  const dirty = draft != null && file?.contents != null && draft !== file.contents;
+
+  async function save() {
+    if (!open || draft == null || !file?.fingerprint) return;
+    setSaving(true);
+    setSaveNote(null);
+    try {
+      const response = await fetch("/api/portal/site-editor/files", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: open, contents: draft, fingerprint: file.fingerprint, project: projectId }),
+      });
+      const payload = await response.json();
+      if (!payload.ok) {
+        setSaveNote(payload.error ?? "That file could not be saved.");
+        return;
+      }
+      // Adopt the new fingerprint so a second save is judged against what is
+      // now on disk, not the version this pane opened.
+      setFile(current => (current ? { ...current, contents: draft, fingerprint: payload.fingerprint } : current));
+      setSaveNote("Saved");
+    } catch {
+      setSaveNote("That file could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const lines = draft != null ? draft.split("\n") : null;
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -175,6 +209,25 @@ export function EditorCodeCanvas({
               {file?.truncatedContents ? (
                 <span className="shrink-0 text-[10px] text-amber-200/70" title="Only the beginning of this file is shown.">truncated</span>
               ) : null}
+              {saveNote ? (
+                <span className={`ml-auto shrink-0 text-[10px] ${saveNote === "Saved" ? "text-emerald-300/80" : "text-amber-200/80"}`} role="status">{saveNote}</span>
+              ) : null}
+              {file?.editable ? (
+                <button
+                  type="button"
+                  onClick={() => void save()}
+                  disabled={!dirty || saving}
+                  title={dirty ? "Save this file (⌘S)" : "No changes to save"}
+                  className={`${saveNote ? "" : "ml-auto"} inline-flex shrink-0 items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold transition ${
+                    dirty && !saving
+                      ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-100 hover:bg-cyan-300/25"
+                      : "border-white/10 text-white/25"
+                  }`}
+                >
+                  {saving ? <LoaderCircle size={10} className="animate-spin" aria-hidden /> : <Check size={10} aria-hidden />}
+                  {dirty ? "Save" : "Saved"}
+                </button>
+              ) : null}
             </div>
             {loading ? (
               <p className="flex items-center gap-2 px-4 py-6 text-[11px] text-white/45"><LoaderCircle size={12} className="animate-spin" aria-hidden /> Opening…</p>
@@ -186,21 +239,33 @@ export function EditorCodeCanvas({
             ) : file?.contents == null ? (
               <p className="px-4 py-6 text-[11px] text-white/45">{file?.reason ?? "That file could not be read."}</p>
             ) : (
-              <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-collapse font-mono text-[11px] leading-5">
-                  <tbody>
-                    {lines!.map((text, index) => {
-                      const number = index + 1;
-                      const highlighted = focus?.line === number && focus.path === open;
-                      return (
-                        <tr key={number} className={highlighted ? "bg-cyan-300/10" : undefined}>
-                          <td className="w-12 select-none border-r border-white/5 px-2 text-right align-top text-white/22">{number}</td>
-                          <td className="whitespace-pre px-3 align-top text-white/80">{text || " "}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="flex min-h-0 flex-1 overflow-auto">
+                {/* Gutter and text scroll together as one block, so the numbers
+                    cannot drift out of step with the lines they belong to. */}
+                <div aria-hidden className="w-12 shrink-0 select-none border-r border-white/5 py-2 text-right font-mono text-[11px] leading-5 text-white/22">
+                  {lines!.map((_, index) => {
+                    const number = index + 1;
+                    const highlighted = focus?.line === number && focus.path === open;
+                    return <div key={number} className={`px-2 ${highlighted ? "bg-cyan-300/10 text-cyan-200/70" : ""}`}>{number}</div>;
+                  })}
+                </div>
+                {file?.editable ? (
+                  <textarea
+                    value={draft ?? ""}
+                    onChange={event => setDraft(event.target.value)}
+                    spellCheck={false}
+                    aria-label={`Edit ${open}`}
+                    onKeyDown={event => {
+                      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+                        event.preventDefault();
+                        void save();
+                      }
+                    }}
+                    className="min-h-full flex-1 resize-none whitespace-pre bg-transparent px-3 py-2 font-mono text-[11px] leading-5 text-white/85 outline-none"
+                  />
+                ) : (
+                  <pre className="flex-1 whitespace-pre px-3 py-2 font-mono text-[11px] leading-5 text-white/80">{draft}</pre>
+                )}
               </div>
             )}
           </>
