@@ -470,5 +470,11 @@ describe("dashboard command centre surface", () => {
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-private-sidebar/);
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-portal-topbar/);
     assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-private-surface/);
+    // The Dev Console popover adopts the shell the way the notification centre
+    // does — both variants, and with the weight to beat the dark-mode bg-white
+    // remap its root class would otherwise lose to.
+    assert.match(globalStyles, /html\[data-portal-shell="command"\] \.mm-portal-topbar \.mm-dev-console-popover \{[^}]*background: #07171d !important/);
+    assert.match(globalStyles, /\.mm-dev-console-popover \[class\*="text-black"\]/);
+    assert.match(globalStyles, /html\[data-color-mode="light"\]\[data-portal-shell="command"\] .*\.mm-dev-console-popover/);
   });
 });
