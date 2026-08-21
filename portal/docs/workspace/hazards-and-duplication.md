@@ -189,7 +189,7 @@ Three things describe "what's next", and only one is canonical now:
   redirect stub onto it (see below).
 
 ## 🟠 The Dev Console moved (2026-08-20) — old routes are stubs, not deletions
-Twelve sidebar items became **six sections with `?view=` tabs**
+Twelve sidebar items became six sections with `?view=` tabs, and are now **eight** (Editor + Team chat are first-class rows)
 (`app/portal/dev-team/layout.tsx:68-75`): Home · Roadmap · Findings · Library ·
 Tools · Notes. **Every old route still exists as a one-line `redirect()`**, so a
 bookmark or a doc link still lands:
@@ -200,7 +200,7 @@ bookmark or a doc link still lands:
 | `/portal/dev-team/logs` | `library?view=logs` |
 | `/portal/dev-team/updates` | `library?view=updates` |
 | `/portal/dev-team/inspector` | `tools` (its default view) |
-| `/portal/dev-team/editor` | `tools?view=editor` |
+| ~~`/portal/dev-team/editor`~~ | **NO LONGER A STUB (2026-08-21).** It is the Dev Editor PROJECTS workspace (`editor/page.tsx`, renders `setup/_DevEditorSetup`); the canvas is `editor/studio/page.tsx`. The separate app-config editor still lives at `tools?view=editor` (`editor/_Section.tsx` + `_AppConfigEditor.tsx`). Edit the real files, not a stub that no longer exists. |
 | `/portal/dev-team/api` | `tools?view=api` |
 | `/portal/dev-team/working` | `roadmap?view=now` |
 | `/portal/dev-team/tasks` | `roadmap?view=tasks` |

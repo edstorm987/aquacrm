@@ -1,13 +1,13 @@
 # Checklist — 2026-08-20 (refreshed, evening)
 
 ← [roadmap.md](roadmap.md) · Refreshed after the reorg + Aqua Engine + three-lane session.
-Suite **2458 pass / 0 fail** (stable across four full runs), typecheck **0**, sandbox intact.
+Suite **2,704 pass / 0 fail / 1 skipped** (2026-08-21), typecheck **0**, sandbox intact.
 
 ---
 
 ## 🔴 Yours — nothing moves without you
 
-- [ ] **First git commit.** The only open launch blocker left. Months uncommitted;
+- [ ] **Merge to `main`** (Ed's call — it triggers Vercel → production). The first commit and push are DONE: the branch `work/2026-08-20-parallel-session` is on origin.
       a push triggers Vercel → production, which is why it has waited.
 - [x] ~~Is a "company" an Agency or a TradingCompany?~~ **SETTLED 2026-08-20:**
       agency = holding group, trading companies stay companies and gain portals.

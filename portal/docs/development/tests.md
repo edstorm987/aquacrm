@@ -11,7 +11,7 @@ tests that pin old behaviour).
 PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
 ```
 `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox. Last known
-green: **1,419 tests passing, typecheck clean** (Aug 2026).
+green: **2,704 tests passing / 0 failing / 1 skipped, typecheck clean** (2026-08-21).
 
 ## ⚠ What a green suite proves — and what it does NOT (read this)
 **A passing test ≠ a working feature ≠ a usable feature.** Most tests here are

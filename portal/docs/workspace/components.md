@@ -40,7 +40,7 @@ Visibility is decided SERVER-side (`devDocsAccessible(session)`) and passed to
 Mode off removes the icon everywhere at once. Mounted by `agency/layout.tsx`,
 `dev-team/layout.tsx`, `clients/page.tsx` and `clients/[clientId]/layout.tsx`;
 deliberately NOT by `team/layout.tsx` (not a founder surface). The console it peeks
-into is now **six sections with `?view=` tabs**, not twelve screens — see
+into is now **eight sidebar sections** (2026-08-21), not twelve screens — see
 [portal-ui](portal-ui.md#dev-team--the-internal-dev-team-workspace-founder--dev-mode-only).
 
 **Cost split, and why it matters:** `devConsoleBadge()` (open findings + open

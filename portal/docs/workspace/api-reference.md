@@ -173,7 +173,9 @@ not live.
 | `/api/portal/finance/expense-attachments/upload` | POST | Upload an expense attachment | agency | **LIVE (Storage)** |
 | `/api/portal/notepad` | GET, POST | Notepad notes/folders CRUD | agency (staff gated by station) | |
 | `/api/portal/contracts/templates` | GET, POST | Contract templates list/create/update/delete | agency (write: owner/manager) | |
-| `/api/portal/site-editor/files` | GET | Read repo/working-tree file tree (code mode) | agency | |
+| `/api/portal/site-editor/files` | GET, **POST** | GET reads the tree/file (agency). **POST writes, creates files and creates folders** — founder + **Dev Mode** only, origin-checked, path confined to ROOT via `realpath` (symlink-proof), text+size-capped, and guarded by a path-bound FINGERPRINT that refuses a save if the file moved since it was opened. Writes atomically (temp file + rename) and serialises per path. | GET: agency · POST: founder + Dev Mode | `route.ts` GET `:153`, POST `:285` |
+| `/api/portal/dev/projects` | GET, POST | Dev Editor projects — list/save/delete. A project binds repo + branch + the GitHub/Vercel **connection ids** (never secrets) + an Aqua Tag. Cross-agency connection ids are rejected. | founder + Dev Mode | |
+| `/api/portal/dev/editor-activity` | GET | Which files moved recently + who is checked in, so the editor can warn before you type into a file somebody else is in. Advisory. | founder + Dev Mode | |
 | `/api/portal/trading-companies` | GET, POST | Trading companies list/create/update | agency | |
 
 ## `api/portal/*` — calendar
@@ -224,7 +226,7 @@ not live.
 > re-checked against the filesystem on 2026-08-20 and every one exists; re-run
 > `find src/app/api/portal/dev-team -name route.ts` before trusting the count.
 > Note the **UI** these serve was re-shaped the same day — twelve Dev Console
-> screens became six sections with `?view=` tabs — but **no endpoint moved or was
+> screens became six (now eight) sections — but **no endpoint moved or was
 > renamed**; see [hazards](hazards-and-duplication.md).
 
 | Path | Methods | Purpose | Scope/auth | Live? |
@@ -348,9 +350,14 @@ not live.
 | top-level `src/app/*` | 9 | `find src/app -name route.ts -not -path 'src/app/api/*'` |
 | **Total** | **206** | `find src/app -name route.ts \| wc -l` |
 
-Counts re-verified against the filesystem **2026-08-20 (evening)**; every row above
-is present, and a path-by-path diff of this page against `find src/app/api -name
-route.ts` came back **empty in both directions** — nothing documented is missing
+⚠ **Counts below are from 2026-08-20 and are STALE.** Re-measured 2026-08-21:
+`find src/app -name route.ts` = **214** (was 206), `api/portal` = **126** (was 118).
+The three endpoints added 2026-08-21 — `site-editor/files` POST, `dev/projects`,
+`dev/editor-activity` — are documented above; the remaining count drift has not
+been re-diffed path-by-path. Do not trust the totals row until it is.
+
+The 2026-08-20 statement was: every row present, and a path-by-path diff against
+`find src/app/api -name route.ts` came back **empty in both directions** — nothing documented is missing
 from source, nothing in source is missing here.
 
 **~57 of the 206 touch live Supabase** (auth/admin, `brand_enquiries`, Storage,
