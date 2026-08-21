@@ -294,4 +294,56 @@ describe("the files route and CodeWorkspace honour the selected project", () => 
     assert.match(workspace, /\?project=\$\{encodeURIComponent\(project\.id\)\}/);
     assert.match(workspace, /NewProjectForm/);
   });
+
+  it("the selected project carries a type switcher and the Aqua Tag visual-editor door", () => {
+    const workspace = readFileSync(join(ROOT, "src", "app", "portal", "agency", "development", "code", "_CodeWorkspace.tsx"), "utf8");
+    // The switchers edit the project in place through the same save action.
+    assert.match(workspace, /aria-label="Project type"/);
+    assert.match(workspace, /aria-label="Aqua Tag site"/);
+    assert.match(workspace, /patchProject\(\{ type:/);
+    assert.match(workspace, /patchProject\(\{ aquaTagSiteId:/);
+    // Software projects get no door; unrouted or unbound tags explain themselves.
+    assert.match(workspace, /if \(project\.type === "software"\) return null/);
+    assert.match(workspace, /unlock the visual editor/);
+    assert.match(workspace, /VisualEditorDoor/);
+    // The door itself: website → the launcher's deep link, portal → the studio.
+    const door = readFileSync(join(ROOT, "src", "app", "portal", "agency", "development", "code", "visualEditorDoor.ts"), "utf8");
+    assert.match(door, /\/portal\/clients\/\$\{encodeURIComponent\(clientId\)\}\/edit-website/);
+    assert.match(door, /\/portal\/agency\/portals\/editor\?scope=client&clientId=/);
+    // The activate branch reuses the launcher's install flow verbatim.
+    assert.match(workspace, /\/api\/portal\/fulfillment\/marketplace\/install/);
+    assert.match(workspace, /pluginId: "website-editor"/);
+  });
+
+  it("the projects GET serves the Aqua Tag sites a project can bind", () => {
+    const route = readFileSync(join(ROOT, "src", "app", "api", "portal", "dev", "projects", "route.ts"), "utf8");
+    assert.match(route, /listWebsiteSources\(session\.agencyId\)/);
+    assert.match(route, /aquaTagSites/);
+    assert.match(route, /destinationClientId/);
+  });
+});
+
+test("the visual-editor door routes by type through the tag's destination client", async () => {
+  // The pure helper module — the door logic itself, importable without JSX.
+  const { visualEditorDoor } = await import("../src/app/portal/agency/development/code/visualEditorDoor");
+  const ready = { destinationClientId: "client_9", builderReady: true };
+
+  // Website + installed builder → straight through the launcher's deep link.
+  assert.deepEqual(
+    visualEditorDoor({ type: "website" }, ready),
+    { kind: "open", href: "/portal/clients/client_9/edit-website" },
+  );
+  // Website without the plugin → activate first, NEVER a link that 404s.
+  assert.deepEqual(
+    visualEditorDoor({ type: "website" }, { destinationClientId: "client_9" }),
+    { kind: "activate", clientId: "client_9", href: "/portal/clients/client_9/edit-website" },
+  );
+  // Portal → the studio, no plugin gate.
+  assert.deepEqual(
+    visualEditorDoor({ type: "portal" }, ready),
+    { kind: "open", href: "/portal/agency/portals/editor?scope=client&clientId=client_9" },
+  );
+  assert.equal(visualEditorDoor({ type: "software" }, ready), null);
+  assert.equal(visualEditorDoor({ type: "website" }, {}), null, "a tag routed nowhere opens nothing");
+  assert.equal(visualEditorDoor({ type: "website" }, null), null);
 });

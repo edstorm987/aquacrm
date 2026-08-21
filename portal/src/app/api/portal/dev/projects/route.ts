@@ -7,8 +7,10 @@ import {
   listDevProjects,
   saveDevProject,
 } from "@/lib/server/dev/devProjects";
+import { listInstalledFor } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, type DevProjectType } from "@/server/types";
+import { listWebsiteSources } from "@/server/websiteSources";
 
 /**
  * Dev Editor Engine projects — list, save, delete.
@@ -37,6 +39,20 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       projects: listDevProjects(session.agencyId),
+      // The Aqua Tag sites a project can bind — and, through a site's
+      // destination client, the door to that client's visual editor.
+      // `builderReady` is the same predicate the Development portfolio uses:
+      // it decides whether the door is a link or an activate-first step.
+      aquaTagSites: listWebsiteSources(session.agencyId).map(site => ({
+        id: site.id,
+        label: site.label,
+        host: site.host,
+        destinationClientId: site.destinationClientId,
+        builderReady: site.destinationClientId
+          ? listInstalledFor({ agencyId: session.agencyId, clientId: site.destinationClientId })
+            .some(install => install.pluginId === "website-editor" && install.enabled)
+          : false,
+      })),
     }, { headers: { "cache-control": "private, no-store" } });
   } catch (error) {
     return authErrorResponse(error);

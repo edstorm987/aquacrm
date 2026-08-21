@@ -31,6 +31,17 @@ ALREADY EXIST; the work is unification + install-tiering + rename, not building 
   made storable — the aquaTag/vercel slots are bound but not yet consumed (Phases 3-5).
   Pinned by `scripts/smoke-dev-projects.test.ts`; browser-proven in the sandbox.
 
+- **Phase 2.6 — Aqua Tag opens the visual editor + type switcher (2026-08-21).** The selected
+  project now carries in-place switchers for `type` and `aquaTagSiteId` (both are ordinary
+  project saves), and the tag binding UNLOCKS the visual editor: `code/visualEditorDoor.ts`
+  routes website projects to the tag's destination client's block editor (activate-first via
+  the existing WebsiteBuilderLauncher marketplace-install flow when the plugin isn't on),
+  portal projects to the Client Portal Studio, software projects get no door — unbound or
+  unrouted tags say why in place. Images also preview in the file pane now (read side of #4).
+  Browser-proven except the final open-door hop, which needs a tenant with the fulfillment
+  plugin installed (the bare sandbox can't install plugins at all — pre-existing fixture gap
+  that equally blocks the client-page launcher).
+
 **Still open:** Phase 3 (unify blocks + code+git + app-config behind engine.ts adapters with target
 detection — the `type` field on DevProject is the detection input), Phase 4 (installable module +
 tiers), Phase 5 (client-workspace install + the GitHub+AquaTag+Vercel setup flow).
