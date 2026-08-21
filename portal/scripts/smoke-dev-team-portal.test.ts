@@ -70,7 +70,7 @@ describe("dev team portal — sidebar icons", () => {
       // Editor + Team chat are now first-class sidebar items; the old
       // "exit-dev-team" item was removed (the topbar's role-dependent "Back to
       // home" is the single way out now).
-      ["home", "roadmap", "findings", "library", "tools", "editor", "chat", "notes", "account"],
+      ["home", "roadmap", "findings", "library", "tools", "editor", "editor-setup", "chat", "notes", "account"],
       "the Dev Team sidebar sections changed — update this contract deliberately",
     );
     for (const [id, icon] of nav) {
