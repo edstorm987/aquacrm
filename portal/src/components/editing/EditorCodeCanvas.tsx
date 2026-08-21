@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert, X } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
+import { fileColour } from "./codeTheme";
+import { CodeSurface } from "./CodeSurface";
 
 // ─── DEV EDITOR — the code canvas ────────────────────────────────────────────
 //
@@ -165,7 +167,6 @@ export function EditorCodeCanvas({
     }
   }
 
-  const lines = draft != null ? draft.split("\n") : null;
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -240,9 +241,10 @@ export function EditorCodeCanvas({
                     aria-selected={active}
                     onClick={() => setOpen(path)}
                     title={path}
-                    className="max-w-[12rem] truncate py-1.5 text-[11px] font-medium"
+                    className="flex max-w-[13rem] items-center gap-1.5 py-1.5 text-[11px] font-medium"
                   >
-                    {name}
+                    <FileCode2 size={11} aria-hidden className="shrink-0" style={{ color: fileColour(path) }} />
+                    <span className="truncate">{name}</span>
                   </button>
                   {dirtyPaths.has(path) ? (
                     <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-amber-300" />
@@ -287,7 +289,7 @@ export function EditorCodeCanvas({
               >
                 {treeOpen ? <PanelLeftClose size={13} aria-hidden /> : <PanelLeftOpen size={13} aria-hidden />}
               </button>
-              <FileCode2 size={12} aria-hidden className="shrink-0 text-white/35" />
+              <FileCode2 size={12} aria-hidden className="shrink-0" style={{ color: fileColour(open) }} />
               <span className="truncate font-mono text-white/70">{open}</span>
               {file?.editable === false ? (
                 <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[10px] text-white/35" title={file?.reason}><Lock size={10} aria-hidden /> read-only</span>
@@ -325,34 +327,13 @@ export function EditorCodeCanvas({
             ) : file?.contents == null ? (
               <p className="px-4 py-6 text-[11px] text-white/45">{file?.reason ?? "That file could not be read."}</p>
             ) : (
-              <div className="flex min-h-0 flex-1 overflow-auto">
-                {/* Gutter and text scroll together as one block, so the numbers
-                    cannot drift out of step with the lines they belong to. */}
-                <div aria-hidden className="w-12 shrink-0 select-none border-r border-white/5 py-2 text-right font-mono text-[11px] leading-5 text-white/22">
-                  {lines!.map((_, index) => {
-                    const number = index + 1;
-                    const highlighted = focus?.line === number && focus.path === open;
-                    return <div key={number} className={`px-2 ${highlighted ? "bg-cyan-300/10 text-cyan-200/70" : ""}`}>{number}</div>;
-                  })}
-                </div>
-                {file?.editable ? (
-                  <textarea
-                    value={draft ?? ""}
-                    onChange={event => { const value = event.target.value; setBuffers(all => ({ ...all, [open]: value })); }}
-                    spellCheck={false}
-                    aria-label={`Edit ${open}`}
-                    onKeyDown={event => {
-                      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-                        event.preventDefault();
-                        void save();
-                      }
-                    }}
-                    className="min-h-full flex-1 resize-none whitespace-pre bg-transparent px-3 py-2 font-mono text-[11px] leading-5 text-white/85 outline-none"
-                  />
-                ) : (
-                  <pre className="flex-1 whitespace-pre px-3 py-2 font-mono text-[11px] leading-5 text-white/80">{draft}</pre>
-                )}
-              </div>
+              <CodeSurface
+                path={open}
+                value={draft ?? ""}
+                editable={Boolean(file?.editable)}
+                onChange={next => setBuffers(all => ({ ...all, [open]: next }))}
+                onSave={() => void save()}
+              />
             )}
           </>
         )}
@@ -408,7 +389,7 @@ function FileRow({ file, active, onOpen, showPath }: {
         active ? "bg-cyan-300/12 text-cyan-100" : "text-white/55 hover:bg-white/[0.05] hover:text-white/85"
       }`}
     >
-      <FileCode2 size={11} aria-hidden className="shrink-0 opacity-50" />
+      <FileCode2 size={11} aria-hidden className="shrink-0" style={{ color: fileColour(file.path) }} />
       <span className="truncate">{showPath ? file.path : file.name}</span>
     </button>
   );

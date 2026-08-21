@@ -37,9 +37,18 @@ describe("Aqua Editor AI — the assist depth", () => {
       "coming from a deeper mode lands on the assistant, not a blank panel");
   });
 
-  it("does NOT offer the assistant in the hands-on depths", () => {
-    for (const mode of ["simple", "visual", "developer"] as const) {
-      assert.equal(modeAllowsTab(mode, "assistant"), false, `${mode} should not carry the assistant tab`);
+  it("offers the assistant at EVERY depth — it is a companion, not a depth", () => {
+    // It used to appear only in "Just tell it", so unless you changed the
+    // depth selector you never saw it at all. Aqua Editor AI accompanies
+    // whatever depth you are working at; only the hands-on tabs vary.
+    for (const mode of ["assist", "simple", "visual", "developer"] as const) {
+      assert.equal(modeAllowsTab(mode, "assistant"), true, `${mode} should carry the assistant tab`);
+    }
+  });
+
+  it("puts the assistant first, so it is the first thing in the rail", () => {
+    for (const mode of EDITING_MODES) {
+      assert.equal(mode.tabs[0], "assistant", `${mode.id} should lead with the assistant`);
     }
   });
 

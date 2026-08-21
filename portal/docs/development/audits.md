@@ -73,6 +73,8 @@ _Verdicts below, newest first (insert new ones directly under the pending-queue 
 
 ## 2026-08-21 — 🟡 SUITE RED (2 fails) — stale tests after an unlogged dev-editor split; behavior PRESERVED, tests need re-pointing
 
+> **✅ RESOLVED next tick (2026-08-21):** both tests were **re-pointed to the `studio/` route** (now reference `studio` — 9× in `smoke-dev-editor-engine`, 3× in `smoke-aqua-editor-ai`); both files pass **15/15**, full suite **green again (2686 / 0)**. Fix matched the routing note exactly. Left below as the record.
+
 **Full suite is red: 2685 tests, 2 fail** (both reproduce in isolation — not phantoms). Traced both to **one root cause**: the **dev-team editor was split (unlogged) into two routes**, and two source tests still pin the pre-split file.
 
 **The refactor:**

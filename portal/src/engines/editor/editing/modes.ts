@@ -38,21 +38,23 @@ export const EDITING_MODES: EditingModeDefinition[] = [
     id: "simple",
     label: "Just the words",
     summary: "Change the text and nothing else. Nothing here can break the layout.",
-    // Content only. Somebody fixing a typo should not have to work out what
-    // "Builder" means, and cannot accidentally rearrange the page.
-    tabs: ["content"],
+    // Content, plus the assistant. Aqua Editor AI is a COMPANION to whatever
+    // depth you are working at, not a depth of its own — hiding it unless you
+    // switched the selector to "Just tell it" meant most people never found
+    // it. Every depth keeps it; only the hands-on tabs vary.
+    tabs: ["assistant", "content"],
   },
   {
     id: "visual",
     label: "Design it",
     summary: "Move blocks, change pages and set the brand, without touching code.",
-    tabs: ["builder", "content", "pages", "brand", "versions"],
+    tabs: ["assistant", "builder", "content", "pages", "brand", "versions"],
   },
   {
     id: "developer",
     label: "Developer",
     summary: "Everything, including custom code and the site's repository.",
-    tabs: ["builder", "content", "pages", "brand", "code", "repository", "versions"],
+    tabs: ["assistant", "builder", "content", "pages", "brand", "code", "repository", "versions"],
   },
 ];
 
