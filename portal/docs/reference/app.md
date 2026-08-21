@@ -676,6 +676,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `dynamic = "force-dynamic"` — Dev Mode only, same gate as the portal.
 
 
+## `src/app/api/portal/dev/editor-activity/`
+
+### `src/app/api/portal/dev/editor-activity/route.ts`
+
+- `async GET()`
+
+
+## `src/app/api/portal/dev/projects/`
+
+### `src/app/api/portal/dev/projects/route.ts`
+
+- `async GET()`
+- `async POST(request: Request)`
+
+
 ## `src/app/api/portal/development/content/`
 
 ### `src/app/api/portal/development/content/route.ts`
@@ -1093,6 +1108,7 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/api/portal/site-editor/files/route.ts`
 
 - `async GET(request: NextRequest)`
+- `async POST(request: NextRequest)` — Write a file back. This is the one genuinely dangerous thing the editor does, so every guard is deliberate: • FOUNDER + DEV MODE only. Reading the repository is an agency-role con…
 
 
 ## `src/app/api/portal/sop-guides/`
@@ -2619,6 +2635,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `default async NotepadPage({ searchParams }: { searchParams: Promise<{ note?: string }> })`
 
 
+## `src/app/portal/agency/operations/`
+
+### `src/app/portal/agency/operations/page.tsx`
+
+- `default OperationsPage()`
+
+
 ## `src/app/portal/agency/`
 
 ### `src/app/portal/agency/page.tsx`
@@ -2752,7 +2775,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/agency/portals/editor/page.tsx`
 
-- `default async ClientPortalEditorPage({ searchParams, }: { searchParams: Promise<{ clientId?: string; productId?: string; templateId?: string; scope?: string; mode?: string; section?: string; context?: string }>; })`
+- `default async ClientPortalEditorPage({ searchParams, }: { searchParams: Promise<PortalStudioQuery>; })` — editor mounts the SAME studio with the same data — one engine, two doors.
 
 
 ## `src/app/portal/agency/portals/forms/`
@@ -3374,8 +3397,23 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/dev-team/editor/page.tsx`
 
-- `default async DevTeamEditorPage()`
-- `dynamic = "force-dynamic"` — guard, not the write's.
+- `default async DevEditorProjectsPage()`
+- `dynamic = "force-dynamic"` — Founder + Dev Mode only — role first, then `devDocsAccessible`.
+
+
+## `src/app/portal/dev-team/editor/setup/`
+
+### `src/app/portal/dev-team/editor/setup/_DevEditorSetup.tsx`
+
+- `DevEditorSetup()`
+
+
+## `src/app/portal/dev-team/editor/studio/`
+
+### `src/app/portal/dev-team/editor/studio/page.tsx`
+
+- `default async DevEditorStudioPage({ searchParams, }: { searchParams: Promise<PortalStudioQuery & { project?: string }>; })`
+- `dynamic = "force-dynamic"` — own API routes assert their scope again.
 
 
 ## `src/app/portal/dev-team/findings/`

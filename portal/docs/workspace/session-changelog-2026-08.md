@@ -83,3 +83,32 @@ landed. **All uncommitted.** Narrative version:
 5. **`scripts/cleanup-junk-enquiries.mjs`** still needs Ed to run it (removes
    ~33 junk live enquiries + stray `@bare-co.test` users; keeps Pranab H + Tom
    Innes; backs up first).
+
+
+## 2026-08-21 — the Dev Editor becomes the one editor
+
+Roughly 20 commits on `work/2026-08-20-parallel-session`. Headline: there is no
+longer a portal editor, a website editor and a code editor — there is ONE Dev
+Editor that adapts to what it is pointed at.
+
+- **Projects workspace** at `/portal/dev-team/editor`; the editor is
+  `./studio?project=<id>` and exiting returns to the list, so several projects
+  are workable at once. A `DevProject` binds repo + branch + the GitHub/Vercel
+  CONNECTION IDS + an Aqua Tag; secrets stay in the vault and are resolved at
+  call time. Cross-tenant connection ids are rejected.
+- **The type selector is gone.** "What is it?" is free text — a project is often
+  a codebase AND a site AND the portals it serves. The editor adapts to what is
+  CONNECTED, not to a declared label.
+- **Real editor**: CodeMirror 6 + VS Code Dark+, language grammars, file-type
+  tints, multi-file tabs, session resume.
+- **File reading fixed** (`readable` ≠ `editable`), **writing added and then
+  hardened after an adversarial review found five real defects** — see the
+  status snapshot in `development.md` and `smoke-editor-write-path`.
+- **Presence, create file/folder, PR open+merge, Aqua Editor AI, the universal
+  "+", mode switch with per-mode colour and cutscenes.**
+- Security, unrelated to the editor: cross-tenant `brand_enquiries` read closed
+  (`listWebsiteEnquiries` now requires an agencyId).
+
+Left, tracked in `docs/development/plans/dev-editor-checklist.md`: the env
+"are you sure" overlay, saved components, binary upload, and the funnel /
+client-side editor convergence mapped in `super-editor.md`.

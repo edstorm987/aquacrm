@@ -135,7 +135,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `NotificationAttentionProvider({ initialAlerts, children, clientId, }: { initialAlerts: OperationalAlertView[]; children: ReactNode; clientId?: string; })`
 - `useNotificationAttention(): AttentionContextValue | null`
-- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: string[]; categories?:…`
+- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], destinations = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: str…`
 - `useUnresolvedAttentionMatches({ navId, clientId, }: { navId: string; clientId?: string; }): OperationalAlertView[]`
 - `AttentionDot({ href, hrefs, prefixHref, prefixHrefs, categories, all, className = "", }: { href?: string; hrefs?: string[]; prefixHref?: string; prefixHrefs?: string[]; categories?: OperationalAlertCategory[]; all?: boo…`
 - `attentionTitle(alerts: OperationalAlertView[]): string`
@@ -151,6 +151,12 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/components/chrome/PageReveal.tsx`
 
 - `PageReveal()`
+
+### `src/components/chrome/PinnedTabs.tsx`
+
+- `PinCurrentControl({ label }: { label: string })` — The ★ control in the topbar. Clicking the star quick-pins the current page to the topbar (the fast back-and-forth strip); the ▾ opens a menu to pin/keep it in the sidebar instead,…
+- `PinnedTabsBar()` — The topbar strip — quick back-and-forth pins.
+- `SidebarPinnedTabs()` — The sidebar section — longer-term pins, rendered at the bottom of the nav (under Tools). Styled with the same nav-row primitives as the rest of the sidebar (mm-sidebar-* classes) …
 
 ### `src/components/chrome/PortalRouteCanvas.tsx`
 
@@ -243,6 +249,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `type ConsoleStatus = DevConsoleStatus & { activeWorkers?: number }` — The full read, plus the uncapped worker total the route counts alongside the (deliberately sliced) `workers` list. Optional because a server mid-deploy may still answer without it…
 - `interface ConsoleLoadSinks (6 members)` — Everywhere a load writes to. Named so a test can watch each one.
 
+### `src/components/chrome/pinnedTabsStore.ts`
+
+- `findPin(pins: PinnedTab[], href: string): PinnedTab | undefined` — ─── Pure helpers (no storage) ───────────────────────────────────────────────
+- `isPinned(pins: PinnedTab[], href: string): boolean`
+- `pinsAt(pins: PinnedTab[], location: PinLocation): PinnedTab[]`
+- `setPin(pins: PinnedTab[], entry: { href: string; label: string }, location: PinLocation): PinnedTab[]` — Set (or move) a pin to a location. Deduped by href; capped per location.
+- `removePin(pins: PinnedTab[], href: string): PinnedTab[]`
+- `togglePin(pins: PinnedTab[], entry: { href: string; label: string }, location: PinLocation): PinnedTab[]` — Toggle a pin at a location: pin there if absent/elsewhere, unpin if already there.
+- `clearAll(): PinnedTab[]`
+- `normalizePins(value: unknown): PinnedTab[]` — Coerce arbitrary parsed JSON into a clean PinnedTab[] (defensive on load).
+- `usePinnedTabs(): { pins: PinnedTab[]; pin: (entry: { href: string; label: string }, location: PinLocation) => void; toggle: (entry: { href: string; label: string }, location: PinLocation) => void; remove: (href: string)…` — ─── React hook ──────────────────────────────────────────────────────────────
+- `MAX_PINS_PER_LOCATION = 12` — Keep each strip a working set, not an archive. Oldest drop off, per location.
+- `type PinLocation = "topbar" | "sidebar"` — thin, SSR-guarded client layer.
+- `interface PinnedTab (3 members)`
+
 ### `src/components/chrome/sidebarCollapseState.ts`
 
 - `SIDEBAR_COLLAPSED_KEY = "mm-sidebar-collapsed"`
@@ -250,6 +271,30 @@ Every exported function, class, type and const in this area, with its real signa
 
 
 ## `src/components/editing/`
+
+### `src/components/editing/AddMenu.tsx`
+
+- `AddMenu({ options, label = "Add", title = "Add to this page", align = "start", }: { options: AddOption[]; label?: string; title?: string; align?: "start" | "end"; })`
+- `fileAddOptions(onCreate?: (kind: "file" | "folder") => void, unavailableReason?: string): AddOption[]` — The code-view options. `onCreate` receives a path and what to make. When it is absent the options still SHOW, disabled, with the reason — a repository-backed project cannot be wri…
+- `interface AddOption (7 members)` — instead of growing another control somewhere else in the chrome.
+
+### `src/components/editing/AquaEditorAI.tsx`
+
+- `AquaEditorAI({ initialWorkspace, configured, model, userName, coverage, context, picking, onPickElement, }: { initialWorkspace: AssistantWorkspaceState; configured: boolean; model: string; userName: string; coverage: { …`
+- `interface EditorAIContext (3 members)`
+- `interface Attachment (4 members)`
+
+### `src/components/editing/BreakpointControl.tsx`
+
+- `breakpointSize(breakpoint: Breakpoint): { width: number; height: number }` — Width/height with rotation applied — what the canvas actually renders at.
+- `breakpointLabel(breakpoint: Breakpoint): string`
+- `BreakpointControl({ value, onChange, }: { value: Breakpoint; onChange: (next: Breakpoint) => void; })`
+- `DEFAULT_BREAKPOINT: Breakpoint`
+- `interface Breakpoint (4 members)` — typed rather than chosen.
+
+### `src/components/editing/CodeSurface.tsx`
+
+- `CodeSurface({ path, value, editable, onChange, onSave, }: { path: string; value: string; editable: boolean; onChange: (next: string) => void; /** ⌘S / Ctrl+S. */ onSave: () => void; })`
 
 ### `src/components/editing/EditingNotice.tsx`
 
@@ -259,9 +304,24 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `EditingOverlay({ status, clientId, onDismiss, }: { status: LeaseStatus; clientId: string; /** Offered once a request is sent, so they are not trapped on the page. */ onDismiss?: () => void; })` — What a client sees while Aqua is working on their portal. A blocking overlay rather than the agency's banner, because the two situations differ. An agency user seeing a colleague'…
 
+### `src/components/editing/EditorCodeCanvas.tsx`
+
+- `EditorCodeCanvas({ projectId, repository, focus, onOpenFile, }: { /** A Dev project — the server resolves repo, ref and token from it. */ projectId?: string; /** Or a typed owner/repo. Blank means this workspace. */ rep…`
+
+### `src/components/editing/EditorModeSwitch.tsx`
+
+- `modeSkin(mode: EditingMode): ModeSkin`
+- `EditorModeSwitch({ mode, onChange, available, }: { mode: EditingMode; onChange: (next: EditingMode) => void; /** Modes worth offering here — a repository has no "Design it". */ available?: EditingMode[]; })`
+- `MODE_SKINS: Record<EditingMode, ModeSkin>` — One skin per depth. Ordered as the ladder is: shallowest first.
+- `interface ModeSkin (6 members)` — rather than inventing a second animation system.
+
 ### `src/components/editing/RepositoryPanel.tsx`
 
-- `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope }: { repository: string; onRepositoryChange: (value: string) => void; /** A file and line to open, set by clicking an element in the…` — The site's source, inside the editor rather than beside it. Code mode began as its own page, which was the wrong shape: somebody wanting the code is already looking at the thing t…
+- `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope, projectId }: { repository: string; onRepositoryChange: (value: string) => void; /** * A Dev Editor Engine project. When set, the SE…` — The site's source, inside the editor rather than beside it. Code mode began as its own page, which was the wrong shape: somebody wanting the code is already looking at the thing t…
+
+### `src/components/editing/codeTheme.ts`
+
+- `fileColour(path: string): string` — The icon tint for a path — Seti-ish, and consistent across tree and tabs.
 
 
 ## `src/components/marketing/`

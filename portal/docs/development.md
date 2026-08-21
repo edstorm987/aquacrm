@@ -124,9 +124,9 @@ documentation, because updating the docs *is* part of finishing the work.
 
 ---
 
-## Status snapshot (verified 2026-08-20 — keep current)
-- **Pre-launch, solo founder, no real clients** — all test data. Nothing committed to git.
-- **2,382 tests passing / 0 failing · `tsc` 0 errors.** That proves code *shape* + pure-logic, **not** that features run or are usable. The honest per-feature reality is in **[status.md](development/status.md)**; the verified record is in **[audits.md](development/audits.md)**.
+## Status snapshot (verified 2026-08-21 — keep current)
+- **Pre-launch, solo founder, no real clients** — all test data.
+- **2,704 tests passing / 0 failing · `tsc` 0 errors** (2026-08-21). That proves code *shape* + pure-logic, **not** that features run or are usable. The honest per-feature reality is in **[status.md](development/status.md)**; the verified record is in **[audits.md](development/audits.md)**.
   - ⚠ **One red observed after that count** (2026-08-20 docs pass): `smoke-dev-tasks-parse.test.ts:65` fails in isolation because it asserts `/BLOCKED on Ed/i` against the marketing plan's "Cohere" phase, which has legitimately become **"✅ Cohere — SHIPPED"**. **The plan is right; the test is stale.** Details and routing in [audits.md](development/audits.md).
 - **The three former 🔴 launch blockers are all FIXED** (source-verified 2026-08-20): freelancer preview escalation (`api/auth/preview-as-freelancer/route.ts:49,101` stashes/restores `previewReturnUserId`), finance create-surface idempotency (`agency-finance/src/lib/idempotency.ts`, wired into invoices · plans · operations · expenses · payments · income), and erasure email-in-log (`leads-pipeline/src/server/contacts.ts:168,227,252,279` log an **id**, never an address).
 - **RLS is ON in live Supabase** (verified across 14 tables with the public anon key, 2026-08-20). What remains is **engineering, not an Ed decision**: the RLS policies ARE version-controlled — 14 migrations in `aquaCRM/supabase/migrations/`, 13 of them predating 2026-08-20. An earlier note here said there were none; that was wrong, written by looking inside `portal/` only, `brand_enquiries` has no `agency_id`, ~37 service-role refs bypass it — see [rls-enable](development/plans/rls-enable.md).
@@ -134,6 +134,38 @@ documentation, because updating the docs *is* part of finishing the work.
 - **Real emailed connect codes are SHIPPED** (`lib/server/connectionConfirmation.ts` — 6-digit, HMAC-hashed, 15-min TTL, single-use; `00000` is dev-mode-gated only). A Resend sender is configured and `inspectProductionReadiness()` reports email READY. Only the code-step **browser walk** is unwalked.
 - **Standard portal = one Website product**; Aqua Tags setup steps **1, 2, 3 and 6 are done**, step 4 (link the repo) is next, step 5 (seed into the editor) is planned — `agency/fulfilment/_AquaTagsWorkspace.tsx:85-90`.
 - **Open decisions** (genuinely Ed's, and only these): **first git commit**, **Aqua Tag form-capture consent**, and whether a "company" is an Agency or a TradingCompany — see [checklist.md](development/checklist.md) and [issues.md](development/issues.md).
+- **The DEV EDITOR is the one editor** (2026-08-21). There is no separate portal
+  editor, website editor or code editor any more: one surface that adapts to
+  what it is pointed at. `/portal/dev-team/editor` is the PROJECTS workspace
+  (add / configure / disconnect, then "Open editor"); the editor itself is
+  `./studio?project=<id>` and exiting returns to the list.
+  - **Real editing**: CodeMirror 6 with the genuine VS Code Dark+ theme and
+    language grammars; file-type icon tints; multiple files open at once with
+    per-file buffers; session resume per project.
+  - **Reading was broken and is fixed**: `readable` and `editable` were the same
+    question, so anything outside a narrow web-stack list rendered BLANK. Now
+    ~50 extensions plus extensionless names, big files read (truncation
+    flagged), images preview, and only genuine binaries refuse — with a reason.
+  - **Writing exists and is hardened.** An adversarial review found five real
+    defects, all fixed and pinned in `smoke-editor-write-path` (21 tests):
+    a TOCTOU race where two saves both won, a truncate-in-place write that
+    destroyed files on failure, a fingerprint not bound to its path (this repo
+    has byte-identical files), `.data/` being writable, and a symlink escape.
+    Creating files and folders goes through the same guards.
+  - **Presence** marks files that moved under you, reusing the Dev Team's
+    existing check-ins + mtime scan. Advisory; the fingerprint is the real guard.
+  - **Aqua Editor AI** is a reskin of the SAME assistant engine as the Advisor
+    and the Librarian — one brain, three skins. It proposes; a person applies.
+  - **PR management**: the engine commits to a branch, then `openPullRequest()`
+    and `mergePullRequest()` — two steps on purpose, so a preview exists before
+    anything reaches main.
+  - Plans: [dev-editor-checklist](development/plans/dev-editor-checklist.md) (what
+    is left), [super-editor](development/plans/super-editor.md) (the convergence
+    map), [dev-editor-inspector](development/plans/dev-editor-inspector.md).
+- **`src/engines/` is real**: `editor/`, `sop/`, `data/` (Radar + KPI) all moved
+  in, imports rewritten, suite-guarded — see [STRUCTURE](development/STRUCTURE.md).
+- **IA v2**: Operations and Tools are single flat sidebar rows onto hub pages;
+  pinned pages (topbar or sidebar) ship as chrome.
 - Full current-state detail: **[checklist.md](development/checklist.md)** first, then [WHERE-WE-ARE.md](WHERE-WE-ARE.md) and the [session changelog](workspace/session-changelog-2026-08.md).
 
 ---
