@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PORTAL_PHASE_LABELS } from "@/lib/portal/portalProducts";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, Gauge, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Code2, Copy, ExternalLink, FileText, FolderGit2, Gauge, GripVertical, History, Layers3, LayoutTemplate, LoaderCircle, Monitor, Palette, PanelRightClose, PanelRightOpen, PanelsTopLeft, Plus, RefreshCw, RotateCcw, Save, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CLIENT_PORTAL_MODES, CLIENT_PORTAL_SECTIONS, portalCustomCode } from "@/lib/portal/clientPortalDesign";
@@ -59,7 +59,7 @@ interface StudioDevProject {
   repository: string;
   ref: string;
 }
-type CanvasView = "live" | "code" | "split";
+type CanvasView = "live" | "code" | "split" | "compare";
 
 type PortalDesignRecord = {
   id: string;
@@ -148,6 +148,15 @@ export function ClientPortalStudio({
   // change and the source that made it at the same time.
   const [canvasView, setCanvasView] = useState<CanvasView>("live");
   const [breakpoint, setBreakpoint] = useState<Breakpoint>(DEFAULT_BREAKPOINT);
+  // How the split is divided, as a fraction of the canvas given to the LEFT
+  // pane. Dragged, not fixed — sometimes you want a sliver of preview beside
+  // a wide file, sometimes the reverse.
+  const [splitRatio, setSplitRatio] = useState(0.5);
+  // The inspector can be put away entirely — the rail stays, so the way
+  // back is always visible — and widened when a tool needs the room.
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorWidth] = useState(380);
+  const splitRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<InspectorTab>("content");
   // Defaults to the visual mode: a first-time opener should meet a designer's
   // tool rather than a developer's.
@@ -281,6 +290,11 @@ export function ClientPortalStudio({
     }
     return `/client-preview/${clientId}?${params.toString()}`;
   }, [clientId, mode, previewProductIds, scope, section, selectedCustomPage, selectedTemplate?.productId, templateId]);
+
+  // The same view WITHOUT the draft flag — what a client sees right now.
+  // Comparison is draft vs live, which is the question you actually have
+  // before publishing.
+  const publishedFrameUrl = useMemo(() => frameUrl.replace("portalDraft=1&", "").replace("&portalDraft=1", ""), [frameUrl]);
 
   useEffect(() => {
     if (!clientId) {
@@ -560,6 +574,7 @@ export function ClientPortalStudio({
           <TopToggle active={canvasView === "live"} onClick={() => setCanvasView("live")} label="Live" />
           <TopToggle active={canvasView === "code"} onClick={() => setCanvasView("code")} label="Code" />
           <TopToggle active={canvasView === "split"} onClick={() => setCanvasView("split")} label="Both" />
+          <TopToggle active={canvasView === "compare"} onClick={() => setCanvasView("compare")} label="Compare" />
         </div>
 
         <div className="col-span-3 col-start-1 row-start-2 grid min-w-0 grid-cols-2 items-center gap-2 border-t border-white/10 py-2 sm:flex sm:overflow-x-auto sm:[scrollbar-width:none] xl:col-auto xl:row-auto xl:flex-1 xl:border-t-0">
@@ -649,89 +664,138 @@ export function ClientPortalStudio({
             </p>
           </div>
 
-          {/* The canvas. Live is the running thing; code is the file tree and
-              the open file; both is the pair side by side, which is how the
-              work is actually done. */}
-          <div className="flex min-h-0 flex-1">
+          {/* The canvas is DYNAMIC: live, code, both (with a divider you drag),
+              or two live views compared. Nothing here is a fixed proportion —
+              sometimes you want a sliver of preview beside a wide file, and
+              sometimes the reverse. */}
+          <div ref={splitRef} className="flex min-h-0 flex-1">
             {canvasView !== "code" ? (
-              <div className={`min-h-0 flex-1 overflow-auto p-4 lg:p-7 ${canvasView === "split" ? "border-r border-white/8" : ""}`}>
-                <div
-                  className="mx-auto overflow-hidden rounded-md border border-white/12 bg-white shadow-[0_24px_80px_rgba(0,0,0,.35)] transition-[width]"
-                  style={{ width: Math.min(breakpointSize(breakpoint).width, 1440), maxWidth: "100%" }}
-                >
-                  {loading || !frameUrl ? (
-                    <div className="grid h-[70vh] place-items-center bg-[#f2f0eb] text-sm text-black/45">Loading the real portal...</div>
-                  ) : (
-                    <iframe
-                      ref={previewRef}
-                      key={`${frameKey}:${frameUrl}`}
-                      title="Client portal draft preview"
-                      src={frameUrl}
-                      className="block w-full bg-white"
-                      style={{ height: breakpoint.id === "responsive" || breakpoint.id === "custom"
-                        ? "calc(100vh - 190px)"
-                        : breakpointSize(breakpoint).height }}
-                    />
-                  )}
-                </div>
+              <div
+                className="min-h-0 overflow-auto p-4 lg:p-6"
+                style={canvasView === "split" || canvasView === "compare"
+                  ? { width: `${splitRatio * 100}%`, flexShrink: 0 }
+                  : { flex: 1 }}
+              >
+                <PreviewFrame
+                  label={canvasView === "compare" ? "Draft — your unpublished changes" : undefined}
+                  loading={loading}
+                  url={frameUrl}
+                  frameKey={frameKey}
+                  breakpoint={breakpoint}
+                  innerRef={previewRef}
+                />
               </div>
             ) : null}
 
-            {canvasView !== "live" ? (
-              <div className={`flex min-h-0 min-w-0 flex-col ${canvasView === "split" ? "w-[46%] shrink-0" : "flex-1"}`}>
+            {/* The divider. Drag it; double-click to even the panes. */}
+            {canvasView === "split" || canvasView === "compare" ? (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize the panes"
+                tabIndex={0}
+                onDoubleClick={() => setSplitRatio(0.5)}
+                onKeyDown={event => {
+                  if (event.key === "ArrowLeft") setSplitRatio(value => Math.max(0.2, value - 0.04));
+                  if (event.key === "ArrowRight") setSplitRatio(value => Math.min(0.8, value + 0.04));
+                }}
+                onPointerDown={event => {
+                  event.preventDefault();
+                  const host = splitRef.current;
+                  if (!host) return;
+                  const move = (moveEvent: PointerEvent) => {
+                    const bounds = host.getBoundingClientRect();
+                    const ratio = (moveEvent.clientX - bounds.left) / bounds.width;
+                    setSplitRatio(Math.min(0.8, Math.max(0.2, ratio)));
+                  };
+                  const up = () => {
+                    window.removeEventListener("pointermove", move);
+                    window.removeEventListener("pointerup", up);
+                  };
+                  window.addEventListener("pointermove", move);
+                  window.addEventListener("pointerup", up);
+                }}
+                className="group relative w-1.5 shrink-0 cursor-col-resize bg-white/8 transition hover:bg-cyan-300/40 focus:bg-cyan-300/50 focus:outline-none"
+              >
+                <span aria-hidden className="absolute inset-y-0 -left-1.5 -right-1.5" />
+              </div>
+            ) : null}
+
+            {canvasView === "compare" ? (
+              <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
+                <PreviewFrame
+                  label="Live — what the client sees now"
+                  loading={loading}
+                  url={publishedFrameUrl}
+                  frameKey={frameKey}
+                  breakpoint={breakpoint}
+                />
+              </div>
+            ) : null}
+
+            {canvasView === "code" || canvasView === "split" ? (
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <EditorCodeCanvas projectId={projectId || undefined} repository={repository} focus={sourceFocus} />
               </div>
             ) : null}
           </div>
         </main>
 
-        <aside className="hidden w-[360px] shrink-0 flex-col border-l border-white/10 bg-[#141614] lg:flex xl:w-[400px]">
-          {/* One header, not three stacked blocks. The depth control and the
-              tab strip are the same decision seen twice — how much am I shown,
-              and which of it am I looking at — so they read as one system:
-              depth on a single compact row, tabs directly beneath it. The
-              mode's explanation moves to the control's tooltip rather than
-              spending four lines of the panel on prose. */}
-          <div className="shrink-0 border-b border-white/10">
-            <div className="flex items-center gap-1.5 px-2 py-2">
-              <Gauge size={13} aria-hidden className="shrink-0 text-white/30" />
+        {/* ── The inspector ────────────────────────────────────────────────
+            Reworked as an ACTIVITY RAIL + panel, the way an editor with a
+            growing number of tools has to be built.
+
+            A horizontal tab strip was the wrong primitive: every tool added
+            steals width from the one before it, seven tools already overflowed
+            at 360px, and the labels were the first thing sacrificed. A vertical
+            rail costs 48px once and then scales to any number of tools without
+            truncating anything — and it hands the whole panel width back to
+            the controls, which is what people are actually here to use.
+
+            Collapsing it gives the canvas the full screen; the rail stays, so
+            the way back is always visible. */}
+        {inspectorOpen ? (
+        <aside className="hidden shrink-0 border-l border-white/10 bg-[#141614] lg:flex" style={{ width: inspectorWidth }}>
+          <div className="flex min-w-0 flex-1 flex-col">
+            {/* Panel header: what this tool is, and what it is pointed at. */}
+            <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold leading-tight text-white/90">
+                  {allowedTabs.find(item => item.id === tab)?.label ?? "Inspector"}
+                </p>
+                <p className="mt-0.5 truncate text-[10px] text-white/35">
+                  {scope === "template" ? selectedTemplate?.name || "Template" : selectedClient?.name || "Client"}
+                  {tab === "repository" || tab === "code" ? "" : ` · ${selectedCustomPage?.label ?? SECTION_LABELS[section] ?? section}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectorOpen(false)}
+                aria-label="Collapse the inspector"
+                title="Collapse the inspector"
+                className="grid size-7 shrink-0 place-items-center rounded text-white/35 hover:bg-white/10 hover:text-white/85"
+              >
+                <PanelRightClose size={14} aria-hidden />
+              </button>
+            </div>
+
+            {/* Depth sits with the panel it governs, on one quiet row. */}
+            <div className="flex shrink-0 items-center gap-1.5 border-b border-white/10 px-3 py-1.5">
+              <Gauge size={12} aria-hidden className="shrink-0 text-white/25" />
               <select
                 aria-label="How deep do you want to go?"
                 title={editingMode(editingModeId).summary}
                 value={editingModeId}
                 onChange={event => changeMode(event.target.value as EditingMode)}
-                className="min-h-8 min-w-0 flex-1 rounded-md border border-white/12 bg-white/[0.05] px-2 text-[11px] font-semibold text-white/85 outline-none focus:border-cyan-300/40"
+                className="min-h-7 min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 text-[11px] font-medium text-white/65 outline-none hover:border-white/12 hover:bg-white/[0.04] focus:border-cyan-300/40"
               >
                 {EDITING_MODES.map(option => (
                   <option key={option.id} value={option.id} className="bg-[#141614]">{option.label}</option>
                 ))}
               </select>
             </div>
-            {/* Seven tabs will not fit at 360px, so the strip scrolls instead
-                of squeezing every label into an unreadable column. */}
-            <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {allowedTabs.map(item => {
-                const Icon = item.icon;
-                const active = tab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setTab(item.id)}
-                    aria-current={active ? "true" : undefined}
-                    className={`relative flex min-h-11 shrink-0 items-center gap-1.5 px-3 text-[11px] font-semibold transition ${
-                      active ? "text-cyan-300" : "text-white/40 hover:text-white/75"
-                    }`}
-                  >
-                    <Icon size={14} aria-hidden />
-                    <span>{item.label}</span>
-                    {active ? <span aria-hidden className="absolute inset-x-1.5 bottom-0 h-0.5 rounded-full bg-cyan-300" /> : null}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {portalDocument && record ? (
               <Inspector
                 assistant={assistant}
@@ -767,8 +831,45 @@ export function ClientPortalStudio({
                 selectBlock={setSelectedBlockId}
               />
             ) : <p className="text-sm text-white/45">{notice}</p>}
+            </div>
           </div>
         </aside>
+        ) : null}
+
+        {/* The activity rail. Always present, so a collapsed inspector is one
+            click from coming back, and adding an eighth tool costs nothing. */}
+        <nav aria-label="Inspector tools" className="hidden w-12 shrink-0 flex-col items-center gap-0.5 border-l border-white/10 bg-[#101210] py-2 lg:flex">
+          {allowedTabs.map(item => {
+            const Icon = item.icon;
+            const active = inspectorOpen && tab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => { setTab(item.id); setInspectorOpen(true); }}
+                aria-current={active ? "true" : undefined}
+                aria-label={item.label}
+                title={item.label}
+                className={`relative grid size-10 place-items-center rounded-md transition ${
+                  active ? "bg-white/[0.08] text-cyan-300" : "text-white/35 hover:bg-white/[0.05] hover:text-white/80"
+                }`}
+              >
+                <Icon size={17} aria-hidden />
+                {active ? <span aria-hidden className="absolute -left-1.5 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-cyan-300" /> : null}
+              </button>
+            );
+          })}
+          <span aria-hidden className="my-1 h-px w-6 bg-white/10" />
+          <button
+            type="button"
+            onClick={() => setInspectorOpen(value => !value)}
+            aria-label={inspectorOpen ? "Collapse the inspector" : "Open the inspector"}
+            title={inspectorOpen ? "Collapse the inspector" : "Open the inspector"}
+            className="grid size-10 place-items-center rounded-md text-white/35 transition hover:bg-white/[0.05] hover:text-white/80"
+          >
+            {inspectorOpen ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
+          </button>
+        </nav>
 
         <button type="button" onClick={() => setMobileInspectorOpen(true)} aria-expanded={mobileInspectorOpen} className="fixed bottom-4 right-4 z-30 inline-flex min-h-11 items-center gap-2 rounded-md bg-cyan-300 px-4 text-xs font-bold text-[#102124] shadow-lg lg:hidden"><FileText size={16} /> Edit portal</button>
         {mobileInspectorOpen ? (
@@ -1380,6 +1481,43 @@ function visibilityRuleLabel(rule: ClientPortalPageBlock["visibilityRule"]): str
   if (rule === "multiple-products") return "bundles only";
   if (rule === "specific-products") return "selected products";
   return "always visible";
+}
+
+/**
+ * One preview surface, sized to the chosen breakpoint.
+ *
+ * Extracted because the canvas can now show TWO of them at once (compare:
+ * draft against what the client is actually looking at right now), and two
+ * copies of the same iframe markup is how they drift apart.
+ */
+function PreviewFrame({ label, loading, url, frameKey, breakpoint, innerRef }: {
+  label?: string;
+  loading: boolean;
+  url: string;
+  frameKey: number;
+  breakpoint: Breakpoint;
+  innerRef?: React.RefObject<HTMLIFrameElement | null>;
+}) {
+  const fluid = breakpoint.id === "responsive" || breakpoint.id === "custom";
+  return (
+    <div className="mx-auto" style={{ width: Math.min(breakpointSize(breakpoint).width, 1440), maxWidth: "100%" }}>
+      {label ? <p className="mb-1.5 truncate text-[10px] font-semibold uppercase tracking-wide text-white/35">{label}</p> : null}
+      <div className="overflow-hidden rounded-md border border-white/12 bg-white shadow-[0_24px_80px_rgba(0,0,0,.35)] transition-[width]">
+        {loading || !url ? (
+          <div className="grid h-[70vh] place-items-center bg-[#f2f0eb] text-sm text-black/45">Loading the real portal...</div>
+        ) : (
+          <iframe
+            ref={innerRef}
+            key={`${frameKey}:${url}`}
+            title={label ?? "Client portal draft preview"}
+            src={url}
+            className="block w-full bg-white"
+            style={{ height: fluid ? "calc(100vh - 200px)" : breakpointSize(breakpoint).height }}
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 function InspectorHeading({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
