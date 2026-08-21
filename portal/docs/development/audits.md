@@ -71,6 +71,31 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-21 — 🟢 Dev Team workspace browser audit — 15/15 routes healthy after two real fixes
+
+Walked every Dev Team page in a real browser (authenticated sandbox session,
+1280px): home · roadmap plan/now/tasks · findings mine/auditor · library
+docs/logs/updates · tools inspector/editor/api · notes · editor engine ·
+plans/new. **All 15 return 200 with zero error boundaries and zero failing
+same-origin requests.** Two systemic defects found and fixed:
+
+1. **Hydration failed on EVERY dev-team page** — the shipyard `<style>` block's
+   CSS comment contained the literal text `<style>`; React 19 CSS-escapes it on
+   the server (`<\73 tyle>`) but not on the client, so the whole tree
+   regenerated client-side on each load (and dragged a React "script tag"
+   warning with it). Fixed by rewording the comment; pinned in
+   `smoke-dev-team-shell.test.ts` (no literal `<style>`/`<script>`/`</` inside
+   any inline style template).
+2. **`/favicon.ico` 404 on every tab, app-wide** — no icon was declared, so
+   browsers fell back to a path that doesn't exist. The root layout now
+   declares the shipped `favicon-default-*` set via `metadata.icons`.
+
+Post-fix re-walk: all 15 routes clean (the one remaining console line was that
+favicon 404, now gone). Visuals current everywhere — shipyard theme on shell,
+home stats/launch-readiness, roadmap schedule + lanes all render correctly; no
+"old" surfaces found. The entering-the-shipyard cutscene plays per full page
+load (~6s) and completes; SPA navigation doesn't replay it.
+
 ## 2026-08-21 — 🟢 Banner's one "observed red" is RESOLVED — `smoke-dev-tasks-parse.test.ts` now 13/13
 
 The top banner (written 2026-08-20) flags one red observed after its count was taken: `smoke-dev-tasks-parse.test.ts` failing **12 pass / 1 fail** in isolation, from a stale `/BLOCKED on Ed/i` assertion pinning a plan phase that had since shipped ("✅ Cohere — SHIPPED"). **That red no longer reproduces.** Re-ran the file alone today: the same **13 tests → 13 pass / 0 fail** (the one stale assertion was corrected, not deleted — count unchanged, the fail is gone), and it's likewise clean in the full suite.

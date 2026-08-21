@@ -85,6 +85,17 @@ describe("Dev Team shell — sidebar items", () => {
   // the SIDEBAR (the tsx) no longer carries the item.
   const sidebar = src.replace(/<style>\{`[\s\S]*?`\}<\/style>/g, "");
 
+  it("the inline style blocks carry no literal angle-bracket style/script text", () => {
+    // React 19 CSS-escapes `<` inside a server-rendered <style> ("<\\73 tyle>")
+    // but the client render does not — one such sequence in a CSS COMMENT
+    // failed hydration for EVERY dev-team page, regenerating the whole tree
+    // client-side on each load. Comments must spell it without the bracket.
+    for (const match of src.matchAll(/<style>\{`([\s\S]*?)`\}<\/style>/g)) {
+      assert.doesNotMatch(match[1], /<(?:style|script|\/)/i,
+        "inline <style> contents must not contain literal <style>/<script>/</ sequences");
+    }
+  });
+
   it("removes the 'Leave Dev Team' exit item (and its hardcoded /portal/agency bug)", () => {
     assert.doesNotMatch(sidebar, /exit-dev-team/);
     assert.doesNotMatch(sidebar, /Leave Dev Team/);

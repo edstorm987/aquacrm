@@ -113,9 +113,13 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
            Turbopack dropped these custom-property definitions when they lived in
            globals.css (the compiled sheet carried no .mm-dev-team-shell{--dev-*}
            rule, so the whole workspace fell back to app defaults). A server
-           <style> ships raw and bypasses that pipeline, exactly as the --dt-*
+           style tag ships raw and bypasses that pipeline, exactly as the --dt-*
            tokens always did. LIGHT = timber MILL; html[data-color-mode="dark"]
-           forges the FORGE. --dt-* are thin aliases so existing markup resolves. */
+           forges the FORGE. --dt-* are thin aliases so existing markup resolves.
+           (No literal angle-bracket "style"/"script" words in this comment:
+           the server CSS-escapes them inside a style element, the client does
+           not, and that one-character difference failed hydration for EVERY
+           dev-team page — the whole tree regenerated client-side on each load.) */
         .mm-dev-team-shell {
           --dev-bg: #efe3cd; --dev-surface: #f7efdd; --dev-surface-raised: #fdf9f0;
           --dev-ink: #3a2c1e; --dev-ink-muted: #6a5942; --dev-faint: #7c6a52;

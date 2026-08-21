@@ -14,6 +14,15 @@ const ScrollClassToggle = dynamic(() => import("@/components/chrome/ScrollClassT
 export const metadata: Metadata = {
   title: "AquaCRM",
   description: "AquaCRM business operations and secure client portal.",
+  // The shipped default icon, declared: without a rel=icon the browser asks
+  // for /favicon.ico, which does not exist, so every tab logged a 404.
+  icons: {
+    icon: [
+      { url: "/favicon-default.ico", sizes: "any" },
+      { url: "/favicon-default-32.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: "/favicon-default-180.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
