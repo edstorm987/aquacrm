@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert } from "lucide-react";
+import { Check, ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, PanelLeftClose, PanelLeftOpen, Plug, Search, TriangleAlert, X } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
 
@@ -44,15 +44,41 @@ export function EditorCodeCanvas({
   const [tree, setTree] = useState<TreeDirectory | null>(null);
   const [meta, setMeta] = useState<TreeResponse | null>(null);
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
-  const [file, setFile] = useState<{ contents?: string; reason?: string; editable?: boolean; readable?: boolean; kind?: string; dataUrl?: string; truncatedContents?: boolean; fingerprint?: string } | null>(null);
+  // MANY files open at once. `openPaths` is the tab strip in order; `open` is
+  // the active one. Opening a file that is already open just activates its tab.
+  const [openPaths, setOpenPaths] = useState<string[]>([]);
+  const [open, setOpenPath] = useState<string | null>(null);
+
+  function setOpen(path: string | null) {
+    setOpenPath(path);
+    if (!path) return;
+    setOpenPaths(current => (current.includes(path) ? current : [...current, path]));
+  }
+
+  function closeTab(path: string) {
+    setOpenPaths(current => {
+      const next = current.filter(item => item !== path);
+      if (path === open) {
+        const index = current.indexOf(path);
+        setOpenPath(next[Math.min(index, next.length - 1)] ?? null);
+      }
+      // Drop that file's buffer so a reopened tab is read fresh — a stale
+      // buffer is exactly what the write path refuses anyway.
+      setBuffers(all => { const copy = { ...all }; delete copy[path]; return copy; });
+      return next;
+    });
+  }
+  type OpenFile = { contents?: string; reason?: string; editable?: boolean; readable?: boolean; kind?: string; dataUrl?: string; truncatedContents?: boolean; fingerprint?: string };
+  const [files, setFiles] = useState<Record<string, OpenFile>>({});
   const [loading, setLoading] = useState(false);
   // In split view the tree competes with the file for width; let it fold away.
   const [treeOpen, setTreeOpen] = useState(true);
   // The edit buffer. Separate from `file` so the pristine contents (and the
   // fingerprint they were read at) survive editing — a save is judged against
   // what was OPENED, which is what stops it overwriting somebody else's work.
-  const [draft, setDraft] = useState<string | null>(null);
+  // One buffer per open file, keyed by path — switching tabs must not lose
+  // what was typed in the last one.
+  const [buffers, setBuffers] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
 
@@ -73,22 +99,26 @@ export function EditorCodeCanvas({
   useEffect(() => { if (focus?.path) { setOpen(focus.path); setQuery(""); } }, [focus?.path, focus?.line]);
 
   useEffect(() => {
-    if (!open) { setFile(null); setDraft(null); return; }
-    // Clear FIRST. Leaving the previous file's buffer and fingerprint in place
-    // while the next one loads meant the Save control was live over a mismatch
-    // — a buffer for one file, aimed at another. The path-bound fingerprint
-    // now refuses that server-side, but the window should not exist at all.
-    setFile(null);
-    setDraft(null);
+    if (!open) return;
     setSaveNote(null);
+    // Already open in another tab — show what is held rather than refetching
+    // and discarding whatever was typed in it.
+    if (files[open]) return;
+    const path = open;
     setLoading(true);
     const separator = search ? "&" : "?";
-    fetch(`/api/portal/site-editor/files${search}${separator}path=${encodeURIComponent(open)}`, { cache: "no-store" })
+    fetch(`/api/portal/site-editor/files${search}${separator}path=${encodeURIComponent(path)}`, { cache: "no-store" })
       .then(response => response.json())
-      .then(payload => { setFile(payload); setDraft(payload?.contents ?? null); setSaveNote(null); })
-      .catch(() => setFile({ editable: false, reason: "That file could not be read." }))
+      .then(payload => {
+        setFiles(all => ({ ...all, [path]: payload }));
+        if (typeof payload?.contents === "string") setBuffers(all => ({ ...all, [path]: payload.contents }));
+      })
+      .catch(() => setFiles(all => ({ ...all, [path]: { editable: false, reason: "That file could not be read." } })))
       .finally(() => setLoading(false));
-  }, [open, search]);
+  }, [open, search, files]);
+
+  // Changing repository/project invalidates everything that was open.
+  useEffect(() => { setOpenPaths([]); setOpenPath(null); setFiles({}); setBuffers({}); }, [search]);
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -101,7 +131,12 @@ export function EditorCodeCanvas({
     return all.filter(entry => entry.path.toLowerCase().includes(needle)).slice(0, 80);
   }, [query, tree]);
 
+  const file = open ? files[open] : undefined;
+  const draft = open ? buffers[open] ?? null : null;
   const dirty = draft != null && file?.contents != null && draft !== file.contents;
+  const dirtyPaths = new Set(
+    Object.keys(buffers).filter(path => files[path]?.contents != null && buffers[path] !== files[path]?.contents),
+  );
 
   async function save() {
     if (!open || draft == null || !file?.fingerprint) return;
@@ -120,7 +155,8 @@ export function EditorCodeCanvas({
       }
       // Adopt the new fingerprint so a second save is judged against what is
       // now on disk, not the version this pane opened.
-      setFile(current => (current ? { ...current, contents: draft, fingerprint: payload.fingerprint } : current));
+      const path = open;
+      setFiles(all => (all[path] ? { ...all, [path]: { ...all[path], contents: draft, fingerprint: payload.fingerprint } } : all));
       setSaveNote("Saved");
     } catch {
       setSaveNote("That file could not be saved.");
@@ -181,6 +217,49 @@ export function EditorCodeCanvas({
           <p className="mx-4 mt-4 flex items-center gap-2 rounded-md border border-amber-300/25 bg-amber-300/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
             <TriangleAlert size={13} aria-hidden /> The host truncated this tree — some files are missing from the list.
           </p>
+        ) : null}
+
+        {/* Tabs — many files open at once, switch without losing what was
+            typed in the last one. A dot marks unsaved changes, because a tab
+            you cannot see is exactly where unsaved work gets forgotten. */}
+        {openPaths.length ? (
+          <div role="tablist" aria-label="Open files" className="flex shrink-0 overflow-x-auto border-b border-white/8 bg-[#12150f]/60 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {openPaths.map(path => {
+              const active = path === open;
+              const name = path.split("/").pop() ?? path;
+              return (
+                <div
+                  key={path}
+                  className={`group flex shrink-0 items-center gap-1 border-r border-white/8 pl-2.5 pr-1 ${
+                    active ? "bg-[#151815] text-white/85" : "text-white/45 hover:bg-white/[0.03] hover:text-white/70"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setOpen(path)}
+                    title={path}
+                    className="max-w-[12rem] truncate py-1.5 text-[11px] font-medium"
+                  >
+                    {name}
+                  </button>
+                  {dirtyPaths.has(path) ? (
+                    <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-amber-300" />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => closeTab(path)}
+                    aria-label={`Close ${name}`}
+                    title="Close"
+                    className="grid size-4 shrink-0 place-items-center rounded text-white/25 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-white/80"
+                  >
+                    <X size={10} aria-hidden />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         ) : null}
 
         {!open ? (
@@ -259,7 +338,7 @@ export function EditorCodeCanvas({
                 {file?.editable ? (
                   <textarea
                     value={draft ?? ""}
-                    onChange={event => setDraft(event.target.value)}
+                    onChange={event => { const value = event.target.value; setBuffers(all => ({ ...all, [open]: value })); }}
                     spellCheck={false}
                     aria-label={`Edit ${open}`}
                     onKeyDown={event => {
