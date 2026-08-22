@@ -77,7 +77,10 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "plans/update", methods: ["PATCH"], handler: updatePlanHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "plans/assign", methods: ["POST"], handler: assignPlanHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "pnl", methods: ["GET"], handler: pnlSummaryHandler, visibleToRoles: [...AGENCY_ADMINS] },
-  { path: "budgets", methods: ["GET"], handler: listBudgetPotsHandler, visibleToRoles: [...AGENCY_VIEWERS] },
+  // FINANCE_ADMIN only, matching `sections.ts` and the Budgets page gate.
+  // This read used to answer 200 to agency-staff while the documented
+  // contract said finance-admin — routes.ts was the side that was wrong.
+  { path: "budgets", methods: ["GET"], handler: listBudgetPotsHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "budgets", methods: ["POST"], handler: createBudgetPotHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "budgets", methods: ["PATCH"], handler: updateBudgetPotHandler, visibleToRoles: [...AGENCY_ADMINS] },
   { path: "operations/obligations", methods: ["GET"], handler: obligationsHandler, visibleToRoles: [...AGENCY_ADMINS] },

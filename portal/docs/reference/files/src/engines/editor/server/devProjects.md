@@ -32,7 +32,7 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (25)
+## Used by (26)
 
 - [`scripts/smoke-aqua-editor-ai-history.test.ts`](../../../../scripts/smoke-aqua-editor-ai-history.test.md)
 - [`scripts/smoke-aqua-editor-ai-reply.test.ts`](../../../../scripts/smoke-aqua-editor-ai-reply.test.md)
@@ -40,6 +40,7 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`scripts/smoke-dev-editor-aqua-tag.test.ts`](../../../../scripts/smoke-dev-editor-aqua-tag.test.md)
 - [`scripts/smoke-dev-project-map.test.ts`](../../../../scripts/smoke-dev-project-map.test.md)
 - [`scripts/smoke-dev-project-nesting.test.ts`](../../../../scripts/smoke-dev-project-nesting.test.md)
+- [`scripts/smoke-editor-surface-modes.test.ts`](../../../../scripts/smoke-editor-surface-modes.test.md)
 - [`scripts/smoke-editor-words-publish.test.ts`](../../../../scripts/smoke-editor-words-publish.test.md)
 - [`scripts/smoke-element-insert.test.ts`](../../../../scripts/smoke-element-insert.test.md)
 - [`scripts/smoke-file-finding-skill.test.ts`](../../../../scripts/smoke-file-finding-skill.test.md)

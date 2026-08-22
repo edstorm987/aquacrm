@@ -8,7 +8,7 @@
 
 - `default async ClientHome({ params, searchParams, }: { params: Promise<{ clientId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>>; })`
 
-## Depends on (84)
+## Depends on (85)
 
 - [`src/app/api/tenants/client-approvals/route.ts`](../../../api/tenants/client-approvals/route.md)
 - [`src/app/api/tenants/client-requests/route.ts`](../../../api/tenants/client-requests/route.md)
@@ -43,6 +43,7 @@
 - [`src/app/portal/clients/[clientId]/toolCopy.ts`](./toolCopy.md)
 - [`src/app/portal/customer/_portalData.ts`](../../customer/_portalData.md)
 - [`src/built-ins/modules/agency-finance/src/server/index.ts`](../../../../built-ins/modules/agency-finance/src/server/index.md)
+- [`src/built-ins/runtime/_pageScope.ts`](../../../../built-ins/runtime/_pageScope.md)
 - [`src/built-ins/runtime/_registry.ts`](../../../../built-ins/runtime/_registry.md)
 - [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](../../../../components/marketing/ClientMarketingServiceWorkspace.md)
 - [`src/components/ui/CollapsibleSection.tsx`](../../../../components/ui/CollapsibleSection.md)

@@ -345,9 +345,22 @@ Every exported function, class, type and const in this area, with its real signa
 - `THROTTLE_SCOPE_NOTE = "Throttles what this page's scripts request — fetch and XHR get real latency, paced responses and offline failures. " +` — The scope, said plainly. Shown in the panel every time it opens — this is the sentence that keeps the whole feature honest, so it is exported and pinned by test rather than living…
 - `interface ThrottlePreset (4 members)` — One named speed. The numbers follow the DevTools presets people already know.
 
+### `src/components/editing/PageNavigator.tsx`
+
+- `PageNavigator({ plan, value, onPick, disabled, }: { plan: NavigatorPlan; /** The destination id currently showing, or "" when the address is unlisted. */ value: string; onPick: (destination: NavigatorDestination) => voi…` — on it.
+
+### `src/components/editing/PageSeoPanel.tsx`
+
+- `PageSeoPanel({ target, portalSeo, onPortalSeoChange, onDirtyChange, canManage, }: { target: PageSeoTarget; /** A portal page's stored values — the portal document IS its source. */ portalSeo?: PageSeo; /** Writes back i…`
+- `type PageSeoTarget = | { kind: "repository"; /** The page file whose head is written — `app/about/page.tsx`. */ path: string; /** What the operator calls this page — the navigator's label. */ label: string; projectId: s…` — What the panel is pointed at. The caller resolves this; the panel never guesses.
+
 ### `src/components/editing/RepositoryPanel.tsx`
 
 - `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope, projectId }: { repository: string; onRepositoryChange: (value: string) => void; /** * A Dev Editor Engine project. When set, the SE…` — The site's source, inside the editor rather than beside it. Code mode began as its own page, which was the wrong shape: somebody wanting the code is already looking at the thing t…
+
+### `src/components/editing/SurfaceSwitch.tsx`
+
+- `SurfaceSwitch({ resolved, onChange, disabled, }: { /** `resolveSurface(...)` — the surface in force, plus the sentence for it. */ resolved: ResolvedSurface; onChange: (next: EditorSurface) => void; disabled?: boolean; })`
 
 ### `src/components/editing/WorkLifecyclePanel.tsx`
 
@@ -372,11 +385,11 @@ Every exported function, class, type and const in this area, with its real signa
 - `async renameEditorAiThread(input: { projectId: string; threadId: string; title: string; }): Promise<EditorAiHistoryResult>`
 - `async deleteEditorAiThread(input: { projectId: string; threadId: string; }): Promise<EditorAiHistoryResult>`
 - `async clearEditorAiHistory(projectId: string): Promise<EditorAiHistoryResult>` — Wipe ONE project's history. It cannot reach the Aqua Advisor's conversations: that is a different collection behind a different endpoint, and this call names a project rather than…
-- `async requestEditorAiReply(input: { projectId: string; threadId: string; /** What the editor is pointing at — target, clicked words, source focus. */ context?: string; }): Promise<EditorAiReplyResult>` — Ask the server to answer the latest message in one project's thread. NOT routed through `post()`, and it does not throw: a reply can honestly fail — no key on the project, the pro…
+- `async requestEditorAiReply(input: { projectId: string; threadId: string; /** The exact saved user message to answer. */ messageId: string; /** What the editor is pointing at — target, clicked words, source focus. */ con…` — Ask the server to answer the latest message in one project's thread. NOT routed through `post()`, and it does not throw: a reply can honestly fail — no key on the project, the pro…
 - `EDITOR_AI_ENDPOINT = "/api/portal/dev/editor-ai"`
 - `EDITOR_AI_HISTORY_ENDPOINT = "/api/portal/dev/editor-ai/history"`
 - `EDITOR_AI_REPLY_ENDPOINT = "/api/portal/dev/editor-ai/reply"`
-- `type EditorAiReplyFailureCode = "not_configured" | "timeout" | "network" | "provider" | "empty"` — Why a reply failed, machine-readably. Declared here as well as in `engines/editor/server/editorAiReply.ts` for the same reason as `EditorAiHistoryLimits` above: that module is `se…
+- `type EditorAiReplyFailureCode = "not_configured" | "timeout" | "network" | "provider" | "empty" | "stale"` — Why a reply failed, machine-readably. Declared here as well as in `engines/editor/server/editorAiReply.ts` for the same reason as `EditorAiHistoryLimits` above: that module is `se…
 - `type EditorAiReplyResult = | { ok: true; /** The assistant's message — already in the project's thread, server-side. */ message: EditorAiMessage; threadId: string; conversation: EditorAiConversation | null; limits: Edit…`
 - `interface EditorAiHistoryLimits (4 members)` — The history cap, as the server reports it. Structurally the same as `EDITOR_AI_HISTORY_LIMITS` in `engines/editor/server/editorAiHistory.ts`, declared again here because that modu…
 - `interface EditorAiConfigResult (3 members)`
@@ -490,6 +503,13 @@ Every exported function, class, type and const in this area, with its real signa
 
 
 ## `src/components/workspaces/`
+
+### `src/components/workspaces/PluginSettingsPanel.tsx`
+
+- `PluginSettingsPanel({ initial, clientId }: { initial: PluginSettingsView; clientId?: string })`
+- `interface PluginSettingsFieldView (10 members)`
+- `interface PluginSettingsGroupView (4 members)`
+- `interface PluginSettingsView (4 members)`
 
 ### `src/components/workspaces/PluginWorkspaceNav.tsx`
 

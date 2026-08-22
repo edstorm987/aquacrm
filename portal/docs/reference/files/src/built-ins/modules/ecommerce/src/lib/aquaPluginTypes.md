@@ -4,7 +4,7 @@
 
 **What it is:** Local copy of the AquaPlugin contract.  **TODO** — byte-equivalent mirror of T1's canonical `04-the-final-portal/portal/src/plugins/_types.ts` (commit 16bc524). Keeps this plugin tsc-clean standalone. The chief commander's planned post-merge refactor replaces this file with a single re-export from the foundation.
 
-## Exports (23)
+## Exports (24)
 
 - `type PluginCategory`
 - `type PluginStatus`
@@ -24,7 +24,8 @@
 - `interface HeadInjection (4 members)`
 - `interface SettingsSchema (2 members)`
 - `interface SettingsGroup (4 members)`
-- `interface SettingsField (8 members)`
+- `interface SettingsFieldVaultTarget (2 members)`
+- `interface SettingsField (9 members)`
 - `interface PluginFeature (6 members)`
 - `interface HealthStatus (3 members)`
 - `type PluginScopePolicy`

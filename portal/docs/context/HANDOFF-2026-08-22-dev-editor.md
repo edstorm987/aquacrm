@@ -10,8 +10,9 @@ plan, 13 ticked). Do not re-explore from scratch — this file exists so you don
 
 ## 1. The one thing that matters most
 
-**13 of 18 phases shipped, each adversarially verified by 2–4 independent agents.**
-Suite **3,354 pass / 0 fail / 1 skip**, `tsc` exit 0.
+**16 of 18 phases shipped, each adversarially verified by 2–4 independent agents.**
+Suite **3,515 pass / 0 fail / 1 skip**, `tsc` exit 0. (The pass total keeps moving as
+agents add tests — **the fail count is the law**.)
 
 And the proof that isn't a test: **the editor created `hello-ed.md` in the real client
 repo `edstorm987/Beast-marks`, chained a second commit, and opened PR #1** — from the
@@ -70,15 +71,41 @@ the old portal-studio component (which is why portal assumptions stopped leaking
 
 ## 4. What is NOT done — the honest list
 
-**Phases 8, 9, 17, 18 are unstarted.** Full text in the plan; the summary:
+**Phases 17 and 18 are unstarted; 8 and 9 shipped 2026-08-22.** Full text in the plan;
+the summary:
 
-1. **Phase 8 — the navigator.** Ed: *"if i put in a website id get stuck."* The browser
-   loads ONE address and there is no way to reach the site's other pages. Three header
-   switchers: project (scoped to the door project + its children — the reasoning for
-   *door*-anchoring is written into phase 8, read it), **navigator**, surface.
-2. **Phase 9 — Website vs Normal surface modes.** Per-page SEO/OG/canonical in Website
-   mode. **Orthogonal to the editing modes** — and do NOT resurrect `projectKind`, that
-   field caused half the bugs this session.
+1. ~~**Phase 8 — the navigator.**~~ **SHIPPED 2026-08-22.** Both switchers Ed asked
+   for now exist: the door-anchored project family switcher, and the `PageNavigator`,
+   which replaced the portal-only "Portal page" select with one control for every
+   target — grouped by source (a portal's own document · a repository's routes ·
+   the links the Aqua Tag can see on this page) and always saying which source
+   answered. `engines/editor/editing/pageNavigator.ts` +
+   `components/editing/PageNavigator.tsx`, pinned by
+   `scripts/smoke-editor-navigator.test.ts`. It needed a new tag message
+   (`aqua-explorer:links`), so the drift guard grew to 27/27 mutations.
+   Phase 8's third bullet — the SURFACE switcher — shipped with phase 9 below. Like
+   everything after ~22:00 on 21 Aug, neither has ever rendered in a browser.
+2. ~~**Phase 9 — Website vs Normal surface modes.**~~ **SHIPPED 2026-08-22.** Ed's
+   THIRD switcher now exists beside the other two, in the header row that renders at
+   every width. Two surfaces, no portal mode. The default is DERIVED from what is
+   connected — a tag answering on a real `http(s)` address, and nothing else promotes
+   to Website — with a sentence naming the missing half in every other case; the
+   operator's choice always wins and persists per project. `projectKind` was not
+   resurrected: a test asserts `derivedSurface` cannot even mention it. `"seo"` is on
+   NO mode's ladder — `inspectorTabsFor` gates it on the surface alone, before the
+   ladder is consulted — so the two axes genuinely multiply. Per-page SEO is written
+   INTO THE PAGE'S OWN SOURCE (`.html` meta tags, or a plain-JSON `metadata` export in
+   an App Router page) through `seo-read`/`seo-write` on the existing
+   `/api/portal/dev/repo-write`: preview → confirm → draft branch → PR, the same path
+   as every other write. **No SEO store and no new endpoint** — a test asserts the
+   panel talks to exactly one endpoint and that no `/api/portal/dev/seo` exists. The
+   rule it lives by is *own a marked block, refuse everything else*: a page with a
+   hand-written `<title>`, a `generateMetadata`, an existing `metadata` export or a
+   `"use client"` directive is refused BY NAME with the reason.
+   `engines/editor/editing/surfaces.ts` + `pageSeo.ts`,
+   `components/editing/SurfaceSwitch.tsx` + `PageSeoPanel.tsx`, pinned by
+   `scripts/smoke-editor-surface-modes.test.ts` (73 tests). **Never rendered in a
+   browser.**
 3. **Phase 17 — the browser walk.** Large parts of the above have never rendered in a
    browser. Everything built after ~22:00 on 21 Aug is logic- and contract-tested only.
 4. **Phase 18 — the editor in a client portal.** The WHOLE editor, unchanged (Ed was
@@ -107,7 +134,16 @@ the old portal-studio component (which is why portal assumptions stopped leaking
   holds them together; do all three or none.
 - **Tab-count pins.** Several suites assert exact tab arrays and counts
   (`smoke-editor-target-aware`, `smoke-dev-editor-tag-bridge`, `smoke-editor-element-palette`,
-  `smoke-librarian`). A new tab reddens them all — rewrite loudly, never delete.
+  `smoke-librarian`, `smoke-work-lifecycle`, `smoke-editor-surface-modes`). A new tab
+  reddens them all — rewrite loudly, never delete. **Since phase 9 `inspectorTabsFor`
+  takes a third field, `surface`**, and it is REQUIRED on purpose: the disease here is
+  features that are built and never mounted, so tsc is the enforcer. Every call site in
+  every suite was rewritten with `surface: "normal"` (the universal one, and what each
+  case had always implicitly meant) plus the Website case where it adds something.
+- **A surface-owned tab is on no mode's ladder.** `SURFACE_TABS` (currently just
+  `"seo"`) is exempt from "every offered tab is on this depth's ladder" — that
+  exemption is BY NAME in the loops, not a loosened rule. If you add a second one,
+  add it to `SURFACE_TABS` and both `tabForMode`/`tabForSurface` keep working.
 - **The tag protocol drift guard** (`smoke-aqua-tag-bridge.test.ts`) proves 22/22 mutations
   detected. If you add a message, extend the guard **in both directions** and mutation-test
   it. A guard hole is exactly how the original "editor and tag speak different languages"

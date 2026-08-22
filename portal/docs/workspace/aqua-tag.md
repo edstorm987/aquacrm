@@ -289,10 +289,34 @@ pre-throttle build reads as `false`, not malformed). UI:
 `src/components/editing/NetworkThrottleControl.tsx` (presets Offline / Slow 3G
 2000ms·400kbps / Fast 3G 560ms·1500kbps / 4G 170ms·9000kbps / custom).
 
+### The navigator's link list (added 2026-08-22 — dev-editor-finish phase 8)
+The tag had always COUNTED `document.links` in its diagnostics and never said
+WHICH they were, and a number is not something anybody can pick from. The
+editor's navigator now asks: `aqua-explorer:links {requestId}` →
+`aqua-explorer:links-found {requestId, links:[{href,label}]}`.
+
+**Same-origin only, applied in the TAG rather than filtered afterwards** — the
+editor trusts exactly one origin, so a row pointing at another domain would land
+the operator on a page the editor then refuses to speak to. Hash and query are
+dropped (`url.origin + url.pathname` — `#pricing` is the same page),
+destinations are deduplicated, and the list is capped at 60 so a thousand-row
+index cannot flood a postMessage. The label is the link's own words, falling
+back to `aria-label`/`title`, capped at 80 characters.
+
+The editor asks on every completed handshake, so navigating the preview re-asks
+for the NEW page. A tag served from cache can be a build from before this
+message existed — it simply never answers — so the editor times out at 2s and
+says so in words rather than showing an empty list forever.
+
+The drift guard covers it in both directions: the reply envelope and one link
+literal are pinned to `AQUA_TAG_LINKS_MESSAGE_FIELDS` /
+`AQUA_TAG_PAGE_LINK_FIELDS`, and five new single-side mutations were added to
+`DRIFTS` — the guard now detects **27/27**, up from 22/22.
+
 ## 13. Tests
 `scripts/smoke-aqua-tag-detection.test.ts`, `smoke-consent-capture.test.ts`,
 `smoke-website-sources.test.ts`, `smoke-enquiry-dedupe.test.ts`,
-`smoke-aqua-tag-bridge.test.ts` (protocol drift guard incl. throttle envelopes
-+ mutation-tested), `smoke-aqua-tag-throttle.test.ts` (VM-executes the tag:
+`smoke-aqua-tag-bridge.test.ts` (protocol drift guard incl. throttle and page-link
+envelopes + mutation-tested, 27/27), `smoke-aqua-tag-throttle.test.ts` (VM-executes the tag:
 lazy wrap, real latency, pacing, offline, restore),
 `smoke-network-throttle-control.test.ts` (wifi control pins).

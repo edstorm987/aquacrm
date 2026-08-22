@@ -22,8 +22,14 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (51)
+## Used by (58)
 
+- [`scripts/smoke-finance-section-gates.test.ts`](../../scripts/smoke-finance-section-gates.test.md)
+- [`scripts/smoke-plugin-api-host-gates.test.ts`](../../scripts/smoke-plugin-api-host-gates.test.md)
+- [`scripts/smoke-plugin-api-tenancy.test.ts`](../../scripts/smoke-plugin-api-tenancy.test.md)
+- [`scripts/smoke-plugin-page-host-gates.test.ts`](../../scripts/smoke-plugin-page-host-gates.test.md)
+- [`scripts/smoke-plugin-settings-surface.test.ts`](../../scripts/smoke-plugin-settings-surface.test.md)
+- [`scripts/smoke-truthful-surfaces.test.ts`](../../scripts/smoke-truthful-surfaces.test.md)
 - [`scripts/smoke-website-signup-lead.test.ts`](../../scripts/smoke-website-signup-lead.test.md)
 - [`src/app/api/auth/signup/route.ts`](../app/api/auth/signup/route.md)
 - [`src/app/api/portal/journey/payment-request/route.ts`](../app/api/portal/journey/payment-request/route.md)
@@ -72,6 +78,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/lib/server/finance/financeCurrency.ts`](../lib/server/finance/financeCurrency.md)
 - [`src/lib/server/finance/financeWorkforce.ts`](../lib/server/finance/financeWorkforce.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../lib/server/inbox/operationalAlerts.md)
+- [`src/lib/server/plugins/pluginSettingsSurface.ts`](../lib/server/plugins/pluginSettingsSurface.md)
 - [`src/lib/server/seeds/aquaOasisSeed.ts`](../lib/server/seeds/aquaOasisSeed.md)
 - [`src/lib/server/seeds/demoSeed.ts`](../lib/server/seeds/demoSeed.md)
 - [`src/lib/server/websiteEnquiryLeadSync.ts`](../lib/server/websiteEnquiryLeadSync.md)

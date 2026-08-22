@@ -179,7 +179,7 @@
 - `type ClientPortalMode`
 - `type ClientPortalSectionId`
 - `interface ClientPortalStagePresentation (6 members)`
-- `interface ClientPortalPagePresentation (5 members)`
+- `interface ClientPortalPagePresentation (6 members)`
 - `type ClientPortalExtensionPlacement`
 - `interface ClientPortalCustomCode (8 members)`
 - `type ClientPortalBlockType`
@@ -199,7 +199,7 @@
 - `interface ClientPortalBlockMedia (5 members)`
 - `interface ClientPortalBlockItem (5 members)`
 - `interface ClientPortalPageBlock (21 members)`
-- `interface ClientPortalCustomPage (5 members)`
+- `interface ClientPortalCustomPage (6 members)`
 - `interface ClientPortalBuilderDocument (2 members)`
 - `interface ClientPortalDesignDocument (8 members)`
 - `interface ClientPortalDesignVersion (6 members)`
@@ -249,7 +249,7 @@
 - `interface DevProject (18 members)`
 - `interface EditorAiConfig (10 members)`
 - `interface EditorAiStatus (7 members)`
-- `interface EditorAiMessage (6 members)`
+- `interface EditorAiMessage (7 members)`
 - `interface EditorAiThread (5 members)`
 - `interface EditorAiConversation (6 members)`
 - `interface RadarMemoryIssueState (11 members)`
@@ -303,12 +303,14 @@
 - `interface CustomKpiDefinition (9 members)`
 - `interface PortalState (82 members)`
 
-## Depends on (1)
+## Depends on (2)
 
+- [`src/engines/editor/editing/pageSeo.ts`](../engines/editor/editing/pageSeo.md)
 - [`src/engines/editor/elements/block.ts`](../engines/editor/elements/block.md)
 
-## Used by (404)
+## Used by (411)
 
+- [`scripts/smoke-app-route-tenancy.test.ts`](../../scripts/smoke-app-route-tenancy.test.md)
 - [`scripts/smoke-aqua-editor-ai-history.test.ts`](../../scripts/smoke-aqua-editor-ai-history.test.md)
 - [`scripts/smoke-aqua-editor-ai-reply.test.ts`](../../scripts/smoke-aqua-editor-ai-reply.test.md)
 - [`scripts/smoke-aqua-editor-ai-stale-key-panel.harness.tsx`](../../scripts/smoke-aqua-editor-ai-stale-key-panel.harness.md)
@@ -329,9 +331,11 @@
 - [`scripts/smoke-dev-editor-aqua-tag.test.ts`](../../scripts/smoke-dev-editor-aqua-tag.test.md)
 - [`scripts/smoke-dev-project-map.test.ts`](../../scripts/smoke-dev-project-map.test.md)
 - [`scripts/smoke-dev-project-nesting.test.ts`](../../scripts/smoke-dev-project-nesting.test.md)
+- [`scripts/smoke-editor-surface-modes.test.ts`](../../scripts/smoke-editor-surface-modes.test.md)
 - [`scripts/smoke-editor-words-publish.test.ts`](../../scripts/smoke-editor-words-publish.test.md)
 - [`scripts/smoke-element-insert.test.ts`](../../scripts/smoke-element-insert.test.md)
 - [`scripts/smoke-file-finding-skill.test.ts`](../../scripts/smoke-file-finding-skill.test.md)
+- [`scripts/smoke-finance-section-gates.test.ts`](../../scripts/smoke-finance-section-gates.test.md)
 - [`scripts/smoke-google-command-calendar.test.ts`](../../scripts/smoke-google-command-calendar.test.md)
 - [`scripts/smoke-kpi-registry.test.ts`](../../scripts/smoke-kpi-registry.test.md)
 - [`scripts/smoke-lead-role.test.ts`](../../scripts/smoke-lead-role.test.md)
@@ -340,6 +344,9 @@
 - [`scripts/smoke-organisations.test.ts`](../../scripts/smoke-organisations.test.md)
 - [`scripts/smoke-person-destination.test.ts`](../../scripts/smoke-person-destination.test.md)
 - [`scripts/smoke-persons.test.ts`](../../scripts/smoke-persons.test.md)
+- [`scripts/smoke-plugin-api-host-gates.test.ts`](../../scripts/smoke-plugin-api-host-gates.test.md)
+- [`scripts/smoke-plugin-api-tenancy.test.ts`](../../scripts/smoke-plugin-api-tenancy.test.md)
+- [`scripts/smoke-plugin-page-host-gates.test.ts`](../../scripts/smoke-plugin-page-host-gates.test.md)
 - [`scripts/smoke-portal-element-parity.harness.tsx`](../../scripts/smoke-portal-element-parity.harness.md)
 - [`scripts/smoke-portal-elements.test.ts`](../../scripts/smoke-portal-elements.test.md)
 - [`scripts/smoke-product-assignment-adaptation.test.ts`](../../scripts/smoke-product-assignment-adaptation.test.md)
@@ -532,7 +539,6 @@
 - [`src/app/portal/clients/[clientId]/_ClientOperatingPlan.tsx`](../app/portal/clients/[clientId]/_ClientOperatingPlan.md)
 - [`src/app/portal/clients/[clientId]/_ClientRecordWorkspace.tsx`](../app/portal/clients/[clientId]/_ClientRecordWorkspace.md)
 - [`src/app/portal/clients/[clientId]/_ClientServiceAssignment.tsx`](../app/portal/clients/[clientId]/_ClientServiceAssignment.md)
-- [`src/app/portal/clients/[clientId]/layout.tsx`](../app/portal/clients/[clientId]/layout.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/clients/[clientId]/settings/page.tsx`](../app/portal/clients/[clientId]/settings/page.md)
 - [`src/app/portal/clients/_IdentityReviewWorkspace.tsx`](../app/portal/clients/_IdentityReviewWorkspace.md)
@@ -569,6 +575,7 @@
 - [`src/app/portal/team/_TeamWorkspace.tsx`](../app/portal/team/_TeamWorkspace.md)
 - [`src/built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.tsx`](../built-ins/modules/agency-finance/src/components/FinanceOperationsWorkspace.md)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../built-ins/modules/leads-pipeline/src/api/handlers.md)
+- [`src/built-ins/runtime/_pageScope.ts`](../built-ins/runtime/_pageScope.md)
 - [`src/built-ins/runtime/_routeResolver.ts`](../built-ins/runtime/_routeResolver.md)
 - [`src/built-ins/runtime/_runtime.ts`](../built-ins/runtime/_runtime.md)
 - [`src/built-ins/runtime/_types.ts`](../built-ins/runtime/_types.md)
@@ -662,6 +669,7 @@
 - [`src/lib/server/integrations/googleCalendar.ts`](../lib/server/integrations/googleCalendar.md)
 - [`src/lib/server/integrations/integrationConnections.ts`](../lib/server/integrations/integrationConnections.md)
 - [`src/lib/server/onboardingMilestones.ts`](../lib/server/onboardingMilestones.md)
+- [`src/lib/server/portal/apiTenantScope.ts`](../lib/server/portal/apiTenantScope.md)
 - [`src/lib/server/portal/previewPhase.ts`](../lib/server/portal/previewPhase.md)
 - [`src/lib/server/seeds/aquaOasisSeed.ts`](../lib/server/seeds/aquaOasisSeed.md)
 - [`src/lib/server/seeds/demoSeed.ts`](../lib/server/seeds/demoSeed.md)

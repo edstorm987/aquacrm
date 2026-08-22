@@ -1,6 +1,21 @@
 # Finding — Stripe can never be configured; the error message points at a surface that does not exist
 
-- **Status:** open
+- **Status:** fixed
+- **Closed by:** a GENERIC settings surface that renders whatever a manifest declares —
+  `describePluginSettings` / `writePluginSettings`
+  (`src/lib/server/plugins/pluginSettingsSurface.ts`), the
+  `/api/portal/plugins/settings` endpoint, and `PluginSettingsPanel`
+  (`src/components/workspaces/PluginSettingsPanel.tsx`), mounted on the finance Settings
+  page. Password fields declare `secretVault: { provider, field }` and are written to the
+  encrypted integrations vault, never to `install.config` (which reaches the browser
+  through page props) and never echoed back; the registry validator now REFUSES a password
+  field without a vault target. `installConfigWithSecrets`
+  (`src/lib/server/plugins/pluginSecretConfig.ts`) merges the vault's values back under
+  their manifest ids, so `stripeConfigured` / `readStripeKeysFromInstall` see them — wired
+  through the finance stripe handlers, `InvoiceDetailPage`, `close-deal`, and the same
+  three readers in `ecommerce`. Pinned by
+  `scripts/smoke-plugin-settings-surface.test.ts`, whose first case is the contract this
+  finding asked for, run over every registered plugin.
 - **Severity:** high
 - **Where:** `/portal/agency/agency-finance/settings`
 - **Found:** 22 Aug 2026

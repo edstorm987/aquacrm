@@ -438,7 +438,13 @@ describe("the lifecycle tabs — declared on the developer ladder only", () => {
   it("rides the rail on EVERY developer target — a repo-less project is told in the panel, not by a vanishing tab", () => {
     for (const portalTarget of [true, false]) {
       for (const tagMapped of [true, false]) {
-        const tabs = inspectorTabsFor("developer", { portalTarget, tagMapped }) as readonly string[];
+        // `surface` added 2026-08-22 (phase 9). The lifecycle trio is on the
+        // DEPTH ladder, so it must be offered on either surface — walking both
+        // is stronger than the single call this replaced.
+        const tabs = [
+          ...inspectorTabsFor("developer", { portalTarget, tagMapped, surface: "normal" }),
+          ...inspectorTabsFor("developer", { portalTarget, tagMapped, surface: "website" }),
+        ] as readonly string[];
         for (const tab of ["drafts", "history", "notes"]) {
           assert.ok(tabs.includes(tab), `developer must offer ${tab} (portalTarget=${portalTarget}, tagMapped=${tagMapped})`);
         }

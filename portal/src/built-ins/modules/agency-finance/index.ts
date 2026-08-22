@@ -9,7 +9,7 @@ import type {
 } from "./src/lib/aquaPluginTypes";
 import { ROUTES } from "./src/api/routes";
 import { _containerFromCtx } from "./src/server/foundationAdapter";
-import { FINANCE_SECTIONS } from "./src/lib/sections";
+import { FINANCE_SECTIONS, financePageRoles } from "./src/lib/sections";
 
 const manifest: AquaPlugin = {
   id: "agency-finance",
@@ -46,19 +46,24 @@ const manifest: AquaPlugin = {
     visibleToRoles: [...section.roles],
   })),
 
+  // `visibleToRoles` here is the REAL gate — the host calls
+  // `pluginPageAllowedRoles(page)` and 404s before the component is imported,
+  // so Operations never renders (and never SSRs salaries) for staff. Derived
+  // from the same section list as `navItems` above via `financePageRoles`, so
+  // the tab you cannot see is also the page you cannot open.
   pages: [
-    { path: "", component: () => import("./src/pages/FounderDashboardPage") },
-    { path: "invoices", component: () => import("./src/pages/InvoicesPage") },
-    { path: "invoices/:id", component: () => import("./src/pages/InvoiceDetailPage") },
-    { path: "expenses", component: () => import("./src/pages/ExpensesPage") },
-    { path: "reports", component: () => import("./src/pages/ReportsPage") },
-    { path: "budgets", component: () => import("./src/pages/BudgetsPage") },
-    { path: "planning", component: () => import("./src/pages/PlanningPage") },
-    { path: "operations", component: () => import("./src/pages/OperationsPage") },
-    { path: "payments", component: () => import("./src/pages/PaymentsPage") },
-    { path: "plans", component: () => import("./src/pages/PlansPage") },
-    { path: "lock-in", component: () => import("./src/pages/LockInPage") },
-    { path: "settings", component: () => import("./src/pages/SettingsPage") },
+    { path: "", component: () => import("./src/pages/FounderDashboardPage"), visibleToRoles: [...financePageRoles("")] },
+    { path: "invoices", component: () => import("./src/pages/InvoicesPage"), visibleToRoles: [...financePageRoles("invoices")] },
+    { path: "invoices/:id", component: () => import("./src/pages/InvoiceDetailPage"), visibleToRoles: [...financePageRoles("invoices/:id")] },
+    { path: "expenses", component: () => import("./src/pages/ExpensesPage"), visibleToRoles: [...financePageRoles("expenses")] },
+    { path: "reports", component: () => import("./src/pages/ReportsPage"), visibleToRoles: [...financePageRoles("reports")] },
+    { path: "budgets", component: () => import("./src/pages/BudgetsPage"), visibleToRoles: [...financePageRoles("budgets")] },
+    { path: "planning", component: () => import("./src/pages/PlanningPage"), visibleToRoles: [...financePageRoles("planning")] },
+    { path: "operations", component: () => import("./src/pages/OperationsPage"), visibleToRoles: [...financePageRoles("operations")] },
+    { path: "payments", component: () => import("./src/pages/PaymentsPage"), visibleToRoles: [...financePageRoles("payments")] },
+    { path: "plans", component: () => import("./src/pages/PlansPage"), visibleToRoles: [...financePageRoles("plans")] },
+    { path: "lock-in", component: () => import("./src/pages/LockInPage"), visibleToRoles: [...financePageRoles("lock-in")] },
+    { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...financePageRoles("settings")] },
   ],
 
   api: ROUTES,
@@ -119,12 +124,18 @@ const manifest: AquaPlugin = {
         id: "online-payments",
         label: "Online payments (Stripe)",
         fields: [
+          // Both keys land in the encrypted integrations vault under the
+          // `stripe` provider — NEVER on `install.config`, which is handed to
+          // page props and therefore to the browser. `secretVault` is what
+          // makes that routing happen; the registry validator refuses a
+          // password field without it.
           {
             id: "stripeSecretKey",
             label: "Stripe secret key",
             type: "password",
             placeholder: "sk_test_… (start with a TEST key)",
             helpText: "Your own Stripe key — money flows to your Stripe account directly; the app never holds funds. Use a TEST key (sk_test_…) until you have verified the flow end to end.",
+            secretVault: { provider: "stripe", field: "secretKey" },
           },
           {
             id: "stripeWebhookSecret",
@@ -132,6 +143,7 @@ const manifest: AquaPlugin = {
             type: "password",
             placeholder: "whsec_…",
             helpText: "From your Stripe webhook endpoint. Point the endpoint at /api/portal/agency-finance/stripe/webhook?agencyId=<your agency id>. Required to verify incoming events.",
+            secretVault: { provider: "stripe", field: "webhookSecret" },
           },
           {
             id: "successUrl",

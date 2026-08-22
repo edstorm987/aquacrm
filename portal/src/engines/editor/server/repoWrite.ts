@@ -12,6 +12,17 @@ import {
   type RepoFile,
 } from "./githubSource";
 import { isMappableFile } from "./registry";
+// Per-page SEO (phase 9). Pure: it decides what a head should say and where in
+// a file it goes. The COMMIT is this module's, unchanged — see the section at
+// the bottom for why there is no second write path.
+import {
+  planPageSeoEdit,
+  readPageSeo,
+  seoMechanismFor,
+  type PageSeo,
+  type PageSeoRefusalReason,
+  type SeoMechanism,
+} from "@/engines/editor/editing/pageSeo";
 import { planSourceInsert, type InsertAnchor } from "./sourceInsert";
 import { editBranchName, sourceEditTarget, type SourceEditDeps } from "./sourceEdit";
 import type { DevProject } from "@/server/types";
@@ -73,7 +84,16 @@ export type RepoWriteRefusal = {
     // ── the in-editor merge + revert (phase 14) ──
     | "no-pull-request"
     | "merge-failed"
-    | "nothing-to-revert";
+    | "nothing-to-revert"
+    // ── per-page SEO, the Website surface (phase 9) ──
+    // Each one is a DIFFERENT refusal on purpose: "this file has no head I can
+    // write" and "this page already writes its own head" are things the
+    // operator fixes in two different ways, so they must not collapse into
+    // one message.
+    | "seo-unsupported"
+    | "seo-no-head"
+    | "seo-conflict"
+    | "seo-invalid";
   error: string;
 };
 
@@ -883,6 +903,207 @@ export async function insertElementIntoRepo(
     fingerprint: currentFingerprint,
     confirm: true,
     message: `Aqua Editor: insert ${input.label?.trim() || "an element"} into ${path}:${plan.line}`,
+  }, deps);
+  if (!saved.ok) return saved;
+
+  return {
+    ok: true,
+    ...shape,
+    published: saved.published,
+    commitSha: saved.commitSha,
+    fingerprint: saved.fingerprint,
+    summary: saved.summary,
+  };
+}
+
+// ─── Per-page SEO — the Website surface (phase 9) ────────────────────────────
+//
+// Ed: "website mode im going to need a specialied thing to do the seo and tags
+// and everything like that per page".
+//
+// THE POINT OF PUTTING IT HERE rather than in a module of its own: the values
+// go down the SAME path as every other write this editor makes. A read is a
+// draft-first read; a write is `saveRepoFile` — same branch, same lock, same
+// re-read, same fingerprint refusal, same pull request. There is no SEO store,
+// no second commit path and no second GitHub client. The only thing phase 9
+// adds is what the new contents should SAY, and that is decided by
+// `editing/pageSeo.ts`, which is pure and knows nothing about a repository.
+
+export type ReadPageSeoResult =
+  | {
+      ok: true;
+      path: string;
+      repository: string;
+      branch: string;
+      seo: PageSeo;
+      /** True when the editor's own marked block is already in the file. */
+      found: boolean;
+      /** A head somebody else wrote in this file. Shown, never worked around. */
+      conflict: string | null;
+      mechanism: SeoMechanism;
+      /** What the editor would be writing into, or why it will not. */
+      sentence: string;
+      /** Send it back with the write, so a file that moved refuses. */
+      fingerprint: string;
+    }
+  | RepoWriteRefusal;
+
+/**
+ * What a page's head currently says — read from the draft branch first.
+ *
+ * Draft-first for the same reason every other read here is: a title committed
+ * to the branch two saves ago is what the page says now, and reading base
+ * would show the operator a stale value and then invite them to "fix" it.
+ */
+export async function readPageSeoFromRepo(
+  input: { agencyId: string; project: DevProject; path: string },
+  deps: RepoWriteDeps = {},
+): Promise<ReadPageSeoResult> {
+  const source = sourceEditTarget(input.agencyId, input.project, deps);
+  const branch = editBranchName(input.project);
+
+  const checked = normalizeRepoPath(input.path);
+  if (!checked.ok) return { ok: false, reason: "bad-path", error: checked.error };
+  const path = checked.path;
+
+  const answer = seoMechanismFor(path);
+  if (answer.mechanism !== "html" && answer.mechanism !== "next-metadata") {
+    return { ok: false, reason: "seo-unsupported", error: answer.sentence };
+  }
+
+  const current = await readDraftFirst(source, branch, path, deps);
+  if ("ok" in current && current.ok === false) return current;
+  const file = current as RepoFile;
+  if (!file.editable || typeof file.contents !== "string") {
+    return { ok: false, reason: "unreadable", error: file.reason ?? "That file cannot be read here." };
+  }
+
+  const read = readPageSeo({ contents: file.contents, file: path });
+  return {
+    ok: true,
+    path,
+    repository: source.repository,
+    branch,
+    seo: read.seo,
+    found: read.found,
+    conflict: read.conflict,
+    mechanism: answer.mechanism,
+    sentence: answer.sentence,
+    fingerprint: hashFile(file.contents),
+  };
+}
+
+export interface WritePageSeoInput {
+  agencyId: string;
+  project: DevProject;
+  path: string;
+  seo: PageSeo;
+  /** From the PREVIEW. The confirm call must carry it back. */
+  fingerprint?: string;
+  /** Nothing is committed unless this is exactly `true`. */
+  confirm?: boolean;
+}
+
+export type WritePageSeoResult =
+  | {
+      ok: true;
+      path: string;
+      repository: string;
+      branch: string;
+      /** False on the preview pass — nothing was written. */
+      published: boolean;
+      commitSha?: string;
+      /** Exactly the lines that go in, so the operator confirms the real diff. */
+      lines: string[];
+      /** 1-based line the block starts on in the new contents. */
+      line: number;
+      action: "insert" | "replace" | "remove";
+      mechanism: SeoMechanism;
+      fingerprint: string;
+      summary: string;
+    }
+  | RepoWriteRefusal;
+
+/** `planPageSeoEdit`'s refusals → this module's, one for one. No collapsing. */
+const SEO_PLAN_REASON: Record<PageSeoRefusalReason, RepoWriteRefusal["reason"]> = {
+  unsupported: "seo-unsupported",
+  "no-head": "seo-no-head",
+  conflict: "seo-conflict",
+  invalid: "seo-invalid",
+  "no-change": "no-change",
+};
+
+/**
+ * Put a page's SEO into its own source — preview first, then commit.
+ *
+ * Two calls, exactly like the element insert: the first (no `confirm`) plans
+ * the block and returns the lines and a fingerprint and writes NOTHING; the
+ * second carries that fingerprint back with `confirm: true` and commits
+ * through `saveRepoFile`. A page's title is a thing a client will read on
+ * Google; it does not get committed by a form nobody confirmed.
+ */
+export async function writePageSeoToRepo(
+  input: WritePageSeoInput,
+  deps: RepoWriteDeps = {},
+): Promise<WritePageSeoResult> {
+  const source = sourceEditTarget(input.agencyId, input.project, deps);
+  const branch = editBranchName(input.project);
+
+  const checked = normalizeRepoPath(input.path);
+  if (!checked.ok) return { ok: false, reason: "bad-path", error: checked.error };
+  const path = checked.path;
+
+  const answer = seoMechanismFor(path);
+  if (answer.mechanism !== "html" && answer.mechanism !== "next-metadata") {
+    return { ok: false, reason: "seo-unsupported", error: answer.sentence };
+  }
+
+  const current = await readDraftFirst(source, branch, path, deps);
+  if ("ok" in current && current.ok === false) return current;
+  const file = current as RepoFile;
+  if (!file.editable || typeof file.contents !== "string") {
+    return { ok: false, reason: "unreadable", error: file.reason ?? "That file cannot be edited here." };
+  }
+
+  const currentFingerprint = hashFile(file.contents);
+  if (input.fingerprint && input.fingerprint !== currentFingerprint) {
+    return { ok: false, reason: "stale-fingerprint", error: STALE_MESSAGE };
+  }
+
+  const plan = planPageSeoEdit({ contents: file.contents, file: path, seo: input.seo });
+  if (!plan.ok) return { ok: false, reason: SEO_PLAN_REASON[plan.reason], error: plan.detail };
+  if (Buffer.byteLength(plan.newContents, "utf-8") > MAX_EDITABLE_BYTES) {
+    return { ok: false, reason: "too-large", error: "That file would become too large to save here." };
+  }
+
+  const shape = {
+    path,
+    repository: source.repository,
+    branch,
+    lines: plan.lines,
+    line: plan.line,
+    action: plan.action,
+    mechanism: plan.mechanism,
+  };
+
+  if (input.confirm !== true) {
+    return {
+      ok: true,
+      ...shape,
+      published: false,
+      fingerprint: currentFingerprint,
+      summary: `Nothing committed yet. ${plan.summary} Confirm to put it on the draft branch.`,
+    };
+  }
+
+  const saved = await saveRepoFile({
+    agencyId: input.agencyId,
+    project: input.project,
+    path,
+    contents: plan.newContents,
+    fingerprint: currentFingerprint,
+    confirm: true,
+    message: `Aqua Editor: ${plan.action === "remove" ? "remove the SEO block from" : "set the page SEO on"} ${path}`,
   }, deps);
   if (!saved.ok) return saved;
 

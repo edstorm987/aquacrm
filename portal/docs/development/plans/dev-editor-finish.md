@@ -2,10 +2,16 @@
 
 ← [development.md](../../development.md) · map: [aqua dev.md](../../../aqua%20dev.md) · engine plan: [dev-editor-engine.md](dev-editor-engine.md) · inspector: [dev-editor-inspector.md](dev-editor-inspector.md)
 
-**Status: in progress — refreshed against the tree on 2026-08-22. Fourteen of the
-eighteen phases are source-complete; phase 8 is partial (project family done,
-navigator missing), phase 9 is open, phase 17's complete browser acceptance walk is
-open, and phase 18 is open.** The architecture is right (one universal editor,
+**Status: in progress — refreshed against the tree on 2026-08-22. Sixteen of the
+eighteen phases are source-complete; phase 8 is done (project family, navigator AND
+the surface switcher its third bullet asked for), phase 9 is done (Website vs Normal,
+with per-page SEO written into the page's own source), phase 17's complete browser
+acceptance walk is open, and phase 18 is open. Nothing in phases 8 or 9 has rendered
+in a browser. A second pass on 2026-08-22 closed eleven verifier-proven defects
+across phases 8 and 9 — line endings, the card size, `.js` heads, the layout's
+reachability, the tag-link origin policy, `public/*.html` routes, the unsaved-SEO
+prompt, and `portalTarget`'s last read of `projectKind` — see
+[updates.md](../updates.md).** The architecture is right (one universal editor,
 shared strict tag protocol). The Aqua Tag itself has been browser-walked on a real
 client site, but the full edit → persist → publish lifecycle has not. Phase 18 is the
 point of the whole exercise: clients editing their own websites.
@@ -223,7 +229,12 @@ phase below either moves toward that or is not worth doing.
    touching `types.ts`/`storage.ts`, which the nesting pass owns today. The
    "Saved" group in the `+` is the follow-up once a store exists.
 
-8. **Three switcher bars in the header, and the navigator.** Ed: *"i suppose 2 of
+8. ✅ **Three switcher bars in the header, and the navigator.** *(ALL THREE shipped
+   2026-08-22 — the project switcher, the navigator, and the surface switcher, which
+   shipped alongside phase 9 and is ticked in its own bullet below. This parenthetical
+   used to say the surface switcher was "still to build", contradicting both the status
+   block at the top of this plan and the ✅ on that bullet twenty lines down; corrected
+   2026-08-22.)* Ed: *"i suppose 2 of
    them in total projects selector and the navigation selector"*, then *"maybe its
    worth having a 3rd switcher to switch what it is"*. So:
 
@@ -262,20 +273,79 @@ phase below either moves toward that or is not worth doing.
      workspace — never the whole agency" to expect the family and still ban
      `projects.map(` over the whole agency. That implementation and the
      rewritten walkthrough pin are now in the tree.
-   - **Navigator** — the missing one. *"if i put in a website id get stuck"*: today
-     the browser loads one address and there is no way to reach the site's other
-     pages. List the project's pages/routes and jump between them. Source it from
-     what is actually known — a portal's pages, a repo's routes, or the tag
-     reporting the links it can see on the page — and say which. Not a URL bar:
-     a list you can pick from.
-   - **Surface switcher** — "what this is", which **adapts the editor** (phase 9).
+   - ✅ **Navigator** *(shipped 2026-08-22)* — *"if i put in a website id get
+     stuck"*: the browser loaded one address and there was no way to reach the
+     site's other pages, because the header's only page control was a
+     portal-only `aria-label="Portal page"` select. **That select is gone.**
+     One `PageNavigator` now serves every target, in the same place, grouped BY
+     SOURCE and always saying which source answered — the rule the whole thing
+     is built around, because a page list with no provenance is worse than no
+     page list.
+
+     *As built:* `engines/editor/editing/pageNavigator.ts` is pure and does the
+     thinking. `repositoryRoutes(paths)` derives routes from paths alone — App
+     Router (`app/…/page.tsx`; route groups dropped, `_private`, `@slot` and
+     `(.)intercept` refused because none of them has a URL), Pages Router
+     (`index` dropped, `api` and `_app`/`_document` refused) and plain `.html`
+     at the root or under `public/`. Both router patterns are ANCHORED at the
+     repository root — a folder merely named `pages` deeper in a tree is not a
+     router, and unanchored this repo's own
+     `built-ins/modules/agency-finance/src/pages/ActivityPage.tsx` read as the
+     route `/ActivityPage` (181 rows, a third of them 404s the navigator had
+     promised were pages). A route it MISSES is a gap the sentence admits to; a
+     route it INVENTS is a lie. A dynamic route is LISTED and NOT openable
+     — `/blog/[slug]` exists and you should see that it exists, but opening it
+     without a real value is a 404 with the editor's name on it.
+     `navigatorPlan()` groups the three sources, counts them and writes the one
+     sentence under the control, including every way of failing to answer: a
+     truncated GitHub tree, routes needing a value, a repository that could not
+     be read, a tag build too old to reply, and "nothing here can list this
+     project's pages yet". `navigatorHref()` joins a route onto the address the
+     browser is on and drops its query and hash — `?ref=email` belonged to the
+     previous page. Picking a portal page changes `section`/`customPageId`;
+     picking anything else sets `browserUrl`, which changes `previewSrc`, which
+     remounts the frame, whose `onLoad` pings — so **the tag re-handshakes by
+     itself** and nothing races the load.
+
+     **The repo half checked first, and reused.** No new endpoint: repo-write
+     `action: "insert-targets"` already answers "this repository's files,
+     branch-first" with the tenant-then-project lookup and the per-request
+     vault token. One honest consequence, **stated precisely after a verifier
+     found the loose version half wrong (2026-08-22)**: that list is filtered by
+     `isMappableFile` (`.tsx/.jsx/.html/.md/.mdx`), so a page written as plain
+     `page.js` never reaches the navigator. The DERIVATION does handle it —
+     `repositoryRoutes(["app/page.js"])` really does answer `/` — but until
+     2026-08-22 `seoMechanismFor` accepted only `.tsx`/`.jsx`, so had the filter
+     ever let one through, the navigator would have offered a route the SEO
+     panel then refused BY NAME. Both rules now take the same extension list
+     (`tsx|jsx|js|mjs`, `.mdx` deliberately excluded, because an MDX page's head
+     is built by whatever renders it) and `smoke-editor-surface-modes`
+     cross-pins them in BOTH directions.
+
+     **The tag half needed a protocol message, and the explorer did NOT already
+     report links** — it only ever COUNTED them (`counts.links`), and a number
+     is not something you can pick from. So `aqua-explorer:links` /
+     `aqua-explorer:links-found {requestId, links:[{href,label}]}` was added,
+     same-origin filtered IN THE TAG (the editor trusts exactly one origin),
+     hash/query stripped, deduplicated, capped at 60. The drift guard was
+     extended in BOTH directions — the reply envelope and one link literal — and
+     five new single-side mutations added: it now detects **27/27**, up from
+     22/22.
+   - ✅ **Surface switcher** *(shipped 2026-08-22 with phase 9)* — "what this is",
+     which **adapts the editor**. `components/editing/SurfaceSwitch.tsx`, in the
+     header's second row beside the navigator (NOT the top bar, which is `xl:`
+     and up — a switcher that decides whether the SEO panel is reachable cannot
+     be one that disappears at 1279px). Two buttons rather than a select,
+     because with exactly two options a select hides one of them behind a click
+     and this choice changes what the editor OFFERS.
 
    ✅ Also add the `+` to the right-hand inspector rail
    (`<nav aria-label="Inspector tools">`) as well as the canvas header.
    *(shipped 2026-08-22 — same `AddMenu`, same options, `align="end"` so the
    panel opens into the canvas.)*
 
-9. **Surface modes: Website vs Normal.** Ed: *"website mode im going to need a
+9. ✅ **Surface modes: Website vs Normal** *(shipped 2026-08-22; never browser-walked,
+   like everything after phase 16)*. Ed: *"website mode im going to need a
    specialied thing to do the seo and tags and everything like that per page... dont
    need a portal mode and then normal mode can do portal and software or whatever as
    its just universal"*. Two surfaces only:
@@ -288,6 +358,67 @@ phase below either moves toward that or is not worth doing.
    working on*, mode = *how deep you want to go*. Do not conflate them, and do not
    resurrect `projectKind` — that was deleted for good reason. Derive the default
    from what is connected (a tag + a site → website) and let the switcher override.
+
+   *As built:*
+
+   - **`engines/editor/editing/surfaces.ts`** is pure and holds the two surfaces,
+     a tolerant resolver that migrates BY NAME (`site`→website, `portal`/`software`
+     →normal, the same rule `editingMode` learned from "simple"), and
+     `derivedSurface()`. **ONE rule promotes to Website and it is Ed's — tag +
+     site**: an Aqua Tag answering AND an `http(s)` address. Every other
+     combination is Normal *with a sentence naming the missing half*, so a
+     derivation that misses costs one click on a switcher that is right there,
+     while a derivation that INVENTS puts an SEO panel over somebody's game. It
+     never reads `projectKind`, and a test asserts the function cannot even
+     mention it. `resolveSurface()` lets the operator's choice always win —
+     including when it disagrees, in which case the line says BOTH halves — and
+     the choice persists per project (`lk_editor_surface_v1:<projectId>`) with
+     the device's scope-ready guard. **Only an explicit choice is ever written**:
+     storing the derivation would turn a guess into a choice, and a project that
+     later got a tag would stay Normal for ever.
+   - **ORTHOGONALITY IS ENFORCED, not just intended.** `"seo"` is in
+     `INSPECTOR_TABS` and on **no mode's ladder**; `inspectorTabsFor` gates it
+     with one rule (`surface === "website"`) that returns *before* the ladder is
+     consulted, so it is offered at every depth. There is no shallower or deeper
+     way to give a page a title, and telling somebody in "Just tell it" to
+     change mode to find a meta description would be the depth axis answering a
+     question that was never about depth. `tabForMode` keeps a surface-owned tab
+     across a depth change; `tabForSurface` is its mirror for the other axis. A
+     test walks all 3 modes × 2 targets × 2 tags × 2 surfaces and asserts that
+     stripping `seo` gives back *exactly* the pre-phase-9 answer — a new axis
+     must not quietly move an old rule.
+   - **WHERE THE VALUES LIVE.** A repository page keeps them IN SOURCE and they
+     ride the SAME path as every other write: `seo-read` / `seo-write` on
+     `/api/portal/dev/repo-write` → preview (no `confirm`, writes nothing) →
+     confirm with the preview's fingerprint → `saveRepoFile` → the draft branch
+     → the pull request. **No SEO store, no second write mechanism, no new
+     endpoint.** A portal page keeps them in the portal document (`seo?` on
+     `ClientPortalPagePresentation` and `ClientPortalCustomPage`, **optional and
+     omitted when empty** so an untouched document normalises to the JSON it
+     always did) and rides the existing Save draft → Publish.
+   - **`engines/editor/editing/pageSeo.ts`** is the pure planner, and it lives by
+     one rule: **own a marked block, refuse everything else.** Two mechanisms —
+     meta tags in an `.html` `<head>` (inserted after the charset, because the
+     encoding has to stay in the first 1024 bytes), and a plain-JSON
+     `export const metadata` in an App Router `page.tsx`/`layout.tsx` (JSON is a
+     subset of a TS object literal, so the read-back is `JSON.parse` rather than
+     parsing TypeScript). Both patterns are **anchored at the repository root**,
+     cross-pinned against the navigator's, because unanchored is how
+     `built-ins/.../src/pages/ActivityPage.tsx` became a route. A page that
+     already writes its own head — a hand-written `<title>`, a duplicate
+     description, `generateMetadata`, an existing `metadata` export, or a
+     `"use client"` directive Next would refuse a metadata export from — is
+     **refused by name with the reason**, never rewritten. A Pages Router page,
+     Markdown, and a file with no `<head>` each get their own sentence. Clearing
+     every field REMOVES the block rather than leaving one that says nothing.
+     `read(emit(x)) === x` is pinned both ways, and so is "every byte outside
+     the two markers is unchanged".
+   - **Honest limits, stated rather than discovered.** Next's metadata export
+     has nowhere to put JSON-LD, so `structuredData` is disabled on that
+     mechanism *with the reason in the field's own hint* rather than silently
+     dropped. And an Aqua-hosted portal is behind a login: the panel says in as
+     many words that nothing public renders those tags today, they are simply
+     stored on the page and published with it.
 
 10. ✅ **Real device sizing for the browser** *(shipped 2026-08-22 — pinned by
     `scripts/smoke-editor-device-sizing.test.ts`; not yet browser-walked, like

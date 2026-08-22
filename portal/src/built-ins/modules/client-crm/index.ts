@@ -80,14 +80,21 @@ const manifest: AquaPlugin = {
   ],
 
   pages: [
-    { path: "", component: () => import("./src/pages/ContactsPage") },
-    { path: "contacts", component: () => import("./src/pages/ContactsPage") },
-    { path: "contacts/:id", component: () => import("./src/pages/ContactDetailPage") },
-    { path: "segments", component: () => import("./src/pages/SegmentsPage") },
-    { path: "activity", component: () => import("./src/pages/ActivityPage") },
-    { path: "settings", component: () => import("./src/pages/SettingsPage") },
-    // Customer page (full URL convention)
-    { path: "/portal/customer/profile", component: () => import("./src/pages/MyProfilePage") },
+    // Operator pages. `contacts` and `contacts/:id` are ORPHANS — the nav
+    // "Contacts" entry names the bare mount, which resolves to "" above — and
+    // `contacts` was additionally reachable with NO plugin prefix at all, as
+    // the bare /portal/clients/<id>/contacts.
+    { path: "", component: () => import("./src/pages/ContactsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "contacts", component: () => import("./src/pages/ContactsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "contacts/:id", component: () => import("./src/pages/ContactDetailPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "segments", component: () => import("./src/pages/SegmentsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "activity", component: () => import("./src/pages/ActivityPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    // Admin-only in the nav, so admin-only at the door too: the host gates on
+    // this, and without it the page was reachable by URL to any role the scope
+    // check let in (the agency-finance class bug, 22 Aug 2026).
+    { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...ADMIN_ROLES] },
+    // Customer page (full URL — the only way onto that surface).
+    { path: "/portal/customer/profile", component: () => import("./src/pages/MyProfilePage"), visibleToRoles: [...END_CUSTOMER] },
   ],
 
   api: ROUTES,

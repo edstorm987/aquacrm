@@ -28,7 +28,9 @@ import {
   AQUA_TAG_DIAGNOSTICS_FIELDS,
   AQUA_TAG_DIAGNOSTICS_MESSAGE_FIELDS,
   AQUA_TAG_ELEMENT_FIELDS,
+  AQUA_TAG_LINKS_MESSAGE_FIELDS,
   AQUA_TAG_MESSAGES,
+  AQUA_TAG_PAGE_LINK_FIELDS,
   AQUA_TAG_PERFORMANCE_FIELDS,
   AQUA_TAG_PROTOCOL_VERSION,
   AQUA_TAG_READY_FIELDS,
@@ -42,6 +44,7 @@ import {
   aquaTagDisable,
   aquaTagEnable,
   aquaTagInspect,
+  aquaTagLinks,
   aquaTagOrigin,
   aquaTagPatchMessage,
   aquaTagPing,
@@ -232,6 +235,15 @@ function assertEnvelopesMatch(source: string): void {
       anchors: ["const explorerConnection", "if (!connection) return undefined;", "return"],
       declared: AQUA_TAG_CONNECTION_FIELDS,
     },
+    // tag → editor: the navigator's link list, and one link inside it. Added
+    // with the navigator (dev-editor-finish phase 8) — the tag had always
+    // COUNTED document.links and never said which they were.
+    {
+      what: "the links reply",
+      anchors: ['"aqua-explorer:links" && typeof message.requestId === "string"', "respondToExplorer(event,"],
+      declared: AQUA_TAG_LINKS_MESSAGE_FIELDS,
+    },
+    { what: "one page link", anchors: ["const explorerPageLinks", "found.push("], declared: AQUA_TAG_PAGE_LINK_FIELDS },
     // tag → editor: the selection itself, and the element inside it.
     { what: "the selected envelope", anchors: ["const explorerReportSelection"], declared: AQUA_TAG_SELECTED_FIELDS },
     { what: "explorerDescribe", anchors: ["const explorerDescribe", "return"], declared: AQUA_TAG_ELEMENT_FIELDS },
@@ -356,6 +368,37 @@ const DRIFTS: EnvelopeDrift[] = [
     replace: '    type: "aqua-explorer:selected",\n    path: location.pathname,',
     breaks: "an unvalidated field rides in beside the operator's selection",
   },
+  // ── The navigator's link list (phase 8). Both directions, same as the rest.
+  {
+    name: "the links reply renames requestId",
+    find: "        requestId: message.requestId,\n        links: explorerPageLinks(),",
+    replace: "        replyTo: message.requestId,\n        links: explorerPageLinks(),",
+    breaks: "the navigator's request is never answered — the list sits on 'reading the page' forever",
+  },
+  {
+    name: "the links reply drops the links",
+    find: "        links: explorerPageLinks(),\n",
+    replace: "",
+    breaks: "the reply arrives with nothing in it and parseAquaTagMessage rejects it outright",
+  },
+  {
+    name: "the links reply gains a path",
+    find: '        type: "aqua-explorer:links-found",',
+    replace: '        type: "aqua-explorer:links-found",\n        path: location.pathname,',
+    breaks: "an unvalidated field rides in beside the page's links",
+  },
+  {
+    name: "a page link renames href",
+    find: "        href: href,\n        label: explorerLinkLabel(anchor),",
+    replace: "        url: href,\n        label: explorerLinkLabel(anchor),",
+    breaks: "every link is rejected, so a tagged page reads as linking nowhere",
+  },
+  {
+    name: "a page link gains the anchor's target",
+    find: "        label: explorerLinkLabel(anchor),",
+    replace: "        label: explorerLinkLabel(anchor),\n        target: anchor.target,",
+    breaks: "a field the editor neither validates nor renders crosses the origin boundary",
+  },
   {
     name: "performance renames loadMs",
     find: "      loadMs: navigation && navigation.loadEventEnd",
@@ -450,6 +493,7 @@ test("the tag gates every inbound message on the version the builders set", () =
   );
   assert.match(AQUA_TAG_SOURCE, /"aqua-explorer:ping" && typeof message\.requestId === "string"/);
   assert.match(AQUA_TAG_SOURCE, /"aqua-explorer:inspect" && typeof message\.requestId === "string"/);
+  assert.match(AQUA_TAG_SOURCE, /"aqua-explorer:links" && typeof message\.requestId === "string"/);
   assert.match(AQUA_TAG_SOURCE, /"aqua-explorer:patch" && typeof message\.elementId === "string"/);
   // The throttle arm sits behind the same version gate as its siblings, and
   // its payload goes through the normalizer, never straight into the wrap.
@@ -459,6 +503,7 @@ test("the tag gates every inbound message on the version the builders set", () =
   const built: AquaTagOutboundMessage[] = [
     aquaTagPing("request-1"),
     aquaTagInspect("request-2"),
+    aquaTagLinks("request-3"),
     aquaTagEnable(),
     aquaTagDisable(),
     aquaTagPatchMessage("aqua-element-1", { text: "Hello" }),
@@ -545,6 +590,83 @@ test("the parser accepts the throttle acknowledgement and keeps it honest", () =
   assert.equal(parseAquaTagMessage({ type: AQUA_TAG_MESSAGES.throttleApplied, version: 2, profile: null }), null);
   // The outbound builder must never be parseable as an inbound ack.
   assert.equal(parseAquaTagMessage(aquaTagThrottle({ latencyMs: 1, downKbps: 1, offline: false })), null);
+});
+
+test("the parser accepts the navigator's link list and keeps it honest", () => {
+  const answered = parseAquaTagMessage({
+    type: AQUA_TAG_MESSAGES.linksFound,
+    version: AQUA_TAG_PROTOCOL_VERSION,
+    requestId: "links-1",
+    links: [
+      { href: "https://beast-marks.vercel.app/", label: "Home" },
+      { href: "https://beast-marks.vercel.app/pricing", label: "" },
+    ],
+  });
+  assert.equal(answered?.type, AQUA_TAG_MESSAGES.linksFound);
+  const links = answered?.type === AQUA_TAG_MESSAGES.linksFound ? answered.links : [];
+  assert.equal(links.length, 2);
+  // An empty label is a real link with no words in it (an icon), not a broken one.
+  assert.equal(links[1].label, "");
+  // Rebuilt key by key: nothing the sending page attached travels on.
+  const smuggled = parseAquaTagMessage({
+    type: AQUA_TAG_MESSAGES.linksFound,
+    version: AQUA_TAG_PROTOCOL_VERSION,
+    requestId: "links-2",
+    links: [{ href: "https://example.test/a", label: "A", onclick: "steal()" }],
+  });
+  const one = smuggled?.type === AQUA_TAG_MESSAGES.linksFound ? smuggled.links[0] : null;
+  assert.ok(one);
+  assert.deepEqual(Object.keys(one).sort(), [...AQUA_TAG_PAGE_LINK_FIELDS].sort());
+
+  // "This page links nowhere" is an ANSWER the navigator renders, not silence.
+  const none = parseAquaTagMessage({
+    type: AQUA_TAG_MESSAGES.linksFound,
+    version: AQUA_TAG_PROTOCOL_VERSION,
+    requestId: "links-3",
+    links: [],
+  });
+  assert.deepEqual(none?.type === AQUA_TAG_MESSAGES.linksFound ? none.links : null, []);
+
+  // Malformed lists are rejected outright — a half-read list is worse than none.
+  const rejected: unknown[] = [
+    { requestId: "x", links: "https://example.test/a" },
+    { requestId: "x", links: [{ href: "https://example.test/a" }] },
+    { requestId: "x", links: [{ href: "", label: "A" }] },
+    { requestId: "x", links: [{ href: "https://example.test/a", label: 7 }] },
+    { requestId: "x", links: ["https://example.test/a"] },
+    { requestId: "", links: [] },
+    { links: [] },
+  ];
+  for (const bad of rejected) {
+    assert.equal(
+      parseAquaTagMessage({ type: AQUA_TAG_MESSAGES.linksFound, version: AQUA_TAG_PROTOCOL_VERSION, ...(bad as object) }),
+      null,
+      `the parser accepted a link list of ${JSON.stringify(bad)}`,
+    );
+  }
+
+  // Wrong version is the same silence as every other message, and the outbound
+  // request must never be parseable as an inbound answer.
+  assert.equal(parseAquaTagMessage({ type: AQUA_TAG_MESSAGES.linksFound, version: 2, requestId: "x", links: [] }), null);
+  assert.equal(parseAquaTagMessage(aquaTagLinks("links-4")), null);
+});
+
+test("the tag only ever reports SAME-ORIGIN links, capped and deduplicated", () => {
+  // Structural, because the tag is a string of browser JS with no module
+  // system to import and test. The editor trusts exactly one origin, so a
+  // navigator row pointing at another domain would land the operator on a page
+  // the editor then refuses to speak to — the rule belongs in the tag, before
+  // the message is sent, not in a filter afterwards.
+  const start = AQUA_TAG_SOURCE.indexOf("const explorerPageLinks");
+  assert.notEqual(start, -1, "explorerPageLinks has been renamed — update this guard, do not delete it");
+  const body = AQUA_TAG_SOURCE.slice(start, AQUA_TAG_SOURCE.indexOf("\n  const ", start + 10));
+  assert.match(body, /url\.origin !== location\.origin/, "the same-origin rule is gone from the tag");
+  assert.match(body, /url\.protocol !== "http:" && url\.protocol !== "https:"/);
+  // Hash and query dropped: origin + pathname, never url.href.
+  assert.match(body, /href = url\.origin \+ url\.pathname;/);
+  assert.equal(/href = url\.href/.test(body), false, "a hash or query would make one page look like eight");
+  assert.match(body, /found\.length >= 60/, "the cap is what stops a thousand-row index flooding a postMessage");
+  assert.match(body, /if \(seen\[href\]\) continue;/, "the same destination twice is one row, not two");
 });
 
 test("a cached pre-throttle tag still completes the handshake", () => {

@@ -229,8 +229,11 @@ const ecommercePlugin: AquaPlugin = {
         label: "Stripe",
         description: "Stripe API keys for this client. Per-install — never env vars.",
         fields: [
-          { id: "stripeSecretKey",     label: "Stripe secret key",      type: "password", placeholder: "sk_live_..." },
-          { id: "stripeWebhookSecret", label: "Stripe webhook secret",  type: "password", placeholder: "whsec_..." },
+          // Encrypted vault, not `install.config` — the install record is handed
+          // to page props and therefore to the browser. `clientId` scoping is
+          // handled by the vault, so each client keeps their own Stripe account.
+          { id: "stripeSecretKey",     label: "Stripe secret key",      type: "password", placeholder: "sk_live_...", secretVault: { provider: "stripe", field: "secretKey" } },
+          { id: "stripeWebhookSecret", label: "Stripe webhook secret",  type: "password", placeholder: "whsec_...", secretVault: { provider: "stripe", field: "webhookSecret" } },
           { id: "stripePublishableKey", label: "Stripe publishable key", type: "text",     placeholder: "pk_live_..." },
         ],
       },

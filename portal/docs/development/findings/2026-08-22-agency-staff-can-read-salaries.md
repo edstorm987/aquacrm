@@ -1,6 +1,16 @@
 # Finding — agency-staff can read FINANCE_ADMIN pages, including salaries, by URL
 
-- **Status:** open
+- **Status:** fixed
+- **Closed by:** the manifest now gates the pages, not just the tabs — `agency-finance`'s
+  `pages[]` declare `visibleToRoles` derived from the same `FINANCE_SECTIONS` list as the
+  nav (`financePageRoles()` in `src/lib/sections.ts`), so the host 404s `agency-staff`
+  before `OperationsPage` is even imported; `routes.ts` `GET budgets` moved to
+  `AGENCY_ADMINS` to agree with `sections.ts`; the same hole was found and closed in
+  `agency-hr` (Employees), `affiliates`, `client-crm`, `memberships` (Settings) and
+  `fulfillment` (Phases); and `scripts/smoke-finance-section-gates.test.ts` drives the real
+  host route as staff **and** carries a generic guard over every registered plugin —
+  a page behind a nav entry narrower than its scope's widest must declare roles at least
+  as narrow — with a mutation check proving the guard can see a hole.
 - **Severity:** high
 - **Where:** `/portal/agency/agency-finance/{budgets,operations,planning,settings}`
 - **Found:** 22 Aug 2026

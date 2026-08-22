@@ -475,7 +475,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/server/phaseApplier.ts`
 
-- `async applyPhaseToClient(clientId: string, phaseId: string): Promise<ApplyResult | ApplyError>`
+- `async applyPhaseToClient(clientId: string, phaseId: string, agencyId: string): Promise<ApplyResult | ApplyError>` — Apply a phase to a client, on behalf of `agencyId`. `agencyId` is REQUIRED and is the caller's own tenant — it is not derived from the client, and it is not optional. Both ids in …
 - `interface ApplyResult (6 members)`
 - `interface ApplyError (2 members)`
 
@@ -876,13 +876,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PortalFormFieldDefinition (9 members)`
 - `interface PortalFormEditorState (3 members)`
 - `interface ClientPortalStagePresentation (6 members)`
-- `interface ClientPortalPagePresentation (5 members)`
+- `interface ClientPortalPagePresentation (6 members)`
 - `interface ClientPortalCustomCode (8 members)`
 - `interface ClientPortalBlockResponsive (4 members)`
 - `interface ClientPortalBlockMedia (5 members)`
 - `interface ClientPortalBlockItem (5 members)`
 - `interface ClientPortalPageBlock (21 members)`
-- `interface ClientPortalCustomPage (5 members)`
+- `interface ClientPortalCustomPage (6 members)`
 - `interface ClientPortalBuilderDocument (2 members)`
 - `interface ClientPortalDesignDocument (8 members)`
 - `interface ClientPortalDesignVersion (6 members)`
@@ -923,7 +923,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface DevProject (18 members)` — A Dev Editor Engine project — the binding that was missing. Everything it points at already existed but was scattered: the repo/branch were typed ad-hoc into the code workspace, G…
 - `interface EditorAiConfig (10 members)` — AQUA EDITOR AI — one project's own assistant, configured per project. Ed's call, verbatim: "aqua editor ai needs to be its only thing… needs a seperate tocken please to configure……
 - `interface EditorAiStatus (7 members)` — The same configuration as the CLIENT is allowed to see it. The one shape that may cross to the browser. It carries whether a token is set and — at most — a masked tail so Ed can t…
-- `interface EditorAiMessage (6 members)` — One message in a project's Aqua Editor AI conversation.
+- `interface EditorAiMessage (7 members)` — One message in a project's Aqua Editor AI conversation.
 - `interface EditorAiThread (5 members)`
 - `interface EditorAiConversation (6 members)` — ONE project's whole chat history. Nothing else is in here. Keyed `${agencyId}|${projectId}` in `PortalState.editorAiConversations`, and the agency is checked BEFORE the project on…
 - `interface RadarMemoryIssueState (11 members)`

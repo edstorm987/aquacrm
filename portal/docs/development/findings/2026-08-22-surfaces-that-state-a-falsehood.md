@@ -1,9 +1,48 @@
 # Finding — four surfaces state something untrue: a measured zero, a demo session, a clamped reclaim, a guessed currency
 
-- **Status:** open
+- **Status:** fixed — **but it was reported fixed once while two of it were still live.**
+  See "What was still live after the first close" below; both are now closed and pinned.
+- **Closed by:** (1) `measuredCountLabel` (`src/lib/performance/telemetryDisplay.ts`) gates
+  every count on the telemetry watermark, so a tag that has never reported renders "—" —
+  applied to marketing's Views-today tile, to the two sibling surfaces telling the same
+  lie (`_WebsiteWorkspace`, `_PerformanceWorkspace`), and (2026-08-22, second pass) to the
+  **third and fourth**: the client workspace's monitoring tiles
+  (`src/app/portal/clients/[clientId]/_ClientSystemsWorkspace.tsx`) and
+  `_PerformanceWorkspace`'s own "Live errors" tile; (2) all THREE "not read in a demo
+  session" claims now say "were not read in this session … a demo session or a failed read
+  — not zero enquiries" (the third was `marketing/page.tsx:907`, not in the original
+  report); (3) `taxPosition()` replaces `Math.max(0, outputTax - inputTax)` and labels a
+  reclaim as a reclaim — **in `ReportsPage` AND, since 2026-08-22, in `FounderDashboardPage`
+  (Overview), which the first pass missed**; (4) `FounderDashboardPage` resolves currency
+  through `resolveFinanceDefaultCurrency`. Deposits (1c) also formats through `formatMoney`
+  and names the client. Pinned by `scripts/smoke-truthful-surfaces.test.ts`.
+
 - **Severity:** medium
 - **Where:** `marketing?view=channels&channel=website · marketing?view=demand · agency-finance (Overview, Reports)`
 - **Found:** 22 Aug 2026
+
+## What was still live after the first close
+
+Written down rather than quietly amended, because a findings board that says "fixed"
+when it is not is worse than one that is behind. A regression verifier drove both.
+
+- **The tax clamp was fixed on Reports and left on Overview.**
+  `agency-finance/src/pages/FounderDashboardPage.tsx:253` still rendered
+  `Math.max(0, outputTaxCents - inputTaxCents)` — the same two inputs, the same row, on
+  the screen that gets looked at most. **Why it survived:** item 3 above named
+  `ReportsPage.tsx` and the fix was applied to the file the finding named.
+- **A THIRD unmeasured-count sibling was never gated.**
+  `src/app/portal/clients/[clientId]/_ClientSystemsWorkspace.tsx:224` rendered
+  `summary.pageviews24h` raw, three lines below its own "Waiting for first signal"
+  banner. **Why it survived:** the same habit — item 1 named two siblings, so two were
+  fixed. Closing it turned up a **fourth**, `_PerformanceWorkspace`'s "Live errors" tile,
+  which no report had ever named.
+
+**What changed so it does not happen a third time.** The pins are no longer
+file-by-file. `smoke-truthful-surfaces.test.ts` now asserts the CLASS: no finance page
+may contain a `Math.max(0, output… - input…)` of any spelling, and no surface in the
+telemetry list may render `pageviews24h` / `errors24h` into a value slot ungated. The
+fourth sibling was found by that check, not by a person reading the file.
 
 ## What I saw
 Four separate places where the screen asserts something the system does not know, or

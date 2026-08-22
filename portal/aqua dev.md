@@ -373,8 +373,19 @@ Chapters: `docs/workspace/shared-logic.md` (the two protocols, the handshake),
 > and revert live in the Drafts tab, the AI answers on the project's own key, and the 70
 > blocks are mounted and can insert real code. The editor made real commits in a real
 > client repo (see `docs/context/HANDOFF-2026-08-22-dev-editor.md`). What remains
-> unbuilt is phases 8, 9, 17 and 18 — the navigator, surface modes, the browser walk and
-> the client-portal mount. The list below is kept for the parts still true.
+> unbuilt is phases 17 and 18 — the browser walk and the client-portal mount. Phase 8
+> (the navigator) and phase 9 (SURFACE MODES: Website vs Normal, with per-page SEO
+> written into the page's own head down the same preview → confirm → draft-branch path)
+> both shipped 2026-08-22 and have never rendered in a browser. The list below is kept
+> for the parts still true.
+>
+> **Phase 9's map:** `engines/editor/editing/surfaces.ts` (the two surfaces, and the
+> default DERIVED from a tag answering on a real address — never `projectKind`),
+> `engines/editor/editing/pageSeo.ts` (the fields, the plan, and the rule: own a marked
+> block, refuse everything else), `components/editing/SurfaceSwitch.tsx`,
+> `components/editing/PageSeoPanel.tsx`, `repoWrite.readPageSeoFromRepo` /
+> `writePageSeoToRepo`, and the `seo-read` / `seo-write` actions on
+> `/api/portal/dev/repo-write`. Pinned by `scripts/smoke-editor-surface-modes.test.ts`.
 
 - **Nothing has been verified in a browser.** The full tag round-trip has never actually run.
 - **Making a tag from the editor now works** (2026-08-21) — Settings → a project → **Aqua Tag**: the agency key is

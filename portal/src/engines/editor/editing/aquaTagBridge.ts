@@ -60,6 +60,16 @@ export const AQUA_TAG_MESSAGES = {
   inspect: "aqua-explorer:inspect",
   /** tag → editor: the answer to an inspect. */
   diagnostics: "aqua-explorer:diagnostics",
+  /**
+   * editor → tag: "what other pages can this one reach?" Requires a `requestId`.
+   *
+   * The navigator's third source. Added because the tag already counted
+   * `document.links` and never said WHICH they were — a number is not
+   * something you can pick from.
+   */
+  links: "aqua-explorer:links",
+  /** tag → editor: the same-origin links it can see, for the navigator. */
+  linksFound: "aqua-explorer:links-found",
   /** editor → tag: start highlighting and reporting clicks. */
   enable: "aqua-explorer:enable",
   /** editor → tag: stop. Clears the selection and reports the clearing. */
@@ -264,11 +274,37 @@ export interface AquaTagThrottleAppliedMessage {
   profile: AquaTagThrottleProfile | null;
 }
 
+/**
+ * One link the tag found on the page it is running on.
+ *
+ * SAME-ORIGIN ONLY, and that is a rule the tag applies before sending rather
+ * than one the editor filters after: a navigator that can walk the preview
+ * off onto somebody else's domain is a navigator that lands the operator on a
+ * page this editor does not trust and will not talk to.
+ *
+ * `href` is absolute with the hash and query already dropped — `#pricing` is
+ * the same page, and eight rows for one page is not a list.
+ */
+export interface AquaTagPageLink {
+  href: string;
+  /** The link's own words, capped by the tag. May be empty — some links are icons. */
+  label: string;
+}
+
+export interface AquaTagLinksMessage {
+  type: typeof AQUA_TAG_MESSAGES.linksFound;
+  version: typeof AQUA_TAG_PROTOCOL_VERSION;
+  requestId: string;
+  /** Empty is an ANSWER — "this page links nowhere" — never an absence. */
+  links: AquaTagPageLink[];
+}
+
 export type AquaTagInboundMessage =
   | AquaTagReadyMessage
   | AquaTagDiagnosticsMessage
   | AquaTagSelectedMessage
-  | AquaTagThrottleAppliedMessage;
+  | AquaTagThrottleAppliedMessage
+  | AquaTagLinksMessage;
 
 /**
  * The same `Record<keyof …, true>` trick, for every OTHER shape the tag builds.
@@ -366,6 +402,18 @@ export const AQUA_TAG_SELECTED_FIELDS = fieldsOf<AquaTagSelectedMessage>({
   element: true,
 });
 
+export const AQUA_TAG_LINKS_MESSAGE_FIELDS = fieldsOf<AquaTagLinksMessage>({
+  type: true,
+  version: true,
+  requestId: true,
+  links: true,
+});
+
+export const AQUA_TAG_PAGE_LINK_FIELDS = fieldsOf<AquaTagPageLink>({
+  href: true,
+  label: true,
+});
+
 /** Both halves of a measured box, so the guard can pin them as one thing. */
 export const AQUA_TAG_SIZE_FIELDS = ["width", "height"] as const;
 
@@ -379,6 +427,12 @@ export interface AquaTagPingMessage {
 
 export interface AquaTagInspectMessage {
   type: typeof AQUA_TAG_MESSAGES.inspect;
+  version: typeof AQUA_TAG_PROTOCOL_VERSION;
+  requestId: string;
+}
+
+export interface AquaTagLinksRequestMessage {
+  type: typeof AQUA_TAG_MESSAGES.links;
   version: typeof AQUA_TAG_PROTOCOL_VERSION;
   requestId: string;
 }
@@ -415,6 +469,7 @@ export interface AquaTagThrottleMessage {
 export type AquaTagOutboundMessage =
   | AquaTagPingMessage
   | AquaTagInspectMessage
+  | AquaTagLinksRequestMessage
   | AquaTagEnableMessage
   | AquaTagDisableMessage
   | AquaTagPatchMessage
@@ -434,6 +489,11 @@ export function aquaTagPing(requestId: string): AquaTagPingMessage {
 
 export function aquaTagInspect(requestId: string): AquaTagInspectMessage {
   return { type: AQUA_TAG_MESSAGES.inspect, version: AQUA_TAG_PROTOCOL_VERSION, requestId };
+}
+
+/** "What can this page reach?" — the navigator's request. */
+export function aquaTagLinks(requestId: string): AquaTagLinksRequestMessage {
+  return { type: AQUA_TAG_MESSAGES.links, version: AQUA_TAG_PROTOCOL_VERSION, requestId };
 }
 
 export function aquaTagEnable(): AquaTagEnableMessage {
@@ -663,6 +723,27 @@ export function parseAquaTagMessage(data: unknown): AquaTagInboundMessage | null
     const profile = parseAquaTagThrottleProfile(data.profile);
     if (!profile) return null;
     return { type: AQUA_TAG_MESSAGES.throttleApplied, version: AQUA_TAG_PROTOCOL_VERSION, profile };
+  }
+
+  if (data.type === AQUA_TAG_MESSAGES.linksFound) {
+    if (typeof data.requestId !== "string" || data.requestId.length === 0) return null;
+    if (!Array.isArray(data.links)) return null;
+    const links: AquaTagPageLink[] = [];
+    for (const entry of data.links) {
+      if (!isRecord(entry)) return null;
+      if (typeof entry.href !== "string" || entry.href.length === 0) return null;
+      if (typeof entry.label !== "string") return null;
+      // Rebuilt key by key rather than spread — the same rule the element and
+      // the throttle profile follow. This crossed an origin boundary; nothing
+      // the sending page attached travels on into editor state.
+      links.push({ href: entry.href, label: entry.label });
+    }
+    return {
+      type: AQUA_TAG_MESSAGES.linksFound,
+      version: AQUA_TAG_PROTOCOL_VERSION,
+      requestId: data.requestId,
+      links,
+    };
   }
 
   if (data.type === AQUA_TAG_MESSAGES.diagnostics) {

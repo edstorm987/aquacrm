@@ -28,7 +28,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { EDITING_MODES, INSPECTOR_TABS, editingMode, inspectorTabsFor, type EditingMode } from "../src/engines/editor/editing/modes.ts";
+import { EDITING_MODES, INSPECTOR_TABS, SURFACE_TABS, editingMode, inspectorTabsFor, type EditingMode } from "../src/engines/editor/editing/modes.ts";
 import { routeTagSelection, modeSelectsThroughTag } from "../src/engines/editor/editing/selectionRouting.ts";
 import {
   AQUA_TAG_MESSAGES,
@@ -282,9 +282,24 @@ describe("the listener in DevEditor", () => {
 });
 
 describe("the browser is gated on the Aqua Tag, not on what kind of thing this is", () => {
-  it("keeps 'is there a portal' and 'is there a browser' as two named things", () => {
-    assert.match(editor, /const portalTarget = projectKind !== "software"/,
-      "portalTarget stays — it still owns the portal-only machinery");
+  it("REWRITTEN PIN — the two are still separate, and 'is there a portal' no longer reads projectKind", () => {
+    // WAS: `const portalTarget = projectKind !== "software"`.
+    //
+    // Rewritten rather than deleted, because the thing this test is about —
+    // that "is there a portal document" and "is there a browser" are two
+    // questions with two answers — is unchanged and still worth pinning. What
+    // changed is where the FIRST one gets its answer. `DevProject.kind`'s own
+    // doc says the field no longer drives the editor; this line was the last
+    // place that still let it, and it was wrong in the direction nobody
+    // checked: a legacy project saved as "website" or "portal" made
+    // portalTarget TRUE, so the editor fetched whichever client's portal
+    // design sorted first and pointed the navigator and the SEO panel at it.
+    // Evidence instead: a dev project is open (a repo, an address, a tag) or
+    // it is not (the Portal Studio door, which is nothing but a document).
+    assert.equal(/const portalTarget = projectKind !== "software"/.test(editor), false,
+      "portalTarget must not be derived from the kind field again");
+    assert.match(editor, /const portalTarget = !projectId;/,
+      "portalTarget stays — it still owns the portal-only machinery — but it is answered by evidence");
     assert.match(editor, /const browserAvailable = portalTarget \|\| tagMapped/);
     assert.match(editor, /const browserPane = showBrowser && browserAvailable/);
   });
@@ -404,7 +419,11 @@ describe("the portal preview is not asked to be a tagged page", () => {
   it("gates the Element tab on the TAG, not on 'a browser exists'", () => {
     // `browserAvailable` is `portalTarget || tagMapped`, so it is true on every
     // portal — and the Element panel is filled by the tag and by nothing else.
-    assert.match(editor, /inspectorTabsFor\(editingModeId, \{ portalTarget, tagMapped \}\)/);
+    // REWRITTEN 2026-08-22 (phase 9): the call gained a third argument. The
+    // SURFACE (Website vs Normal) is a second axis alongside the depth, and it
+    // owns exactly one tab ("seo"). The Element tab's gate is unchanged and is
+    // still what this test is about — the pin is widened, never weakened.
+    assert.match(editor, /inspectorTabsFor\(editingModeId, \{ portalTarget, tagMapped, surface \}\)/);
     assert.equal(/if \(item\.id === "element"\) return browserAvailable/.test(editor), false);
   });
 
@@ -412,41 +431,62 @@ describe("the portal preview is not asked to be a tagged page", () => {
     // `/portal/agency/portals/editor` passes no project, so nothing is mapped —
     // and there is nothing to press Map on either.
     for (const mode of ALL_MODES) {
-      const tabs = inspectorTabsFor(mode, { portalTarget: true, tagMapped: false });
+      // `surface` added 2026-08-22 (phase 9). "normal" is the universal one and
+      // is what every one of these cases was implicitly asserting before the
+      // axis existed — the Element tab's gate is the tag, on either surface.
+      const tabs = inspectorTabsFor(mode, { portalTarget: true, tagMapped: false, surface: "normal" });
       assert.equal(tabs.includes("element"), false, `${mode} offered an Element tab with no tag`);
+      assert.equal(
+        inspectorTabsFor(mode, { portalTarget: true, tagMapped: false, surface: "website" }).includes("element"),
+        false,
+        `${mode} offered an Element tab with no tag on the Website surface either`,
+      );
     }
     // A tagged portal is a different matter: then a click really can resolve.
-    assert.equal(inspectorTabsFor("visual", { portalTarget: true, tagMapped: true }).includes("element"), true);
+    assert.equal(inspectorTabsFor("visual", { portalTarget: true, tagMapped: true, surface: "normal" }).includes("element"), true);
   });
 
   it("stops the mobile strip growing a tenth column", () => {
     // The strip sizes itself `repeat(N, 1fr)`, so a tab that can never be
     // filled narrows every real one.
     assert.match(editor, /gridTemplateColumns: `repeat\(\$\{allowedTabs\.length\}, 1fr\) 44px`/);
-    const onThePortalDoor = inspectorTabsFor("developer", { portalTarget: true, tagMapped: false });
+    const onThePortalDoor = inspectorTabsFor("developer", { portalTarget: true, tagMapped: false, surface: "normal" });
     // 10/11 since 2026-08-22: the Librarian joined the developer ladder — a
     // REAL tab with a mounted panel on every target, so it belongs in the count.
     // 13/14 since phase 14 (2026-08-22 evening): Drafts, History and Notes —
     // the work lifecycle — joined Dev the same way, each with a mounted panel
     // on every target, so all three belong in the count too.
     assert.equal(onThePortalDoor.length, 13);
-    assert.equal(inspectorTabsFor("developer", { portalTarget: true, tagMapped: true }).length, 14);
+    assert.equal(inspectorTabsFor("developer", { portalTarget: true, tagMapped: true, surface: "normal" }).length, 14);
+    // REWRITTEN 2026-08-22 (phase 9): the Website SURFACE adds exactly one more
+    // column — the per-page SEO panel — and it is counted here rather than left
+    // out, because the whole point of this test is that the strip cannot grow
+    // a column nobody noticed.
+    assert.equal(inspectorTabsFor("developer", { portalTarget: true, tagMapped: false, surface: "website" }).length, 14);
+    assert.equal(inspectorTabsFor("developer", { portalTarget: true, tagMapped: true, surface: "website" }).length, 15);
   });
 
   it("keeps Settings reachable and every tab a real one, whatever is connected", () => {
     for (const mode of ALL_MODES) {
       for (const portalTarget of [true, false]) {
         for (const tagMapped of [true, false]) {
-          const tabs = inspectorTabsFor(mode, { portalTarget, tagMapped });
+        for (const surface of ["normal", "website"] as const) {
+          const tabs = inspectorTabsFor(mode, { portalTarget, tagMapped, surface });
           assert.ok(tabs.includes("settings"), `${mode} lost the way to point the editor elsewhere`);
           for (const tab of tabs) {
             assert.ok(INSPECTOR_TABS.includes(tab), `${tab} is not a real tab`);
-            if (tab !== "settings") {
+            // REWRITTEN 2026-08-22 (phase 9): "every offered tab is on this
+            // mode's ladder" was the whole rule until the surface axis existed.
+            // A SURFACE-owned tab is deliberately on no ladder at all — that is
+            // what makes the two axes orthogonal — so it is exempted BY NAME
+            // here rather than by loosening the rule for everything.
+            if (tab !== "settings" && !SURFACE_TABS.has(tab)) {
               assert.ok(editingMode(mode).tabs.includes(tab), `${mode} offered ${tab}, which it does not have`);
             }
           }
           // The order is the rail's order, always.
           assert.deepEqual(tabs, INSPECTOR_TABS.filter(id => tabs.includes(id)));
+        }
         }
       }
     }
@@ -458,8 +498,10 @@ describe("the portal preview is not asked to be a tagged page", () => {
     for (const mode of ALL_MODES) {
       for (const portalTarget of [true, false]) {
         const route = routeTagSelection(mode, { portalTarget });
-        const tabs = inspectorTabsFor(mode, { portalTarget, tagMapped: true });
-        assert.ok(tabs.includes(route.tab), `${mode} (portalTarget=${portalTarget}) routes to a missing "${route.tab}"`);
+        for (const surface of ["normal", "website"] as const) {
+          const tabs = inspectorTabsFor(mode, { portalTarget, tagMapped: true, surface });
+          assert.ok(tabs.includes(route.tab), `${mode} (portalTarget=${portalTarget}, ${surface}) routes to a missing "${route.tab}"`);
+        }
       }
     }
   });

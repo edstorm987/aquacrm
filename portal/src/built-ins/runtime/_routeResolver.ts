@@ -31,9 +31,21 @@ import "server-only";
 //       contributing top-level client surfaces AND full-URL paths)
 //
 // Returns null when no plugin owns the URL — caller renders 404.
+//
+// ─── Surface compatibility (default deny) ─────────────────────────────────
+//
+// Owning the URL is necessary but not sufficient. Each resolver below ALSO
+// refuses any page that does not belong to its own surface, via
+// `pageResolvesAt` — see `_pageScope.ts` for why that lives there and not in
+// 90 manifests. Concretely: `/portal/clients/<id>/agency-hr/staff` matched
+// happily, because `pickInstall` falls back to the AGENCY-scoped install and
+// the bare-static branch below reaches agency pages a second way. An
+// agency-scoped page under the client host is a category error and is refused
+// here, declared roles or not, before the host's role gate is even consulted.
 
 import { listPlugins } from "./_registry";
 import { getInstall } from "@/server/pluginInstalls";
+import { pageResolvesAt } from "./_pageScope";
 import type { AquaPlugin, PluginPage } from "./_types";
 import type { PluginInstall } from "@/server/types";
 
@@ -129,6 +141,7 @@ export function resolveAgencyPluginPage({ agencyId, rest }: { agencyId: string; 
       const sub = rest.slice(1);
       for (const page of plugin.pages) {
         if (isFullUrlPath(page.path)) continue;
+        if (!pageResolvesAt(plugin, page, "agency")) continue;
         const m = tryMatchRelative(page.path, sub);
         if (m) return { plugin, page, install, segments: m.segments };
       }
@@ -142,6 +155,7 @@ export function resolveAgencyPluginPage({ agencyId, rest }: { agencyId: string; 
     if (!install) continue;
     for (const page of candidate.pages) {
       if (!isFullUrlPath(page.path)) continue;
+      if (!pageResolvesAt(candidate, page, "agency")) continue;
       const m = tryMatchFullUrl(page.path, fullUrlSegs);
       if (m) return { plugin: candidate, page, install, segments: m.segments };
     }
@@ -162,6 +176,7 @@ export function resolveClientPluginPage({ agencyId, clientId, rest }: MatchInput
       const sub = rest.slice(1);
       for (const page of pluginByPrefix.pages) {
         if (isFullUrlPath(page.path)) continue;
+        if (!pageResolvesAt(pluginByPrefix, page, "client")) continue;
         const m = tryMatchRelative(page.path, sub);
         if (m) return { plugin: pluginByPrefix, page, install, segments: m.segments };
       }
@@ -179,6 +194,7 @@ export function resolveClientPluginPage({ agencyId, clientId, rest }: MatchInput
     if (!install) continue;
     for (const page of plugin.pages) {
       if (!isFullUrlPath(page.path)) continue;
+      if (!pageResolvesAt(plugin, page, "client")) continue;
       const m = tryMatchFullUrl(page.path, fullUrlSegs);
       if (m) return { plugin, page, install, segments: m.segments };
     }
@@ -187,11 +203,19 @@ export function resolveClientPluginPage({ agencyId, clientId, rest }: MatchInput
   // Static relative paths may contribute a top-level client surface (for
   // example `checklist`). Parameter-only relative routes belong beneath an
   // explicit plugin prefix and are deliberately excluded here.
+  //
+  // This is the branch that made the hole a second, non-obvious way in: only
+  // `settings` exists as a literal child of `/portal/clients/[clientId]/`, so
+  // EVERY other bare sub-path falls to the catch-all and lands here — which is
+  // how `/portal/clients/<id>/staff` reached agency-hr's staff directory with
+  // no plugin prefix in the URL at all. `pageResolvesAt` closes both ways in
+  // one place.
   for (const plugin of listPlugins()) {
     const install = pickInstall(plugin.id, agencyId, clientId);
     if (!install) continue;
     for (const page of plugin.pages) {
       if (isFullUrlPath(page.path) || splitPath(page.path).some(isParamSegment)) continue;
+      if (!pageResolvesAt(plugin, page, "client")) continue;
       const m = tryMatchRelative(page.path, rest);
       if (m) return { plugin, page, install, segments: m.segments };
     }
@@ -207,40 +231,38 @@ export function resolveClientPluginPage({ agencyId, clientId, rest }: MatchInput
 // end-customer belongs to one client of one agency). The session
 // payload supplies both IDs via `requireRole("end-customer")`.
 //
-// A plugin opts into this surface by either:
-//   • declaring a page with `path: "/portal/customer/<sub>"` (full URL), OR
-//   • declaring a relative-path page AND a NavItem with
-//     `panelId: "customer"` (the chrome routes the URL prefix through
-//     this resolver under `/portal/customer/<pluginId>/<sub>`).
+// A plugin opts into this surface in exactly ONE way: by declaring a page
+// with `path: "/portal/customer/<sub>"` — a fully-qualified path naming this
+// surface out loud.
+//
+// It used to accept a second way: an explicit `/portal/customer/<pluginId>/…`
+// prefix matched against the plugin's RELATIVE pages. Those are the operator's
+// admin pages. That branch handed an end-customer the client's own back office:
+//
+//   /portal/customer/memberships/subscribers  → the subscriber list
+//   /portal/customer/affiliates/payouts       → every affiliate's earnings
+//   /portal/customer/client-crm/contacts      → the client's contact database
+//   /portal/customer/agency-hr/staff          → the AGENCY's staff directory
+//
+// — none of which declared roles, so `pluginPageAllowedRoles` returned
+// `undefined` and the host's `requireRole("end-customer")` was the only gate,
+// which of course the end-customer passes. It also SHADOWED the real thing:
+// `/portal/customer/memberships` matched memberships' relative `""` index (the
+// operator's dashboard) before the full-URL `/portal/customer/memberships`
+// page was ever reached. Removing the branch fixes the leak and the shadow at
+// once. Nothing relied on it — every `panelId: "customer"` nav item in the
+// registry points at a page that declares its full URL, and
+// `smoke-plugin-page-host-gates` pins that.
 export function resolveCustomerPluginPage({ agencyId, clientId, rest }: MatchInput): ResolvedPluginPage | null {
   if (rest.length === 0) return null;
 
-  // Branch 1: explicit plugin id prefix — `/portal/customer/<pluginId>/<sub>`.
-  const head = rest[0]!;
-  const pluginByPrefix = listPlugins().find(p => p.id === head);
-  if (pluginByPrefix) {
-    const install = pickInstall(pluginByPrefix.id, agencyId, clientId);
-    if (install) {
-      const sub = rest.slice(1);
-      for (const page of pluginByPrefix.pages) {
-        if (isFullUrlPath(page.path)) continue;
-        const m = tryMatchRelative(page.path, sub);
-        if (m) return { plugin: pluginByPrefix, page, install, segments: m.segments };
-      }
-    }
-  }
-
-  // Branch 2: scan every plugin's pages for full-URL paths anchored at
-  // `/portal/customer/...`. Relative paths under customer scope only
-  // resolve via the explicit-prefix branch above (ambiguity guard —
-  // we don't know which plugin a bare `/portal/customer/orders` belongs
-  // to without the prefix).
   const fullUrlSegs = ["portal", "customer", ...rest];
   for (const plugin of listPlugins()) {
     const install = pickInstall(plugin.id, agencyId, clientId);
     if (!install) continue;
     for (const page of plugin.pages) {
       if (!isFullUrlPath(page.path)) continue;
+      if (!pageResolvesAt(plugin, page, "customer")) continue;
       const m = tryMatchFullUrl(page.path, fullUrlSegs);
       if (m) return { plugin, page, install, segments: m.segments };
     }
@@ -275,6 +297,58 @@ export function resolvePluginApiRoute(
     if (normalised === path && route.methods.includes(method as "GET" | "POST" | "PATCH" | "PUT" | "DELETE")) {
       return { plugin, route, install };
     }
+  }
+  return null;
+}
+
+// ─── Structural nav → page lookup (no install, no session) ────────────────
+//
+// "Which page does this nav item open?" answered from the manifest alone.
+//
+// This exists for the role-gate contract test. Nav visibility and page access
+// control are declared in two different places on a manifest, and on 22 Aug
+// 2026 they disagreed: agency-finance hid Budgets/Operations/Planning/Settings
+// from `agency-staff` in `navItems` while `pages[]` declared nothing, so the
+// host's `pluginPageAllowedRoles()` returned `undefined` and staff could open
+// all four by typing the URL. Pairing the two up needs exactly this mapping,
+// and it must use the REAL matcher above rather than a second copy of it that
+// could drift.
+//
+// Returns null when the href points somewhere this plugin has no page for
+// (an app route, or another plugin's surface) — that is a legitimate nav
+// entry, not a gap.
+export function pluginPageForNavHref(plugin: AquaPlugin, href: string): PluginPage | null {
+  const hrefSegs = splitPath(href.split("?")[0] ?? href);
+
+  // Fully-qualified page paths are matched against the whole href.
+  for (const page of plugin.pages) {
+    if (!isFullUrlPath(page.path)) continue;
+    if (tryMatchFullUrl(page.path, hrefSegs)) return page;
+  }
+
+  // Relative page paths hang off the plugin's mount point, which is the
+  // plugin id inside the href: /portal/agency/<id>/… or
+  // /portal/clients/<clientId>/<id>/… or /portal/customer/<id>/….
+  const mount = hrefSegs.indexOf(plugin.id);
+  if (mount === -1) return null;
+  const sub = hrefSegs.slice(mount + 1);
+
+  // Static paths first, parameter paths only as a fallback. This deliberately
+  // differs from the resolver's plain iteration order, which lets a page like
+  // fulfillment's `:clientId` swallow a static sibling declared after it. A
+  // nav entry naming a static path is FOR the static page; a parameter route
+  // shadowing it is a routing-order bug, and answering "which page does this
+  // nav entry gate?" with the shadowing page would only hide the role question
+  // behind it.
+  const relative = plugin.pages.filter(page => !isFullUrlPath(page.path));
+  const isParamPath = (path: string) => splitPath(path).some(isParamSegment);
+  for (const page of relative) {
+    if (isParamPath(page.path)) continue;
+    if (tryMatchRelative(page.path, sub)) return page;
+  }
+  for (const page of relative) {
+    if (!isParamPath(page.path)) continue;
+    if (tryMatchRelative(page.path, sub)) return page;
   }
   return null;
 }

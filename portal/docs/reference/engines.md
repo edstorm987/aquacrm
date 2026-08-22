@@ -265,6 +265,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `aquaTagPing(requestId: string): AquaTagPingMessage` — Builders rather than object literals at the call site. Forgetting `version` is not a visible failure — the tag returns early and the editor waits forever for a reply that was neve…
 - `aquaTagInspect(requestId: string): AquaTagInspectMessage`
+- `aquaTagLinks(requestId: string): AquaTagLinksRequestMessage` — "What can this page reach?" — the navigator's request.
 - `aquaTagEnable(): AquaTagEnableMessage`
 - `aquaTagDisable(): AquaTagDisableMessage`
 - `aquaTagPatchMessage(elementId: string, patch: AquaTagPatch): AquaTagPatchMessage`
@@ -291,12 +292,14 @@ Every exported function, class, type and const in this area, with its real signa
 - `AQUA_TAG_PERFORMANCE_FIELDS = fieldsOf<AquaTagDiagnostics["performance"]>({`
 - `AQUA_TAG_CONNECTION_FIELDS = fieldsOf<NonNullable<AquaTagDiagnostics["connection"]>>({`
 - `AQUA_TAG_SELECTED_FIELDS = fieldsOf<AquaTagSelectedMessage>({`
+- `AQUA_TAG_LINKS_MESSAGE_FIELDS = fieldsOf<AquaTagLinksMessage>({`
+- `AQUA_TAG_PAGE_LINK_FIELDS = fieldsOf<AquaTagPageLink>({`
 - `AQUA_TAG_SIZE_FIELDS = ["width", "height"] as const` — Both halves of a measured box, so the guard can pin them as one thing.
 - `type AquaTagMessageName = (typeof AQUA_TAG_MESSAGES)[keyof typeof AQUA_TAG_MESSAGES]`
 - `type AquaTagStyleProperty = (typeof AQUA_TAG_STYLE_PROPERTIES)[number]`
 - `type AquaTagElementStyles = Record<AquaTagStyleProperty, string>`
-- `type AquaTagInboundMessage = | AquaTagReadyMessage | AquaTagDiagnosticsMessage | AquaTagSelectedMessage | AquaTagThrottleAppliedMessage`
-- `type AquaTagOutboundMessage = | AquaTagPingMessage | AquaTagInspectMessage | AquaTagEnableMessage | AquaTagDisableMessage | AquaTagPatchMessage | AquaTagResetMessage | AquaTagThrottleMessage`
+- `type AquaTagInboundMessage = | AquaTagReadyMessage | AquaTagDiagnosticsMessage | AquaTagSelectedMessage | AquaTagThrottleAppliedMessage | AquaTagLinksMessage`
+- `type AquaTagOutboundMessage = | AquaTagPingMessage | AquaTagInspectMessage | AquaTagLinksRequestMessage | AquaTagEnableMessage | AquaTagDisableMessage | AquaTagPatchMessage | AquaTagResetMessage | AquaTagThrottleMessage`
 - `interface AquaTagElement (8 members)` — One mapped element, field for field as `explorerDescribe` builds it. `text` is absent on images and `src`/`alt` are absent on everything else — the tag sends `undefined` for the b…
 - `interface AquaTagPatch (4 members)` — What the editor may change on a mapped element. Preview-only; nothing here is saved.
 - `interface AquaTagCapabilities (4 members)`
@@ -306,8 +309,11 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface AquaTagDiagnosticsMessage (4 members)`
 - `interface AquaTagSelectedMessage (3 members)`
 - `interface AquaTagThrottleAppliedMessage (3 members)`
+- `interface AquaTagPageLink (2 members)` — One link the tag found on the page it is running on. SAME-ORIGIN ONLY, and that is a rule the tag applies before sending rather than one the editor filters after: a navigator that…
+- `interface AquaTagLinksMessage (4 members)`
 - `interface AquaTagPingMessage (3 members)` — ── editor → tag ────────────────────────────────────────────────────────────
 - `interface AquaTagInspectMessage (3 members)`
+- `interface AquaTagLinksRequestMessage (3 members)`
 - `interface AquaTagEnableMessage (2 members)`
 - `interface AquaTagDisableMessage (2 members)`
 - `interface AquaTagPatchMessage (4 members)`
@@ -364,15 +370,75 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/engines/editor/editing/modes.ts`
 
-- `inspectorTabsFor(mode: EditingMode, target: { portalTarget: boolean; tagMapped: boolean }): InspectorTab[]` — Which tabs are actually offered, given the depth AND what is connected. The depth answers "how much do I want to be shown?"; the target answers "what is there to show?". Both gate…
+- `inspectorTabsFor(mode: EditingMode, target: { portalTarget: boolean; tagMapped: boolean; surface: EditorSurface }): InspectorTab[]` — Which tabs are actually offered, given the depth AND what is connected. The depth answers "how much do I want to be shown?"; the target answers "what is there to show?". Both gate…
 - `editingMode(id: string | null | undefined): EditingModeDefinition`
 - `modeAllowsTab(mode: EditingMode, tab: string): boolean` — Whether a tab is offered in this mode.
 - `tabForMode(mode: EditingMode, currentTab: string): string` — Keeps the current tab valid when the mode changes. Switching from Developer to a shallower depth while sitting on the code tab must land somewhere real rather than on a blank pane…
+- `tabForSurface(surface: EditorSurface, mode: EditingMode, currentTab: string): string` — Keeps the current tab valid when the SURFACE changes. The mirror of `tabForMode` for the other axis: leaving the Website surface while sitting on SEO must land somewhere real, and…
 - `EDITING_MODES: EditingModeDefinition[]`
 - `INSPECTOR_TABS = [` — Every inspector tab, in the order the rail and the mobile strip show them. The order lives HERE rather than beside the icons in `DevEditor.tsx` so the rule below and the rendering…
-- `type EditingMode = "assist" | "visual" | "developer"` — How deep somebody wants to go, kept separate from what they are editing. The Studio's tabs answer "what am I changing?" — content, layout, brand, code. That is a different questio…
+- `SURFACE_TABS = new Set<InspectorTab>(["seo"])` — Tabs the SURFACE owns rather than the depth ladder. Phase 9: exactly one. Anything in here is offered on every depth and gated only by the surface, so it needs the two rules below…
+- `type EditingMode = "assist" | "visual" | "developer"`
 - `type InspectorTab = (typeof INSPECTOR_TABS)[number]`
 - `interface EditingModeDefinition (4 members)`
+
+### `src/engines/editor/editing/pageNavigator.ts`
+
+- `repositoryRoutes(paths: readonly string[]): NavigatorDestination[]` — The routes a repository's file list describes. Deduplicated (a route reachable two ways is still one page), `/` first, then alphabetical — the order somebody reads a site in, not …
+- `pageLinkDestinations(links: readonly AquaTagPageLink[], allowedOrigin: string | null | undefined): PageLinkAnswer` — The tag's link report → destinations, ON THE EDITOR'S OWN ORIGIN POLICY. ── Why this takes an origin, and why it fails closed ─────────────────────── The tag filters same-origin b…
+- `portalPageDestinations(pages: NavigatorPortalPages): NavigatorDestination[]`
+- `navigatorPlan(input: NavigatorInput): NavigatorPlan` — Everything that can answer, grouped and counted, with the line that says so. The groups are in the order they are TRUSTED: a portal document is the page list; the repository's sou…
+- `navigatorHref(currentUrl: string, destination: NavigatorDestination): string | null` — Where picking a destination points the browser — or null when it cannot. Null is a real answer with three causes, and the caller must handle all three rather than falling back to …
+- `navigatorCurrentId(plan: NavigatorPlan, currentUrl: string): string` — Which option is currently showing, by what the browser is pointed at. Matched on PATH, not on the whole URL: the tag's links carry an origin and a repository route does not, and b…
+- `NAVIGATOR_ROUTE_LIMIT = 200` — A page's own routes cap. A select with 500 rows is not a list, it is a wall.
+- `type NavigatorSourceId = "portal" | "repository" | "page-links"` — Who answered. Every destination carries the one that produced it.
+- `interface NavigatorDestination (7 members)`
+- `interface NavigatorGroup (3 members)`
+- `interface NavigatorPlan (4 members)`
+- `interface PageLinkAnswer (2 members)` — What survived the origin policy, and how many did not.
+- `interface NavigatorPortalPages (2 members)` — ── A portal's own pages ────────────────────────────────────────────────────
+- `interface NavigatorInput (7 members)` — ── The plan ────────────────────────────────────────────────────────────────
+
+### `src/engines/editor/editing/pageSeo.ts`
+
+- `normalisePageSeo(value: unknown): PageSeo` — Anything at all → a valid `PageSeo`. Never throws; unknown keys dropped.
+- `pageSeoIsEmpty(seo: PageSeo): boolean` — Nothing to write. A block is removed rather than emitted empty.
+- `storedPageSeo(value: unknown): PageSeo | undefined` — For a STORED document: the values, or `undefined` when there is nothing. The portal design document's normalisers use this so a page nobody has given SEO to carries no `seo` key a…
+- `pageSeoEquals(left: PageSeo, right: PageSeo): boolean`
+- `pageSeoFieldInert(seo: PageSeo, field: PageSeoField): string | null` — Why a filled-in field will not reach the page — or null when it will. Distinct from `mechanismRefusesField`, which is about the FILE FORMAT ("Next's metadata export has nowhere to…
+- `effectivePageSeo(seo: PageSeo): PageSeo` — The values as they would actually be WRITTEN: every inert field back at its default. What the panel compares to decide whether there is anything to preview. The raw draft is not t…
+- `pageSeoWriteEquals(left: PageSeo, right: PageSeo): boolean` — `pageSeoEquals` on what would be written, not on what was typed.
+- `pageSeoProblems(seo: PageSeo): PageSeoProblem[]` — Everything wrong with these values — blocking first, then advice. The split matters. A canonical that is not a URL is a tag that actively misdirects a crawler, so it is refused. A…
+- `pageSeoBlocked(seo: PageSeo): PageSeoProblem[]`
+- `parseStructuredData(raw: string): StructuredDataParse` — The operator's JSON-LD, parsed — and refused with a reason it can act on. Deliberately NOT validated against a schema whitelist: schema.org has hundreds of types and an agency pas…
+- `structuredDataScriptBody(value: unknown): string` — The escaped body of the `<script type="application/ld+json">`. The wrap-and-slice is exactly what the module's own `buildJsonLdScriptBodies` does, and for the same reason: emit th…
+- `seoMechanismFor(path: string): SeoMechanismAnswer`
+- `governingLayout(pageFile: string, files: readonly string[]): string | null` — The App Router layout that governs a page — the nearest one above it. This exists because the engine could always write `app/layout.tsx` and the UI could never point at one: the n…
+- `mechanismRefusesField(mechanism: SeoMechanism, field: PageSeoField): string | null` — Which fields a mechanism can actually carry, and why not when it cannot.
+- `mechanismFields(mechanism: SeoMechanism): PageSeoField[]` — The fields this mechanism will write, in panel order.
+- `emitHtmlSeoBlock(seo: PageSeo, indent = " "): string[]` — The `<head>` lines for an HTML page — the block, markers included. A field with no value emits no tag. An empty `<meta name="description" content="">` is worse than none: it tells…
+- `nextMetadataObject(seo: PageSeo): Record<string, unknown>` — The Next metadata object — as JSON, deliberately. JSON is a subset of a TypeScript object literal, so this is valid source AND something the editor can read back with `JSON.parse`…
+- `emitNextMetadataBlock(seo: PageSeo): string[]`
+- `readPageSeo(input: { contents: string; file: string }): PageSeoRead` — What the file currently says — the editor's block, and whatever else.
+- `planPageSeoEdit(input: { contents: string; file: string; seo: PageSeo }): PageSeoPlan` — The whole edit, as new file contents — or a typed refusal saying why not. Nothing here writes anything. The caller previews these exact lines, a human confirms them, and only then…
+- `EMPTY_PAGE_SEO: PageSeo`
+- `PAGE_SEO_FIELDS: PageSeoField[]` — Every field, in the order the panel shows them.
+- `SEO_TITLE_ADVISORY_LIMIT = 60` — Lengths Google actually truncates at. Advice, never a refusal.
+- `SEO_DESCRIPTION_ADVISORY_LIMIT = 160`
+- `HTML_SEO_OPEN = "<!-- aqua:seo -->"` — The marker pair. Everything between them belongs to the editor; everything outside them is somebody's own work and is never touched.
+- `HTML_SEO_CLOSE = "<!-- /aqua:seo -->"`
+- `TS_SEO_OPEN = "// aqua:seo"`
+- `TS_SEO_CLOSE = "// /aqua:seo"`
+- `type TwitterCard = "summary" | "summary_large_image"` — ── The fields ──────────────────────────────────────────────────────────────
+- `type PageSeoField = keyof PageSeo`
+- `type StructuredDataParse = | { ok: true; value: unknown; nodes: number } | { ok: false; error: string }` — ── Structured data ─────────────────────────────────────────────────────────
+- `type SeoMechanism = "html" | "next-metadata" | "portal-document" | "unsupported"` — ── Which mechanism a file's head uses ──────────────────────────────────────
+- `type PageSeoRefusalReason = "unsupported" | "no-head" | "conflict" | "invalid" | "no-change"` — ── Planning the edit ───────────────────────────────────────────────────────
+- `type PageSeoPlan = | { ok: true; newContents: string; /** What goes in — the diff the operator confirms before anything is written. */ lines: string[]; /** 1-based line the block starts on in the NEW contents. */ line: …`
+- `interface PageSeo (10 members)` — One page's SEO, as the operator fills it in. Same vocabulary as the website-editor module's `EditorPageSeo`, on purpose — an agency should not have to learn two names for the meta…
+- `interface PageSeoProblem (3 members)` — ── What is wrong with it, before anything is written ───────────────────────
+- `interface SeoMechanismAnswer (2 members)`
+- `interface PageSeoRead (3 members)` — ── Reading it back ─────────────────────────────────────────────────────────
 
 ### `src/engines/editor/editing/selectionRouting.ts`
 
@@ -380,6 +446,22 @@ Every exported function, class, type and const in this area, with its real signa
 - `modeSelectsThroughTag(mode: EditingMode): boolean` — Whether a depth uses the tagged browser to select at all. Every one of them does — that is the point of "one mechanism". Kept as a named function rather than a `true` scattered th…
 - `type SelectionDestination = "element" | "assistant" | "builder"` — Inspector tabs a selection can be routed to. A subset of the editor's tabs on purpose — these are the only three that can meaningfully receive "the operator just pointed at this e…
 - `interface SelectionRoute (5 members)`
+
+### `src/engines/editor/editing/surfaces.ts`
+
+- `editorSurface(id: string | null | undefined): EditorSurfaceDefinition` — A stored or typed surface id → the definition, tolerantly. Migrations are BY NAME, never by falling through to the default — the same rule `editingMode` learned when "simple" merg…
+- `derivedSurface(signals: SurfaceSignals): DerivedSurface` — What this project looks like, on the evidence — and the sentence saying so. ONE rule promotes to Website, and it is Ed's: *"tag + site"*. A tag that answers proves there is a real…
+- `resolveSurface(stored: string | null | undefined, signals: SurfaceSignals): ResolvedSurface` — The surface actually in force: the operator's choice, or the evidence. A stored choice ALWAYS wins, including when it agrees with the derivation and including when it disagrees — …
+- `surfaceStorageKey(scope: string): string`
+- `loadSurfaceChoice(scope: string): EditorSurface | null` — The stored choice, or null when there is none. Null in a test, and in SSR.
+- `saveSurfaceChoice(surface: EditorSurface, scope: string): void`
+- `EDITOR_SURFACES: EditorSurfaceDefinition[]`
+- `SURFACE_STORAGE_PREFIX = "lk_editor_surface_v1"` — written its own guess down as if a person had made it.
+- `type EditorSurface = "website" | "normal"` — The two. There is no portal surface — Ed was explicit, and Normal covers it.
+- `interface EditorSurfaceDefinition (3 members)`
+- `interface SurfaceSignals (4 members)` — ── Deriving the default from what is CONNECTED ─────────────────────────────
+- `interface DerivedSurface (2 members)`
+- `interface ResolvedSurface (4 members)`
 
 
 ## `src/engines/editor/elements/`
@@ -619,7 +701,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `forgetEditorAiHistoryForProject(input: { agencyId: string; projectId: string; }): void` — Delete a project's conversation because the PROJECT is being deleted. Separate from `clearEditorAiHistory` because it must survive the project no longer resolving — it runs beside…
 - `EDITOR_AI_HISTORY_LIMITS = {` — The cap. Exported because a limit nobody can read is a limit nobody can test, and because the UI has to be able to say what it is. `projectChars` is the number that matters: ~80KB…
 - `interface StartEditorAiThreadInput (5 members)`
-- `interface AppendEditorAiMessageInput (7 members)`
+- `interface AppendEditorAiMessageInput (8 members)`
 
 ### `src/engines/editor/server/editorAiReply.ts`
 
@@ -627,7 +709,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `EDITOR_AI_REPLY_LIMITS = {` — What travels to the model, and how long it may take. Derived from the history caps where a history number exists, so the two cannot drift apart.
 - `type EditorAiReplyFailureCode = | "not_configured" /** The model did not answer inside the timeout. */ | "timeout" /** OpenAI could not be reached at all. */ | "network" /** OpenAI answered with a refusal. `error` carri…`
 - `type EditorAiReplyResult = | { ok: true; /** The assistant's message, already appended to the project's thread. */ message: EditorAiMessage; threadId: string; conversation: EditorAiConversation; } | { ok: false; code: E…`
-- `interface GenerateEditorAiReplyInput (7 members)`
+- `interface GenerateEditorAiReplyInput (8 members)`
 
 ### `src/engines/editor/server/editorAssistant.ts`
 
@@ -722,6 +804,8 @@ Every exported function, class, type and const in this area, with its real signa
 - `async revertMergedDraft(input: { agencyId: string; project: DevProject; confirm?: boolean }, deps: MergeRevertDeps = {}): Promise<RevertDraftResult>` — Put the PRE-DRAFT contents of everything the merged draft changed back onto the draft branch — as ordinary commits. THE REVERT IS ITSELF A DRAFT. Nothing here touches the base bra…
 - `async listInsertTargets(input: { agencyId: string; project: DevProject }, deps: RepoWriteDeps = {}): Promise<InsertTargetsResult>` — The files an element can be placed into — the picker's list. Read from the draft branch when it exists (a page created two saves ago is a real target, whatever base says) and filt…
 - `async insertElementIntoRepo(input: InsertElementInput, deps: RepoWriteDeps = {}): Promise<InsertElementResult>` — Put one element's emitted source into a file on the draft branch. Two calls by design, like the words editor: the first (no `confirm`) reads the file, plans the splice and returns…
+- `async readPageSeoFromRepo(input: { agencyId: string; project: DevProject; path: string }, deps: RepoWriteDeps = {}): Promise<ReadPageSeoResult>` — What a page's head currently says — read from the draft branch first. Draft-first for the same reason every other read here is: a title committed to the branch two saves ago is wh…
+- `async writePageSeoToRepo(input: WritePageSeoInput, deps: RepoWriteDeps = {}): Promise<WritePageSeoResult>` — Put a page's SEO into its own source — preview first, then commit. Two calls, exactly like the element insert: the first (no `confirm`) plans the block and returns the lines and a…
 - `type RepoWriteDeps = SourceEditDeps` — Reuses the words editor's dep seams — same fakes drive both in tests.
 - `type RepoWriteRefusal = { ok: false; reason: | "bad-path" | "not-editable" | "too-large" | "unreadable" | "stale-fingerprint" | "no-change" | "exists" | "nothing-to-publish" | "pull-request-failed" // ── the element-ins…`
 - `type RepoPathCheck = { ok: true; path: string } | { ok: false; error: string }` — ─── Paths ───────────────────────────────────────────────────────────────────
@@ -734,9 +818,12 @@ Every exported function, class, type and const in this area, with its real signa
 - `type RevertDraftResult = | { ok: true; branch: string; repository: string; /** False on the preview pass — nothing was written. */ published: boolean; files: RevertPlanFile[]; commitShas: string[]; summary: string; } | …`
 - `type InsertTargetsResult = | { ok: true; repository: string; branch: string; /** Which ref actually answered — the draft branch once it exists. */ readFrom: string; /** Every file an element can go into, in tree order. …`
 - `type InsertElementResult = | { ok: true; path: string; branch: string; repository: string; /** False on the preview pass — nothing was written. */ published: boolean; commitSha?: string; /** 1-based line the insert star…`
+- `type ReadPageSeoResult = | { ok: true; path: string; repository: string; branch: string; seo: PageSeo; /** True when the editor's own marked block is already in the file. */ found: boolean; /** A head somebody else wrot…` — `editing/pageSeo.ts`, which is pure and knows nothing about a repository.
+- `type WritePageSeoResult = | { ok: true; path: string; repository: string; branch: string; /** False on the preview pass — nothing was written. */ published: boolean; commitSha?: string; /** Exactly the lines that go in,…`
 - `interface SaveRepoFileInput (7 members)` — ─── SAVE ────────────────────────────────────────────────────────────────────
 - `interface CreateRepoPathInput (6 members)` — ─── CREATE ──────────────────────────────────────────────────────────────────
 - `interface InsertElementInput (8 members)`
+- `interface WritePageSeoInput (6 members)`
 
 ### `src/engines/editor/server/sourceAdapter.ts`
 

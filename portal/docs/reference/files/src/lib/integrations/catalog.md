@@ -13,7 +13,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `INTEGRATION_CATALOG: IntegrationDefinition[]`
 - `integrationDefinition(provider: IntegrationProvider): IntegrationDefinition`
 
-## Used by (10)
+## Used by (12)
 
 - [`src/app/api/portal/settings/integrations/route.ts`](../../app/api/portal/settings/integrations/route.md)
 - [`src/app/portal/agency/company/_CompanyConnectionsWorkspace.tsx`](../../app/portal/agency/company/_CompanyConnectionsWorkspace.md)
@@ -25,4 +25,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/integrations/types.ts`](./types.md)
 - [`src/lib/server/email/outboundCommunications.ts`](../server/email/outboundCommunications.md)
 - [`src/lib/server/integrations/integrationConnections.ts`](../server/integrations/integrationConnections.md)
+- [`src/lib/server/plugins/pluginSecretConfig.ts`](../server/plugins/pluginSecretConfig.md)
+- [`src/lib/server/plugins/pluginSettingsSurface.ts`](../server/plugins/pluginSettingsSurface.md)
 

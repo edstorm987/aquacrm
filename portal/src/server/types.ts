@@ -8,6 +8,11 @@
 // dependency-free and only type-imports back from here, so the cycle is
 // compile-time only.
 import type { BlockTreeJSON } from "@/engines/editor/elements/block";
+// Same rule, same reason: type-only, erased, no runtime dependency. The SEO
+// shape is declared once — in the module that emits it into a page's head —
+// so a portal page and a repository page cannot end up with two different
+// ideas of what a meta description is (dev-editor-finish phase 9).
+import type { PageSeo } from "@/engines/editor/editing/pageSeo";
 
 // ─── Tenant identity ──────────────────────────────────────────────────────
 //
@@ -2053,6 +2058,19 @@ export interface ClientPortalPagePresentation {
   eyebrow: string;
   title: string;
   body: string;
+  /**
+   * Per-page SEO, when the operator has set any (dev-editor-finish phase 9).
+   *
+   * OPTIONAL AND OMITTED WHEN EMPTY, deliberately: a document nobody has
+   * touched must normalise to exactly the bytes it had before this field
+   * existed, or every fixture and round-trip test in the portal suite would
+   * be asserting against a shape that changed underneath it.
+   *
+   * An Aqua-hosted portal is behind a login and no renderer reads this yet —
+   * the editor's SEO panel says so in as many words rather than implying a
+   * crawler will ever see it.
+   */
+  seo?: PageSeo;
 }
 
 export type ClientPortalExtensionPlacement = "before-content" | "after-content";
@@ -2153,6 +2171,8 @@ export interface ClientPortalCustomPage {
   label: string;
   visible: boolean;
   blocks: ClientPortalPageBlock[];
+  /** Per-page SEO. Same optional-and-omitted rule as the sections above. */
+  seo?: PageSeo;
 }
 
 export interface ClientPortalBuilderDocument {

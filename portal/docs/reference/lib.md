@@ -668,6 +668,12 @@ Every exported function, class, type and const in this area, with its real signa
 - `type MonthlyPerformanceReportStatus = "draft" | "published"`
 - `interface MonthlyPerformanceReport (11 members)`
 
+### `src/lib/performance/telemetryDisplay.ts`
+
+- `measuredCount(value: number, lastSeenAt: number | null | undefined): number | null` — A count that only counts if something actually reported it. `lastSeenAt` is the telemetry watermark (`telemetryLastSeenAt` / `summary.lastSeenAt`). Falsy — never seen — means the …
+- `measuredCountLabel(value: number, lastSeenAt: number | null | undefined): string` — `measuredCount`, formatted: a real reading, or the dash.
+- `UNMEASURED = "—"` — The dash every honest surface in this codebase uses for "no reading".
+
 
 ## `src/lib/portal/`
 
@@ -1846,7 +1852,37 @@ Every exported function, class, type and const in this area, with its real signa
 - `makePluginStorage(installId: string): PluginStorage`
 
 
+## `src/lib/server/plugins/`
+
+### `src/lib/server/plugins/pluginSecretConfig.ts`
+
+- `pluginSettingsFields(pluginId: string): SettingsField[]` — Every settings field of a plugin, flattened, in declaration order.
+- `vaultTargetOf(field: SettingsField): { provider: IntegrationProvider; field: string } | null` — A field routed to the vault, with a provider the catalogue actually knows.
+- `installConfigWithSecrets(pluginId: string, scope: PluginSecretScope, config: Record<string, unknown> | undefined | null): Record<string, unknown>` — `install.config` with the plugin's vault-held secrets merged in under their manifest field ids. The vault WINS over a same-named entry on the config record. That is deliberate: `i…
+- `interface PluginSecretScope (2 members)`
+
+### `src/lib/server/plugins/pluginSettingsSurface.ts`
+
+- `describePluginSettings(pluginId: string, scope: PluginSecretScope): PluginSettingsView | null` — ─── Read ─────────────────────────────────────────────────────────────────
+- `writePluginSettings(input: WritePluginSettingsInput): WritePluginSettingsResult`
+- `class PluginSettingsError`
+- `type PluginSettingsValue = string | number | boolean | null`
+- `interface PluginSettingsFieldView (10 members)`
+- `interface PluginSettingsGroupView (4 members)`
+- `interface PluginSettingsView (4 members)`
+- `interface WritePluginSettingsInput (5 members)` — ─── Write ────────────────────────────────────────────────────────────────
+- `interface WritePluginSettingsResult (2 members)`
+
+
 ## `src/lib/server/portal/`
+
+### `src/lib/server/portal/apiTenantScope.ts`
+
+- `resolveApiTenantScope(input: ApiTenantScopeInput): ApiTenantScope`
+- `tenantScopeSession(session: SessionPayload): TenantScopeSession` — Narrow a full `SessionPayload` to the shape above.
+- `type ApiTenantScope = | { ok: true; agencyId: string; clientId?: string } | { ok: false; status: 403; error: "tenant_scope_mismatch" | "forbidden" }`
+- `interface TenantScopeSession (4 members)` — Just the parts of a session this decision reads.
+- `interface ApiTenantScopeInput (5 members)`
 
 ### `src/lib/server/portal/portalConnections.ts`
 
@@ -2114,6 +2150,7 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/lib/shared/devProjectGrouping.ts`
 
 - `groupDevProjects<T extends DevProjectGroupable>(projects: T[]): DevProjectGroup<T>[]` — Arrange a flat project list as [parent, ...its children] groups. Tolerant by design — display code must never make a record unreachable: - a child whose parent is NOT in the list …
+- `devProjectDoorFamily<T extends DevProjectGroupable>(projects: T[], doorProjectId: string): T[]` — The projects an editor door is allowed to switch between. The door is the project named by the URL when the editor opened. A top-level door may see itself and its direct children;…
 - `interface DevProjectGroupable (2 members)` — through the projects GET and the grouping happens where it renders.
 - `interface DevProjectGroup<T extends DevProjectGroupable> (2 members)`
 

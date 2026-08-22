@@ -22,11 +22,12 @@
 - `PRIMARY_BUTTON`
 - `DANGER_BUTTON`
 
-## Used by (5)
+## Used by (6)
 
 - [`src/components/editing/AquaEditorAI.tsx`](./AquaEditorAI.md)
 - [`src/components/editing/AquaEditorAIKey.tsx`](./AquaEditorAIKey.md)
 - [`src/components/editing/AquaEditorAIThread.tsx`](./AquaEditorAIThread.md)
 - [`src/components/editing/LibrarianPanel.tsx`](./LibrarianPanel.md)
+- [`src/components/editing/PageSeoPanel.tsx`](./PageSeoPanel.md)
 - [`src/components/editing/WorkLifecyclePanel.tsx`](./WorkLifecyclePanel.md)
 

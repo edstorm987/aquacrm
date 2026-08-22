@@ -4,14 +4,17 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { getDevProject } from "@/engines/editor/server/devProjects";
 import { SourceEditUnavailable } from "@/engines/editor/server/sourceEdit";
+import { normalisePageSeo } from "@/engines/editor/editing/pageSeo";
 import {
   createRepoPath,
   insertElementIntoRepo,
   listInsertTargets,
   mergeProjectPullRequest,
   openProjectPullRequest,
+  readPageSeoFromRepo,
   revertMergedDraft,
   saveRepoFile,
+  writePageSeoToRepo,
   type RepoWriteRefusal,
 } from "@/engines/editor/server/repoWrite";
 import { ensureHydrated } from "@/server/storage";
@@ -50,7 +53,7 @@ import { ensureHydrated } from "@/server/storage";
  */
 
 type Body = {
-  action?: "save" | "create" | "publish" | "insert-targets" | "insert" | "merge" | "revert";
+  action?: "save" | "create" | "publish" | "insert-targets" | "insert" | "merge" | "revert" | "seo-read" | "seo-write";
   project?: string;
   path?: string;
   contents?: string;
@@ -64,6 +67,14 @@ type Body = {
   anchor?: { afterLine?: number; atEnd?: boolean };
   /** Names the element in the commit message. Cosmetic. */
   label?: string;
+  // ── per-page SEO, the Website surface (phase 9) ──
+  /**
+   * The operator's SEO values. Passed through `normalisePageSeo` before it
+   * reaches anything, so an unknown key, a wrong type or a missing field is a
+   * valid `PageSeo` rather than a 500 — the same shape-first rule the portal
+   * document's own `normalisePortalDesign` follows.
+   */
+  seo?: unknown;
 };
 
 /**
@@ -97,6 +108,15 @@ const REFUSAL_STATUS: Record<RepoWriteRefusal["reason"], number> = {
   "no-pull-request": 409,
   "merge-failed": 409,
   "nothing-to-revert": 409,
+  // ── per-page SEO (phase 9) ──
+  // 409 for the three "this page cannot take it" cases — the file disagreeing
+  // with the request, same standing as an insert into an unreadable spot — and
+  // 400 for values the operator got wrong, which is a malformed request they
+  // can fix in the form in front of them.
+  "seo-unsupported": 409,
+  "seo-no-head": 409,
+  "seo-conflict": 409,
+  "seo-invalid": 400,
 };
 
 function refusalResponse(refusal: RepoWriteRefusal) {
@@ -260,7 +280,50 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
       }
 
-      return NextResponse.json({ ok: false, error: "Say what to do: save, create, publish, merge, revert, insert-targets or insert." }, { status: 400 });
+      // ── Per-page SEO, the Website surface (phase 9) ──────────────────────
+      // "seo-read" says what the page's head currently says; "seo-write"
+      // without `confirm` is the dry-run preview and with `confirm: true` AND
+      // the preview's fingerprint it commits. The two-step is enforced here
+      // exactly as the insert's is: a page title is something a client reads
+      // on Google, and it does not get committed by a form nobody confirmed.
+
+      if (body?.action === "seo-read") {
+        const path = body.path?.trim();
+        if (!path) {
+          return NextResponse.json({ ok: false, error: "A page file is required." }, { status: 400 });
+        }
+        const result = await readPageSeoFromRepo({ agencyId: session.agencyId, project, path });
+        if (!result.ok) return refusalResponse(result);
+        return NextResponse.json(result);
+      }
+
+      if (body?.action === "seo-write") {
+        const path = body.path?.trim();
+        if (!path) {
+          return NextResponse.json({ ok: false, error: "A page file is required." }, { status: 400 });
+        }
+        if (body.confirm === true && !body.fingerprint?.trim()) {
+          return NextResponse.json({
+            ok: false,
+            error: "Preview first. Committing needs the fingerprint the preview returned, so a page that changed in between refuses instead of writing.",
+          }, { status: 400 });
+        }
+        const result = await writePageSeoToRepo({
+          agencyId: session.agencyId,
+          project,
+          path,
+          // Shape-first: whatever arrived becomes a valid `PageSeo` here, so
+          // nothing downstream has to defend against a missing field.
+          seo: normalisePageSeo(body.seo),
+          fingerprint: body.fingerprint?.trim() || undefined,
+          // Passed through, not coerced: `publishEdits` wants exactly `true`.
+          confirm: body.confirm,
+        });
+        if (!result.ok) return refusalResponse(result);
+        return NextResponse.json(result);
+      }
+
+      return NextResponse.json({ ok: false, error: "Say what to do: save, create, publish, merge, revert, insert-targets, insert, seo-read or seo-write." }, { status: 400 });
     } catch (error) {
       if (error instanceof SourceEditUnavailable) {
         return NextResponse.json({

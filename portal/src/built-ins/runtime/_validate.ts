@@ -229,6 +229,21 @@ function validateSettingsFields(fields: SettingsField[], where: string, errors: 
     if (f.type === "select" && (!Array.isArray(f.options) || f.options.length === 0)) {
       errors.push(`${fieldWhere} (type:"select") must declare options.`);
     }
+    // A declared secret must say where it is stored. The default store for a
+    // settings value is `install.config`, which is handed to page props and
+    // therefore to the browser — so a password field with no `secretVault` is
+    // a plugin author asking, unknowingly, to ship a key to the client.
+    // Refused at registry load rather than discovered later.
+    if (f.type === "password") {
+      const target = f.secretVault;
+      if (!target || typeof target.provider !== "string" || !target.provider
+        || typeof target.field !== "string" || !target.field) {
+        errors.push(
+          `${fieldWhere} (type:"password") must declare secretVault { provider, field } — `
+          + "secrets go to the encrypted integrations vault, never onto install.config.",
+        );
+      }
+    }
   }
 }
 

@@ -8,9 +8,10 @@
 
 - `default async CustomerPluginCatchAll({ params, searchParams }: RouteProps)`
 
-## Depends on (8)
+## Depends on (9)
 
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../_CustomerPortalViews.md)
+- [`src/built-ins/runtime/_pageScope.ts`](../../../../built-ins/runtime/_pageScope.md)
 - [`src/built-ins/runtime/_routeResolver.ts`](../../../../built-ins/runtime/_routeResolver.md)
 - [`src/built-ins/runtime/_types.ts`](../../../../built-ins/runtime/_types.md)
 - [`src/built-ins/runtime/foundation-adapters/index.ts`](../../../../built-ins/runtime/foundation-adapters/index.md)

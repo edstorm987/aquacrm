@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { getSessionFromRequest } from "@/lib/server/auth/auth";
+import { getActiveAgencyId, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { effectiveRole } from "@/lib/server/auth/effectiveRole";
 import { applyPhaseToClient } from "@/server/phaseApplier";
 
@@ -27,7 +27,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "clientId_and_phaseId_required" }, { status: 400 });
   }
 
-  const result = await applyPhaseToClient(clientId, phaseId);
+  // The caller's own agency, from the SESSION. Both ids above came from the
+  // request body; without this the route applied a phase to any client whose
+  // agency happened to match the phase's — including a stranger's.
+  const result = await applyPhaseToClient(clientId, phaseId, getActiveAgencyId(session));
   if (!result.ok) {
     return NextResponse.json(result, { status: result.error === "client_not_found" || result.error === "phase_not_found" ? 404 : 400 });
   }

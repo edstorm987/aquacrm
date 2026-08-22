@@ -8,11 +8,13 @@ _No file-level doc-comment. Purpose inferred from its path (Plugins — src/buil
 
 - `default async LockInPage(props: PluginPageProps)`
 
-## Depends on (3)
+## Depends on (5)
 
 - [`src/built-ins/modules/agency-finance/src/components/FinanceNav.tsx`](../components/FinanceNav.md)
 - [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](../lib/aquaPluginTypes.md)
+- [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](../lib/currencies.md)
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](../server/foundationAdapter.md)
+- [`src/lib/server/finance/financeCurrency.ts`](../../../../../lib/server/finance/financeCurrency.md)
 
 ## Used by
 

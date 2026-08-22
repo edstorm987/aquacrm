@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - `getEditorAiThread(agencyId: string, projectId: string, threadId: string): EditorAiThread | null`
 - `interface StartEditorAiThreadInput (5 members)`
 - `startEditorAiThread(input: StartEditorAiThreadInput): EditorAiThread`
-- `interface AppendEditorAiMessageInput (7 members)`
+- `interface AppendEditorAiMessageInput (8 members)`
 - `appendEditorAiMessage(input: AppendEditorAiMessageInput): { message: EditorAiMessage; threadId: string; conversation: EditorAiConversation; }`
 - `renameEditorAiThread(input: { agencyId: string; projectId: string; threadId: string; title: string; now?: number; }): EditorAiConversation`
 - `deleteEditorAiThread(input: { agencyId: string; projectId: string; threadId: string; now?: number; }): EditorAiConversation`

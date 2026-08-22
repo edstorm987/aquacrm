@@ -5,6 +5,9 @@ import type {
   ClientPortalSectionId,
 } from "@/server/types";
 import { defaultPortalBuilder, normalisePortalBuilder } from "@/lib/portal/clientPortalBuilder";
+// Per-page SEO (phase 9) — undefined when nothing is set, so a document that
+// predates the field normalises to exactly the bytes it always did.
+import { storedPageSeo } from "@/engines/editor/editing/pageSeo";
 
 export const CLIENT_PORTAL_TEMPLATE_ID = "stunning-standard";
 export const CLIENT_PORTAL_TEMPLATE_NAME = "Stunning Standard";
@@ -204,12 +207,18 @@ export function normalisePortalDesign(value: unknown, fallback: ClientPortalDesi
   for (const section of CLIENT_PORTAL_SECTIONS) {
     const source = objectValue(pages[section]);
     const base = fallback.pages[section];
+    // Per-page SEO (phase 9). Falls back to whatever the base document had,
+    // so a template's SEO is inherited the way every other page field is —
+    // and `storedPageSeo` returns undefined when there is nothing, which is
+    // why an untouched document still normalises to its original bytes.
+    const seo = storedPageSeo(source.seo ?? base.seo);
     result.pages[section] = {
       label: cleanText(source.label, base.label, 60),
       visible: typeof source.visible === "boolean" ? source.visible : base.visible,
       eyebrow: cleanText(source.eyebrow, base.eyebrow, 120),
       title: cleanText(source.title, base.title, 180),
       body: cleanText(source.body, base.body, 700),
+      ...(seo ? { seo } : {}),
     };
   }
 

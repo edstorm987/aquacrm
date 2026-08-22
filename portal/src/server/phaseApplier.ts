@@ -36,15 +36,32 @@ export interface ApplyError {
     | "phase_agency_mismatch";
 }
 
+/**
+ * Apply a phase to a client, on behalf of `agencyId`.
+ *
+ * `agencyId` is REQUIRED and is the caller's own tenant — it is not derived
+ * from the client, and it is not optional. Both ids in the signature come from
+ * a request body, and the only check used to be `client.agencyId ===
+ * phase.agencyId`: name a client in agency B AND a phase in agency B and the
+ * two agreed with each other, so an owner in agency A moved a stranger's client
+ * to a new stage and installed plugins into their workspace. Same class as the
+ * plugin dispatcher's `?agencyId=` hole, one layer up: the request named the
+ * tenant, and nothing asked whether the caller belonged to it.
+ *
+ * A client outside the caller's agency answers `client_not_found`, the same as
+ * one that does not exist — a distinct "wrong agency" error would confirm the
+ * stranger's client id to whoever probed for it.
+ */
 export async function applyPhaseToClient(
   clientId: string,
   phaseId: string,
+  agencyId: string,
 ): Promise<ApplyResult | ApplyError> {
   const phase = getPhase(phaseId);
-  if (!phase) return { ok: false, error: "phase_not_found" };
+  if (!phase || phase.agencyId !== agencyId) return { ok: false, error: "phase_not_found" };
 
   const client = getClient(clientId);
-  if (!client) return { ok: false, error: "client_not_found" };
+  if (!client || client.agencyId !== agencyId) return { ok: false, error: "client_not_found" };
 
   if (client.agencyId !== phase.agencyId) {
     return { ok: false, error: "phase_agency_mismatch" };

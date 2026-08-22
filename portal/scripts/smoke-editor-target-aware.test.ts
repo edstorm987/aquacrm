@@ -27,9 +27,19 @@ const devRoute = read("src", "app", "portal", "dev-team", "editor", "studio", "p
 const modes = read("src", "engines", "editor", "editing", "modes.ts");
 
 describe("the editor adapts to its target", () => {
-  it("knows what it is pointed at", () => {
+  it("REWRITTEN PIN — knows what it is pointed at, from what is CONNECTED", () => {
+    // WAS: `const portalTarget = projectKind !== "software"`.
+    //
+    // The prop and the route still carry `kind` (it seeds two opening
+    // defaults), so those two assertions stand. The THIRD one is rewritten: a
+    // project saved as "website" or "portal" — the field's other two values —
+    // made portalTarget true and sent the navigator and the SEO panel into
+    // some other client's portal document. "Is there a portal document
+    // behind this?" is now answered by whether a dev project is open at all,
+    // which is what `DevProject.kind`'s own comment has said all along.
     assert.match(studio, /projectKind\?: "software" \| "website" \| "portal"/);
-    assert.match(studio, /const portalTarget = projectKind !== "software"/);
+    assert.match(studio, /const portalTarget = !projectId;/);
+    assert.equal(/const portalTarget = projectKind/.test(studio), false);
     assert.match(devRoute, /projectKind=\{project\?\.kind\}/, "the route must pass the kind through");
   });
 
@@ -56,14 +66,23 @@ describe("the editor adapts to its target", () => {
     assert.match(modes, /const PORTAL_DOCUMENT_TABS = new Set<InspectorTab>\(\[[\s\S]{0,200}?"code",\n\]\);/);
     assert.match(modes, /return target\.portalTarget \|\| !PORTAL_DOCUMENT_TABS\.has\(tab\)/);
     assert.equal(/PORTAL_ONLY_TABS/.test(modes), false, "the old name conflated two questions");
-    assert.match(studio, /inspectorTabsFor\(editingModeId, \{ portalTarget, tagMapped \}\)/);
+    // REWRITTEN 2026-08-22 (phase 9): the call gained the SURFACE argument —
+    // Website vs Normal, a second axis alongside the depth. The portal-document
+    // gate this test is about is untouched by it; the pin is widened so the
+    // call site is still held, not dropped because it moved.
+    assert.match(studio, /inspectorTabsFor\(editingModeId, \{ portalTarget, tagMapped, surface \}\)/);
 
     // …and the behaviour itself, which the regexes above only stand in for.
-    const onARepository = inspectorTabsFor("developer", { portalTarget: false, tagMapped: true });
-    for (const portalOnly of ["pages", "brand", "versions", "code"]) {
-      assert.equal(onARepository.includes(portalOnly as never), false,
-        `${portalOnly} needs a portal document and must not be offered on a repository`);
+    // Both surfaces, because a portal-document tab must stay portal-gated on
+    // either one — the Website surface adds SEO, it does not unlock the portal.
+    for (const surface of ["normal", "website"] as const) {
+      const onARepository = inspectorTabsFor("developer", { portalTarget: false, tagMapped: true, surface });
+      for (const portalOnly of ["pages", "brand", "versions", "code"]) {
+        assert.equal(onARepository.includes(portalOnly as never), false,
+          `${portalOnly} needs a portal document and must not be offered on a repository (${surface})`);
+      }
     }
+    const onARepository = inspectorTabsFor("developer", { portalTarget: false, tagMapped: true, surface: "normal" });
     // Dev has the repo tools AND the vocabulary — which is the whole point.
     // The Librarian joined Dev on every target (2026-08-22) — it finds files
     // and needs no portal document, so it rightly survives this gate.

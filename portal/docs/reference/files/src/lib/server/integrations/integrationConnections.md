@@ -31,7 +31,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (23)
+## Used by (25)
 
 - [`scripts/smoke-aqua-editor-ai-token.test.ts`](../../../../scripts/smoke-aqua-editor-ai-token.test.md)
 - [`src/app/api/portal/dev/editor-ai/route.ts`](../../../app/api/portal/dev/editor-ai/route.md)
@@ -56,4 +56,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/server/integrations/metaMessaging.ts`](./metaMessaging.md)
 - [`src/lib/server/integrations/vercelProjectDeployer.ts`](./vercelProjectDeployer.md)
 - [`src/lib/server/marketingIntelligence.ts`](../marketingIntelligence.md)
+- [`src/lib/server/plugins/pluginSecretConfig.ts`](../plugins/pluginSecretConfig.md)
+- [`src/lib/server/plugins/pluginSettingsSurface.ts`](../plugins/pluginSettingsSurface.md)
 

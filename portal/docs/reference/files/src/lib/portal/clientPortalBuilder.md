@@ -19,8 +19,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `uniquePortalSlug(value: string, used: string[]): string`
 - `portalBuilderId(prefix: string): string`
 
-## Depends on (2)
+## Depends on (3)
 
+- [`src/engines/editor/editing/pageSeo.ts`](../../engines/editor/editing/pageSeo.md)
 - [`src/engines/editor/elements/portalElements.ts`](../../engines/editor/elements/portalElements.md)
 - [`src/server/types.ts`](../../server/types.md)
 

@@ -336,7 +336,10 @@ describe("the librarian tab — declared on the ladder, held off the rail", () =
     for (const portalTarget of [true, false]) {
       for (const tagMapped of [true, false]) {
         assert.equal(
-          (inspectorTabsFor("developer", { portalTarget, tagMapped }) as readonly string[]).includes("librarian"),
+          // `surface` added 2026-08-22 (phase 9). The Librarian is a DEPTH
+          // tab and the surface must not touch it — "normal" is the universal
+          // one, and the Website case is walked by smoke-editor-surface-modes.
+          (inspectorTabsFor("developer", { portalTarget, tagMapped, surface: "normal" }) as readonly string[]).includes("librarian"),
           true,
           `developer must offer the Librarian (portalTarget=${portalTarget}, tagMapped=${tagMapped})`,
         );
@@ -345,7 +348,7 @@ describe("the librarian tab — declared on the ladder, held off the rail", () =
     // And ONLY Dev: the shallower modes stay focused.
     for (const mode of ["assist", "visual"]) {
       assert.equal(
-        (inspectorTabsFor(mode as never, { portalTarget: false, tagMapped: true }) as readonly string[]).includes("librarian"),
+        (inspectorTabsFor(mode as never, { portalTarget: false, tagMapped: true, surface: "normal" }) as readonly string[]).includes("librarian"),
         false,
         `${mode} must not offer the Librarian`,
       );

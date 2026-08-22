@@ -24,7 +24,7 @@
 - `async renameEditorAiThread(input: { projectId: string; threadId: string; title: string; }): Promise<EditorAiHistoryResult>`
 - `async deleteEditorAiThread(input: { projectId: string; threadId: string; }): Promise<EditorAiHistoryResult>`
 - `async clearEditorAiHistory(projectId: string): Promise<EditorAiHistoryResult>`
-- `async requestEditorAiReply(input: { projectId: string; threadId: string; /** What the editor is pointing at — target, clicked words, source focus. */ context?: string; }): Promise<EditorAiReplyResult>`
+- `async requestEditorAiReply(input: { projectId: string; threadId: string; /** The exact saved user message to answer. */ messageId: string; /** What the editor is pointing at — target, clicked words, source focus. */ context?: string; }): P…`
 
 ## Depends on (1)
 

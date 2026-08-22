@@ -17,11 +17,13 @@ import { buildBudgetPotSnapshots } from "@/built-ins/modules/agency-finance/src/
 import { ensureAgencyFinanceFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/agencyFinanceFoundation";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { requireRole } from "@/lib/server/auth/auth";
+import { listPlugins } from "@/built-ins/runtime/_registry";
+import { pageAllowsRoleAt } from "@/built-ins/runtime/_pageScope";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { getPipelineBySlug } from "@/server/pipelines";
 import { ensureHydrated } from "@/server/storage";
-import { AGENCY_ROLES } from "@/server/types";
+import { AGENCY_ROLES, type Role } from "@/server/types";
 import { listClients } from "@/server/tenants";
 import { listTradingCompanies } from "@/server/tradingCompanies";
 import type { TradingCompany } from "@/server/types";
@@ -51,12 +53,42 @@ import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider"
 import { ClientMarketingServiceWorkspace } from "@/components/marketing/ClientMarketingServiceWorkspace";
 import { cleanClientMarketingService } from "@/lib/clients/clientMarketingService";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
+import { measuredCountLabel } from "@/lib/performance/telemetryDisplay";
 
 const LEADS_PLUGIN = "leads-pipeline";
 const FINANCE_PLUGIN = "agency-finance";
 const EMAIL_PLUGIN = "email-sender";
 const MARKETING_PLUGIN = "agency-marketing";
 const MARKETING_ASSETS_KEY = "milesymedia/channel-assets/v1";
+
+/**
+ * May this role see Campaigns?
+ *
+ * Asked of the leads-pipeline MANIFEST, not answered here. The two surfaces
+ * that show the campaign composer had drifted apart: the plugin page
+ * (`/portal/agency/leads-pipeline/campaigns`) declares
+ * `visibleToRoles: AGENCY_ADMINS`, and the surface gate closes it to
+ * `agency-staff` — while THIS app route gated on `requireRole([...AGENCY_ROLES])`
+ * and rendered the very same `CampaignsWorkspace` server-side, so staff read
+ * every campaign by typing `/portal/agency/marketing?view=demand`. The API
+ * behind it (`leads-pipeline/campaigns`) is already capped by that page, so
+ * staff could read the data here and not through the API that serves it — three
+ * surfaces, two answers.
+ *
+ * The manifest wins: it is the more recent, deliberate declaration (the note on
+ * that page records exactly why the nav hid Campaigns from staff while the page
+ * stayed open), and it is the one the API and the plugin host already obey.
+ * Deriving the answer from it rather than restating it is what stops a fourth
+ * surface drifting again.
+ *
+ * Default-deny if the manifest or the page ever goes missing.
+ */
+function campaignsVisibleToRole(role: Role): boolean {
+  const plugin = listPlugins().find(candidate => candidate.id === LEADS_PLUGIN);
+  const page = plugin?.pages.find(candidate => candidate.path === "campaigns");
+  if (!plugin || !page) return false;
+  return pageAllowsRoleAt(plugin, page, "agency", role);
+}
 
 
 export default async function MarketingPage({
@@ -256,6 +288,14 @@ export default async function MarketingPage({
     );
   }
 
+  // Campaigns is the plugin's surface, shown here. `campaignsVisibleToRole`
+  // asks the manifest so the two cannot disagree; a role it refuses loses the
+  // block, its tab in the in-view nav, and the `?section=campaigns` deep link
+  // in one move, because all three read this list.
+  const canSeeCampaigns = campaignsVisibleToRole(session.role);
+  const visibleSections = (blocks: readonly MarketingSection[]): MarketingSection[] =>
+    blocks.filter(block => block !== "campaigns" || canSeeCampaigns);
+
   // The blocks the merged views carry. A retired `?view=` lands on its old block
   // first (see resolveMarketingView) so a bookmark opens on what it asked for.
   const sectionBlocks: Partial<Record<MarketingSection, React.ReactNode>> = view === "pulse" ? {
@@ -263,7 +303,7 @@ export default async function MarketingPage({
     radar: model ? <MarketingRadarWorkspace spine={model.spine} /> : null,
   } : view === "demand" ? {
     funnel: model ? <MarketingFunnelBoard funnel={model.funnel} spine={model.spine} /> : null,
-    campaigns: (
+    campaigns: !canSeeCampaigns ? null : (
       <div className="space-y-5">
         <div className="flex items-end justify-between border-b border-black/10 pb-3">
           <div>
@@ -354,9 +394,9 @@ export default async function MarketingPage({
       {view === "pulse" || view === "demand" ? (
         <div className="space-y-7">
           {view === "pulse" ? <MarketingDataSpinePanel spine={spine} brandScope={brandScope} /> : null}
-          {view === "pulse" ? <MarketingAtAGlance overview={overview} customerProfiles={scopedCustomerProfiles} sourceRows={sourceRows} emailSenderReady={Boolean(emailInstall?.enabled)} automationStats={{ total: automationWorkflows.length, active: automationWorkflows.filter(workflow => workflow.status === "active").length }} /> : null}
-          <MarketingSectionNavigation view={view} section={section} brandScope={brandScope} />
-          {orderedMarketingSections(view, section).map(block => (
+          {view === "pulse" ? <MarketingAtAGlance overview={overview} customerProfiles={scopedCustomerProfiles} sourceRows={sourceRows} emailSenderReady={Boolean(emailInstall?.enabled)} automationStats={{ total: automationWorkflows.length, active: automationWorkflows.filter(workflow => workflow.status === "active").length }} canSeeCampaigns={canSeeCampaigns} /> : null}
+          <MarketingSectionNavigation view={view} section={section} brandScope={brandScope} sections={visibleSections(MARKETING_VIEW_SECTIONS[view] ?? [])} />
+          {visibleSections(orderedMarketingSections(view, section)).map(block => (
             <section key={block} id={marketingSectionAnchor(block)} className="scroll-mt-24">
               {sectionBlocks[block] ?? null}
             </section>
@@ -401,11 +441,17 @@ export default async function MarketingPage({
               <h2 className="text-sm font-semibold text-black/80">Plan the content before it goes live.</h2>
               <p className="mt-1 max-w-2xl text-xs leading-5 text-black/50">Build the post once, inspect feed and story variants at their real proportions, and check crop and safe areas before approving it.</p>
             </div>
-            <Link href={campaignComposerHref(brandScope, "social")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
-              Create social content <ArrowUpRight size={15} />
-            </Link>
+            {/* Gated with the composer it opens. A role that cannot see the
+                campaigns section lands on a view with no composer — a dead
+                end, which is worse than not offering it. */}
+            {canSeeCampaigns ? (
+              <Link href={campaignComposerHref(brandScope, "social")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">
+                Create social content <ArrowUpRight size={15} />
+              </Link>
+            ) : null}
           </section>
           <SocialBrandPlanner
+            canCompose={canSeeCampaigns}
             assets={scopedMarketingAssets.filter(asset => asset.kind === "social")}
             companies={companyOptions}
             activeScope={brandScope}
@@ -476,7 +522,9 @@ export default async function MarketingPage({
             </div>
             <div className="grid border-t border-black/10 sm:grid-cols-4">
               <WebsiteMetric icon={<RadioTower size={15} />} label="Public mode" value={ownWebsite.status === "live" ? "Live" : ownWebsite.status === "maintenance" ? "Maintenance" : "Redesign gate"} />
-              <WebsiteMetric icon={<Activity size={15} />} label="Views today" value={String(ownWebsiteSummary.pageviews24h)} />
+              {/* Unmeasured is "—", never 0. This tile used to print a measured-looking
+                  "0" directly beside the "Tag: Waiting" tile next to it. */}
+              <WebsiteMetric icon={<Activity size={15} />} label="Views today" value={measuredCountLabel(ownWebsiteSummary.pageviews24h, ownWebsite.telemetryLastSeenAt)} />
               <WebsiteMetric icon={<Activity size={15} />} label="Load time" value={ownWebsiteSummary.averageLoadMs ? `${ownWebsiteSummary.averageLoadMs} ms` : "Waiting"} />
               <WebsiteMetric icon={<RadioTower size={15} />} label="Tag" value={ownWebsite.telemetryLastSeenAt ? "Connected" : "Waiting"} />
             </div>
@@ -517,8 +565,12 @@ const SECTION_META: Record<MarketingSection, { label: string; icon: typeof Activ
  * The blocks inside a merged view. Same pattern as the channel switcher: real
  * links, so every block stays addressable after its own tab was retired.
  */
-function MarketingSectionNavigation({ view, section, brandScope }: { view: MarketingView; section: MarketingSection | null; brandScope: string }) {
-  const sections = MARKETING_VIEW_SECTIONS[view] ?? [];
+function MarketingSectionNavigation({ view, section, brandScope, sections: allowed }: { view: MarketingView; section: MarketingSection | null; brandScope: string; sections?: readonly MarketingSection[] }) {
+  // `allowed` is the caller's already-gated list. Defaulting to the full set
+  // keeps the component honest for views with nothing to hide, but the Demand
+  // view always passes its own so a role refused Campaigns is not offered a tab
+  // that renders an empty section.
+  const sections = allowed ?? MARKETING_VIEW_SECTIONS[view] ?? [];
   if (sections.length < 2) return null;
   return (
     <nav aria-label="In this view" className="flex flex-wrap items-center gap-2">
@@ -617,12 +669,15 @@ function MarketingAtAGlance({
   sourceRows,
   emailSenderReady,
   automationStats,
+  canSeeCampaigns,
 }: {
   overview: MarketingOverview;
   customerProfiles: MarketingCustomerProfile[];
   sourceRows: Array<{ source: string; leads: number; contacted: number; meetings: number; converted: number }>;
   emailSenderReady: boolean;
   automationStats: { total: number; active: number };
+  /** The campaigns plugin page is owner/manager-only; its NUMBERS follow it. */
+  canSeeCampaigns: boolean;
 }) {
   const activeProfiles = customerProfiles.filter(profile => profile.status === "active").length;
   const validatedProfiles = customerProfiles.filter(profile => profile.evidenceConfidence === "validated").length;
@@ -633,12 +688,15 @@ function MarketingAtAGlance({
     <section aria-labelledby="marketing-at-a-glance" className="space-y-3">
       <h2 id="marketing-at-a-glance" className="sr-only">Marketing at a glance</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <OverviewMetric label="Campaigns" value={String(overview.campaigns)} detail={`${overview.activeCampaigns} active · ${overview.draftCampaigns} drafts`} icon={<Megaphone size={16} />} />
+        {/* Campaign counts and spend are campaign CONTENT. The plugin page
+            that owns them is owner/manager-only, so a staff Pulse must not
+            restate them here — that was the surface disagreement. */}
+        {canSeeCampaigns ? <OverviewMetric label="Campaigns" value={String(overview.campaigns)} detail={`${overview.activeCampaigns} active · ${overview.draftCampaigns} drafts`} icon={<Megaphone size={16} />} /> : null}
         <OverviewMetric label="Customer profiles" value={String(customerProfiles.length)} detail={`${activeProfiles} active · ${validatedProfiles} validated`} icon={<UserRoundSearch size={16} />} />
         <OverviewMetric label="Lead activity" value={String(overview.leads)} detail={`${overview.contacted} contacted · ${overview.meetings} meetings`} icon={<Users size={16} />} />
         <OverviewMetric label="Conversions" value={String(overview.converted + overview.conversions)} detail={`${overview.converted} lead wins · ${overview.conversions} asset conversions`} icon={<Target size={16} />} />
         <OverviewMetric label="Tracked channels" value={String(overview.trackedAssets)} detail={`${overview.activeAssets} active assets`} icon={<Gauge size={16} />} />
-        <OverviewMetric label="Spend tracked" value={formatMoney(overview.spendCents)} detail={`${sourceRows.length} lead source${sourceRows.length === 1 ? "" : "s"}`} icon={<BarChart3 size={16} />} />
+        {canSeeCampaigns ? <OverviewMetric label="Spend tracked" value={formatMoney(overview.spendCents)} detail={`${sourceRows.length} lead source${sourceRows.length === 1 ? "" : "s"}`} icon={<BarChart3 size={16} />} /> : null}
       </div>
       <dl className="flex flex-wrap gap-2 text-xs">
         <GlanceChip label="Email sender" value={emailSenderReady ? "Ready" : "Needs setup"} />
@@ -690,10 +748,13 @@ function SocialBrandPlanner({
   assets,
   companies,
   activeScope,
+  canCompose,
 }: {
   assets: MarketingAsset[];
   companies: Array<{ id: string; name: string; slug: string; colour: string }>;
   activeScope: string;
+  /** Whether this role can reach the composer these buttons open. */
+  canCompose: boolean;
 }) {
   const rows = [
     {
@@ -716,9 +777,11 @@ function SocialBrandPlanner({
           <h2 className="text-sm font-semibold text-black/78">Social media by brand</h2>
           <p className="mt-1 text-xs text-black/45">Each brand keeps its own profiles, owners, objectives and social campaign lane.</p>
         </div>
+        {canCompose ? (
         <Link href={campaignComposerHref(activeScope === "all" ? "all" : activeScope, "social")} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">
           Social campaign <ArrowUpRight size={13} />
         </Link>
+        ) : null}
       </div>
       <div className="divide-y divide-black/[0.07]">
         {rows.map(row => {
@@ -739,7 +802,7 @@ function SocialBrandPlanner({
               </div>
               <div className="flex flex-wrap gap-2 md:justify-end">
                 <Link href={marketingChannelHref("social", row.slug)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/62 hover:bg-black/[0.03]">Profiles</Link>
-                <Link href={campaignComposerHref(row.slug, "social")} className="min-h-9 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">Campaign</Link>
+                {canCompose ? <Link href={campaignComposerHref(row.slug, "social")} className="min-h-9 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">Campaign</Link> : null}
               </div>
             </article>
           );
@@ -901,7 +964,7 @@ function MarketingEnquirySources({ spine }: { spine: MarketingDataSpine | null }
         ) : null}
       </div>
       {!enquiries.available ? (
-        <p className="py-12 text-center text-sm text-black/40">Enquiries are not read in a demo session — sign in to the real workspace to see live sources.</p>
+        <p className="py-12 text-center text-sm text-black/40">Enquiries were not read in this session, so live sources cannot be shown. That is a demo session or a failed read — not zero enquiries.</p>
       ) : !enquiries.bySource.length ? (
         <p className="py-12 text-center text-sm text-black/40">No website enquiries have arrived yet.</p>
       ) : (

@@ -4,7 +4,7 @@
 
 _No file-level doc-comment. Purpose inferred from its path (Other) and its exports below._
 
-## Exports (23)
+## Exports (28)
 
 - `type RepoWriteDeps`
 - `type RepoWriteRefusal`
@@ -29,9 +29,15 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - `interface InsertElementInput (8 members)`
 - `type InsertElementResult`
 - `async insertElementIntoRepo(input: InsertElementInput, deps: RepoWriteDeps = {}): Promise<InsertElementResult>`
+- `type ReadPageSeoResult`
+- `async readPageSeoFromRepo(input: { agencyId: string; project: DevProject; path: string }, deps: RepoWriteDeps = {}): Promise<ReadPageSeoResult>`
+- `interface WritePageSeoInput (6 members)`
+- `type WritePageSeoResult`
+- `async writePageSeoToRepo(input: WritePageSeoInput, deps: RepoWriteDeps = {}): Promise<WritePageSeoResult>`
 
-## Depends on (8)
+## Depends on (9)
 
+- [`src/engines/editor/editing/pageSeo.ts`](../editing/pageSeo.md)
 - [`src/engines/editor/server/codeAdapter.ts`](./codeAdapter.md)
 - [`src/engines/editor/server/fileTree.ts`](./fileTree.md)
 - [`src/engines/editor/server/githubSource.ts`](./githubSource.md)
@@ -41,8 +47,9 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/engines/editor/server/sourceInsert.ts`](./sourceInsert.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (4)
+## Used by (5)
 
+- [`scripts/smoke-editor-surface-modes.test.ts`](../../../../scripts/smoke-editor-surface-modes.test.md)
 - [`scripts/smoke-element-insert.test.ts`](../../../../scripts/smoke-element-insert.test.md)
 - [`scripts/smoke-repo-write.test.ts`](../../../../scripts/smoke-repo-write.test.md)
 - [`scripts/smoke-work-lifecycle.test.ts`](../../../../scripts/smoke-work-lifecycle.test.md)

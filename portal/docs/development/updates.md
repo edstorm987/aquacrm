@@ -34,6 +34,348 @@ map stays trustworthy.
 
 ---
 
+## 2026-08-22 — The API behind the closed pages, and the client record workspace: the same hole in the two places the page fix could not reach
+
+The page-surface work closed the read door for plugin pages. Two surfaces of the same
+class survived, both named in that work's own caveats and confirmed by two independent
+verifiers. Neither was a regression — they were never covered.
+
+**1. The plugin API dispatcher.** `src/app/api/portal/[module]/[...rest]/route.ts` had no
+surface rule at all. Its only gate was `route.visibleToRoles ?? route.roles`, and
+**`undefined` there meant "anyone with a session" — for 133 of the 312 registered plugin
+API routes** (computed, not estimated). A closed page whose API still answers is not
+closed. `_pageScope.ts` was **extended, not forked**: `pluginApiSurfaces` /
+`apiRouteSurfaces` / `apiRoleCeiling` / `effectiveApiRoles` / `apiRouteAllowsRole` sit
+beside the page functions and reuse `SURFACE_ROLE_CEILING`, `effectivePageRoles` and
+`pageResolvesAt`. Three rules:
+- A route's surfaces come from its PLUGIN — install scope, widened by any
+  fully-qualified page path. The shopper surface is opt-in twice over: the plugin must
+  own a `/portal/customer/…` page **and** the route must name `end-customer`. (A
+  synthetic manifest in the new suite caught the first draft, which let a
+  shopper-surface plugin's *undeclared* route answer a shopper.)
+- **The page a route backs is its ceiling** — `expenses/approve` under `expenses`,
+  `/pages/versions` under `/portal/clients/[clientId]/pages`. "A route must never be
+  wider than the page it backs" is now true by construction over all 312 routes, not
+  asserted for five. Compared surface by surface, so memberships' `plans` GET can back
+  the operator's Plans page *and* still serve the shopper.
+- Undeclared inherits the ceiling; declared **intersects** it. `public: true` routes are
+  untouched — they never had a session to gate with.
+
+Reachability, route × role: **1,551 → 1,264 cells.** `end-customer` **146 → 20** (the 7
+public webhooks plus 13 `me/*` routes). `lead` **134 → 7** (public only).
+Three DECLARED routes were narrowed by the page rule and are listed in the report:
+`agency-hr roles` GET and `leads-pipeline campaigns` GET both dropped `agency-staff`
+(their pages are owner/manager), `public-funnel me-context` dropped `lead`.
+
+**2. The client record workspace.** `/portal/clients/[clientId]` still gated on
+`requireRoleForClient([...ALL_ROLES])` — a TENANCY question standing in for an ownership
+one — so an `end-customer` attached to the client opened the internal record: finance,
+contracts, the relationship ledger, internal notes. Not a plugin page, so the page fix
+could not touch it. Both `page.tsx` and `layout.tsx` now derive their gate from
+`SURFACE_ROLE_CEILING.client` (the same constant the plugin host is capped by, imported
+rather than re-listed), and refuse via `redirect("/portal")` — the role-aware router that
+sends a shopper to `/portal/customer`, so nobody is left with nowhere to go. The shell was
+narrowed too: a sidebar naming Commercial / Client record with the client's name and stage
+on it is the internal record's shape even when its contents 404. `settings/` was already
+`AGENCY_ROLES`; `[...rest]` is capped by `pageAllowsRoleAt`.
+
+**3. `_pageScope.ts:124`** (verifier-flagged): `pageSurfaces` ended in
+`default: return ["agency","client"]`, so a `scopePolicy` the file does not understand —
+a typo, or a union member added without updating the switch — silently became the WIDEST
+surface set, the one default-allow in a file whose whole argument is default-deny. Now
+`scopePolicySurfaces()`, exhaustive with a `never` assertion so tsc notices, and an
+unrecognised policy resolves to NO surface.
+
+**Pinned by** `scripts/smoke-plugin-api-host-gates.test.ts` — 22 tests, ~1,900 driven
+route/method/role cells against the REAL dispatcher with REAL signed sessions for all
+eight roles, both directions, mutating verbs included; the client workspace driven on all
+ten tabs; four mutation checks plus a negative control that fails if the old
+declared-or-everyone rule differs on too few cells.
+
+**Docs updated:** this entry; `docs/reference/` regenerated (both generators).
+
+## 2026-08-22 — Eleven verifier-proven defects closed: the SEO writer, the navigator's origin policy, and two surfaces that were reported fixed while still lying
+
+Second pass over phases 8/9 and the truthfulness finding, each item proven live by an
+independent verifier before it was touched and pinned afterwards.
+
+**The SEO writer (`src/engines/editor/editing/pageSeo.ts`)**
+- **A file's line endings survive the edit.** It split on `/\r?\n/` and joined with
+  `"\n"`, so an 8-line CRLF `.html` went in at 170 bytes and came out 233 with no CRLF
+  left — which made "nothing outside the two markers is touched" false and turned a
+  one-tag change into a whole-file diff. Terminators now travel beside the text
+  (`splitSourceLines` / `spliceSourceLines` / `joinSourceLines`); only lines the editor
+  writes get a new one, and it is the file's own. Handles the Next path too, where the
+  metadata JSON arrives as ONE array entry with newlines inside it.
+- **The card size says when it cannot be written.** Both emitters only emit
+  `twitter:card` when there is something to put on the card — correct — but the panel
+  offered the select regardless, so changing it enabled Preview and came back "already
+  says exactly this". `pageSeoFieldInert` / `effectivePageSeo` / `pageSeoWriteEquals`
+  state the rule once, the panel shows it on the field and compares on what would be
+  WRITTEN.
+- **`.js` and `.mjs` App Router heads.** `seoMechanismFor` took `tsx|jsx` while the
+  navigator derived routes from `js|mjs` too — two anchored rules drifting. Same list
+  now (`.mdx` deliberately excluded).
+- **The layout is reachable.** `app/layout.tsx` was writable by the engine and
+  unreachable from the UI, and the panel's own refusal sentence advertised it. Mounted,
+  not deleted: `governingLayout(page, files)` resolves the nearest layout above a page
+  and the panel offers it as a second file. `smoke-editor-surface-modes` now cross-pins
+  BOTH directions — every route has a head answer, and every file the engine accepts is
+  reachable.
+
+**The navigator (`src/engines/editor/editing/pageNavigator.ts`, `DevEditor.tsx`)**
+- **The editor enforces its own origin policy on the tag's links.** It trusted the TAG
+  to filter same-origin — a rule running inside somebody else's page — and picking a row
+  MOVED the trusted origin, because the chosen URL becomes the frame's `src`.
+  `pageLinkDestinations(links, allowedOrigin)` now refuses anything not exactly on it,
+  fails closed with no origin, counts refusals into the sentence, and `navigatorHref`
+  refuses the move again at the point of use.
+- **`public/*.html` keeps its extension.** `/thanks` was a 404 on Next;
+  `public/thanks.html` is served at `/thanks.html`, which is also what a static host
+  rooted at `public/` serves. A root `index.html` still gets `/`.
+- **Moving the navigator asks first.** Unsaved SEO fields were discarded silently;
+  `confirmSeoDiscard()` reuses the existing `confirmDraftDiscard` pattern, the panel
+  reports its own dirtiness up, and `beforeunload` covers it too.
+- **`portalTarget` no longer reads `projectKind`.** `DevProject.kind`'s own doc says the
+  field no longer drives the editor; this was the last place it did, and a legacy project
+  saved as `"website"`/`"portal"` made it TRUE — pointing the navigator and the SEO panel
+  at whichever client's portal document sorted first. It is now `!projectId`: a dev
+  project is open, or this is the Portal Studio door.
+
+**Truthfulness (finding `2026-08-22-surfaces-that-state-a-falsehood.md`)**
+- The tax clamp was fixed on Reports and left on **Overview**
+  (`FounderDashboardPage.tsx:253`); it now uses `taxPosition()` like Reports.
+- A **third** unmeasured-count sibling (`_ClientSystemsWorkspace.tsx`) was never gated —
+  and closing it turned up a **fourth** (`_PerformanceWorkspace`'s "Live errors" tile)
+  that no report had ever named. The finding file now says out loud that it was reported
+  fixed while two of it were live.
+- **The pins are now class-level, not file-by-file** — that is what found the fourth.
+
+**Docs updated:** [`plans/dev-editor-finish.md`](plans/dev-editor-finish.md) (phase 8's
+parenthetical contradicted its own ✅ sub-bullet and the plan's status block; and the
+`page.js` caveat was half wrong), [`workspace/shared-logic.md`](../workspace/shared-logic.md),
+the finding file above, and the generated `docs/reference/` mirror.
+
+**Suite `fail 0 · pass 3561 · skipped 1` (649 suites)**, up from 3,531. `tsc` exit 0.
+Pins rewritten loudly rather than deleted in `smoke-editor-navigator`,
+`smoke-editor-target-aware`, `smoke-dev-editor-tag-bridge` and
+`smoke-editor-surface-modes`.
+
+---
+
+## 2026-08-22 — The client-portal hole: hosts, not manifests, now gate plugin pages
+
+**Proven by execution, not inspection.** An `end-customer` signed into a client
+portal could open `/portal/clients/<id>/agency-hr/staff`,
+`/portal/clients/<id>/agency-marketing/leads`, `/portal/clients/<id>/email-sender/logs`
+and — with no plugin prefix in the URL at all — `/portal/clients/<id>/contacts`.
+A sweep of the **customer** host found the same class, worse:
+`/portal/customer/memberships/subscribers`, `/portal/customer/affiliates/payouts`,
+`/portal/customer/client-crm/contacts` and `/portal/customer/agency-hr/staff` all
+rendered for a shopper. Violates the CLAUDE.md contract *"Internal records stay
+internal unless explicitly marked client-visible."*
+
+**Mechanism.** Three hosts resolve plugin pages, each with a different gate. The
+client host's is `requireRoleForClient([...ALL_ROLES], clientId)` — every role in
+the product — and its only page-level check was `pluginPageAllowedRoles(page)`,
+which was `undefined` for **69 of 90** registered pages. `pickInstall` falls back
+to the AGENCY-scoped install, and the bare-static branch of
+`resolveClientPluginPage` reaches agency pages a second way (only `settings`
+exists as a literal child of `/portal/clients/[clientId]/`, so everything else
+falls to the catch-all).
+
+**Fix — structural first, declarations second.**
+
+- New `src/built-ins/runtime/_pageScope.ts`. A page's SURFACE is derived from the
+  manifest's shape (full-URL path, or the plugin's `scopePolicy` for relative
+  paths); each host only resolves pages on its own surface; and each surface has
+  a **role ceiling no manifest can widen** — `client` stops at
+  `AGENCY_ROLES ∪ CLIENT_ROLES`, so an undeclared page inherits the ceiling
+  rather than the door. Wired into all three resolvers and all three host routes.
+- `resolveCustomerPluginPage`'s relative-prefix branch is **gone**. It was the
+  customer leak, and it also SHADOWED the real customer pages (bare
+  `/portal/customer/memberships` matched the operator's `""` index first).
+  The full URL is now the only way onto that surface.
+- Roles declared on 21 pages across fulfillment, agency-hr, agency-marketing,
+  email-sender, leads-pipeline, memberships, affiliates and client-crm —
+  including `leads-pipeline` `campaigns`, whose nav entry points at an app route
+  so the old structural guard was blind to it. `leads-pipeline`'s vendored
+  `aquaPluginTypes.ts` gained `visibleToRoles`/`roles` on `PluginPage` (it was the
+  only manifest missing them).
+
+**Reachability, before → after** (host × page-URL × role cells): agency 108→107,
+client 856→372, customer 52→3. `end-customer` and `lead` now reach **zero** plugin
+pages on the client host; `end-customer` reaches exactly the three declared
+customer pages.
+
+**The guard, rewritten to ask the real question:**
+`scripts/smoke-plugin-page-host-gates.test.ts` (15 tests). It drives the REAL
+host route components with REAL signed sessions for all eight roles across every
+URL any host could resolve, and compares against `effectivePageRoles`. Plus
+surface invariants, the nav-narrowing class **including the orphan variant the
+old guard structurally could not see**, a write-route agreement check, and four
+mutation checks — two of which register synthetic manifests that declare nothing,
+so the rule is proven on the 91st page rather than on the twelve that exist.
+Negative control run: reverting the resolver + host changes makes arm 1 report
+hundreds of violations.
+
+`tsc` exit 0; suite **3,531 pass / 0 fail / 1 skip**.
+
+Docs: this entry; `docs/reference/` regenerated.
+
+## 2026-08-22 — Phase 9: surface modes (Website vs Normal), and per-page SEO in source
+
+Ed: *"website mode im going to need a specialied thing to do the seo and tags and
+everything like that per page... dont need a portal mode and then normal mode can do
+portal and software or whatever as its just universal."* Ed's **third switcher** now sits
+beside the project switcher and the navigator, in the header row that renders at every
+width (the top bar is `xl:` and up — a switcher that decides whether a whole panel is
+reachable cannot vanish at 1279px).
+
+- **Two surfaces, and the default is EVIDENCE, not a declaration.**
+  `src/engines/editor/editing/surfaces.ts` (pure). ONE rule promotes to Website — an Aqua
+  Tag answering AND an `http(s)` address, which is Ed's "tag + site". Every other
+  combination is Normal *with a sentence naming the missing half*, because a derivation
+  that misses costs one click on a switcher that is right there and a derivation that
+  INVENTS puts an SEO panel over somebody's game. **`projectKind` was not resurrected** —
+  a test asserts `derivedSurface` cannot even mention it. The operator's choice always
+  wins (and the line says both halves when it disagrees) and persists per project; only
+  an EXPLICIT choice is ever written, because storing a guess turns it into a choice.
+- **Orthogonal, and enforced.** `"seo"` is in `INSPECTOR_TABS` and on **no mode's
+  ladder**: `inspectorTabsFor` gates it on `surface === "website"` before the ladder is
+  consulted, so it is offered at every depth. There is no shallower or deeper way to give
+  a page a title. `inspectorTabsFor` now takes a REQUIRED `surface` — tsc is the enforcer,
+  because the disease here is features built and never mounted. `tabForMode` keeps a
+  surface-owned tab across a depth change and `tabForSurface` is its mirror.
+- **The SEO goes into the page's own source, down the SAME write path.** New actions
+  `seo-read` / `seo-write` on the existing `/api/portal/dev/repo-write`: preview (writes
+  nothing) → confirm with the preview's fingerprint → `saveRepoFile` → the draft branch →
+  the PR. **No SEO store, no new endpoint** — asserted. Two mechanisms: meta tags in an
+  `.html` `<head>` (after the charset, so the encoding stays in the first 1024 bytes) and
+  a plain-JSON `export const metadata` in an App Router page (JSON is a subset of a TS
+  object literal, so the read-back is `JSON.parse`, not TypeScript parsing). Both anchored
+  at the repository root and cross-pinned against the navigator's rule.
+- **The rule it lives by: own a marked block, refuse everything else.** A hand-written
+  `<title>`, a duplicate description, a `generateMetadata`, an existing `metadata` export,
+  or a `"use client"` directive Next would refuse a metadata export from — each REFUSED by
+  name with its own reason and its own status code. `read(emit(x)) === x` both ways, and
+  every byte outside the two markers is proven unchanged.
+- **A portal page** keeps its SEO in the portal document (`seo?`, optional and *omitted
+  when empty* so an untouched document normalises to the JSON it always did) and rides the
+  existing Save draft → Publish. The panel says plainly that an Aqua-hosted portal is
+  behind a login and nothing public renders those tags today.
+- **The navigator now carries the FILE** each repository route came from
+  (`NavigatorDestination.file`), so the SEO panel knows which head to write without a
+  second derivation of "which file is `/about`".
+
+Docs: [plans/dev-editor-finish.md](plans/dev-editor-finish.md) (phase 9 ticked, phase 8's
+third bullet ticked), [../../aqua dev.md](../../aqua%20dev.md) §12,
+[HANDOFF-2026-08-22-dev-editor.md](../context/HANDOFF-2026-08-22-dev-editor.md),
+[workspace/api-reference.md](../workspace/api-reference.md) (the repo-write row).
+Tests: `scripts/smoke-editor-surface-modes.test.ts` (73 new), and the `inspectorTabsFor`
+pins in `smoke-dev-editor-tag-bridge`, `smoke-editor-element-palette`,
+`smoke-editor-target-aware`, `smoke-librarian` and `smoke-work-lifecycle` rewritten
+loudly. `tsc` exit 0; full suite **3,515 pass / 0 fail / 1 skip**.
+
+**Not verified in a browser** — like everything after phase 16.
+
+---
+
+## 2026-08-22 — Phase 8: the navigator (and the tag now says which links it can see)
+
+Ed: *"if i put in a website id get stuck."* The editor's browser loaded ONE address and
+nothing on screen could reach the site's other pages — the header's only page control
+was a portal-only `aria-label="Portal page"` select, so a repository-backed project or a
+tagged website had no page list at all.
+
+- **`src/engines/editor/editing/pageNavigator.ts` (new, pure)** — `repositoryRoutes()`
+  derives routes from paths alone (App Router with route groups dropped and
+  `_private`/`@slot`/`(.)intercept` refused; Pages Router with `index`/`api`/`_app`
+  dropped; plain `.html` at the root or under `public/`); a dynamic route is listed and
+  **not openable**. `navigatorPlan()` groups the three sources, counts them, and writes
+  the one sentence that says WHO ANSWERED — including a truncated GitHub tree, a
+  repository that could not be read, and a tag too old to reply. `navigatorHref()` joins
+  a route onto the current address and drops its query and hash.
+- **`src/components/editing/PageNavigator.tsx` (new)** — one control for every target,
+  `<optgroup>` per source, the source line under it. It **replaced** the portal-only
+  select in `DevEditor.tsx`'s header second row.
+- **No new endpoint.** The repository's file list is read through repo-write
+  `action: "insert-targets"`, which already answers exactly that question. Consequence
+  stated: that list is `isMappableFile`-filtered, so a plain `page.js` is invisible.
+- **New tag protocol pair** — the explorer only ever COUNTED `document.links`, so
+  `aqua-explorer:links` / `aqua-explorer:links-found` was added; same-origin filtered in
+  the tag, hash/query stripped, deduplicated, capped at 60, 2s timeout so a cached
+  pre-navigator build becomes a sentence rather than an empty list.
+- **Drift guard extended in both directions** — reply envelope + link literal pinned,
+  five new single-side mutations: **27/27 detected**, up from 22/22.
+- Suite `fail 0 · pass 3441 · skipped 1` (+40: 38 new in
+  `scripts/smoke-editor-navigator.test.ts`, 2 new in `smoke-aqua-tag-bridge.test.ts`).
+  `tsc` exit 0.
+- **Pin rewritten loudly:** `scripts/smoke-client-portal-studio.test.ts` no longer text-
+  matches `"Portal page"` (the explanatory comment left in the editor would have
+  satisfied it). It now asserts the navigator is mounted, that
+  `aria-label="Portal page"` is **absent**, and that the portal's own pages feed the plan.
+- Docs: [plans/dev-editor-finish.md](plans/dev-editor-finish.md) phase 8 navigator
+  ticked, [context/HANDOFF-2026-08-22-dev-editor.md](../context/HANDOFF-2026-08-22-dev-editor.md),
+  [workspace/shared-logic.md](../workspace/shared-logic.md),
+  [workspace/aqua-tag.md](../workspace/aqua-tag.md),
+  [workspace/feature-index.md](../workspace/feature-index.md), reference regenerated.
+- **Not verified in a browser.** Nothing here has rendered. The surface switcher (the
+  third one) is phase 9 and was not built.
+
+---
+
+## 2026-08-22 — The three open audit findings, closed at the class level
+
+Findings from the 22 Aug app audit, all three now `Status: fixed` with a closing line
+in their own file.
+
+- **Access control (high).** `agency-staff` could open
+  `/portal/agency/agency-finance/{budgets,operations,planning,settings}` by URL —
+  Operations shipping compensation profiles and payments in its SSR props. The manifest
+  `pages[]` declared no roles, so `pluginPageAllowedRoles()` returned `undefined` and the
+  host's only gate was `requireRole(AGENCY_ROLES)`. **Fixed on the manifest**, derived from
+  the same `FINANCE_SECTIONS` list as the nav (`financePageRoles()`), so the host enforces
+  in one place. `routes.ts` `GET budgets` moved to `AGENCY_ADMINS` to agree with
+  `sections.ts`. **The sweep found four more with the identical hole:** `agency-hr`
+  (Employees), `affiliates` / `client-crm` / `memberships` (Settings) and `fulfillment`
+  (Phases) — all closed. New generic guard in
+  `scripts/smoke-finance-section-gates.test.ts`: over EVERY registered plugin, a page
+  behind a nav entry narrower than its scope's widest must declare roles at least as
+  narrow, with a mutation check proving the guard can see a hole, plus the real host route
+  driven as staff for a 404.
+- **Stripe could never be configured.** No component anywhere rendered a plugin's
+  `settings.groups`, so `stripeConfigured()` was permanently false and two errors pointed
+  at a control that did not exist. Built the **generic** surface:
+  `lib/server/plugins/pluginSettingsSurface.ts`, `api/portal/plugins/settings`,
+  `components/workspaces/PluginSettingsPanel.tsx`, mounted on the finance Settings page.
+  Password fields declare `secretVault: { provider, field }` and go to the encrypted
+  integrations vault — never onto `install.config` (which reaches the browser), never
+  echoed back, never in the activity log; the registry validator now REFUSES a password
+  field with no vault target. `installConfigWithSecrets()` merges them back under their
+  manifest ids so the existing readers keep working — wired through the finance stripe
+  handlers, `InvoiceDetailPage`, `close-deal` **and ecommerce's three readers**.
+  `scripts/smoke-plugin-settings-surface.test.ts` runs the contract the finding named
+  ("every declared field is writable through a real write path") over every plugin.
+- **Five surfaces that stated a falsehood.** Unmeasured is "—", never 0 —
+  `lib/performance/telemetryDisplay.ts` gates a count on the telemetry watermark, applied
+  to marketing's Views-today tile and the two siblings telling the same lie
+  (`_WebsiteWorkspace`, `_PerformanceWorkspace`). All **three** "not read in a demo
+  session" claims (the finding named two) now say the read did not happen without
+  asserting why. `taxPosition()` replaces `Math.max(0, outputTax - inputTax)`, so a
+  reclaim shows as a reclaim instead of £0.00. `FounderDashboardPage` resolves currency
+  through `resolveFinanceDefaultCurrency` instead of `invoices[0]?.currency`. Deposits
+  formats through `formatMoney` and names the client instead of printing `cli_…`.
+  Pinned by `scripts/smoke-truthful-surfaces.test.ts`.
+- **Verify:** `tsc --noEmit` exit 0; full suite **3,401 pass / 0 fail / 1 skip**
+  (was 3,360 pass / 0 fail / 1 skip — +41, all new).
+- **Docs:** the three finding files marked fixed with what closed them;
+  `workspace/api-reference.md` (new endpoint row); `workspace/feature-index.md`
+  (plugin page access control, the settings surface, the telemetry-display rule, tax
+  position, and the Stripe row corrected — keys are no longer "via install config");
+  both reference generators re-run.
+
+
 ## 2026-08-22 — The Dev Editor writes, publishes and merges; 13 of 18 phases shipped
 
 - **The editor made its first real commits.** `hello-ed.md` created and then chained in

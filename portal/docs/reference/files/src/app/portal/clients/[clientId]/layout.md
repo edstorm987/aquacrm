@@ -10,6 +10,7 @@
 
 ## Depends on (26)
 
+- [`src/built-ins/runtime/_pageScope.ts`](../../../../built-ins/runtime/_pageScope.md)
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](../../../../components/chrome/AdvisorDrawerControl.md)
 - [`src/components/chrome/ClientRadarQuickLookControl.tsx`](../../../../components/chrome/ClientRadarQuickLookControl.md)
 - [`src/components/chrome/NotificationAttentionProvider.tsx`](../../../../components/chrome/NotificationAttentionProvider.md)
@@ -34,7 +35,6 @@
 - [`src/server/phases.ts`](../../../../server/phases.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../server/tenants.md)
-- [`src/server/types.ts`](../../../../server/types.md)
 - [`src/server/users.ts`](../../../../server/users.md)
 
 ## Used by

@@ -9,6 +9,7 @@ import type { MonthlyPerformanceReport } from "@/lib/performance/performanceRepo
 import { ExperimentsPanel } from "./_ExperimentsPanel";
 import { AquaTagDashboard } from "./_AquaTagDashboard";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { measuredCountLabel } from "@/lib/performance/telemetryDisplay";
 
 export interface PerformanceProduct {
   id: string;
@@ -354,8 +355,9 @@ function DigitalPerformance({ client, product, kind }: { client: PerformanceClie
       </div>
       <div className="grid grid-cols-2 border-y border-black/[0.08] md:grid-cols-5">
         <Signal label="Connected" value={`${connected}/${digitalProperties.length}`} icon={<Server size={15} />} />
-        <Signal label="Views · 24h" value={String(client.pageviews24h)} icon={<Activity size={15} />} />
-        <Signal label="Errors · 24h" value={String(client.errors24h)} icon={<AlertTriangle size={15} />} bad={client.errors24h > 0} />
+        {/* Unmeasured is "—", never 0 — the row above already distinguishes "Not connected". */}
+        <Signal label="Views · 24h" value={measuredCountLabel(client.pageviews24h, client.lastSeenAt)} icon={<Activity size={15} />} />
+        <Signal label="Errors · 24h" value={measuredCountLabel(client.errors24h, client.lastSeenAt)} icon={<AlertTriangle size={15} />} bad={Boolean(client.lastSeenAt) && client.errors24h > 0} />
         <Signal label="Average load" value={client.averageLoadMs == null ? "No data" : `${client.averageLoadMs} ms`} icon={<Gauge size={15} />} />
         <Signal label="Deployments · 30d" value={String(client.deployments30d)} icon={<Code2 size={15} />} />
       </div>
@@ -382,8 +384,8 @@ function PropertyRow({ property }: { property: PerformanceProperty }) {
           {destination ? <a href={destination} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-black">Open <ExternalLink size={11} /></a> : null}
         </div>
       </div>
-      <PropertySignal label="Views" value={String(property.pageviews24h)} />
-      <PropertySignal label="Errors" value={String(property.errors24h)} bad={property.errors24h > 0} />
+      <PropertySignal label="Views" value={measuredCountLabel(property.pageviews24h, property.lastSeenAt)} />
+      <PropertySignal label="Errors" value={measuredCountLabel(property.errors24h, property.lastSeenAt)} bad={Boolean(property.lastSeenAt) && property.errors24h > 0} />
       <PropertySignal label="Load" value={property.averageLoadMs == null ? "—" : `${property.averageLoadMs} ms`} />
       <PropertySignal label="Last signal" value={property.lastSeenAt ? relativeTime(property.lastSeenAt) : "Not connected"} />
     </div>
@@ -412,7 +414,10 @@ function CarePerformance({ client }: { client: PerformanceClient }) {
       <div className="grid grid-cols-2 border-t border-black/[0.08] md:grid-cols-5">
         <Signal label="Open requests" value={String(client.requests.open)} icon={<AlertTriangle size={15} />} bad={client.requests.open > 0} />
         <Signal label="Resolved" value={String(client.requests.closed)} icon={<Check size={15} />} />
-        <Signal label="Live errors" value={String(client.errors24h)} icon={<Activity size={15} />} bad={client.errors24h > 0} />
+        {/* A FOURTH one, found by counting rather than by being named: this
+            tile printed "Live errors 0" next to a "Last signal: Not connected"
+            tile in the same row. Same watermark, same gate as the two above. */}
+        <Signal label="Live errors" value={measuredCountLabel(client.errors24h, client.lastSeenAt)} icon={<Activity size={15} />} bad={Boolean(client.lastSeenAt) && client.errors24h > 0} />
         <Signal label="Connected properties" value={String(client.properties.filter(property => property.lastSeenAt).length)} icon={<Server size={15} />} />
         <Signal label="Last signal" value={client.lastSeenAt ? relativeTime(client.lastSeenAt) : "Not connected"} icon={<CircleGauge size={15} />} />
       </div>

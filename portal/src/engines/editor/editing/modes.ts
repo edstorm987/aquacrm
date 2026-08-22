@@ -8,7 +8,14 @@
  * typo is noise; hiding the code from somebody who wants it is a dead end.
  *
  * So the mode is chosen once and gates the tabs. Same editor, three depths.
+ *
+ * A SECOND axis joined this one in phase 9: the SURFACE (`editing/surfaces.ts`)
+ * — Website or Normal — which answers "what am I working on?" rather than "how
+ * deep do I want to go?". The two are orthogonal and multiply; `inspectorTabsFor`
+ * below is the one place they meet, and the only place either may gate a tab.
  */
+
+import type { EditorSurface } from "./surfaces";
 
 export type EditingMode = "assist" | "visual" | "developer";
 
@@ -90,6 +97,11 @@ export const INSPECTOR_TABS = [
   "content",
   "pages",
   "brand",
+  // The per-page SEO panel (dev-editor-finish phase 9). Gated by the SURFACE,
+  // not by a mode — see `inspectorTabsFor`. Same compile-unit rule as every
+  // other entry here: this list, the `TAB_META` row and the panel branch in
+  // DevEditor.tsx land together or tsc refuses.
+  "seo",
   "code",
   "repository",
   // The work-lifecycle trio (phase 14), Dev mode only — the ladder above
@@ -168,13 +180,30 @@ const PORTAL_DOCUMENT_TABS = new Set<InspectorTab>([
  */
 export function inspectorTabsFor(
   mode: EditingMode,
-  target: { portalTarget: boolean; tagMapped: boolean },
+  target: { portalTarget: boolean; tagMapped: boolean; surface: EditorSurface },
 ): InspectorTab[] {
   const offered = editingMode(mode).tabs;
   return INSPECTOR_TABS.filter(tab => {
     // Settings is always reachable: it is how you point the editor somewhere
     // else, which you must be able to do from wherever you are.
     if (tab === "settings") return true;
+    // ── THE SURFACE AXIS. The only tab it owns, and it owns it outright. ──
+    //
+    // `surface` is a THIRD question, alongside the depth and the target
+    // (dev-editor-finish phase 9). Ed: "website mode im going to need a
+    // specialied thing to do the seo and tags and everything like that per
+    // page... normal mode can do portal and software or whatever as its just
+    // universal". So SEO exists on a website and nowhere else.
+    //
+    // Deliberately NOT on the depth ladder — this rule returns before
+    // `offered.includes` is consulted, and "seo" appears in no mode's `tabs`.
+    // There is no shallower or deeper way to give a page a title: the form is
+    // the same form whether you came to talk to the assistant or to write
+    // code. Putting it on the ladder would mean somebody in "Just tell it"
+    // who came to fix a meta description is told to change mode to find it,
+    // which is the depth axis answering a question that was never about depth.
+    // Keeping the two axes genuinely orthogonal is the whole point of phase 9.
+    if (tab === "seo") return target.surface === "website";
     if (!offered.includes(tab)) return false;
     if (tab === "element") return target.tagMapped;
     // The vocabulary question. Offered wherever the depth offers it, on every
@@ -226,5 +255,32 @@ export function modeAllowsTab(mode: EditingMode, tab: string): boolean {
  */
 export function tabForMode(mode: EditingMode, currentTab: string): string {
   const definition = editingMode(mode);
+  // A surface-owned tab is not on the ladder at all, so `tabs.includes` would
+  // answer "no" and throw the operator off the SEO panel every time they
+  // changed depth. Changing how deep you want to go is not a reason to leave
+  // the page's SEO — that is the other axis.
+  if (SURFACE_TABS.has(currentTab as InspectorTab)) return currentTab;
   return definition.tabs.includes(currentTab) ? currentTab : definition.tabs[0];
+}
+
+/**
+ * Tabs the SURFACE owns rather than the depth ladder. Phase 9: exactly one.
+ *
+ * Anything in here is offered on every depth and gated only by the surface,
+ * so it needs the two rules below rather than the ladder's.
+ */
+export const SURFACE_TABS = new Set<InspectorTab>(["seo"]);
+
+/**
+ * Keeps the current tab valid when the SURFACE changes.
+ *
+ * The mirror of `tabForMode` for the other axis: leaving the Website surface
+ * while sitting on SEO must land somewhere real, and the depth's own first tab
+ * is the honest place — it is what that mode considers most useful. Every
+ * other tab is untouched, because no other tab depends on the surface.
+ */
+export function tabForSurface(surface: EditorSurface, mode: EditingMode, currentTab: string): string {
+  if (!SURFACE_TABS.has(currentTab as InspectorTab)) return currentTab;
+  if (surface === "website") return currentTab;
+  return editingMode(mode).tabs[0];
 }

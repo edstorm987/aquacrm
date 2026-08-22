@@ -51,3 +51,39 @@ export const FINANCE_SECTIONS: readonly FinanceSection[] = [
   { key: "deposits",   label: "Deposits",   href: "/portal/agency/agency-finance/lock-in",    order: 100, roles: FINANCE_VIEWER_ROLES },
   { key: "settings",   label: "Settings",   href: "/portal/agency/agency-finance/settings",   order: 110, roles: FINANCE_ADMIN_ROLES },
 ];
+
+// ─── Page access control ──────────────────────────────────────────────────
+//
+// The section list above drives NAV VISIBILITY. Hiding a link is not access
+// control: before 22 Aug 2026 the manifest's `pages[]` declared no roles at
+// all, so `pluginPageAllowedRoles(page)` returned `undefined`, the host's only
+// remaining gate was `requireRole(AGENCY_ROLES)`, and an `agency-staff` member
+// could open /budgets, /operations, /planning and /settings by typing the URL
+// — with Operations handing over compensation profiles and payments in its SSR
+// props before any client-side 403 could fire.
+//
+// The gate now lives on the manifest, derived from the SAME list as the nav so
+// the two can never disagree, and is enforced by the host in one place for
+// every plugin page.
+
+// The mount point every section href hangs off.
+const FINANCE_MOUNT = "/portal/agency/agency-finance";
+
+// The manifest page path a section href resolves to. "" is the index page.
+export function financeSectionPagePath(section: FinanceSection): string {
+  return section.href === FINANCE_MOUNT ? "" : section.href.slice(FINANCE_MOUNT.length + 1);
+}
+
+const FINANCE_PAGE_ROLES: Readonly<Record<string, FinanceSection["roles"]>> =
+  Object.fromEntries(FINANCE_SECTIONS.map(section => [financeSectionPagePath(section), section.roles]));
+
+// Roles allowed to open a manifest page path. A detail page (`invoices/:id`)
+// inherits its parent section's roles; anything with no section behind it
+// falls back to the viewer set rather than to "everyone the scope gate lets
+// in", so a newly added page is never MORE open than the section it sits under.
+export function financePageRoles(path: string): FinanceSection["roles"] {
+  const direct = FINANCE_PAGE_ROLES[path];
+  if (direct) return direct;
+  const parent = path.includes("/") ? FINANCE_PAGE_ROLES[path.slice(0, path.lastIndexOf("/"))] : undefined;
+  return parent ?? FINANCE_VIEWER_ROLES;
+}

@@ -21,7 +21,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (109)
+## Used by (110)
 
 - [`src/app/api/assistant/route.ts`](../app/api/assistant/route.md)
 - [`src/app/api/auth/end-customer/signup/route.ts`](../app/api/auth/end-customer/signup/route.md)
@@ -48,6 +48,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/api/portal/performance/reports/route.ts`](../app/api/portal/performance/reports/route.md)
 - [`src/app/api/portal/performance/search-console/route.ts`](../app/api/portal/performance/search-console/route.md)
 - [`src/app/api/portal/pipelines/move-client/route.ts`](../app/api/portal/pipelines/move-client/route.md)
+- [`src/app/api/portal/plugins/settings/route.ts`](../app/api/portal/plugins/settings/route.md)
 - [`src/app/api/portal/products/rollout/route.ts`](../app/api/portal/products/rollout/route.md)
 - [`src/app/api/portal/settings/activity-log/route.ts`](../app/api/portal/settings/activity-log/route.md)
 - [`src/app/api/portal/settings/external-ai/route.ts`](../app/api/portal/settings/external-ai/route.md)

@@ -292,7 +292,7 @@ export function MarketingCampaignAttributionPanel({ attribution }: { attribution
     return (
       <section className="rounded-md border border-black/10 bg-black/[0.02] px-4 py-3">
         <h2 className="text-sm font-semibold text-black/78">Real campaign attribution</h2>
-        <p className="mt-1 text-xs text-black/48">Website enquiries are not read in a demo session, so no live attribution can be shown here.</p>
+        <p className="mt-1 text-xs text-black/48">Website enquiries were not read in this session, so no live attribution can be shown. That is a demo session or a failed read — not zero enquiries.</p>
       </section>
     );
   }
@@ -363,7 +363,7 @@ export function MarketingAudienceEvidencePanel({ spine }: { spine: MarketingData
     return (
       <section className="rounded-md border border-black/10 bg-black/[0.02] px-4 py-3">
         <h2 className="text-sm font-semibold text-black/78">Real demand evidence</h2>
-        <p className="mt-1 text-xs text-black/48">Website enquiries are not read in a demo session — profiles here can only be checked against live data in the real workspace.</p>
+        <p className="mt-1 text-xs text-black/48">Website enquiries were not read in this session, so there is nothing to check a profile against yet. That is a demo session or a failed read — not zero enquiries.</p>
       </section>
     );
   }

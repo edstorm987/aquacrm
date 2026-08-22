@@ -21,6 +21,16 @@ import type { GiftCard } from "../server/giftCards";
 import { formatUkDate } from "../lib/safeDate";
 import type { ShippingRate, ShippingZone } from "../lib/admin/shipping";
 import type { ProductCollection } from "../lib/admin/collections";
+import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
+
+// Stripe keys are declared in the manifest but stored in the encrypted
+// integrations vault, NOT on `install.config` (that record is handed to page
+// props and therefore to the browser). Merge them back under their manifest
+// ids so the pure `readStripeKeysFromInstall` reader keeps its shape, and so a
+// client-scoped install resolves that client's own Stripe account.
+function stripeConfig(ctx: PluginCtx): Record<string, unknown> {
+  return installConfigWithSecrets(ctx.install.pluginId, { agencyId: ctx.agencyId, clientId: ctx.clientId }, ctx.install.config);
+}
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -263,7 +273,7 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
     return badRequest("lineItems required.");
   }
   try {
-    const keys = readStripeKeysFromInstall(ctx.install.config);
+    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     const config = ctx.install.config as Record<string, string>;
     const successUrl = config.successUrl ?? `${getOrigin(req)}/checkout/success?session={CHECKOUT_SESSION_ID}`;
     const cancelUrl = config.cancelUrl ?? `${getOrigin(req)}/cart`;
@@ -298,7 +308,7 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
   try { rawBody = await req.text(); } catch { return badRequest("Could not read body."); }
 
   try {
-    const keys = readStripeKeysFromInstall(ctx.install.config);
+    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     const event = (await constructWebhookEvent(keys, rawBody, sig)) as {
       id: string;
       type: string;
@@ -435,7 +445,7 @@ export async function stripeBillingPortalHandler(req: Request, ctx: PluginCtx): 
   const body = await safeJson<{ customerId?: string; customerEmail?: string; returnUrl?: string }>(req);
   if (!body) return badRequest("body required.");
   try {
-    const keys = readStripeKeysFromInstall(ctx.install.config);
+    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     const result = await createBillingPortalSession(keys, {
       customerId: body.customerId,
       customerEmail: body.customerEmail,

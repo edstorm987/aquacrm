@@ -345,6 +345,45 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     connection: explorerConnection(),
     recentErrors: explorerErrors.slice(-8),
   });
+  // ── The navigator's link list ─────────────────────────────────────────────
+  //
+  // The editor's page navigator asks the page what OTHER pages it can reach.
+  // The diagnostics report already counted document.links and never said which
+  // they were, and a number is not something anybody can pick from.
+  //
+  // SAME-ORIGIN ONLY, applied here rather than left to the editor: the editor
+  // trusts exactly one origin, so a list that could walk the preview onto
+  // another domain would land the operator on a page the editor then refuses
+  // to talk to. Hash and query are dropped — "#pricing" is the same page — and
+  // the list is capped, because a thousand-row index must not be able to flood
+  // a postMessage.
+  const explorerLinkLabel = anchor => {
+    const words = (anchor.textContent || "").replace(/\s+/g, " ").trim();
+    return (words || anchor.getAttribute("aria-label") || anchor.getAttribute("title") || "").slice(0, 80);
+  };
+  const explorerPageLinks = () => {
+    const seen = Object.create(null);
+    const found = [];
+    const anchors = document.links;
+    for (let index = 0; index < anchors.length; index += 1) {
+      if (found.length >= 60) break;
+      const anchor = anchors[index];
+      let href = "";
+      try {
+        const url = new URL(anchor.href, location.href);
+        if (url.protocol !== "http:" && url.protocol !== "https:") continue;
+        if (url.origin !== location.origin) continue;
+        href = url.origin + url.pathname;
+      } catch { continue; }
+      if (seen[href]) continue;
+      seen[href] = true;
+      found.push({
+        href: href,
+        label: explorerLinkLabel(anchor),
+      });
+    }
+    return found;
+  };
   // ── Network throttling — the editor's wifi control ───────────────────────
   //
   // The tag runs INSIDE the page, so it can wrap window.fetch and
@@ -482,6 +521,14 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
         version: explorerProtocolVersion,
         requestId: message.requestId,
         diagnostics: explorerDiagnostics(),
+      });
+    }
+    if (message.type === "aqua-explorer:links" && typeof message.requestId === "string") {
+      respondToExplorer(event, {
+        type: "aqua-explorer:links-found",
+        version: explorerProtocolVersion,
+        requestId: message.requestId,
+        links: explorerPageLinks(),
       });
     }
     if (message.type === "aqua-explorer:enable") {

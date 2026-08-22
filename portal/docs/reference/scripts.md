@@ -116,6 +116,10 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-app-route-tenancy.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-aqua-editor-ai-history.test.ts`
 
 _No exported symbols (internal/side-effect module)._
@@ -532,7 +536,15 @@ _No exported symbols (internal/side-effect module)._
 
 _No exported symbols (internal/side-effect module)._
 
+### `scripts/smoke-editor-navigator.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
 ### `scripts/smoke-editor-presence.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-editor-surface-modes.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -681,6 +693,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-finance-operations.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-finance-section-gates.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -937,6 +953,22 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-pipelines-refactor.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-plugin-api-host-gates.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-plugin-api-tenancy.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-plugin-page-host-gates.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-plugin-settings-surface.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 
@@ -1214,6 +1246,10 @@ _No exported symbols (internal/side-effect module)._
 _No exported symbols (internal/side-effect module)._
 
 ### `scripts/smoke-transactional-email.test.ts`
+
+_No exported symbols (internal/side-effect module)._
+
+### `scripts/smoke-truthful-surfaces.test.ts`
 
 _No exported symbols (internal/side-effect module)._
 

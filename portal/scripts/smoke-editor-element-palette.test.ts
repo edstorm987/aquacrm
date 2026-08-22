@@ -276,7 +276,11 @@ describe("inspectorTabsFor separates vocabulary, document and tag", () => {
     for (const mode of ["visual", "developer"] as EditingMode[]) {
       for (const tagMapped of [true, false]) {
         assert.ok(
-          inspectorTabsFor(mode, { portalTarget: false, tagMapped }).includes("builder"),
+          // `surface` added 2026-08-22 (phase 9). "normal" is the universal
+          // surface and is what every case here asserted before the axis
+          // existed; the Builder is a VOCABULARY question and neither surface
+          // touches it.
+          inspectorTabsFor(mode, { portalTarget: false, tagMapped, surface: "normal" }).includes("builder"),
           `${mode} (tagMapped=${tagMapped}) still hides the Builder on a repository`,
         );
       }
@@ -284,13 +288,13 @@ describe("inspectorTabsFor separates vocabulary, document and tag", () => {
     // …and only where the depth genuinely offers it. ("simple" stood here
     // until it merged into Visual, 2026-08-22 — Visual is asserted above.)
     for (const mode of ["assist"] as EditingMode[]) {
-      assert.equal(inspectorTabsFor(mode, { portalTarget: false, tagMapped: true }).includes("builder"), false);
+      assert.equal(inspectorTabsFor(mode, { portalTarget: false, tagMapped: true, surface: "normal" }).includes("builder"), false);
       assert.equal(EDITING_MODES.find(entry => entry.id === mode)!.tabs.includes("builder"), false);
     }
   });
 
   it("keeps the portal-DOCUMENT tabs gated on a portal document", () => {
-    const onARepository = inspectorTabsFor("developer", { portalTarget: false, tagMapped: true });
+    const onARepository = inspectorTabsFor("developer", { portalTarget: false, tagMapped: true, surface: "normal" });
     for (const tab of ["pages", "brand", "versions", "code"]) {
       assert.equal(onARepository.includes(tab as never), false, `${tab} needs a portal document`);
     }
@@ -300,20 +304,37 @@ describe("inspectorTabsFor separates vocabulary, document and tag", () => {
     // The work-lifecycle trio rides the REPOSITORY (the draft is the edit
     // branch), so they too survive the portal-document gate, by design.
     assert.deepEqual(onARepository, ["assistant", "settings", "builder", "element", "repository", "drafts", "history", "notes", "librarian"]);
+    // ── REWRITTEN for phase 9 (2026-08-22): the Website SURFACE adds "seo" ──
+    // A repository-backed website is the case per-page SEO exists FOR, so the
+    // tab appears here and nowhere in the portal-document set. Spelled out in
+    // full rather than asserted as a length, so a tab that quietly joins the
+    // Website surface reddens this line.
+    assert.deepEqual(
+      inspectorTabsFor("developer", { portalTarget: false, tagMapped: true, surface: "website" }),
+      ["assistant", "settings", "builder", "element", "seo", "repository", "drafts", "history", "notes", "librarian"],
+    );
   });
 
   it("shows the words panel exactly once off a portal", () => {
     // "content" off a portal IS the Element panel. It is offered only in the
     // depth that has no Element tab, so the same panel never appears twice.
-    const assist = inspectorTabsFor("assist", { portalTarget: false, tagMapped: true });
+    const assist = inspectorTabsFor("assist", { portalTarget: false, tagMapped: true, surface: "normal" });
     assert.deepEqual(assist, ["assistant", "settings", "content"]);
+    // Phase 9: the SEO panel is offered at the shallowest depth too — there is
+    // no shallower way to give a page a title, and sending somebody who came
+    // to fix a meta description off to change mode is the depth axis answering
+    // a question that was never about depth.
+    assert.deepEqual(
+      inspectorTabsFor("assist", { portalTarget: false, tagMapped: true, surface: "website" }),
+      ["assistant", "settings", "content", "seo"],
+    );
     for (const mode of ["visual", "developer"] as EditingMode[]) {
-      const tabs = inspectorTabsFor(mode, { portalTarget: false, tagMapped: true });
+      const tabs = inspectorTabsFor(mode, { portalTarget: false, tagMapped: true, surface: "normal" });
       assert.equal(tabs.includes("content"), false, `${mode} shows Element and Content — the same panel twice`);
       assert.ok(tabs.includes("element"));
     }
     // With no tag there are no words at all.
-    assert.deepEqual(inspectorTabsFor("assist", { portalTarget: false, tagMapped: false }), ["assistant", "settings"]);
+    assert.deepEqual(inspectorTabsFor("assist", { portalTarget: false, tagMapped: false, surface: "normal" }), ["assistant", "settings"]);
   });
 
   it("changes NOTHING on a portal target", () => {
@@ -323,19 +344,32 @@ describe("inspectorTabsFor separates vocabulary, document and tag", () => {
     // the phase-14 lifecycle trio (drafts/history/notes, 2026-08-22 evening),
     // which joined the DEVELOPER row on every target the same way the
     // Librarian did. The shallower depths are untouched — that is the pin.
-    assert.deepEqual(inspectorTabsFor("assist", { portalTarget: true, tagMapped: false }), ["assistant", "settings", "content"]);
-    assert.deepEqual(inspectorTabsFor("visual", { portalTarget: true, tagMapped: false }),
+    // ── REWRITTEN for phase 9 (2026-08-22): every call now names its SURFACE ──
+    // "normal" is what these three cases have always meant — the universal
+    // surface. Spelling it out is the point: the regression this test guards
+    // is that a NEW axis changed an OLD answer, and it cannot be checked
+    // without saying which value of the new axis is being asserted.
+    assert.deepEqual(inspectorTabsFor("assist", { portalTarget: true, tagMapped: false, surface: "normal" }), ["assistant", "settings", "content"]);
+    assert.deepEqual(inspectorTabsFor("visual", { portalTarget: true, tagMapped: false, surface: "normal" }),
       ["assistant", "settings", "builder", "content", "pages", "brand", "versions"]);
-    assert.deepEqual(inspectorTabsFor("developer", { portalTarget: true, tagMapped: false }),
+    assert.deepEqual(inspectorTabsFor("developer", { portalTarget: true, tagMapped: false, surface: "normal" }),
       ["assistant", "settings", "builder", "content", "pages", "brand", "code", "repository", "drafts", "history", "notes", "librarian", "versions"]);
-    assert.equal(inspectorTabsFor("developer", { portalTarget: true, tagMapped: true }).length, 14);
+    assert.equal(inspectorTabsFor("developer", { portalTarget: true, tagMapped: true, surface: "normal" }).length, 14);
+    // And the Website surface changes exactly ONE thing on a portal target:
+    // it adds the SEO tab after Brand. Nothing else moves.
+    assert.deepEqual(inspectorTabsFor("visual", { portalTarget: true, tagMapped: false, surface: "website" }),
+      ["assistant", "settings", "builder", "content", "pages", "brand", "seo", "versions"]);
   });
 
   it("never offers a tab the depth does not have, on any target", () => {
     for (const mode of ALL_MODES) {
       for (const portalTarget of [true, false]) {
         for (const tagMapped of [true, false]) {
-          for (const tab of inspectorTabsFor(mode, { portalTarget, tagMapped })) {
+          // Phase 9: only the NORMAL surface is walked here. The Website
+          // surface adds "seo", which is deliberately on no depth's ladder —
+          // asserting it against the ladder would be asserting the opposite of
+          // what phase 9 built. `smoke-editor-surface-modes` pins that side.
+          for (const tab of inspectorTabsFor(mode, { portalTarget, tagMapped, surface: "normal" })) {
             if (tab === "settings") continue;
             assert.ok(EDITING_MODES.find(entry => entry.id === mode)!.tabs.includes(tab),
               `${mode} offered ${tab}, which that depth does not have`);

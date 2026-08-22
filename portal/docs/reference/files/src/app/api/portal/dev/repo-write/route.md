@@ -8,8 +8,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `async POST(request: NextRequest)`
 
-## Depends on (6)
+## Depends on (7)
 
+- [`src/engines/editor/editing/pageSeo.ts`](../../../../../engines/editor/editing/pageSeo.md)
 - [`src/engines/editor/server/devProjects.ts`](../../../../../engines/editor/server/devProjects.md)
 - [`src/engines/editor/server/repoWrite.ts`](../../../../../engines/editor/server/repoWrite.md)
 - [`src/engines/editor/server/sourceEdit.ts`](../../../../../engines/editor/server/sourceEdit.md)
@@ -17,8 +18,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/lib/server/dev/devDocs.ts`](../../../../../lib/server/dev/devDocs.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 
-## Used by (2)
+## Used by (3)
 
+- [`scripts/smoke-editor-surface-modes.test.ts`](../../../../../../scripts/smoke-editor-surface-modes.test.md)
 - [`scripts/smoke-element-insert.test.ts`](../../../../../../scripts/smoke-element-insert.test.md)
 - [`scripts/smoke-repo-write.test.ts`](../../../../../../scripts/smoke-repo-write.test.md)
 

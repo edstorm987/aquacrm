@@ -97,6 +97,13 @@ export interface PluginPage {
   component: () => Promise<{ default: ComponentType<PluginPageProps> }>;
   requiresFeature?: string;
   title?: string;
+  // WHO may open this page. The host resolves the URL, then checks
+  // `pluginPageAllowedRoles(page)` and 404s before the component is even
+  // imported. Undeclared means "everyone the page's SURFACE serves" (see
+  // `_pageScope.ts`) — which is a real answer for a page with nothing to
+  // hide, and the wrong one for a page the nav keeps from someone.
+  visibleToRoles?: PluginRoleVisibility[];
+  roles?: PluginRoleVisibility[];
 }
 
 export interface PluginPageProps {

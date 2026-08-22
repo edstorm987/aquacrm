@@ -35,7 +35,21 @@ import {
   portalSlug,
   uniquePortalSlug,
 } from "@/lib/portal/clientPortalBuilder";
-import { inspectorTabsFor, tabForMode, type EditingMode, type InspectorTab } from "@/engines/editor/editing/modes";
+import { inspectorTabsFor, tabForMode, tabForSurface, type EditingMode, type InspectorTab } from "@/engines/editor/editing/modes";
+// The SURFACE (phase 9) — Ed's third switcher. WHAT this is (Website or
+// Normal), which is a different axis from HOW DEEP you go (the mode above) and
+// from WHAT IS CONNECTED (`portalTarget` / `tagMapped` below). Derived from
+// evidence, overridden by the operator, and never from `projectKind`.
+import {
+  loadSurfaceChoice,
+  resolveSurface,
+  saveSurfaceChoice,
+  type EditorSurface,
+} from "@/engines/editor/editing/surfaces";
+import { SurfaceSwitch } from "@/components/editing/SurfaceSwitch";
+// The Website surface's per-page SEO panel, and the shape it edits.
+import { PageSeoPanel, type PageSeoTarget } from "@/components/editing/PageSeoPanel";
+import { governingLayout, storedPageSeo, type PageSeo } from "@/engines/editor/editing/pageSeo";
 // The palette. ONE registry, filtered by surface — see `elements/palette.ts`
 // for why "which vocabulary?" is a different question from "is there a portal
 // document?", and `elements/websiteElements.ts` for how the 70 website
@@ -57,15 +71,27 @@ import {
   aquaTagBrowserUrl,
   aquaTagDisable,
   aquaTagEnable,
+  aquaTagLinks,
   aquaTagOrigin,
   aquaTagPatchMessage,
   aquaTagPing,
   aquaTagReset,
   aquaTagThrottle,
   type AquaTagElement,
+  type AquaTagPageLink,
   type AquaTagStyleProperty,
   type AquaTagThrottleProfile,
 } from "@/engines/editor/editing/aquaTagBridge";
+// The navigator (phase 8) — the list of a project's OTHER pages, and the line
+// that says which source answered. The plan is built in the pure module; this
+// file only supplies what each source knows and acts on a pick.
+import {
+  navigatorCurrentId,
+  navigatorHref,
+  navigatorPlan,
+  type NavigatorDestination,
+} from "@/engines/editor/editing/pageNavigator";
+import { PageNavigator } from "@/components/editing/PageNavigator";
 // The safe id this codebase already has. `crypto.randomUUID` is a
 // secure-context-only API, so it is simply undefined on a LAN-served http dev
 // build — see `pingTag`.
@@ -218,6 +244,9 @@ const TAB_META: Record<InspectorTab, { label: string; icon: typeof FileText }> =
   content: { label: "Content", icon: FileText },
   pages: { label: "Pages", icon: Layers3 },
   brand: { label: "Brand", icon: Palette },
+  // The Website surface's per-page SEO (phase 9). Offered at EVERY depth and
+  // only on that surface — `inspectorTabsFor` owns that rule.
+  seo: { label: "SEO", icon: Globe },
   code: { label: "Code", icon: Code2 },
   // The site's own source, as opposed to the sandboxed portal component above.
   librarian: { label: "Librarian", icon: BookOpenText },
@@ -410,7 +439,30 @@ export function DevEditor({
   // the browser off everything he builds. They are not the same question and
   // must not be collapsed back together: a tagged game build has a browser and
   // no portal; an Aqua portal has a portal and needs no tag.
-  const portalTarget = projectKind !== "software";
+  //
+  // ── ...AND IT NO LONGER READS `projectKind` EITHER ─────────────────────────
+  //
+  // `DevProject.kind`'s own doc comment says the field "no longer drives the
+  // editor" and that the editor "adapts to what is CONNECTED (a repository, an
+  // Aqua Tag, a client) rather than to a declared type". This line was the last
+  // place still reading it, and it was wrong in the other direction: a legacy
+  // project saved as "website" or "portal" made `portalTarget` TRUE, so the
+  // editor loaded whichever client's portal design sorted first, put that
+  // portal's eight sections in the navigator, and pointed the SEO panel at
+  // somebody else's portal document — while the operator was looking at their
+  // own website.
+  //
+  // What is connected instead: a DEV PROJECT IS OPEN. A dev project is a
+  // repository, an address and a tag; it has no portal document. With no
+  // project open this is the Portal Studio door, which is nothing BUT a portal
+  // document. That is evidence, and it costs nothing at either door — the
+  // studio passes no project, and a "software" project already answered false.
+  //
+  // `projectKind` still seeds two OPENING DEFAULTS below (`showBrowser`, and
+  // the starting depth). Those are one-click choices that point no write
+  // anywhere, so they are left reading it deliberately rather than by
+  // oversight — but they are the last two readers of the field.
+  const portalTarget = !projectId;
   // The tag, read from the project. The server-computed status wins when the
   // list has arrived; the prop covers the moment before it does.
   const projectTagStatus = projectId ? projectStatuses[projectId] : undefined;
@@ -438,6 +490,36 @@ export function DevEditor({
   // portal DOCUMENT behind this?", which is false for every project Ed
   // creates, and using it to pick a vocabulary is what emptied the palette.
   const elementSurface = elementSurfaceFor({ portalTarget });
+
+  // ── A FOURTH question, and Ed's third switcher (phase 9) ───────────────────
+  //
+  //   surface — is this a WEBSITE, or the universal Normal?
+  //
+  // Orthogonal to everything above it. `portalTarget` asks whether there is a
+  // portal document; `tagMapped` asks whether a page can be clicked;
+  // `elementSurface` asks which vocabulary is spoken. This asks what the thing
+  // IS, because a public website needs per-page SEO and nothing else does.
+  //
+  // The DEFAULT is derived from what is CONNECTED — a tag answering on a real
+  // address — never from `projectKind`, which is a claim somebody typed once
+  // and which defaulted every project Ed makes to "software". The operator's
+  // choice always wins over the derivation and persists per project, the same
+  // way the device does, with the same scope-ready guard: without it, Strict
+  // Mode's second effect pass writes the default over the stored choice.
+  const [surfaceChoice, setSurfaceChoice] = useState<EditorSurface | null>(null);
+  const [surfaceScopeReady, setSurfaceScopeReady] = useState<string | null>(null);
+  const surfaceScope = projectId || "portal";
+  useEffect(() => {
+    setSurfaceChoice(loadSurfaceChoice(surfaceScope));
+    setSurfaceScopeReady(surfaceScope);
+  }, [surfaceScope]);
+  const resolvedSurface = resolveSurface(
+    // Only read once THIS scope has loaded. Before that the stored choice of
+    // the PREVIOUS project would decide this one's surface for a frame.
+    surfaceScopeReady === surfaceScope ? surfaceChoice : null,
+    { tagMapped, siteUrl: browserUrl || projectBrowserUrl, portalTarget, repository: selectedProject?.repository },
+  );
+  const surface = resolvedSurface.surface;
   // The website definitions register by import side effect, so they exist in
   // this bundle only once the chunk has loaded. Re-render when it lands.
   //
@@ -606,10 +688,89 @@ export function DevEditor({
   const tagOriginRef = useRef<string | null>(null);
   const tagElementRef = useRef<AquaTagElement | null>(null);
 
+  // ── The navigator's three sources (phase 8) ─────────────────────────────────
+  //
+  // Ed: "if i put in a website id get stuck". Three different things can know
+  // what pages a project has, they know genuinely different things, and the
+  // navigator names whichever one answered — see `editing/pageNavigator.ts`.
+  // Held apart here for the same reason: a repository's routes are a fact
+  // about the SOURCE, and the tag's links are a fact about ONE PAGE. Merging
+  // them into a single list would be a claim neither source can support.
+  /** The repository's file list, as `insert-targets` answered. Null = not asked. */
+  const [repoFiles, setRepoFiles] = useState<string[] | null>(null);
+  const [repoFilesTruncated, setRepoFilesTruncated] = useState(false);
+  const [repoFilesError, setRepoFilesError] = useState("");
+  const [repoFilesLoading, setRepoFilesLoading] = useState(false);
+  /** What the tag reported. `[]` is an answer — this page links nowhere. */
+  const [pageLinks, setPageLinks] = useState<AquaTagPageLink[] | null>(null);
+  const [pageLinksError, setPageLinksError] = useState("");
+  /** Only the answer to OUR request, and only for the page we asked about. */
+  const tagLinksId = useRef("");
+  const tagLinksTimeout = useRef<number | null>(null);
+  /** A GitHub connection landing in Settings must re-ask, not keep a refusal. */
+  const [repoFilesRefresh, setRepoFilesRefresh] = useState(0);
+  useEffect(() => {
+    const onProjectsChanged = () => setRepoFilesRefresh(value => value + 1);
+    window.addEventListener(DEV_PROJECTS_CHANGED_EVENT, onProjectsChanged);
+    return () => window.removeEventListener(DEV_PROJECTS_CHANGED_EVENT, onProjectsChanged);
+  }, []);
+
+  /**
+   * The repository's routes, read through the list the insert picker already
+   * uses.
+   *
+   * REUSED rather than rebuilt: `action: "insert-targets"` is exactly "this
+   * repository's files, read from the draft branch when it exists" — the same
+   * question the navigator has — and it already carries the tenant-then-project
+   * lookup, the per-request vault token and the truncation flag. A second
+   * endpoint answering the same question is a second endpoint that can drift.
+   *
+   * The one consequence worth knowing: that list is filtered by
+   * `isMappableFile` (`.tsx/.jsx/.html/.md/.mdx`), so a page written as plain
+   * `page.js` is invisible to the navigator. The derivation itself handles
+   * `.js`; the filter upstream is what drops it.
+   */
+  useEffect(() => {
+    const repository = selectedProject?.repository?.trim();
+    if (!projectId || !repository) {
+      setRepoFiles(null);
+      setRepoFilesError("");
+      setRepoFilesTruncated(false);
+      setRepoFilesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setRepoFilesLoading(true);
+    setRepoFilesError("");
+    fetch("/api/portal/dev/repo-write", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "insert-targets", project: projectId }),
+    })
+      .then(response => response.json())
+      .then((payload: { ok?: boolean; files?: string[]; truncated?: boolean; error?: string }) => {
+        if (cancelled) return;
+        if (payload?.ok && Array.isArray(payload.files)) {
+          setRepoFiles(payload.files);
+          setRepoFilesTruncated(payload.truncated === true);
+          setRepoFilesError("");
+          return;
+        }
+        setRepoFiles(null);
+        setRepoFilesTruncated(false);
+        // The server's own sentence, not a rewrite of it — it is the one that
+        // knows whether this was a missing token, a 404 or a refusal.
+        setRepoFilesError(payload?.error || "the repository could not be read");
+      })
+      .catch(() => { if (!cancelled) { setRepoFiles(null); setRepoFilesError("the repository could not be reached"); } })
+      .finally(() => { if (!cancelled) setRepoFilesLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId, selectedProject?.repository, repoFilesRefresh]);
+
   // Which tabs this depth offers on THIS target. The rule (including the
   // Element tab's gate on `tagMapped` rather than `browserAvailable`) lives in
   // `inspectorTabsFor`, where it can be tested.
-  const allowedTabs = inspectorTabsFor(editingModeId, { portalTarget, tagMapped })
+  const allowedTabs = inspectorTabsFor(editingModeId, { portalTarget, tagMapped, surface })
     .map(id => ({ id, ...TAB_META[id] }));
 
   // A tab can stop being offered underneath you — switching mode, or opening a
@@ -708,6 +869,21 @@ export function DevEditor({
     } else {
       setPicking(false);
     }
+  }
+
+  /**
+   * Switching what this IS. The other axis, and it behaves like the mode's.
+   *
+   * The choice is REMEMBERED (per project, like the device) because a person
+   * who told the editor "this is a website" should not have to say it again
+   * after a reload — and because the derivation would quietly disagree with
+   * them for ever otherwise. Leaving Website while sitting on the SEO tab
+   * lands on the depth's own first tab rather than a panel with no rail entry.
+   */
+  function changeSurface(next: EditorSurface) {
+    setSurfaceChoice(next);
+    saveSurfaceChoice(next, surfaceScope);
+    setTab(tabForSurface(next, editingModeId, tab) as InspectorTab);
   }
   const [record, setRecord] = useState<PortalDesignRecord | null>(null);
   const [portalDocument, setPortalDocument] = useState<ClientPortalDesignDocument | null>(null);
@@ -930,6 +1106,11 @@ export function DevEditor({
    * resolves to this app's own origin) and this component is server-rendered
    * first. `aquaTagOrigin` returns null — never "*" — for anything it cannot
    * pin down, and null means the bridge stays shut.
+   *
+   * Declared HERE, above the navigator, on purpose: the navigator's third
+   * source is a list of links a tagged page reported, and the editor checks
+   * every one of them against this value before it will offer it. That check
+   * has to be able to see the origin, so the origin has to be resolved first.
    */
   const [tagOrigin, setTagOrigin] = useState<string | null>(null);
   useEffect(() => {
@@ -937,6 +1118,216 @@ export function DevEditor({
     tagOriginRef.current = origin;
     setTagOrigin(origin);
   }, [previewSrc]);
+
+  // ── The navigator (phase 8) ─────────────────────────────────────────────────
+  //
+  // Everything that can say what pages this project has, handed to the pure
+  // planner, which groups them BY SOURCE and writes the one line that says who
+  // answered. Nothing here decides what to claim; this only supplies what each
+  // source knows and states plainly when one of them could not answer.
+  const pageNavigator = useMemo(() => navigatorPlan({
+    portal: portalTarget
+      ? {
+          sections: CLIENT_PORTAL_SECTIONS.map(item => ({
+            id: item,
+            label: portalDocument?.pages[item].label || SECTION_LABELS[item],
+          })),
+          customPages: portalDocument
+            ? portalBuilder(portalDocument).customPages.map(page => ({ id: page.id, label: page.label }))
+            : [],
+        }
+      : null,
+    repository: repoFiles && selectedProject?.repository
+      ? { name: selectedProject.repository, files: repoFiles, truncated: repoFilesTruncated }
+      : null,
+    repositoryError: repoFilesError || undefined,
+    repositoryLoading: repoFilesLoading,
+    pageLinks,
+    pageLinksError: pageLinksError || undefined,
+    // The editor's OWN origin policy, applied to what the tag reported. The
+    // tag filters same-origin before it sends; that is the tag's rule, on
+    // somebody else's page, and picking one of these rows moves the browser —
+    // which is what decides the origin the editor trusts next. A receiver that
+    // relies on the sender to enforce the receiver's rule has no rule.
+    pageLinksOrigin: tagOrigin,
+  }), [
+    pageLinks,
+    pageLinksError,
+    portalDocument,
+    portalTarget,
+    repoFiles,
+    repoFilesError,
+    repoFilesLoading,
+    repoFilesTruncated,
+    selectedProject?.repository,
+    tagOrigin,
+  ]);
+  /**
+   * Which row is showing. A portal knows from its own state; everything else
+   * is matched on the address the browser is pointed at, and an unlisted
+   * address selects nothing rather than lighting up an unrelated row.
+   */
+  const navigatorValue = portalTarget
+    ? (selectedCustomPage ? `portal:custom:${selectedCustomPage.id}` : `portal:${section}`)
+    : navigatorCurrentId(pageNavigator, browserUrl);
+
+  /**
+   * Picking a page. TWO different actions, because the sources mean different
+   * things: a portal page changes what the preview RENDERS, and everything
+   * else changes where the browser POINTS.
+   *
+   * The second one is what makes the tag re-handshake: the address changes,
+   * `previewSrc` changes, the frame's key changes with it, and the load handler
+   * pings the new page. Nothing here re-pings by hand — doing so would race the
+   * page that has not loaded yet.
+   */
+  function goToPage(destination: NavigatorDestination) {
+    // MOVING THE NAVIGATOR THROWS THE SEO PANEL'S FIELDS AWAY. The panel keys
+    // its draft on the page it is editing, so the moment the target changes it
+    // re-reads the new page's head and whatever was typed is gone. Every other
+    // control in this editor that destroys unsaved work asks first — scope,
+    // client, template, the back link — and the navigator simply never did.
+    //
+    // Only the SEO draft is at stake here, which is why this is not the
+    // portal-wide `confirmDraftDiscard`: moving between PORTAL pages does not
+    // touch the portal draft, and a prompt for work that is not being lost is
+    // how people learn to click through prompts.
+    if (!confirmSeoDiscard()) return;
+    if (destination.source === "portal") {
+      if (destination.target.startsWith("custom:")) {
+        setCustomPageId(destination.target.slice(7));
+        setTab("builder");
+      } else {
+        setCustomPageId("");
+        setSection(destination.target as ClientPortalSectionId);
+      }
+      return;
+    }
+    const href = navigatorHref(browserUrl, destination);
+    if (!href) {
+      // TWO ways to get here, and they are fixed differently, so they are said
+      // differently: a repository route with no address to hang it off, or a
+      // link the tag reported that is not on the origin this editor trusts.
+      setNotice(destination.source === "page-links"
+        ? `${destination.label} is not on ${tagOrigin || "the address this editor is pointed at"}, so it will not be opened here — following it would move the one origin this editor trusts, on the page's own say-so.`
+        : `${destination.label} is a route in the repository — point the browser at the site first and it can be opened.`);
+      return;
+    }
+    setBrowserUrl(href);
+  }
+
+  // ── What the SEO panel is pointed at (phase 9) ──────────────────────────────
+  //
+  // PER PAGE, and the page is whichever one the navigator says is on screen —
+  // which is exactly why phase 9 needed phase 8 first. The resolution is a
+  // chain of honest answers, never a guess:
+  //
+  //   • a portal page      → the portal document is its source
+  //   • a repository route → the FILE it was derived from, which the navigator
+  //                          now carries (`destination.file`)
+  //   • a page the TAG can see with no matching route → refused, and told why:
+  //     the tag knows the URL, and nothing here knows which file renders it
+  //   • an address nobody listed → refused, and told to pick a page
+  //
+  // A refusal names what is missing. An SEO form that does not know which page
+  // it is editing is a form that edits the wrong one.
+  const navigatorDestination = pageNavigator.destinations.find(item => item.id === navigatorValue) ?? null;
+  const seoTarget: PageSeoTarget = (() => {
+    if (portalTarget && navigatorDestination?.source === "portal") {
+      return {
+        kind: "portal",
+        pageId: navigatorDestination.target,
+        label: navigatorDestination.label,
+      };
+    }
+    if (navigatorDestination?.source === "repository" && navigatorDestination.file) {
+      if (!projectId) {
+        return { kind: "none", reason: "This route belongs to a repository, but no project is open to read it through. Pick a project first." };
+      }
+      // The layout above this page, when the repository has one.
+      //
+      // The engine could always write `app/layout.tsx` — `seoMechanismFor`
+      // accepts it and the panel's own refusal sentence advertised it — and
+      // nothing on screen could ever point at one, because the navigator lists
+      // ROUTES and a layout is not a route. That is the editor's oldest
+      // disease (built, never mounted), so it is mounted here rather than
+      // deleted: a site's default title genuinely does live in the root
+      // layout, and Next merges it into every page beneath it.
+      //
+      // HONEST LIMIT: `repoFiles` is the `insert-targets` list, which is
+      // `isMappableFile`-filtered (`.tsx/.jsx/.html/.md/.mdx`) — so a
+      // `layout.js` is invisible here for exactly the same reason a `page.js`
+      // is. `governingLayout` handles it; the filter upstream is what drops it.
+      const layout = repoFiles ? governingLayout(navigatorDestination.file, repoFiles) : null;
+      return {
+        kind: "repository",
+        path: navigatorDestination.file,
+        label: `${navigatorDestination.label} — ${navigatorDestination.file}`,
+        projectId,
+        layout: layout ? { path: layout, label: layout } : null,
+      };
+    }
+    if (navigatorDestination?.source === "page-links") {
+      return {
+        kind: "none",
+        reason: `The Aqua Tag can see this page (${navigatorDestination.target}), but nothing here knows which file renders it — connect the project's repository and pick the page from its routes instead.`,
+      };
+    }
+    if (pageNavigator.empty) {
+      return { kind: "none", reason: `SEO is written per page, and nothing here can list this project's pages yet. ${pageNavigator.sentence}` };
+    }
+    return { kind: "none", reason: "Pick the page you want to work on in the navigator at the top — SEO is written per page, and the address on screen is not one the editor can name." };
+  })();
+
+  /**
+   * Does the SEO panel have fields nobody has written yet?
+   *
+   * Reported UP from the panel rather than recomputed here, because the panel
+   * is the only thing that knows what the page's head currently says — it read
+   * it. The editor needs the answer because the panel's work dies whenever the
+   * page it is pointed at changes, and the thing that changes the page is the
+   * navigator, which lives out here.
+   */
+  const [seoDirty, setSeoDirty] = useState(false);
+
+  /** A portal page's stored SEO — the portal document IS that page's source. */
+  const portalPageSeo: PageSeo | undefined = (() => {
+    if (seoTarget.kind !== "portal" || !portalDocument) return undefined;
+    if (seoTarget.pageId.startsWith("custom:")) {
+      const id = seoTarget.pageId.slice(7);
+      return portalBuilder(portalDocument).customPages.find(page => page.id === id)?.seo;
+    }
+    return portalDocument.pages[seoTarget.pageId as ClientPortalSectionId]?.seo;
+  })();
+
+  /**
+   * Writing a portal page's SEO — through the document's OWN edit path.
+   *
+   * Not a second write mechanism: this is the same `edit()` every other portal
+   * panel uses, so the values ride the existing Save draft and Publish. An
+   * empty set removes the key rather than storing a row of blanks.
+   */
+  function setPortalPageSeo(next: PageSeo) {
+    if (seoTarget.kind !== "portal") return;
+    const stored = storedPageSeo(next);
+    const pageId = seoTarget.pageId;
+    edit(current => {
+      if (pageId.startsWith("custom:")) {
+        const id = pageId.slice(7);
+        const builder = portalBuilder(current);
+        const page = builder.customPages.find(item => item.id === id);
+        if (!page) return;
+        if (stored) page.seo = stored;
+        else delete page.seo;
+        current.builder = builder;
+        return;
+      }
+      const page = current.pages[pageId as ClientPortalSectionId];
+      if (!page) return;
+      if (stored) page.seo = stored;
+      else delete page.seo;
+    });
+  }
 
   /** Post one message to the tag, or do nothing at all. Never posts to "*". */
   function sendToTag(payload: object) {
@@ -988,6 +1379,35 @@ export function DevEditor({
     }, 2_000);
   }
 
+  /**
+   * Ask the page what OTHER pages it can reach — the navigator's third source.
+   *
+   * Sent on every completed handshake rather than once, because the answer is
+   * about THIS page: navigate the preview and the new page links somewhere
+   * else. The tag re-handshakes on load, so the list re-asks itself.
+   *
+   * The timeout is the point of the whole function. A tag is served with
+   * `stale-while-revalidate`, so a page can be running a build from before
+   * this message existed — and that build does not reply, it simply says
+   * nothing. Silence has to become a sentence the operator can act on, never a
+   * list that stays empty for a reason nobody states.
+   */
+  function requestPageLinks() {
+    const requestId = makeId("aqualinks");
+    tagLinksId.current = requestId;
+    setPageLinks(null);
+    setPageLinksError("");
+    if (!sendToTag(aquaTagLinks(requestId))) {
+      setPageLinksError("the editor could not reach the page to ask");
+      return;
+    }
+    if (tagLinksTimeout.current) window.clearTimeout(tagLinksTimeout.current);
+    tagLinksTimeout.current = window.setTimeout(() => {
+      if (tagLinksId.current !== requestId) return;
+      setPageLinksError("this page is running a tag build from before the navigator existed — re-paste the snippet to update it");
+    }, 2_000);
+  }
+
   // A new page is a new handshake: ids, capabilities and the selection all
   // belong to the document that has just been replaced.
   useEffect(() => {
@@ -996,11 +1416,21 @@ export function DevEditor({
     setTagElement(null);
     setWordsDraft("");
     setWordsOriginal("");
+    // The link list belonged to the page that has just been replaced. Cleared
+    // rather than kept: offering the OLD page's links from the new page is the
+    // same class of lie as a stale address in the browser box.
+    tagLinksId.current = "";
+    if (tagLinksTimeout.current) window.clearTimeout(tagLinksTimeout.current);
+    setPageLinks(null);
+    setPageLinksError("");
     // A fresh page starts unwrapped: the amber drops NOW and only returns when
     // the new page's tag confirms via throttle-applied. Intent survives in the
     // ref; truth is re-earned per page.
     setThrottleActive(null);
-    return () => { if (tagTimeout.current) window.clearTimeout(tagTimeout.current); };
+    return () => {
+      if (tagTimeout.current) window.clearTimeout(tagTimeout.current);
+      if (tagLinksTimeout.current) window.clearTimeout(tagLinksTimeout.current);
+    };
   }, [previewSrc, frameKey]);
 
   // Selection on or off. Sent whenever either changes, and on disconnect —
@@ -1121,12 +1551,14 @@ export function DevEditor({
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (!dirty) return;
+      // Unsaved SEO fields are unsaved work too — closing the tab loses them
+      // exactly as it loses a portal draft.
+      if (!dirty && !seoDirty) return;
       event.preventDefault();
     };
     window.addEventListener("beforeunload", beforeUnload);
     return () => window.removeEventListener("beforeunload", beforeUnload);
-  }, [dirty]);
+  }, [dirty, seoDirty]);
 
   useEffect(() => {
     if (!mobileInspectorOpen) return;
@@ -1185,6 +1617,19 @@ export function DevEditor({
         if (message.requestId !== tagPingId.current) return;
         if (tagTimeout.current) window.clearTimeout(tagTimeout.current);
         setTagBridge("connected");
+        // The handshake is what makes the navigator's third source possible:
+        // now that the page is talking, ask it what it links to.
+        requestPageLinks();
+        return;
+      }
+
+      if (message.type === AQUA_TAG_MESSAGES.linksFound) {
+        // Only the answer to OUR request. A reply carrying the previous page's
+        // id belongs to the page that has already been replaced.
+        if (message.requestId !== tagLinksId.current) return;
+        if (tagLinksTimeout.current) window.clearTimeout(tagLinksTimeout.current);
+        setPageLinks(message.links);
+        setPageLinksError("");
         return;
       }
 
@@ -1364,8 +1809,29 @@ export function DevEditor({
     }
   }
 
+  /**
+   * The gate in front of anything that leaves this target behind.
+   *
+   * Both kinds of unsaved work are NAMED, separately: a portal draft and a
+   * page's SEO fields are different things to lose, and a prompt that names
+   * the wrong one teaches people to click through prompts. With only the draft
+   * dirty the sentence is exactly the one it has always been.
+   */
   function confirmDraftDiscard() {
-    return !dirty || window.confirm("Discard the unsaved changes in this draft?");
+    const losing: string[] = [];
+    if (dirty) losing.push("the unsaved changes in this draft");
+    if (seoDirty) losing.push("the SEO fields you have filled in for this page");
+    if (!losing.length) return true;
+    return window.confirm(`Discard ${losing.join(", and ")}?`);
+  }
+
+  /**
+   * The narrower gate: moving to another PAGE, which loses the SEO fields and
+   * nothing else. The portal draft survives a section change, so asking about
+   * it here would be asking about work that is not at risk.
+   */
+  function confirmSeoDiscard() {
+    return !seoDirty || window.confirm("Discard the SEO fields you have filled in for this page?");
   }
 
   function changeScope(nextScope: Scope) {
@@ -1593,19 +2059,27 @@ export function DevEditor({
           {portalTarget ? <select aria-label="Lifecycle stage" value={mode} onChange={event => setMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
             {CLIENT_PORTAL_MODES.map(item => <option key={item} value={item} className="bg-[#1a1c1a]">{portalDocument?.stages[item].label || MODE_LABELS[item]}</option>)}
           </select> : null}
-          {portalTarget ? <select aria-label="Portal page" value={selectedCustomPage ? `custom:${selectedCustomPage.id}` : section} onChange={event => {
-            const value = event.target.value;
-            if (value.startsWith("custom:")) {
-              setCustomPageId(value.slice(7));
-              setTab("builder");
-            } else {
-              setCustomPageId("");
-              setSection(value as ClientPortalSectionId);
-            }
-          }} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-36 sm:shrink-0">
-            <optgroup label="Core pages" className="bg-[#1a1c1a]">{CLIENT_PORTAL_SECTIONS.map(item => <option key={item} value={item}>{portalDocument?.pages[item].label || SECTION_LABELS[item]}</option>)}</optgroup>
-            {portalDocument && portalBuilder(portalDocument).customPages.length ? <optgroup label="Custom pages" className="bg-[#1a1c1a]">{portalBuilder(portalDocument).customPages.map(page => <option key={page.id} value={`custom:${page.id}`}>{page.label}</option>)}</optgroup> : null}
-          </select> : null}
+          {/* THE NAVIGATOR — Ed's second switcher, and the answer to "if i put
+              in a website id get stuck".
+
+              This replaced the portal-only "Portal page" select that used to
+              sit here. That control was right for a portal and did not exist
+              at all for a repository or a tagged website, which is exactly how
+              the browser ended up able to load one address and go nowhere.
+              One control now, for every target, grouped BY SOURCE and saying
+              which one answered — a portal's own document, a repository's
+              routes, or the links the tag can see on this page. */}
+          {/* ED'S THIRD SWITCHER — "maybe its worth having a 3rd switcher to
+              switch what it is". WHAT this is, beside WHICH PAGE of it.
+
+              It sits in this row rather than the top bar for the reason the
+              navigator does: the top bar is `xl:` and up, so a control put
+              there simply does not exist on a laptop — and a switcher that
+              decides whether the SEO panel is reachable at all cannot be one
+              that disappears at 1279px. Before the navigator, because "what
+              is this" is the wider question and reads first. */}
+          <SurfaceSwitch resolved={resolvedSurface} onChange={changeSurface} disabled={busy} />
+          <PageNavigator plan={pageNavigator} value={navigatorValue} onPick={goToPage} disabled={busy} />
           {/* The project switcher used to sit here as a `w-full` select over
               EVERY project in the agency — it now leads the top bar, compact
               and scoped to the project this editor is in. */}
@@ -1932,6 +2406,10 @@ export function DevEditor({
                 selectedElementType={selectedElementType}
                 selectElementType={setSelectedElementType}
                 tagMapped={tagMapped}
+                seoTarget={seoTarget}
+                portalPageSeo={portalPageSeo}
+                onPortalSeoChange={setPortalPageSeo}
+                onSeoDirtyChange={setSeoDirty}
               />
             ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
@@ -1999,7 +2477,7 @@ export function DevEditor({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {(portalDocument && record) || !portalTarget ? (
-                <Inspector assistant={assistant} assistantTarget={assistantTarget} repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} onOpenFile={openFileInCanvas} picking={picking} onPickElement={() => setPicking(value => !value)} tagPanel={tagPanel} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} elementSurface={elementSurface} paletteGroups={paletteGroups} paletteCount={paletteItems.length} selectedElementType={selectedElementType} selectElementType={setSelectedElementType} tagMapped={tagMapped} />
+                <Inspector assistant={assistant} assistantTarget={assistantTarget} repository={repository} projectId={projectId} onRepositoryChange={setRepository} sourceFocus={sourceFocus} onOpenFile={openFileInCanvas} picking={picking} onPickElement={() => setPicking(value => !value)} tagPanel={tagPanel} tab={tab} scope={scope} mode={mode} section={section} customPageId={customPageId} document={portalDocument} record={record} canManage={canManage} busy={busy} checkpointLabel={checkpointLabel} setCheckpointLabel={setCheckpointLabel} edit={edit} checkpoint={checkpoint} restore={restore} refreshProductTemplate={refreshProductTemplate} resetClient={resetClient} latestMasterVersionId={selectedTemplate?.latestMasterVersionId} compositionTemplates={templates.filter(template => template.active && Boolean(template.productId) && template.id !== selectedTemplate?.id)} productOptions={templates.filter(template => Boolean(template.productId))} previewProductIds={previewProductIds} togglePreviewProduct={togglePreviewProduct} selectCustomPage={setCustomPageId} selectedBlockId={selectedBlockId} selectBlock={setSelectedBlockId} elementSurface={elementSurface} paletteGroups={paletteGroups} paletteCount={paletteItems.length} selectedElementType={selectedElementType} selectElementType={setSelectedElementType} tagMapped={tagMapped} seoTarget={seoTarget} portalPageSeo={portalPageSeo} onPortalSeoChange={setPortalPageSeo} onSeoDirtyChange={setSeoDirty} />
               ) : <p className="text-sm text-white/45">{notice}</p>}
             </div>
             {/* The same gate as the desktop pair above: a repository has no
@@ -2059,6 +2537,10 @@ function Inspector({
   selectedElementType,
   selectElementType,
   tagMapped,
+  seoTarget,
+  portalPageSeo,
+  onPortalSeoChange,
+  onSeoDirtyChange,
 }: {
   assistant?: EditorAssistantProps;
   assistantTarget: string;
@@ -2106,6 +2588,17 @@ function Inspector({
   selectElementType: (type: string) => void;
   /** An Aqua Tag answers on this project's page. */
   tagMapped: boolean;
+  /**
+   * Which PAGE the Website surface's SEO panel is pointed at (phase 9), as
+   * resolved from the navigator — a repository file, a portal page, or a
+   * refusal that says what is missing. Never guessed here.
+   */
+  seoTarget: PageSeoTarget;
+  /** A portal page's stored SEO. The portal document is that page's source. */
+  portalPageSeo?: PageSeo;
+  onPortalSeoChange: (next: PageSeo) => void;
+  /** The SEO panel's unsaved state, so the navigator can ask before it moves. */
+  onSeoDirtyChange: (dirty: boolean) => void;
 }) {
   const editingDisabled = !canManage || busy;
 
@@ -2258,6 +2751,28 @@ function Inspector({
   }
   if (tab === "notes") {
     return <NotesPanel projectId={projectId ?? ""} />;
+  }
+
+  // ── The Website surface's per-page SEO (phase 9) ───────────────────────
+  //
+  // Above the portal-document guard, like Repo and Drafts, and for the same
+  // reason: the case that matters most is the one with NO portal document —
+  // a client's website in a repository. Below the guard it would have told
+  // somebody editing their own homepage that "these tools apply to an
+  // Aqua-hosted portal", which is the exact bug the Builder tab had.
+  //
+  // The tab only exists on the Website surface at all (`inspectorTabsFor`),
+  // so reaching this branch means the operator has said this is a website.
+  if (tab === "seo") {
+    return (
+      <PageSeoPanel
+        target={seoTarget}
+        portalSeo={portalPageSeo}
+        onPortalSeoChange={onPortalSeoChange}
+        onDirtyChange={onSeoDirtyChange}
+        canManage={canManage}
+      />
+    );
   }
 
   if (tab === "repository") {

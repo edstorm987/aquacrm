@@ -21,7 +21,7 @@ import { resolveAgencyPluginPage } from "@/built-ins/runtime/_routeResolver";
 import { listPlugins } from "@/built-ins/runtime/_registry";
 import { getInstall } from "@/server/pluginInstalls";
 import { FOUNDATION_SERVICES } from "@/built-ins/runtime/foundation-adapters";
-import { pluginPageAllowedRoles } from "@/built-ins/runtime/_types";
+import { pageAllowsRoleAt } from "@/built-ins/runtime/_pageScope";
 import type { PluginPageProps } from "@/built-ins/runtime/_types";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
@@ -128,10 +128,13 @@ export default async function AgencyPluginCatchAll({ params, searchParams }: Rou
     }
     notFound();
   }
-  const { page, install, segments } = resolved;
+  const { plugin, page, install, segments } = resolved;
 
-  const allowed = pluginPageAllowedRoles(page);
-  if (allowed && !allowed.includes(session.role)) notFound();
+  // One gate for all three hosts — see `_pageScope.ts`. Here the surface
+  // ceiling (AGENCY_ROLES) matches the host's own `requireRole` exactly, so
+  // this host's behaviour is unchanged and the work is done by the manifest's
+  // declared roles: it is what keeps `agency-staff` out of finance Operations.
+  if (!pageAllowsRoleAt(plugin, page, "agency", session.role)) notFound();
 
   const mod = await page.component();
   const Component = mod.default;

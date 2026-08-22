@@ -11,7 +11,7 @@ import { ensureHydrated } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { devIconPreference } from "@/lib/server/devIconPreference";
-import { ALL_ROLES } from "@/server/types";
+import { SURFACE_ROLE_CEILING } from "@/built-ins/runtime/_pageScope";
 import { getClientForAgency } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
@@ -46,11 +46,23 @@ export default async function ClientLayout({
   await ensureHydrated();
   const { clientId } = await params;
 
-  // All roles (except end-customer's own scope) can hit this layout, but
-  // requireRoleForClient enforces tenant-scope match for client-* roles.
+  // The client WORKSPACE's own people: the agency's staff plus the client's
+  // team. `requireRoleForClient` still enforces the tenant-scope match for
+  // client-side roles; the role list answers the separate question of whether
+  // this surface belongs to the caller at all.
+  //
+  // This was `[...ALL_ROLES]` — every role in the product — which meant an
+  // `end-customer` attached to the client got the whole workspace chrome
+  // rendered around whatever the page did: the client's name and stage, the
+  // provider, and a sidebar naming Commercial / Client record / Fulfilment.
+  // Refusing at the page but not here would leak the shape of the internal
+  // record even when its contents 404. The ceiling is
+  // `SURFACE_ROLE_CEILING.client`, the same one every plugin page under this
+  // host is capped by, so the shell and its children agree by construction
+  // rather than by two lists staying in step.
   let session;
   try {
-    session = await requireRoleForClient([...ALL_ROLES], clientId);
+    session = await requireRoleForClient([...SURFACE_ROLE_CEILING.client], clientId);
   } catch {
     redirect("/portal");
   }

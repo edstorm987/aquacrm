@@ -21,9 +21,10 @@
 
 - [`src/built-ins/modules/agency-finance/src/lib/domain.ts`](./domain.md)
 
-## Used by (5)
+## Used by (6)
 
 - [`scripts/smoke-finance-stripe.test.ts`](../../../../../../scripts/smoke-finance-stripe.test.md)
+- [`scripts/smoke-plugin-settings-surface.test.ts`](../../../../../../scripts/smoke-plugin-settings-surface.test.md)
 - [`src/app/api/tenants/close-deal/route.ts`](../../../../../app/api/tenants/close-deal/route.md)
 - [`src/built-ins/modules/agency-finance/src/api/handlers-stripe.ts`](../api/handlers-stripe.md)
 - [`src/built-ins/modules/agency-finance/src/pages/InvoiceDetailPage.tsx`](../pages/InvoiceDetailPage.md)

@@ -84,11 +84,18 @@ const manifest: AquaPlugin = {
   ],
 
   pages: [
-    { path: "", component: () => import("./src/pages/StaffPage") },
-    { path: "staff", component: () => import("./src/pages/StaffPage") },
-    { path: "departments", component: () => import("./src/pages/DepartmentsPage") },
-    { path: "leave", component: () => import("./src/pages/LeaveRequestsPage") },
-    { path: "employees", component: () => import("./src/pages/EmployeesPage") },
+    // "" and "staff" are ORPHANS — no nav entry resolves to either (the Staff
+    // tab was retired to /portal/agency/people), so nothing in the manifest
+    // said who they are for. They render the staff directory; the widest thing
+    // this plugin shows anyone is AGENCY_VIEWERS, so that is the ceiling here.
+    { path: "", component: () => import("./src/pages/StaffPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "staff", component: () => import("./src/pages/StaffPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "departments", component: () => import("./src/pages/DepartmentsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "leave", component: () => import("./src/pages/LeaveRequestsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    // Admin-only in the nav (`agency-hr.employees`), so admin-only at the door
+    // too. Left undeclared until 22 Aug 2026, when the agency-finance sweep
+    // found the same class here: staff could open the employee directory by URL.
+    { path: "employees", component: () => import("./src/pages/EmployeesPage"), visibleToRoles: [...AGENCY_ADMINS] },
     { path: "roles", component: () => import("./src/pages/RolesPage"), visibleToRoles: [...AGENCY_ADMINS] },
     { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...AGENCY_ADMINS] },
   ],

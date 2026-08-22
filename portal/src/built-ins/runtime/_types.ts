@@ -463,6 +463,16 @@ export interface SettingsGroup {
   fields: SettingsField[];
 }
 
+export interface SettingsFieldVaultTarget {
+  // An `IntegrationProvider` id from `src/lib/integrations/catalog.ts`. Kept as
+  // a plain string so a plugin's vendored copy of these types stays
+  // standalone-tsc-clean; `writePluginSettings` validates it against the real
+  // catalogue at write time.
+  provider: string;
+  // The catalogue field id the value is stored under, e.g. "secretKey".
+  field: string;
+}
+
 export interface SettingsField {
   id: string;
   label: string;
@@ -472,6 +482,12 @@ export interface SettingsField {
   helpText?: string;
   placeholder?: string;
   plans?: PlanId[];
+  // WHERE a `password` field's value is stored. Required for every password
+  // field (the registry validator refuses one without it), because the default
+  // — `install.config` — is a record that gets handed straight to page props
+  // and therefore to the browser. Secrets go to the encrypted integrations
+  // vault instead, and are never read back out to a client.
+  secretVault?: SettingsFieldVaultTarget;
 }
 
 // ─── Feature toggles ──────────────────────────────────────────────────────
@@ -624,6 +640,14 @@ export function navItemAllowedRoles(item: NavItem): Role[] | undefined {
 
 export function pluginPageAllowedRoles(page: PluginPage): Role[] | undefined {
   return page.visibleToRoles ?? page.roles;
+}
+
+// The same accessor for an API route. `undefined` means the manifest declared
+// nothing — which is NOT "everyone": see `effectiveApiRoles` in `_pageScope.ts`,
+// where an undeclared route inherits the surface ceiling rather than the
+// dispatcher's door.
+export function pluginApiRouteAllowedRoles(route: PluginApiRoute): Role[] | undefined {
+  return route.visibleToRoles ?? route.roles;
 }
 
 // `ServerUser` re-exported for convenience.

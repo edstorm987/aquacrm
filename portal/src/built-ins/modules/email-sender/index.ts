@@ -64,8 +64,10 @@ const manifest: AquaPlugin = {
   ],
 
   pages: [
-    { path: "", component: () => import("./src/pages/OutboxPage") },
-    { path: "outbox", component: () => import("./src/pages/OutboxPage") },
+    { path: "", component: () => import("./src/pages/OutboxPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    // ORPHAN: the "Outbox" nav entry names the bare mount, which resolves to
+    // "" above, so nothing declared who /email-sender/outbox is for.
+    { path: "outbox", component: () => import("./src/pages/OutboxPage"), visibleToRoles: [...AGENCY_VIEWERS] },
     { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...AGENCY_ADMINS] },
     { path: "logs", component: () => import("./src/pages/LogsPage") },
   ],

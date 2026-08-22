@@ -9,7 +9,7 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - `EDITOR_AI_REPLY_LIMITS`
 - `type EditorAiReplyFailureCode`
 - `type EditorAiReplyResult`
-- `interface GenerateEditorAiReplyInput (7 members)`
+- `interface GenerateEditorAiReplyInput (8 members)`
 - `async generateEditorAiReply(input: GenerateEditorAiReplyInput): Promise<EditorAiReplyResult>`
 
 ## Depends on (6)

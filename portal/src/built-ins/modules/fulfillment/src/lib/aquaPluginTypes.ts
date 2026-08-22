@@ -135,6 +135,14 @@ export interface PluginPage {
   component: () => Promise<{ default: ComponentType<PluginPageProps> }>;
   requiresFeature?: string;
   title?: string;
+  // ACCESS CONTROL, not decoration. The host reads this through
+  // `pluginPageAllowedRoles(page)` and 404s before the component is even
+  // imported — so a page left undeclared is reachable by URL to anyone the
+  // scope gate lets in, whatever the sidebar shows. Declare it on every page
+  // whose nav entry is narrower than the plugin's widest nav entry;
+  // `smoke-finance-section-gates.test.ts` fails the build otherwise.
+  visibleToRoles?: PluginRoleVisibility[];
+  roles?: PluginRoleVisibility[];
 }
 
 export interface PluginPageProps {

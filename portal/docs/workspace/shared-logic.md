@@ -201,7 +201,7 @@ detect/scan**), `aquaExplorerBridge.ts`, `server/aquaEmbedToken.ts`,
 `server/embedAllowResolver.ts`.
 
 ## Editing engine  (`src/engines/editor/`, **not** `src/lib/`)
-Client: `engines/editor/editing/{engine,elementSource,fileRelevance,leases,modes,aquaTagBridge,selectionRouting}.ts`.
+Client: `engines/editor/editing/{engine,elementSource,fileRelevance,leases,modes,aquaTagBridge,pageNavigator,selectionRouting}.ts`.
 Server: `engines/editor/server/*` (**the LIVE code/source adapters, patch,
 publish, registry, githubSource**, plus `portalStudio`, `devProjects`,
 `editorAssistant`, `editorAi`, `editorAiHistory`, **`editorAiReply`**,
@@ -291,6 +291,67 @@ The handshake matters and is not optional: `aquaTagSource.ts` pins
 until the editor pings, the tag's replies (including selections) go out to `"*"`.
 The editor pings on iframe `onLoad`, accepts only the `ready` whose `requestId`
 matches, then sends `enable`/`disable`.
+
+**THE NAVIGATOR (2026-08-22, phase 8) — `editing/pageNavigator.ts` +
+`components/editing/PageNavigator.tsx`.** Ed: *"if i put in a website id get
+stuck"*. The browser loaded ONE address and nothing could reach the site's other
+pages, because the header's only page control was a portal-only
+`aria-label="Portal page"` select. That select is GONE, replaced by one
+navigator for every target — the second of Ed's two switchers ("projects
+selector and the navigation selector").
+
+The rule the module exists to enforce is that it must SAY WHO ANSWERED, so the
+three sources are kept apart and never merged into one anonymous count:
+
+* **a portal's own document** — exact and complete; picking changes `section`/
+  `customPageId`, not a URL;
+* **a repository's routes** — `repositoryRoutes(paths)`, pure, from paths
+  alone: App Router (`app/…/page.tsx`, route groups dropped, `_private`/
+  `@slot`/`(.)intercept` refused), Pages Router (`index` dropped, `api` and
+  `_app`/`_document` refused) and plain `.html`/`.htm` at the root or under
+  `public/`, **keeping the extension** (`public/thanks.html` → `/thanks.html`,
+  not `/thanks`, which 404s on Next and needs a clean-URL setting nothing here
+  can see; a ROOT `index.html` still gets `/`, the one directory index every
+  host serves).
+  A dynamic route is LISTED and not openable — opening `[slug]` without a value
+  is a 404 with the editor's name on it. **Both router patterns are anchored at
+  the repository root** (`app/` or `src/app/`), because a folder merely NAMED
+  `pages` deeper in a tree is not a router — unanchored, this repo's own
+  `built-ins/modules/agency-finance/src/pages/ActivityPage.tsx` read as
+  `/ActivityPage`. A monorepo at `apps/web/app/…` therefore yields nothing, and
+  the sentence says so;
+* **the links the Aqua Tag sees on the page in front of you** — the
+  `aqua-explorer:links` / `links-found` pair (see the Aqua Tag section),
+  **re-filtered against the editor's OWN trusted origin** before any of them
+  becomes a row. The tag filters same-origin before it sends; that is the tag's
+  rule, running inside somebody else's page, and a receiver that leaves its rule
+  to the sender has no rule. It matters here more than anywhere else because
+  picking a row calls `setBrowserUrl`, which becomes the frame's `src`, which is
+  what `aquaTagOrigin` derives the one trusted origin from — so an accepted
+  off-origin link would move the trust boundary on the page's own say-so.
+  `pageLinkDestinations(links, allowedOrigin)` refuses anything not on it,
+  exactly (never a prefix or a suffix), refuses everything when there is no
+  origin, and RETURNS THE REFUSED COUNT so the sentence can say it.
+  `navigatorHref` refuses the same move again at the point of use.
+
+`navigatorPlan()` groups them, counts them and writes the one sentence under the
+control, including every way of failing: a truncated GitHub tree, routes that
+need a value, a repository that could not be read, a tag build too old to
+answer, and "nothing here can list this project's pages yet". `navigatorHref()`
+joins a route onto the address the browser is on and DROPS its query and hash.
+
+**No new endpoint.** The repository's file list is read through
+`repo-write` `action: "insert-targets"`, which already answers exactly "this
+repository's files, branch-first" with the tenant-then-project lookup and the
+per-request vault token. One consequence, stated precisely: that list is
+filtered by `isMappableFile` (`.tsx/.jsx/.html/.md/.mdx`), so a page written as
+plain `page.js` never reaches the navigator. The derivation itself does handle
+it — `repositoryRoutes(["app/page.js"])` answers `/` — and since 2026-08-22 so
+does `seoMechanismFor`, which until then accepted only `.tsx`/`.jsx` and would
+have refused BY NAME any `.js` route the filter ever let through. Both rules now
+take the same extension list and are cross-pinned in BOTH directions. Pinned by
+`scripts/smoke-editor-navigator.test.ts` and
+`scripts/smoke-editor-surface-modes.test.ts`.
 
 **`selectionRouting.ts` — one mechanism, three destinations.** `routeTagSelection(mode,
 { portalTarget })` is the whole rule, pure and testable:

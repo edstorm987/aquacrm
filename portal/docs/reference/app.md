@@ -1088,6 +1088,14 @@ Every exported function, class, type and const in this area, with its real signa
 - `async POST(req: Request)`
 
 
+## `src/app/api/portal/plugins/settings/`
+
+### `src/app/api/portal/plugins/settings/route.ts`
+
+- `async GET(request: NextRequest)`
+- `async POST(request: NextRequest)`
+
+
 ## `src/app/api/portal/products/rollout/`
 
 ### `src/app/api/portal/products/rollout/route.ts`

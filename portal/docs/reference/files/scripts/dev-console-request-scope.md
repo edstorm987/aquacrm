@@ -13,8 +13,9 @@
 - `isNextNotFound(error: unknown): boolean`
 - `isNextRedirect(error: unknown): boolean`
 
-## Used by (15)
+## Used by (21)
 
+- [`scripts/smoke-app-route-tenancy.test.ts`](./smoke-app-route-tenancy.test.md)
 - [`scripts/smoke-aqua-editor-ai-history.test.ts`](./smoke-aqua-editor-ai-history.test.md)
 - [`scripts/smoke-aqua-editor-ai-reply.test.ts`](./smoke-aqua-editor-ai-reply.test.md)
 - [`scripts/smoke-aqua-editor-ai-token.test.ts`](./smoke-aqua-editor-ai-token.test.md)
@@ -25,9 +26,14 @@
 - [`scripts/smoke-dev-team-api-view.test.ts`](./smoke-dev-team-api-view.test.md)
 - [`scripts/smoke-dev-team-editor.test.ts`](./smoke-dev-team-editor.test.md)
 - [`scripts/smoke-dev-team-gates.test.ts`](./smoke-dev-team-gates.test.md)
+- [`scripts/smoke-editor-surface-modes.test.ts`](./smoke-editor-surface-modes.test.md)
 - [`scripts/smoke-editor-words-publish.test.ts`](./smoke-editor-words-publish.test.md)
 - [`scripts/smoke-element-insert.test.ts`](./smoke-element-insert.test.md)
+- [`scripts/smoke-finance-section-gates.test.ts`](./smoke-finance-section-gates.test.md)
 - [`scripts/smoke-librarian.test.ts`](./smoke-librarian.test.md)
+- [`scripts/smoke-plugin-api-host-gates.test.ts`](./smoke-plugin-api-host-gates.test.md)
+- [`scripts/smoke-plugin-api-tenancy.test.ts`](./smoke-plugin-api-tenancy.test.md)
+- [`scripts/smoke-plugin-page-host-gates.test.ts`](./smoke-plugin-page-host-gates.test.md)
 - [`scripts/smoke-repo-write.test.ts`](./smoke-repo-write.test.md)
 - [`scripts/smoke-work-lifecycle.test.ts`](./smoke-work-lifecycle.test.md)
 
