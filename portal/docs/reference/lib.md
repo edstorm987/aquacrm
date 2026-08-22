@@ -466,16 +466,16 @@ Every exported function, class, type and const in this area, with its real signa
 - `isAquaExplorerReadyMessage(value: unknown): value is AquaExplorerReadyMessage`
 - `isAquaExplorerDiagnosticsMessage(value: unknown): value is AquaExplorerDiagnosticsMessage`
 - `isAquaExplorerSelectedMessage(value: unknown): value is AquaExplorerSelectedMessage`
-- `explorerTargetOrigin(url: string): string`
-- `AQUA_EXPLORER_PROTOCOL_VERSION = 1 as const`
-- `AQUA_EXPLORER_MESSAGES = {`
-- `interface AquaExplorerCapabilities (3 members)`
-- `interface AquaExplorerElement (8 members)`
-- `interface AquaExplorerPatch (4 members)`
-- `interface AquaExplorerReadyMessage (7 members)`
-- `interface AquaExplorerDiagnostics (9 members)`
-- `interface AquaExplorerDiagnosticsMessage (4 members)`
-- `interface AquaExplorerSelectedMessage (3 members)`
+- `explorerTargetOrigin(url: string): string` — now occupies the frame. Use `aquaTagOrigin`, which returns null instead and leaves the caller to do the only safe thing with an unknown origin: not send. Kept unchanged only so th…
+- `AQUA_EXPLORER_PROTOCOL_VERSION = AQUA_TAG_PROTOCOL_VERSION`
+- `AQUA_EXPLORER_MESSAGES = AQUA_TAG_MESSAGES`
+- `type AquaExplorerCapabilities = AquaTagCapabilities`
+- `type AquaExplorerElement = AquaTagElement`
+- `type AquaExplorerPatch = AquaTagPatch`
+- `type AquaExplorerReadyMessage = AquaTagReadyMessage`
+- `type AquaExplorerDiagnostics = AquaTagDiagnostics`
+- `type AquaExplorerDiagnosticsMessage = AquaTagDiagnosticsMessage`
+- `type AquaExplorerSelectedMessage = AquaTagSelectedMessage`
 
 ### `src/lib/integrations/aquaTagSource.ts`
 
@@ -486,7 +486,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `integrationDefinition(provider: IntegrationProvider): IntegrationDefinition`
 - `INTEGRATION_CATALOG: IntegrationDefinition[]`
-- `type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "google-search-console"`
+- `type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "aqua-editor-ai" | "google-search-console"`
 - `type IntegrationFieldKind = "text" | "email" | "url" | "password"`
 - `interface IntegrationFieldDefinition (7 members)`
 - `interface IntegrationDefinition (8 members)`
@@ -964,8 +964,10 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `isAssistantConfigured(agencyId?: string)`
 - `assistantModel(agencyId?: string)`
+- `extractOutputText(payload: unknown): string` — The Responses API's answer, as plain text. Exported for the editor's reply path, which parses the same wire shape on a different credential.
 - `async askMilesymediaAssistant(input: { agencyId: string; userName: string; memories: AssistantMemory[]; history: AssistantMessage[]; businessContext: string; contextTruncated: boolean; question: string; skill: AdvisorSk…`
 - `async suggestAdvisorActions(input: { agencyId: string; businessContext: string; alerts: OperationalAlert[]; radarIssues: BusinessRadarIssue[]; recommendedActions?: AdvisorActionSuggestion[]; existingTaskTitles: string[]…`
+- `OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"` — The one wire the assistants speak on. Exported so Aqua Editor AI's reply path (`engines/editor/server/editorAiReply.ts`) calls the SAME endpoint with the same idiom rather than gr…
 
 
 ## `src/lib/server/auth/`
@@ -1399,8 +1401,9 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `readersOf(t: Thought): string[]` — Who has picked a thought up, oldest read first.
 - `isRead(t: Thought): boolean`
-- `async addThought(input: { text: string; author: string; taskId?: string; planName?: string; worker?: string; }): Promise<Thought>`
+- `async addThought(input: { text: string; author: string; taskId?: string; planName?: string; worker?: string; projectId?: string; }): Promise<Thought>`
 - `async listThoughts(limit = 100): Promise<Thought[]>`
+- `async listThoughtsForProject(projectId: string, limit = 100): Promise<Thought[]>` — One project's notes, newest first — the editor's Notes tab (phase 14). Filtered by the first-class `projectId` tag, so a project's notes and the worker-thought traffic share a led…
 - `async thoughtsByTask(): Promise<Record<string, Thought[]>>` — Thoughts grouped by the task they're attached to, for inline display.
 - `async unreadFor(worker: string): Promise<Thought[]>` — What a given worker still hasn't picked up — its own, plus general notes. "Unread" is per reader: another worker acknowledging a general note does not consume it for this one.
 - `async acknowledge(ids: string[], worker: string): Promise<number>` — Mark `ids` as picked up BY `worker`. Other readers are left as they were.
@@ -1408,7 +1411,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `async ledgerPressure(): Promise<{ rows: number; unread: number; max: number; full: boolean }>` — How close the ledger is to its cap, and how much of it is undeliverable backlog. Unread rows are never evicted, so a ledger that stays over the cap is a signal that nobody is runn…
 - `class ThoughtLedgerUnreadableError` — The ledger exists but could not be parsed — never silently overwrite it.
     - `constructor(public readonly file: string)`
-- `interface Thought (8 members)`
+- `interface Thought (9 members)`
 
 ### `src/lib/server/dev/devTeamUpdates.ts`
 
@@ -1443,6 +1446,25 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ActiveFile (3 members)`
 - `interface WorkerSignals (5 members)`
 - `interface AreaActivity (4 members)`
+
+### `src/lib/server/dev/fileFinding.ts`
+
+- `queryTerms(query: string): string[]` — Free words → lowercase terms. Dots and slashes survive (people paste filenames and paths); question-shaped filler ("where is the…"), trailing punctuation and one-character fragmen…
+- `parseReferencePage(markdown: string): ReferenceEntry[]` — Parse one generated reference page into greppable entries. Two shapes exist and both are handled: the bucket pages (` ### `path` ` headings over ``- `symbol(...)` — summary`` line…
+- `async findFiles(input: FindFilesInput, deps: FileFindingDeps = {}): Promise<FileFindingResult>` — Answer "where is X / what exists about X" for one agency, optionally scoped to one of its projects. Tenant first, then project — a foreign or unknown `projectId` throws `project_n…
+- `async fileFindingWorld(agencyId: string, deps: FileFindingDeps = {}): Promise<FileFindingWorld>` — The skill's view of the world for one agency, with no question asked yet — what a consumer briefs FROM before its first find. This is what replaced the Librarian's business-snapsh…
+- `fileFindingBrief(result: FileFindingResult): string` — The result as deterministic plain text, for dropping into any assistant's context. One shape for every consumer, so the Librarian and the editor AI describe the same finding the s…
+- `type FileFindingSource = "repo" | "reference" | "docs"` — ─── Shapes ──────────────────────────────────────────────────────────────────
+- `type FileFindingReasonKind = "path" | "symbol" | "doc-title" | "content"` — Why a hit matched — the four kinds phase 15 names.
+- `type FileFindingRepoStatus = | "full-tree" /** The local working tree walked — a blank-repository project. */ | "workspace" /** Only the recorded map's top-level directories — no token resolved, so no network. */ | "map…` — Which of the four levels the repository half answered from.
+- `type FileFindingWorldRepo = | "github" /** A blank-repository project — the local working tree answers. */ | "workspace" /** The last Map failed; only docs and the reference would answer. */ | "map-error" /** Never mapp…` — What one project's RECORDED map says its repository half would be. No network.
+- `interface FileFindingReason (3 members)`
+- `interface FileFindingHit (6 members)`
+- `interface FileFindingResult (8 members)`
+- `interface FindFilesInput (4 members)`
+- `interface FileFindingDeps (6 members)` — Test seams, `SourceEditDeps`-style. Production passes none: without these a GitHub-mapped project cannot be driven in-process except by planting a real encrypted connection, and t…
+- `interface FileFindingWorldProject (3 members)`
+- `interface FileFindingWorld (3 members)`
 
 
 ## `src/lib/server/`
@@ -1627,10 +1649,10 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `scanFormsInHtml(html: string): AquaTagScanForms` — Count forms the way the tag decides what to capture, from static HTML. A form is capturable when the site explicitly marked it (`data-aqua-form` / `data-aqua-capture`) or it plain…
 - `scanFormSchemasInHtml(html: string): AquaFormSchema[]` — Extract each form's field layout from static HTML — the schema behind the "Import forms" step (plan Phase 2). Mirrors `scanFormsInHtml`'s form + capturable heuristic so "these 3 f…
-- `analyzeAquaTagHtml(html: string, masterSiteKey: string): AquaTagAnalysis` — Read a page's HTML for the tag and its forms. Pure — no network.
+- `analyzeAquaTagHtml(html: string, masterSiteKey: string, pageUrl?: string): AquaTagAnalysis` — PRESENCE IS NOT EXECUTION. This reads the served HTML, so it can prove the snippet is on the page with the right key — and nothing more. Found live on the first real client run (2…
 - `async detectAquaTag(input: { rawUrl: string; masterSiteKey: string }): Promise<AquaTagDetection>` — Fetch a domain and report whether the master tag is live and how many forms it would capture. Network failures come back as a reachable:false result with a plain reason, not a thr…
 - `interface AquaTagScanForms (2 members)` — Prove the Aqua Tag is live on a domain, and count what it will capture. This is the first tangible step of the setup wizard: paste the tag on a site, then we fetch that site the w…
-- `interface AquaTagAnalysis (4 members)`
+- `interface AquaTagAnalysis (6 members)`
 - `interface AquaTagDetection (5 members)`
 
 ### `src/lib/server/integrations/githubProjectPublisher.ts`
@@ -1678,6 +1700,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `markIntegrationConnectionSynced(agencyId: string, connectionId: string, syncedAt = Date.now()): PublicIntegrationConnection`
 - `async testIntegrationConnection(agencyId: string, connectionId: string, actor: { userId: string; email?: string }, fetchImpl: typeof fetch = fetch): Promise<PublicIntegrationConnection>`
 - `publicIntegrationConnection(connection: IntegrationConnection): PublicIntegrationConnection`
+- `scrubSecrets(message: string, secrets: string[] = []): string` — THE SECRET SCRUBBER. Remove secret values and secret-shaped text from a sentence that is about to be stored or shown. Exported because a provider error is not unique to connection…
 - `MANAGED_INTEGRATION_PROVIDERS = INTEGRATION_CATALOG.map(item => item.id)`
 
 ### `src/lib/server/integrations/metaMessaging.ts`
@@ -2087,6 +2110,12 @@ Every exported function, class, type and const in this area, with its real signa
 - `type AvatarValidation = AvatarValidationOk | AvatarValidationFail`
 - `interface AvatarValidationOk (3 members)`
 - `interface AvatarValidationFail (2 members)`
+
+### `src/lib/shared/devProjectGrouping.ts`
+
+- `groupDevProjects<T extends DevProjectGroupable>(projects: T[]): DevProjectGroup<T>[]` — Arrange a flat project list as [parent, ...its children] groups. Tolerant by design — display code must never make a record unreachable: - a child whose parent is NOT in the list …
+- `interface DevProjectGroupable (2 members)` — through the projects GET and the grouping happens where it renders.
+- `interface DevProjectGroup<T extends DevProjectGroupable> (2 members)`
 
 ### `src/lib/shared/formatDateTime.ts`
 

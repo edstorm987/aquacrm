@@ -1,6 +1,6 @@
 # Plan — Radar upgrade: sweep types, classification & tests (+ DB/storage health)
 
-← [development.md](../../development.md) · [phases.md](../phases.md) · reference: [radar dossier](../../workspace/radar.md) · **handoff notes + concerns: [radar-update-notes.md](../radar-update-notes.md)**
+← [development.md](../../development.md) · [phases.md](../../context/archive/phases.md) · reference: [radar dossier](../../workspace/radar.md) · **handoff notes + concerns: [radar-update-notes.md](../../context/archive/radar-update-notes.md)**
 
 **Status: ✅ ALL 7 STAGES SHIPPED (2026-08-19).** Radar moved from one
 do-everything sweep to typed, classified, properly-tested sweeps — with real
@@ -171,5 +171,5 @@ plan in flight._
 - `scripts/smoke-radar-coverage-seeding.test.ts`
 - `scripts/smoke-radar-actionable.test.ts`
 - `docs/workspace/radar.md`
-- `docs/development/radar-update-notes.md`
+- `docs/context/archive/radar-update-notes.md` (archived 2026-08-21)
 - `docs/development/plans/radar-upgrade.md`

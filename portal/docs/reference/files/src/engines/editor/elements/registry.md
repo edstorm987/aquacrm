@@ -19,13 +19,19 @@
 - [`src/engines/editor/elements/definition.ts`](./definition.md)
 - [`src/engines/editor/elements/schema.ts`](./schema.md)
 
-## Used by (7)
+## Used by (13)
 
+- [`scripts/smoke-editor-element-palette.test.ts`](../../../../scripts/smoke-editor-element-palette.test.md)
 - [`scripts/smoke-element-engine.test.ts`](../../../../scripts/smoke-element-engine.test.md)
+- [`scripts/smoke-element-insert.test.ts`](../../../../scripts/smoke-element-insert.test.md)
 - [`scripts/smoke-portal-elements.test.ts`](../../../../scripts/smoke-portal-elements.test.md)
 - [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../../../built-ins/modules/website-editor/src/components/blockRegistry.md)
+- [`src/components/editing/ElementInsertPanel.tsx`](../../../components/editing/ElementInsertPanel.md)
+- [`src/engines/editor/DevEditor.tsx`](../DevEditor.md)
 - [`src/engines/editor/elements/BlockRenderer.tsx`](./BlockRenderer.md)
 - [`src/engines/editor/elements/blockTreeOps.ts`](./blockTreeOps.md)
 - [`src/engines/editor/elements/index.ts`](./index.md)
+- [`src/engines/editor/elements/palette.ts`](./palette.md)
 - [`src/engines/editor/elements/portalElements.ts`](./portalElements.md)
+- [`src/engines/editor/elements/websiteElements.ts`](./websiteElements.md)
 

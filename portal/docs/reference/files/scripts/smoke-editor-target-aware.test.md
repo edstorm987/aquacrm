@@ -6,6 +6,10 @@
 
 _No exported symbols (side-effect / internal module)._
 
+## Depends on (1)
+
+- [`src/engines/editor/editing/modes.ts`](../src/engines/editor/editing/modes.md)
+
 ## Used by
 
 _No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._

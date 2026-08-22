@@ -48,7 +48,7 @@ function ViewSwitch({ active }: { active: View }) {
             href={view.href}
             aria-current={on ? "page" : undefined}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              on ? "bg-[color:var(--dev-success)] text-white" : "text-[color:var(--dt-muted)] hover:text-[color:var(--dev-success)]"
+              on ? "bg-[color:var(--dev-success)] text-[color:var(--dev-on-accent)]" : "text-[color:var(--dt-muted)] hover:text-[color:var(--dev-success)]"
             }`}
           >
             {view.label}
@@ -85,7 +85,7 @@ export default async function RoadmapPage({ searchParams }: { searchParams: Sear
               <ViewSwitch active="now" />
               <Link
                 href="/portal/dev-team/plans/new"
-                className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)]"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)]"
               >
                 <Plus size={13} />
                 Write a plan

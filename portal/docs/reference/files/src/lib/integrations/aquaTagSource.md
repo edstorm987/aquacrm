@@ -9,9 +9,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `AQUA_TAG_SOURCE`
 - `aquaTagResponse()`
 
-## Used by (6)
+## Used by (8)
 
+- [`scripts/smoke-aqua-tag-bridge.test.ts`](../../../scripts/smoke-aqua-tag-bridge.test.md)
 - [`scripts/smoke-aqua-tag-consent-injection.test.ts`](../../../scripts/smoke-aqua-tag-consent-injection.test.md)
+- [`scripts/smoke-aqua-tag-throttle.test.ts`](../../../scripts/smoke-aqua-tag-throttle.test.md)
 - [`scripts/smoke-consent-capture.test.ts`](../../../scripts/smoke-consent-capture.test.md)
 - [`scripts/smoke-project-explorer.test.ts`](../../../scripts/smoke-project-explorer.test.md)
 - [`scripts/smoke-tag-form-capture.test.ts`](../../../scripts/smoke-tag-form-capture.test.md)

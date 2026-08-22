@@ -71,3 +71,57 @@ test("shared visual baseline preserves readable surfaces and controls", () => {
   assert.match(clientWorkspace, /ClientWorkspaceHeader/);
   assert.doesNotMatch(clientWorkspace, /max-w-7xl/);
 });
+
+// ── The active nav icon, and why it kept "getting downed out" ───────────────
+//
+// lucide-react renders its `color` prop as a `stroke` PRESENTATION ATTRIBUTE on
+// the <svg> (node_modules/lucide-react → `stroke: color`). A `color:` declaration
+// on the parent span cannot reach it. So `.is-active .mm-sidebar-link-icon`'s
+// `color: #fff` never painted the glyph in any nav that hands its icons an
+// explicit colour — Dev Team gives every section its own hue — and the section
+// colour stayed on the solid tone tile: #2f7d4a on #68717c is 1.02:1.
+test("the active nav icon's glyph is set with stroke, not just color", () => {
+  const css = read("src/app/globals.css");
+  assert.match(
+    css,
+    /\.mm-sidebar-link\.is-active \.mm-sidebar-link-icon > svg \{[^}]*stroke:\s*currentColor/,
+    "the active icon tile must restate its foreground as `stroke` so it reaches a lucide glyph",
+  );
+  // The Command Center shell makes the same move for its own focus/active tiles.
+  assert.match(
+    css,
+    /\.mm-sidebar-link:is\(:focus-visible, \.is-active\) \.mm-sidebar-link-icon svg \{[^}]*stroke:\s*currentColor/,
+  );
+});
+
+test("no nav-icon hover effect may lower the icon's contrast", () => {
+  const css = read("src/app/globals.css");
+  const devTeam = read("src/app/portal/dev-team/layout.tsx");
+
+  // The active tile carries a WHITE glyph, so brightening the tile moves the two
+  // colours together (4.94:1 → 4.29:1 on the default tone). Deepening it is the
+  // lift that always raises contrast (4.94:1 → 6.05:1).
+  assert.doesNotMatch(css, /\.mm-sidebar-link\.is-active:hover \.mm-sidebar-link-icon \{[^}]*brightness/);
+  assert.match(
+    css,
+    /\.mm-sidebar-link\.is-active:hover \.mm-sidebar-link-icon \{[^}]*background:\s*color-mix\(in srgb, var\(--nav-tone\) 88%, black\)/,
+  );
+
+  // Dev Team's own hover re-tinted glyph and chip together with saturate(1.4),
+  // which cost the non-active rows 3.70:1 → 3.44:1 in the mill. A ring lifts
+  // without touching either colour.
+  assert.doesNotMatch(devTeam, /\.mm-sidebar-link:hover \.mm-sidebar-link-icon \{[^}]*filter:/);
+  assert.match(devTeam, /\.mm-sidebar-link:hover \.mm-sidebar-link-icon \{[^}]*box-shadow:\s*0 0 0 1px color-mix/);
+});
+
+test("dark mode re-points ring-white, the way it already re-points ring-black", () => {
+  // `ring-2 ring-white` separates an attention badge from the surface behind it.
+  // That surface is white only in light mode; left alone the ring draws a bright
+  // halo on every dark sidebar and topbar.
+  const css = read("src/app/globals.css");
+  assert.match(
+    css,
+    /html\[data-color-mode="dark"\] \.mm-portal-root \[class~="ring-white"\] \{[^}]*--tw-ring-color:\s*var\(--mm-badge-ring/,
+  );
+  assert.match(read("src/app/portal/dev-team/layout.tsx"), /--mm-badge-ring:\s*var\(--dt-surface\)/);
+});

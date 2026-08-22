@@ -25,12 +25,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/lib/server/connectionConfirmation.ts`](../connectionConfirmation.md)
 
-## Used by (10)
+## Used by (11)
 
 - [`scripts/smoke-portal-connections.test.ts`](../../../../scripts/smoke-portal-connections.test.md)
 - [`src/app/api/portal/connections/accept/route.ts`](../../../app/api/portal/connections/accept/route.md)
 - [`src/app/api/portal/connections/request-code/route.ts`](../../../app/api/portal/connections/request-code/route.md)
 - [`src/app/api/portal/connections/route.ts`](../../../app/api/portal/connections/route.md)
+- [`src/app/api/portal/dev/projects/route.ts`](../../../app/api/portal/dev/projects/route.md)
 - [`src/app/api/portal/website-sources/route.ts`](../../../app/api/portal/website-sources/route.md)
 - [`src/app/connect/[connectionId]/page.tsx`](../../../app/connect/[connectionId]/page.md)
 - [`src/app/portal/agency/fulfilment/page.tsx`](../../../app/portal/agency/fulfilment/page.md)

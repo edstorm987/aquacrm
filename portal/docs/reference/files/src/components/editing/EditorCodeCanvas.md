@@ -8,13 +8,14 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 - `EditorCodeCanvas({ projectId, repository, focus, onOpenFile, }: { /** A Dev project — the server resolves repo, ref and token from it. */ projectId?: string; /** Or a typed owner/repo. Blank means this workspace. */ repository?: string; /*…`
 
-## Depends on (3)
+## Depends on (4)
 
+- [`src/app/portal/dev-team/editor/setup/_DevEditorSetup.tsx`](../../app/portal/dev-team/editor/setup/_DevEditorSetup.md)
 - [`src/components/editing/CodeSurface.tsx`](./CodeSurface.md)
 - [`src/components/editing/codeTheme.ts`](./codeTheme.md)
 - [`src/engines/editor/server/fileTree.ts`](../../engines/editor/server/fileTree.md)
 
 ## Used by (1)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
+- [`src/engines/editor/DevEditor.tsx`](../../engines/editor/DevEditor.md)
 

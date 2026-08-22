@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, MousePointerClick, Plug, Search } from "lucide-react";
+import { ChevronRight, FileCode2, Folder, FolderOpen, LoaderCircle, Lock, MousePointerClick, Plug, RefreshCw, Search } from "lucide-react";
 
 import type { TreeDirectory, TreeFile } from "@/engines/editor/server/fileTree";
+import { DEV_PROJECTS_CHANGED_EVENT } from "@/app/portal/dev-team/editor/setup/_DevEditorSetup";
 import { relevantFiles, type RelevanceScope } from "@/engines/editor/editing/fileRelevance";
 
 /**
@@ -39,6 +40,11 @@ export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickE
 }) {
   const [tree, setTree] = useState<TreeDirectory | null>(null);
   const [meta, setMeta] = useState<{ count?: number; sha?: string; needsGitHub?: boolean; error?: string; truncated?: boolean } | null>(null);
+  // Bumped to re-run the tree fetch. The refusal used to be fetched once and
+  // shown forever — "Connect GitHub" on screen while the live GET had been
+  // answering 200 for hours. Settings announces DEV_PROJECTS_CHANGED_EVENT
+  // when a connection lands; Try again is the same bump by hand.
+  const [refresh, setRefresh] = useState(0);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [file, setFile] = useState<{ contents?: string; reason?: string; fingerprint?: string; editable?: boolean } | null>(null);
@@ -59,14 +65,29 @@ export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickE
     ? `?project=${encodeURIComponent(projectId)}`
     : repository ? `?repo=${encodeURIComponent(repository)}&ref=main` : "";
 
+  // Changing TARGET clears the pane; a mere refresh must not — it re-reads the
+  // same repository, and closing the open file over it would lose your place.
   useEffect(() => {
     setTree(null);
     setOpen(null);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
     fetch(`/api/portal/site-editor/files${search}`, { cache: "no-store" })
       .then(response => response.json())
-      .then(payload => { setMeta(payload); setTree(payload.tree ?? null); })
-      .catch(() => setMeta({ error: "The repository could not be read." }));
-  }, [search]);
+      .then(payload => { if (!cancelled) { setMeta(payload); setTree(payload.tree ?? null); } })
+      .catch(() => { if (!cancelled) setMeta({ error: "The repository could not be read." }); });
+    return () => { cancelled = true; };
+  }, [search, refresh]);
+
+  // A GitHub connection landing in Settings re-reads the tree here, so the
+  // panel never keeps showing a refusal the server has stopped giving.
+  useEffect(() => {
+    const onProjectsChanged = () => setRefresh(value => value + 1);
+    window.addEventListener(DEV_PROJECTS_CHANGED_EVENT, onProjectsChanged);
+    return () => window.removeEventListener(DEV_PROJECTS_CHANGED_EVENT, onProjectsChanged);
+  }, []);
 
   useEffect(() => {
     if (!open) { setFile(null); return; }
@@ -148,14 +169,21 @@ export function RepositoryPanel({ repository, onRepositoryChange, focus, onPickE
       </label>
 
       {/* Said plainly with the way to fix it, rather than an empty tree that
-          reads as a broken editor. */}
+          reads as a broken editor. The fix lives IN the editor — the Settings
+          tab's Connect GitHub panel — so there is no link out; Try again
+          re-asks once the connection has landed (and the panel also re-fetches
+          by itself when Settings announces one). */}
       {meta?.needsGitHub ? (
         <div className="grid gap-2 rounded-md border border-amber-300/25 bg-amber-300/[0.06] p-3 text-[11px] leading-5 text-amber-200/80">
           <span className="flex items-center gap-1.5 font-semibold"><Plug size={12} aria-hidden />GitHub is not connected</span>
           <p>{meta.error}</p>
-          <a href="/portal/agency/company?view=connections&integration=github" className="font-semibold text-amber-200 underline underline-offset-2">
-            Connect GitHub
-          </a>
+          <button
+            type="button"
+            onClick={() => setRefresh(value => value + 1)}
+            className="inline-flex w-fit items-center gap-1.5 rounded-md border border-amber-300/40 px-2.5 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-300/10"
+          >
+            <RefreshCw size={11} aria-hidden /> Try again
+          </button>
         </div>
       ) : null}
 

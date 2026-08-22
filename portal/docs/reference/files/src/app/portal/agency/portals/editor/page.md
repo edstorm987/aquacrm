@@ -10,7 +10,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](./_ClientPortalStudio.md)
+- [`src/engines/editor/DevEditor.tsx`](../../../../../engines/editor/DevEditor.md)
 - [`src/engines/editor/server/editorAssistant.ts`](../../../../../engines/editor/server/editorAssistant.md)
 - [`src/engines/editor/server/portalStudio.ts`](../../../../../engines/editor/server/portalStudio.md)
 - [`src/lib/clients/clientWorkspace.ts`](../../../../../lib/clients/clientWorkspace.md)

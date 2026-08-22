@@ -250,7 +250,7 @@ describe("adaptive internal client services", () => {
     const editor = readFileSync(join(root, "src/app/portal/clients/[clientId]/_FulfilmentPortalPreview.tsx"), "utf8");
     const fulfilmentHub = readFileSync(join(root, "src/app/portal/clients/[clientId]/_ClientFulfilmentHub.tsx"), "utf8");
     const portalStudioPage = readFileSync(join(root, "src/app/portal/agency/portals/editor/page.tsx"), "utf8");
-    const portalStudio = readFileSync(join(root, "src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx"), "utf8");
+    const portalStudio = readFileSync(join(root, "src/engines/editor/DevEditor.tsx"), "utf8");
     const control = readFileSync(join(root, "src/app/api/tenants/customer-portal-control/route.ts"), "utf8");
     const assignmentRoute = readFileSync(join(root, "src/app/api/tenants/client-products/route.ts"), "utf8");
 

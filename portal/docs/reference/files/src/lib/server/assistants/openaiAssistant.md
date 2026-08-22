@@ -4,10 +4,12 @@
 
 _No file-level doc-comment. Purpose inferred from its path (Shared logic — src/lib/) and its exports below._
 
-## Exports (4)
+## Exports (6)
 
+- `OPENAI_RESPONSES_URL`
 - `isAssistantConfigured(agencyId?: string)`
 - `assistantModel(agencyId?: string)`
+- `extractOutputText(payload: unknown): string`
 - `async askMilesymediaAssistant(input: { agencyId: string; userName: string; memories: AssistantMemory[]; history: AssistantMessage[]; businessContext: string; contextTruncated: boolean; question: string; skill: AdvisorSkill; }): Promise<str…`
 - `async suggestAdvisorActions(input: { agencyId: string; businessContext: string; alerts: OperationalAlert[]; radarIssues: BusinessRadarIssue[]; recommendedActions?: AdvisorActionSuggestion[]; existingTaskTitles: string[]; skill: AdvisorSkil…`
 
@@ -21,13 +23,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/server/integrations/integrationConnections.ts`](../integrations/integrationConnections.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (7)
+## Used by (8)
 
+- [`scripts/smoke-aqua-editor-ai-reply.test.ts`](../../../../scripts/smoke-aqua-editor-ai-reply.test.md)
+- [`scripts/smoke-aqua-editor-ai-token.test.ts`](../../../../scripts/smoke-aqua-editor-ai-token.test.md)
 - [`src/app/api/assistant/route.ts`](../../../app/api/assistant/route.md)
 - [`src/app/portal/agency/actions/_ActionsPage.tsx`](../../../app/portal/agency/actions/_ActionsPage.md)
 - [`src/app/portal/agency/assistant/page.tsx`](../../../app/portal/agency/assistant/page.md)
 - [`src/app/portal/agency/page.tsx`](../../../app/portal/agency/page.md)
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](../../../components/chrome/AdvisorDrawerControl.md)
-- [`src/components/chrome/LibrarianDrawerControl.tsx`](../../../components/chrome/LibrarianDrawerControl.md)
-- [`src/engines/editor/server/editorAssistant.ts`](../../../engines/editor/server/editorAssistant.md)
+- [`src/engines/editor/server/editorAiReply.ts`](../../../engines/editor/server/editorAiReply.md)
 

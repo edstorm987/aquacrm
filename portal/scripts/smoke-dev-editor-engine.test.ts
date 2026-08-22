@@ -29,8 +29,8 @@ describe("dev editor engine — the dev-team editor points at the real engine", 
     const page = read("src", "app", "portal", "dev-team", "editor", "studio", "page.tsx");
 
     // The engine's UI, wholesale — the same studio the portals route mounts.
-    assert.match(page, /import\s*\{\s*ClientPortalStudio\s*\}\s*from\s*["'][./]+agency\/portals\/editor\/_ClientPortalStudio["']/);
-    assert.match(page, /<ClientPortalStudio\b/);
+    assert.match(page, /import\s*\{\s*DevEditor\s*\}\s*from\s*["']@\/engines\/editor\/DevEditor["']/);
+    assert.match(page, /<DevEditor\b/);
     // …fed by the engine loader, so the two doors cannot drift apart.
     assert.match(page, /loadPortalStudioProps/);
     assert.match(page, /@\/engines\/editor\/server\/portalStudio/);
@@ -46,7 +46,7 @@ describe("dev editor engine — the dev-team editor points at the real engine", 
   });
 
   it("keeps the repository browser reachable — it is the studio's Repo tab", () => {
-    const studio = read("src", "app", "portal", "agency", "portals", "editor", "_ClientPortalStudio.tsx");
+    const studio = read("src", "engines", "editor", "DevEditor.tsx");
     // The read-only tree the Dev Team editor used to mount directly still
     // exists inside the engine, so nothing was lost by mounting the studio.
     assert.match(studio, /RepositoryPanel/);
@@ -71,7 +71,7 @@ describe("dev editor engine — the rename is complete", () => {
     ["src", "app", "portal", "agency", "products", "[productId]", "_ProductRolloutCentre.tsx"],
     ["src", "app", "portal", "agency", "inbox", "_WebsiteSourcesConfig.tsx"],
     ["src", "app", "portal", "agency", "portals", "_PortalsWorkspace.tsx"],
-    ["src", "app", "portal", "agency", "portals", "editor", "_ClientPortalStudio.tsx"],
+    ["src", "engines", "editor", "DevEditor.tsx"],
     ["src", "app", "portal", "customer", "_PortalPageComposition.tsx"],
     ["src", "app", "portal", "dev-team", "editor", "_Section.tsx"],
   ];

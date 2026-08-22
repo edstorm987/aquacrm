@@ -179,6 +179,7 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
   const explorerCapabilities = () => ({
     inspect: true,
     visualEditing: true,
+    networkThrottle: true,
     editableElements: editableElements(),
   });
   const explorerIdFor = element => {
@@ -344,6 +345,114 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     connection: explorerConnection(),
     recentErrors: explorerErrors.slice(-8),
   });
+  // ── Network throttling — the editor's wifi control ───────────────────────
+  //
+  // The tag runs INSIDE the page, so it can wrap window.fetch and
+  // XMLHttpRequest and apply GENUINE latency, bandwidth pacing and offline
+  // failure to everything the page's own scripts request. It cannot slow the
+  // page load itself — the document, stylesheets and images are fetched by the
+  // browser before any script runs, and only DevTools can throttle those — so
+  // it never pretends to. The wrap is LAZY: a page that is never throttled
+  // keeps its native fetch and XHR completely untouched, and clearing restores
+  // the exact originals that were saved.
+  let throttleProfile = null;
+  let throttleWrapped = false;
+  let throttleOriginalFetch = null;
+  let throttleOriginalXhrSend = null;
+  const throttleDelay = ms => new Promise(resolve => setTimeout(resolve, Math.max(0, ms || 0)));
+  // Shaped like a real dead network shaping a failure: fetch rejects with a TypeError.
+  const throttleOfflineError = () => new TypeError("Failed to fetch");
+  const throttleNormalize = value => {
+    if (!value || typeof value !== "object") return null;
+    const latencyMs = typeof value.latencyMs === "number" && isFinite(value.latencyMs) ? Math.max(0, value.latencyMs) : 0;
+    const downKbps = typeof value.downKbps === "number" && isFinite(value.downKbps) ? Math.max(0, value.downKbps) : 0;
+    const offline = value.offline === true;
+    if (!latencyMs && !downKbps && !offline) return null;
+    return {
+      latencyMs,
+      downKbps,
+      offline,
+    };
+  };
+  const throttlePaceResponse = (response, downKbps) => {
+    try {
+      if (!response || !response.body || typeof ReadableStream !== "function" || typeof Response !== "function") return response;
+      const reader = response.body.getReader();
+      const paced = new ReadableStream({
+        pull(controller) {
+          return reader.read().then(step => {
+            if (step.done) { controller.close(); return; }
+            const bytes = step.value && step.value.byteLength ? step.value.byteLength : 0;
+            // bytes*8 bits arriving at downKbps kilobits/second takes bytes*8/downKbps ms.
+            return throttleDelay(Math.min(30000, (bytes * 8) / downKbps)).then(() => { controller.enqueue(step.value); });
+          });
+        },
+        cancel(reason) { return reader.cancel(reason); },
+      });
+      return new Response(paced, { status: response.status, statusText: response.statusText, headers: response.headers });
+    } catch { return response; }
+  };
+  const throttleFetch = function (input, init) {
+    const profile = throttleProfile;
+    const original = throttleOriginalFetch;
+    if (!profile) return original.call(window, input, init);
+    if (profile.offline) return throttleDelay(profile.latencyMs).then(() => { throw throttleOfflineError(); });
+    return throttleDelay(profile.latencyMs)
+      .then(() => original.call(window, input, init))
+      .then(response => (profile.downKbps > 0 ? throttlePaceResponse(response, profile.downKbps) : response));
+  };
+  const throttleXhrSend = function (body) {
+    const request = this;
+    const profile = throttleProfile;
+    const original = throttleOriginalXhrSend;
+    if (!profile) return original.call(request, body);
+    if (profile.offline) {
+      // A dead network never sends: the request never leaves, and the XHR
+      // errors the way the browser errors it — an "error" event, no status.
+      setTimeout(() => {
+        try {
+          if (typeof request.dispatchEvent === "function" && typeof Event === "function") {
+            request.dispatchEvent(new Event("error"));
+          } else if (typeof request.onerror === "function") {
+            request.onerror(throttleOfflineError());
+          }
+        } catch { /* simulating a failure must never cause a real one */ }
+      }, Math.max(0, profile.latencyMs || 0));
+      return;
+    }
+    setTimeout(() => {
+      try { original.call(request, body); } catch { /* a late send on a torn-down request — the page must not hear our throw */ }
+    }, Math.max(0, profile.latencyMs || 0));
+  };
+  const throttleWrap = () => {
+    if (throttleWrapped) return true;
+    if (typeof window.fetch !== "function") return false;
+    throttleOriginalFetch = window.fetch;
+    window.fetch = throttleFetch;
+    const xhr = window.XMLHttpRequest;
+    if (xhr && xhr.prototype && typeof xhr.prototype.send === "function") {
+      throttleOriginalXhrSend = xhr.prototype.send;
+      xhr.prototype.send = throttleXhrSend;
+    }
+    throttleWrapped = true;
+    return true;
+  };
+  const throttleRestore = () => {
+    if (!throttleWrapped) return;
+    if (throttleOriginalFetch) window.fetch = throttleOriginalFetch;
+    const xhr = window.XMLHttpRequest;
+    if (throttleOriginalXhrSend && xhr && xhr.prototype) xhr.prototype.send = throttleOriginalXhrSend;
+    throttleOriginalFetch = null;
+    throttleOriginalXhrSend = null;
+    throttleWrapped = false;
+  };
+  const throttleApply = profile => {
+    if (!profile) { throttleProfile = null; throttleRestore(); return; }
+    // Wrap lazily on the FIRST profile; re-applying only replaces the profile
+    // the live wrap reads, so applying twice is the same as applying once.
+    if (!throttleWrap()) { throttleProfile = null; return; }
+    throttleProfile = profile;
+  };
   const sendToExplorer = payload => {
     if (window.parent === window) return;
     try { window.parent.postMessage(payload, explorerParentOrigin); } catch {}
@@ -397,6 +506,16 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     if (message.type === "aqua-explorer:reset") {
       explorerReset();
       explorerReportSelection();
+    }
+    if (message.type === "aqua-explorer:throttle") {
+      throttleApply(throttleNormalize(message.profile));
+      // Always answer with what is ACTUALLY in force — a wrap that could not
+      // be installed answers null, so the editor renders truth, never intent.
+      respondToExplorer(event, {
+        type: "aqua-explorer:throttle-applied",
+        version: explorerProtocolVersion,
+        profile: throttleProfile,
+      });
     }
   });
 

@@ -34,9 +34,9 @@ interface Coverage {
 
 export function GlobalAdvisorDrawer({
   initialWorkspace,
-  configured,
-  model,
-  userName,
+  configured = false,
+  model = "",
+  userName = "",
   coverage,
   // ── Reskin seam ──────────────────────────────────────────────────────────
   // The drawer machinery (portal, transitions, lazy chat, notice toast) is the
@@ -53,17 +53,35 @@ export function GlobalAdvisorDrawer({
    *  future assistant picker lives in (one drawer, swappable assistant); for
    *  now a caller may pass a simple identity header. */
   pickerHeader,
+  body,
 }: {
-  initialWorkspace: AssistantWorkspaceState;
-  configured: boolean;
-  model: string;
-  userName: string;
-  coverage: Coverage;
+  /**
+   * The Advisor-chat half, now optional: a caller that passes `body` mounts
+   * its OWN surface and none of these four. A caller mounting the chat passes
+   * all four, exactly as every Advisor caller always has. Passing neither
+   * mounts an empty drawer — a visible gap, never a silent fall-through to a
+   * different assistant's chat.
+   */
+  initialWorkspace?: AssistantWorkspaceState;
+  configured?: boolean;
+  model?: string;
+  userName?: string;
+  coverage?: Coverage;
   assistantName?: string;
   label?: string;
   icon?: ReactNode;
   buttonClassName?: string;
   pickerHeader?: ReactNode;
+  /**
+   * ── Body seam ────────────────────────────────────────────────────────────
+   * The assistant's own surface, mounted INSTEAD of the Advisor chat. This is
+   * how an assistant that is not a business-context chat (the Dev Team's
+   * Librarian — a find tool over the file-finding skill) keeps the drawer UX
+   * (trigger button, portal, slide, Escape) without inheriting the Advisor's
+   * brain. Rendered on first open and kept mounted, same as the chat, so its
+   * state survives close/reopen.
+   */
+  body?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   // Mount the heavy chat only after the drawer's first open, then keep it
@@ -148,18 +166,34 @@ export function GlobalAdvisorDrawer({
                   above the chat, ready to grow into a picker (one drawer,
                   swappable assistant). Advisor callers pass none → unchanged. */}
               {pickerHeader ?? null}
+              {/* The chat carries its own close control (`onClose`); a `body`
+                  surface does not, so the drawer owns one — Escape must never
+                  be the only way out for a mouse. Dark chip, so it reads on
+                  the parchment Dev-Team header and on a dark body alike. */}
+              {body != null ? (
+                <button
+                  type="button"
+                  onClick={closeDrawer}
+                  aria-label={`Close ${assistantName}`}
+                  className="absolute right-3 top-3 z-10 grid size-8 place-items-center rounded-md bg-black/25 text-white transition hover:bg-black/40"
+                >
+                  <X size={14} aria-hidden />
+                </button>
+              ) : null}
               {mounted ? (
-                <AssistantWorkspace
-                  initialWorkspace={initialWorkspace}
-                  configured={configured}
-                  model={model}
-                  userName={userName}
-                  coverage={coverage}
-                  variant="drawer"
-                  prefill={prefill}
-                  onClose={closeDrawer}
-                  onAssistantDone={handleDone}
-                />
+                body ?? (initialWorkspace && coverage ? (
+                  <AssistantWorkspace
+                    initialWorkspace={initialWorkspace}
+                    configured={configured}
+                    model={model}
+                    userName={userName}
+                    coverage={coverage}
+                    variant="drawer"
+                    prefill={prefill}
+                    onClose={closeDrawer}
+                    onAssistantDone={handleDone}
+                  />
+                ) : null)
               ) : null}
             </aside>
           </div>

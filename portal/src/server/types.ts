@@ -2660,11 +2660,173 @@ export interface IntegrationConnection {
 }
 
 /**
- * What a dev project IS — it changes which engine surfaces make sense.
- * A website gets the visual/block editor; software is code-only; a portal is
- * an Aqua-hosted client workspace.
+ * Retained so stored records keep loading. It no longer decides anything.
+ *
+ * It USED to: "software is code-only" gated the browser off every project Ed
+ * creates (everything defaults to `software`). Ed's rule is that the Aqua Tag
+ * alone is the gate — a tagged game build gets a browser like anything else —
+ * so `devProjectVisualEditorUnlocked` reads the tag and nothing else.
  */
 export type DevProjectKind = "software" | "website" | "portal";
+
+/**
+ * What pressing MAP found in the repository.
+ *
+ * Recorded so the editor knows the shape of a project without re-walking it on
+ * every open — a GitHub tree is a network round trip and the working tree is
+ * thousands of `stat` calls. The counts are the honest headline ("2,914 files,
+ * 431 of them pages"); the tree itself is not stored, because it is large,
+ * goes stale the moment somebody commits, and is already served on demand by
+ * `/api/portal/site-editor/files`.
+ */
+export interface DevProjectRepoMap {
+  /** `github` — read at a ref — or `workspace` — the local working tree. */
+  source: "github" | "workspace";
+  /** "owner/repository", blank for the working tree. */
+  repository: string;
+  ref: string;
+  /** The commit the map describes, when GitHub named one. */
+  commitSha?: string;
+  /** Files the editor can see (hidden/credential paths already excluded). */
+  fileCount: number;
+  /**
+   * ...of those, the ones the visual editor can map — the `isMappableFile`
+   * set (tsx/jsx/html/md/mdx), i.e. files that render markup.
+   */
+  mappableCount: number;
+  /** Top-level directories, so a project can be described without the tree. */
+  directories: string[];
+  /** GitHub truncated the tree. Said out loud — never silently half-mapped. */
+  truncated: boolean;
+  mappedAt: number;
+  /** Why the walk failed. Present means this half did NOT map. */
+  error?: string;
+}
+
+/**
+ * What pressing MAP found at the project's address — is the tag really there?
+ *
+ * "Connected" is not a checkbox somebody ticks. The tag either answers on the
+ * page or it does not, and the browser depends on it, so Map fetches the page
+ * the way any visitor would and reads the answer back.
+ */
+export interface DevProjectTagMap {
+  /** The address checked. */
+  url: string;
+  /** The page actually read, after redirects. */
+  finalUrl?: string;
+  reachable: boolean;
+  /** An `/aqua-tag.js` script is on the page... */
+  tagPresent: boolean;
+  /** ...and it carries THIS agency's master key, not somebody else's. */
+  keyMatches: boolean;
+  /** Whatever key the installed tag carries, for when it is the wrong one. */
+  detectedSiteKey?: string;
+  /** The src the snippet on the page points its script at, when one is there. */
+  scriptSrc?: string;
+  /**
+   * Why a visitor's browser could NOT load that script — present means the
+   * snippet is installed but DEAD (e.g. it points at `localhost`, which only
+   * exists on the machine that generated it). Found live on the first real
+   * client run: presence is not execution, and a check that reads HTML
+   * server-side cannot see the browser refusing the fetch. Both fields are
+   * optional so records written before they existed parse unchanged — absent
+   * means "not assessed", never "dead".
+   */
+  scriptUnloadableReason?: string;
+  checkedAt: number;
+  error?: string;
+}
+
+/**
+ * Where a project's Aqua Tag actually stands, as one word.
+ *
+ * "Tagged / not tagged" was never enough to tell somebody what to DO next.
+ * A page that cannot be read, a page with no snippet on it, and a page
+ * carrying somebody else's key all look identical through a boolean, and each
+ * one needs a different action. These are the distinctions the operator can
+ * act on, and `DevProjectMapStatus.tagSentence` is the same distinction said
+ * in words.
+ */
+export type DevProjectTagState =
+  /** No address, no tag, nothing checked — the browser has never been possible. */
+  | "none"
+  /** There is something to check, but no check has run yet. */
+  | "unchecked"
+  /** We tried to read the page and could not. */
+  | "unreachable"
+  /** The page read fine; our snippet is not on it. */
+  | "absent"
+  /** A tag is on the page, carrying a DIFFERENT agency's key. */
+  | "foreign"
+  /**
+   * Our snippet is on the page with our key, but its script points somewhere a
+   * visitor's browser cannot fetch — installed but DEAD, and no mode gets any
+   * elements. Ranked above answering/redirected because presence is not
+   * execution: this is a definitive negative, not a lesser success.
+   */
+  | "dead-snippet"
+  /** Our tag is installed and answering at the address given. */
+  | "answering"
+  /** Our tag is answering, but at a different address after a redirect. */
+  | "redirected";
+
+/**
+ * What is connected, what is mapped, and what is still missing — in words.
+ *
+ * Computed by `devProjectMapStatus` and sent to the screen, so the rule that
+ * decides whether the browser runs has exactly ONE definition. Lives here
+ * rather than beside the function because the setup screen is a client
+ * component and must not pull a `server-only` module into its import graph.
+ */
+export interface DevProjectMapStatus {
+  /** A repository (or the working tree) has been walked and recorded. */
+  repoMapped: boolean;
+  /** An Aqua Tag is mapped to this project. */
+  tagged: boolean;
+  /** The last MAP run proved the tag answers on the page. */
+  tagVerified: boolean;
+  /** Whether the browser pane can run — the tag, and only the tag. */
+  browserAvailable: boolean;
+  /** MAP has never been pressed. */
+  neverMapped: boolean;
+  /** Plain sentences naming what is not there yet. */
+  missing: string[];
+  /** Which of the eight tag situations this project is in. */
+  tagState: DevProjectTagState;
+  /** That situation as one sentence, written to be read straight out. */
+  tagSentence: string;
+}
+
+/**
+ * The agency's Aqua Tag as the setup screen needs to show it.
+ *
+ * Public by design — the site key ships inside the HTML of every page the tag
+ * is installed on, which is exactly why it is safe to render and why it is
+ * never rotated. No token, no provider secret and nothing from the vault
+ * belongs in this shape.
+ */
+export interface DevProjectMasterTagView {
+  /** The agency's permanent tag key. */
+  siteKey: string;
+  /** The one-line `<script>` to paste into a site's HTML. */
+  snippet: string;
+  /** Where the tag script is served from. */
+  scriptUrl: string;
+  /** The origin the snippet points at. */
+  origin: string;
+  /** That origin is not reachable from a stranger's browser — a dud snippet. */
+  originIsFallback: boolean;
+}
+
+/** The record of the last MAP run — both halves, and when it happened. */
+export interface DevProjectMap {
+  repo?: DevProjectRepoMap;
+  tag?: DevProjectTagMap;
+  /** When MAP was last pressed, whatever it found. */
+  lastMappedAt: number;
+  lastMappedBy: string;
+}
 
 /**
  * A Dev Editor Engine project — the binding that was missing.
@@ -2707,11 +2869,185 @@ export interface DevProject {
   vercelConnectionId?: string;
   /** Mapping an Aqua Tag is what unlocks the visual editor for this project. */
   aquaTagId?: string;
+  /**
+   * The address the Aqua Tag is installed on — what MAP checks, and what the
+   * browser pane will load.
+   *
+   * Separate from `repository`: the repo is the source, this is the running
+   * page. A project can have one, both or neither, and the editor adapts to
+   * whichever is connected rather than to a declared type.
+   */
+  siteUrl?: string;
   /** Set when this project is a specific client's workspace (Dev Mode injection). */
   clientId?: string;
+  /**
+   * The project this one lives INSIDE, or absent for a top-level project.
+   *
+   * Ed's model, verbatim: a project can contain projects — "one project could
+   * be a website they might have a software going on with it too". From inside
+   * a project you can create another, and it is a CHILD of the project you are
+   * in, never a new top-level one.
+   *
+   * EXACTLY TWO LEVELS — "project → inner projects and that's it" (Ed). A flat
+   * parent/child pair, NOT a tree: an inner project can never itself be a
+   * parent, and a project with children can never become a child. Both
+   * directions are enforced in `saveDevProject`, in the STORE, not the UI —
+   * which also makes cycles inexpressible. A child is otherwise a FULL
+   * DevProject: its own repo, tag, AI config and history.
+   *
+   * Old records simply lack the field and parse unchanged (top-level).
+   */
+  parentProjectId?: string;
+  /** The last MAP run — both halves and when. Absent means never mapped. */
+  map?: DevProjectMap;
   createdBy: string;
   updatedBy: string;
   createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * AQUA EDITOR AI — one project's own assistant, configured per project.
+ *
+ * Ed's call, verbatim: "aqua editor ai needs to be its only thing… needs a
+ * seperate tocken please to configure… its own thing and its saved per project
+ * this one is."
+ *
+ * ── Why this is NOT a field on `DevProject` ─────────────────────────────────
+ *
+ * Two reasons, and the second is a real bug rather than a preference.
+ *
+ *   1. `DevProject` is returned WHOLE to the browser by the projects GET. The
+ *      less that record carries about a credential, the fewer ways there are to
+ *      leak one. It holds nothing about the editor's assistant at all.
+ *
+ *   2. `saveDevProject` REBUILDS the project field by field from the request
+ *      body — there is no spread. Any field the setup form does not send back
+ *      is silently dropped on the next rename. A `editorAiConnectionId` living
+ *      there would have been erased by an unrelated save, unbinding the token
+ *      with no error and no trace. Keeping the configuration in its own
+ *      collection makes that impossible rather than a thing to remember.
+ *
+ * ── What is stored ──────────────────────────────────────────────────────────
+ *
+ * Never the token. `connectionId` references an `IntegrationConnection` of
+ * provider `aqua-editor-ai`; the key itself is resolved from the encrypted
+ * vault at call time by `resolveEditorAiToken`, which is server-only and whose
+ * return value never enters a prop, a response body or a log.
+ *
+ * Keyed `${agencyId}|${projectId}` in `PortalState.editorAiConfigs`, and the
+ * agency is checked BEFORE the project on every read — a project id alone must
+ * never reach another tenant's configuration.
+ */
+export interface EditorAiConfig {
+  /** `${agencyId}|${projectId}` — the storage key, kept on the record too. */
+  id: string;
+  agencyId: string;
+  /** The `DevProject` this assistant belongs to. One project, one assistant. */
+  projectId: string;
+  /**
+   * IntegrationConnection id, provider `aqua-editor-ai`. NEVER a raw token.
+   * Absent means no key has been pasted yet, which is what `configured: false`
+   * is reporting.
+   */
+  connectionId?: string;
+  /** The model this project's assistant runs on. */
+  model: string;
+  /**
+   * What this project's assistant should know about this project, in Ed's own
+   * words. Per project, like everything else here — the editor's assistant for
+   * a games repo should not be briefed like the one for a client's website.
+   */
+  instructions?: string;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * The same configuration as the CLIENT is allowed to see it.
+ *
+ * The one shape that may cross to the browser. It carries whether a token is
+ * set and — at most — a masked tail so Ed can tell which key he pasted. The
+ * key itself has no representation here: there is no field it could occupy.
+ */
+export interface EditorAiStatus {
+  projectId: string;
+  /** A token is in the vault for this project. The gate the editor reads. */
+  configured: boolean;
+  /** The model in force, defaulted when nothing has been chosen. */
+  model: string;
+  /**
+   * `••••4f2a` — the last four characters and nothing else, and only when the
+   * stored key is long enough that four characters cannot be most of it.
+   * Absent when no token is set, or when the token is too short to hint at.
+   */
+  tokenHint?: string;
+  instructions?: string;
+  /** The vault connection's label, so a screen can name what it is bound to. */
+  connectionLabel?: string;
+  updatedAt?: number;
+}
+
+// ─── AQUA EDITOR AI — its own chat history, per project ──────────────────────
+//
+// Ed: "the chat history per project only limited to a project nothing else".
+//
+// A SEPARATE collection from `PortalState.assistant`, not a filtered view of
+// it. That separation is the requirement, not an implementation choice: the
+// two stores must be independently clearable, so wiping the agency assistant
+// cannot take an editor conversation with it and vice versa.
+//
+// The scoping differs from the Advisor's on purpose. `AssistantWorkspaceState`
+// is keyed `${agencyId}|${userId}` — one private history per PERSON, spanning
+// every project. This is keyed `${agencyId}|${projectId}` — one history per
+// PROJECT, shared by the agency's operators working on it, which is what "per
+// project only" means when two people edit the same site. `authorUserId` on a
+// message is what keeps a shared thread legible.
+
+/** One message in a project's Aqua Editor AI conversation. */
+export interface EditorAiMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  /** Who typed it. Absent on assistant replies. A shared thread needs names. */
+  authorUserId?: string;
+  /** The stored content was cut to the per-message cap. See editorAiHistory. */
+  truncated?: boolean;
+  createdAt: number;
+}
+
+export interface EditorAiThread {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: EditorAiMessage[];
+}
+
+/**
+ * ONE project's whole chat history. Nothing else is in here.
+ *
+ * Keyed `${agencyId}|${projectId}` in `PortalState.editorAiConversations`, and
+ * the agency is checked BEFORE the project on every read — a project id alone
+ * must never reach another tenant's conversation.
+ */
+export interface EditorAiConversation {
+  /** `${agencyId}|${projectId}` — the storage key, kept on the record too. */
+  id: string;
+  agencyId: string;
+  projectId: string;
+  /** Most recently used first. Capped; see `EDITOR_AI_HISTORY_LIMITS`. */
+  threads: EditorAiThread[];
+  /**
+   * How many messages eviction has dropped from this project, ever.
+   *
+   * Kept because a capped history that silently shortens is a history you
+   * cannot trust: a screen can say "earlier messages were trimmed" rather than
+   * letting somebody conclude the assistant forgot on its own.
+   */
+  evictedMessages: number;
   updatedAt: number;
 }
 
@@ -3313,6 +3649,14 @@ export interface PortalState {
   integrationConnections: Record<string, IntegrationConnection>;
   // Dev Editor Engine projects — repo + connections + tag + kind. See DevProject.
   devProjects: Record<string, DevProject>;
+  // `${agencyId}|${projectId}` → Aqua Editor AI's own per-project config: its
+  // model, its brief, and the vault id of ITS token. Never a token. See
+  // EditorAiConfig for why this is not a field on DevProject.
+  editorAiConfigs: Record<string, EditorAiConfig>;
+  // `${agencyId}|${projectId}` → Aqua Editor AI's chat history for that ONE
+  // project. Deliberately NOT inside `assistant`, so clearing the agency
+  // assistant cannot wipe an editor conversation. See EditorAiConversation.
+  editorAiConversations: Record<string, EditorAiConversation>;
   tasks: Record<string, AgencyTask>;
   // Saved task sequences. See AgencyTaskTemplate.
   taskTemplates: Record<string, AgencyTaskTemplate>;

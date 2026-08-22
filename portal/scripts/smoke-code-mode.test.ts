@@ -251,8 +251,13 @@ describe("reading a repository from GitHub", () => {
     assert.equal(calls.length, 0, "it must not even ask GitHub for it");
   });
 
-  it("says what to do when GitHub is not connected", async () => {
+  it("says what to do when GitHub is not connected — in the EDITOR, not Company", async () => {
+    // Reworded 2026-08-21: the editor now carries its own inline Connect
+    // GitHub panel (Settings → _DevEditorSetup), and Ed's rule is that
+    // everything editor-wise lives in the editor. This used to pin
+    // "Connect GitHub in Company" — that wording is now a regression.
     const error = new github.GitHubNotConfigured();
-    assert.match(error.message, /Connect GitHub in Company/);
+    assert.match(error.message, /Connect GitHub in the editor's Settings tab/);
+    assert.doesNotMatch(error.message, /Company/);
   });
 });

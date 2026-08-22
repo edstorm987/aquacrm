@@ -21,7 +21,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (108)
+## Used by (109)
 
 - [`src/app/api/assistant/route.ts`](../app/api/assistant/route.md)
 - [`src/app/api/auth/end-customer/signup/route.ts`](../app/api/auth/end-customer/signup/route.md)
@@ -99,6 +99,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/engines/data/server/kpi/kpiSavedViews.ts`](../engines/data/server/kpi/kpiSavedViews.md)
 - [`src/engines/data/server/kpi/kpiTargets.ts`](../engines/data/server/kpi/kpiTargets.md)
 - [`src/engines/editor/server/devProjects.ts`](../engines/editor/server/devProjects.md)
+- [`src/engines/editor/server/editorAi.ts`](../engines/editor/server/editorAi.md)
 - [`src/engines/sop/server/sopGuides.ts`](../engines/sop/server/sopGuides.md)
 - [`src/engines/sop/server/sops.ts`](../engines/sop/server/sops.md)
 - [`src/lib/server/assistants/advisorSkillsService.ts`](../lib/server/assistants/advisorSkillsService.md)

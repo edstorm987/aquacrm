@@ -6,9 +6,10 @@ import { AGENCY_ROLES } from "@/server/types";
 import { ensureHydrated } from "@/server/storage";
 import { loadPortalStudioProps, type PortalStudioQuery } from "@/engines/editor/server/portalStudio";
 import { loadEditorAssistant } from "@/engines/editor/server/editorAssistant";
-import { getDevProject } from "@/engines/editor/server/devProjects";
+import { devProjectMapStatus, getDevProject } from "@/engines/editor/server/devProjects";
+import { aquaTagBrowserUrl } from "@/engines/editor/editing/aquaTagBridge";
 
-import { ClientPortalStudio } from "../../../agency/portals/editor/_ClientPortalStudio";
+import { DevEditor } from "@/engines/editor/DevEditor";
 
 // The Dev Editor itself — entered FOR a project, and exited back to the
 // projects workspace.
@@ -44,10 +45,13 @@ export default async function DevEditorStudioPage({
   if (query.project && !project) redirect("/portal/dev-team/editor");
 
   const props = loadPortalStudioProps({ agencyId, userId: session.userId, role: session.role, query });
-  const assistant = await loadEditorAssistant(agencyId, session.userId);
+  // Aqua Editor AI is configured PER PROJECT and runs on its OWN token, so the
+  // project is what selects which assistant this is. Without one it reports
+  // itself unconfigured rather than borrowing the agency assistant's key.
+  const assistant = await loadEditorAssistant(agencyId, session.userId, project?.id);
 
   return (
-    <ClientPortalStudio
+    <DevEditor
       clients={props.clients}
       templates={props.templates}
       initialClientId={props.initialClientId}
@@ -62,6 +66,18 @@ export default async function DevEditorStudioPage({
       initialProjectId={project?.id ?? ""}
       projectName={project?.name}
       projectKind={project?.kind}
+      // Whether there is a BROWSER — the Aqua Tag, and nothing else. Computed
+      // by the same `devProjectMapStatus` the projects endpoint and the setup
+      // screen use, so the three cannot disagree. Passed at render rather than
+      // waited for: the editor's own projects fetch resolves a moment later,
+      // and a browser that appears after the screen does reads as a bug.
+      projectTagged={project ? devProjectMapStatus(project).browserAvailable : false}
+      // Where the browser opens, and therefore the ONE origin the editor will
+      // trust. The MAPPED address — MAP already followed the redirects and
+      // recorded `finalUrl` — falling back to the typed `siteUrl`. Sending the
+      // raw `siteUrl` is what made a bare-domain project (which redirects to
+      // www, as most do) reject every message its own tag sent.
+      projectBrowserUrl={aquaTagBrowserUrl(project)}
     />
   );
 }

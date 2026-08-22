@@ -13,12 +13,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/server/storage.ts`](../../../server/storage.md)
 
-## Used by (6)
+## Used by (4)
 
 - [`src/app/api/assistant/route.ts`](../../../app/api/assistant/route.md)
 - [`src/app/portal/agency/assistant/page.tsx`](../../../app/portal/agency/assistant/page.md)
 - [`src/app/portal/agency/page.tsx`](../../../app/portal/agency/page.md)
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](../../../components/chrome/AdvisorDrawerControl.md)
-- [`src/components/chrome/LibrarianDrawerControl.tsx`](../../../components/chrome/LibrarianDrawerControl.md)
-- [`src/engines/editor/server/editorAssistant.ts`](../../../engines/editor/server/editorAssistant.md)
 

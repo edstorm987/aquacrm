@@ -18,7 +18,9 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 
 - [`src/engines/editor/server/registry.ts`](./registry.md)
 
-## Used by (1)
+## Used by (3)
 
+- [`scripts/smoke-editor-words-publish.test.ts`](../../../../scripts/smoke-editor-words-publish.test.md)
 - [`src/engines/editor/server/publish.ts`](./publish.md)
+- [`src/engines/editor/server/sourceEdit.ts`](./sourceEdit.md)
 

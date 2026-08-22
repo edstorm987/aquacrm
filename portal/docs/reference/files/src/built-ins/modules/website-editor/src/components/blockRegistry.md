@@ -28,7 +28,7 @@
 - [`src/engines/editor/elements/definition.ts`](../../../../../engines/editor/elements/definition.md)
 - [`src/engines/editor/elements/registry.ts`](../../../../../engines/editor/elements/registry.md)
 
-## Used by (102)
+## Used by (103)
 
 - [`scripts/smoke-element-engine.test.ts`](../../../../../../scripts/smoke-element-engine.test.md)
 - [`scripts/smoke-portal-elements.test.ts`](../../../../../../scripts/smoke-portal-elements.test.md)
@@ -132,4 +132,5 @@
 - [`src/built-ins/modules/website-editor/src/components/editor/BlockCatalog.tsx`](./editor/BlockCatalog.md)
 - [`src/built-ins/modules/website-editor/src/components/index.ts`](./index.md)
 - [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](./pageTemplates.md)
+- [`src/engines/editor/elements/websiteVocabulary.ts`](../../../../../engines/editor/elements/websiteVocabulary.md)
 

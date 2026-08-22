@@ -1,5 +1,11 @@
 # Checklist — 2026-08-20 (refreshed, evening)
 
+> ★ **This is the one answer to "where do we stand".** As of 2026-08-21 nothing
+> else claims that job: `WHERE-WE-ARE.md` and `WHERE-WE-STAND.md` are on the
+> [history shelf](../context/archive/README.md), and `CURRENT-IMPLEMENTATION.md`
+> is scoped to *what systems exist*. What changed and when is the one log,
+> [updates.md](updates.md).
+
 ← [roadmap.md](roadmap.md) · Refreshed after the reorg + Aqua Engine + three-lane session.
 Suite **2,704 pass / 0 fail / 1 skipped** (2026-08-21), typecheck **0**, sandbox intact.
 

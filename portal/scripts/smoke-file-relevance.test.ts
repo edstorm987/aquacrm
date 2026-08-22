@@ -12,7 +12,7 @@ describe("narrowing the repository to what is being edited", () => {
     for (const path of [
       "src/app/client-preview/[clientId]/page.tsx",
       "src/lib/portal/clientPortalBuilder.ts",
-      "src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx",
+      "src/app/portal/agency/portals/editor/page.tsx",
     ]) {
       assert.ok(isRelevant(path, PORTAL_SCOPE), `${path} should be portal-relevant`);
     }

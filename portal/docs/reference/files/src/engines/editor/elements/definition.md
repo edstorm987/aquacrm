@@ -26,12 +26,16 @@
 - [`src/engines/editor/elements/block.ts`](./block.md)
 - [`src/engines/editor/elements/schema.ts`](./schema.md)
 
-## Used by (8)
+## Used by (12)
 
 - [`scripts/smoke-element-engine.test.ts`](../../../../scripts/smoke-element-engine.test.md)
+- [`scripts/smoke-element-insert.test.ts`](../../../../scripts/smoke-element-insert.test.md)
 - [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../../../built-ins/modules/website-editor/src/components/blockRegistry.md)
 - [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](../../../built-ins/modules/website-editor/src/lib/aquaPluginTypes.md)
+- [`src/engines/editor/DevEditor.tsx`](../DevEditor.md)
+- [`src/engines/editor/elements/emit.ts`](./emit.md)
 - [`src/engines/editor/elements/index.ts`](./index.md)
+- [`src/engines/editor/elements/palette.ts`](./palette.md)
 - [`src/engines/editor/elements/portalElements.ts`](./portalElements.md)
 - [`src/engines/editor/elements/registry.ts`](./registry.md)
 - [`src/engines/editor/elements/schema.ts`](./schema.md)

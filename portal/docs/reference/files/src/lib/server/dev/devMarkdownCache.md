@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `__cacheStats(): { hits: number; misses: number; size: number }`
 - `__resetCache(): void`
 
-## Used by (10)
+## Used by (11)
 
 - [`scripts/smoke-dev-team-perf.test.ts`](../../../../scripts/smoke-dev-team-perf.test.md)
 - [`src/lib/server/dev/devDocEdits.ts`](./devDocEdits.md)
@@ -26,4 +26,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/server/dev/devTeamRoadmap.ts`](./devTeamRoadmap.md)
 - [`src/lib/server/dev/devTeamTasks.ts`](./devTeamTasks.md)
 - [`src/lib/server/dev/devTeamUpdates.ts`](./devTeamUpdates.md)
+- [`src/lib/server/dev/fileFinding.ts`](./fileFinding.md)
 

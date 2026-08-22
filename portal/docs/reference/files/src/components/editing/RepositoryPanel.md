@@ -8,12 +8,13 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 - `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope, projectId }: { repository: string; onRepositoryChange: (value: string) => void; /** * A Dev Editor Engine project. When set, the SERVER resolves the re…`
 
-## Depends on (2)
+## Depends on (3)
 
+- [`src/app/portal/dev-team/editor/setup/_DevEditorSetup.tsx`](../../app/portal/dev-team/editor/setup/_DevEditorSetup.md)
 - [`src/engines/editor/editing/fileRelevance.ts`](../../engines/editor/editing/fileRelevance.md)
 - [`src/engines/editor/server/fileTree.ts`](../../engines/editor/server/fileTree.md)
 
 ## Used by (1)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
+- [`src/engines/editor/DevEditor.tsx`](../../engines/editor/DevEditor.md)
 

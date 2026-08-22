@@ -54,8 +54,8 @@ already has a group structure ready for them.
 > "All the funnel editor stuff must be wired into this … all the client-side
 > editors."
 
-The big convergence, mapped in `docs/development/plans/super-editor.md`. Its own
-finding stands: ~20 website-editor components are built and never mounted
+The big convergence. It used to point at a `super-editor.md` map, but that file
+was never written — **this phase is the record**. Its own finding stands: ~20 website-editor components are built and never mounted
 (command palette, find & replace, version diff, layers tree, undo/redo,
 drag-and-drop canvas). Those are wiring jobs. The genuinely large one is the
 drag-and-drop canvas, because the two editors use different block models.

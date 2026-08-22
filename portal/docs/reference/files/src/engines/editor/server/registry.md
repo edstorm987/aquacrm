@@ -21,10 +21,15 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 
 - [`src/engines/editor/server/sourceStamp.ts`](./sourceStamp.md)
 
-## Used by (4)
+## Used by (9)
 
+- [`scripts/smoke-editor-words-publish.test.ts`](../../../../scripts/smoke-editor-words-publish.test.md)
 - [`scripts/smoke-site-editor-publish.test.ts`](../../../../scripts/smoke-site-editor-publish.test.md)
 - [`scripts/smoke-site-registry.test.ts`](../../../../scripts/smoke-site-registry.test.md)
+- [`src/engines/editor/server/mapProject.ts`](./mapProject.md)
 - [`src/engines/editor/server/patch.ts`](./patch.md)
+- [`src/engines/editor/server/repoWrite.ts`](./repoWrite.md)
 - [`src/engines/editor/server/sourceAdapter.ts`](./sourceAdapter.md)
+- [`src/engines/editor/server/sourceEdit.ts`](./sourceEdit.md)
+- [`src/engines/editor/server/sourceMatch.ts`](./sourceMatch.md)
 

@@ -6,7 +6,7 @@
 
 _No exported symbols (side-effect / internal module)._
 
-## Depends on (8)
+## Depends on (10)
 
 - [`src/engines/editor/elements/block.ts`](./block.md)
 - [`src/engines/editor/elements/blockSchemaMigrations.ts`](./blockSchemaMigrations.md)
@@ -14,8 +14,10 @@ _No exported symbols (side-effect / internal module)._
 - [`src/engines/editor/elements/blockTreeOps.ts`](./blockTreeOps.md)
 - [`src/engines/editor/elements/definition.ts`](./definition.md)
 - [`src/engines/editor/elements/ids.ts`](./ids.md)
+- [`src/engines/editor/elements/palette.ts`](./palette.md)
 - [`src/engines/editor/elements/registry.ts`](./registry.md)
 - [`src/engines/editor/elements/schema.ts`](./schema.md)
+- [`src/engines/editor/elements/websiteElements.ts`](./websiteElements.md)
 
 ## Used by (7)
 

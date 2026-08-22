@@ -306,6 +306,25 @@ export const PROMOTION_DISPOSITION = {
     needsConfirmation: true,
   },
 
+  editorAiConfigs: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "agency-composite",
+    parent: { collection: "devProjects", via: "key" },
+    reason:
+      "POINTS AT A CREDENTIAL, and follows a project that does not move. Keyed `${agencyId}|${projectId}`, holding Aqua Editor AI's model, brief and the VAULT ID of its own token — never the token. Copying it would hand the new tenant a connection id that resolves nothing (integrationConnections stay) or, worse, one that resolves in the ORIGIN tenant. Whether a promoted portal gets its own editor key is a human decision and a fresh paste.",
+    needsConfirmation: true,
+  },
+
+  editorAiConversations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "agency-composite",
+    parent: { collection: "devProjects", via: "key" },
+    reason:
+      "Keyed `${agencyId}|${projectId}` — Aqua Editor AI's chat history for ONE project, and it follows a project that does not move. It carries whatever the agency's operators typed while editing: repository paths, unreleased copy, the wording of a client's page before it went live. Copying that into a promoted tenant hands them an internal conversation nobody reviewed, so the new tenant starts empty and the origin keeps its own.",
+  },
+
   // ─── Work ───────────────────────────────────────────────────────────────
   tasks: {
     disposition: "move",
@@ -746,7 +765,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
  * is the human-readable half — a smoke test pins it, so a 79th collection
  * announces itself in a test name as well as in the compiler.
  */
-export const PROMOTION_COLLECTION_COUNT = 80;
+export const PROMOTION_COLLECTION_COUNT = 82;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

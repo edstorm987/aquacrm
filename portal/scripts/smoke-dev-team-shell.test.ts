@@ -1,9 +1,11 @@
 // Dev Team shell — the five shell fixes that live in the Dev Team layout and the
 // shared Topbar (see docs/development/plans/dev-team-librarian-and-assistants.md):
 //
-//   1. Librarian drawer — the layout passes its OWN advisorControl (a reskin of
-//      the Advisor over the SAME side-panel drawer), so the Topbar never falls
-//      through to the full-page /portal/agency/assistant link.
+//   1. Librarian drawer — the layout passes its OWN advisorControl (its own
+//      find surface over the SAME side-panel drawer — since phase 15 the
+//      Librarian briefs from the file-finding skill, not the Advisor's
+//      business context), so the Topbar never falls through to the full-page
+//      /portal/agency/assistant link.
 //   2. Role-dependent "Back to home" — the exit link uses resolvePostLoginPath +
 //      "Back to home", not a hardcoded href="/" or /portal/agency.
 //   3. "Leave Dev Team" is gone from the sidebar (the topbar is the way out).
@@ -43,9 +45,27 @@ describe("Dev Team shell — Librarian drawer", () => {
     // Reuses the GlobalAdvisorDrawer machinery — a side panel, not navigation.
     assert.match(src, /import \{ GlobalAdvisorDrawer \} from "@\/components\/chrome\/GlobalAdvisorDrawer"/);
     assert.doesNotMatch(src, /href="\/portal\/agency\/assistant"/, "Librarian must not link to the full-page agency assistant");
-    // Reskinned to the Librarian identity, with a picker seam for later assistants.
+    // The Librarian identity, with a picker seam for later assistants.
     assert.match(src, /assistantName="Librarian"/);
     assert.match(src, /pickerHeader=/);
+    // Its OWN surface through the drawer's body seam — the find panel, not the
+    // Advisor chat (phase 15's standalone treatment, the phase-12 pattern).
+    assert.match(src, /body=\{/);
+    assert.match(src, /<LibrarianPanel\b/);
+  });
+
+  it("the Librarian briefs from the file-finding skill, never the business snapshot", () => {
+    // v1 admitted its retrieval bridge was never built and reused
+    // `buildAssistantBusinessContext` to work at all. The bridge exists now
+    // (`src/lib/server/dev/fileFinding.ts`), so the business snapshot — and
+    // the whole Advisor chat stack behind it — must be GONE from this control.
+    const src = read(LIBRARIAN);
+    assert.match(src, /import \{ fileFindingWorld \} from "@\/lib\/server\/dev\/fileFinding"/);
+    // Import-form pins: the header comment is allowed to NAME what was
+    // removed; importing any of it back is what must fail here.
+    assert.doesNotMatch(src, /import .*buildAssistantBusinessContext/);
+    assert.doesNotMatch(src, /import .*(businessIssueRadar|radarDigest)/);
+    assert.doesNotMatch(src, /import .*(getAssistantWorkspace|isAssistantConfigured|assistantModel)/);
   });
 
   it("the drawer defaults keep every agency/clients caller on the Aqua Advisor", () => {

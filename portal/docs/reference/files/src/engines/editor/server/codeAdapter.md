@@ -15,8 +15,12 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/engines/editor/editing/engine.ts`](../editing/engine.md)
 - [`src/engines/editor/server/fileTree.ts`](./fileTree.md)
 
-## Used by (2)
+## Used by (6)
 
+- [`scripts/smoke-element-insert.test.ts`](../../../../scripts/smoke-element-insert.test.md)
+- [`scripts/smoke-repo-write.test.ts`](../../../../scripts/smoke-repo-write.test.md)
+- [`scripts/smoke-work-lifecycle.test.ts`](../../../../scripts/smoke-work-lifecycle.test.md)
 - [`src/app/api/portal/site-editor/files/route.ts`](../../../app/api/portal/site-editor/files/route.md)
 - [`src/engines/editor/server/githubSource.ts`](./githubSource.md)
+- [`src/engines/editor/server/repoWrite.ts`](./repoWrite.md)
 

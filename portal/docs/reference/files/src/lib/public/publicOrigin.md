@@ -8,7 +8,8 @@
 
 - `isPubliclyReachableOrigin(origin: string): boolean`
 
-## Used by (1)
+## Used by (2)
 
+- [`src/app/api/portal/dev/projects/route.ts`](../../app/api/portal/dev/projects/route.md)
 - [`src/app/portal/dev-team/api/_Section.tsx`](../../app/portal/dev-team/api/_Section.md)
 

@@ -27,7 +27,11 @@ export interface GitHubRepoSource {
 
 export class GitHubNotConfigured extends Error {
   constructor() {
-    super("Connect GitHub in Company → Connections to browse and edit a repository here.");
+    // Ed's rule: everything editor-wise lives in the editor. The editor's
+    // Settings tab carries an inline Connect GitHub panel (_DevEditorSetup →
+    // GitHubConnectPanel) that saves AND auth-checks the token on the spot —
+    // never send somebody out to the Company page for an editor concern.
+    super("Connect GitHub in the editor's Settings tab — the Connect GitHub panel saves and checks the token right there — to browse and edit a repository here.");
     this.name = "GitHubNotConfigured";
   }
 }
@@ -54,6 +58,22 @@ export interface RepoHead {
 }
 
 /**
+ * The commit the ref points at, and nothing else.
+ *
+ * Split out of `readRepoTree` because the publish path asks this question on
+ * its own — "has the branch moved since we read it?" — and answering it by
+ * pulling the whole recursive tree costs a second request and a payload of
+ * every path in the repository to look at one field.
+ */
+export async function readRepoHeadSha(source: GitHubRepoSource): Promise<string> {
+  const branch = await githubJson<{ commit?: { sha?: string } }>(
+    source, `/repos/${source.repository}/branches/${encodeURIComponent(source.ref)}`);
+  const sha = branch.commit?.sha;
+  if (!sha) throw new Error(`${source.repository} has no commit on ${source.ref}.`);
+  return sha;
+}
+
+/**
  * The whole tree at a ref, in one request.
  *
  * `recursive=1` rather than walking directory by directory: a repository of
@@ -61,10 +81,7 @@ export interface RepoHead {
  * feel broken long before it finished.
  */
 export async function readRepoTree(source: GitHubRepoSource): Promise<RepoHead> {
-  const branch = await githubJson<{ commit?: { sha?: string } }>(
-    source, `/repos/${source.repository}/branches/${encodeURIComponent(source.ref)}`);
-  const sha = branch.commit?.sha;
-  if (!sha) throw new Error(`${source.repository} has no commit on ${source.ref}.`);
+  const sha = await readRepoHeadSha(source);
 
   const tree = await githubJson<{
     truncated?: boolean;
@@ -76,6 +93,92 @@ export async function readRepoTree(source: GitHubRepoSource): Promise<RepoHead> 
     .map(entry => ({ path: entry.path, size: entry.size }));
 
   return { sha, truncated: Boolean(tree.truncated), files };
+}
+
+// ─── The draft branch, described (phase 14) ─────────────────────────────────
+//
+// Two more READS, for the work-lifecycle panels: "what does the draft branch
+// hold that the base does not?" and "does the branch have a pull request?".
+// Nothing here writes — the lifecycle tabs SHOW the state the write path
+// (`repoWrite.ts` → `publishEdits`) creates; they never create it themselves.
+
+export interface RepoComparison {
+  /** Commits on the head that the base lacks. */
+  aheadBy: number;
+  /** Commits the base has gained since the branch left it. */
+  behindBy: number;
+  /**
+   * The fork point — where the branch left the base. The revert path reads
+   * pre-draft file contents AT this commit; blank when GitHub omitted it.
+   */
+  mergeBaseSha: string;
+  /** Oldest first, the way GitHub answers — callers order for display. */
+  commits: Array<{ sha: string; message: string; author: string; at: number; url: string }>;
+  /** The aggregate CONTENT diff, per file — empty once a merge equalised them. */
+  files: Array<{ path: string; status: string; additions: number; deletions: number }>;
+}
+
+/**
+ * base…head — what the draft branch adds, and how far base has moved under it.
+ *
+ * One request answers both of the Drafts tab's questions (which files, which
+ * commits), which matters because this renders on a tab click, not a build.
+ */
+export async function compareRepoRefs(source: GitHubRepoSource, head: string): Promise<RepoComparison> {
+  const compared = await githubJson<{
+    ahead_by?: number;
+    behind_by?: number;
+    merge_base_commit?: { sha?: string };
+    commits?: Array<{ sha: string; html_url?: string; commit?: { message?: string; author?: { name?: string; date?: string } } }>;
+    files?: Array<{ filename: string; status?: string; additions?: number; deletions?: number }>;
+  }>(source, `/repos/${source.repository}/compare/${encodeURIComponent(source.ref)}...${encodeURIComponent(head)}`);
+
+  return {
+    aheadBy: compared.ahead_by ?? 0,
+    behindBy: compared.behind_by ?? 0,
+    mergeBaseSha: compared.merge_base_commit?.sha ?? "",
+    commits: (compared.commits ?? []).map(entry => ({
+      sha: entry.sha,
+      message: entry.commit?.message ?? "",
+      author: entry.commit?.author?.name ?? "",
+      at: entry.commit?.author?.date ? Date.parse(entry.commit.author.date) : 0,
+      url: entry.html_url ?? "",
+    })),
+    files: (compared.files ?? []).map(entry => ({
+      path: entry.filename,
+      status: entry.status ?? "modified",
+      additions: entry.additions ?? 0,
+      deletions: entry.deletions ?? 0,
+    })),
+  };
+}
+
+export interface BranchPullRequest {
+  number: number;
+  url: string;
+  state: string;
+  merged: boolean;
+  updatedAt: number;
+}
+
+/**
+ * Every pull request whose head is `branch`, whatever its state.
+ *
+ * `state=all` on purpose: the lifecycle line must say "merged" after a merge,
+ * and the open-only listing `openPullRequest` uses cannot see a closed one.
+ */
+export async function listBranchPullRequests(source: GitHubRepoSource, branch: string): Promise<BranchPullRequest[]> {
+  const owner = source.repository.split("/")[0];
+  const rows = await githubJson<Array<{
+    number: number; html_url?: string; state?: string; merged_at?: string | null; updated_at?: string;
+  }>>(source, `/repos/${source.repository}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all`);
+  return rows.map(row => ({
+    number: row.number,
+    url: row.html_url ?? "",
+    state: row.state ?? "open",
+    merged: Boolean(row.merged_at),
+    updatedAt: row.updated_at ? Date.parse(row.updated_at) : 0,
+  }));
 }
 
 export interface RepoFile {

@@ -6,16 +6,31 @@ import {
 } from "../src/engines/editor/editing/modes.ts";
 
 describe("choosing how deep to go", () => {
-  it("offers four modes", () => {
-    // The old four-rung ladder had a "Just the words" depth nobody chose. Ed's
-    // call: three modes, and the browser is a TOGGLE rather than a mode.
-    assert.deepEqual(EDITING_MODES.map(mode => mode.id), ["assist", "simple", "visual", "developer"]);
-    assert.deepEqual(EDITING_MODES.map(mode => mode.label), ["Just tell it", "Just the words", "Visual builder", "Dev"]);
+  it("offers THREE modes — 'Just the words' merged into Visual (2026-08-22)", () => {
+    // REWRITTEN: this pin used to hold FOUR rungs. Ed: "id want to actually
+    // just combine it into visual mode as its the same you select element
+    // change type it add it in" — the text-only depth was the same click
+    // landing on the same element panel, so the rung went and the words moved
+    // to the visual depth. (No capability model rode in on the merge: clients
+    // get the whole editor — Ed's explicit 2026-08-21 call, recorded verbatim
+    // in the phase-5 plan text.)
+    assert.deepEqual(EDITING_MODES.map(mode => mode.id), ["assist", "visual", "developer"]);
+    assert.deepEqual(EDITING_MODES.map(mode => mode.label), ["Just tell it", "Visual builder", "Dev"]);
+  });
+
+  it("MIGRATES a saved 'simple' to visual — by name, never a crash or a lucky default", () => {
+    // "simple" is written down wherever a mode ever persisted (an old URL, a
+    // stored preference). It must land on the depth that absorbed it, and
+    // keep landing there even if the unknown-id default ever moves.
+    assert.equal(editingMode("simple").id, "visual");
+    assert.ok(editingMode("simple").tabs.includes("element"),
+      "the words survive the merge — the migrated depth still carries the element panel");
   });
 
   it("gives the visual mode everything except code", () => {
     const visual = editingMode("visual");
     assert.ok(visual.tabs.includes("assistant"));
+    assert.ok(visual.tabs.includes("element"), "the merged 'Just the words' lives here now");
     assert.ok(visual.tabs.includes("brand"));
     assert.equal(visual.tabs.includes("code"), false);
     assert.equal(visual.tabs.includes("repository"), false);
@@ -49,8 +64,8 @@ describe("switching mode without landing nowhere", () => {
   });
 
   it("moves to the mode's first tab when the current one is gone", () => {
-    // Switching from Developer to "Just the words" while sitting on code must
-    // land somewhere real rather than on a blank panel.
+    // Switching from Developer to a shallower depth while sitting on code
+    // must land somewhere real rather than on a blank panel.
     assert.equal(tabForMode("assist", "code"), "assistant");
     assert.equal(tabForMode("visual", "repository"), "assistant");
   });

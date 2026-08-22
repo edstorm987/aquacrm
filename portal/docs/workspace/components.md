@@ -2,11 +2,11 @@
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
-68 files of cross-cutting React UI (re-counted 2026-08-20; was 60) — the app shell and reusable pieces the
+80 files of cross-cutting React UI (re-counted 2026-08-21 — `find src/components -type f | wc -l`; was written up as 68) — the app shell and reusable pieces the
 [portal screens](portal-ui.md) mount. **Reuse from here before writing new
 UI** (especially the `ui/` primitives).
 
-## `chrome/` (42 files) — the app shell (busiest edit zone)
+## `chrome/` (47 files) — the app shell (busiest edit zone)
 The frame every authenticated screen sits in:
 - **Nav:** Sidebar, Topbar, MobileNav.
 - **Notifications/attention:** `NotificationBell`, `NotificationCentre`, `NotificationAttentionProvider` (the context that feeds the bell).
@@ -40,7 +40,10 @@ Visibility is decided SERVER-side (`devDocsAccessible(session)`) and passed to
 Mode off removes the icon everywhere at once. Mounted by `agency/layout.tsx`,
 `dev-team/layout.tsx`, `clients/page.tsx` and `clients/[clientId]/layout.tsx`;
 deliberately NOT by `team/layout.tsx` (not a founder surface). The console it peeks
-into is now **eight sidebar sections** (2026-08-21), not twelve screens — see
+into is now **seven sidebar sections** (counted 2026-08-21 in
+`dev-team/layout.tsx:74-89`: Home · Roadmap · Findings · Library · Tools ·
+Editor · Notes — "My profile" is the separate Settings panel, and there is no
+Team chat row), not twelve screens — see
 [portal-ui](portal-ui.md#dev-team--the-internal-dev-team-workspace-founder--dev-mode-only).
 
 **Cost split, and why it matters:** `devConsoleBadge()` (open findings + open
@@ -56,9 +59,48 @@ behind. Don't move the slow read onto the render path.
 `MetricSparkline`. These render the actionable-attention model from
 `lib/operationalAttention` + `lib/server/operationalAlerts`.
 
-## `editing/` (3 files)
-`EditingOverlay`, `EditingNotice`, `RepositoryPanel` (the repo browser) — the
-in-page editing chrome the website-editor plugin uses.
+## `editing/` (10 files) — **corrected 2026-08-21 (was written up as 3)**
+The chrome of the **one universal editor**, `src/engines/editor/DevEditor.tsx`.
+**Nothing in `src/built-ins/` imports any of it** — the website-editor plugin
+does not use these; if anything the arrow runs the other way
+(`DeviceControl` reads `built-ins/modules/website-editor/src/lib/devicePresets`).
+
+- **Mounted by `DevEditor.tsx`:** `AddMenu` (the one add affordance) ·
+  `ElementInsertPanel` (**NEW 2026-08-22, phase 7** — inside the element
+  library's "Selected element" section: emits the selected block's source via
+  `engines/editor/elements/emit.ts`, lets the operator pick file + insert
+  point (the selection's `sourceFocus` file:line is the suggested spot),
+  previews the exact lines from the server's dry run, and commits them to the
+  draft branch through `/api/portal/dev/repo-write` `action:"insert"`; shows
+  server refusals verbatim and never claims the site changed) ·
+  `AquaEditorAI` (the Assistant pane) · `DeviceControl` (the REAL device
+  system — 26 presets W×H, rotate, zoom, custom dimensions, per-project
+  persistence; replaced the width-only `BreakpointControl` 2026-08-22, phase
+  10 — the maths stays in the module's `devicePresets.ts`, this is chrome
+  only, and it is the editor's ONE door to that module) ·
+  `EditorCodeCanvas` (the code pane) · `EditorModeSwitch` (the depth selector) ·
+  `RepositoryPanel` (the repo browser) · `LibrarianPanel` (the Dev-mode
+  `librarian` tab — now wired with the editor's `onOpenFile` seam) ·
+  `WorkLifecyclePanel.tsx` (**NEW 2026-08-22, phase 14** — THREE exports for
+  the three Dev-mode lifecycle tabs: `DraftsPanel` (the project's edit branch
+  AS the draft — the state ladder page → branch → PR → merged, the server's
+  `status.line` verbatim, changed files with per-file Open = resume into the
+  code canvas, and the WHOLE lifecycle driven in-panel through repo-write:
+  Publish (`action:"publish"`, the same control the canvas strip presses),
+  **Merge** (`action:"merge"`, two-step confirm, dry-run server-side without
+  it — never a link out to GitHub, per Ed's "everything inside the editor")
+  and **Revert** for a merged draft (`action:"revert"` — the server's dry-run
+  plan first, then confirm; the restore commits land on the DRAFT branch, so
+  the revert is itself a draft)) · `HistoryPanel` (one feed: draft-branch
+  commits + Dev Team check-ins, each labeled with what it is) · `NotesPanel`
+  (per-project notes over `/api/portal/dev/lifecycle`). All three read
+  `/api/portal/dev/lifecycle`; skin is `editorAiSkin.ts`, never `--dt-*`.
+  Pinned by `scripts/smoke-work-lifecycle.test.ts`).
+- **Mounted by `EditorCodeCanvas`:** `CodeSurface` (the CodeMirror wrapper) ·
+  `codeTheme.ts` (`fileColour`).
+- **No importer today:** `EditingOverlay`, `EditingNotice` — the lease/notice
+  chrome. Only `scripts/smoke-editing-leases.test.ts` reads them, as source.
+  They ride `engines/editor/editing/leases.ts`; check that suite before deleting.
 
 ## `resource-tools/` (4 files) — client audit tools
 `SeoAuditTool`, `AccessibilityAuditTool`, `SiteSpeedTool` (+ index).

@@ -6,7 +6,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Exports (1)
 
-- `GlobalAdvisorDrawer({ initialWorkspace, configured, model, userName, coverage, // ── Reskin seam ────────────────────────────────────────────────────────── // The drawer machinery (portal, transitions, lazy chat, notice toast) is the // SA…`
+- `GlobalAdvisorDrawer({ initialWorkspace, configured = false, model = "", userName = "", coverage, // ── Reskin seam ────────────────────────────────────────────────────────── // The drawer machinery (portal, transitions, lazy chat, notice t…`
 
 ## Depends on (2)
 

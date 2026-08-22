@@ -48,7 +48,7 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/server/tradingCompanies.ts`](../../../../server/tradingCompanies.md)
 - [`src/server/users.ts`](../../../../server/users.md)
 
-## Used by (23)
+## Used by (21)
 
 - [`scripts/smoke-radar-actionable.test.ts`](../../../../../scripts/smoke-radar-actionable.test.md)
 - [`scripts/smoke-radar-coverage-seeding.test.ts`](../../../../../scripts/smoke-radar-coverage-seeding.test.md)
@@ -64,11 +64,9 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/app/portal/agency/assistant/page.tsx`](../../../../app/portal/agency/assistant/page.md)
 - [`src/app/portal/agency/page.tsx`](../../../../app/portal/agency/page.md)
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](../../../../components/chrome/AdvisorDrawerControl.md)
-- [`src/components/chrome/LibrarianDrawerControl.tsx`](../../../../components/chrome/LibrarianDrawerControl.md)
 - [`src/components/chrome/RadarQuickLookControl.tsx`](../../../../components/chrome/RadarQuickLookControl.md)
 - [`src/engines/data/server/radar/radarSeeding.ts`](./radarSeeding.md)
 - [`src/engines/data/server/radar/radarSweeps.ts`](./radarSweeps.md)
-- [`src/engines/editor/server/editorAssistant.ts`](../../../editor/server/editorAssistant.md)
 - [`src/lib/server/assistants/advisorContext.ts`](../../../../lib/server/assistants/advisorContext.md)
 - [`src/lib/server/marketingIntelligence.ts`](../../../../lib/server/marketingIntelligence.md)
 - [`src/lib/server/resolutionPlans.ts`](../../../../lib/server/resolutionPlans.md)

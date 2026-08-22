@@ -10,9 +10,9 @@ new system. It is a **name** plus a **fourth mode**. What already exists:
 
 | Ed's ask | Already built | Where |
 |---|---|---|
-| "Aqua Engine is the website portal editor" | the editor itself | `src/engines/editor/editing/engine.ts` (+ 4 adapters), `src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx` — currently called **Studio** |
+| "Aqua Engine is the website portal editor" | the editor itself | `src/engines/editor/editing/engine.ts` (+ 4 adapters), **`src/engines/editor/DevEditor.tsx`** — the ONE universal editor. ⚠ It used to sit at `src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx` (component `ClientPortalStudio`); it was **moved out of the portals route 2026-08-21** precisely because being addressed as a portal file kept leaking portal copy at people editing a repository. `portals/editor` and `dev-team/editor/studio` are its two **doors**, not its home. |
 | one vocabulary across website + portal | element engine P1→P3, shipped today | `src/engines/editor/elements/**`, `portalElements.ts` merges the portal's 16 block types into the shared registry |
-| "an unlockable function in there **or a mode**" | **the mode system already exists** — 3 modes, tab-gated | `src/engines/editor/editing/modes.ts` — `simple` "Just the words" · `visual` "Design it" · `developer` "Developer" |
+| "an unlockable function in there **or a mode**" | **the mode system already exists** — 3 modes, tab-gated | `src/engines/editor/editing/modes.ts` — `assist` "Just tell it" · `visual` "Visual builder" · `developer` "Dev" (the `simple` depth merged into `visual`, 2026-08-22) |
 | Dev Team itself | BUILT, 6 sections, browser-verified 2026-08-19 | `src/app/portal/dev-team/**`, plan [dev-team-portal.md](dev-team-portal.md) |
 | "generate an update" | BUILT — composer + parser + serialised insert-only writer | `src/lib/server/dev/devTeamUpdates.ts`, `src/app/portal/dev-team/updates/_Section.tsx` |
 

@@ -1,6 +1,10 @@
 # Dev Docs — worker handoff (for the orchestrator)
 
-← [dev-docs.md](dev-docs.md) (the plan) · [development.md](../../development.md) (the law) · [state.md](../context/state.md)
+> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `dev-docs` stands, read [dev-docs.md](dev-docs.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+>
+> *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
+
+← [dev-docs.md](dev-docs.md) (the plan) · [development.md](../../development.md) (the law) · [state.md](../../context/state.md)
 
 _Debrief from the Dev-Docs worker, 2026-08-19. Everything I did, why, what's proven, what's left, and my honest read. Nothing lives only in chat._
 
@@ -63,7 +67,7 @@ Defaults off for every other `buildSidebar` caller. Invisible + unreachable in p
 2. **Browser-verify on `:3032`** (the only open item): `/dev` → enter Dev Mode → **"Dev Docs"** shows in the settings footer → the tree expands (try `reference/`) → **click a doc → it renders styled** → the blockers strip shows → **Exit Dev Mode → "Dev Docs" is gone.** Then confirm no console errors (esp. a react-markdown bundling error on the viewer).
 3. **Note the new dependency** (`react-markdown` + `remark-gfm`, npm) — a shared `package.json` change; relevant if anyone rebases/installs.
 4. **Route to the auditor** (gate + path-safety are security-relevant).
-5. **Log the row** in [state.md](../context/state.md) Workers-in-flight and **tick/close** the item, once browser-verified.
+5. **Log the row** in [state.md](../../context/state.md) Workers-in-flight and **tick/close** the item, once browser-verified.
 6. **Optional end-of-wave:** regenerate the symbol reference (`node scripts/generate-symbol-reference.mjs`) to capture the new exports.
 
 ## File map — what this plan owns

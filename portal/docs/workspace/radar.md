@@ -304,6 +304,14 @@ available in-app" (service-role limit). See §1 sweep note and the plan Part D.
 - Catalogue **`connection` lens** is trivially `pass` once connected (real proof is in the sentinels).
 - **Correlation-only families** (`stale-open-leads`, `lost-decision-rate`, `source-conversion-spread`, `source-churn-spread`, `pending-cancellations`, `source-concentration`, `lead-source-attribution`) exist for correlation but have **no** 12-lens catalogue pack — intentional, but a mismatch when auditing "why does this family have no checks?"
 - No `TODO`/`not-implemented` markers in any of the nine engine files.
+- ⚠ **PRODUCTION PREREQUISITE — the radar-probes cron does not fire by default.**
+  `vercel.json` schedules `/api/cron/radar-probes` at `*/10 * * * *`, and it is real and
+  shipped — but in production it only runs when **`CRON_SECRET` is set** *and* the Vercel
+  plan permits **sub-daily** crons (Hobby is daily-only). Unset either and the probes are
+  silently never collected, so every probe-tier signal stays empty with no error anywhere.
+  Lifted here 2026-08-21 from the radar handoffs when they were archived — it was the only
+  live home this fact had, and `plans/radar-upgrade.md` still lists probe cadence as an open
+  question, which reads as "the cron does not exist" to anyone working from live docs.
 
 _See the [KPI dossier](kpi-intelligence.md) for the metrics that ride Radar's
 evidence vault, and the [Advisor dossier](advisor.md) for how findings become

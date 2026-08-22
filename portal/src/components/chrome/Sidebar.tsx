@@ -139,7 +139,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             >
               <summary
                 id={headingId}
-                className="mm-sidebar-heading flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/50 hover:bg-black/[0.03]"
+                className="mm-sidebar-heading flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/60 hover:bg-black/[0.03]"
               >
                 <svg
                   aria-hidden

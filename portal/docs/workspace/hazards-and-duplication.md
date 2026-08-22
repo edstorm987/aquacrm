@@ -41,6 +41,124 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 ### Aqua-tag analytics twice
 - `agency/aqua-tags/_AquaTagsWorkspace.tsx` **[new]** vs `agency/performance/_AquaTagDashboard.tsx`.
 
+### Aqua Tag ↔ editor protocol — one definition, one alias
+**Canonical:** `src/engines/editor/editing/aquaTagBridge.ts` — message names,
+payload types, the parser and the origin policy.
+
+`src/lib/integrations/aquaExplorerBridge.ts` is now a **re-export alias only**
+(the older `AquaExplorer*` spelling, kept so the Project Explorer and its tests
+keep working). It declares nothing. **Do not add types there** — that rebuilds
+the duplication it was collapsed to remove. New code imports the bridge directly.
+
+The third copy is unavoidable and is guarded rather than removed:
+`src/lib/integrations/aquaTagSource.ts` is a template string of browser JS served
+at `/aqua-tag.js`, so it *cannot* import TypeScript. `scripts/smoke-aqua-tag-bridge.test.ts`
+asserts the tag's literals, protocol version, `explorerDescribe` field list and
+patch allow-list all match the bridge. **If that test fails, make the two agree —
+never relax the assertion.**
+
+⚠ `explorerTargetOrigin()` in the alias file is **deprecated and falls back to
+`"*"`**, which posts to whatever page now occupies the frame. `aquaTagOrigin()`
+returns `null` instead. Its call sites in `_FirstPartyProjectWorkspace.tsx` are
+unchanged and still carry the old behaviour.
+
+### The working-tree walk — one copy, moved 2026-08-21
+`src/engines/editor/server/workspaceFiles.ts` is **canonical**. The identical
+walk used to be a private `async function walk()` inside
+`src/app/api/portal/site-editor/files/route.ts`; MAP needed the same tree, and a
+second walk would have been a second set of rules about what is hidden (`.env`,
+`.git/`, `.data/`, dot-directories, symlinks) — which is how a credential file
+eventually ends up listed by one of them. The route now imports
+`readWorkspaceFiles`. **Do not re-add a walk to the route**;
+`scripts/smoke-editor-write-path.test.ts` asserts it has none, and
+`scripts/smoke-dev-project-map.test.ts` drives the real walk over a temp
+directory.
+
+### "Publish goes to git" — HALF wired (2026-08-21). Read which half.
+Ed's stated intent — *"the edits you make on dev editor when published just go to
+git its so simple"* — is now true **for the words on a tagged page, and nothing
+else**. Before adding a second path, know which one already exists.
+
+**WIRED.** `patch.ts` → `publish.ts` finally has a caller:
+`src/engines/editor/server/sourceEdit.ts`, behind **POST
+`/api/portal/dev/source-edit`** (`find` then `publish`), driven from the Aqua Tag
+words panel in `DevEditor.tsx` (`WordsSourceSave`). It commits to
+`aqua-editor/<projectId>` from the commit the search read, opens a pull request,
+and refuses a moved branch or a changed line. **Do not write a second route that
+calls `publishEdits`** — extend this one.
+
+Two things about it that look like bugs and are not:
+
+* **It SEARCHES the repository for the words.** That is not laziness, it is the
+  only option: `AquaTagElement` carries no file or line, `data-aqua-src` /
+  `parseSourceStamp` are referenced by nothing but their own module, and
+  `elementSource.ts` reads React fibers, which no browser exposes cross-origin.
+  So FIND guesses and a human confirms. If somebody later makes the build stamp
+  `data-aqua-src`, the search becomes a fallback rather than the mechanism.
+* **It refuses `<`, `>`, `{`, `}` in JSX text** (and the delimiter inside a
+  quoted value). Splicing a `{` into a heading makes the JSX an expression and
+  the site stops building — refusing is recoverable, committing is not.
+
+**STILL NOT WIRED — these have no path to git:**
+
+* **Dev-mode CODE saves.** They POST `/api/portal/site-editor/files`, which
+  writes this server's working tree and, for a repo-backed project, **refuses**
+  with *"This project is backed by a repository — changes are committed and
+  published, not written to this workspace."* That refusal is a deliberate
+  backstop (the "+" button once created files in AquaCRM's own tree) — do not
+  weaken it; give it the commit path instead.
+* **Styling and image edits** through the tag are still a live preview patch,
+  gone on reload. The panel says so, separately from the words now.
+* **The `portalTarget`-gated Publish button** still POSTs
+  `action: "publish"` to `/api/portal/client-portal-design`, promoting a portal
+  design draft **inside AquaCRM's store**. It never touches git, and it is a
+  different thing wearing the same word.
+
+`githubSource.ts` stays read-only (`readRepoTree`, `readRepoHeadSha`,
+`readRepoFile`) — `publish.ts` is still the only code in the repo that can write
+to GitHub.
+
+### "Is there a portal?" and "is there a browser?" are TWO questions
+`DevEditor.tsx` keeps both, deliberately named apart (2026-08-21):
+
+* `portalTarget = projectKind !== "software"` — owns the genuinely portal-only
+  machinery: portal pages, the lifecycle stage, the draft/publish pair, the
+  portal builder, the client/template selectors.
+* `browserAvailable = portalTarget || tagMapped` — owns whether a live page can
+  be shown and clicked. `tagMapped` comes from the server's one rule
+  (`devProjectMapStatus(...).browserAvailable`), passed in as `projectTagged` and
+  refreshed from `/api/portal/dev/projects` `statuses[id]`.
+
+They were the SAME flag, and because every project defaults to kind `software`
+that gated the browser off everything Ed builds. **Do not collapse them back.**
+The `portalTarget` half of `browserAvailable` is the one exemption and it is
+narrow: the Aqua-hosted portal preview is a page this app renders itself and it
+reports selections through the first-party block protocol — the tag's job done by
+our own renderer. Every other page needs the tag.
+`scripts/smoke-dev-editor-tag-bridge.test.ts` pins both names.
+
+### Two ways to point at something — they answer different questions
+Both live in `DevEditor.tsx` and both are real:
+
+* `picking` + `editing/elementSource.ts` — a click listener attached to the
+  previewed **document**, reading React fibers to answer *"which FILE renders
+  this?"*. Same-origin only, by construction.
+* the Aqua Tag bridge — a `postMessage` protocol answering *"which ELEMENT is
+  this, and what are its exact words?"*. Works cross-origin; that is the point.
+
+Neither replaces the other. Do not "unify" them into one picker — one needs the
+DOM and the other cannot have it.
+
+### "Is the browser unlocked?" — ask ONE function
+`devProjects.devProjectVisualEditorUnlocked(project)` → `Boolean(project.aquaTagId)`.
+`devProjectMapStatus(project).browserAvailable` is the same value, and
+`/api/portal/dev/projects` GET/POST send it to the screen as `statuses[id]` /
+`status` **precomputed** so no client re-derives it. Do not re-implement the
+check inline (`project.aquaTagId && project.kind !== ...` is the exact expression
+that was wrong). Note `DevProjectMapStatus` lives in `src/server/types.ts`, not
+beside the function — a client component must be able to name the type without
+dragging `server-only` into the browser bundle.
+
 ### Two block registries — and the copies the element engine exists to delete
 The **element vocabulary was lifted out of the website-editor plugin into
 `src/engines/editor/elements/`** by element-engine P1+P2 (2026-08-20). `src/engines/editor/elements/index.ts:1-12`
@@ -86,8 +204,66 @@ don't add a fourth.
 Do **not** add a type to `CLIENT_PORTAL_BLOCK_REGISTRY` and a near-twin to
 `BLOCK_REGISTRY` — that is how 14 of 16 got duplicated the first time.
 
+**And do not write a fourth "what can I add here" list.** `src/engines/editor/elements/palette.ts`
+(`elementPalette(surface)`) is the ONE answer, for every surface — the Dev Editor's add menu and
+its Builder tab both read it. Its portal branch deliberately reads `PORTAL_ELEMENT_PAIRINGS`
+rather than `listElementDefinitions("portal")`, because the shared lookup answers in the SHARED
+names (`banner`, `text`) and a portal page stores the PORTAL's names (`callout`, `rich-text`);
+inserting the shared name would write a `ClientPortalBlockType` that does not exist. That is a
+naming layer over one registry, not a second registry.
+
+**The website vocabulary only exists in a bundle that imported it.**
+`registerElementDefinitions` runs as an import side effect, so
+`listElementDefinitions("website")` legitimately answers `[]` in any bundle that never pulled
+`blockRegistry.ts`. That is what emptied the Dev Editor's palette for months. Reach it through
+`ensureWebsiteElements()` (`src/engines/editor/elements/websiteElements.ts`) — never by adding a
+static import to a component, which drags the whole metadata table into that route's first paint.
+Its indirection module `websiteVocabulary.ts` is **load-bearing**: the plugin's `package.json`
+declares `"type": "module"` while `portal/`'s does not, so a direct
+`await import("@/built-ins/.../blockRegistry")` crosses ESM/CJS under `tsx` and throws
+*"does not provide an export named 'getElementDefinition'"* before any test can run.
+
 ### Two inbox surfaces
 - `agency/inbox/` (`_MasterInbox`) vs `agency/activity-inbox/`. Verify they're not redundant before extending either.
+
+### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
+`PortalState.assistant` (keyed `${agencyId}|${userId}`, via
+`src/lib/server/assistants/assistantStore.ts`) is the **Aqua Advisor's** — one private history
+per PERSON. (Until 2026-08-22 the Dev Team Librarian read it too; the Librarian is now a find
+tool over the file-finding skill and holds no conversation at all.)
+`PortalState.editorAiConversations` (keyed `${agencyId}|${projectId}`, via
+`src/engines/editor/server/editorAiHistory.ts`) is **Aqua Editor AI's** — one history per PROJECT,
+shared by whoever is editing it.
+
+The shapes are near-identical (threads of messages, newest first, capped) and that looks exactly
+like something to merge. **It is the requirement, not an accident.** Ed: *"the chat history per
+project only limited to a project nothing else"*. Two collections is what makes "clearing one
+cannot empty the other" structural rather than a convention, and the KEYS are different concepts —
+per-person vs per-project — so a merged store would need a discriminator on every read and would be
+one missing filter away from the exact bleed this replaced.
+
+Same story one level up: `editorAssistant.ts` deliberately does NOT use `isAssistantConfigured` /
+`assistantModel` (the agency's `openai` connection). See `aqua dev.md` §9a. Both rules are pinned
+by `scripts/smoke-aqua-editor-ai.test.ts` and `smoke-aqua-editor-ai-history.test.ts` — if those fail
+because somebody re-unified the two "to remove duplication", fix the change, not the test.
+
+### Two chat UIs — DELIBERATE, do NOT unify (2026-08-21)
+`src/app/portal/agency/assistant/AssistantWorkspace.tsx` is the **Aqua Advisor's** chat surface:
+a full-page/drawer client for `/api/assistant`, with memories, skills, voice and the agency
+data-coverage strip, styled for a **light** page (`bg-white/35`, `text-black/90`). (The Dev Team
+Librarian left it 2026-08-22: it is a FIND panel now — `components/editing/LibrarianPanel.tsx`
+through `GlobalAdvisorDrawer`'s `body` seam — not a chat.)
+
+`src/components/editing/AquaEditorAI*.tsx` (+ `editorAiClient.ts`, `editorAiSkin.ts`) is **Aqua
+Editor AI's**: a narrow inspector panel for `/api/portal/dev/editor-ai` and its `history` sibling,
+scoped to ONE dev project, styled for the **dark** editor (`--mode-accent`, `border-white/10`,
+`bg-black/30` — and **never** `--dt-*`).
+
+`AquaEditorAI.tsx` used to mount `AssistantWorkspace`. It must not again: that client reads AND
+WRITES the per-person store, so pointing it at per-project data would render a per-project history
+that the very next message merged back into the shared one — it would LOOK fixed. Pinned by
+`scripts/smoke-aqua-editor-ai-ui.test.ts`, which also holds the style rules (no `--dt-*`, a visible
+focus ring on every control, a `text-white/50` contrast floor on the editor's dark ground).
 
 ---
 
@@ -152,7 +328,7 @@ as "the intended long-term mechanism". There are no recovery codes.
 
 ## ⚪ Dead / stale / alias (don't mistake for live code)
 
-- **`lib/server/editing/adapters.ts`** — **zero importers**, orphaned. The live editor uses `lib/server/siteEditor/*`. Deletion candidate. (Careful: `lib/editing/{leases,modes}.ts` ARE used by `components/editing/*`.)
+- **`lib/server/editing/adapters.ts`** — **no app importers** (only `scripts/smoke-editor-adapters.test.ts`), orphaned. Deletion candidate. ⚠ **Paths here were stale, corrected 2026-08-21:** there is no `lib/server/siteEditor/*` any more, and no `lib/editing/`. The live editor is **`src/engines/editor/DevEditor.tsx`** (one universal editor, mounted by `agency/portals/editor` and `dev-team/editor/studio`), riding `src/engines/editor/editing/{engine,leases,modes}.ts` + `src/engines/editor/server/*`. `engines/editor/editing/{leases,modes}.ts` ARE used by `components/editing/*` — don't sweep those.
 - **`agency/sops/page.tsx`** — dead redirect to `/agency`. Canonical SOPs = `agency/sop-library/_SopLibrary`.
 - **Alias route trees (edit the source, not these):**
   - `agency/fulfilment/technical/*` → re-export `agency/development/*`.
@@ -177,22 +353,26 @@ as "the intended long-term mechanism". There are no recovery codes.
 - **Guess, then human-confirm** for matching/classification — never auto-commit suggested work.
 - Talk to Ed plainly and simply.
 
-## Roadmap vs phases.md vs the board (2026-08-20)
+## Roadmap vs phases.md vs the board (2026-08-20; phases.md archived 2026-08-21)
 Three things describe "what's next", and only one is canonical now:
 - **`docs/development/roadmap.md` — CANONICAL.** Outcomes with horizons + target dates, edited
   from the Dev Console (`/portal/dev-team/roadmap`, `lib/server/devTeamRoadmap.ts`). Progress is
   derived from each item's plans → phases → tasks, so it cannot drift.
-- **`docs/development/phases.md` — superseded**, kept for history. Do not add items.
+- **`phases.md` — superseded**, and since 2026-08-21 it is off the live tree entirely: [context/archive/phases.md](../context/archive/phases.md). Do not add items.
 - **The board** (`devTeamBoard.ts`) is a different altitude: it shows
   PLANS and WORKERS in flight, not outcomes. It is not a duplicate — do not merge them.
   It now lives at **`/portal/dev-team/roadmap?view=now`**; `/portal/dev-team/working` is a
   redirect stub onto it (see below).
 
 ## 🟠 The Dev Console moved (2026-08-20) — old routes are stubs, not deletions
-Twelve sidebar items became six sections with `?view=` tabs, and are now **eight** (Editor + Team chat are first-class rows)
-(`app/portal/dev-team/layout.tsx:68-75`): Home · Roadmap · Findings · Library ·
-Tools · Notes. **Every old route still exists as a one-line `redirect()`**, so a
-bookmark or a doc link still lands:
+Twelve sidebar items became six sections with `?view=` tabs, and are now **seven**
+(Editor became a first-class row 2026-08-21). The nav items are
+`app/portal/dev-team/layout.tsx:74-89`, in order: Home · Roadmap · Findings ·
+Library · Tools · **Editor** · Notes. **Team chat is NOT a row** — `layout.tsx`
+contains zero occurrences of "chat"; `dev-team/chat/page.tsx` still exists and
+still renders `TeamChat`, it is just unlinked from the nav. **Every old route
+still exists as a one-line `redirect()`**, so a bookmark or a doc link still
+lands (`/editor` is the exception — see the table):
 
 | Old route | Now |
 | --- | --- |

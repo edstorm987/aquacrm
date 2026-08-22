@@ -11,7 +11,18 @@ import { FilePlus2, FolderPlus, Plus, Search, Upload, X } from "lucide-react";
 // the code view the same button offers a new file, a new folder or an upload.
 //
 // One button to learn, one place to look, and every future "add" lands here
-// instead of growing another control somewhere else in the chrome.
+// instead of growing another control somewhere else in the chrome. It is
+// mounted twice by the editor — the canvas header and the inspector rail —
+// and both are the same instance of this component with the same options.
+//
+// ── The skin ────────────────────────────────────────────────────────────────
+// This panel wears the EDITOR's vocabulary (dark, translucent, `#171a17`
+// ground, `border-white/10` — the same words as `editorAiSkin.ts`), because
+// the editor is its only mount: nothing else in the tree renders <AddMenu>
+// today (checked 2026-08-22). The light-themed element-library popover seen in
+// Ed's walkthrough predates this restyle. If a light portal surface ever
+// mounts this menu, give it a `skin` prop THEN and derive these classes from
+// it — do not fork the component, and do not default the editor to light.
 
 export interface AddOption {
   id: string;
@@ -146,10 +157,12 @@ export function AddMenu({
 /**
  * The code-view options.
  *
- * `onCreate` receives a path and what to make. When it is absent the options
- * still SHOW, disabled, with the reason — a repository-backed project cannot
- * be written to from here (those changes are committed and published), and an
- * option that silently does nothing is worse than one that says why.
+ * `onCreate` receives what to make. Both targets have a live path now: the
+ * local workspace writes to disk through the files route, and a repository-
+ * backed project COMMITS the new file (or the folder's .gitkeep) to its draft
+ * branch through /api/portal/dev/repo-write. When `onCreate` is absent the
+ * options still SHOW, disabled, with the reason — an option that silently
+ * does nothing is worse than one that says why.
  */
 export function fileAddOptions(
   onCreate?: (kind: "file" | "folder") => void,

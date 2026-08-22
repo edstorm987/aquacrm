@@ -15,7 +15,7 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 
 ## Depends on (5)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
+- [`src/engines/editor/DevEditor.tsx`](../DevEditor.md)
 - [`src/server/agencyProducts.ts`](../../../server/agencyProducts.md)
 - [`src/server/clientPortalDesigns.ts`](../../../server/clientPortalDesigns.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

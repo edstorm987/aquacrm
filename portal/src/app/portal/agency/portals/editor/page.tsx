@@ -6,7 +6,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { clientWorkspaceHref } from "@/lib/clients/clientWorkspace";
 import { loadPortalStudioProps, type PortalStudioQuery } from "@/engines/editor/server/portalStudio";
 import { loadEditorAssistant } from "@/engines/editor/server/editorAssistant";
-import { ClientPortalStudio } from "./_ClientPortalStudio";
+import { DevEditor } from "@/engines/editor/DevEditor";
 
 // The Portal Studio's own route. The loader it used to carry inline now lives
 // in the editor engine (`@/engines/editor/server/portalStudio`) so the Dev Team
@@ -27,11 +27,14 @@ export default async function ClientPortalEditorPage({
   const agencyId = session.activeAgencyId ?? session.agencyId;
   const query = await searchParams;
   const props = loadPortalStudioProps({ agencyId, userId: session.userId, role: session.role, query });
-  // Aqua Editor AI — the same assistant engine the Advisor and Librarian use.
+  // Aqua Editor AI — its own assistant, its own token, configured per dev
+  // project. This door has no project concept, so it opens unconfigured with a
+  // reason saying so. Falling back to the agency assistant's key here would
+  // undo the separation Ed asked for on the one route nobody would check.
   const assistant = await loadEditorAssistant(agencyId, session.userId);
 
   return (
-    <ClientPortalStudio
+    <DevEditor
       clients={props.clients}
       templates={props.templates}
       initialClientId={props.initialClientId}

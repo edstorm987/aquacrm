@@ -8,15 +8,33 @@ ALREADY EXIST; the work is unification + install-tiering + rename, not building 
   the 11 label sites (website-editor module name + labels/hints/aria in ExpensesList,
   clients/[clientId] page + _FulfilmentPortalPreview, fulfilment/_AquaTagsWorkspace,
   products/[productId]/_ProductRolloutCentre, inbox/_WebsiteSourcesConfig, portals/_PortalsWorkspace,
-  portals/editor/_ClientPortalStudio, customer/_PortalPageComposition media hint, dev-team/editor/_Section).
+  portals/editor/_ClientPortalStudio, customer/_PortalPageComposition media hint,
+  dev-team/editor/_Section).
   Tests pinning the old label updated (smoke-client-portal-studio, smoke-portals-workspace). The
   client-visible media-block hint changed, so the portal-element parity intended-difference was
   re-declared and the baseline re-captured.
+  - ⚠ **One path in the bullet above has moved on (annotated 2026-08-21, prose kept as written).**
+    `portals/editor/_ClientPortalStudio` is now **`src/engines/editor/DevEditor.tsx`**, and the
+    component `ClientPortalStudio` is `DevEditor`. It was moved out of the portals route on
+    2026-08-21 because living inside a feature route kept leaking portal-specific copy at people
+    editing a plain repository. The other ten label sites are unchanged.
 - **Phase 2 — Editor points at the real engine.** `src/app/portal/dev-team/editor/page.tsx` was a
   redirect to the app-config editor; it now mounts the existing git-backed `CodeWorkspace`
   (`lib/server/siteEditor/**`) under a shipyard PageHeader titled "Dev Editor Engine", founder +
   Dev Mode gated. The app-config editor still lives at Tools → Editor (`editor/_Section.tsx`).
   Reused wholesale — nothing rebuilt.
+  - ⚠ **That route has moved on since (read the source, not this bullet).** `dev-team/editor/page.tsx`
+    is now the **projects workspace** (`setup/_DevEditorSetup.tsx`), and the editor itself is
+    `dev-team/editor/studio/page.tsx`, which mounts **`src/engines/editor/DevEditor.tsx`** — the same
+    component the agency `portals/editor` door mounts. The app-config editor is unchanged at
+    Tools → Editor.
+  - ⚠ **The path in the bullet above is also dead (annotated 2026-08-21, prose kept as written).**
+    There is no `lib/server/siteEditor/**`. The git-backed code/source half — `fileTree`,
+    `patch`, `publish`, `registry`, `githubSource`, `sourceAdapter`, `codeAdapter` — is now
+    **`src/engines/editor/server/**`**, and the client half that was `lib/editing/**` is
+    **`src/engines/editor/editing/**`**. The standalone `CodeWorkspace` screen still exists at
+    `app/portal/agency/development/code/_CodeWorkspace.tsx` and reads
+    `engines/editor/server/fileTree`.
 
 **Still open:** Phase 3 (unify blocks + code+git + app-config behind engine.ts adapters with target
 detection), Phase 4 (installable module + tiers), Phase 5 (client-workspace install + GitHub+AquaTag+Vercel
@@ -38,6 +56,13 @@ earlier; this is the final name. It is the ONE engine that edits everything.
 > works seamlessly."
 
 ## What ALREADY EXISTS (the unification substrate — do NOT rebuild)
+- **The editor surface itself — ONE component, target-agnostic:** `src/engines/editor/DevEditor.tsx`
+  (canvas + depth selector + the Assistant/Settings/Builder/Content/Pages/Brand/Code/Repo/Versions
+  inspectors). Mounted by **two doors** — `app/portal/agency/portals/editor/page.tsx` and
+  `app/portal/dev-team/editor/studio/page.tsx` — both through `engines/editor/server/portalStudio.ts`
+  (`loadPortalStudioProps`). It lived at `portals/editor/_ClientPortalStudio.tsx` until 2026-08-21;
+  it was lifted out because a feature route owning it kept re-introducing portal assumptions. **No
+  surface owns the editor** — that is the invariant Phase 3 has to keep.
 - **Code + git ("our VS Code"):** `src/engines/editor/server/` — `githubSource.ts`
   (readRepoTree/readRepoFile, GitHubRepoSource), `fileTree.ts` (TreeFile/TreeDirectory,
   MAX_EDITABLE_BYTES), `codeAdapter.ts` (codeEditAdapter), `patch.ts` (plan/applyPatch),

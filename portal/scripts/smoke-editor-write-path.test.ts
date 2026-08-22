@@ -16,6 +16,10 @@ import { describeFile, isHiddenPath, MAX_EDITABLE_BYTES } from "../src/engines/e
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const route = readFileSync(join(ROOT, "src", "app", "api", "portal", "site-editor", "files", "route.ts"), "utf8");
+// The working-tree walk moved OUT of the route into a module MAP shares, so the
+// two surfaces cannot drift apart about what is hidden. The guards below follow
+// it rather than being deleted — see the note on the dot-directory case.
+const walk = readFileSync(join(ROOT, "src", "engines", "editor", "server", "workspaceFiles.ts"), "utf8");
 
 describe("editor write path — the guards", () => {
   it("exists as a POST on the files route", () => {
@@ -158,8 +162,22 @@ describe("editor write path — what the tree exposes at all", () => {
   it("skips dot-directories unconditionally when walking", () => {
     // Was: a NESTED if that only skipped names already handled by the line
     // above it, so .data/, .claude/ and .next-verify/ were all walked.
-    assert.match(route, /if \(entry\.name\.startsWith\("\."\)\) continue;/);
-    assert.match(route, /entry\.isSymbolicLink\(\)/, "symlinks are not listed as files");
+    //
+    // The walk now lives in `workspaceFiles.ts` because MAP reads the same tree
+    // and a second copy would be a second set of rules about what is hidden.
+    // Asserted at its new home, not dropped — and `smoke-dev-project-map.test.ts`
+    // drives the real walk over a temp directory to prove it behaves, which this
+    // source check alone cannot.
+    assert.match(walk, /if \(entry\.name\.startsWith\("\."\)\) continue;/);
+    assert.match(walk, /entry\.isSymbolicLink\(\)/, "symlinks are not listed as files");
+  });
+
+  it("the files route uses that ONE walk rather than keeping a private copy", () => {
+    assert.match(route, /readWorkspaceFiles/);
+    assert.ok(
+      !/async function walk\(/.test(route),
+      "a second walk in the route would be a second set of rules about what is hidden",
+    );
   });
 });
 

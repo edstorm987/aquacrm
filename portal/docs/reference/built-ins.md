@@ -4956,11 +4956,12 @@ _No exported symbols (internal/side-effect module)._
 ### `src/built-ins/modules/website-editor/src/lib/devicePresets.ts`
 
 - `getDevicePreset(id: string): DeviceSpec | undefined`
-- `loadDeviceState(): DeviceState`
-- `saveDeviceState(state: DeviceState): void`
+- `loadDeviceState(scope?: string): DeviceState`
+- `saveDeviceState(state: DeviceState, scope?: string): void`
 - `effectiveViewport(spec: DeviceSpec, state: DeviceState): { width: number; height: number }` — through here so the rendered pixel maths is consistent.
 - `DEVICE_PRESETS: DeviceSpec[]`
 - `CATEGORY_LABELS: Record<DeviceCategory, string>`
+- `DEFAULT_DEVICE_STATE: DeviceState`
 - `type DeviceCategory = "responsive" | "phone" | "tablet" | "laptop" | "desktop"` — swapping width/height at render time.
 - `interface DeviceSpec (8 members)`
 - `interface DeviceState (6 members)`

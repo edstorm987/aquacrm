@@ -272,6 +272,27 @@ issues a real session → redirects into the portal. Reverse direction
 - **B. Consent flags are self-reported.** The server trusts the `consent*` booleans the tag puts in the body — no server-side source of truth ties them to the stored preference.
 - **C. `/api/public/form-capture` has no body-size cap** (telemetry caps at 32KiB); it relies on field-count/length caps only.
 
+### Network throttling (added 2026-08-22 — the Dev editor's wifi control)
+The tag can throttle **what the page's scripts request** on the editor's
+command: `aqua-explorer:throttle` carries `{latencyMs, downKbps, offline}` (or
+`null` to clear), the tag lazily wraps `window.fetch` + `XMLHttpRequest.prototype.send`
+(a never-throttled page is never touched), applies real latency, paces fetch
+response bodies chunk-by-chunk to ≈`downKbps`, and simulates offline the way a
+dead network fails (fetch → `TypeError("Failed to fetch")`, XHR → `error` event,
+request never leaves). Clearing restores the exact saved originals. It replies
+`aqua-explorer:throttle-applied {profile}` with what is ACTUALLY in force — the
+editor renders that ack, never its own request. **Honest scope:** a parent page
+cannot throttle a cross-origin iframe's document/stylesheet/image loads (only
+DevTools can), so the tag never pretends to; the editor modal states this.
+Capabilities now include `networkThrottle: true` (parsed leniently — a cached
+pre-throttle build reads as `false`, not malformed). UI:
+`src/components/editing/NetworkThrottleControl.tsx` (presets Offline / Slow 3G
+2000ms·400kbps / Fast 3G 560ms·1500kbps / 4G 170ms·9000kbps / custom).
+
 ## 13. Tests
 `scripts/smoke-aqua-tag-detection.test.ts`, `smoke-consent-capture.test.ts`,
-`smoke-website-sources.test.ts`, `smoke-enquiry-dedupe.test.ts`.
+`smoke-website-sources.test.ts`, `smoke-enquiry-dedupe.test.ts`,
+`smoke-aqua-tag-bridge.test.ts` (protocol drift guard incl. throttle envelopes
++ mutation-tested), `smoke-aqua-tag-throttle.test.ts` (VM-executes the tag:
+lazy wrap, real latency, pacing, offline, restore),
+`smoke-network-throttle-control.test.ts` (wifi control pins).

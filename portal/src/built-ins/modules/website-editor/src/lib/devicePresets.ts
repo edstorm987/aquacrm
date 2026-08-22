@@ -2,7 +2,12 @@
 //
 // Mirrors Chrome DevTools' device toolbar — a curated set of common
 // phones, tablets, laptops and desktops, plus a "Responsive" mode that
-// lets the operator drag the canvas edges to any size.
+// lets the operator drag the canvas edges to any size. (For a long time
+// that sentence described an intention: no consumer implemented the drag.
+// Since 2026-08-22 one does — the browser BOX in the Dev Editor,
+// `PreviewFrame` in `src/engines/editor/DevEditor.tsx`, grows handles on
+// its right/bottom/corner in Responsive mode and writes the dragged size
+// back as `customWidth`/`customHeight`.)
 //
 // Dimensions are CSS-pixels (the viewport size at 1× DPR), portrait
 // orientation. The DevicePreview component handles rotation by
@@ -113,7 +118,14 @@ export function getDevicePreset(id: string): DeviceSpec | undefined {
 }
 
 // Persistent operator preference — sticks across editor sessions.
+//
+// `scope` namespaces the preference: the Dev Editor passes a project id so
+// each project remembers its own device (a marketing site is checked on
+// phones; a desktop game is not), while the module's own EditorPage keeps
+// the unscoped key it has always written.
 const STORAGE_KEY = "lk_editor_device_v1";
+
+const storageKey = (scope?: string) => (scope ? `${STORAGE_KEY}:${scope}` : STORAGE_KEY);
 
 export interface DeviceState {
   deviceId: string;
@@ -124,26 +136,26 @@ export interface DeviceState {
   customHeight?: number;
 }
 
-const DEFAULT_STATE: DeviceState = {
+export const DEFAULT_DEVICE_STATE: DeviceState = {
   deviceId: "responsive",
   rotated: false,
   zoom: 1,
   showChrome: false,
 };
 
-export function loadDeviceState(): DeviceState {
-  if (typeof window === "undefined") return DEFAULT_STATE;
+export function loadDeviceState(scope?: string): DeviceState {
+  if (typeof window === "undefined") return DEFAULT_DEVICE_STATE;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_STATE;
+    const raw = localStorage.getItem(storageKey(scope));
+    if (!raw) return DEFAULT_DEVICE_STATE;
     const parsed = JSON.parse(raw) as Partial<DeviceState>;
-    return { ...DEFAULT_STATE, ...parsed };
-  } catch { return DEFAULT_STATE; }
+    return { ...DEFAULT_DEVICE_STATE, ...parsed };
+  } catch { return DEFAULT_DEVICE_STATE; }
 }
 
-export function saveDeviceState(state: DeviceState): void {
+export function saveDeviceState(state: DeviceState, scope?: string): void {
   if (typeof window === "undefined") return;
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(storageKey(scope), JSON.stringify(state)); } catch {}
 }
 
 // Compute the effective rendered viewport given a preset + state. The

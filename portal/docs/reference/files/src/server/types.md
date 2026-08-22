@@ -4,7 +4,7 @@
 
 **What it is:** Shared portal types. Storage, server modules, auth, chrome and the plugin runtime all import from here. Keeping this module dependency-free means it can be safely imported from edge / middleware / client code when the bundler tree-shakes the unused symbols. Type-only import — erased by `isolatedModules`, so it introduces no runtime dependency and this module stays edge/client-safe. `block.ts` is itself dependency-free and only type-imports back from here, so the cycle is compile-time only.
 
-## Exports (285)
+## Exports (296)
 
 - `type AgencyStatus`
 - `interface BrandKit (15 members)`
@@ -240,7 +240,18 @@
 - `interface AgencyWebsiteProject (17 members)`
 - `interface IntegrationConnection (15 members)`
 - `type DevProjectKind`
-- `interface DevProject (15 members)`
+- `interface DevProjectRepoMap (10 members)`
+- `interface DevProjectTagMap (10 members)`
+- `type DevProjectTagState`
+- `interface DevProjectMapStatus (8 members)`
+- `interface DevProjectMasterTagView (5 members)`
+- `interface DevProjectMap (4 members)`
+- `interface DevProject (18 members)`
+- `interface EditorAiConfig (10 members)`
+- `interface EditorAiStatus (7 members)`
+- `interface EditorAiMessage (6 members)`
+- `interface EditorAiThread (5 members)`
+- `interface EditorAiConversation (6 members)`
 - `interface RadarMemoryIssueState (11 members)`
 - `interface RadarMemoryCheckState (7 members)`
 - `interface RadarMemorySourceState (10 members)`
@@ -290,14 +301,18 @@
 - `interface PeopleRecognition (8 members)`
 - `type CustomKpiOp`
 - `interface CustomKpiDefinition (9 members)`
-- `interface PortalState (80 members)`
+- `interface PortalState (82 members)`
 
 ## Depends on (1)
 
 - [`src/engines/editor/elements/block.ts`](../engines/editor/elements/block.md)
 
-## Used by (381)
+## Used by (404)
 
+- [`scripts/smoke-aqua-editor-ai-history.test.ts`](../../scripts/smoke-aqua-editor-ai-history.test.md)
+- [`scripts/smoke-aqua-editor-ai-reply.test.ts`](../../scripts/smoke-aqua-editor-ai-reply.test.md)
+- [`scripts/smoke-aqua-editor-ai-stale-key-panel.harness.tsx`](../../scripts/smoke-aqua-editor-ai-stale-key-panel.harness.md)
+- [`scripts/smoke-aqua-editor-ai-token.test.ts`](../../scripts/smoke-aqua-editor-ai-token.test.md)
 - [`scripts/smoke-automation-control.test.ts`](../../scripts/smoke-automation-control.test.md)
 - [`scripts/smoke-business-radar.test.ts`](../../scripts/smoke-business-radar.test.md)
 - [`scripts/smoke-client-journey.test.ts`](../../scripts/smoke-client-journey.test.md)
@@ -311,6 +326,12 @@
 - [`scripts/smoke-dev-console-write-gates.test.ts`](../../scripts/smoke-dev-console-write-gates.test.md)
 - [`scripts/smoke-dev-doc-edits.test.ts`](../../scripts/smoke-dev-doc-edits.test.md)
 - [`scripts/smoke-dev-docs.test.ts`](../../scripts/smoke-dev-docs.test.md)
+- [`scripts/smoke-dev-editor-aqua-tag.test.ts`](../../scripts/smoke-dev-editor-aqua-tag.test.md)
+- [`scripts/smoke-dev-project-map.test.ts`](../../scripts/smoke-dev-project-map.test.md)
+- [`scripts/smoke-dev-project-nesting.test.ts`](../../scripts/smoke-dev-project-nesting.test.md)
+- [`scripts/smoke-editor-words-publish.test.ts`](../../scripts/smoke-editor-words-publish.test.md)
+- [`scripts/smoke-element-insert.test.ts`](../../scripts/smoke-element-insert.test.md)
+- [`scripts/smoke-file-finding-skill.test.ts`](../../scripts/smoke-file-finding-skill.test.md)
 - [`scripts/smoke-google-command-calendar.test.ts`](../../scripts/smoke-google-command-calendar.test.md)
 - [`scripts/smoke-kpi-registry.test.ts`](../../scripts/smoke-kpi-registry.test.md)
 - [`scripts/smoke-lead-role.test.ts`](../../scripts/smoke-lead-role.test.md)
@@ -322,6 +343,8 @@
 - [`scripts/smoke-portal-element-parity.harness.tsx`](../../scripts/smoke-portal-element-parity.harness.md)
 - [`scripts/smoke-portal-elements.test.ts`](../../scripts/smoke-portal-elements.test.md)
 - [`scripts/smoke-product-assignment-adaptation.test.ts`](../../scripts/smoke-product-assignment-adaptation.test.md)
+- [`scripts/smoke-repo-write.test.ts`](../../scripts/smoke-repo-write.test.md)
+- [`scripts/smoke-work-lifecycle.test.ts`](../../scripts/smoke-work-lifecycle.test.md)
 - [`src/app/api/auth/dev-mode/route.ts`](../app/api/auth/dev-mode/route.md)
 - [`src/app/api/auth/switch-agency/route.ts`](../app/api/auth/switch-agency/route.md)
 - [`src/app/api/portal/activity-inbox/list/route.ts`](../app/api/portal/activity-inbox/list/route.md)
@@ -492,7 +515,6 @@
 - [`src/app/portal/agency/phases/[phaseId]/page.tsx`](../app/portal/agency/phases/[phaseId]/page.md)
 - [`src/app/portal/agency/phases/page.tsx`](../app/portal/agency/phases/page.md)
 - [`src/app/portal/agency/pipelines/[slug]/page.tsx`](../app/portal/agency/pipelines/[slug]/page.md)
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../app/portal/agency/portals/editor/_ClientPortalStudio.md)
 - [`src/app/portal/agency/portals/editor/page.tsx`](../app/portal/agency/portals/editor/page.md)
 - [`src/app/portal/agency/portals/forms/page.tsx`](../app/portal/agency/portals/forms/page.md)
 - [`src/app/portal/agency/portals/page.tsx`](../app/portal/agency/portals/page.md)
@@ -563,6 +585,9 @@
 - [`src/components/chrome/ThemeInjector.tsx`](../components/chrome/ThemeInjector.md)
 - [`src/components/chrome/Topbar.tsx`](../components/chrome/Topbar.md)
 - [`src/components/editing/AquaEditorAI.tsx`](../components/editing/AquaEditorAI.md)
+- [`src/components/editing/AquaEditorAIKey.tsx`](../components/editing/AquaEditorAIKey.md)
+- [`src/components/editing/AquaEditorAIThread.tsx`](../components/editing/AquaEditorAIThread.md)
+- [`src/components/editing/editorAiClient.ts`](../components/editing/editorAiClient.md)
 - [`src/components/people/TeamChat.tsx`](../components/people/TeamChat.md)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](../components/workspaces/PluginWorkspaceNav.md)
 - [`src/engines/data/radar/businessRadar.ts`](../engines/data/radar/businessRadar.md)
@@ -578,11 +603,19 @@
 - [`src/engines/data/server/radar/radarSweeps.ts`](../engines/data/server/radar/radarSweeps.md)
 - [`src/engines/data/server/radar/radarSyntheticProbes.ts`](../engines/data/server/radar/radarSyntheticProbes.md)
 - [`src/engines/data/server/radar/radarTelemetry.ts`](../engines/data/server/radar/radarTelemetry.md)
+- [`src/engines/editor/DevEditor.tsx`](../engines/editor/DevEditor.md)
 - [`src/engines/editor/elements/block.ts`](../engines/editor/elements/block.md)
 - [`src/engines/editor/elements/portalElements.ts`](../engines/editor/elements/portalElements.md)
 - [`src/engines/editor/server/devProjects.ts`](../engines/editor/server/devProjects.md)
+- [`src/engines/editor/server/editorAi.ts`](../engines/editor/server/editorAi.md)
+- [`src/engines/editor/server/editorAiHistory.ts`](../engines/editor/server/editorAiHistory.md)
+- [`src/engines/editor/server/editorAiReply.ts`](../engines/editor/server/editorAiReply.md)
 - [`src/engines/editor/server/editorAssistant.ts`](../engines/editor/server/editorAssistant.md)
+- [`src/engines/editor/server/mapProject.ts`](../engines/editor/server/mapProject.md)
 - [`src/engines/editor/server/portalStudio.ts`](../engines/editor/server/portalStudio.md)
+- [`src/engines/editor/server/repoWrite.ts`](../engines/editor/server/repoWrite.md)
+- [`src/engines/editor/server/sourceEdit.ts`](../engines/editor/server/sourceEdit.md)
+- [`src/engines/editor/server/workLifecycle.ts`](../engines/editor/server/workLifecycle.md)
 - [`src/engines/sop/server/sopGuides.ts`](../engines/sop/server/sopGuides.md)
 - [`src/engines/sop/server/sops.ts`](../engines/sop/server/sops.md)
 - [`src/lib/advisor/advisorActions.ts`](../lib/advisor/advisorActions.md)
@@ -620,6 +653,7 @@
 - [`src/lib/server/commandIntelligenceService.ts`](../lib/server/commandIntelligenceService.md)
 - [`src/lib/server/dev/devDocEdits.ts`](../lib/server/dev/devDocEdits.md)
 - [`src/lib/server/dev/devDocs.ts`](../lib/server/dev/devDocs.md)
+- [`src/lib/server/dev/fileFinding.ts`](../lib/server/dev/fileFinding.md)
 - [`src/lib/server/editing/adapters.ts`](../lib/server/editing/adapters.md)
 - [`src/lib/server/editing/appConfigAdapter.ts`](../lib/server/editing/appConfigAdapter.md)
 - [`src/lib/server/identityResolution.ts`](../lib/server/identityResolution.md)

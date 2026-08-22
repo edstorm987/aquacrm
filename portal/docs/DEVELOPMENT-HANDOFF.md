@@ -1,5 +1,17 @@
 # AquaCRM Development Handoff
 
+> **Despite the name, this is the ENVIRONMENT RUNBOOK — repo, ports, commands,
+> persistence, backends.** It is live, it is named as required reading by
+> `CLAUDE.md`, and it is *not* a session handoff. The dated session handoffs
+> (`SESSION-HANDOFF-2026-08-18/19`) were a different thing wearing a similar
+> name; they were archived 2026-08-21 to the
+> [history shelf](context/archive/README.md).
+>
+> ⚠ Two known staleness points in the text below, flagged rather than silently
+> rewritten: the install line still says `npm install --legacy-peer-deps`, and
+> this file's own "last updated" predates several environment changes. Verify
+> against `package.json` before trusting a command.
+
 Last updated: 17 August 2026
 
 ## Repository And Runtime

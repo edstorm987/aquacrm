@@ -18,7 +18,12 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 
 - [`src/engines/editor/server/patch.ts`](./patch.md)
 
-## Used by
+## Used by (6)
 
-_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+- [`scripts/smoke-editor-words-publish.test.ts`](../../../../scripts/smoke-editor-words-publish.test.md)
+- [`scripts/smoke-element-insert.test.ts`](../../../../scripts/smoke-element-insert.test.md)
+- [`scripts/smoke-repo-write.test.ts`](../../../../scripts/smoke-repo-write.test.md)
+- [`scripts/smoke-work-lifecycle.test.ts`](../../../../scripts/smoke-work-lifecycle.test.md)
+- [`src/engines/editor/server/repoWrite.ts`](./repoWrite.md)
+- [`src/engines/editor/server/sourceEdit.ts`](./sourceEdit.md)
 

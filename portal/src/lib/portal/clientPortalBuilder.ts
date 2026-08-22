@@ -26,7 +26,7 @@ import { PORTAL_ELEMENT_PAIRINGS, createPortalBlockRecord } from "@/engines/edit
  * which shared element it is a name for, so there is one vocabulary rather than
  * two that happen to agree.
  *
- * The exported shape and order are unchanged — `_ClientPortalStudio` renders
+ * The exported shape and order are unchanged — `DevEditor` renders
  * this array directly and was not touched.
  */
 export const CLIENT_PORTAL_BLOCK_REGISTRY: Array<{

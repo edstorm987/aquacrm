@@ -9,12 +9,14 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `async GET(request: NextRequest)`
 - `async POST(request: NextRequest)`
 
-## Depends on (9)
+## Depends on (11)
 
 - [`src/engines/editor/server/codeAdapter.ts`](../../../../../engines/editor/server/codeAdapter.md)
 - [`src/engines/editor/server/devProjects.ts`](../../../../../engines/editor/server/devProjects.md)
 - [`src/engines/editor/server/fileTree.ts`](../../../../../engines/editor/server/fileTree.md)
 - [`src/engines/editor/server/githubSource.ts`](../../../../../engines/editor/server/githubSource.md)
+- [`src/engines/editor/server/sourceEdit.ts`](../../../../../engines/editor/server/sourceEdit.md)
+- [`src/engines/editor/server/workspaceFiles.ts`](../../../../../engines/editor/server/workspaceFiles.md)
 - [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/dev/devDocs.ts`](../../../../../lib/server/dev/devDocs.md)
 - [`src/lib/server/integrations/integrationConnections.ts`](../../../../../lib/server/integrations/integrationConnections.md)

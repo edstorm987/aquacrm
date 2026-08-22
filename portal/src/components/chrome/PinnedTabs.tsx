@@ -60,15 +60,20 @@ export function PinCurrentControl({ label }: { label: string }) {
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const entry = { href, label: derivePageLabel(href, label) };
-  const setLoc = (location: PinLocation) => { pin(entry, location); setOpen(false); };
+  // Built at PIN TIME, inside the handler — never during render. derivePageLabel
+  // reads the live DOM (document.querySelector), which is impure in the render
+  // phase and answers differently on the server than on the client. Calling it
+  // from the click handlers is what its own comment always claimed, and it means
+  // the pin captures the heading as it stands when you press the button.
+  const currentEntry = () => ({ href, label: derivePageLabel(href, label) });
+  const setLoc = (location: PinLocation) => { pin(currentEntry(), location); setOpen(false); };
   const anyPins = pins.length > 0;
 
   return (
     <div ref={wrapRef} className="relative flex shrink-0 items-center">
       <button
         type="button"
-        onClick={() => toggle(entry, "topbar")}
+        onClick={() => toggle(currentEntry(), "topbar")}
         aria-pressed={pinnedAnywhere}
         aria-label={current ? "Unpin this page" : "Pin this page to the topbar"}
         title={current ? (current.location === "sidebar" ? "Pinned to sidebar" : "Pinned to topbar") : "Pin this page"}

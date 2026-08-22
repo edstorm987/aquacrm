@@ -60,6 +60,7 @@ const providerIcon: Record<IntegrationProvider, typeof Mail> = {
   github: Code2,
   vercel: Cloud,
   openai: Bot,
+  "aqua-editor-ai": Bot,
   "google-search-console": SearchCheck,
 };
 

@@ -6,7 +6,9 @@
 full suite green, typecheck-clean; browser verification owed to the commander).
 See [updates.md](../updates.md) for each phase. Future enhancements noted: a unified
 cross-domain client+staff+supplier contracts view (none exists to merge into today),
-and embedding the full `_ClientPortalStudio` block editor for module authoring.
+and embedding the full block editor — `src/engines/editor/DevEditor.tsx` (the one universal
+editor; it was called `_ClientPortalStudio` and lived under `agency/portals/editor/` until
+2026-08-21) — for module authoring.
 
 **Original brief — Ed:** staff/capacity is scattered and half-there —
 he needs to *know* where the team's strong, where **he's** strong (owner

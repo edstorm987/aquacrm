@@ -24,13 +24,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/engines/editor/elements/portalElements.ts`](../../engines/editor/elements/portalElements.md)
 - [`src/server/types.ts`](../../server/types.md)
 
-## Used by (7)
+## Used by (8)
 
+- [`scripts/smoke-editor-element-palette.test.ts`](../../../scripts/smoke-editor-element-palette.test.md)
 - [`scripts/smoke-portal-element-parity.harness.tsx`](../../../scripts/smoke-portal-element-parity.harness.md)
 - [`scripts/smoke-portal-elements.test.ts`](../../../scripts/smoke-portal-elements.test.md)
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
 - [`src/app/portal/customer/_CustomerPortalChrome.tsx`](../../app/portal/customer/_CustomerPortalChrome.md)
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../../app/portal/customer/_CustomerPortalViews.md)
 - [`src/app/portal/customer/_PortalPageComposition.tsx`](../../app/portal/customer/_PortalPageComposition.md)
+- [`src/engines/editor/DevEditor.tsx`](../../engines/editor/DevEditor.md)
 - [`src/lib/portal/clientPortalDesign.ts`](./clientPortalDesign.md)
 

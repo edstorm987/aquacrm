@@ -129,7 +129,7 @@ describe("bespoke product portal modules", () => {
       readFile(new URL("../src/app/portal/customer/[...rest]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/client-preview/[clientId]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_portalData.ts", import.meta.url), "utf8"),
-      readFile(new URL("../src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/engines/editor/DevEditor.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/server/clientPortalSetup.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/app/api/tenants/customer-portal-control/route.ts", import.meta.url), "utf8"),
     ]);

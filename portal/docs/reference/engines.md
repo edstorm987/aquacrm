@@ -250,7 +250,72 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface RadarTelemetrySnapshot (3 members)`
 
 
+## `src/engines/editor/`
+
+### `src/engines/editor/DevEditor.tsx`
+
+- `DevEditor({ clients, templates, initialClientId, initialTemplateId, initialScope, initialMode, initialSection, canManage, backHref = "/portal/agency/portals?view=templates", backLabel = "Back to portals", lockToClient =…`
+- `type PortalStudioClient = { id: string; name: string; built: boolean; mode: ClientPortalMode; }`
+- `type PortalStudioTemplate = { id: string; name: string; productId?: string; baseTemplateVersionId?: string; latestMasterVersionId: string; active: boolean; }`
+
+
 ## `src/engines/editor/editing/`
+
+### `src/engines/editor/editing/aquaTagBridge.ts`
+
+- `aquaTagPing(requestId: string): AquaTagPingMessage` — Builders rather than object literals at the call site. Forgetting `version` is not a visible failure — the tag returns early and the editor waits forever for a reply that was neve…
+- `aquaTagInspect(requestId: string): AquaTagInspectMessage`
+- `aquaTagEnable(): AquaTagEnableMessage`
+- `aquaTagDisable(): AquaTagDisableMessage`
+- `aquaTagPatchMessage(elementId: string, patch: AquaTagPatch): AquaTagPatchMessage`
+- `aquaTagReset(): AquaTagResetMessage`
+- `aquaTagThrottle(profile: AquaTagThrottleProfile | null): AquaTagThrottleMessage`
+- `parseAquaTagElement(value: unknown): AquaTagElement | null` — A described element, or null. Exported because a selection is the payload the rest of the editor cares about, and the assistant and builder destinations will want to validate one …
+- `parseAquaTagThrottleProfile(value: unknown): AquaTagThrottleProfile | null` — A throttle profile, or null. Null covers both "malformed" and "not one" — a caller deciding between clear-and-apply should check for null first. Exported because the UI validates …
+- `parseAquaTagMessage(data: unknown): AquaTagInboundMessage | null` — The one entry point for anything arriving from a tagged page. Returns a typed message or null. Null covers "not ours", "wrong protocol version" and "malformed" alike, because the …
+- `aquaTagOrigin(frameUrl: string | null | undefined, base?: string | null): string | null` — The single origin the editor will talk to for a given preview URL. Returns null — never "*", never a guess — when no exact origin can be established: an empty or unparseable URL, …
+- `aquaTagBrowserUrl(project: AquaTagBrowserTarget | null | undefined): string` — The address the preview frame should load, which is not always the one typed. SEVERE bug this exists to fix. A project whose `siteUrl` is `https://edsgame.com/` maps fine — MAP fo…
+- `isAquaTagMessageTrusted(event: AquaTagMessageEnvelope, policy: AquaTagOriginPolicy): boolean` — Whether a message came from the frame and origin the editor is talking to.
+- `acceptAquaTagMessage(event: AquaTagMessageEnvelope, policy: AquaTagOriginPolicy): AquaTagInboundMessage | null` — Trust, then parse. The function a message handler should call. Kept as one call so the two halves cannot be separated by accident: parsing without the origin check is how an unown…
+- `AQUA_TAG_PROTOCOL_VERSION = 1 as const` — Bumped only when the shape below changes incompatibly. The tag checks this on EVERY inbound message and silently returns when it disagrees, so an editor→tag message without a matc…
+- `AQUA_TAG_MESSAGES = {` — Every message name in the protocol, exactly as the tag spells it. Copied from `src/lib/integrations/aquaTagSource.ts` and pinned by the drift guard in both directions — a name add…
+- `AQUA_TAG_STYLE_PROPERTIES = [` — The style properties the protocol carries, in one place. The tag reads exactly these in `explorerDescribe` and writes exactly these in `explorerPatchElement`'s allow-list. Both li…
+- `AQUA_TAG_ELEMENT_FIELDS = Object.keys(ELEMENT_FIELDS) as (keyof AquaTagElement)[]`
+- `AQUA_TAG_READY_FIELDS = fieldsOf<AquaTagReadyMessage>({`
+- `AQUA_TAG_CAPABILITY_FIELDS = fieldsOf<AquaTagCapabilities>({`
+- `AQUA_TAG_THROTTLE_APPLIED_FIELDS = fieldsOf<AquaTagThrottleAppliedMessage>({`
+- `AQUA_TAG_THROTTLE_PROFILE_FIELDS = fieldsOf<AquaTagThrottleProfile>({`
+- `AQUA_TAG_DIAGNOSTICS_MESSAGE_FIELDS = fieldsOf<AquaTagDiagnosticsMessage>({`
+- `AQUA_TAG_DIAGNOSTICS_FIELDS = fieldsOf<AquaTagDiagnostics>({`
+- `AQUA_TAG_COUNT_FIELDS = fieldsOf<AquaTagDiagnostics["counts"]>({`
+- `AQUA_TAG_PERFORMANCE_FIELDS = fieldsOf<AquaTagDiagnostics["performance"]>({`
+- `AQUA_TAG_CONNECTION_FIELDS = fieldsOf<NonNullable<AquaTagDiagnostics["connection"]>>({`
+- `AQUA_TAG_SELECTED_FIELDS = fieldsOf<AquaTagSelectedMessage>({`
+- `AQUA_TAG_SIZE_FIELDS = ["width", "height"] as const` — Both halves of a measured box, so the guard can pin them as one thing.
+- `type AquaTagMessageName = (typeof AQUA_TAG_MESSAGES)[keyof typeof AQUA_TAG_MESSAGES]`
+- `type AquaTagStyleProperty = (typeof AQUA_TAG_STYLE_PROPERTIES)[number]`
+- `type AquaTagElementStyles = Record<AquaTagStyleProperty, string>`
+- `type AquaTagInboundMessage = | AquaTagReadyMessage | AquaTagDiagnosticsMessage | AquaTagSelectedMessage | AquaTagThrottleAppliedMessage`
+- `type AquaTagOutboundMessage = | AquaTagPingMessage | AquaTagInspectMessage | AquaTagEnableMessage | AquaTagDisableMessage | AquaTagPatchMessage | AquaTagResetMessage | AquaTagThrottleMessage`
+- `interface AquaTagElement (8 members)` — One mapped element, field for field as `explorerDescribe` builds it. `text` is absent on images and `src`/`alt` are absent on everything else — the tag sends `undefined` for the b…
+- `interface AquaTagPatch (4 members)` — What the editor may change on a mapped element. Preview-only; nothing here is saved.
+- `interface AquaTagCapabilities (4 members)`
+- `interface AquaTagThrottleProfile (3 members)` — What a throttle actually applies. All three at once, not either/or: a Slow-3G preset is latency AND pacing together.
+- `interface AquaTagDiagnostics (9 members)`
+- `interface AquaTagReadyMessage (7 members)` — ── tag → editor ────────────────────────────────────────────────────────────
+- `interface AquaTagDiagnosticsMessage (4 members)`
+- `interface AquaTagSelectedMessage (3 members)`
+- `interface AquaTagThrottleAppliedMessage (3 members)`
+- `interface AquaTagPingMessage (3 members)` — ── editor → tag ────────────────────────────────────────────────────────────
+- `interface AquaTagInspectMessage (3 members)`
+- `interface AquaTagEnableMessage (2 members)`
+- `interface AquaTagDisableMessage (2 members)`
+- `interface AquaTagPatchMessage (4 members)`
+- `interface AquaTagResetMessage (2 members)`
+- `interface AquaTagThrottleMessage (3 members)`
+- `interface AquaTagBrowserTarget (2 members)` — What a project says its live page is — and where the editor should point. Structural rather than importing `DevProject`, because `@/server/types` is not something this client-safe…
+- `interface AquaTagOriginPolicy (2 members)` — How a caller describes the frame it is willing to hear from.
+- `interface AquaTagMessageEnvelope (3 members)` — The shape of the part of a `MessageEvent` this module reads. Structural rather than the DOM type so the policy can be exercised in a plain Node test — the security rule is the thi…
 
 ### `src/engines/editor/editing/elementSource.ts`
 
@@ -299,12 +364,22 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/engines/editor/editing/modes.ts`
 
+- `inspectorTabsFor(mode: EditingMode, target: { portalTarget: boolean; tagMapped: boolean }): InspectorTab[]` — Which tabs are actually offered, given the depth AND what is connected. The depth answers "how much do I want to be shown?"; the target answers "what is there to show?". Both gate…
 - `editingMode(id: string | null | undefined): EditingModeDefinition`
 - `modeAllowsTab(mode: EditingMode, tab: string): boolean` — Whether a tab is offered in this mode.
-- `tabForMode(mode: EditingMode, currentTab: string): string` — Keeps the current tab valid when the mode changes. Switching from Developer to "Just the words" while sitting on the code tab must land somewhere real rather than on a blank panel…
+- `tabForMode(mode: EditingMode, currentTab: string): string` — Keeps the current tab valid when the mode changes. Switching from Developer to a shallower depth while sitting on the code tab must land somewhere real rather than on a blank pane…
 - `EDITING_MODES: EditingModeDefinition[]`
-- `type EditingMode = "assist" | "simple" | "visual" | "developer"` — How deep somebody wants to go, kept separate from what they are editing. The Studio's tabs answer "what am I changing?" — content, layout, brand, code. That is a different questio…
+- `INSPECTOR_TABS = [` — Every inspector tab, in the order the rail and the mobile strip show them. The order lives HERE rather than beside the icons in `DevEditor.tsx` so the rule below and the rendering…
+- `type EditingMode = "assist" | "visual" | "developer"` — How deep somebody wants to go, kept separate from what they are editing. The Studio's tabs answer "what am I changing?" — content, layout, brand, code. That is a different questio…
+- `type InspectorTab = (typeof INSPECTOR_TABS)[number]`
 - `interface EditingModeDefinition (4 members)`
+
+### `src/engines/editor/editing/selectionRouting.ts`
+
+- `routeTagSelection(mode: EditingMode, options: { portalTarget: boolean }): SelectionRoute` — Where a selection goes at this depth. `portalTarget` is the ONE thing that bends the answer, and only for the visual depth: the visual builder edits an Aqua-hosted portal document…
+- `modeSelectsThroughTag(mode: EditingMode): boolean` — Whether a depth uses the tagged browser to select at all. Every one of them does — that is the point of "one mechanism". Kept as a named function rather than a `true` scattered th…
+- `type SelectionDestination = "element" | "assistant" | "builder"` — Inspector tabs a selection can be routed to. A subset of the editor's tabs on purpose — these are the only three that can meaningfully receive "the operator just pointed at this e…
+- `interface SelectionRoute (5 members)`
 
 
 ## `src/engines/editor/elements/`
@@ -389,6 +464,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PropField (16 members)`
 - `interface BlockDefinition (14 members)` — ─── The definition ───────────────────────────────────────────────────────
 
+### `src/engines/editor/elements/emit.ts`
+
+- `emitKindForFile(path: string): EmitKind | null` — How a file wants its markup. `.tsx/.jsx/.mdx` compile JSX; `.html` and markdown take plain HTML (raw HTML is legal markdown). `null` is "this file cannot take an element at all" —…
+- `emitElementSource(def: Pick<BlockDefinition, "type" | "label" | "isContainer" | "defaultProps" | "fields">, kind: EmitKind): string[]` — One block definition as lines of source, defaults filled in. Deterministic — same definition, same lines — because the preview the operator confirms and the code that lands must b…
+- `emitElementCode(def: Pick<BlockDefinition, "type" | "label" | "isContainer" | "defaultProps" | "fields">, kind: EmitKind): string` — The lines as one string — what travels to the server and into the preview.
+- `type EmitKind = "jsx" | "html"` — The two shapes source can take. Which one is the FILE's decision.
+
 ### `src/engines/editor/elements/ids.ts`
 
 - `makeId(prefix: string, length = 12): string`
@@ -403,11 +485,25 @@ Every exported function, class, type and const in this area, with its real signa
 - `{ assertDefinitionConsistent, buildElementSchema, elementSchema, validateElementProps } from "./schema"`
 - `{ getElementDefinition, getElementRenderer, listElementDefinitions, listElementRendererIds, listElementTypes, registerElementDefinitions, registerElementRenderers } from "./registry"`
 - `{ STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "./blockStyles"`
+- `{ ElementPaletteItem } from "./palette"`
+- `{ PORTAL_CATEGORY_LABELS, WEBSITE_CATEGORY_LABELS, WEBSITE_CATEGORY_ORDER, elementLibrarySentence, elementPalette, elementPaletteGroups, elementSurfaceFor } from "./palette"`
+- `{ ensureWebsiteElements, websiteElementsReady } from "./websiteElements"`
 - `{ BlockLocation } from "./blockTreeOps"`
 - `{ appendChild, cloneBlock, createBlock, duplicateBlock, findBlock, insertSibling, isDescendant, makeBlockId, moveBlock, removeBlock, updateBlock } from "./blockTreeOps"`
 - `{ BlockMigrationStep } from "./blockSchemaMigrations"`
 - `{ BLOCK_SCHEMA_VERSION, MIGRATIONS, blockVersion, loadBlockTreeMigrated, migrateTree, treeNeedsMigration } from "./blockSchemaMigrations"`
 - `{ makeId, slugify } from "./ids"`
+
+### `src/engines/editor/elements/palette.ts`
+
+- `elementSurfaceFor(target: { portalTarget: boolean }): ElementSurface` — Which vocabulary a target speaks. Never "none".
+- `elementPalette(surface: ElementSurface): ElementPaletteItem[]` — Everything placeable on one surface, in that surface's own order. The website branch returns `[]` until the vocabulary has been registered — it is an import side effect, not a sta…
+- `elementPaletteGroups(surface: ElementSurface): Array<{ group: string; items: ElementPaletteItem[] }>` — The palette, grouped, with the headers in surface order.
+- `elementLibrarySentence(input: { surface: ElementSurface; /** A portal design document is open, so blocks have a page to land on. */ hasPortalDocument: boolean; /** An Aqua Tag answers on this project's page. */ tagMappe…` — Where an element from this palette can actually go, in one sentence. The ONE place those words are written, for the same reason `devProjectTagSentence` is: a panel that paraphrase…
+- `WEBSITE_CATEGORY_ORDER: readonly ElementCategory[]` — The website categories, in palette order. The plugin's own `BlockCatalog.tsx` keeps an identical pair for its standalone sidebar. This copy exists because the engine may not impor…
+- `WEBSITE_CATEGORY_LABELS: Record<ElementCategory, string>`
+- `PORTAL_CATEGORY_LABELS: Record<string, string>` — The portal group headers, kept EXACTLY as the Dev Editor's add menu already wrote them — this module replaced that inline map, and a palette that silently renames its own headers …
+- `interface ElementPaletteItem (6 members)` — One placeable thing, in the words of the surface it belongs to. `type` is the value that surface stores in a block's `type` field, which is why the portal branch below reads `PORT…
 
 ### `src/engines/editor/elements/portalElements.ts`
 
@@ -454,6 +550,15 @@ Every exported function, class, type and const in this area, with its real signa
 - `recordConversion(groupId: string, variantId: string)`
 - `interface ResolvedVariant (2 members)`
 
+### `src/engines/editor/elements/websiteElements.ts`
+
+- `ensureWebsiteElements(): Promise<void>` — Ensure `listElementDefinitions("website")` can answer. Resolves once the definitions are registered. Safe to call on every render, from several components, and before or after the…
+- `websiteElementsReady(): boolean` — Whether the vocabulary is present right now, without awaiting anything. Reads the registry rather than the flag above: another module may have imported `blockRegistry` statically …
+
+### `src/engines/editor/elements/websiteVocabulary.ts`
+
+- `WEBSITE_VOCABULARY_LOADED = true` — Proof the side effect ran, for a caller that wants to await something meaningful rather than trust an empty module namespace.
+
 
 ## `src/engines/editor/server/`
 
@@ -466,19 +571,68 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/engines/editor/server/devProjects.ts`
 
 - `normalizeRepository(value: string | undefined): string` — "owner/repository" or blank (blank = read the local working tree).
+- `normalizeProjectSiteUrl(value: string | undefined): string` — The address MAP will fetch, or blank. http/https only, and stored WITHOUT credentials. A bare domain gets https — the scheme almost every site redirects to anyway, and typing "exa…
 - `listDevProjects(agencyId: string): DevProject[]`
 - `getDevProject(agencyId: string, id: string): DevProject | null`
 - `listDevProjectsForClient(agencyId: string, clientId: string): DevProject[]` — Projects for one client workspace — what Dev Mode injection reads.
+- `listDevProjectChildren(agencyId: string, id: string): DevProject[]` — The projects INSIDE one project — Ed's flat second level, nothing deeper. Same tenant rule as every read here: the agency is part of the question, so a foreign project id yields a…
 - `saveDevProject(input: SaveDevProjectInput): DevProject` — Create or update a project. A referenced connection must exist AND belong to this agency — otherwise a project could name another tenant's connection id and resolve their token.
+- `devProjectDeleteRefusal(agencyId: string, id: string): string | null` — Why this project may not be deleted right now, or null when it may be. ONE definition, read by the store's own delete AND by the route BEFORE it runs the destructive cleanup (AI k…
 - `deleteDevProject(agencyId: string, id: string, actorUserId: string): DevProject | null`
 - `devProjectGitHubToken(agencyId: string, project: DevProject): string | null` — The GitHub token for a project, or null when it has no connection bound. Resolved from the vault at call time — the project only ever holds an id. Callers fall back to their exist…
-- `devProjectVisualEditorUnlocked(project: DevProject): boolean` — True when a project has an Aqua Tag mapped — what unlocks the visual editor.
-- `interface SaveDevProjectInput (13 members)`
+- `devProjectVisualEditorUnlocked(project: DevProject): boolean` — True when a project has an Aqua Tag mapped. That alone is the gate. This used to also require `kind !== "software"`, and that clause was the bug. Every project Ed creates is `soft…
+- `devProjectTagState(project: DevProject): DevProjectTagState` — Which of the eight tag situations a project is in. Ed's ask, in his words: say what is true at each step — no tag yet, snippet not installed, installed and answering, or answering…
+- `devProjectTagSentence(project: DevProject): string` — That situation, as one sentence somebody can act on. Kept next to the state rather than in the screen so the editor, the setup surface and any future caller say the same thing — t…
+- `devProjectMapStatus(project: DevProject): DevProjectMapStatus` — What is connected, what is mapped, and what is still missing — in words. Pure, so the same answer drives the setup screen, the editor and the tests rather than each re-deriving th…
+- `aquaTagIdFromCheck(tag: DevProjectTagMap | undefined, existing: string | undefined): string | undefined` — The ONE rule for concluding "this page carries our tag". Both the Map path and the tag-only check path mint the id through here, so there is a single answer to what may set the ga…
+- `recordDevProjectMap(input: { agencyId: string; id: string; map: DevProjectMap; actorUserId: string; }): DevProject | null` — Record what a MAP run found. Separate from `saveDevProject` on purpose: mapping is a RESULT, not a field somebody types, and routing it through the save path would let a crafted r…
+- `recordDevProjectTagCheck(input: { agencyId: string; id: string; tag: DevProjectTagMap; actorUserId: string; now?: number; }): DevProject | null` — Record a TAG-ONLY check — "I have pasted the snippet, is it answering yet?" The same conclusion rule as a full Map (`aquaTagIdFromCheck`), and deliberately NOT a second way to wri…
+- `interface SaveDevProjectInput (15 members)`
+- `{ DevProjectMapStatus, DevProjectTagState }`
+
+### `src/engines/editor/server/editorAi.ts`
+
+- `getEditorAiConfig(agencyId: string, projectId: string): EditorAiConfig | null` — This project's configuration, or null. The agency is checked twice on purpose: once through `assertProject` at the write paths, and again here against the stored record. A key col…
+- `saveEditorAiConfig(input: SaveEditorAiConfigInput): EditorAiStatus` — Set the model and the brief. Never touches the token. Split from `setEditorAiToken` deliberately: changing which model a project talks to should not require re-pasting a key, and …
+- `setEditorAiToken(input: SetEditorAiTokenInput): EditorAiStatus` — Paste this project's key. The value goes straight into `saveIntegrationConnection`, which encrypts it before it touches state, and what comes back to this module is an ID. The key…
+- `clearEditorAiToken(input: { agencyId: string; projectId: string; actorUserId: string; actorEmail?: string; now?: number; }): EditorAiStatus` — Remove this project's key. Revokes the vault connection AND unbinds it, in that order, so a failure cannot leave the project pointing at a credential it no longer owns. The model …
+- `forgetEditorAiForProject(input: { agencyId: string; projectId: string; actorUserId: string; actorEmail?: string; }): void` — Delete a project's assistant entirely — its key and its configuration. Called when the project itself is deleted. Without it an orphaned encrypted credential outlives the only thi…
+- `resolveEditorAiToken(agencyId: string, projectId: string): string | null` — ⚠ THE TOKEN. Server-only, and it stops here. The single function in the codebase that turns a project id into Aqua Editor AI's actual key. Its result belongs in an outbound `autho…
+- `editorAiConfigured(agencyId: string, projectId: string): boolean` — Is Aqua Editor AI usable on this project? Defined as "a token really resolves", not as "an id is stored". Those differ exactly when somebody revokes the connection from the integr…
+- `editorAiModel(agencyId: string, projectId: string): string` — The model this project's assistant runs on. Never the agency assistant's.
+- `editorAiStatus(agencyId: string, projectId: string): EditorAiStatus` — Everything a screen may know. Safe to send to the client — by construction, not by remembering to strip a field.
+- `editorAiReason(agencyId: string, projectId: string): string` — Why the assistant is off, in words — so a screen never has to invent one. Empty string when it is on. Kept beside the gate rather than in the editor so the setup screen, the studi…
+- `EDITOR_AI_PROVIDER = "aqua-editor-ai" as const` — The vault provider kind this assistant's credential lives under.
+- `EDITOR_AI_DEFAULT_MODEL = "gpt-5-mini"` — What Aqua Editor AI runs on when nobody has chosen.
+- `interface SaveEditorAiConfigInput (7 members)`
+- `interface SetEditorAiTokenInput (8 members)`
+
+### `src/engines/editor/server/editorAiHistory.ts`
+
+- `getEditorAiConversation(agencyId: string, projectId: string): EditorAiConversation | null` — ONE project's whole history, or null when the caller has no business reading it. The two answers are deliberately different shapes. `null` means "that is not a project of yours" —…
+- `getEditorAiThread(agencyId: string, projectId: string, threadId: string): EditorAiThread | null` — One thread of one project's history, or null. Same guards.
+- `startEditorAiThread(input: StartEditorAiThreadInput): EditorAiThread` — Open a new conversation on this project.
+- `appendEditorAiMessage(input: AppendEditorAiMessageInput): { message: EditorAiMessage; threadId: string; conversation: EditorAiConversation; }` — Add one message to one project's history. An unknown `threadId` starts a thread instead of failing. The alternative is an operator losing what they typed because their tab held a …
+- `renameEditorAiThread(input: { agencyId: string; projectId: string; threadId: string; title: string; now?: number; }): EditorAiConversation`
+- `deleteEditorAiThread(input: { agencyId: string; projectId: string; threadId: string; now?: number; }): EditorAiConversation`
+- `clearEditorAiHistory(input: { agencyId: string; projectId: string; now?: number; }): EditorAiConversation` — Wipe ONE project's history. Nothing else. The record is removed rather than emptied, so a project with no conversation costs nothing in the blob. `evictedMessages` goes with it: t…
+- `forgetEditorAiHistoryForProject(input: { agencyId: string; projectId: string; }): void` — Delete a project's conversation because the PROJECT is being deleted. Separate from `clearEditorAiHistory` because it must survive the project no longer resolving — it runs beside…
+- `EDITOR_AI_HISTORY_LIMITS = {` — The cap. Exported because a limit nobody can read is a limit nobody can test, and because the UI has to be able to say what it is. `projectChars` is the number that matters: ~80KB…
+- `interface StartEditorAiThreadInput (5 members)`
+- `interface AppendEditorAiMessageInput (7 members)`
+
+### `src/engines/editor/server/editorAiReply.ts`
+
+- `async generateEditorAiReply(input: GenerateEditorAiReplyInput): Promise<EditorAiReplyResult>` — Answer the latest message in one project's thread, on that project's own key. Throws `project_not_found` / `thread_not_found` (the route 404s both, in the same words as its siblin…
+- `EDITOR_AI_REPLY_LIMITS = {` — What travels to the model, and how long it may take. Derived from the history caps where a history number exists, so the two cannot drift apart.
+- `type EditorAiReplyFailureCode = | "not_configured" /** The model did not answer inside the timeout. */ | "timeout" /** OpenAI could not be reached at all. */ | "network" /** OpenAI answered with a refusal. `error` carri…`
+- `type EditorAiReplyResult = | { ok: true; /** The assistant's message, already appended to the project's thread. */ message: EditorAiMessage; threadId: string; conversation: EditorAiConversation; } | { ok: false; code: E…`
+- `interface GenerateEditorAiReplyInput (7 members)`
 
 ### `src/engines/editor/server/editorAssistant.ts`
 
-- `async loadEditorAssistant(agencyId: string, userId: string): Promise<EditorAssistantProps>` — Everything Aqua Editor AI needs to mount inside the studio.
-- `interface EditorAssistantProps (4 members)` — three skins — nothing here is a second assistant.
+- `async loadEditorAssistant(agencyId: string, userId: string, projectId?: string): Promise<EditorAssistantProps>` — Everything Aqua Editor AI needs to mount inside the studio, for ONE project. `projectId` is optional only because the agency-portals door (`/portal/agency/portals/editor`) has no …
+- `interface EditorAssistantProps (11 members)` — from the mount together.
 
 ### `src/engines/editor/server/fileTree.ts`
 
@@ -495,13 +649,26 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/engines/editor/server/githubSource.ts`
 
+- `async readRepoHeadSha(source: GitHubRepoSource): Promise<string>` — The commit the ref points at, and nothing else. Split out of `readRepoTree` because the publish path asks this question on its own — "has the branch moved since we read it?" — and…
 - `async readRepoTree(source: GitHubRepoSource): Promise<RepoHead>` — The whole tree at a ref, in one request. `recursive=1` rather than walking directory by directory: a repository of any size would otherwise be hundreds of round trips, and the edi…
+- `async compareRepoRefs(source: GitHubRepoSource, head: string): Promise<RepoComparison>` — base…head — what the draft branch adds, and how far base has moved under it. One request answers both of the Drafts tab's questions (which files, which commits), which matters bec…
+- `async listBranchPullRequests(source: GitHubRepoSource, branch: string): Promise<BranchPullRequest[]>` — Every pull request whose head is `branch`, whatever its state. `state=all` on purpose: the lifecycle line must say "merged" after a merge, and the open-only listing `openPullReque…
 - `async readRepoFile(source: GitHubRepoSource, path: string): Promise<RepoFile>` — One file's contents at a ref.
 - `class GitHubNotConfigured`
     - `constructor()`
 - `interface GitHubRepoSource (4 members)`
 - `interface RepoHead (3 members)`
+- `interface RepoComparison (5 members)` — (`repoWrite.ts` → `publishEdits`) creates; they never create it themselves.
+- `interface BranchPullRequest (5 members)`
 - `interface RepoFile (6 members)`
+
+### `src/engines/editor/server/mapProject.ts`
+
+- `async mapProjectRepository(input: MapDevProjectInput, deps: MapDevProjectDeps = {}): Promise<DevProjectRepoMap>` — The repository half. Returns a record with `error` set rather than throwing: "this repo could not be read, here is why" is a normal thing to show on the card, and a throw would ta…
+- `async mapProjectAquaTag(input: MapDevProjectInput, deps: MapDevProjectDeps = {}): Promise<DevProjectTagMap | undefined>` — The Aqua Tag half. `undefined` when there is no address to check — that is "nothing was asked", which the status line words differently from "we looked and it was not there". Dete…
+- `async mapDevProject(input: MapDevProjectInput, deps: MapDevProjectDeps = {}): Promise<DevProjectMap>` — Both halves, run in parallel — one press, one record.
+- `interface MapDevProjectDeps (6 members)` — MAP — Ed's one button. "for setup create project create the repo give the editor the repo press a button called map and then it maps everything all good and then when for aqua tag…
+- `interface MapDevProjectInput (4 members)`
 
 ### `src/engines/editor/server/patch.ts`
 
@@ -545,10 +712,71 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface SiteRegistry (7 members)`
 - `interface ResolutionReport (5 members)`
 
+### `src/engines/editor/server/repoWrite.ts`
+
+- `normalizeRepoPath(requested: string): RepoPathCheck` — Normalise, then refuse — the same order the local route uses, because `..` can be spelled many ways and the only reliable question is where the path lands. There is no filesystem …
+- `async saveRepoFile(input: SaveRepoFileInput, deps: RepoWriteDeps = {}): Promise<SaveRepoFileResult>` — Put one edited file's contents on the project's draft branch, as a commit. Not "save to the site": the branch is a draft until its pull request is merged, and callers should say s…
+- `async createRepoPath(input: CreateRepoPathInput, deps: RepoWriteDeps = {}): Promise<CreateRepoPathResult>` — A new file is a blob committed to the draft branch at the requested path; a new folder is `<path>/.gitkeep`, because git has no empty directories — a fact the `note` states for th…
+- `async openProjectPullRequest(input: { agencyId: string; project: DevProject }, deps: RepoWriteDeps = {}): Promise<ProjectPullRequestResult>` — Open — or find and hand back — the pull request for the project's draft branch. Pressing the button twice is boring by design: `openPullRequest` returns the open one rather than e…
+- `async mergeProjectPullRequest(input: { agencyId: string; project: DevProject; confirm?: boolean }, deps: MergeRevertDeps = {}): Promise<MergeProjectResult>` — Merge the draft branch's OPEN pull request. Finds the PR itself (the operator confirms an action, not a number — a number from the body could name somebody else's PR on the same r…
+- `async revertMergedDraft(input: { agencyId: string; project: DevProject; confirm?: boolean }, deps: MergeRevertDeps = {}): Promise<RevertDraftResult>` — Put the PRE-DRAFT contents of everything the merged draft changed back onto the draft branch — as ordinary commits. THE REVERT IS ITSELF A DRAFT. Nothing here touches the base bra…
+- `async listInsertTargets(input: { agencyId: string; project: DevProject }, deps: RepoWriteDeps = {}): Promise<InsertTargetsResult>` — The files an element can be placed into — the picker's list. Read from the draft branch when it exists (a page created two saves ago is a real target, whatever base says) and filt…
+- `async insertElementIntoRepo(input: InsertElementInput, deps: RepoWriteDeps = {}): Promise<InsertElementResult>` — Put one element's emitted source into a file on the draft branch. Two calls by design, like the words editor: the first (no `confirm`) reads the file, plans the splice and returns…
+- `type RepoWriteDeps = SourceEditDeps` — Reuses the words editor's dep seams — same fakes drive both in tests.
+- `type RepoWriteRefusal = { ok: false; reason: | "bad-path" | "not-editable" | "too-large" | "unreadable" | "stale-fingerprint" | "no-change" | "exists" | "nothing-to-publish" | "pull-request-failed" // ── the element-ins…`
+- `type RepoPathCheck = { ok: true; path: string } | { ok: false; error: string }` — ─── Paths ───────────────────────────────────────────────────────────────────
+- `type SaveRepoFileResult = | { ok: true; path: string; branch: string; repository: string; /** False on a dry run — `confirm` was not exactly `true`. */ published: boolean; commitSha?: string; /** Of the NEW contents — w…`
+- `type CreateRepoPathResult = | { ok: true; created: "file" | "folder"; /** What was asked for. */ path: string; /** What was committed — `<path>/.gitkeep` for a folder. */ committedPath: string; branch: string; repositor…`
+- `type ProjectPullRequestResult = | { ok: true; branch: string; repository: string; baseBranch: string; pullRequest: PullRequestRef } | RepoWriteRefusal` — ─── PUBLISH ─────────────────────────────────────────────────────────────────
+- `type MergeRevertDeps = RepoWriteDeps & { listPrs?: typeof listBranchPullRequests; merge?: typeof mergePullRequest; compare?: typeof compareRepoRefs; }` — Seams for the phase-14 reads and the merge — same fakes drive the tests.
+- `type MergeProjectResult = | { ok: true; branch: string; repository: string; /** False on the dry run — `confirm` was not exactly `true`. */ merged: boolean; pullRequest: { number: number; url: string }; message: string;…`
+- `type RevertPlanFile = | { path: string; action: "restore"; note: string } | { path: string; action: "skip-added"; note: string } | { path: string; action: "already"; note: string }` — ─── REVERT A MERGED DRAFT (phase 14) ────────────────────────────────────────
+- `type RevertDraftResult = | { ok: true; branch: string; repository: string; /** False on the preview pass — nothing was written. */ published: boolean; files: RevertPlanFile[]; commitShas: string[]; summary: string; } | …`
+- `type InsertTargetsResult = | { ok: true; repository: string; branch: string; /** Which ref actually answered — the draft branch once it exists. */ readFrom: string; /** Every file an element can go into, in tree order. …`
+- `type InsertElementResult = | { ok: true; path: string; branch: string; repository: string; /** False on the preview pass — nothing was written. */ published: boolean; commitSha?: string; /** 1-based line the insert star…`
+- `interface SaveRepoFileInput (7 members)` — ─── SAVE ────────────────────────────────────────────────────────────────────
+- `interface CreateRepoPathInput (6 members)` — ─── CREATE ──────────────────────────────────────────────────────────────────
+- `interface InsertElementInput (8 members)`
+
 ### `src/engines/editor/server/sourceAdapter.ts`
 
 - `sourceEditAdapter(input: { registry: SiteRegistry; /** The repository's HEAD right now, so a moved branch is caught. */ headSha: () => Promise<string>; /** Commits the plan. Supplied by the caller so nothing here can wr…` — Website source, as something the shared editing engine can drive. The mapping is almost one-to-one, which is the point: a registry node is an edit target, a line hash is a fingerp…
 - `{ formatSourceStamp }`
+
+### `src/engines/editor/server/sourceEdit.ts`
+
+- `sourceEditTarget(agencyId: string, project: DevProject, deps: SourceEditDeps = {}): GitHubRepoSource` — The repository this project's words live in. A project with a blank `repository` is the local working tree, and the local working tree has no GitHub to commit to — that project's …
+- `async findWordsInProject(input: { agencyId: string; project: DevProject; text: string; }, deps: SourceEditDeps = {}): Promise<FindWordsResult>` — Where in this project's source those words appear. Only `isMappableFile` paths are read — the same filter `mapProject` counts with, so "mappable" means one thing in this engine. A…
+- `editBranchName(project: DevProject): string` — The branch a words edit lands on. One branch per project, so a run of small copy edits stacks into one branch and one pull request rather than scattering a dozen. Never the defaul…
+- `async publishWordsEdit(input: PublishWordsInput, deps: SourceEditDeps = {}): Promise<PublishWordsResult>` — Commit one words edit. Every check that matters is `patch.ts`'s, reached by building the one-file registry it expects rather than by re-deciding anything here: • the registry is p…
+- `class SourceEditUnavailable`
+    - `constructor(code: "no-repository" | "no-token", message: string)`
+- `SOURCE_SCAN_FILE_CAP = 400` — How many files one FIND will read. There is no batch read on the GitHub API: the tree comes in one request and then every file is its own. So a search costs roughly one request pe…
+- `interface SourceEditDeps (7 members)`
+- `interface FindWordsResult (9 members)` — ─── FIND ────────────────────────────────────────────────────────────────────
+- `interface PublishWordsInput (12 members)`
+- `interface PublishWordsResult (6 members)`
+
+### `src/engines/editor/server/sourceInsert.ts`
+
+- `planSourceInsert(input: { contents: string; code: string; anchor: InsertAnchor; /** The path the contents came from — the file TYPE decides the rules. */ file: string; }): SourceInsertPlan`
+- `type InsertAnchor = | { type: "after-line"; line: number } | { type: "end" }` — WHERE emitted element code may land in a file — and where it may not. `elements/emit.ts` decides WHAT the code says; this module decides whether the chosen spot can take it. Kept …
+- `type SourceInsertPlan = | { ok: true; /** 1-based line the first inserted line lands on, in the NEW contents. */ line: number; /** Exactly what goes in — indentation and blank separators included. */ insertedLines: stri…`
+
+### `src/engines/editor/server/sourceMatch.ts`
+
+- `textSearchPattern(text: string): RegExp` — The needle, as a whitespace-tolerant exact pattern. Exported for the tests, because "does this actually tolerate the newline a formatter puts in the middle of a heading" is the qu…
+- `findTextInSource(input: { files: Array<{ path: string; contents: string }>; text: string; }): SourceTextSearch` — Every line in the supplied files that contains these words. Ranked so the likeliest sits first: a line where the words are the only content beats one where they are buried in a lo…
+- `contextAt(lineText: string, at: number, file?: string): TextContext | "unknown"` — Which context position `at` on this line falls inside, or `"unknown"`. The old version of this was ONE state machine that treated any quote anywhere as opening a string — which re…
+- `unsafeCharactersFor(context: TextContext): string[]` — Characters that would turn this edit into a different program. The failure this prevents is the expensive one: typing a `{` into a heading makes the JSX an expression, the build f…
+- `replaceTextInLine(input: { lineText: string; originalText: string; newText: string; /** The path the line came from — the file TYPE decides which characters are safe. */ file?: string; }): LineReplacement` — Replace the matched words inside one raw line. Returns the WHOLE new line because that is what `SourcePatch` takes and what `applyPatch` checks — indentation and everything else o…
+- `MIN_SEARCHABLE_CHARS = 3` — Below this, a search matches half the repository. Three characters is already generous — "Hi" as a whole heading is a real thing, but every `if` and `id` in the tree matches it, a…
+- `MAX_SEARCHABLE_CHARS = 2_000` — Longer than this is not a heading, and the regex would be silly.
+- `MAX_CANDIDATES = 25` — More candidates than this and the answer is "we cannot tell you". A picker with sixty rows is not a confirmation step, it is a guess with extra clicks — and the person clicking ha…
+- `type SourceTextSearch = | { ok: true; candidates: SourceTextCandidate[] } | { ok: false; reason: "too-short" | "too-long" | "not-found" | "too-many"; detail: string }`
+- `type LineReplacement = | { ok: true; newLine: string; before: string; after: string } | { ok: false; reason: "not-on-line" | "ambiguous-line" | "unsafe-text" | "unknown-context" | "no-change"; detail: string; }` — ─── Splicing one line ───────────────────────────────────────────────────────
+- `type TextContext = "jsx" | "html" | "markdown" | '"' | "'" | "`"` — What kind of place the match sits in. `"jsx"` is bare text between tags in a JSX/MDX file; `"html"` is the same place in plain HTML (where `{` and `}` are ordinary characters); `"…
+- `interface SourceTextCandidate (9 members)`
 
 ### `src/engines/editor/server/sourceStamp.ts`
 
@@ -557,6 +785,24 @@ Every exported function, class, type and const in this area, with its real signa
 - `sourceKey(location: SourceLocation): string` — The key a location has in the registry.
 - `SOURCE_ATTRIBUTE = "data-aqua-src"` — Where a rendered element came from. The whole editor rests on not having to answer this by inspection. Working backwards from a rendered `<h1>` to the JSX that produced it means g…
 - `interface SourceLocation (3 members)`
+
+### `src/engines/editor/server/workLifecycle.ts`
+
+- `async readDraftStatus(input: { agencyId: string; project: DevProject }, deps: WorkLifecycleDeps = {}): Promise<DraftStatus>` — Where the project's draft stands, said plainly. Reads only: the branch head (does a draft exist?), the base…branch compare (what does it hold?) and the pull-request list (`state=a…
+- `async readWorkHistory(input: { agencyId: string; project: DevProject }, deps: WorkLifecycleDeps = {}): Promise<WorkHistory>` — Commits on the draft branch and Dev Team check-ins, merged newest first. The commits half degrades honestly: a project with no repository (or no token) still gets its check-ins, w…
+- `type WorkLifecycleDeps = SourceEditDeps & { compare?: typeof compareRepoRefs; listPrs?: typeof listBranchPullRequests; /** The Dev Team's check-in reader — injectable so tests never touch disk. */ checkIns?: () => Promi…` — The work lifecycle, READ — the state behind the Drafts and History tabs (dev-editor-finish.md phase 14). Ed: "saved drafts creates a branch or draft pr or something so it can be r…
+- `type DraftState = "none" | "commits" | "pr-open" | "merged" | "empty"` — ─── DRAFTS — the branch as the draft ────────────────────────────────────────
+- `type WorkHistoryEntry = | { source: "commit"; at: number; title: string; detail: string; sha: string; url: string } | { source: "check-in"; at: number; title: string; detail: string }` — ─── HISTORY — one feed, two honest sources ──────────────────────────────────
+- `interface DraftStatus (10 members)`
+- `interface WorkHistory (2 members)`
+
+### `src/engines/editor/server/workspaceFiles.ts`
+
+- `async walkWorkspaceFiles(root: string, directory: string, out: WorkspaceFile[], depth = 0): Promise<void>` — Walk `root`, appending every readable source file to `out`. Mutates `out` rather than returning, matching the original recursion — the caller allocates one array and the recursion…
+- `async readWorkspaceFiles(root: string): Promise<WorkspaceFile[]>` — The whole working tree in one call, for callers that only want the list.
+- `IGNORED_DIRECTORIES = new Set([".git", "node_modules", ".next", ".vercel", ".turbo", "coverage"])` — Never descended into. Cheap, dumb and deliberate — the depth cap below is the backstop, this is the part that keeps a walk fast.
+- `MAX_WALK_DEPTH = 8` — Deep enough for any real source tree, shallow enough to always terminate.
+- `interface WorkspaceFile (2 members)`
 
 
 ## `src/engines/sop/server/`

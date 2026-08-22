@@ -81,6 +81,22 @@ export {
 
 export { STYLE_FIELD_GROUPS, blockStylesToCss, overridesToCssText } from "./blockStyles";
 
+// The palette — "what can I add here", answered once, for every surface.
+// NOTE what is deliberately NOT re-exported: `./websiteVocabulary`. That module
+// exists to be the one plugin import, and putting it in this barrel would drag
+// the whole website metadata table into every consumer of `elements`.
+export type { ElementPaletteItem } from "./palette";
+export {
+  PORTAL_CATEGORY_LABELS,
+  WEBSITE_CATEGORY_LABELS,
+  WEBSITE_CATEGORY_ORDER,
+  elementLibrarySentence,
+  elementPalette,
+  elementPaletteGroups,
+  elementSurfaceFor,
+} from "./palette";
+export { ensureWebsiteElements, websiteElementsReady } from "./websiteElements";
+
 export type { BlockLocation } from "./blockTreeOps";
 export {
   appendChild,

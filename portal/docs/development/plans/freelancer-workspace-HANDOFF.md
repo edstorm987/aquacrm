@@ -1,7 +1,11 @@
 # Freelancer Workspace + Management — Handoff & Current-State Record
 
+> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `freelancer-workspace` stands, read [freelancer-workspace.md](freelancer-workspace.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+>
+> *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
+
 ← [freelancer-workspace.md](freelancer-workspace.md) (the plan) · [todo.md](../todo.md) ·
-[status.md](../status.md) · [issues.md](issues.md) #8 · [updates.md](../updates.md)
+[status.md](../status.md) · [issues.md](../issues.md) #8 · [updates.md](../updates.md)
 
 Written at the end of the freelancer build so the next session/Commander starts from
 facts, not a summary of a summary. Everything here is **uncommitted working tree** (standing

@@ -4,7 +4,7 @@
 
 _No file-level doc-comment. Purpose inferred from its path (Shared logic — src/lib/) and its exports below._
 
-## Exports (13)
+## Exports (14)
 
 - `integrationVaultAvailable(): boolean`
 - `listIntegrationConnections(agencyId: string): PublicIntegrationConnection[]`
@@ -18,6 +18,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `markIntegrationConnectionSynced(agencyId: string, connectionId: string, syncedAt = Date.now()): PublicIntegrationConnection`
 - `async testIntegrationConnection(agencyId: string, connectionId: string, actor: { userId: string; email?: string }, fetchImpl: typeof fetch = fetch): Promise<PublicIntegrationConnection>`
 - `publicIntegrationConnection(connection: IntegrationConnection): PublicIntegrationConnection`
+- `scrubSecrets(message: string, secrets: string[] = []): string`
 - `MANAGED_INTEGRATION_PROVIDERS`
 
 ## Depends on (7)
@@ -30,8 +31,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (16)
+## Used by (23)
 
+- [`scripts/smoke-aqua-editor-ai-token.test.ts`](../../../../scripts/smoke-aqua-editor-ai-token.test.md)
+- [`src/app/api/portal/dev/editor-ai/route.ts`](../../../app/api/portal/dev/editor-ai/route.md)
 - [`src/app/api/portal/dev/projects/route.ts`](../../../app/api/portal/dev/projects/route.md)
 - [`src/app/api/portal/performance/search-console/route.ts`](../../../app/api/portal/performance/search-console/route.md)
 - [`src/app/api/portal/settings/integrations/route.ts`](../../../app/api/portal/settings/integrations/route.md)
@@ -39,8 +42,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/settings/page.tsx`](../../../app/portal/agency/settings/page.md)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../../../built-ins/modules/leads-pipeline/src/api/handlers.md)
 - [`src/engines/editor/server/devProjects.ts`](../../../engines/editor/server/devProjects.md)
+- [`src/engines/editor/server/editorAi.ts`](../../../engines/editor/server/editorAi.md)
+- [`src/engines/editor/server/editorAiReply.ts`](../../../engines/editor/server/editorAiReply.md)
+- [`src/engines/editor/server/mapProject.ts`](../../../engines/editor/server/mapProject.md)
+- [`src/engines/editor/server/sourceEdit.ts`](../../../engines/editor/server/sourceEdit.md)
 - [`src/lib/server/assistants/openaiAssistant.ts`](../assistants/openaiAssistant.md)
 - [`src/lib/server/dev/devTeamAuditor.ts`](../dev/devTeamAuditor.md)
+- [`src/lib/server/dev/fileFinding.ts`](../dev/fileFinding.md)
 - [`src/lib/server/email/enquiryNotifications.ts`](../email/enquiryNotifications.md)
 - [`src/lib/server/email/outboundCommunications.ts`](../email/outboundCommunications.md)
 - [`src/lib/server/email/transactionalEmail.ts`](../email/transactionalEmail.md)

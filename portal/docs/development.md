@@ -29,14 +29,14 @@ development.md  ← the catalogue (you are here) — the law, tying it all toget
 │
 ├── BOOKS (the top-level docs)
 │   ├── goals.md ......... why we're building this and what "done" is
-│   ├── roadmap.md ....... the roadmap — what's next, in order (supersedes phases.md)
-│   ├── checklist.md ..... the most reliable current summary — read this for "where we stand"
+│   ├── roadmap.md ....... the roadmap — what's next, in order
+│   ├── checklist.md ..... ★ THE ANSWER to "where do we stand" — the only one
 │   ├── todo.md .......... the working cleanup/finishing checklist
 │   ├── issues.md ........ known issues, verified findings, risks
 │   ├── status.md ........ does it actually WORK / can it be USED (≠ "is it coded")
 │   ├── notes.md ......... decisions & context (the "why")
 │   ├── tests.md ......... how to test + what's covered
-│   ├── updates.md ....... the running changelog (update after everything)
+│   ├── updates.md ....... ★ THE LOG — every change, newest first (append-only)
 │   ├── audits.md ........ the independent auditor's verdicts (what's *verified*)
 │   ├── plans/ ........... one phased plan per substantial item (archive/ for shipped)
 │   └── WORKSPACE-FILE-TREE.md  ← the map of the code (its own book of books)
@@ -44,17 +44,36 @@ development.md  ← the catalogue (you are here) — the law, tying it all toget
 │       ├── CHAPTERS (docs/workspace/) — what each area/subsystem does
 │       │   ├── state-layer · shared-logic · portal-ui · api-and-routes
 │       │   ├── plugins · components · scripts-config-docs
-│       │   ├── feature-index · hazards-and-duplication · session-changelog
+│       │   ├── feature-index · hazards-and-duplication
 │       │   └── DOSSIERS: radar · advisor · kpi-intelligence · aqua-tag · database
 │       │
 │       └── PAGES (docs/reference/) — the exhaustive, generated detail
 │           ├── server/lib/app/built-ins/components/scripts .md  (every function)
 │           ├── api-reference (every endpoint)  ← in workspace/
 │           └── radar-rules.md  (every one of the 2,064 Radar rules)
+│
+└── HISTORY (docs/context/archive/) — dated records, kept, never current
+    └── superseded summaries · session records · worker debriefs
 ```
 
 Chapters explain the *mechanism*; pages enumerate *everything*. Look a specific
 function or rule up in the pages; understand how it works in the chapters.
+
+### One question, one file
+
+Docs rot when two files claim the same job. These four claims are exclusive — if
+you find a second file answering one of them, it is stale and belongs on the
+[history shelf](context/archive/README.md).
+
+| Question | The one file | Not anywhere else |
+|---|---|---|
+| **What changed, and when?** | **[updates.md](development/updates.md)** | It is the log. Append a dated entry after every meaningful change; **never edit an existing entry** — that is the point of a changelog, and the file says so in its own banner. It is also parsed by the Dev Console, so a second log would be invisible as well as redundant. |
+| **Where do we stand?** | **[checklist.md](development/checklist.md)** | Three files used to answer this. Two are now archived. |
+| **What systems exist?** | **[CURRENT-IMPLEMENTATION.md](CURRENT-IMPLEMENTATION.md)** | An inventory, not a status report. Status lives in checklist.md. |
+| **How do I run it locally?** | **[DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)** | Despite the name it is the environment runbook, **not** a session handoff. Session handoffs are dated and archived. |
+
+Everything dated — old summaries, session records, worker debriefs — lives on the
+[history shelf](context/archive/README.md) and is never current.
 
 ---
 
@@ -66,7 +85,8 @@ function or rule up in the pages; understand how it works in the chapters.
 | **[roadmap.md](development/roadmap.md)** | **The roadmap — the outer view.** Every outcome that is coming, its horizon (Now / Next / Later / Someday / Shipped), its target date, and the plans that deliver it. Progress is COMPUTED from those plans' phases, never typed. Written and edited from the Dev Console (`/portal/dev-team/roadmap`); this supersedes phases.md. |
 | **[checklist.md](development/checklist.md)** | **The single most reliable "where do we stand" summary** — what's yours (Ed's) vs mine, in order, generated at the end of a session. If you read one thing before working, read this. |
 | **[architecture-noobie.md](architecture-noobie.md)** | The whole system explained in **plain English**, no jargon. Start here if you're new (human or agent) and the catalogue below is too dense. |
-| **[phases.md](development/phases.md)** | ⚠ **SUPERSEDED by roadmap.md — kept for history only. Do not add items, and do not read its open items as current** (most of its "Next" list has since shipped; see the correction block at the top of that file). |
+| **[context/HANDOFF-2026-08-22-dev-editor.md](context/HANDOFF-2026-08-22-dev-editor.md)** | 🔴 **START HERE for the Dev Editor.** The 22 Aug session handoff: what shipped (13/18 phases, all verified), what is NOT done, Ed's rules, and the traps that cost an hour each. Written for the agent picking this up. |
+| **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
 | **[plans/](development/plans/)** | One **phased plan per substantial item** (e.g. [radar-upgrade.md](development/plans/radar-upgrade.md), [mfa-login.md](development/plans/mfa-login.md)). Each plan's own `**Status:**` line is the authority on that item. Shipped plans may be moved to [plans/archive/](development/plans/archive/). |
 | **[audits.md](development/audits.md)** | The **independent auditor's verdicts** — the record of what has been *verified*, not just claimed. A 🔴 finding gets a loud banner at the top of that file. Read before trusting a "complete" claim. |
 | **[todo.md](development/todo.md)** | The working **checklist** of cleanup & finishing work — Finish / Clean up / Decide / Prove, with launch-blockers flagged. Tick items off as they land. |
@@ -77,6 +97,12 @@ function or rule up in the pages; understand how it works in the chapters.
 | **[updates.md](development/updates.md)** | The running changelog — every meaningful change, newest first. **This is the memory. Add to it after every change.** |
 | **[compliance/erasure-dpo-pack.md](compliance/erasure-dpo-pack.md)** | The **DPO / solicitor review pack** for right-to-erasure: what the system actually does when a client is erased, per data category, what is proven by test vs. unverified, the limits of that evidence, and the **8 decisions we need a DPO to rule on**. Hand this to a reviewer; update it whenever erasure behaviour changes. |
 | **[WORKSPACE-FILE-TREE.md](WORKSPACE-FILE-TREE.md)** | The map of the code: every file and what it does, its chapters (`docs/workspace/`) and its generated reference pages (`docs/reference/`). This is where "where does X live?" is answered. |
+| **[PRODUCT-ARCHITECTURE.md](PRODUCT-ARCHITECTURE.md)** | The **product** shape — engines, modules, workspaces, surfaces and how they compose. `CLAUDE.md` names this required reading. |
+| **[DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)** | The **environment runbook** — repo layout, ports, persistence, backends. How to run it, not what changed. |
+| **[portal-tiers-and-fractal-fulfilment.md](portal-tiers-and-fractal-fulfilment.md)** | The portal tier model and the fractal-fulfilment idea — why a client portal and an agency portal are the same shape at different scales. |
+| **[meta-master-inbox.md](meta-master-inbox.md)** | The master-inbox concept — one place every inbound signal lands, across channels. |
+| **[zimante-brand-architecture.md](zimante-brand-architecture.md)** | Brand architecture for Zimante — naming, positioning and how the brands relate. |
+| **[development-workspace-cleanup.md](development-workspace-cleanup.md)** | The six workspace roots `scanWorkspace` walks behind the live `catalogue:development` npm script — the only human documentation of what that script actually sees. |
 
 ### The subsystem dossiers (verified, deep)
 Inside the file-map's chapters, these five are read-from-source deep dives —
@@ -113,7 +139,7 @@ reach for them when working on that system:
 > useful; a false open item is not.
 
 **Before you build anything:**
-1. Read [checklist.md](development/checklist.md) (where we actually stand), then [goals.md](development/goals.md) (if you don't know the direction) and [roadmap.md](development/roadmap.md) (what's actually next). **Not `phases.md`** — it is superseded history.
+1. Read [checklist.md](development/checklist.md) (where we actually stand), then [goals.md](development/goals.md) (if you don't know the direction) and [roadmap.md](development/roadmap.md) (what's actually next). **Nothing in [context/archive/](context/archive/README.md)** — that shelf is history.
 2. Find the concern in the [file map](WORKSPACE-FILE-TREE.md) / [feature index](workspace/feature-index.md), and search the [symbol reference](reference/00-index.md) for what already exists. **Reuse → repurpose → simplify before adding new.**
 3. Check [issues.md](development/issues.md) and [hazards-and-duplication.md](workspace/hazards-and-duplication.md) so you edit the canonical copy and don't trip a known risk.
 
@@ -166,13 +192,15 @@ documentation, because updating the docs *is* part of finishing the work.
     and `mergePullRequest()` — two steps on purpose, so a preview exists before
     anything reaches main.
   - Plans: [dev-editor-checklist](development/plans/dev-editor-checklist.md) (what
-    is left), [super-editor](development/plans/super-editor.md) (the convergence
-    map), [dev-editor-inspector](development/plans/dev-editor-inspector.md).
+    is left, including the funnel/client-side convergence as its Phase 6) and
+    [dev-editor-inspector](development/plans/dev-editor-inspector.md).
+    *(A separate `super-editor.md` convergence map was referenced from three
+    places but never written — the checklist's Phase 6 is the record.)*
 - **`src/engines/` is real**: `editor/`, `sop/`, `data/` (Radar + KPI) all moved
   in, imports rewritten, suite-guarded — see [STRUCTURE](development/STRUCTURE.md).
 - **IA v2**: Operations and Tools are single flat sidebar rows onto hub pages;
   pinned pages (topbar or sidebar) ship as chrome.
-- Full current-state detail: **[checklist.md](development/checklist.md)** first, then [WHERE-WE-ARE.md](WHERE-WE-ARE.md) and the [session changelog](workspace/session-changelog-2026-08.md).
+- Full current-state detail: **[checklist.md](development/checklist.md)** — it is now the *only* live "where we stand" doc. The two that used to compete with it are on the [history shelf](context/archive/README.md).
 
 ---
 

@@ -16,6 +16,6 @@
 ## Used by (3)
 
 - [`scripts/smoke-file-relevance.test.ts`](../../../../scripts/smoke-file-relevance.test.md)
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
 - [`src/components/editing/RepositoryPanel.tsx`](../../../components/editing/RepositoryPanel.md)
+- [`src/engines/editor/DevEditor.tsx`](../DevEditor.md)
 

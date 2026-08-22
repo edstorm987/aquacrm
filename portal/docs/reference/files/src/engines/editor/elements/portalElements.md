@@ -26,9 +26,10 @@
 - [`src/engines/editor/elements/registry.ts`](./registry.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (3)
+## Used by (4)
 
 - [`scripts/smoke-portal-elements.test.ts`](../../../../scripts/smoke-portal-elements.test.md)
 - [`scripts/smoke-sop-interactive.test.ts`](../../../../scripts/smoke-sop-interactive.test.md)
+- [`src/engines/editor/elements/palette.ts`](./palette.md)
 - [`src/lib/portal/clientPortalBuilder.ts`](../../../lib/portal/clientPortalBuilder.md)
 

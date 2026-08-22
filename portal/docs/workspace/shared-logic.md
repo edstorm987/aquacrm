@@ -24,6 +24,16 @@ The layer between the [state store](state-layer.md) and the
 >   silently hit the wrong half.
 > The decision table for where NEW code goes lives on the contents page.
 
+> **Correction 2026-08-21 — three of those folders are no longer in `src/lib/`.**
+> The record above is kept as written; the tree has moved on. `elements/` and
+> `editing/` are now **`src/engines/editor/elements/`** and
+> **`src/engines/editor/editing/`**, and `radar/` is
+> **`src/engines/data/radar/`** — the engines left `src/lib/` and have no chapter
+> of their own yet (see the contents page). `src/lib/` is 22 folders today:
+> `a11y advisor brands chrome clients compliance enquiries healthCheck inbox
+> integrations intelligence people performance portal products projects public
+> resources server shared supabase tasks`.
+
 > **The split that matters:** files at `src/lib/*` are **client-safe** (pure,
 > importable by React components). Files under `src/lib/server/*` are
 > **server-only** — Supabase, secrets, integrations, filesystem, Radar runtime.
@@ -115,6 +125,30 @@ Client: `advisorActions.ts`, `advisorSkills.ts`. Server: `advisorSkills.ts`,
 `advisorContext.ts`, `assistantBusinessContext.ts`, `assistantStore.ts`,
 `openaiAssistant.ts`, `externalAssistant*.ts`.
 
+**File finding — the shared skill (`lib/server/dev/fileFinding.ts`, NEW
+2026-08-22, dev-editor-finish phase 15).** `findFiles({agencyId, projectId?,
+query, limit?})` answers "where is X / what exists about X" across three
+existing indexes — the project's `DevProjectRepoMap` (full tree via the
+engine's `readRepoTree`/`readWorkspaceFiles` when reachable, the recorded
+map's directories otherwise), the docs library (`scanDevDocs`), and the
+generated `docs/reference` pages (symbol + path grep, memoised by mtime).
+Ranked + capped; every hit carries WHY (`path`/`symbol`/`doc-title`/`content`)
+and `searched` reports what was and wasn't looked at. Tenant first, then
+project (foreign/unknown project id → `project_not_found`); **never touches
+the network unless a GitHub token resolves** (same ladder as
+`sourceEditTarget`, but FIND degrades where EDIT refuses).
+`fileFindingBrief()` renders the one plain-text form for prompts;
+`fileFindingWorld(agencyId)` is the pre-question brief — docs + reference
+counts and THIS agency's projects with recorded-map flavours
+(`github`/`workspace`/`map-error`/`unmapped`), network-free. Built ONCE
+for ANY assistant — the Librarian and Aqua Editor AI are consumers, not homes.
+Gate-free pure retrieval (`scanDevDocs` style): callers hold the gate.
+Pinned by `scripts/smoke-file-finding-skill.test.ts`.
+**Consumers (2026-08-22):** the Librarian — `LibrarianPanel.tsx` +
+`librarianClient.ts` (`components/editing/`) over `/api/portal/dev/librarian`,
+mounted in the Dev Team drawer by `LibrarianDrawerControl.tsx`; pinned by
+`scripts/smoke-librarian.test.ts`.
+
 ## Radar — the monitoring engine (⚠ lives here, NOT in `src/server/`)
 **Client-safe engines** (`lib/`): `businessRadar.ts` (**core types**),
 `radarCheckEngine.ts`, `radarRuleCatalog.ts`, `radarCorrelations.ts`,
@@ -166,14 +200,144 @@ detect step**), `server/safeSiteFetch.ts` (**SSRF-guarded fetch — reuse for
 detect/scan**), `aquaExplorerBridge.ts`, `server/aquaEmbedToken.ts`,
 `server/embedAllowResolver.ts`.
 
-## Editing engine
-Client: `editing/{engine,elementSource,fileRelevance,leases,modes}.ts`. Server:
-`server/siteEditor/*` (**the LIVE code/source adapters, patch, publish,
-registry, githubSource** — what the website-editor plugin drives).
-`server/editing/adapters.ts` is **orphaned** (see flags).
+## Editing engine  (`src/engines/editor/`, **not** `src/lib/`)
+Client: `engines/editor/editing/{engine,elementSource,fileRelevance,leases,modes,aquaTagBridge,selectionRouting}.ts`.
+Server: `engines/editor/server/*` (**the LIVE code/source adapters, patch,
+publish, registry, githubSource**, plus `portalStudio`, `devProjects`,
+`editorAssistant`, `editorAi`, `editorAiHistory`, **`editorAiReply`**,
+`fileTree`, `sourceStamp`, **`workspaceFiles`**, **`mapProject`**,
+**`workLifecycle`**).
+There is no `lib/editing/` and no `lib/server/siteEditor/` — both paths are dead.
 
-## Element / block vocabulary  (`lib/elements/`) — **NEW 2026-08-20**
-Client-safe, 12 files. The block vocabulary **moved here out of the
+**THE WORK LIFECYCLE, READ (2026-08-22, phase 14).** `workLifecycle.ts` is the
+state behind the editor's Dev-mode Drafts/History tabs, and it WRITES NOTHING:
+the repository is the draft store (`aqua-editor/<id>` — the branch every save
+already commits to), so this module only describes what `repoWrite.ts` →
+`publishEdits` created. `readDraftStatus` says the branch state plainly —
+`none`/`commits`/`pr-open`/`merged`/`empty`, each with ONE server-written
+sentence (`line`) that never contains the word "saved" — using two new reads in
+`githubSource.ts`: `compareRepoRefs` (base…head files + commits, one request)
+and `listBranchPullRequests` (`state=all`, because a merged PR is invisible to
+the open-only listing `openPullRequest` reuses). **Merged-vs-commits is decided
+by WHEN, not by `aheadBy`** — a squash-merged branch compares ahead forever, so
+commits newer than the merge are a new round and older ones are the merged
+work. `readWorkHistory` merges draft-branch commits with Dev Team check-ins
+(`devTeamWorkers.readCheckIns`, injectable) into one newest-first feed whose
+`sources` block says what each half IS — and the commits half degrades to a
+sentence on a repo-less project rather than silently halving the feed. Notes
+are NOT here: they ride `lib/server/dev/devTeamThoughts` via the first-class
+`projectId` tag (excluded from `unreadFor`/`unacknowledgedCount`/
+`worker-thoughts.mjs` — a project note is never a worker instruction). Door:
+`/api/portal/dev/lifecycle`. The WRITES the Drafts tab drives live in
+`repoWrite.ts`, not here: `mergeProjectPullRequest` (finds the branch's OPEN
+PR itself, confirm passed through to `mergePullRequest` untouched — the merge
+IS the deploy) and `revertMergedDraft` (fork-point contents recommitted onto
+the DRAFT branch through `saveRepoFile` — the revert is itself a draft, never
+a write to base; added files skipped WITH a note, since publish machinery
+cannot delete). Pinned by `scripts/smoke-work-lifecycle.test.ts`.
+
+**AQUA EDITOR AI REPLIES NOW (2026-08-22).** `editorAiReply.generateEditorAiReply`
+is the piece that was missing between the per-project key (`editorAi.ts`), the
+per-project history (`editorAiHistory.ts`) and the UI: it calls the model. It
+resolves `resolveEditorAiToken(agencyId, projectId)` — the project's OWN key,
+**no fallback** to the agency `openai` connection or env; a keyless project gets
+the existing not-configured sentence and no request. It reuses the Advisor's
+wire idiom (`OPENAI_RESPONSES_URL` + `extractOutputText`, exported from
+`lib/server/assistants/openaiAssistant.ts` — do NOT hand-roll a second HTTP
+shape), sends the project brief as system context plus the newest ≤24 thread
+messages and the client's editor context, and appends the assistant's reply
+**server-side** — the one legitimate author of `role:"assistant"` lines that the
+history route's gate defers to. Failures are values with codes
+(`not_configured`/`timeout`/`network`/`provider`/`empty`), provider text cleaned
+by the shared `scrubSecrets` (exported from `integrationConnections.ts`) with
+the exact key that was used. Route: `/api/portal/dev/editor-ai/reply`. Pinned by
+`scripts/smoke-aqua-editor-ai-reply.test.ts`.
+
+**MAP (2026-08-21).** `mapProject.ts` is Ed's one button: it walks the repository
+(`readRepoTree` for a named repo, `workspaceFiles.readWorkspaceFiles` for a blank
+one) **and** proves the Aqua Tag answers on `project.siteUrl` via the existing
+`lib/server/integrations/aquaTagDetection.detectAquaTag`. Neither half can fail
+the other. It writes through `devProjects.recordDevProjectMap`, which is the ONLY
+thing allowed to conclude a project is tagged — a verified tag mints `aquaTagId`
+from the key the page really carried; an unverified one never sets it and never
+clears one already there.
+
+**The browser gate.** `devProjects.devProjectVisualEditorUnlocked` is
+`Boolean(project.aquaTagId)` and nothing else (2026-08-21). It used to AND in
+`kind !== "software"`, which gated the browser off every project Ed creates,
+since `software` is the default kind and the setup form has no kind picker. Per
+Ed the tag alone is the gate — a tagged game build gets a browser; Dev mode needs
+no tag because it reads repo files directly. `devProjectMapStatus` wraps it as
+`browserAvailable` plus the plain sentences the screen prints, so the rule has
+one definition. `scripts/smoke-dev-projects.test.ts` and
+`scripts/smoke-dev-project-map.test.ts` pin both directions.
+
+**The editor now LISTENS to the tag (2026-08-21).** `DevEditor.tsx`'s message
+handler used to accept only `aqua:portal-block-select` carrying a portal BLOCK
+id, and dropped anything where `event.origin !== window.location.origin` — so a
+tagged external site was rejected twice over. It now runs two protocols in one
+listener:
+
+* `aqua:portal-block-select` — the Aqua-hosted portal preview, our own renderer,
+  **still same-origin** and behaviourally unchanged. It names blocks in somebody's
+  portal document; widening it would be a real hole.
+* `aqua-explorer:*` — the Aqua Tag, on whatever page it is installed on, accepted
+  through `aquaTagBridge.acceptAquaTagMessage` against
+  `aquaTagOrigin(previewSrc, location.href)` **and** the frame's own
+  `contentWindow`. Fails closed; never posts to `"*"`.
+
+The handshake matters and is not optional: `aquaTagSource.ts` pins
+`explorerParentOrigin` only inside the code that answers a `ping`/`inspect`, so
+until the editor pings, the tag's replies (including selections) go out to `"*"`.
+The editor pings on iframe `onLoad`, accepts only the `ready` whose `requestId`
+matches, then sends `enable`/`disable`.
+
+**`selectionRouting.ts` — one mechanism, three destinations.** `routeTagSelection(mode,
+{ portalTarget })` is the whole rule, pure and testable:
+`assist → assistant` (the element is quoted into Aqua Editor AI's composer),
+`visual → builder` on a portal / `element` + words + styles anywhere else
+(the exact text, editable, patched live through `aquaTagPatchMessage` — this
+absorbed the old `simple` "Just the words" depth 2026-08-22; `editingMode()`
+migrates a saved `"simple"` to `"visual"` by name), `developer → element` +
+styles + source. The invariant worth keeping is asserted in
+`scripts/smoke-dev-editor-tag-bridge.test.ts`: **a mode must never be routed
+to a tab that mode does not offer.** Breaking it is exactly what the old
+`setTab("builder")` did — "builder" was not a tab the then "Just the words"
+depth offered, so the tab-repair effect bounced the operator to the assistant
+and the words never appeared.
+
+⚠ **Element→source (`elementSource.ts`) does NOT work across an origin.** It
+reads React's `_debugStack`/`_debugSource` off fibers inside the previewed
+document, which a browser will not hand across origins. So Dev's "where it came
+from" answers on an Aqua-hosted portal and cannot on a tagged external site. The
+panel says so rather than showing a blank.
+
+**`workspaceFiles.ts`** holds the working-tree walk that used to be private to
+`api/portal/site-editor/files/route.ts`. It moved so MAP and the files route
+share ONE set of rules about what is hidden (`.env`, `.git/`, `.data/`, dot-dirs,
+symlinks). The route now calls `readWorkspaceFiles`; **do not re-add a walk
+there** — `scripts/smoke-editor-write-path.test.ts` asserts it has none.
+
+**Who drives it — NOT the website-editor plugin.** That plugin imports the
+element vocabulary below and none of this. The real importers are
+`src/engines/editor/DevEditor.tsx` (the one universal editor), its two door
+pages `app/portal/agency/portals/editor/page.tsx` and
+`app/portal/dev-team/editor/studio/page.tsx`,
+`app/api/portal/dev/projects/route.ts`,
+`app/portal/agency/development/code/_CodeWorkspace.tsx`,
+`components/editing/*`, and the app-config editor
+(`dev-team/editor/{_Section,_AppConfigEditor}.tsx` +
+`api/portal/dev-team/editor/route.ts`).
+`lib/server/editing/adapters.ts` **does have an app importer** (corrected
+2026-08-21): its sibling `lib/server/editing/appConfigAdapter.ts:9` imports
+`fingerprint` from it, and that file is live behind Tools → Editor. See flags.
+
+## Element / block vocabulary  (`src/engines/editor/elements/`) — **NEW 2026-08-20**
+**Path note (2026-08-21):** this was written up as `lib/elements/`. That folder
+does not exist — the vocabulary lives in the editor engine.
+Client-safe, 13 files (counted 2026-08-21 — `ls src/engines/editor/elements/`;
+written up as 12 because `portalElements.ts` was missing from the list below).
+The block vocabulary **moved here out of the
 website-editor plugin** (element-engine P1+P2), because website pages, client
 portal pages and product lifecycle stages are all trees of the same thing:
 `block.ts` (tree types) · `definition.ts` (`BlockDefinition`, `PropField`,
@@ -181,7 +345,19 @@ portal pages and product lifecycle stages are all trees of the same thing:
 (`ElementSchema`, **generated** from `fields` — hand-writing one is deliberately
 impossible) · `blockStyles.ts` (`blockStylesToCss`, the canonical styles→CSS
 mapper) · `blockTreeOps.ts` · `blockSchemaMigrations.ts` · `variantResolver.ts` ·
-`BlockRenderer.tsx` · `AnimateOnScroll.tsx` · `ids.ts` · `index.ts`.
+`BlockRenderer.tsx` · `AnimateOnScroll.tsx` · `ids.ts` · `index.ts` ·
+`portalElements.ts` (the portal palette's 16 element pairings +
+`createPortalBlockRecord`) · `emit.ts` (**NEW 2026-08-22, phase 7** —
+`emitElementSource`/`emitElementCode`: a definition said as plain structural
+JSX/HTML with its registry defaults filled in, `emitKindForFile` picking the
+shape; NOT a templating system — text-ish fields become `<h2>`/`<p>`, url+label
+pairs one `<a>`, images `<img>`, styling knobs and array defaults deliberately
+nothing; the server splice lives in `engines/editor/server/sourceInsert.ts`,
+which REFUSES an unsafe gap via `sourceMatch.contextAt` rather than guessing
+into JSX. Pinned by `scripts/smoke-element-insert.test.ts`). **`portalElements.ts` is NOT dead** —
+`src/lib/portal/clientPortalBuilder.ts:17` imports `PORTAL_ELEMENT_PAIRINGS` and
+`createPortalBlockRecord` from it, and `smoke-sop-interactive` /
+`smoke-portal-elements` import it too.
 
 **Two rules here are load-bearing** (`elements/index.ts:14-27`): nothing in this
 directory may `import "server-only"` (client components and the react-server
@@ -189,6 +365,17 @@ smoke build import it), and nothing here may import a plugin. The 70 website
 definitions and the hand-rolled `lazyBlock` stay in
 `built-ins/modules/website-editor/src/components/blockRegistry.ts` and *push*
 themselves in via `registerElementDefinitions`; this side never reaches back.
+
+**The ONE exception, added 2026-08-21:** `elements/websiteVocabulary.ts` is a
+two-line module whose whole job is to be that plugin import, so that
+`elements/websiteElements.ts` can reach it with a memoised **dynamic**
+`import()` — `ensureWebsiteElements()`. That is how the Dev Editor gets the
+website palette without a static import putting the metadata table in its first
+paint (the 78 components are already one chunk each behind `lazyBlock`).
+`elements/palette.ts` sits on top: `elementSurfaceFor({ portalTarget })` names
+the surface, `elementPalette(surface)` is the one answer to "what can I add
+here", and `elementLibrarySentence()` is the one place the truth about where it
+can be placed is written. Neither of those two imports the plugin.
 The copies this exists to delete are listed in
 [hazards](hazards-and-duplication.md) — they are still live.
 
@@ -199,7 +386,7 @@ The copies this exists to delete are listed in
 `aquaOasisSeed.ts`, `showcaseMode.ts`, `devMode.ts`.
 
 ## ⚠ Duplication & look-alike flags (check before adding)
-1. **Dead editing bridge:** `server/editing/adapters.ts` has **zero importers** — the live editor uses `server/siteEditor/*`. Deletion candidate. (But `editing/{leases,modes}.ts` ARE used by `components/editing/*`.)
+1. **Editing bridge — NOT dead, corrected 2026-08-21.** This flag used to read "`lib/server/editing/adapters.ts` has no app importers (only `scripts/smoke-editor-adapters.test.ts`) … Deletion candidate." Both halves were wrong: (a) `lib/server/editing/appConfigAdapter.ts:9` does `import { fingerprint } from "./adapters"`, and appConfigAdapter is mounted by `dev-team/editor/{_Section,_AppConfigEditor}.tsx` and `api/portal/dev-team/editor/route.ts`, so the file is reachable from a live screen; (b) `scripts/smoke-editor-adapters.test.ts:7,17` imports it, so deleting it turns the suite red. **Do not delete.** What IS still true: the *portal/website* editor rides `src/engines/editor/editing/*` + `src/engines/editor/server/*`, and there is no `lib/server/siteEditor/`. Also true: `engines/editor/editing/{leases,modes}.ts` ARE used by `components/editing/*` — don't sweep the folder.
 2. **Two identity/contact systems:** simple `clientContacts.ts` (embedded on a client) vs the `identityResolution` + `personInteractions` graph. Same "who is this person" in two shapes.
 3. **Two client activity logs:** `clientRelationshipRecord.ts` (client-safe) vs `server/clientRecordLedger.ts`. Confirm which is canonical.
 4. **Root-vs-server twins (hand-synced, drift-prone):** `clientRadar`, `clientTelemetry`, `commandIntelligence`, `brandPortfolio`, `advisorSkills`, `personInteractions` each exist in both `lib/` (pure) and `lib/server/` (IO).

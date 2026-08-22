@@ -58,6 +58,15 @@ export interface Thought {
   taskId?: string;
   planName?: string;
   /**
+   * A Dev Editor project this note belongs to (dev-editor-finish.md phase 14
+   * — the editor's per-project Notes tab rides this ledger rather than
+   * growing a second notes store). Undefined = not a project note; project
+   * notes and worker thoughts share the file but never each other's queries.
+   * A FIRST-CLASS field, not a convention smuggled through `taskId` — that
+   * would have polluted `thoughtsByTask`'s console groupings.
+   */
+  projectId?: string;
+  /**
    * Worker this is aimed at, when known. Undefined = a general note, which
    * every worker should see — so it cannot be "used up" by the first one.
    */
@@ -194,6 +203,7 @@ export async function addThought(input: {
   taskId?: string;
   planName?: string;
   worker?: string;
+  projectId?: string;
 }): Promise<Thought> {
   const text = clean(input.text ?? "", 2000);
   if (!text) throw new Error("Say something first.");
@@ -210,6 +220,7 @@ export async function addThought(input: {
       taskId: input.taskId ? clean(input.taskId, 120) : undefined,
       planName: input.planName ? clean(input.planName, 120) : undefined,
       worker: input.worker ? clean(input.worker, 60) : undefined,
+      projectId: input.projectId ? clean(input.projectId, 120) : undefined,
     };
     await writeAll([thought, ...rows]);
     return thought;
@@ -218,6 +229,24 @@ export async function addThought(input: {
 
 export async function listThoughts(limit = 100): Promise<Thought[]> {
   return (await readAllForDisplay()).slice(0, Math.max(1, Math.min(limit, MAX)));
+}
+
+/**
+ * One project's notes, newest first — the editor's Notes tab (phase 14).
+ *
+ * Filtered by the first-class `projectId` tag, so a project's notes and the
+ * worker-thought traffic share a ledger without ever answering each other's
+ * queries. TENANCY IS THE CALLER'S JOB, stated here because this module
+ * cannot do it: the ledger knows project ids, not agencies, so the route must
+ * resolve the id through `getDevProject(session.agencyId, …)` BEFORE asking —
+ * the same tenant-before-project order every dev route uses.
+ */
+export async function listThoughtsForProject(projectId: string, limit = 100): Promise<Thought[]> {
+  const wanted = clean(projectId, 120);
+  if (!wanted) return [];
+  return (await readAllForDisplay())
+    .filter(thought => thought.projectId === wanted)
+    .slice(0, Math.max(1, Math.min(limit, MAX)));
 }
 
 /** Thoughts grouped by the task they're attached to, for inline display. */
@@ -238,8 +267,12 @@ export async function thoughtsByTask(): Promise<Record<string, Thought[]>> {
  */
 export async function unreadFor(worker: string): Promise<Thought[]> {
   const name = worker.toLowerCase();
+  // Project notes (`projectId` set) are the EDITOR's Notes tab, not worker
+  // instructions — without this exclusion every worker would be handed Ed's
+  // project notes as unread general notes, which is exactly the "aimed at
+  // nobody = aimed at everybody" rule misfiring on a row it was never for.
   return (await readAll()).filter(t =>
-    !(t.readBy ?? {})[name] && (!t.worker || t.worker.toLowerCase() === name));
+    !t.projectId && !(t.readBy ?? {})[name] && (!t.worker || t.worker.toLowerCase() === name));
 }
 
 /** Mark `ids` as picked up BY `worker`. Other readers are left as they were. */
@@ -264,7 +297,9 @@ export async function acknowledge(ids: string[], worker: string): Promise<number
 
 /** Count of thoughts NOBODY has picked up — badges the console. */
 export async function unacknowledgedCount(): Promise<number> {
-  return (await readAllForDisplay()).filter(t => !isRead(t)).length;
+  // Project notes are notes-to-self in the editor; nothing acknowledges them,
+  // so counting them would light the console badge permanently.
+  return (await readAllForDisplay()).filter(t => !isRead(t) && !t.projectId).length;
 }
 
 /**

@@ -1,6 +1,6 @@
 # Plan — Finance: multi-channel money visibility + one-button close ⭐
 
-← [todo.md](../todo.md) · [development.md](../../development.md) · **[HANDOFF »](../finance-command-surface-HANDOFF.md)** (build record — problems, tests, decisions, what's left)
+← [todo.md](../todo.md) · [development.md](../../development.md) · **[HANDOFF »](../../context/archive/finance-command-surface-handoff.md)** (build record — problems, tests, decisions, what's left)
 
 **Status: ✅ COMPLETE — P1–P5 + the You-Deserve-It wire all shipped (2026-08-19)** — coherence,
 channel model + money-in view, Stripe (TEST-mode, unit-tested), one-button close (client + lead),
@@ -126,4 +126,4 @@ plan in flight._
 - `scripts/smoke-finance-operations.test.ts`
 - `scripts/smoke-finance-budget-control.test.ts`
 - `docs/development/plans/finance-command-surface.md`
-- `docs/development/finance-command-surface-HANDOFF.md`
+- `docs/context/archive/finance-command-surface-handoff.md` (archived 2026-08-21)

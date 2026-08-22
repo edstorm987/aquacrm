@@ -108,16 +108,18 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
         </div>
 
         {/* Said plainly, with the way to fix it, rather than an empty tree that
-            looks like a broken editor. */}
+            looks like a broken editor. The fix lives in the EDITOR — its
+            Settings tab carries the inline Connect GitHub panel — so that is
+            where this links, never the Company page. */}
         {meta?.needsGitHub ? (
           <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
             <Plug size={14} aria-hidden className="shrink-0 text-amber-700" />
             <p className="min-w-0 flex-1 leading-5">{meta.error}</p>
             <Link
-              href={meta.href ?? "/portal/agency/company?view=connections&integration=github"}
+              href={meta.href ?? "/portal/dev-team/editor"}
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-amber-400 bg-white px-2.5 font-semibold text-amber-900 hover:bg-amber-100"
             >
-              Connect GitHub <ExternalLink size={12} aria-hidden />
+              Connect GitHub in the editor <ExternalLink size={12} aria-hidden />
             </Link>
           </div>
         ) : null}
@@ -151,7 +153,7 @@ export function CodeWorkspace({ initialRepository = "" }: { initialRepository?: 
                 failed, say so once and stop. */}
             {!tree && (meta?.needsGitHub || meta?.error) ? (
               <p className="px-2 py-3 text-xs text-black/45">
-                {meta.needsGitHub ? "Connect GitHub to list this repository." : "Nothing could be listed."}
+                {meta.needsGitHub ? "Connect GitHub in the editor's Settings tab to list this repository." : "Nothing could be listed."}
               </p>
             ) : !tree ? (
               <p className="flex items-center gap-2 px-2 py-3 text-xs text-black/45">

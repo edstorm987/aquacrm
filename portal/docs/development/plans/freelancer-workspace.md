@@ -1,6 +1,6 @@
 # Plan — Freelancer-facing workspace (the freelancer's own limited view)
 
-← [todo.md](../todo.md) · [issues.md](issues.md) #8 · [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
+← [todo.md](../todo.md) · [issues.md](../issues.md) #8 · [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)
 
 **Status: P1–P5 ✅ + per-job overrides ✅ shipped 2026-08-19.** P5 = the agency-side
 **management + preview** system (create · manage · preview a freelancer's workspace). Remaining:

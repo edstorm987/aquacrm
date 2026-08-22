@@ -13,10 +13,21 @@
 - `isNextNotFound(error: unknown): boolean`
 - `isNextRedirect(error: unknown): boolean`
 
-## Used by (4)
+## Used by (15)
 
+- [`scripts/smoke-aqua-editor-ai-history.test.ts`](./smoke-aqua-editor-ai-history.test.md)
+- [`scripts/smoke-aqua-editor-ai-reply.test.ts`](./smoke-aqua-editor-ai-reply.test.md)
+- [`scripts/smoke-aqua-editor-ai-token.test.ts`](./smoke-aqua-editor-ai-token.test.md)
 - [`scripts/smoke-dev-console-edges.test.ts`](./smoke-dev-console-edges.test.md)
+- [`scripts/smoke-dev-editor-aqua-tag.test.ts`](./smoke-dev-editor-aqua-tag.test.md)
+- [`scripts/smoke-dev-project-map.test.ts`](./smoke-dev-project-map.test.md)
+- [`scripts/smoke-dev-project-nesting.test.ts`](./smoke-dev-project-nesting.test.md)
 - [`scripts/smoke-dev-team-api-view.test.ts`](./smoke-dev-team-api-view.test.md)
 - [`scripts/smoke-dev-team-editor.test.ts`](./smoke-dev-team-editor.test.md)
 - [`scripts/smoke-dev-team-gates.test.ts`](./smoke-dev-team-gates.test.md)
+- [`scripts/smoke-editor-words-publish.test.ts`](./smoke-editor-words-publish.test.md)
+- [`scripts/smoke-element-insert.test.ts`](./smoke-element-insert.test.md)
+- [`scripts/smoke-librarian.test.ts`](./smoke-librarian.test.md)
+- [`scripts/smoke-repo-write.test.ts`](./smoke-repo-write.test.md)
+- [`scripts/smoke-work-lifecycle.test.ts`](./smoke-work-lifecycle.test.md)
 

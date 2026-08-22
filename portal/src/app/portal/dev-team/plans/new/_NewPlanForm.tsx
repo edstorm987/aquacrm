@@ -66,13 +66,13 @@ export function NewPlanForm() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href={`/portal/dev-team/library?doc=${encodeURIComponent(created.relPath)}`}
-                className="rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)]"
+                className="rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)]"
               >
                 Read it
               </Link>
               <Link
                 href="/portal/dev-team/roadmap?view=now"
-                className="rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-1.5 text-xs font-medium text-[color:var(--dt-ink)] transition-colors hover:border-[color:var(--dt-line)]"
+                className="rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-1.5 text-xs font-medium text-[color:var(--dt-ink)] transition-colors hover:border-[color:var(--dev-accent-line)] hover:text-[color:var(--dev-accent)]"
               >
                 See the board
               </Link>
@@ -82,7 +82,7 @@ export function NewPlanForm() {
                   setCreated(null);
                   setTitle(""); setGoal(""); setPhases(""); setNotes(""); setPriority("med");
                 }}
-                className="rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-1.5 text-xs font-medium text-[color:var(--dt-muted)] transition-colors hover:border-[color:var(--dt-line)]"
+                className="rounded-full border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 py-1.5 text-xs font-medium text-[color:var(--dt-muted)] transition-colors hover:border-[color:var(--dev-accent-line)] hover:text-[color:var(--dev-accent)]"
               >
                 Write another
               </button>
@@ -139,7 +139,7 @@ export function NewPlanForm() {
                   "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                   priority === p.value
                     ? "border-[color:var(--dev-accent-line)] bg-[color:var(--dev-accent-soft)] text-[color:var(--dev-accent)]"
-                    : "border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] text-[color:var(--dt-muted)] hover:border-[color:var(--dt-line)]",
+                    : "border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] text-[color:var(--dt-muted)] hover:border-[color:var(--dev-accent-line)] hover:text-[color:var(--dev-accent)]",
                 ].join(" ")}
               >
                 {p.label}
@@ -189,7 +189,7 @@ export function NewPlanForm() {
         <button
           type="submit"
           disabled={busy || !title.trim() || !goal.trim()}
-          className="inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-4 py-2 text-sm font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <LoaderCircle size={15} className="animate-spin" /> : null}
           {busy ? "Creating…" : "Create plan"}

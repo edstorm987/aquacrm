@@ -62,6 +62,10 @@ function readersOf(row) {
 }
 
 const mine = rows.filter(t =>
+  // `projectId` rows are the Dev Editor's per-project Notes tab riding the
+  // same ledger (dev-editor-finish.md phase 14) — notes-to-self, never
+  // instructions, so they are not "waiting for" any worker.
+  !t.projectId &&
   !readersOf(t)[name] && (!t.worker || String(t.worker).toLowerCase() === name));
 
 if (mine.length === 0) {

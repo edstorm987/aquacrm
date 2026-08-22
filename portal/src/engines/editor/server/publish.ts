@@ -178,17 +178,25 @@ export async function publishEdits(request: PublishRequest): Promise<PublishOutc
     ? `${plan.files.length} file${plan.files.length === 1 ? "" : "s"} on ${target.repository}@${branch}`
     : "Nothing to publish.";
 
-  if (!plan.files.length) {
-    return { published: false, branch, files, rejected: plan.rejected, summary };
-  }
-
   // Refused outright rather than partially published: half of a change that
   // spans a component and its page is a broken website, found by a visitor.
+  //
+  // Checked BEFORE the empty-plan case, and that order is the point. A plan
+  // where every edit was rejected has no files, so the empty branch used to
+  // answer first and say "Nothing to publish." — which is what somebody saw
+  // when their branch had moved under them or their line had been edited by
+  // somebody else. Both are things they need to be told, and both read as "the
+  // editor did nothing, try again", which is exactly the wrong conclusion. The
+  // detail was carried in `rejected` all along; now the summary agrees with it.
   if (plan.rejected.length) {
     return {
       published: false, branch, files, rejected: plan.rejected,
       summary: `Not published — ${plan.rejected.length} edit${plan.rejected.length === 1 ? "" : "s"} could not be applied. Re-map and try again.`,
     };
+  }
+
+  if (!plan.files.length) {
+    return { published: false, branch, files, rejected: plan.rejected, summary };
   }
 
   if (request.confirm !== true) {
@@ -199,22 +207,31 @@ export async function publishEdits(request: PublishRequest): Promise<PublishOutc
   const { token } = request;
   const repo = `/repos/${target.repository}`;
 
-  // A branch is created from the mapped commit, not from whatever HEAD is now:
-  // the edits were made against that tree and belong on top of it.
+  // A branch is CREATED from the mapped commit, not from whatever HEAD is now:
+  // the edits were made against that tree and belong on top of it. But once the
+  // branch EXISTS, every further commit builds on ITS tip — building a second
+  // commit from `baseSha` again gives it the same parent as the first, which is
+  // not a descendant of the branch head, and the non-forced ref update below
+  // would rightly refuse it (GitHub 422, "not a fast forward"). That is exactly
+  // how the second words edit on every project used to fail.
   const existing = await githubJson<{ object?: { sha: string } }>(fetchImpl, token, `${repo}/git/ref/heads/${branch}`)
     .catch(() => null);
-  if (!existing?.object?.sha) {
+  let parentSha = existing?.object?.sha;
+  if (!parentSha) {
     await githubJson(fetchImpl, token, `${repo}/git/refs`, {
       method: "POST",
       body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: target.baseSha }),
     });
+    parentSha = target.baseSha;
   }
 
-  // One tree and one commit, so every file lands together or none does.
+  // One tree and one commit, so every file lands together or none does. Both
+  // are built from the branch tip, so successive edits chain instead of each
+  // claiming to be the first.
   const tree = await githubJson<{ sha: string }>(fetchImpl, token, `${repo}/git/trees`, {
     method: "POST",
     body: JSON.stringify({
-      base_tree: target.baseSha,
+      base_tree: parentSha,
       tree: plan.files.map(file => ({
         path: file.file, mode: "100644", type: "blob", content: file.contents,
       })),
@@ -223,7 +240,7 @@ export async function publishEdits(request: PublishRequest): Promise<PublishOutc
 
   const commit = await githubJson<{ sha: string }>(fetchImpl, token, `${repo}/git/commits`, {
     method: "POST",
-    body: JSON.stringify({ message: request.message, tree: tree.sha, parents: [target.baseSha] }),
+    body: JSON.stringify({ message: request.message, tree: tree.sha, parents: [parentSha] }),
   });
 
   // No force. A rejected update means the branch moved and this needs

@@ -7,12 +7,12 @@ import type { ClientPortalMode, Role } from "@/server/types";
 import type {
   PortalStudioClient,
   PortalStudioTemplate,
-} from "@/app/portal/agency/portals/editor/_ClientPortalStudio";
+} from "@/engines/editor/DevEditor";
 
 // ─── Dev Editor Engine — the studio's server loader ──────────────────────────
 //
 // The Portal Studio IS the engine's UI: a live canvas over the real portal, a
-// depth selector (just-the-words / design-it / developer) and the Builder,
+// depth selector (just-tell-it / visual-builder / developer) and the Builder,
 // Content, Pages, Brand, Code, Repo and Versions inspectors. It was reachable
 // from exactly one route, so the Dev Team "Editor" mounted a stripped,
 // read-only file browser instead and looked like a third of the engine.

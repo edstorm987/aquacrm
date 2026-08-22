@@ -6,16 +6,19 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Exports (3)
 
-- `interface EditorAIContext (3 members)`
+- `interface EditorAIContext (4 members)`
 - `interface Attachment (4 members)`
-- `AquaEditorAI({ initialWorkspace, configured, model, userName, coverage, context, picking, onPickElement, }: { initialWorkspace: AssistantWorkspaceState; configured: boolean; model: string; userName: string; coverage: { clients: number; tea…`
+- `AquaEditorAI({ projectId = "", projectName = "", initialConversation = null, historyLimits = null, editorAi = null, reason = "", configured, model, userName, context, picking, onPickElement, }: { /** * The project this assistant is scoped …`
 
-## Depends on (2)
+## Depends on (5)
 
-- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
+- [`src/components/editing/AquaEditorAIKey.tsx`](./AquaEditorAIKey.md)
+- [`src/components/editing/AquaEditorAIThread.tsx`](./AquaEditorAIThread.md)
+- [`src/components/editing/editorAiClient.ts`](./editorAiClient.md)
+- [`src/components/editing/editorAiSkin.ts`](./editorAiSkin.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (1)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
+- [`src/engines/editor/DevEditor.tsx`](../../engines/editor/DevEditor.md)
 

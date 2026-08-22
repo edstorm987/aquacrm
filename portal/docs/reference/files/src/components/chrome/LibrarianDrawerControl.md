@@ -6,16 +6,13 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Exports (1)
 
-- `async LibrarianDrawerControl({ agencyId, userId, userName, }: { agencyId: string; userId: string; userName: string; })`
+- `async LibrarianDrawerControl({ agencyId, }: { agencyId: string; /** Accepted so the layout's call keeps working; the find tool is not per-person. */ userId?: string; userName?: string; })`
 
-## Depends on (6)
+## Depends on (3)
 
 - [`src/components/chrome/GlobalAdvisorDrawer.tsx`](./GlobalAdvisorDrawer.md)
-- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
-- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
-- [`src/lib/server/assistants/assistantBusinessContext.ts`](../../lib/server/assistants/assistantBusinessContext.md)
-- [`src/lib/server/assistants/assistantStore.ts`](../../lib/server/assistants/assistantStore.md)
-- [`src/lib/server/assistants/openaiAssistant.ts`](../../lib/server/assistants/openaiAssistant.md)
+- [`src/components/editing/LibrarianPanel.tsx`](../editing/LibrarianPanel.md)
+- [`src/lib/server/dev/fileFinding.ts`](../../lib/server/dev/fileFinding.md)
 
 ## Used by (1)
 

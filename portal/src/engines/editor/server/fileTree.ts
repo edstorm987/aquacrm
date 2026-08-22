@@ -72,7 +72,7 @@ const TEXT = new RegExp(
     // data + config
     "json5?", "ya?ml", "toml", "ini", "cfg", "conf", "properties", "xml", "csv", "tsv", "lock",
     // docs
-    "md", "mdx", "txt", "rst", "adoc", "log", "patch", "diff", "gitignore", "gitattributes",
+    "md", "mdx", "txt", "rst", "adoc", "log", "patch", "diff", "gitignore", "gitattributes", "gitkeep",
     "npmrc", "nvmrc", "editorconfig", "prettierrc", "eslintrc", "babelrc",
     // other languages
     "py", "rb", "go", "rs", "java", "kt", "kts", "swift", "c", "h", "cpp", "hpp", "cs", "php",

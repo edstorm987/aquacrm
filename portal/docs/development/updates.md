@@ -20,6 +20,12 @@ map stays trustworthy.
 > [plans/](plans/), and [issues.md](issues.md) (whose items are marked RESOLVED
 > with evidence). **Above all: read the source.**
 >
+> **Links in old entries can point at moved files.** On 2026-08-21 eleven dated
+> records moved to `docs/context/archive/` (see the top entry below for the full
+> before → after list). Entries below were **not** rewritten to match — that is the
+> rule this file lives by. If a link here 404s, look on the
+> [history shelf](../context/archive/README.md).
+>
 > **This queue is only as good as what gets logged.** The auditor caught three
 > separate bursts of substantial unlogged work in August 2026 (~+470 tests once,
 > +55 another, a whole `dev-roadmap` feature, the Meta/Instagram change) — each
@@ -27,6 +33,420 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-08-22 — The Dev Editor writes, publishes and merges; 13 of 18 phases shipped
+
+- **The editor made its first real commits.** `hello-ed.md` created and then chained in
+  the live client repo `edstorm987/Beast-marks` (`780eb08`, `4da8b29`) with PR #1 opened —
+  from the browser, through the draft branch `aqua-editor/<projectId>`. The write path is
+  proven against real GitHub, not a fake.
+- **Shipped and adversarially verified:** Aqua Tag made+verified in the editor (eight
+  honest states, dead-snippet revokes); GitHub connected in the editor with a 404 that
+  explains fine-grained token grants; the repo write path (save/create/publish, branch-tip
+  reads, fingerprint guard); words→source with human-confirmed candidates; Aqua Editor AI
+  standalone with its own vault key, per-project history, own UI and a working reply path;
+  the Librarian on a shared `findFiles()` skill; 70 blocks mounted with real-code insertion;
+  Drafts/History/Notes tabs with merge and revert INSIDE the editor; three modes; exact
+  device sizing with drag handles; network throttling through the tag; two-level nesting.
+- **Defects found by verifiers and fixed:** the `+` writing into AquaCRM's own working tree;
+  a redirect (apex→www) silently killing the whole tag bridge; the second words edit always
+  422ing; an apostrophe in JSX text inverting the safety filter; a lost update that reverted
+  the previous edit; the secret scrubber missing hyphenated `sk-proj-` keys; six editor-AI
+  isolation defects; a NUL byte making a new module invisible to grep.
+- **Not done:** phases 8 (navigator + three switchers), 9 (Website vs Normal surfaces),
+  17 (the browser walk), 18 (the editor in a client portal). Ed's live client tag still
+  points at localhost — `NEXT_PUBLIC_PORTAL_BASE_URL` then re-paste the snippet.
+- **Handoff written:** `docs/context/HANDOFF-2026-08-22-dev-editor.md`, linked from
+  development.md. Suite 3,354 pass / 0 fail; tsc clean.
+
+---
+
+## 2026-08-22 — Network throttling: the tag wraps fetch/XHR, the editor gets a wifi control
+
+Ed: "in the dev editor have a wifi sign icon with a modal so i can simulate
+throttling". Built honestly: a parent page **cannot** throttle a cross-origin
+iframe's document/stylesheet/image loads (only DevTools can) — but the Aqua Tag
+runs *inside* the page, so it now wraps `window.fetch` + `XMLHttpRequest` and
+applies **real** latency, bandwidth pacing (chunk-proportional delay ≈ kbps)
+and offline failure (fetch rejects `TypeError("Failed to fetch")`, XHR fires
+`error`, nothing leaves) to everything the page's scripts request. The modal
+states that scope in so many words; nothing fakes a slow page load.
+
+- **Protocol** (`aquaTagBridge.ts` + `aquaTagSource.ts`, both sides together):
+  `aqua-explorer:throttle` (editor → tag, profile `{latencyMs, downKbps, offline}`
+  or null to clear) and `aqua-explorer:throttle-applied` (tag → editor, the
+  profile ACTUALLY in force — the UI renders the ack, never the request).
+  Version-gated like every sibling. Wrap is lazy (an unthrottled page keeps its
+  native fetch/XHR untouched); clear restores the exact originals; re-apply
+  replaces in place. Capabilities gained `networkThrottle: true`, parsed
+  leniently so a cached pre-throttle tag build still completes the handshake.
+- **UI**: new `src/components/editing/NetworkThrottleControl.tsx` — wifi icon
+  (amber + WifiOff when a confirmed profile is in force), panel with presets
+  Offline / Slow 3G (2000ms·400kbps) / Fast 3G (560ms·1500kbps) / 4G
+  (170ms·9000kbps) / custom, "Back to normal", the honesty sentence, and a
+  2.5s no-answer timeout that names the cached-tag case. Props
+  `{send, active, onChange}` shaped for DevEditor's existing `sendToTag`
+  plumbing. **Not yet mounted in DevEditor** — the mount is held back because a
+  concurrent workflow owns `DevEditor.tsx`; the exact mount change is written
+  up in the worker report (browser-controls cluster, beside the selection
+  toggle, gated on `tagBridge === "connected"`).
+- **Tests**: drift guard extended to the new envelopes **in both directions**
+  and mutation-tested — 6 new single-side drifts (22 total), all detected. New
+  `smoke-aqua-tag-throttle.test.ts` VM-executes the real tag source and proves
+  the wrap with a clock (lazy, latency, pacing, offline, restore, version gate,
+  junk-clears, no-fetch-answers-null). New
+  `smoke-network-throttle-control.test.ts` pins the honesty sentence, preset
+  numbers, protocol discipline (builder, no retyped literals), truth-rendered
+  amber, and editor vocabulary (no `--dt-*`).
+- **Docs updated**: [aqua-tag dossier](../workspace/aqua-tag.md) (§12 network
+  throttling + §13 tests), reference regenerated (`generate-file-docs.mjs` +
+  `generate-symbol-reference.mjs`). `tsc` exit 0; full suite 3,346 tests,
+  fail 0.
+
+## 2026-08-22 — Nested projects: Ed's two levels, enforced in the store (phase 1 nesting)
+
+Ed's model, now real: a project can contain projects — a child of the one you
+are in, never a new top-level one — and **exactly two levels**, "project →
+inner projects and that's it".
+
+- `parentProjectId?: string` on `DevProject` (`src/server/types.ts`); old
+  records parse unchanged (top level, field absent — proven by test).
+- **Store guards in `devProjects.ts`, tenant first:** parent must exist in
+  THIS agency (a foreign id answers word-for-word like an invented one); the
+  two-level rule both ways (a child can't be named as a parent, a project
+  with children can't become a child) + a self-containment guard — together
+  they make a cycle **inexpressible**, proven from every direction in tests.
+  Omission CARRIES the parent (a rename can never flatten a child); clearing
+  is explicit (`""`/null). Reparenting between top-level projects is legal.
+- **Deleting a parent refuses and NAMES the children**
+  (`devProjectDeleteRefusal`, thrown by `deleteDevProject` too), and the
+  projects route refuses BEFORE its destructive AI cleanup — a refused delete
+  leaves the assistant history intact (pinned behaviourally).
+- **Route** (`/api/portal/dev/projects`): save accepts `parentProjectId` on
+  create + update, refusals translated in the route's own style.
+- **Workspace UI** (`_DevEditorSetup.tsx`): children indented under their
+  parent via `groupDevProjects` (new `src/lib/shared/devProjectGrouping.ts` —
+  pure, orphan-tolerant); create form gains an "Inside" select (top-level
+  options only); every top-level card gains "Add a project inside".
+- **Editor Settings panel**: "Add a project inside this one", pre-parented to
+  the open project, announced via `DEV_PROJECTS_CHANGED_EVENT` — in-editor
+  creation now exists and is NEVER top-level.
+- A child is a **full project** — own repo, tag, AI config, history; deleting
+  one cleans up exactly like any project (checked: no consumer keys off
+  "top-level only"; `disposition.ts` already treats devProjects as leave).
+- **Held out on purpose:** the in-editor switcher's family list — one compile
+  unit with `DevEditor.tsx`, which the phase-10 workflow owns today. The
+  exact next-pass change (door-anchored family, justified from Ed's words) is
+  written into the plan's phase 8 switcher note.
+- Tests: new `scripts/smoke-dev-project-nesting.test.ts` (33 cases: rule from
+  every direction at store AND route, delete naming names, tenant isolation,
+  old-record tolerance, grouping, screen pins); two walkthrough pins
+  rewritten loudly (the editor panel now creates — pre-parented only). Full
+  suite green (3,264 tests, 0 fail); tsc clean.
+- Docs: this entry; plan `dev-editor-finish.md` phase 1 marked shipped with
+  the switcher handoff written into phase 8; both reference generators re-run
+  (no moves/deletes).
+
+## 2026-08-22 — Real device sizing in the editor's browser: exact pixels, and the draggable box (phase 10)
+
+Ed: "custom dimensions preset for phones tablets laptops etc and it will make
+the browser to exactly that. it lives inside a box but the draggable thing is
+the box the browser sits in."
+
+- **The real device system is mounted.** New `src/components/editing/DeviceControl.tsx`
+  replaces the width-only `BreakpointControl` (file deleted): 26 presets with
+  width AND height in categorised optgroups, custom W×H, rotate, zoom — all
+  maths imported from the website-editor module's `devicePresets.ts`
+  (`effectiveViewport`), never forked. The module's own `DevicePreview`
+  toolbar was NOT mounted — it wears that module's skin; the editor lifts the
+  chrome and keeps the maths shared. `DevEditor.tsx` still carries zero
+  built-ins imports (DeviceControl re-exports are its one door).
+- **EXACT means exact.** `PreviewFrame` lost `maxWidth:"100%"` and the silent
+  1440 cap; the iframe lays out at true device CSS pixels inside a
+  zoom-transformed box (layout size is what the page sees, the transform only
+  what the operator sees). Bigger than the pane → the pane SCROLLS at 1:1;
+  zoom is the operator's explicit toolbar choice, never an automatic shrink.
+  The status label (`deviceLabel`) states true device pixels with zoom beside
+  them.
+- **The drag handles exist now.** In Responsive mode the BOX the browser sits
+  in has right/bottom/corner handles: pointer-captured (a cross-origin iframe
+  otherwise eats the drag — it also drops pointer events for the duration),
+  clamped 240–4000 × 320–4000 through one `clampDeviceSize`, live W×H readout,
+  keyboard-nudgeable, and the dragged size becomes the custom dimensions.
+  `devicePresets.ts`'s "drag the canvas edges" comment now names its consumer
+  instead of describing an intention.
+- **Per-project persistence.** localStorage `lk_editor_device_v1:<projectId>`
+  (`:portal` on the portals door); `devicePresets.ts` gained the optional
+  `scope` param (module's own unscoped key untouched). Save is gated on the
+  loaded-scope check so Strict Mode's double effects and project switches
+  can't overwrite a stored device.
+- **Identity held:** the iframe key stays `${frameKey}:${url}` — preset
+  switch/rotate/zoom/drag change style values only; tag bridge, element
+  picking and mode switches all survive a resize.
+- Pinned by the new `scripts/smoke-editor-device-sizing.test.ts` (21 tests).
+  Full suite 3230/3229 pass/1 skip (baseline + exactly the 21). tsc clean.
+- Docs: this entry; plan phase 10 marked shipped; `workspace/components.md`
+  editing/ section; reference mirror cleared and regenerated (a file was
+  deleted). NOT verified in a live browser — phase 16's warning still applies.
+
+## 2026-08-22 — Four editing modes become three: "Just the words" merged into Visual (phase 5)
+
+Ed: "id want to actually just combine it into visual mode as its the same you
+select element change type it add it in" — the text-only depth was the same
+click landing on the same element panel, so the rung is gone.
+
+- `EDITING_MODES` is now **Just tell it / Visual builder / Dev**
+  (`src/engines/editor/editing/modes.ts`); the `simple` id deleted from the
+  ladder, the type, the skin map (`EditorModeSwitch.tsx`) and
+  `selectionRouting.ts` (whose `simple` branch was pure deletion — visual off
+  a portal already routed to the element panel with the words editable; the
+  styling now rides along).
+- **Migration, by name:** `editingMode("simple")` returns visual explicitly,
+  not via the unknown-id default — the one string parser every entry point
+  funnels through. The mode never persists to URL/localStorage today, so that
+  seam plus `modeSkin()`'s fallback covers every stale-value path.
+- **NO capability model** — Ed's 2026-08-21 decision stands (clients get the
+  whole editor); nothing text-only-gated rode in on the merge.
+- Every four-mode/simple pin rewritten loudly, keeping the meaning:
+  `smoke-editing-modes` (+ a migration test), `smoke-aqua-editor-ai`,
+  `smoke-dev-editor-tag-bridge`, `smoke-editor-element-palette`,
+  `smoke-librarian`. Suite 3208 pass / 0 fail / 1 skip (baseline 3207 + the
+  new migration test); tsc clean.
+- Docs: phase 5 marked shipped in `plans/dev-editor-finish.md`;
+  `CURRENT-IMPLEMENTATION.md`, `workspace/shared-logic.md` and the
+  `aqua-engine-and-dev-team-plugin.md` snapshot row updated; reference
+  regenerated.
+
+---
+
+## 2026-08-22 — The repo write path: create, save, publish for repository-backed projects
+
+Ed, blocked live: "its not letting me add new files folders... dont think
+publishing works either". A repo-backed project could be read everywhere and
+written nowhere — the files route 409'd (correctly), the "+" was disabled with
+"create the file there and publish", and nothing implemented that sentence.
+Now it is the live path, end to end, through the words editor's proven
+machinery (`publishEdits`/`openPullRequest` — deliberately no second GitHub
+client).
+
+- **New engine module** `src/engines/editor/server/repoWrite.ts`: `saveRepoFile`
+  (whole-file commit on the draft branch `aqua-editor/<projectId>`; current copy
+  read from the **branch tip once the branch exists** — the lost-update rule —
+  and the read-time fingerprint re-checked against what is actually there:
+  mismatch = the local route's "someone else changed this" refusal, never an
+  overwrite), `createRepoPath` (new file = committed blob; folder =
+  `<path>/.gitkeep` with the honest note — git has no empty dirs), and
+  `openProjectPullRequest` (opens or **reuses** the branch's PR; merging stays a
+  separate decision). Same hidden-path/traversal refusals as local disk
+  (`normalizeRepoPath`), dry-run unless `confirm === true`, per-branch
+  in-process write lock.
+- **New route** `/api/portal/dev/repo-write` (POST only): the source-edit gate
+  pattern (founder + Dev Mode → origin → tenant-before-project); repo/ref/token
+  off the `DevProject` record and the vault, never the body, never echoed.
+- **The files route GET now reads a repo-backed project DRAFT-FIRST** — without
+  this a created file was invisible and every reopened file carried main's
+  fingerprint, which the save path then rightly refused forever. Response says
+  `draftBranch`; explicit `?ref=` still wins. The POST 409 backstop is untouched.
+- **UI**: `EditorCodeCanvas` saves repo projects through repo-write and says
+  "On the draft branch — publish opens the pull request" (never "Saved" alone);
+  a permanent draft-branch strip carries the **Publish** control showing the PR
+  link + state. `DevEditor`'s "+" now creates files/folders on repo projects
+  (honest .gitkeep wording) and announces `DEV_PROJECTS_CHANGED_EVENT` so the
+  tree re-reads — the local create's old `setFrameKey` nudge never reached the
+  tree at all; both paths now use the event. `.gitkeep` added to the editor's
+  text types so the created file is visible/openable.
+- **Tests**: `scripts/smoke-repo-write.test.ts` (44) — the stateful fast-forward
+  fake extended to track **contents per commit** (a fake that cannot answer
+  "what does this path hold at this tip?" cannot catch a silent revert) plus
+  stateful PR endpoints: first save creates the branch, second **chains**,
+  base-fingerprint save refused after the branch moved, create lands / .gitkeep
+  lands / exists refused branch-first, hidden+traversal refused with zero GitHub
+  calls, dry-run default, publish opens once and reuses, route guards, UI pins.
+- **Docs updated**: this entry; `api-reference.md` (new repo-write row;
+  site-editor/files row corrected for draft-first GET); both reference
+  generators re-run.
+
+## 2026-08-22 — Aqua Editor AI replies now — the model call on the project's own key
+
+Ed hit the honest banner live ("cannot reply yet — the call to {model} on this
+project's own key is not wired"). The reply path now exists; the banner is gone.
+
+- **New** `src/engines/editor/server/editorAiReply.ts` — `generateEditorAiReply`:
+  the project's OWN key via `resolveEditorAiToken` (**no fallback** to the agency
+  `openai` connection or env; keyless project → the existing not-configured
+  sentence, ZERO model calls), the project brief as system context, the newest
+  ≤24 thread messages (char-capped, omissions declared to the model), the
+  client's editor context (clicked words / source focus, untrusted-framed).
+  Reuses the Advisor's transport (`OPENAI_RESPONSES_URL` + `extractOutputText`,
+  now exported from `openaiAssistant.ts`) — one HTTP idiom, two credentials.
+  The assistant's reply is appended **server-side** — the one author the history
+  route's `role:"assistant"` refusal defers to. Failures are sentences with
+  codes (`not_configured`/`timeout`/`network`/`provider`/`empty`); provider text
+  is cleaned by `scrubSecrets` (extracted + exported from
+  `integrationConnections.ts`, behaviour of `safeTestMessage` unchanged) with
+  the exact key that was used, and a failed reply appends nothing.
+- **New route** `/api/portal/dev/editor-ai/reply` — POST only, same gate chain
+  as its siblings (role → Dev Mode → origin), tenant before project, same 404
+  sentences. `not_configured` → 409, `timeout` → 504, upstream → 502.
+- **UI** (`AquaEditorAIThread.tsx`, `AquaEditorAI.tsx`, `editorAiClient.ts`):
+  send now saves the message, shows a thinking row ("Asking {model} on this
+  project's own key…"), and renders the reply from the round trip. The
+  "cannot reply yet" banner is REPLACED by the other honesty: "Aqua Editor AI
+  describes changes — it does not make them. You decide what to apply."
+  Failures land as words — no key points at the Key panel (one click), a save
+  failure restores the draft, a reply failure does NOT (the message is already
+  saved). Never a forever-spinner: the server aborts at 45s into words and the
+  client carries its own 60s abort for a dead network.
+- **Tests**: new `scripts/smoke-aqua-editor-ai-reply.test.ts` (12 — stubbed
+  round trip incl. brief+context on the wire, per-project key isolation,
+  cross-tenant 404 with no model call, keyless = existing reason + no call,
+  401-echo scrubbed everywhere, hung provider → words, role gate still refuses
+  client "assistant", caps hold with replies flowing incl. truncation flag; a
+  tripwire fetch makes any real network call throw).
+  `smoke-aqua-editor-ai-ui.test.ts` extended (+6, now 36) for the third
+  endpoint, the reply client, the banner's absence and the thinking state.
+- **Verified**: `tsc` 0 errors; FULL suite 3094 tests, 0 fail (1 pre-existing
+  opt-in Postgres skip).
+- **Docs**: `workspace/api-reference.md` (+ reply row),
+  `workspace/shared-logic.md` (editing engine — reply section), reference
+  regenerated (both generators; additive, no moves).
+
+---
+
+## 2026-08-21 — Dead snippet is a named state; the file tree stops showing a cached refusal
+
+Found live on the first real client run: the snippet on the client's page pointed its
+script at `http://localhost:3032/aqua-tag.js` — present, right key, and dead in every
+visitor's browser — while Check It said "verified" because it reads HTML server-side.
+
+- **Phase 1a — "dead-snippet", the eighth tag state.** `detectAquaTag`'s new
+  `scriptSrc`/`scriptLoadable` now thread the whole chain: `DevProjectTagMap` carries
+  `scriptSrc?`/`scriptUnloadableReason?` (`src/server/types.ts`; old records parse
+  unchanged — absent means unassessed, never dead), `mapProjectAquaTag` copies them off
+  the detection, and `devProjectTagState` ranks `dead-snippet` above answering/redirected.
+  The sentence prints the loadability reason **verbatim** (it names the env fix). It is a
+  DEFINITIVE negative: `aquaTagIdFromCheck` never mints from it and REVOKES an earned id
+  on re-check; `tagVerified` now means "runs for a visitor", not "in the HTML". Setup card
+  words it in the warning tone. Pinned seven-state tests are now eight, loudly
+  (`scripts/smoke-dev-editor-aqua-tag.test.ts`, `smoke-aqua-tag-detection.test.ts`).
+- **Phase 1b — the tree re-fetches after a connection lands.** `EditorCodeCanvas` and
+  `RepositoryPanel` listen for `DEV_PROJECTS_CHANGED_EVENT` and re-run the tree fetch
+  (a refresh never closes the open file; changing target still does), and the
+  needsGitHub refusal carries a **Try again** button. `GitHubNotConfigured` no longer
+  says "Company → Connections" — the editor's Settings tab has the inline connect panel,
+  and every editor-side copy now points there (`githubSource.ts`, site-editor files
+  route `href` → `/portal/dev-team/editor`, `_CodeWorkspace` banner). Pins in
+  `smoke-dev-editor-github-connect.test.ts`; the old wording pin in
+  `smoke-code-mode.test.ts` deliberately flipped.
+- Suite 3057 pass / 0 fail / 1 skip; `tsc` 0 errors. Docs: reference regenerated
+  (`devProjectTagState` now says eight).
+
+## 2026-08-21 — Aqua Editor AI hardening: the six verified defects from the own-assistant split
+
+Four adversarial verifiers confirmed the architecture (own vault provider `aqua-editor-ai`,
+per-project config/history/UI) and reproduced six defects; this pass fixes exactly those six.
+Full suite 3057 tests / 0 fail (1 pre-existing postgres skip); `npx tsc --noEmit` clean.
+
+- **SECURITY — the secret scrubber now catches hyphenated key formats.**
+  `integrationConnections.safeTestMessage` demanded an underscore after the prefix, so an
+  OpenAI `sk-proj-…` key echoed by a provider 401 reached `lastTestMessage` in PLAINTEXT →
+  state blob → integrations GET → settings panel. Now covered: `sk`/`rk` with hyphen OR
+  underscore, `re_`/`whsec_`/`github_pat_`/`gh[opsur]_`, PEM private-key blocks, long bare
+  hex (Twilio auth tokens, Meta app secrets) — and, the net under all patterns,
+  `testIntegrationConnection` passes the connection's own decrypted secret VALUES for exact
+  removal (a Vercel token or SMTP password has no prefix to match). End-to-end pins in
+  `smoke-aqua-editor-ai-token` (stubbed 401 echo → key nowhere in state or the GET).
+- **History writes now key on the CLEANED agency id** — `editorAiHistory.assertProject`
+  returns the cleaned id and every write path threads it (writes used the raw input while
+  reads cleaned, so a padded id stranded text under a key no read — and no retention delete —
+  ever built). `forgetEditorAiHistoryForProject` also compares the stored stamp against the
+  cleaned id, closing the outlives-the-project hazard.
+- **delete-thread / clear on a never-chatted project mints no record** — a delete is never
+  the write that creates the record it deletes from; an unknown thread id no longer even
+  bumps `updatedAt`.
+- **The history route refuses `role:"assistant"` from a request body** (400, loudly) — a
+  browser only ever appends the person's voice; the module keeps its assistant role for the
+  server-side reply path. `editorAiClient.appendEditorAiMessage` dropped its `role` input.
+- **The per-thread 60-message cap now counts its evictions** into `evictedMessages` like the
+  other levels — it is the cap that fires FIRST in real use, and the "earlier messages were
+  trimmed" notice never appeared for it. The cap test now asserts the counter.
+- **The key panel renders NOTHING from a stale status** — `AquaEditorAIKey` gates the status
+  chips, masked key tail, vault label, reason sentence, setup steps, field seeding and the
+  model placeholder on `unread`, so project B never wears project A's credential facts for
+  the round-trip after an in-editor project switch. Pinned by a REAL render: new
+  `scripts/smoke-aqua-editor-ai-stale-key-panel.harness.tsx` (child process, the
+  parity-harness pattern) + stale/fresh assertions in `smoke-aqua-editor-ai-ui`.
+- Docs: `docs/workspace/api-reference.md` history-route row now states the role rule; symbol
+  reference + file docs regenerated.
+
+## 2026-08-21 — Dev Editor fix pass: the four verified defects from the tag/words build, plus the save-body tag unlock
+
+The 3-phase build (tag-in-editor · mount the blocks · words persist to git) was CONFIRMED
+working by four adversarial verifiers; this pass fixes exactly the defects they reproduced.
+
+- **The editor now learns about a tag Settings just verified** — `_DevEditorSetup.tsx` dispatches
+  `DEV_PROJECTS_CHANGED_EVENT` (`aqua:dev-projects-changed`) on every successful mutation;
+  `DevEditor.tsx` listens, re-fetches projects+statuses, and when the open project's tag just
+  became verified points `browserUrl` at `aquaTagBrowserUrl(project)` (the MAPPED finalUrl).
+  No more full-page reload to turn the browser on.
+- **A tag that stops answering is revoked** — `aquaTagIdFromCheck` (devProjects.ts) now revokes
+  on a DEFINITIVE negative (`absent`, `foreign`) and keeps on an INDETERMINATE one
+  (`unreachable`). The card no longer says "Browser available" in green beside "until it
+  answers there is no browser". Sentences updated to name the consequence; the old
+  "never revoke" pins in `smoke-dev-project-map` / `smoke-dev-editor-aqua-tag` rewritten to
+  pin the new rule loudly.
+- **The second words edit on a project no longer 422s** — `publish.ts` builds tree+commit from
+  the EDIT BRANCH's tip when the branch exists (baseSha only creates it), still `force:false`.
+  The fake GitHub in `smoke-editor-words-publish` is now STATEFUL (tracks refs + ancestry,
+  enforces fast-forward) with a two-edits-in-a-row test that fails on the old code.
+- **The apostrophe context inversion is fixed** — `sourceMatch.ts` `contextAt` derives context
+  from the file type and line structure (markup / attribute / expression / statement-code
+  machines); quotes never open strings in bare JSX text or markdown. When it genuinely cannot
+  tell it refuses with `unknown-context` instead of guessing. Verbatim repro tests:
+  `<h1>Don't stop believing</h1>` + `<script>`/`{` refused; markdown "It's the best day"
+  accepted; `title="Ed's place"` still correct.
+- **Save can no longer plant the browser gate** — the projects route REFUSES `body.aquaTagId`
+  on save (400) and preserves the earned id server-side when omitted; `_DevEditorSetup` stops
+  sending it. The contract test that pinned "a save carries the value through" now pins the
+  opposite.
+- Docs: reference regenerated (`contextAt`/`replaceTextInLine` signatures, new event export).
+  Suites: the four affected files green; full `smoke:all` re-run with 0 fails.
+
+Ed asked for stale docs to be removed and "a simple log kept, to avoid pollution". Going
+through all 106 hand-written docs, **nothing turned out to be safely deletable** — every doc
+that was stale also recorded a real decision, incident, or design rationale, which makes it a
+dated record rather than dead weight. So the pollution was not dead files: it was that dated
+records sat in the same folders as live ones, and that three separate files each claimed to
+answer "where do we stand". This pass archives rather than deletes, and makes each question
+have exactly one answer. No doc was deleted and no fact was lost.
+
+- **The log is `updates.md` — this file — and no second log was created.** It already carries its own never-rewrite banner and is machine-parsed by the Dev Console (`parseUpdates`, `lib/server/dev/devTeamUpdates.ts`), so inventing a second one would have created exactly the pollution being cleaned up. `development.md` now states the one-question-one-file rule in a table near the top: **what changed → `updates.md`**; **where do we stand → `checklist.md`**; **what systems exist → `CURRENT-IMPLEMENTATION.md`**; **how do I run it → `DEVELOPMENT-HANDOFF.md`**.
+- **New history shelf: [`docs/context/archive/`](../context/archive/README.md)**, with its own README saying what each file was superseded by and where to look instead. Eleven dated records moved there, each keeping its prose intact and gaining a `🗄 ARCHIVED 2026-08-21` banner: `WHERE-WE-ARE.md` → `archive/WHERE-WE-ARE-2026-08-18.md` · `development/WHERE-WE-STAND.md` → `archive/WHERE-WE-STAND-2026-08-20.md` · `SESSION-HANDOFF-2026-08-18.md` and `-19.md` → `archive/session-handoff-2026-08-1{8,9}.md` · `development/phases.md` → `archive/phases.md` · `workspace/session-changelog-2026-08.md` → `archive/session-changelog-2026-08.md` · `development/radar-handoff.md` and `radar-update-notes.md` → `archive/` · `development/finance-command-surface-HANDOFF.md` → `archive/finance-command-surface-handoff.md` · `development/handoffs/connect-flow-real-codes.md` → `archive/connect-flow-real-codes-handoff.md` (emptying `development/handoffs/`, which held only that one file and has been removed) · `website-editor-and-migration.md` → `archive/`.
+- **The three "where we stand" files are now one.** `checklist.md` already held the job — `development.md` and `state.md` both point at it — so the other two were archived and `checklist.md` says out loud that it is the only one. `CURRENT-IMPLEMENTATION.md` stays live but is **re-scoped**: a banner now says it is the inventory of what systems *exist*, not a status report. `DEVELOPMENT-HANDOFF.md` also stays live with a banner saying it is the **environment runbook**, not a session handoff — two different things had been wearing one name. It was not renamed, because `CLAUDE.md` names it by path.
+- **Plan/handoff pairs made unambiguous without moving anything.** The five `*-handoff.md` files in `plans/` each gained a one-line banner: the plan is the authority on status, the handoff is the dated debrief. They stay in `plans/` for two reasons, both stated in the banner — `smoke-dev-tasks-parse.test.ts:145-160` pins them by name in the zero-phase set, and `plans/archive/README.md` says not to archive a handoff a plan still points at as its brief.
+- **No plan was archived, deliberately.** Probing `scanTasks`/`buildRoadmap` in-process rather than trusting the prose changed three answers. `battle-table-overhaul` is **4/5 with phase 5 open**, so it fails the archive rule outright. `connect-flow-real-codes` is the *only* plan under `onboard-the-clients-who-are-waiting` (`building`) — archiving it makes `total` 0, which falls to the non-shipped branch and would render Ed's top Now card as **0% instead of 100%**. `finance-command-surface` would drop `verify-sweep` from 84% to 75%. Of the rest, only `enquiry-detail-card` is browser-verified, and archiving it alone would strand its test-pinned handoff on the board without its plan. The browser walks these are waiting on are what `verify-sweep` exists for.
+- **Link rot fixed, and measured.** A link checker over every non-generated doc found **9 broken links before** this pass (including four pre-existing path errors and the never-repointed `dev-console-topbar.md` archive). Every relative link in and to a moved file was re-resolved against where it was originally authored: **68 links repointed across 15 files**, and the four pre-existing errors fixed (`dev-docs-handoff.md` → `../../context/state.md`, both freelancer docs → `../issues.md`). The only broken links left are the **10 inside this file**, in older entries — left alone on purpose, because entries are never edited; the banner above now says where those files went.
+- **A dangling doc reference resolved honestly.** `super-editor.md` was cited from three places — `development.md`, `CURRENT-IMPLEMENTATION.md:377`, and the *live* plan `dev-editor-checklist.md:57` — and has never existed. Rather than invent it, all three now say so and point at `dev-editor-checklist.md` Phase 6, which is the actual record of that convergence.
+- **`development-workspace-cleanup.md` kept live, against first appearances.** It is the most stale-looking doc in the tree (6 Aug, outer workspace, `pnpm`, port 3030) but its "Catalogued In Development" section is the only human documentation of the six roots `scanWorkspace` still walks (`api/portal/development/route.ts`) behind the live `catalogue:development` npm script. Filing it under history would have buried the spec for shipped code. Its stale command and port are flagged in a banner rather than overwritten.
+- **Nothing load-bearing moved.** Re-derived the reader set independently before touching anything: `state.md` (`parseBlockers`, `parseWorkers`), `updates.md` (`parseUpdates`), `roadmap.md` (byte-exact round-trip test), `audits.md`, `development.md`, `compliance/erasure-dpo-pack.md`, `plans/` and `plans/archive/` and `findings/` as directories, plus the 17 plans pinned by name in tests. All stayed put. Verified after the edits by re-running the parsers in-process: the zero-phase plan set is byte-identical to the test's `allowed` list, `radar-upgrade` is still 7/7, `dev-team-portal` still totals 5, and **all 13 roadmap percentages are unchanged**. **No test needed editing.**
+- **Verified:** `tsc --noEmit` **0 errors**; full suite **2723 tests / 2721 pass / 1 fail / 1 skip** — identical to the pre-change baseline. The one failure, `smoke-editor-write-path` "skips dot-directories unconditionally when walking", is **pre-existing and unrelated**: it reads `src/app/api/portal/dev/files/route.ts`, which another agent is editing in this same tree. It fails identically before and after this pass, and no doc is involved.
+
+## 2026-08-21 — Dev Team editor split into a projects workspace + the studio (logged late), and nine doc/copy defects corrected
+- **The split (shipped earlier this day, never logged — logging it now, not editing the entry below).** `/portal/dev-team/editor` used to open the editor directly. It is now the **projects workspace**: `editor/page.tsx` is a real page (`DevEditorProjectsPage`) rendering `editor/setup/_DevEditorSetup.tsx` — what you have and what each project points at — and "Open editor" goes to **`editor/studio/page.tsx?project=<id>`**, which mounts `src/engines/editor/DevEditor.tsx` with `backHref="/portal/dev-team/editor"`. Leaving the editor returns to the list, which is what makes several projects at once workable. Dev-Team only: the agency door `/portal/agency/portals/editor` still opens the editor directly, because a portal is already chosen before you arrive there.
+- **Sidebar consequence.** Dev Team has **seven** nav items (`layout.tsx:74-89`): Home · Roadmap · Findings · Library · Tools · **Editor** · Notes. `/portal/dev-team/editor` is **not a redirect stub** any more (its only `redirect()` is the auth-failure branch). **Team chat is no longer a sidebar row** — `layout.tsx` contains zero occurrences of "chat"; `dev-team/chat/page.tsx` still exists and still renders `TeamChat`, simply unlinked from the nav.
+- **Portal copy still shipping out of the universal editor — fixed (source).** Ed, on this: "for all you know I could be building a game — we said at the start UNIVERSAL EDITOR." Six user-facing strings in `src/engines/editor/DevEditor.tsx` rewritten, no identifier renamed and no logic touched: the initial notice `"Loading portal design..."` → `"Loading..."`; `"Create a client before opening the portal studio."` → `"...before opening the editor on this project."`; `"The portal studio needs a client record to supply preview data."` → `"The editor needs a client record to supply preview data for this project."`; `"Open portal in new tab"` → `"Open preview in new tab"`; the mobile FAB `"Edit portal"` → `"Inspector"`; `aria-label="Close portal inspector"` → `"Close the inspector"`. Four of those render **ungated**, and the other two sit behind `portalTarget` (`projectKind !== "software"`), which is also true for a `website` project and for one with no kind set — so none of them was a genuinely portal-only branch. **Deliberately kept:** copy on branches that have already established a client-portal document is being edited (`Portal template`, `Portal page`, `Lifecycle stage`, `Publish portal`, `Custom portal layer`, `Portal CSS`, `Add a portal component`, and `"Loading portal design..."` at the point the portal-design fetch actually fires), plus the `PortalStudio*` type/loader names.
+- **Stale code comment.** `dev-team/layout.tsx` still described the Editor route as "currently the app-config edit→preview→publish loop … slated to grow into the full Dev Editor Engine". It is the projects workspace today; the comment now says so and points at `editor/studio` + `src/engines/editor/DevEditor.tsx`, and notes the app-config loop is the separate thing at Tools → Editor.
+- **Docs corrected** — three adversarial verifiers found nine defects in the sweep logged below. [shared-logic.md](../workspace/shared-logic.md) (chapter 2 of the live map was missed entirely: `lib/editing/` + `lib/server/siteEditor/` + `lib/elements/` are all dead paths, and the editing engine is **not** driven by the website-editor plugin — its importers are `DevEditor.tsx`, both doors, `api/portal/dev/projects/route.ts` and `_CodeWorkspace.tsx`); [components.md](../workspace/components.md) (`components/editing/` is **10** files, not 3, and its sole importer is the universal editor — nothing in `src/built-ins/` touches it); [state.md](../context/state.md) (the "Dev Console shape" ground-truth row said six sections and listed `dev-team/editor` as a stub, contradicting the row four lines below it); [feature-index.md](../workspace/feature-index.md) (sidebar count, the `/editor` stub claim, Team chat, and the dead `lib/clientPortalBuilder.ts` → `lib/portal/clientPortalBuilder.ts`); [portal-ui.md](../workspace/portal-ui.md) ("Sections — SIX" above a seven-row table); [hazards-and-duplication.md](../workspace/hazards-and-duplication.md) (Team chat as a sidebar row). Nav line references re-checked against source and updated to `layout.tsx:74-89`.
+- **Restored, not rewritten.** The sweep had **overwritten dated prose in place** in [website-editor-and-migration.md](../website-editor-and-migration.md) (a file dated 18 August 2026), replacing "Still to migrate: the portal studio, funnels and the website workspace…" with text naming `engines/editor/DevEditor.tsx`. The original sentence is restored **verbatim** and annotated *below* with a dated note — the same treatment the sweep correctly gave the table 30 lines above, and it re-anchors the naming note that quoted words the rewrite had deleted. Same principle applied to the dated "Done (2026-08-20)" block in [plans/dev-editor-engine.md](plans/dev-editor-engine.md): the dead `lib/server/siteEditor/**` path is annotated, not overwritten. Rewriting history to match the present is how a changelog stops being worth reading.
+- **Verified:** `tsc --noEmit` **0 errors**; full suite **2709 pass / 0 fail / 1 skip** (baseline held). `parseBlockers` (`lib/server/dev/devDocs.ts`) re-run over the edited `state.md`: 4 blockers, all resolved — unchanged, the edit is a table row and adds nothing under `## Blockers`. Generators **not** re-run (`docs/reference/` is already correct).
+
+## 2026-08-21 — The editor moved out of the portals route: `_ClientPortalStudio` → `src/engines/editor/DevEditor.tsx`
+- **The move.** `src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx` → **`src/engines/editor/DevEditor.tsx`**, and the exported component `ClientPortalStudio` → **`DevEditor`**. Pure structural move: same component, same props, same behaviour — only the location and the exported name changed.
+- **Why.** The one universal editor was living inside the client-portal route that happened to mount it first. Being addressed as a portal file kept dragging portal assumptions back in, so portal-specific copy repeatedly leaked out at somebody editing a plain repository. It is ONE editor; a client portal is one target it can point at. `/portal/agency/portals/editor` is now just one of its **doors**, not its home (the other is `/portal/dev-team/editor` → `./studio`).
+- **Deliberately NOT renamed** (so the blast radius stayed small): the exported types `PortalStudioClient` / `PortalStudioTemplate`, the loader module `src/engines/editor/server/portalStudio.ts`, and `loadPortalStudioProps()` all keep their names.
+- **Verified:** `tsc --noEmit` 0 errors; full suite **2709 pass / 0 fail / 1 skip**. All call sites and the seven tests that name the component (`smoke-client-portal-studio`, `smoke-aqua-editor-ai`, `smoke-dev-editor-engine`, `smoke-editor-target-aware`, `smoke-portals-workspace`, `smoke-product-portal-modules`, `smoke-client-service-workspace`) were rewritten with it.
+- **Docs:** `docs/reference/` regenerated — grepped clean, no page still describes the old path. Prose corrected in [WORKSPACE-FILE-TREE.md](../WORKSPACE-FILE-TREE.md) (owning-layer table + chapter 2's stale `lib/elements/`), [architecture-noobie.md](../architecture-noobie.md) §4, [CURRENT-IMPLEMENTATION.md](../CURRENT-IMPLEMENTATION.md) ("Portals And Portal Studio" → "Portals And The Editor"), [feature-index.md](../workspace/feature-index.md), [portal-ui.md](../workspace/portal-ui.md), [hazards-and-duplication.md](../workspace/hazards-and-duplication.md) (its "the live editor uses `lib/server/siteEditor/*`" line pointed at two directories that no longer exist), [state.md](../context/state.md) (new ground-truth row), [website-editor-and-migration.md](../website-editor-and-migration.md), and the plans [dev-editor-engine](plans/dev-editor-engine.md), [aqua-engine-and-dev-team-plugin](plans/aqua-engine-and-dev-team-plugin.md), [staff-team-system](plans/staff-team-system.md).
+- **Left untouched on purpose** — the historical records that correctly report the old name *on their date*, which is the whole value of a dated record: [audits.md](audits.md)'s 2026-08-21 verdict, [staff-worker-handoff.md](../context/archive/staff-worker-handoff.md), the 2026-08-19 Phase-9 entry below, and the 🗄 HISTORICAL worker/plan ledger in state.md. The new ground-truth row in state.md says so explicitly, so nobody reads the ledger as a live path.
 
 ## 2026-08-20 — Three profile-menu toggles: Cinematic mode, real Performance mode, dev-icon toggle (worker)
 - **Cinematic mode (rename + invert of the old "Performance mode").** New client helper `src/lib/chrome/cinematicMode.ts` — `cinematicModeEnabled()` defaults **true** (cutscenes play), key `aqua-cinematic-mode`, event `aqua-cinematic-mode:change`. Migrates the old `aqua-performance-mode` value on first read (old perfMode=1 → cinematic OFF). The three transition consumers (`ClientWorkspaceTransition`, `CommandCenterTransition`, `DevModeLoadIn`) now skip when `!cinematicModeEnabled()`; CSS belt-and-braces hide re-keyed to `html[data-cinematic-mode="false"]` (`globals.css`).

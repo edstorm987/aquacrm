@@ -9,7 +9,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 - `interface ModeSkin (6 members)`
 - `MODE_SKINS: Record<EditingMode, ModeSkin>`
 - `modeSkin(mode: EditingMode): ModeSkin`
-- `EditorModeSwitch({ mode, onChange, available, }: { mode: EditingMode; onChange: (next: EditingMode) => void; /** Modes worth offering here — a repository has no "Design it". */ available?: EditingMode[]; })`
+- `EditorModeSwitch({ mode, onChange, available, }: { mode: EditingMode; onChange: (next: EditingMode) => void; /** * Optional narrowing. Deliberately unused by the editor: it is a UNIVERSAL * editor, and hiding modes based on what we guess y…`
 
 ## Depends on (2)
 
@@ -18,5 +18,5 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Used by (1)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
+- [`src/engines/editor/DevEditor.tsx`](../../engines/editor/DevEditor.md)
 

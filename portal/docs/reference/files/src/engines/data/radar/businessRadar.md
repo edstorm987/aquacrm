@@ -59,7 +59,7 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/lib/intelligence/commercialLifecycle.ts`](../../../lib/intelligence/commercialLifecycle.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (63)
+## Used by (60)
 
 - [`scripts/smoke-business-radar.test.ts`](../../../../scripts/smoke-business-radar.test.md)
 - [`scripts/smoke-command-recommendations.test.ts`](../../../../scripts/smoke-command-recommendations.test.md)
@@ -88,10 +88,8 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](../../../components/chrome/AdvisorDrawerControl.md)
 - [`src/components/chrome/ClientRadarQuickLookButton.tsx`](../../../components/chrome/ClientRadarQuickLookButton.md)
 - [`src/components/chrome/GlobalAdvisorDrawer.tsx`](../../../components/chrome/GlobalAdvisorDrawer.md)
-- [`src/components/chrome/LibrarianDrawerControl.tsx`](../../../components/chrome/LibrarianDrawerControl.md)
 - [`src/components/chrome/RadarQuickLookButton.tsx`](../../../components/chrome/RadarQuickLookButton.md)
 - [`src/components/chrome/RadarQuickLookControl.tsx`](../../../components/chrome/RadarQuickLookControl.md)
-- [`src/components/editing/AquaEditorAI.tsx`](../../../components/editing/AquaEditorAI.md)
 - [`src/engines/data/radar/clientRadar.ts`](./clientRadar.md)
 - [`src/engines/data/radar/radarCheckEngine.ts`](./radarCheckEngine.md)
 - [`src/engines/data/radar/radarClassification.ts`](./radarClassification.md)
@@ -110,7 +108,6 @@ _No file-level doc-comment. Purpose inferred from its path (Other) and its expor
 - [`src/engines/data/server/radar/radarSourceInspection.ts`](../server/radar/radarSourceInspection.md)
 - [`src/engines/data/server/radar/radarSweeps.ts`](../server/radar/radarSweeps.md)
 - [`src/engines/data/server/radar/radarTelemetry.ts`](../server/radar/radarTelemetry.md)
-- [`src/engines/editor/server/editorAssistant.ts`](../../editor/server/editorAssistant.md)
 - [`src/lib/advisor/advisorActions.ts`](../../../lib/advisor/advisorActions.md)
 - [`src/lib/advisor/advisorSkills.ts`](../../../lib/advisor/advisorSkills.md)
 - [`src/lib/intelligence/businessRecommendedActions.ts`](../../../lib/intelligence/businessRecommendedActions.md)

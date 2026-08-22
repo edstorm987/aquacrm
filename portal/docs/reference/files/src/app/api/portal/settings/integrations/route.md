@@ -17,7 +17,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../../server/tenants.md)
 
-## Used by
+## Used by (1)
 
-_No internal importers found (an entry point — route/page/test/script — or dynamically loaded)._
+- [`scripts/smoke-aqua-editor-ai-token.test.ts`](../../../../../../scripts/smoke-aqua-editor-ai-token.test.md)
 

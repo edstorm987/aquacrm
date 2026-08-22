@@ -96,13 +96,47 @@ describe("dev projects — the engine's project binding", () => {
     assert.equal(devProjects.devProjectGitHubToken(AGENCY, project), null);
   });
 
-  it("unlocks the visual editor only when an Aqua Tag is mapped to a non-software project", () => {
+  // ─── RULE CHANGE, SAID LOUDLY ─────────────────────────────────────────────
+  //
+  // This test used to assert `devProjectVisualEditorUnlocked(software) === false`
+  // with the comment "software is code-only". THAT ASSERTION ENCODED THE WRONG
+  // RULE and is deliberately gone.
+  //
+  // Ed, repeatedly: "the aqua tag must be connected for browser to work. or
+  // anything to work really other than the dev since it can just use repo files
+  // directly". The tag ALONE is the gate. The old `kind !== "software"` clause
+  // gated the browser off every project he creates, because `software` is the
+  // default kind and the setup form has no kind picker at all — so a tagged game
+  // build could never get a browser. `kind` no longer decides anything.
+  //
+  // What must NOT be lost: no tag still means no browser. That half is pinned
+  // below and is the whole security/behaviour value of the rule.
+  it("unlocks the visual editor from the Aqua Tag ALONE — kind decides nothing", () => {
     const site = devProjects.saveDevProject({ agencyId: AGENCY, name: "Site", kind: "website", aquaTagId: "tag_1", actorUserId: ACTOR });
-    const siteNoTag = devProjects.saveDevProject({ agencyId: AGENCY, name: "Site 2", kind: "website", actorUserId: ACTOR });
     const software = devProjects.saveDevProject({ agencyId: AGENCY, name: "App", kind: "software", aquaTagId: "tag_2", actorUserId: ACTOR });
-    assert.equal(devProjects.devProjectVisualEditorUnlocked(site), true, "tag + website unlocks the visual editor");
-    assert.equal(devProjects.devProjectVisualEditorUnlocked(siteNoTag), false, "no tag, no visual editor");
-    assert.equal(devProjects.devProjectVisualEditorUnlocked(software), false, "software is code-only");
+    const portal = devProjects.saveDevProject({ agencyId: AGENCY, name: "Portal", kind: "portal", aquaTagId: "tag_3", actorUserId: ACTOR });
+    assert.equal(devProjects.devProjectVisualEditorUnlocked(site), true, "tagged website: browser");
+    assert.equal(
+      devProjects.devProjectVisualEditorUnlocked(software), true,
+      "REGRESSION GUARD: a TAGGED software project must get a browser. This is the assertion that was inverted.",
+    );
+    assert.equal(devProjects.devProjectVisualEditorUnlocked(portal), true, "tagged portal: browser");
+  });
+
+  it("no Aqua Tag means no browser, whatever the project is", () => {
+    for (const kind of ["software", "website", "portal"] as const) {
+      const project = devProjects.saveDevProject({ agencyId: AGENCY, name: `Untagged ${kind}`, kind, actorUserId: ACTOR });
+      assert.equal(
+        devProjects.devProjectVisualEditorUnlocked(project), false,
+        `${kind} with no tag must not unlock the browser`,
+      );
+    }
+  });
+
+  it("a blank / whitespace tag id is not a tag", () => {
+    const project = devProjects.saveDevProject({ agencyId: AGENCY, name: "Whitespace tag", aquaTagId: "   ", actorUserId: ACTOR });
+    assert.equal(project.aquaTagId, undefined, "a whitespace id is cleaned away, not stored");
+    assert.equal(devProjects.devProjectVisualEditorUnlocked(project), false);
   });
 
   it("updates in place rather than duplicating, and preserves createdAt", () => {

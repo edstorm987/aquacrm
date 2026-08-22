@@ -465,7 +465,7 @@ describe("client portal design versions", () => {
 describe("client portal studio surface", () => {
   it("edits the real preview with lifecycle, page, device, brand, and version controls", async () => {
     const [studio, editorPage, preview, portalData, chrome, extension, composition, interactions, builder, views, customerRoute, workspace, route, setup] = await Promise.all([
-      readFile(new URL("../src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/engines/editor/DevEditor.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/portals/editor/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/client-preview/[clientId]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_portalData.ts", import.meta.url), "utf8"),
@@ -505,7 +505,7 @@ describe("client portal studio surface", () => {
     assert.match(studioLoader, /query\.productId/);
     // …and the route still mounts the studio through that loader.
     assert.match(editorPage, /loadPortalStudioProps/);
-    assert.match(editorPage, /<ClientPortalStudio/);
+    assert.match(editorPage, /<DevEditor/);
     assert.match(preview, /portalScope/);
     assert.match(preview, /portalMode/);
     assert.match(portalData, /resolveClientPortalDesign/);
