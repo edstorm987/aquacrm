@@ -221,6 +221,7 @@ export function AquaEditorAIThread({
 
     // 1. Save the person's message. The browser only ever speaks as the person.
     let threadId = activeThread?.id ?? "";
+    let messageId = "";
     try {
       const saved = await appendEditorAiMessage({ projectId, threadId: threadId || undefined, message });
       setConversation(saved.conversation);
@@ -229,6 +230,8 @@ export function AquaEditorAIThread({
         threadId = saved.threadId;
         setActiveThreadId(saved.threadId);
       }
+      messageId = saved.message?.id ?? "";
+      if (!messageId) throw new Error("That message was saved without an id, so no reply was requested.");
     } catch (cause) {
       setDraft(message);
       setError(cause instanceof Error ? cause.message : "That message could not be saved.");
@@ -242,7 +245,7 @@ export function AquaEditorAIThread({
     // sentence with a code, and both sides abort a wait that outlives honesty.
     setThinking(true);
     try {
-      const reply = await requestEditorAiReply({ projectId, threadId, context: contextText });
+      const reply = await requestEditorAiReply({ projectId, threadId, messageId, context: contextText });
       if (reply.ok) {
         if (reply.conversation) setConversation(reply.conversation);
         if (reply.limits) setLimits(reply.limits);

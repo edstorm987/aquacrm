@@ -174,7 +174,7 @@ function readyProject(agencyId: string, userId: string, options: {
     content: options.message ?? "Make the hero heading friendlier.",
     actorUserId: userId,
   });
-  return { project, threadId: appended.threadId };
+  return { project, threadId: appended.threadId, messageId: appended.message.id };
 }
 
 type ReplyBody = {
@@ -209,7 +209,7 @@ async function sendHistory(token: string, body: unknown): Promise<{ status: numb
 describe("Aqua Editor AI reply — the round trip", () => {
   it("sends the brief, the context and the message; lands the reply in the project's thread SERVER-SIDE", async () => {
     const { agencyId, userId, token } = await founder();
-    const { project, threadId } = readyProject(agencyId, userId, {
+    const { project, threadId, messageId } = readyProject(agencyId, userId, {
       instructions: "This site is Ocean Boulevard. British English, calm tone.",
     });
 
@@ -249,6 +249,8 @@ describe("Aqua Editor AI reply — the round trip", () => {
     const last = thread?.messages.at(-1);
     assert.equal(last?.role, "assistant", "the assistant's line is IN the stored thread");
     assert.equal(last?.content, "Change the heading to \"Welcome home\" — you apply it, I cannot.");
+    assert.equal(last?.replyToMessageId, messageId,
+      "the stored reply names the exact user message it answered");
     assert.equal(last?.authorUserId, undefined, "an assistant line carries no person's name");
   });
 
@@ -276,6 +278,73 @@ describe("Aqua Editor AI reply — the round trip", () => {
     );
     assert.ok(!prompt.includes("message number 0\n"), "the oldest message did not travel");
     assert.ok(prompt.includes("message number 29"), "the newest message always travels");
+  });
+});
+
+describe("Aqua Editor AI reply — one saved message gets one answer", () => {
+  it("returns the stored answer on a sequential retry without calling the model again", async () => {
+    const { agencyId, userId } = await founder();
+    const { project, threadId, messageId } = readyProject(agencyId, userId);
+
+    const calls = stubModel({ output_text: "One answer." });
+    const first = await generateEditorAiReply({
+      agencyId, projectId: project.id, threadId, messageId, actorUserId: userId,
+    });
+    const second = await generateEditorAiReply({
+      agencyId, projectId: project.id, threadId, messageId, actorUserId: userId,
+    });
+
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    assert.equal(calls.length, 1, "a retry must not spend a second provider call");
+    assert.equal(first.ok && second.ok ? first.message.id : "", second.ok ? second.message.id : "",
+      "the retry returns the same stored assistant message");
+    assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.length, 2,
+      "one user line and one assistant line are stored");
+  });
+
+  it("collapses concurrent requests for the same message into one provider call", async () => {
+    const { agencyId, userId } = await founder();
+    const { project, threadId, messageId } = readyProject(agencyId, userId);
+
+    const calls = stubModel({ output_text: "Shared answer." });
+    const input = { agencyId, projectId: project.id, threadId, messageId, actorUserId: userId };
+    const [first, second] = await Promise.all([
+      generateEditorAiReply(input),
+      generateEditorAiReply(input),
+    ]);
+
+    assert.equal(calls.length, 1, "double submit shares the in-flight request");
+    assert.equal(first.ok && second.ok ? first.message.id : "", second.ok ? second.message.id : "");
+    assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.length, 2);
+  });
+
+  it("does not append an old answer after a newer user message arrives", async () => {
+    const { agencyId, userId } = await founder();
+    const { project, threadId, messageId } = readyProject(agencyId, userId);
+
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const delayedFetch = (async () => {
+      await gate;
+      return { ok: true, status: 200, json: async () => ({ output_text: "Now stale." }) } as Response;
+    }) as typeof fetch;
+
+    const pending = generateEditorAiReply({
+      agencyId, projectId: project.id, threadId, messageId, actorUserId: userId,
+      fetchImpl: delayedFetch,
+    });
+    appendEditorAiMessage({
+      agencyId, projectId: project.id, threadId, role: "user",
+      content: "A newer question.", actorUserId: userId,
+    });
+    release();
+    const result = await pending;
+
+    assert.equal(result.ok, false);
+    assert.equal(!result.ok ? result.code : "", "stale");
+    assert.equal(getEditorAiThread(agencyId, project.id, threadId)?.messages.filter(message => message.role === "assistant").length, 0,
+      "the obsolete provider result never enters the transcript");
   });
 });
 

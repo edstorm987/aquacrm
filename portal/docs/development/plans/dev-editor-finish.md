@@ -2,13 +2,13 @@
 
 ← [development.md](../../development.md) · map: [aqua dev.md](../../../aqua%20dev.md) · engine plan: [dev-editor-engine.md](dev-editor-engine.md) · inspector: [dev-editor-inspector.md](dev-editor-inspector.md)
 
-**Status: in progress — the road to a finished editor. The architecture is right
-(one universal editor, lifted out of the portal studio, tag protocol shared and
-guarded) but EIGHTEEN phases stand between here and Ed's end state, and NOTHING has
-been verified in a browser.** Phases 11 and 12 were in flight when this was written;
-everything else is unstarted. Phase 17 is the one that decides whether any of it
-actually works, and phase 18 is the point of the whole exercise: clients editing
-their own websites.
+**Status: in progress — refreshed against the tree on 2026-08-22. Fourteen of the
+eighteen phases are source-complete; phase 8 is partial (project family done,
+navigator missing), phase 9 is open, phase 17's complete browser acceptance walk is
+open, and phase 18 is open.** The architecture is right (one universal editor,
+shared strict tag protocol). The Aqua Tag itself has been browser-walked on a real
+client site, but the full edit → persist → publish lifecycle has not. Phase 18 is the
+point of the whole exercise: clients editing their own websites.
 
 ---
 
@@ -58,12 +58,13 @@ phase below either moves toward that or is not worth doing.
   no "Open editor", no `--dt-*`). The Projects workspace keeps the full
   `DevEditorSetup` screen; shared panels take a `skin` instead of forking.
   Pinned by `smoke-dev-editor-walkthrough.test.ts`.
-- ~~**The project switcher has `w-full`** and renders *after* the mode switch, so it
-  eats the header.~~ **FIXED 2026-08-22:** compact (`w-40`, `min-h-9`), leads the
-  bar *before* the mode switch, and lists only this project + "This workspace"
-  (when not client-locked) with an "All projects" link out — never the whole
-  agency. Children join the list when `parentProjectId` exists (phase 1 nesting,
-  still unstarted).
+- ~~**The project switcher had `w-full`** and rendered *after* the mode switch, so
+  it ate the header.~~ **FIXED 2026-08-22:** compact (`w-40`, `min-h-9`), leads
+  the bar, and now renders the door-anchored family through
+  `devProjectDoorFamily`: top-level door + direct children, or one child only
+  when the door itself is a child. "This workspace" remains recoverable and
+  unrelated agency projects stay behind "All projects". A switch also clears
+  project-bound source/tag/AI context.
 - **Mode clicks white-flashed the browser for seconds** (walkthrough 2026-08-22).
   **FIXED + measured:** the iframe never remounted — driving the real `DevEditor`
   in a browser showed one load event and one element identity across every mode
@@ -102,9 +103,9 @@ phase below either moves toward that or is not worth doing.
    "Inside" select + per-card "Add a project inside", and the editor panel's
    "Add a project inside this one" pre-parented to the open project. A child
    is a FULL project — own repo/tag/AI/history; delete cleans up identically.
-   Pinned by `smoke-dev-project-nesting.test.ts` (33 cases). REMAINING, one
-   compile unit with the excluded `DevEditor.tsx`: the in-editor switcher
-   listing the family — see phase 8's switcher note for the exact change.)*
+   Pinned by `smoke-dev-project-nesting.test.ts`. **The remaining in-editor
+   family switcher landed on 2026-08-22 as `devProjectDoorFamily`, including
+   child-door non-escalation and missing-door fail-closed tests.**)*
 
    **The model (Ed, 2026-08-21):** a project can contain projects — "one project
    could be a website they might have a software going on with it too". From inside a
@@ -233,9 +234,8 @@ phase below either moves toward that or is not worth doing.
      is not client-locked, plus an "All projects" link out; children join the list
      when phase 1's `parentProjectId` exists.)*
 
-     **NEXT PASS — the family list (phase 1 nesting shipped 2026-08-22; only
-     this switcher block in `DevEditor.tsx` remains, everything beneath it is
-     built).** The list is anchored to the DOOR — the project the editor was
+     **✅ FAMILY LIST SHIPPED 2026-08-22.** The list is anchored to the DOOR —
+     the project the editor was
      opened on — not to whichever project is currently showing:
      `[doorProject, ...projects.filter(p => p.parentProjectId === doorProject.id)]`,
      flat by construction (the two-level rule is store-enforced, so one filter
@@ -260,7 +260,8 @@ phase below either moves toward that or is not worth doing.
      (when `!lockToClient`) and the "All projects" link stay exactly as they
      are. Then rewrite the walkthrough pin "lists THIS project and the
      workspace — never the whole agency" to expect the family and still ban
-     `projects.map(` over the whole agency.
+     `projects.map(` over the whole agency. That implementation and the
+     rewritten walkthrough pin are now in the tree.
    - **Navigator** — the missing one. *"if i put in a website id get stuck"*: today
      the browser loads one address and there is no way to reach the site's other
      pages. List the project's pages/routes and jump between them. Source it from
@@ -333,6 +334,15 @@ phase below either moves toward that or is not worth doing.
     skins" decision recorded in `editorAssistant.ts` — update that comment and
     rewrite the tests pinning the old reuse contract. History needs a cap and an
     eviction rule: `PortalState` is one JSON document and every write rewrites it.
+
+    *2026-08-22 hardening:* the `DevEditor` mount now passes the currently
+    selected project instead of the original door project's id. Config, history,
+    attachments and captured element context clear/reload on a switch. Replies
+    name the exact saved user message with `replyToMessageId`; sequential replay
+    returns the stored answer, same-process concurrent replay shares one provider
+    call, and a reply that becomes stale behind a newer user message is discarded.
+    **Still open for production:** an atomic distributed claim/unique append
+    across parallel server instances.
 
 13. ✅ **Make word edits persist, and publish to git** *(shipped 2026-08-22, triple-CONFIRMED — words commit via source-edit with the branch-tip lost-update guard; code files save/create through repo-write onto the draft branch; Publish opens/reuses the PR; the tree reads draft-first so your own edits are what you see)*. Today an edit changes the page
     on screen and loses it on reload — half the feature. Wire `patch.ts` →
@@ -470,15 +480,17 @@ phase below either moves toward that or is not worth doing.
       AI: the editor AI edits, the Librarian FINDS. Two assistants, one file-finding
       skill under both.
 
-16. **Network throttling from the editor.** Ed: *"have a wifi sign icon with a modal
+16. ✅ **Network throttling from the editor** *(source-complete 2026-08-22;
+    `smoke-aqua-tag-throttle.test.ts` passes; browser acceptance remains phase 17).* Ed: *"have a wifi sign icon with a modal
     so i can simulate throttling"*. A wifi icon in the editor header opens a modal:
     Offline / Slow 3G / Fast 3G / 4G / custom latency+bandwidth, applied to the
     previewed page THROUGH THE TAG — a new `throttle` message wraps the page's
     fetch/XHR with real delay, pacing and offline rejection. HONESTY LIMIT, stated
     in the modal: a parent page cannot throttle a cross-origin iframe's document/
     image loads (only DevTools can); this throttles what the page's SCRIPTS request.
-    Extends aquaTagBridge + the tag + the drift guard; the icon mount follows the
-    Librarian pattern if DevEditor is owned when it builds.
+    Implemented through `NetworkThrottleControl`, `aquaTagThrottle`, the tag's
+    fetch/XHR wrappers and the protocol drift guards. The UI states the browser
+    limitation rather than pretending document/image loads are throttled.
 
 17. **Verify it in a browser.** Nothing built on 2026-08-21 has ever run in one. The
     full round trip — ping, ready, click, exact text in the right menu, edit, persist,

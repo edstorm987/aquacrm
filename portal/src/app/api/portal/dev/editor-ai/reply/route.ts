@@ -33,6 +33,8 @@ import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 type Body = {
   projectId?: string;
   threadId?: string;
+  /** The exact saved user message to answer. */
+  messageId?: string;
   /** What the editor is pointing at — target, clicked words, source focus. */
   context?: string;
 };
@@ -58,6 +60,15 @@ function failure(error: unknown): NextResponse {
   if (code === "thread_not_found") {
     return NextResponse.json({ ok: false, error: "That conversation could not be found." }, { status: 404 });
   }
+  if (code === "message_not_found") {
+    return NextResponse.json({ ok: false, error: "That message could not be found." }, { status: 404 });
+  }
+  if (code === "message_not_latest") {
+    return NextResponse.json(
+      { ok: false, error: "A newer message is waiting in that conversation. Reply to the newest message instead.", code: "stale" },
+      { status: 409, headers: NO_STORE },
+    );
+  }
   // Never pass an unrecognised error through — an upstream message can carry
   // the value that caused it.
   return NextResponse.json({ ok: false, error: "Aqua Editor AI could not reply." }, { status: 502 });
@@ -70,6 +81,7 @@ const FAILURE_STATUS = {
   network: 502,
   provider: 502,
   empty: 502,
+  stale: 409,
 } as const;
 
 export async function POST(request: Request) {
@@ -92,12 +104,14 @@ export async function POST(request: Request) {
     if (!threadId) {
       return NextResponse.json({ ok: false, error: "Which conversation?" }, { status: 400 });
     }
+    const messageId = typeof body?.messageId === "string" ? body.messageId.trim() : undefined;
 
     try {
       const result = await generateEditorAiReply({
         agencyId: session.agencyId,
         projectId,
         threadId,
+        messageId,
         actorUserId: session.userId,
         context: typeof body?.context === "string" ? body.context : undefined,
       });

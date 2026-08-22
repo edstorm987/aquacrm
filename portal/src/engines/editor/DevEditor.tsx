@@ -101,6 +101,7 @@ import type { EditorAssistantProps } from "@/engines/editor/server/editorAssista
 import { elementSource, repoRelativePath } from "@/engines/editor/editing/elementSource";
 import { PORTAL_SCOPE, scopeForSection } from "@/engines/editor/editing/fileRelevance";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { devProjectDoorFamily } from "@/lib/shared/devProjectGrouping";
 import type {
   ClientPortalDesignDocument,
   ClientPortalDesignVersion,
@@ -150,6 +151,8 @@ interface StudioDevProject {
    * must trust. See `aquaTagBrowserUrl`.
    */
   map?: { tag?: { finalUrl?: string } | null } | null;
+  /** The top-level project this one lives inside. Absent on a door project. */
+  parentProjectId?: string;
 }
 
 /** `devProjectMapStatus` as the projects endpoint returns it. */
@@ -344,6 +347,13 @@ export function DevEditor({
   const [projects, setProjects] = useState<StudioDevProject[]>([]);
   const [projectStatuses, setProjectStatuses] = useState<Record<string, StudioProjectStatus>>({});
   const selectedProject = projects.find(item => item.id === projectId) ?? null;
+  // The selector's authority is the project named by the URL when this editor
+  // opened. It must never grow to the whole agency, and selecting a child must
+  // not make the parent disappear. A child-scoped door stays child-only.
+  const availableProjects = useMemo(
+    () => devProjectDoorFamily(projects, initialProjectId),
+    [projects, initialProjectId],
+  );
 
   // ── Real device sizing (dev-editor-finish phase 10) ─────────────────────────
   //
@@ -510,6 +520,11 @@ export function DevEditor({
           projectStatusesRef.current = nextStatuses;
           setProjects(nextProjects);
           setProjectStatuses(nextStatuses);
+          // The project id is the server-side repository authority. This
+          // state only keeps the visible fallback field honest while that
+          // project is selected; before this, it stayed blank on first load.
+          const openProject = nextProjects.find(item => item.id === openId);
+          if (openProject) setRepository(openProject.repository ?? "");
         })
         // Dev Mode only — a 403 here just means no project picker, never an error.
         .catch(() => {});
@@ -717,7 +732,7 @@ export function DevEditor({
    * the repository, or failing that the project, that is actually open.
    */
   const assistantTarget = !portalTarget
-    ? (selectedProject?.repository || projectName || selectedProject?.name || "this project")
+    ? (selectedProject?.repository || selectedProject?.name || projectName || "this project")
     : scope === "template"
       ? (selectedTemplate?.name || "a portal template")
       : (selectedClient?.name || "a client portal");
@@ -1418,7 +1433,7 @@ export function DevEditor({
         </Link>
         <div className="hidden min-w-40 xl:block">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--mode-accent)" }}>Dev Editor</p>
-          <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{projectName || (scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name)}</p>
+          <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{selectedProject?.name || projectName || (scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name)}</p>
         </div>
 
         {/* WHERE you are comes before HOW DEEP you go — the switcher leads the
@@ -1429,15 +1444,16 @@ export function DevEditor({
             "All projects" is for. Compact: fixed width, truncating, the same
             min-height as the mode buttons — it must never eat the header the
             way the old `w-full` select did. */}
-        {projects.length && !lockToClient ? (
+        {availableProjects.length && !lockToClient ? (
           <div className="hidden shrink-0 items-center gap-1.5 xl:flex">
             <select
               aria-label="Dev project"
               value={projectId}
               onChange={event => {
                 const next = event.target.value;
+                if (!confirmDraftDiscard()) return;
                 setProjectId(next);
-                const project = projects.find(item => item.id === next);
+                const project = availableProjects.find(item => item.id === next);
                 // Keep the typed field in step so the Repo tab shows what it reads.
                 setRepository(project?.repository ?? "");
                 // …and the browser in step with where THAT project's tag lives.
@@ -1447,15 +1463,24 @@ export function DevEditor({
                 // the typed one, so a redirecting site still lands on the origin
                 // the editor trusts.
                 setBrowserUrl(aquaTagBrowserUrl(project));
+                // Every one of these belongs to the old target. Carrying one
+                // across can point an edit or an AI request at project B using
+                // project A's selected element.
+                setSourceFocus(null);
+                setSelectedElementType("");
+                setTagElement(null);
+                setWordsDraft("");
+                setWordsOriginal("");
+                setPicking(false);
               }}
               className="min-h-9 w-40 truncate rounded-md border border-white/10 bg-white/[0.06] px-2.5 text-xs font-medium text-white outline-none"
             >
               <option value="" className="bg-[#1a1c1a]">This workspace</option>
-              {projectId ? (
-                <option value={projectId} className="bg-[#1a1c1a]">
-                  {selectedProject?.name ?? projectName ?? "This project"}
+              {availableProjects.map(project => (
+                <option key={project.id} value={project.id} className="bg-[#1a1c1a]">
+                  {project.id === initialProjectId ? project.name : `Inside · ${project.name}`}
                 </option>
-              ) : null}
+              ))}
             </select>
             <Link
               href="/portal/dev-team/editor"
@@ -2097,7 +2122,10 @@ function Inspector({
           title="Settings"
           body="What the editor is pointed at — repository, branch, connections, Aqua Tag and keys. Only this project; the Projects workspace holds the rest."
         />
-        <DevEditorProjectSettings projectId={projectId ?? ""} aiConfigured={Boolean(assistant?.configured)} />
+        <DevEditorProjectSettings
+          projectId={projectId ?? ""}
+          aiConfigured={assistant && assistant.projectId === projectId ? assistant.configured : undefined}
+        />
       </div>
     );
   }
@@ -2105,7 +2133,7 @@ function Inspector({
   if (tab === "assistant") {
     // No payload (assistant not wired on this route) — say so plainly rather
     // than render an empty panel that looks broken.
-    if (!assistant) {
+    if (!assistant || !projectId) {
       return <p className="px-1 py-3 text-xs text-white/45">Aqua Editor AI is not available on this screen.</p>;
     }
     return (
@@ -2113,8 +2141,8 @@ function Inspector({
         // The panel is per PROJECT — key, model, brief and conversation all
         // scope to this id. Without it the panel renders its not-scoped state,
         // which is exactly what happened when this mount lagged the rewrite.
-        projectId={assistant.projectId}
-        projectName={assistant.projectName}
+        projectId={projectId}
+        projectName={projectId === assistant.projectId ? assistant.projectName : assistantTarget}
         initialConversation={assistant.initialConversation}
         historyLimits={assistant.historyLimits}
         editorAi={assistant.editorAi}

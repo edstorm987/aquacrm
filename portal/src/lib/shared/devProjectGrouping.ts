@@ -48,3 +48,29 @@ export function groupDevProjects<T extends DevProjectGroupable>(projects: T[]): 
     children: projects.filter(project => project.parentProjectId === parent.id && project.id !== parent.id),
   }));
 }
+
+/**
+ * The projects an editor door is allowed to switch between.
+ *
+ * The door is the project named by the URL when the editor opened. A
+ * top-level door may see itself and its direct children; a door opened on a
+ * child may see only that child. Keeping this anchored to the door (rather
+ * than the current selection) means selecting a child cannot strand the
+ * operator, and a child-scoped door can never widen upward to its parent.
+ *
+ * The store enforces exactly two levels, so one direct-child filter is the
+ * complete family. Unknown doors return no options rather than falling back
+ * to the agency-wide list.
+ */
+export function devProjectDoorFamily<T extends DevProjectGroupable>(
+  projects: T[],
+  doorProjectId: string,
+): T[] {
+  const door = projects.find(project => project.id === doorProjectId);
+  if (!door) return [];
+  if (door.parentProjectId) return [door];
+  return [
+    door,
+    ...projects.filter(project => project.parentProjectId === door.id && project.id !== door.id),
+  ];
+}

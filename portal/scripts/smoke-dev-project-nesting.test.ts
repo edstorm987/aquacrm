@@ -45,7 +45,7 @@ import {
   saveDevProject,
 } from "../src/engines/editor/server/devProjects";
 import { getEditorAiConversation, startEditorAiThread } from "../src/engines/editor/server/editorAiHistory";
-import { groupDevProjects } from "../src/lib/shared/devProjectGrouping";
+import { devProjectDoorFamily, groupDevProjects } from "../src/lib/shared/devProjectGrouping";
 import { POST } from "../src/app/api/portal/dev/projects/route";
 import { issueSession } from "../src/lib/server/auth/auth";
 import { ensureHydrated, getState, mutate } from "../src/server/storage";
@@ -287,6 +287,36 @@ describe("grouping for display (pure)", () => {
     const groups = groupDevProjects([p("self", "self")]);
     assert.deepEqual(groups.map(g => g.parent.id), ["self"]);
     assert.equal(groups[0]!.children.length, 0, "and it is not its own child");
+  });
+});
+
+describe("the editor's door-anchored project family (pure)", () => {
+  const p = (id: string, parentProjectId?: string) => ({ id, parentProjectId });
+  const projects = [
+    p("unrelated"),
+    p("door"),
+    p("child-b", "door"),
+    p("child-a", "door"),
+    p("other-child", "unrelated"),
+  ];
+
+  it("keeps the top-level door and its direct children, in server order", () => {
+    assert.deepEqual(
+      devProjectDoorFamily(projects, "door").map(project => project.id),
+      ["door", "child-b", "child-a"],
+    );
+  });
+
+  it("does not widen a child-scoped door upward or sideways", () => {
+    assert.deepEqual(
+      devProjectDoorFamily(projects, "child-a").map(project => project.id),
+      ["child-a"],
+    );
+  });
+
+  it("never falls back to every project when the door is absent", () => {
+    assert.deepEqual(devProjectDoorFamily(projects, "missing"), []);
+    assert.deepEqual(devProjectDoorFamily(projects, ""), []);
   });
 });
 

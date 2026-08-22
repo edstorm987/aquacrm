@@ -1451,7 +1451,11 @@ export function DevEditorProjectSettings({
           <KeyRound size={12} aria-hidden className={sk.accentIcon} /> Aqua Editor AI key
         </p>
         <p className={`text-[11px] leading-5 ${sk.muted}`}>
-          {aiConfigured ? "A key is set for this project." : "No key on this project yet."}{" "}
+          {aiConfigured === undefined
+            ? "Open the Assistant tab to check or configure this project's key."
+            : aiConfigured
+              ? "A key is set for this project."
+              : "No key on this project yet."}{" "}
           It is saved per project and managed in the{" "}
           <strong className={`font-semibold ${sk.ink}`}>Assistant</strong> tab — only whether
           one is set is ever shown, never the value.

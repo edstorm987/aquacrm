@@ -292,6 +292,8 @@ export interface AppendEditorAiMessageInput {
   threadId?: string;
   role: EditorAiMessage["role"];
   content: string;
+  /** Assistant-only: the saved user message this line answers. */
+  replyToMessageId?: string;
   actorUserId: string;
   now?: number;
 }
@@ -321,6 +323,10 @@ export function appendEditorAiMessage(input: AppendEditorAiMessageInput): {
     createdAt: now,
   };
   if (message.role === "user") message.authorUserId = input.actorUserId;
+  if (message.role === "assistant") {
+    const replyToMessageId = clean(input.replyToMessageId, 120);
+    if (replyToMessageId) message.replyToMessageId = replyToMessageId;
+  }
   if (truncated) message.truncated = true;
 
   let threadId = clean(input.threadId, 120);

@@ -49,7 +49,7 @@ const code = (source: string) => source
 
 describe("the editor's Settings tab configures ONLY the project you are in", () => {
   it("mounts the project-scoped panel, never the whole projects screen", () => {
-    assert.match(editor, /<DevEditorProjectSettings projectId=\{projectId \?\? ""\}/);
+    assert.match(editor, /<DevEditorProjectSettings\s+projectId=\{projectId \?\? ""\}/);
     // Comments stripped first: the defect is NAMED in a warning comment, and
     // the warning must not read as the mount it warns about.
     assert.equal(/<DevEditorSetup\b/.test(code(editor)), false,
@@ -158,22 +158,25 @@ describe("the project switcher is compact and scoped to where you are", () => {
 
   it("is compact — fixed width, mode-button height, never w-full", () => {
     const at = editor.indexOf('aria-label="Dev project"');
-    const block = editor.slice(editor.lastIndexOf("{projects.length", at), editor.indexOf("</select>", at));
+    const block = editor.slice(editor.lastIndexOf("{availableProjects.length", at), editor.indexOf("</select>", at));
     assert.equal(/w-full/.test(block), false, "the w-full select ate the header once already");
     assert.match(block, /min-h-9/, "height matches the mode buttons");
     assert.match(block, /w-40/, "fixed, truncating width");
   });
 
-  it("lists THIS project and the workspace — never the whole agency", () => {
-    // `parentProjectId` does not exist yet; when it does, the children join
-    // this list. Until then: current project + "This workspace" (when the door
-    // is not locked to a client), and a LINK out for everything else.
+  it("lists the door-anchored family and the workspace — never the whole agency", () => {
+    // The URL's door project defines the fixed authority: itself plus direct
+    // children, or only itself when the door is already a child. The workspace
+    // remains available when not client-locked; unrelated projects stay out.
     assert.equal(/projects\.map\(project => \(/.test(editor), false,
       "every project in the agency is the Projects workspace's list, not the switcher's");
     const at = editor.indexOf('aria-label="Dev project"');
-    const block = editor.slice(editor.lastIndexOf("{projects.length", at), editor.indexOf("All projects", at));
+    const block = editor.slice(editor.lastIndexOf("{availableProjects.length", at), editor.indexOf("All projects", at));
     assert.match(block, /This workspace/);
     assert.match(block, /!lockToClient/, "a client-locked door must not offer the workspace");
+    assert.match(block, /availableProjects\.map/, "the fixed door family supplies the options");
+    assert.match(editor, /devProjectDoorFamily\(projects, initialProjectId\)/,
+      "the family must stay anchored to the URL's door, not the current selection");
   });
 
   it("offers 'All projects' as the way to unrelated projects", () => {

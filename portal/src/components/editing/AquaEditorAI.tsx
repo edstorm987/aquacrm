@@ -217,11 +217,23 @@ export function AquaEditorAI({
   useEffect(() => {
     if (!projectId || status?.projectId === projectId) return;
     let cancelled = false;
+    // Do not let project B wear project A's masked key status or failure copy
+    // during the request. The safe loading state is unconfigured and blank.
+    setStatus(null);
+    setReasonText("");
     readEditorAiStatus(projectId)
       .then(result => { if (!cancelled) applyConfig(result); })
       .catch(() => { /* the panel keeps the server's rendered answer */ });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // Attachments and captured text are project context. They must not follow a
+  // switch into another project's conversation or key screen.
+  useEffect(() => {
+    setAttachments([]);
+    setPrefill("");
+    setView("chat");
   }, [projectId]);
 
   function applyConfig(result: EditorAiConfigResult) {

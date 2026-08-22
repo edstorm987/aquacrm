@@ -13,6 +13,7 @@ import {
 import {
   EDITOR_AI_HISTORY_LIMITS,
   appendEditorAiMessage,
+  getEditorAiConversation,
   getEditorAiThread,
 } from "@/engines/editor/server/editorAiHistory";
 
@@ -97,7 +98,9 @@ export type EditorAiReplyFailureCode =
   /** OpenAI answered with a refusal. `error` carries the scrubbed reason. */
   | "provider"
   /** OpenAI answered with nothing usable. */
-  | "empty";
+  | "empty"
+  /** A newer user message arrived while this answer was being generated. */
+  | "stale";
 
 export type EditorAiReplyResult =
   | {
@@ -135,6 +138,8 @@ export interface GenerateEditorAiReplyInput {
   projectId: string;
   /** The thread holding the message to answer. The reply lands in it. */
   threadId: string;
+  /** The exact saved user message to answer. Omitted only by legacy callers. */
+  messageId?: string;
   /** Recorded as the operator whose send caused the reply (activity only). */
   actorUserId: string;
   /**
@@ -148,6 +153,35 @@ export interface GenerateEditorAiReplyInput {
   fetchImpl?: typeof fetch;
   /** Tests shrink this; production uses the limit above. */
   timeoutMs?: number;
+}
+
+/** One model call per saved user message in this process. */
+const replyRequests = new Map<string, Promise<EditorAiReplyResult>>();
+
+function existingReply(thread: EditorAiThread, messageId: string): EditorAiMessage | null {
+  const explicit = thread.messages.find(message =>
+    message.role === "assistant" && message.replyToMessageId === messageId);
+  if (explicit) return explicit;
+
+  // Conversations written before `replyToMessageId` existed still deserve an
+  // idempotent retry: an assistant line immediately after the target user line
+  // is the answer that was already stored.
+  const targetIndex = thread.messages.findIndex(message => message.id === messageId);
+  const next = targetIndex >= 0 ? thread.messages[targetIndex + 1] : undefined;
+  return next?.role === "assistant" ? next : null;
+}
+
+function completedResult(
+  agencyId: string,
+  projectId: string,
+  thread: EditorAiThread,
+  messageId: string,
+): EditorAiReplyResult | null {
+  const message = existingReply(thread, messageId);
+  if (!message) return null;
+  const conversation = getEditorAiConversation(agencyId, projectId);
+  if (!conversation) throw new Error("project_not_found");
+  return { ok: true, message, threadId: thread.id, conversation };
 }
 
 /**
@@ -168,6 +202,49 @@ export async function generateEditorAiReply(input: GenerateEditorAiReplyInput): 
   const project = getDevProject(agencyId, projectId);
   if (!project) throw new Error("project_not_found");
 
+  const threadId = clean(input.threadId, 120);
+  const thread = getEditorAiThread(agencyId, project.id, threadId);
+  if (!thread || !thread.messages.length) throw new Error("thread_not_found");
+
+  // New callers name the exact saved message. Legacy server-side callers infer
+  // the newest user line, which keeps old tests and retries safe without
+  // weakening the browser path (the client now always sends the id).
+  const requestedMessageId = clean(input.messageId, 120);
+  const target = requestedMessageId
+    ? thread.messages.find(message => message.id === requestedMessageId)
+    : [...thread.messages].reverse().find(message => message.role === "user");
+  if (!target || target.role !== "user") throw new Error("message_not_found");
+
+  const alreadyCompleted = completedResult(agencyId, project.id, thread, target.id);
+  if (alreadyCompleted) return alreadyCompleted;
+  if (thread.messages.at(-1)?.id !== target.id) throw new Error("message_not_latest");
+
+  const requestKey = `${agencyId}|${project.id}|${thread.id}|${target.id}`;
+  const existingRequest = replyRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const request = generateEditorAiReplyOnce(input, {
+    agencyId,
+    projectId: project.id,
+    threadId: thread.id,
+    messageId: target.id,
+  });
+  replyRequests.set(requestKey, request);
+  try {
+    return await request;
+  } finally {
+    if (replyRequests.get(requestKey) === request) replyRequests.delete(requestKey);
+  }
+}
+
+async function generateEditorAiReplyOnce(
+  input: GenerateEditorAiReplyInput,
+  target: { agencyId: string; projectId: string; threadId: string; messageId: string },
+): Promise<EditorAiReplyResult> {
+  const { agencyId, projectId, threadId, messageId } = target;
+  const project = getDevProject(agencyId, projectId);
+  if (!project) throw new Error("project_not_found");
+
   // THE PROJECT'S OWN KEY, or the honest sentence and NO model call. There is
   // deliberately no fallback to the agency's `openai` connection or to an
   // environment variable here — `resolveEditorAiToken` is the whole answer.
@@ -176,8 +253,9 @@ export async function generateEditorAiReply(input: GenerateEditorAiReplyInput): 
     return { ok: false, code: "not_configured", error: editorAiReason(agencyId, project.id) };
   }
 
-  const thread = getEditorAiThread(agencyId, project.id, clean(input.threadId, 120));
+  const thread = getEditorAiThread(agencyId, project.id, threadId);
   if (!thread || !thread.messages.length) throw new Error("thread_not_found");
+  if (thread.messages.at(-1)?.id !== messageId) throw new Error("message_not_latest");
 
   const config = getEditorAiConfig(agencyId, project.id);
   const model = config?.model || EDITOR_AI_DEFAULT_MODEL;
@@ -280,6 +358,21 @@ export async function generateEditorAiReply(input: GenerateEditorAiReplyInput): 
     };
   }
 
+  // The provider wait is a concurrency window. If another user message landed
+  // while it was open, this answer no longer belongs at the end of the thread.
+  // If another worker already stored the same answer, return that one instead.
+  const freshThread = getEditorAiThread(agencyId, project.id, thread.id);
+  if (!freshThread) throw new Error("thread_not_found");
+  const completedElsewhere = completedResult(agencyId, project.id, freshThread, messageId);
+  if (completedElsewhere) return completedElsewhere;
+  if (freshThread.messages.at(-1)?.id !== messageId) {
+    return {
+      ok: false,
+      code: "stale",
+      error: "A newer message arrived before this answer finished, so the older answer was not added. Reply to the newest message instead.",
+    };
+  }
+
   // THE ONE LEGITIMATE "assistant" APPEND. Server-side, through the same
   // capped store as every other message — a long reply is truncated and
   // flagged, eviction counts, and the caps hold with replies flowing.
@@ -289,6 +382,7 @@ export async function generateEditorAiReply(input: GenerateEditorAiReplyInput): 
     threadId: thread.id,
     role: "assistant",
     content: text,
+    replyToMessageId: messageId,
     actorUserId: input.actorUserId,
   });
 

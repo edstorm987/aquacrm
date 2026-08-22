@@ -3011,6 +3011,8 @@ export interface EditorAiMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** The exact user message this assistant line answers. Enables idempotent retries. */
+  replyToMessageId?: string;
   /** Who typed it. Absent on assistant replies. A shared thread needs names. */
   authorUserId?: string;
   /** The stored content was cut to the per-message cap. See editorAiHistory. */

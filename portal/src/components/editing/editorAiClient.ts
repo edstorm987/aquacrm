@@ -69,7 +69,7 @@ export interface EditorAiHistoryLimits {
  * same reason as `EditorAiHistoryLimits` above: that module is `server-only`.
  * The route's response is the authority; this is its shape.
  */
-export type EditorAiReplyFailureCode = "not_configured" | "timeout" | "network" | "provider" | "empty";
+export type EditorAiReplyFailureCode = "not_configured" | "timeout" | "network" | "provider" | "empty" | "stale";
 
 export type EditorAiReplyResult =
   | {
@@ -304,6 +304,8 @@ export async function clearEditorAiHistory(projectId: string): Promise<EditorAiH
 export async function requestEditorAiReply(input: {
   projectId: string;
   threadId: string;
+  /** The exact saved user message to answer. */
+  messageId: string;
   /** What the editor is pointing at — target, clicked words, source focus. */
   context?: string;
 }): Promise<EditorAiReplyResult> {
@@ -318,6 +320,7 @@ export async function requestEditorAiReply(input: {
       body: JSON.stringify({
         projectId: input.projectId,
         threadId: input.threadId,
+        messageId: input.messageId,
         context: input.context,
       }),
       signal: controller.signal,
