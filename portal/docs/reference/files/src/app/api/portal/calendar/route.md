@@ -13,9 +13,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (6)
 
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../../../engines/data/server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/radarSourceInspection.ts`](../../../../engines/data/server/radar/radarSourceInspection.md)
 - [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../../../../lib/server/radar/businessIssueRadar.md)
-- [`src/lib/server/radar/radarSourceInspection.ts`](../../../../lib/server/radar/radarSourceInspection.md)
 - [`src/server/commandCalendar.ts`](../../../../server/commandCalendar.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 - [`src/server/types.ts`](../../../../server/types.md)

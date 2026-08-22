@@ -172,6 +172,14 @@ export interface SettingsGroup {
   fields: SettingsField[];
 }
 
+export interface SettingsFieldVaultTarget {
+  // An integrations-catalogue provider id (e.g. "stripe"). Plain string so this
+  // vendored copy stays standalone-tsc-clean; the host validates it for real.
+  provider: string;
+  // The catalogue field id the value is stored under (e.g. "secretKey").
+  field: string;
+}
+
 export interface SettingsField {
   id: string;
   label: string;
@@ -181,6 +189,10 @@ export interface SettingsField {
   helpText?: string;
   placeholder?: string;
   plans?: PlanId[];
+  // WHERE a `password` field's value is stored. Required for every password
+  // field — `install.config` reaches the browser through page props, so a
+  // secret must go to the encrypted integrations vault instead.
+  secretVault?: SettingsFieldVaultTarget;
 }
 
 // ─── Feature toggles ──────────────────────────────────────────────────────

@@ -20,8 +20,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/tenants.ts`](./tenants.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (2)
+## Used by (3)
 
 - [`src/app/api/portal/clients/[clientId]/erase/route.ts`](../app/api/portal/clients/[clientId]/erase/route.md)
+- [`src/app/api/portal/governance/erasure/preview/route.ts`](../app/api/portal/governance/erasure/preview/route.md)
 - [`src/app/portal/clients/[clientId]/settings/page.tsx`](../app/portal/clients/[clientId]/settings/page.md)
 

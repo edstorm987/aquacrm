@@ -6,13 +6,15 @@
 
 ## Exports (1)
 
-- `Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarContr…`
+- `Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, noti…`
 
-## Depends on (12)
+## Depends on (14)
 
 - [`src/components/chrome/ColorModeToggle.tsx`](./ColorModeToggle.md)
 - [`src/components/chrome/DevConsoleControl.tsx`](./DevConsoleControl.md)
+- [`src/components/chrome/InspectorModeControl.tsx`](./InspectorModeControl.md)
 - [`src/components/chrome/MobileNav.tsx`](./MobileNav.md)
+- [`src/components/chrome/PinnedTabs.tsx`](./PinnedTabs.md)
 - [`src/components/chrome/PortalSearch.tsx`](./PortalSearch.md)
 - [`src/components/chrome/PrivacyModeControl.tsx`](./PrivacyModeControl.md)
 - [`src/components/chrome/ProfileMenu.tsx`](./ProfileMenu.md)

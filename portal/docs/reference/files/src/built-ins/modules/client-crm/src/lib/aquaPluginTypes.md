@@ -17,7 +17,7 @@
 - `interface NavGroup (3 members)`
 - `type PluginRoleVisibility`
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)`
+- `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)`
 - `interface SettingsSchema (2 members)`

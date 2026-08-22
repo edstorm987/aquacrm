@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (7)
 
-- [`src/lib/editing/engine.ts`](../../../../../lib/editing/engine.md)
+- [`src/engines/editor/editing/engine.ts`](../../../../../engines/editor/editing/engine.md)
 - [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/dev/devDocs.ts`](../../../../../lib/server/dev/devDocs.md)
 - [`src/lib/server/editing/appConfigAdapter.ts`](../../../../../lib/server/editing/appConfigAdapter.md)

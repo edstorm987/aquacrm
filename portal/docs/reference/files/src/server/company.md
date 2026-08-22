@@ -23,7 +23,7 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/page.tsx`](../app/portal/agency/page.md)
 - [`src/app/portal/team/_data.ts`](../app/portal/team/_data.md)
 - [`src/built-ins/modules/agency-finance/src/pages/PlanningPage.tsx`](../built-ins/modules/agency-finance/src/pages/PlanningPage.md)
+- [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](../engines/data/server/kpi/companyHealthSnapshot.md)
 - [`src/lib/server/auth/showcaseMode.ts`](../lib/server/auth/showcaseMode.md)
 - [`src/lib/server/brandPortfolioService.ts`](../lib/server/brandPortfolioService.md)
-- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../lib/server/kpi/companyHealthSnapshot.md)
 

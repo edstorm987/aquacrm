@@ -8,7 +8,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `default async MarketingPage({ searchParams, }: { searchParams: Promise<{ view?: string; brand?: string; compose?: string; client?: string; channel?: string; section?: string }>; })`
 
-## Depends on (32)
+## Depends on (35)
 
 - [`src/app/portal/agency/automations/_AutomationsWorkspace.tsx`](../automations/_AutomationsWorkspace.md)
 - [`src/app/portal/agency/automations/_automationWorkspaceData.ts`](../automations/_automationWorkspaceData.md)
@@ -20,6 +20,8 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/app/portal/agency/marketing/_marketingViews.ts`](./_marketingViews.md)
 - [`src/built-ins/modules/agency-finance/src/lib/budgetHealth.ts`](../../../../built-ins/modules/agency-finance/src/lib/budgetHealth.md)
 - [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](../../../../built-ins/modules/agency-marketing/src/lib/domain.md)
+- [`src/built-ins/runtime/_pageScope.ts`](../../../../built-ins/runtime/_pageScope.md)
+- [`src/built-ins/runtime/_registry.ts`](../../../../built-ins/runtime/_registry.md)
 - [`src/built-ins/runtime/_runtime.ts`](../../../../built-ins/runtime/_runtime.md)
 - [`src/built-ins/runtime/foundation-adapters/agencyFinanceFoundation.ts`](../../../../built-ins/runtime/foundation-adapters/agencyFinanceFoundation.md)
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
@@ -27,6 +29,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](../../../../components/marketing/ClientMarketingServiceWorkspace.md)
 - [`src/lib/clients/clientMarketingService.ts`](../../../../lib/clients/clientMarketingService.md)
 - [`src/lib/clients/clientWorkspace.ts`](../../../../lib/clients/clientWorkspace.md)
+- [`src/lib/performance/telemetryDisplay.ts`](../../../../lib/performance/telemetryDisplay.md)
 - [`src/lib/projects/firstPartyDevelopmentProjects.ts`](../../../../lib/projects/firstPartyDevelopmentProjects.md)
 - [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/lib/server/inbox/inboxStore.ts`](../../../../lib/server/inbox/inboxStore.md)

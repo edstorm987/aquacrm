@@ -22,13 +22,14 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/inbox/resolutionContext.ts`](../inbox/resolutionContext.md)
 - [`src/lib/inbox/resolutionExplain.ts`](../inbox/resolutionExplain.md)
 
-## Used by (20)
+## Used by (21)
 
 - [`scripts/attention-protection.test.ts`](../../../scripts/attention-protection.test.md)
 - [`scripts/inbox-attention-thread.test.ts`](../../../scripts/inbox-attention-thread.test.md)
 - [`scripts/smoke-alert-classification.test.ts`](../../../scripts/smoke-alert-classification.test.md)
 - [`scripts/smoke-fulfilment-development-merge.test.ts`](../../../scripts/smoke-fulfilment-development-merge.test.md)
 - [`scripts/smoke-operational-notifications.test.ts`](../../../scripts/smoke-operational-notifications.test.md)
+- [`scripts/smoke-operations-attention-rollup.test.ts`](../../../scripts/smoke-operations-attention-rollup.test.md)
 - [`scripts/smoke-resolution-app-wide.test.ts`](../../../scripts/smoke-resolution-app-wide.test.md)
 - [`src/app/api/portal/notifications/route.ts`](../../app/api/portal/notifications/route.md)
 - [`src/app/portal/agency/inbox/_MasterInbox.tsx`](../../app/portal/agency/inbox/_MasterInbox.md)

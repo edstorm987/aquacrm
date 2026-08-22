@@ -16,7 +16,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/lib/server/inbox/inboxMedia.ts`](../../../../../lib/server/inbox/inboxMedia.md)
 - [`src/lib/server/inbox/inboxStore.ts`](../../../../../lib/server/inbox/inboxStore.md)
 - [`src/lib/server/privateUploadStorage.ts`](../../../../../lib/server/privateUploadStorage.md)
-- [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/scoped.ts`](../../../../../lib/supabase/scoped.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../../../server/tenants.md)
 - [`src/server/types.ts`](../../../../../server/types.md)

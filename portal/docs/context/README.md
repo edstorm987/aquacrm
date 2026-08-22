@@ -23,7 +23,7 @@ back, and update the docs. State lives in files, so any chat can be re-spun.**
 3. **[auditor-brief.md](auditor-brief.md)** — the paste-ready template for the **looping auditor** that independently verifies shipped work before it's trusted as done (writes verdicts to [audits.md](../development/audits.md)).
 4. **[state.md](state.md)** — the **live work log**: what's in flight, who's on what, what's done, what's next. *This is the thing that replaces the context window — keep it current.* Its `## Blockers` section is **parsed by the app** and drives the Dev Console's launch-blocker badges, so an error there shows up on screen.
 4b. **[next-wave-briefs.md](next-wave-briefs.md)** — paste-ready worker briefs + Ed's launch checklist. ⚠ **Strike a brief out the moment its fix lands**, with the `file:line` that proves it; a stale brief sends a worker to re-break working code.
-4c. **[archive/](archive/)** — finished worker debriefs, kept for the record. Historical only.
+4c. **[archive/](archive/README.md)** — 🗄 **the history shelf**: finished worker debriefs, superseded "where we stand" summaries, dated session records. Kept for the record, **never current** — nothing here should brief a worker. It has its own index saying what each file was superseded by.
 5. **[commander-handoff.md](commander-handoff.md)** — how to re-spin **me** (the commander) with full context, so orchestration survives a fresh chat.
 
 ## How to use it (the loop)

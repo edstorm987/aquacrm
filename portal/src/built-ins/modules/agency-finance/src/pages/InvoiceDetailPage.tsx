@@ -3,6 +3,7 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { InvoiceDetailClient } from "../components/InvoiceDetailClient";
 import { stripeConfigured } from "../lib/stripe";
+import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
 
 export default async function InvoiceDetailPage(props: PluginPageProps) {
   const id = props.segments[0];
@@ -22,5 +23,5 @@ export default async function InvoiceDetailPage(props: PluginPageProps) {
     c.tenant.getClientForAgency(props.agencyId, invoice.clientId),
     c.invoices.getTemplate(),
   ]);
-  return <InvoiceDetailClient invoice={invoice} agencyName={agency?.name ?? "Milesymedia"} clientName={client?.name ?? "Client"} template={template} stripeConfigured={stripeConfigured(props.install.config)} />;
+  return <InvoiceDetailClient invoice={invoice} agencyName={agency?.name ?? "Milesymedia"} clientName={client?.name ?? "Client"} template={template} stripeConfigured={stripeConfigured(installConfigWithSecrets(props.install.pluginId, { agencyId: props.agencyId }, props.install.config))} />;
 }

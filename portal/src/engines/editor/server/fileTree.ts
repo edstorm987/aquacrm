@@ -15,8 +15,12 @@ export interface TreeFile {
   name: string;
   /** Bytes, so something enormous can be refused before it is fetched. */
   size?: number;
-  /** Whether it can be shown as text at all. */
+  /** Whether it can be CHANGED here. */
   editable: boolean;
+  /** Whether it can be SHOWN here — a separate question from editing. */
+  readable?: boolean;
+  /** How to render it. */
+  kind?: "text" | "image" | "binary";
   /** Why not, when it cannot. Said out loud rather than the file vanishing. */
   reason?: string;
 }
@@ -39,17 +43,66 @@ export interface TreeDirectory {
 const HIDDEN = [
   /(^|\/)\.git\//,
   /(^|\/)node_modules\//,
-  /(^|\/)\.next\//,
+  /(^|\/)\.next/,
   /(^|\/)\.vercel\//,
   /(^|\/)\.env($|\.)/,
   /(^|\/)\.DS_Store$/,
+  // Live operational state, not source. `.data/` holds the portal state blob
+  // AND the worker check-in records that OTHER processes rewrite while this
+  // server runs — a file the editor's fingerprint can know nothing about, so
+  // its every save would be a race it cannot see. `.claude/` is tooling state.
+  /(^|\/)\.data\//,
+  /(^|\/)\.claude\//,
+  /(^|\/)\.disabled-node-modules\//,
+  /(^|\/)\.turbo\//,
 ];
 
-/** Text as far as an editor is concerned. Everything else opens as binary. */
-const TEXT = /\.(tsx?|jsx?|mjs|cjs|css|scss|html?|json|md|mdx|ya?ml|toml|txt|svg|graphql|sql|sh|env\.example)$/i;
+/**
+ * Text as far as an editor is concerned.
+ *
+ * Deliberately broad. The previous list covered the web stack only, and every
+ * file outside it — a Python script, a Dockerfile, a .gitignore — reported
+ * "this is not a text file" and rendered NOTHING, which is why the editor
+ * looked like it could not see most of the repository.
+ */
+const TEXT = new RegExp(
+  "\\.(" + [
+    // web
+    "tsx?", "jsx?", "mjs", "cjs", "css", "scss", "sass", "less", "html?", "vue", "svelte", "astro",
+    // data + config
+    "json5?", "ya?ml", "toml", "ini", "cfg", "conf", "properties", "xml", "csv", "tsv", "lock",
+    // docs
+    "md", "mdx", "txt", "rst", "adoc", "log", "patch", "diff", "gitignore", "gitattributes", "gitkeep",
+    "npmrc", "nvmrc", "editorconfig", "prettierrc", "eslintrc", "babelrc",
+    // other languages
+    "py", "rb", "go", "rs", "java", "kt", "kts", "swift", "c", "h", "cpp", "hpp", "cs", "php",
+    "sh", "bash", "zsh", "fish", "ps1", "sql", "graphql", "gql", "prisma", "proto", "r", "lua",
+    "dart", "ex", "exs", "erl", "clj", "scala", "pl", "tf", "tfvars", "hcl", "svg",
+  ].join("|") + ")$",
+  "i",
+);
+
+/** Files with no extension that are still plainly text. */
+const TEXT_BY_NAME = /^(dockerfile|makefile|procfile|license|licence|readme|changelog|codeowners|caddyfile|gemfile|rakefile|brewfile|justfile|\.env\.example|\.env\.sample|\.env\.template)$/i;
+
+/** Shown as an image rather than as characters. */
+export const IMAGE = /\.(png|jpe?g|gif|webp|avif|ico|bmp)$/i;
 
 /** Beyond this a browser editor stops being usable rather than merely slow. */
 export const MAX_EDITABLE_BYTES = 512 * 1_024;
+
+/**
+ * Beyond this we stop sending the whole file, but still send the beginning.
+ *
+ * Refusing outright was the bug: a big file rendered as an empty pane, so the
+ * editor looked broken rather than honest about a limit.
+ */
+export const MAX_READ_BYTES = 2 * 1_024 * 1_024;
+
+export function isTextPath(path: string): boolean {
+  const name = path.split("/").pop() ?? path;
+  return TEXT.test(path) || TEXT_BY_NAME.test(name);
+}
 
 /**
  * Templates that deliberately hold no values — `.env.example` and friends.
@@ -65,15 +118,30 @@ export function isHiddenPath(path: string): boolean {
   return HIDDEN.some(pattern => pattern.test(candidate));
 }
 
+/**
+ * READABLE and EDITABLE are different questions.
+ *
+ * They used to be the same one, and answering "no" meant the pane rendered
+ * nothing at all — the reason most of the repository looked invisible. A big
+ * file is still worth reading; an image is worth looking at; only the write is
+ * genuinely restricted.
+ */
 export function describeFile(path: string, size?: number): TreeFile {
   const name = path.split("/").pop() ?? path;
-  if (!TEXT.test(path)) {
-    return { path, name, size, editable: false, reason: "This is not a text file." };
+
+  if (IMAGE.test(path)) {
+    return { path, name, size, kind: "image", readable: true, editable: false, reason: "Images open as a preview." };
+  }
+  if (!isTextPath(path)) {
+    return { path, name, size, kind: "binary", readable: false, editable: false, reason: "This is not a text file." };
   }
   if (size !== undefined && size > MAX_EDITABLE_BYTES) {
-    return { path, name, size, editable: false, reason: `Too large to edit here (${Math.round(size / 1024)} KB).` };
+    return {
+      path, name, size, kind: "text", readable: true, editable: false,
+      reason: `${Math.round(size / 1024)} KB — read-only here.`,
+    };
   }
-  return { path, name, size, editable: true };
+  return { path, name, size, kind: "text", readable: true, editable: true };
 }
 
 /**

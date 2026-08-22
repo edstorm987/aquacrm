@@ -8,9 +8,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `default async DevTeamLayout({ children }: { children: ReactNode })`
 
-## Depends on (13)
+## Depends on (18)
 
 - [`src/app/portal/dev-team/_ui.tsx`](./_ui.md)
+- [`src/components/chrome/DevTeamTransition.tsx`](../../../components/chrome/DevTeamTransition.md)
+- [`src/components/chrome/LibrarianDrawerControl.tsx`](../../../components/chrome/LibrarianDrawerControl.md)
+- [`src/components/chrome/NotificationCentreButton.tsx`](../../../components/chrome/NotificationCentreButton.md)
 - [`src/components/chrome/PortalRouteCanvas.tsx`](../../../components/chrome/PortalRouteCanvas.md)
 - [`src/components/chrome/Sidebar.tsx`](../../../components/chrome/Sidebar.md)
 - [`src/components/chrome/ThemeInjector.tsx`](../../../components/chrome/ThemeInjector.md)
@@ -18,7 +21,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/components/ui/ErrorBoundary.tsx`](../../../components/ui/ErrorBoundary.md)
 - [`src/lib/chrome/sidebarLayout.ts`](../../../lib/chrome/sidebarLayout.md)
 - [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
+- [`src/lib/server/auth/postLoginRedirect.ts`](../../../lib/server/auth/postLoginRedirect.md)
 - [`src/lib/server/dev/devDocs.ts`](../../../lib/server/dev/devDocs.md)
+- [`src/lib/server/devIconPreference.ts`](../../../lib/server/devIconPreference.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)
 - [`src/server/types.ts`](../../../server/types.md)

@@ -20,8 +20,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
-## Used by (4)
+## Used by (5)
 
+- [`scripts/smoke-aqua-editor-ai-history.test.ts`](../../../../scripts/smoke-aqua-editor-ai-history.test.md)
 - [`src/app/api/assistant/route.ts`](../../../app/api/assistant/route.md)
 - [`src/app/portal/agency/assistant/page.tsx`](../../../app/portal/agency/assistant/page.md)
 - [`src/app/portal/agency/page.tsx`](../../../app/portal/agency/page.md)

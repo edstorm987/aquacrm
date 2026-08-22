@@ -8,9 +8,9 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (4)
 
+- [`src/engines/data/radar/businessRadar.ts`](../src/engines/data/radar/businessRadar.md)
 - [`src/lib/intelligence/commandIntelligence.ts`](../src/lib/intelligence/commandIntelligence.md)
 - [`src/lib/performance/kpiRegistry.ts`](../src/lib/performance/kpiRegistry.md)
-- [`src/lib/radar/businessRadar.ts`](../src/lib/radar/businessRadar.md)
 - [`src/server/types.ts`](../src/server/types.md)
 
 ## Used by

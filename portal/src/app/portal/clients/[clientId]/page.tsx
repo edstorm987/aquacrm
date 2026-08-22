@@ -13,13 +13,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth/auth";
-import { ALL_ROLES, isAgencyRole } from "@/server/types";
+import { isAgencyRole } from "@/server/types";
 import { getAgency, getClientForAgency, listClients } from "@/server/tenants";
 import { clientRelationshipId, listClientRelationshipWorkspaces } from "@/server/clientRelationships";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import { listActivity } from "@/server/activity";
 import { phaseLabel, listPhasesForAgency } from "@/server/phases";
 import { listPlugins } from "@/built-ins/runtime/_registry";
+import { SURFACE_ROLE_CEILING } from "@/built-ins/runtime/_pageScope";
 import type { TabId } from "./_tabs";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { toolCopy } from "./toolCopy";
@@ -172,7 +173,30 @@ export default async function ClientHome({
   await ensureHydrated();
   const { clientId } = await params;
   const sp = await searchParams;
-  const session = await requireRoleForClient([...ALL_ROLES], clientId);
+  // WHO THIS WORKSPACE IS FOR.
+  //
+  // This gate was `requireRoleForClient([...ALL_ROLES], clientId)` until
+  // 22 Aug 2026, which is a TENANCY question — "are you attached to this
+  // client?" — standing in for an ownership one. An `end-customer` attached to
+  // the client passed it, and the page they got is the internal client record:
+  // the Finance tab (invoices, payment plans, the payment position), the
+  // Record tab (contracts, the relationship ledger, internal notes), the
+  // Commercial lens, the operator's radar and the delivery brief. None of that
+  // is customer-facing, and the shopper has their own surface at
+  // `/portal/customer` — the same split `_pageScope.ts` already draws for
+  // every plugin page under this host, where the ceiling is exactly
+  // AGENCY_ROLES ∪ CLIENT_ROLES. This is not a plugin page, so that fix could
+  // not reach it; the rule is the same one, applied by hand.
+  //
+  // Refused rather than 404'd through `/portal`, which is the role-aware
+  // router: it sends an end-customer to `/portal/customer` and a lead to the
+  // login they came from, so nobody is left with nowhere to go.
+  let session;
+  try {
+    session = await requireRoleForClient([...SURFACE_ROLE_CEILING.client], clientId);
+  } catch {
+    redirect("/portal");
+  }
   const client = getClientForAgency(session.agencyId, clientId);
   if (!client) notFound();
 

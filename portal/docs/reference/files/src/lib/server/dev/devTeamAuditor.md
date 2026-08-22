@@ -14,10 +14,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `readinessContextForAgency(agencyId: string): ReadinessContext`
 - `async scanDevTeamAudit(context: ReadinessContext = {}): Promise<DevTeamAudit>`
 
-## Depends on (5)
+## Depends on (6)
 
 - [`src/lib/server/assistants/externalAssistantKeys.ts`](../assistants/externalAssistantKeys.md)
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 - [`src/lib/server/integrations/integrationConnections.ts`](../integrations/integrationConnections.md)
 - [`src/lib/server/productionReadiness.ts`](../productionReadiness.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

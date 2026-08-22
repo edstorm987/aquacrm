@@ -29,13 +29,22 @@
 - [`src/built-ins/runtime/foundation-adapters/membershipsFoundation.ts`](./foundation-adapters/membershipsFoundation.md)
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](./foundation-adapters/publicFunnelFoundation.md)
 
-## Used by (7)
+## Used by (16)
 
+- [`scripts/smoke-app-route-tenancy.test.ts`](../../../scripts/smoke-app-route-tenancy.test.md)
+- [`scripts/smoke-finance-section-gates.test.ts`](../../../scripts/smoke-finance-section-gates.test.md)
+- [`scripts/smoke-plugin-api-host-gates.test.ts`](../../../scripts/smoke-plugin-api-host-gates.test.md)
+- [`scripts/smoke-plugin-api-tenancy.test.ts`](../../../scripts/smoke-plugin-api-tenancy.test.md)
+- [`scripts/smoke-plugin-page-host-gates.test.ts`](../../../scripts/smoke-plugin-page-host-gates.test.md)
+- [`scripts/smoke-plugin-settings-surface.test.ts`](../../../scripts/smoke-plugin-settings-surface.test.md)
 - [`src/app/portal/agency/[...rest]/page.tsx`](../../app/portal/agency/[...rest]/page.md)
+- [`src/app/portal/agency/marketing/page.tsx`](../../app/portal/agency/marketing/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
 - [`src/built-ins/runtime/_pathMapping.ts`](./_pathMapping.md)
 - [`src/built-ins/runtime/_routeResolver.ts`](./_routeResolver.md)
 - [`src/built-ins/runtime/_runtime.ts`](./_runtime.md)
 - [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](./foundation-adapters/pluginRegistryAdapter.md)
 - [`src/lib/chrome/sidebarLayout.ts`](../../lib/chrome/sidebarLayout.md)
+- [`src/lib/server/plugins/pluginSecretConfig.ts`](../../lib/server/plugins/pluginSecretConfig.md)
+- [`src/lib/server/plugins/pluginSettingsSurface.ts`](../../lib/server/plugins/pluginSettingsSurface.md)
 

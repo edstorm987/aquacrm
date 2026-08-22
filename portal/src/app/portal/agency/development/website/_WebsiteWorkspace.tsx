@@ -7,6 +7,7 @@ import {
 import { useMemo, useState } from "react";
 
 import type { ClientTelemetrySummary } from "@/lib/clients/clientTelemetry";
+import { measuredCountLabel } from "@/lib/performance/telemetryDisplay";
 import type {
   AgencyWebsitePageStatus,
   AgencyWebsiteProject,
@@ -108,8 +109,9 @@ export function WebsiteWorkspace({
       <section className="grid border-y border-black/10 md:grid-cols-4">
         <Metric label="Public mode" value={releaseLabel(website.status)} icon={<ShieldCheck size={16} />} />
         <Metric label="Tag" value={connected ? "Connected" : "Waiting"} icon={<RadioTower size={16} />} tone={connected ? "good" : "warn"} />
-        <Metric label="Views today" value={String(summary.pageviews24h)} icon={<Activity size={16} />} />
-        <Metric label="Errors today" value={String(summary.errors24h)} icon={<Code2 size={16} />} tone={summary.errors24h ? "bad" : "good"} />
+        {/* Unmeasured is "—", never 0 — the Tag tile beside these already says "Waiting". */}
+        <Metric label="Views today" value={measuredCountLabel(summary.pageviews24h, summary.lastSeenAt)} icon={<Activity size={16} />} />
+        <Metric label="Errors today" value={measuredCountLabel(summary.errors24h, summary.lastSeenAt)} icon={<Code2 size={16} />} tone={summary.lastSeenAt && summary.errors24h ? "bad" : "good"} />
       </section>
 
       <section>

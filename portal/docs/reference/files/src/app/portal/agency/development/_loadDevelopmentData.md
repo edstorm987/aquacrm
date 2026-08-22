@@ -10,9 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (4)
 
+- [`src/engines/sop/server/sops.ts`](../../../../engines/sop/server/sops.md)
 - [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/server/developmentToolkit.ts`](../../../../server/developmentToolkit.md)
-- [`src/server/sops.ts`](../../../../server/sops.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)
 
 ## Used by (3)

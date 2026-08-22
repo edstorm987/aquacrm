@@ -99,14 +99,16 @@ const manifest: AquaPlugin = {
   ],
 
   pages: [
-    { path: "", component: () => import("./src/pages/CampaignsPage") },
-    { path: "campaigns", component: () => import("./src/pages/CampaignsPage") },
-    { path: "leads", component: () => import("./src/pages/LeadsPage") },
-    { path: "templates", component: () => import("./src/pages/TemplatesPage") },
-    { path: "reports", component: () => import("./src/pages/ReportsPage") },
-    { path: "calendar", component: () => import("./src/pages/CalendarPage") },
-    { path: "touchpoints", component: () => import("./src/pages/TouchpointsPage") },
-    { path: "performance", component: () => import("./src/pages/PerformancePage") },
+    // "" is an ORPHAN index (no nav entry points at the bare plugin mount)
+    // rendering the same campaigns board as "campaigns".
+    { path: "", component: () => import("./src/pages/CampaignsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "campaigns", component: () => import("./src/pages/CampaignsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "leads", component: () => import("./src/pages/LeadsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "templates", component: () => import("./src/pages/TemplatesPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "reports", component: () => import("./src/pages/ReportsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "calendar", component: () => import("./src/pages/CalendarPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "touchpoints", component: () => import("./src/pages/TouchpointsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "performance", component: () => import("./src/pages/PerformancePage"), visibleToRoles: [...AGENCY_VIEWERS] },
     { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...AGENCY_ADMINS] },
   ],
 

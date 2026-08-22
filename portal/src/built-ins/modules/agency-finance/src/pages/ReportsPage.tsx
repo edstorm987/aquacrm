@@ -3,6 +3,7 @@ import { containerFor } from "../server/foundationAdapter";
 import type { Currency } from "../lib/domain";
 import { normaliseCurrency, SUPPORTED_CURRENCIES } from "../lib/currencies";
 import { summariseAging, type AgingSummary } from "../lib/aging";
+import { taxPosition } from "../lib/taxPosition";
 import { FinanceNav } from "../components/FinanceNav";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import Link from "next/link";
@@ -36,6 +37,10 @@ export default async function ReportsPage(props: PluginPageProps) {
   const inputTax = paidExpenses
     .filter(expense => expense.incurredAt >= from && expense.taxDeductible !== false)
     .reduce((sum, expense) => sum + (expense.taxCents ?? 0), 0);
+  // Signed on purpose. `Math.max(0, outputTax - inputTax)` used to clamp this,
+  // so a year where recoverable tax exceeded tax charged — money owed BACK —
+  // rendered as £0.00 and the reclaim vanished off the screen entirely.
+  const tax = taxPosition(outputTax, inputTax);
   const deductibleCosts = paidExpenses
     .filter(expense => expense.incurredAt >= from)
     .reduce((sum, expense) => sum + Math.round(expense.amountCents * (expense.businessUsePercent ?? 100) / 100), 0);
@@ -79,7 +84,7 @@ export default async function ReportsPage(props: PluginPageProps) {
         <Metric label="Deductible costs" value={money(deductibleCosts, currency)} />
         <Metric label="Cash profit" value={money(snapshot.totalPaidCents - snapshot.totalExpensesCents, currency)} />
         <Metric label="Tax charged" value={money(outputTax, currency)} />
-        <Metric label="Tax balance" value={money(Math.max(0, outputTax - inputTax), currency)} />
+        <Metric label={tax.label} value={money(tax.displayCents, currency)} />
       </dl>
 
       <div className="grid gap-8 lg:grid-cols-2">
@@ -100,7 +105,7 @@ export default async function ReportsPage(props: PluginPageProps) {
           <dl className="mt-3 divide-y divide-black/10 border-y border-black/10 text-sm">
             <Row label="Tax charged on paid invoices" value={money(outputTax, currency)} />
             <Row label="Recoverable tax recorded" value={money(inputTax, currency)} />
-            <Row label="Recorded tax balance" value={money(Math.max(0, outputTax - inputTax), currency)} strong />
+            <Row label={tax.recordedLabel} value={money(tax.displayCents, currency)} strong />
             <Row label="Expenses missing receipts" value={String(paidExpenses.filter(expense => !expense.receiptUrl && !expense.attachments?.length).length)} />
           </dl>
         </section>

@@ -16,7 +16,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/radar/radarSyntheticSafety.ts`](../radar/radarSyntheticSafety.md)
+- [`src/engines/data/radar/radarSyntheticSafety.ts`](../../engines/data/radar/radarSyntheticSafety.md)
 
 ## Used by (2)
 

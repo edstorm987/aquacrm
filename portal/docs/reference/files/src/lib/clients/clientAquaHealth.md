@@ -32,7 +32,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](../../app/portal/clients/_JourneyCommercialWorkspace.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
-- [`src/lib/radar/clientRadar.ts`](../radar/clientRadar.md)
+- [`src/engines/data/radar/clientRadar.ts`](../../engines/data/radar/clientRadar.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../../engines/data/server/radar/clientRadarService.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../server/inbox/operationalAlerts.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../server/radar/clientRadarService.md)
 

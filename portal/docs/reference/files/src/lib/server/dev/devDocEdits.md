@@ -12,9 +12,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `async docHistory(relPath: string): Promise<DocHistory>`
 - `async recentDocEdits(limit = 25): Promise<DocEdit[]>`
 
-## Depends on (2)
+## Depends on (3)
 
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 - [`src/server/types.ts`](../../../server/types.md)
 
 ## Used by (4)

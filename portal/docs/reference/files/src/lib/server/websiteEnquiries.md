@@ -4,7 +4,7 @@
 
 _No file-level doc-comment. Purpose inferred from its path (Shared logic — src/lib/) and its exports below._
 
-## Exports (23)
+## Exports (24)
 
 - `type WebsiteEnquiryChannel`
 - `type WebsiteEnquiryPriority`
@@ -19,8 +19,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `synchroniseWebsiteEnquiryLedgerEvents(agencyId: string, clientId: string, enquiry: WebsiteEnquiry)`
 - `async recordWebsiteEnquiryIdentityResolution(enquiryId: string, resolution: IdentityResolutionResult): Promise<boolean>`
 - `triageWebsiteEnquiry(channel: WebsiteEnquiryChannel, message?: string): Pick<WebsiteEnquiry, "priority" | "topic" | "suggestedAction">`
-- `getRequestWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]>`
-- `async listWebsiteEnquiries(limit = 250): Promise<WebsiteEnquiry[]>`
+- `getRequestWebsiteEnquiries(agencyId: string, limit = 250): Promise<WebsiteEnquiry[]>`
+- `interface EnquiryReadClient (1 members)`
+- `async listWebsiteEnquiries(agencyId: string, limit = 250, deps: { supabase?: EnquiryReadClient } = {}): Promise<WebsiteEnquiry[]>`
 - `mapBrandEnquiryRow(row: BrandEnquiryRow): WebsiteEnquiry`
 - `attachRoutedCompanyNames(enquiries: WebsiteEnquiry[], companies: Array<{ id: string; name: string }>): WebsiteEnquiry[]`
 - `ROUTED_COMPANY_FILTER_ALL`
@@ -30,7 +31,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `filterEnquiriesByRoutedCompany(enquiries: WebsiteEnquiry[], filter: string): WebsiteEnquiry[]`
 - `routedCompanyFilterOptions(enquiries: Array<Pick<WebsiteEnquiry, "routedCompanyId" | "routedCompanyName">>): Array<{ id: string; name: string }>`
 
-## Depends on (10)
+## Depends on (12)
 
 - [`src/lib/brands/tradingBrands.ts`](../brands/tradingBrands.md)
 - [`src/lib/enquiries/enquiryClassification.ts`](../enquiries/enquiryClassification.md)
@@ -39,6 +40,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/server/clients/clientRecordLedger.ts`](./clients/clientRecordLedger.md)
 - [`src/lib/server/identityResolution.ts`](./identityResolution.md)
 - [`src/lib/supabase/admin.ts`](../supabase/admin.md)
+- [`src/lib/supabase/enquiryAgencyColumn.ts`](../supabase/enquiryAgencyColumn.md)
+- [`src/lib/supabase/ownedEnquiry.ts`](../supabase/ownedEnquiry.md)
 - [`src/server/persons.ts`](../../server/persons.md)
 - [`src/server/tradingCompanies.ts`](../../server/tradingCompanies.md)
 - [`src/server/types.ts`](../../server/types.md)
@@ -60,13 +63,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 - [`src/app/portal/customer/_portalData.ts`](../../app/portal/customer/_portalData.md)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](../../built-ins/modules/leads-pipeline/src/api/handlers.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/radarObservations.ts`](../../engines/data/server/radar/radarObservations.md)
+- [`src/engines/data/server/radar/radarSourceInspection.ts`](../../engines/data/server/radar/radarSourceInspection.md)
 - [`src/lib/enquiries/enquiryFormLayout.ts`](../enquiries/enquiryFormLayout.md)
 - [`src/lib/server/compliancePostureSource.ts`](./compliancePostureSource.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](./inbox/operationalAlerts.md)
 - [`src/lib/server/personInteractions.ts`](./personInteractions.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](./radar/businessIssueRadar.md)
-- [`src/lib/server/radar/radarObservations.ts`](./radar/radarObservations.md)
-- [`src/lib/server/radar/radarSourceInspection.ts`](./radar/radarSourceInspection.md)
 - [`src/lib/server/resolutionPlans.ts`](./resolutionPlans.md)
 - [`src/server/automations.ts`](../../server/automations.md)
 

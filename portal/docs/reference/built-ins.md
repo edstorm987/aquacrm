@@ -92,7 +92,7 @@ _No exported symbols (internal/side-effect module)._
 - `interface SetupField (7 members)`
 - `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)`
+- `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)`
 - `interface SettingsSchema (2 members)`
@@ -435,12 +435,13 @@ _No exported symbols (internal/side-effect module)._
 - `interface SetupField (7 members)`
 - `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)`
+- `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)`
 - `interface SettingsSchema (2 members)`
 - `interface SettingsGroup (4 members)`
-- `interface SettingsField (7 members)`
+- `interface SettingsFieldVaultTarget (2 members)`
+- `interface SettingsField (8 members)`
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
 - `interface AquaPlugin (26 members)`
@@ -556,6 +557,8 @@ _No exported symbols (internal/side-effect module)._
 
 ### `src/built-ins/modules/agency-finance/src/lib/sections.ts`
 
+- `financeSectionPagePath(section: FinanceSection): string` — The manifest page path a section href resolves to. "" is the index page.
+- `financePageRoles(path: string): FinanceSection["roles"]` — in", so a newly added page is never MORE open than the section it sits under.
 - `FINANCE_VIEWER_ROLES = ["agency-owner", "agency-manager", "agency-staff"] as const` — so `[...roles]` assigns cleanly to a nav item's `visibleToRoles`.
 - `FINANCE_ADMIN_ROLES = ["agency-owner", "agency-manager"] as const`
 - `FINANCE_SECTIONS: readonly FinanceSection[]`
@@ -574,6 +577,12 @@ _No exported symbols (internal/side-effect module)._
 - `interface StripeEvent (3 members)`
 - `interface StripeClientLike (3 members)` — that implements just these; production uses the real client.
 - `interface InvoiceCheckoutInput (8 members)`
+
+### `src/built-ins/modules/agency-finance/src/lib/taxPosition.ts`
+
+- `taxPosition(outputTaxCents: number, inputTaxCents: number): TaxPosition`
+- `type TaxDirection = "owed" | "reclaim" | "level"` — Pure so it can be tested without rendering the page.
+- `interface TaxPosition (5 members)`
 
 ### `src/built-ins/modules/agency-finance/src/lib/tenancy.ts`
 
@@ -1627,7 +1636,7 @@ _No exported symbols (internal/side-effect module)._
 - `interface SetupField (7 members)`
 - `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)`
+- `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)`
 - `interface SettingsSchema (2 members)`
@@ -2049,7 +2058,8 @@ _No exported symbols (internal/side-effect module)._
 - `interface HeadInjection (4 members)`
 - `interface SettingsSchema (2 members)` — ─── Settings schema ──────────────────────────────────────────────────────
 - `interface SettingsGroup (4 members)`
-- `interface SettingsField (8 members)`
+- `interface SettingsFieldVaultTarget (2 members)`
+- `interface SettingsField (9 members)`
 - `interface PluginFeature (6 members)` — ─── Feature toggles ──────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ─────────────────────────────────────────────────────────
 - `interface AquaPlugin (29 members)` — ─── The plugin manifest ──────────────────────────────────────────────────
@@ -2743,7 +2753,7 @@ _No exported symbols (internal/side-effect module)._
 - `interface SetupField (7 members)`
 - `interface NavGroup (3 members)` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
+- `interface PluginPage (6 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (4 members)` — ─── API routes ────────────────────────────────────────────────────────────
 - `interface SettingsSchema (2 members)` — ─── Settings schema ───────────────────────────────────────────────────────
@@ -3009,7 +3019,7 @@ _No exported symbols (internal/side-effect module)._
 - `interface SetupField (7 members)`
 - `interface NavGroup (3 members)`
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)`
+- `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)`
 - `interface SettingsSchema (2 members)`
@@ -3368,7 +3378,7 @@ _No exported symbols (internal/side-effect module)._
 - `interface SetupField (7 members)`
 - `interface NavGroup (3 members)` — ─── Sidebar contributions ─────────────────────────────────────────────────
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
+- `interface PluginPage (6 members)` — ─── Admin pages ───────────────────────────────────────────────────────────
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)` — ─── API routes ────────────────────────────────────────────────────────────
 - `interface SettingsSchema (2 members)` — ─── Settings schema ───────────────────────────────────────────────────────
@@ -4956,11 +4966,12 @@ _No exported symbols (internal/side-effect module)._
 ### `src/built-ins/modules/website-editor/src/lib/devicePresets.ts`
 
 - `getDevicePreset(id: string): DeviceSpec | undefined`
-- `loadDeviceState(): DeviceState`
-- `saveDeviceState(state: DeviceState): void`
+- `loadDeviceState(scope?: string): DeviceState`
+- `saveDeviceState(state: DeviceState, scope?: string): void`
 - `effectiveViewport(spec: DeviceSpec, state: DeviceState): { width: number; height: number }` — through here so the rendered pixel maths is consistent.
 - `DEVICE_PRESETS: DeviceSpec[]`
 - `CATEGORY_LABELS: Record<DeviceCategory, string>`
+- `DEFAULT_DEVICE_STATE: DeviceState`
 - `type DeviceCategory = "responsive" | "phone" | "tablet" | "laptop" | "desktop"` — swapping width/height at render time.
 - `interface DeviceSpec (8 members)`
 - `interface DeviceState (6 members)`
@@ -5950,6 +5961,25 @@ _No exported symbols (internal/side-effect module)._
 
 ## `src/built-ins/runtime/`
 
+### `src/built-ins/runtime/_pageScope.ts`
+
+- `surfaceOfFullUrlPath(path: string): HostSurface | null` — The surface a fully-qualified manifest path names, read off the URL itself. `/portal/clients/[clientId]/editor` → "client". Anything that isn't one of the three host families → nu…
+- `pageSurfaces(plugin: AquaPlugin, page: PluginPage): HostSurface[]` — Every surface this page may render on, from the manifest's shape alone. A fully-qualified path names its surface outright. A RELATIVE path hangs off the plugin's mount point, so t…
+- `scopePolicySurfaces(plugin: AquaPlugin): HostSurface[]` — The surfaces a plugin's INSTALL SCOPE puts it on. The switch is exhaustive on purpose, and the unrecognised case denies rather than allowing. It used to end in `default: return ["…
+- `pageResolvesAt(plugin: AquaPlugin, page: PluginPage, host: HostSurface): boolean` — Rule 1: may this host resolve this page at all?
+- `effectivePageRoles(plugin: AquaPlugin, page: PluginPage, host: HostSurface): Role[]` — Exactly who can render this page at this host. `[]` means unreachable — either the host is the wrong surface for it, or every role the manifest named is above the ceiling. This is…
+- `pageAllowsRoleAt(plugin: AquaPlugin, page: PluginPage, host: HostSurface, role: Role): boolean` — The single call a host route makes after resolving a URL to a page.
+- `pluginApiSurfaces(plugin: AquaPlugin): HostSurface[]` — Every surface this plugin's API could serve — the widest set any of its routes may draw from. The install scope is the floor; a fully-qualified page path can add a surface the sco…
+- `apiRouteSurfaces(plugin: AquaPlugin, route: PluginApiRoute): HostSurface[]` — The surfaces THIS route serves. The workspace surfaces come free with the install scope. The shopper surface does not: a route only reaches `/portal/customer`'s audience if the pl…
+- `apiRouteBackingPage(plugin: AquaPlugin, route: PluginApiRoute): PluginPage | null` — The page a route backs, or null. The longest page path that is a literal segment-prefix of the route path wins. Two deliberate exclusions: • A page path containing a parameter seg…
+- `apiRoleCeiling(plugin: AquaPlugin, route: PluginApiRoute): Role[]` — The widest audience this route may ever answer, before its own declaration narrows it. Per surface: the backing page's gate where that page lives on the surface, the surface's own…
+- `effectiveApiRoles(plugin: AquaPlugin, route: PluginApiRoute): Role[]` — Exactly who this route may answer. `[]` means nobody with a session. `public: true` routes are outside the role system entirely — they are the ones that land as an anonymous visit…
+- `apiRouteAllowsRole(plugin: AquaPlugin, route: PluginApiRoute, role: Role): boolean` — The single call the API dispatcher makes after resolving a URL to a route.
+- `HOST_SURFACES: readonly HostSurface[]`
+- `SURFACE_URL_PREFIX: Record<HostSurface, string>` — The URL prefix each host is mounted at — used by tests and by the reachability report to name a surface without hard-coding strings twice.
+- `SURFACE_ROLE_CEILING: Record<HostSurface, readonly Role[]>` — The widest audience a surface may EVER expose. A manifest can narrow this; nothing can widen it. `client` deliberately stops at the client workspace's own people. The host route's…
+- `type HostSurface = "agency" | "client" | "customer"` — The three host route families that resolve plugin pages.
+
 ### `src/built-ins/runtime/_pathMapping.ts`
 
 - `pluginIdForPath(pathname: string): PathMatch | null`
@@ -5975,8 +6005,9 @@ _No exported symbols (internal/side-effect module)._
 
 - `resolveAgencyPluginPage({ agencyId, rest }: { agencyId: string; rest: string[] }): ResolvedPluginPage | null` — Agency-scope catch-all: /portal/agency/[...rest]
 - `resolveClientPluginPage({ agencyId, clientId, rest }: MatchInput): ResolvedPluginPage | null` — Client-scope catch-all: /portal/clients/[clientId]/[...rest]
-- `resolveCustomerPluginPage({ agencyId, clientId, rest }: MatchInput): ResolvedPluginPage | null` — this resolver under `/portal/customer/<pluginId>/<sub>`).
+- `resolveCustomerPluginPage({ agencyId, clientId, rest }: MatchInput): ResolvedPluginPage | null` — `smoke-plugin-page-host-gates` pins that.
 - `resolvePluginApiRoute(pluginId: string, rest: string[], scope: { agencyId: string; clientId?: string }, method: string): ResolvedPluginApiRoute | null`
+- `pluginPageForNavHref(plugin: AquaPlugin, href: string): PluginPage | null` — entry, not a gap.
 - `interface ResolvedPluginPage (4 members)`
 - `interface ResolvedPluginApiRoute (3 members)` — API catch-all: /api/portal/<pluginId>/<sub-path>
 
@@ -6003,6 +6034,7 @@ _No exported symbols (internal/side-effect module)._
 - `isPortalRole(v: unknown): v is PortalRole`
 - `navItemAllowedRoles(item: NavItem): Role[] | undefined` — agnostic role gate.
 - `pluginPageAllowedRoles(page: PluginPage): Role[] | undefined`
+- `pluginApiRouteAllowedRoles(route: PluginApiRoute): Role[] | undefined` — dispatcher's door.
 - `PORTAL_ROLES: readonly PortalRole[]`
 - `type PluginCategory = | "core" | "content" | "commerce" | "marketing" | "support" | "ops" | "fulfillment"` — ─── Plugin identity ──────────────────────────────────────────────────────
 - `type PluginStatus = "stable" | "beta" | "alpha"`
@@ -6045,7 +6077,8 @@ _No exported symbols (internal/side-effect module)._
 - `interface HeadInjection (4 members)`
 - `interface SettingsSchema (2 members)` — ─── Settings schema ──────────────────────────────────────────────────────
 - `interface SettingsGroup (4 members)`
-- `interface SettingsField (8 members)`
+- `interface SettingsFieldVaultTarget (2 members)`
+- `interface SettingsField (9 members)`
 - `interface PluginFeature (6 members)` — ─── Feature toggles ──────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ─────────────────────────────────────────────────────────
 - `interface ErasureSubject (3 members)` — lead, an email to a lead who converted later) can only match on it.

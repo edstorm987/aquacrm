@@ -37,6 +37,6 @@ surface for the whole business.
 - **Reuse → repurpose → simplify** before building new — the codebase already duplicates several features; don't add a third.
 - **Plain and simple** — Ed's been at this for months; short, honest, no walls.
 
-_Related: [phases.md](phases.md) (the roadmap), [notes.md](notes.md) (decisions),
+_Related: [roadmap.md](roadmap.md) (the roadmap), [notes.md](notes.md) (decisions),
 and the memory notes `aquacrm-project-shape`, `portal-products-scope-down`,
 `aqua-tag-as-consent-tag-manager`._

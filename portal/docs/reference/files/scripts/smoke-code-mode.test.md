@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/server/siteEditor/fileTree.ts`](../src/lib/server/siteEditor/fileTree.md)
+- [`src/engines/editor/server/fileTree.ts`](../src/engines/editor/server/fileTree.md)
 
 ## Used by
 

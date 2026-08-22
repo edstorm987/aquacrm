@@ -8,8 +8,9 @@
 
 - `default async ClientPluginCatchAll({ params, searchParams }: RouteProps)`
 
-## Depends on (8)
+## Depends on (10)
 
+- [`src/built-ins/runtime/_pageScope.ts`](../../../../../built-ins/runtime/_pageScope.md)
 - [`src/built-ins/runtime/_routeResolver.ts`](../../../../../built-ins/runtime/_routeResolver.md)
 - [`src/built-ins/runtime/_types.ts`](../../../../../built-ins/runtime/_types.md)
 - [`src/built-ins/runtime/foundation-adapters/index.ts`](../../../../../built-ins/runtime/foundation-adapters/index.md)
@@ -17,6 +18,7 @@
 - [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../../lib/server/pluginStorage.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
+- [`src/server/tenants.ts`](../../../../../server/tenants.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 
 ## Used by

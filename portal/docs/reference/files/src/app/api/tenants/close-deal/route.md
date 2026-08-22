@@ -8,7 +8,7 @@
 
 - `async POST(request: Request)`
 
-## Depends on (15)
+## Depends on (16)
 
 - [`src/built-ins/modules/agency-finance/src/lib/channels.ts`](../../../../built-ins/modules/agency-finance/src/lib/channels.md)
 - [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](../../../../built-ins/modules/agency-finance/src/lib/currencies.md)
@@ -20,6 +20,7 @@
 - [`src/lib/server/auth/auth.ts`](../../../../lib/server/auth/auth.md)
 - [`src/lib/server/closeDeal.ts`](../../../../lib/server/closeDeal.md)
 - [`src/lib/server/pluginStorage.ts`](../../../../lib/server/pluginStorage.md)
+- [`src/lib/server/plugins/pluginSecretConfig.ts`](../../../../lib/server/plugins/pluginSecretConfig.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/pluginInstalls.ts`](../../../../server/pluginInstalls.md)
 - [`src/server/storage.ts`](../../../../server/storage.md)

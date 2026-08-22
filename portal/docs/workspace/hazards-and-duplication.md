@@ -41,6 +41,124 @@ Editing one does **not** change the others. Confirm which surface you're on befo
 ### Aqua-tag analytics twice
 - `agency/aqua-tags/_AquaTagsWorkspace.tsx` **[new]** vs `agency/performance/_AquaTagDashboard.tsx`.
 
+### Aqua Tag ↔ editor protocol — one definition, one alias
+**Canonical:** `src/engines/editor/editing/aquaTagBridge.ts` — message names,
+payload types, the parser and the origin policy.
+
+`src/lib/integrations/aquaExplorerBridge.ts` is now a **re-export alias only**
+(the older `AquaExplorer*` spelling, kept so the Project Explorer and its tests
+keep working). It declares nothing. **Do not add types there** — that rebuilds
+the duplication it was collapsed to remove. New code imports the bridge directly.
+
+The third copy is unavoidable and is guarded rather than removed:
+`src/lib/integrations/aquaTagSource.ts` is a template string of browser JS served
+at `/aqua-tag.js`, so it *cannot* import TypeScript. `scripts/smoke-aqua-tag-bridge.test.ts`
+asserts the tag's literals, protocol version, `explorerDescribe` field list and
+patch allow-list all match the bridge. **If that test fails, make the two agree —
+never relax the assertion.**
+
+⚠ `explorerTargetOrigin()` in the alias file is **deprecated and falls back to
+`"*"`**, which posts to whatever page now occupies the frame. `aquaTagOrigin()`
+returns `null` instead. Its call sites in `_FirstPartyProjectWorkspace.tsx` are
+unchanged and still carry the old behaviour.
+
+### The working-tree walk — one copy, moved 2026-08-21
+`src/engines/editor/server/workspaceFiles.ts` is **canonical**. The identical
+walk used to be a private `async function walk()` inside
+`src/app/api/portal/site-editor/files/route.ts`; MAP needed the same tree, and a
+second walk would have been a second set of rules about what is hidden (`.env`,
+`.git/`, `.data/`, dot-directories, symlinks) — which is how a credential file
+eventually ends up listed by one of them. The route now imports
+`readWorkspaceFiles`. **Do not re-add a walk to the route**;
+`scripts/smoke-editor-write-path.test.ts` asserts it has none, and
+`scripts/smoke-dev-project-map.test.ts` drives the real walk over a temp
+directory.
+
+### "Publish goes to git" — HALF wired (2026-08-21). Read which half.
+Ed's stated intent — *"the edits you make on dev editor when published just go to
+git its so simple"* — is now true **for the words on a tagged page, and nothing
+else**. Before adding a second path, know which one already exists.
+
+**WIRED.** `patch.ts` → `publish.ts` finally has a caller:
+`src/engines/editor/server/sourceEdit.ts`, behind **POST
+`/api/portal/dev/source-edit`** (`find` then `publish`), driven from the Aqua Tag
+words panel in `DevEditor.tsx` (`WordsSourceSave`). It commits to
+`aqua-editor/<projectId>` from the commit the search read, opens a pull request,
+and refuses a moved branch or a changed line. **Do not write a second route that
+calls `publishEdits`** — extend this one.
+
+Two things about it that look like bugs and are not:
+
+* **It SEARCHES the repository for the words.** That is not laziness, it is the
+  only option: `AquaTagElement` carries no file or line, `data-aqua-src` /
+  `parseSourceStamp` are referenced by nothing but their own module, and
+  `elementSource.ts` reads React fibers, which no browser exposes cross-origin.
+  So FIND guesses and a human confirms. If somebody later makes the build stamp
+  `data-aqua-src`, the search becomes a fallback rather than the mechanism.
+* **It refuses `<`, `>`, `{`, `}` in JSX text** (and the delimiter inside a
+  quoted value). Splicing a `{` into a heading makes the JSX an expression and
+  the site stops building — refusing is recoverable, committing is not.
+
+**STILL NOT WIRED — these have no path to git:**
+
+* **Dev-mode CODE saves.** They POST `/api/portal/site-editor/files`, which
+  writes this server's working tree and, for a repo-backed project, **refuses**
+  with *"This project is backed by a repository — changes are committed and
+  published, not written to this workspace."* That refusal is a deliberate
+  backstop (the "+" button once created files in AquaCRM's own tree) — do not
+  weaken it; give it the commit path instead.
+* **Styling and image edits** through the tag are still a live preview patch,
+  gone on reload. The panel says so, separately from the words now.
+* **The `portalTarget`-gated Publish button** still POSTs
+  `action: "publish"` to `/api/portal/client-portal-design`, promoting a portal
+  design draft **inside AquaCRM's store**. It never touches git, and it is a
+  different thing wearing the same word.
+
+`githubSource.ts` stays read-only (`readRepoTree`, `readRepoHeadSha`,
+`readRepoFile`) — `publish.ts` is still the only code in the repo that can write
+to GitHub.
+
+### "Is there a portal?" and "is there a browser?" are TWO questions
+`DevEditor.tsx` keeps both, deliberately named apart (2026-08-21):
+
+* `portalTarget = projectKind !== "software"` — owns the genuinely portal-only
+  machinery: portal pages, the lifecycle stage, the draft/publish pair, the
+  portal builder, the client/template selectors.
+* `browserAvailable = portalTarget || tagMapped` — owns whether a live page can
+  be shown and clicked. `tagMapped` comes from the server's one rule
+  (`devProjectMapStatus(...).browserAvailable`), passed in as `projectTagged` and
+  refreshed from `/api/portal/dev/projects` `statuses[id]`.
+
+They were the SAME flag, and because every project defaults to kind `software`
+that gated the browser off everything Ed builds. **Do not collapse them back.**
+The `portalTarget` half of `browserAvailable` is the one exemption and it is
+narrow: the Aqua-hosted portal preview is a page this app renders itself and it
+reports selections through the first-party block protocol — the tag's job done by
+our own renderer. Every other page needs the tag.
+`scripts/smoke-dev-editor-tag-bridge.test.ts` pins both names.
+
+### Two ways to point at something — they answer different questions
+Both live in `DevEditor.tsx` and both are real:
+
+* `picking` + `editing/elementSource.ts` — a click listener attached to the
+  previewed **document**, reading React fibers to answer *"which FILE renders
+  this?"*. Same-origin only, by construction.
+* the Aqua Tag bridge — a `postMessage` protocol answering *"which ELEMENT is
+  this, and what are its exact words?"*. Works cross-origin; that is the point.
+
+Neither replaces the other. Do not "unify" them into one picker — one needs the
+DOM and the other cannot have it.
+
+### "Is the browser unlocked?" — ask ONE function
+`devProjects.devProjectVisualEditorUnlocked(project)` → `Boolean(project.aquaTagId)`.
+`devProjectMapStatus(project).browserAvailable` is the same value, and
+`/api/portal/dev/projects` GET/POST send it to the screen as `statuses[id]` /
+`status` **precomputed** so no client re-derives it. Do not re-implement the
+check inline (`project.aquaTagId && project.kind !== ...` is the exact expression
+that was wrong). Note `DevProjectMapStatus` lives in `src/server/types.ts`, not
+beside the function — a client component must be able to name the type without
+dragging `server-only` into the browser bundle.
+
 ### Two block registries — and the copies the element engine exists to delete
 The **element vocabulary was lifted out of the website-editor plugin into
 `src/engines/editor/elements/`** by element-engine P1+P2 (2026-08-20). `src/engines/editor/elements/index.ts:1-12`
@@ -86,8 +204,66 @@ don't add a fourth.
 Do **not** add a type to `CLIENT_PORTAL_BLOCK_REGISTRY` and a near-twin to
 `BLOCK_REGISTRY` — that is how 14 of 16 got duplicated the first time.
 
+**And do not write a fourth "what can I add here" list.** `src/engines/editor/elements/palette.ts`
+(`elementPalette(surface)`) is the ONE answer, for every surface — the Dev Editor's add menu and
+its Builder tab both read it. Its portal branch deliberately reads `PORTAL_ELEMENT_PAIRINGS`
+rather than `listElementDefinitions("portal")`, because the shared lookup answers in the SHARED
+names (`banner`, `text`) and a portal page stores the PORTAL's names (`callout`, `rich-text`);
+inserting the shared name would write a `ClientPortalBlockType` that does not exist. That is a
+naming layer over one registry, not a second registry.
+
+**The website vocabulary only exists in a bundle that imported it.**
+`registerElementDefinitions` runs as an import side effect, so
+`listElementDefinitions("website")` legitimately answers `[]` in any bundle that never pulled
+`blockRegistry.ts`. That is what emptied the Dev Editor's palette for months. Reach it through
+`ensureWebsiteElements()` (`src/engines/editor/elements/websiteElements.ts`) — never by adding a
+static import to a component, which drags the whole metadata table into that route's first paint.
+Its indirection module `websiteVocabulary.ts` is **load-bearing**: the plugin's `package.json`
+declares `"type": "module"` while `portal/`'s does not, so a direct
+`await import("@/built-ins/.../blockRegistry")` crosses ESM/CJS under `tsx` and throws
+*"does not provide an export named 'getElementDefinition'"* before any test can run.
+
 ### Two inbox surfaces
 - `agency/inbox/` (`_MasterInbox`) vs `agency/activity-inbox/`. Verify they're not redundant before extending either.
+
+### Two assistant conversation stores — DELIBERATE, do NOT unify (2026-08-21)
+`PortalState.assistant` (keyed `${agencyId}|${userId}`, via
+`src/lib/server/assistants/assistantStore.ts`) is the **Aqua Advisor's** — one private history
+per PERSON. (Until 2026-08-22 the Dev Team Librarian read it too; the Librarian is now a find
+tool over the file-finding skill and holds no conversation at all.)
+`PortalState.editorAiConversations` (keyed `${agencyId}|${projectId}`, via
+`src/engines/editor/server/editorAiHistory.ts`) is **Aqua Editor AI's** — one history per PROJECT,
+shared by whoever is editing it.
+
+The shapes are near-identical (threads of messages, newest first, capped) and that looks exactly
+like something to merge. **It is the requirement, not an accident.** Ed: *"the chat history per
+project only limited to a project nothing else"*. Two collections is what makes "clearing one
+cannot empty the other" structural rather than a convention, and the KEYS are different concepts —
+per-person vs per-project — so a merged store would need a discriminator on every read and would be
+one missing filter away from the exact bleed this replaced.
+
+Same story one level up: `editorAssistant.ts` deliberately does NOT use `isAssistantConfigured` /
+`assistantModel` (the agency's `openai` connection). See `aqua dev.md` §9a. Both rules are pinned
+by `scripts/smoke-aqua-editor-ai.test.ts` and `smoke-aqua-editor-ai-history.test.ts` — if those fail
+because somebody re-unified the two "to remove duplication", fix the change, not the test.
+
+### Two chat UIs — DELIBERATE, do NOT unify (2026-08-21)
+`src/app/portal/agency/assistant/AssistantWorkspace.tsx` is the **Aqua Advisor's** chat surface:
+a full-page/drawer client for `/api/assistant`, with memories, skills, voice and the agency
+data-coverage strip, styled for a **light** page (`bg-white/35`, `text-black/90`). (The Dev Team
+Librarian left it 2026-08-22: it is a FIND panel now — `components/editing/LibrarianPanel.tsx`
+through `GlobalAdvisorDrawer`'s `body` seam — not a chat.)
+
+`src/components/editing/AquaEditorAI*.tsx` (+ `editorAiClient.ts`, `editorAiSkin.ts`) is **Aqua
+Editor AI's**: a narrow inspector panel for `/api/portal/dev/editor-ai` and its `history` sibling,
+scoped to ONE dev project, styled for the **dark** editor (`--mode-accent`, `border-white/10`,
+`bg-black/30` — and **never** `--dt-*`).
+
+`AquaEditorAI.tsx` used to mount `AssistantWorkspace`. It must not again: that client reads AND
+WRITES the per-person store, so pointing it at per-project data would render a per-project history
+that the very next message merged back into the shared one — it would LOOK fixed. Pinned by
+`scripts/smoke-aqua-editor-ai-ui.test.ts`, which also holds the style rules (no `--dt-*`, a visible
+focus ring on every control, a `text-white/50` contrast floor on the editor's dark ground).
 
 ---
 
@@ -111,7 +287,7 @@ Plus overlapping "intelligence" builders that are easy to confuse:
 - **Two staff directories:** `server/people.ts` `PeopleEmployee` (stations/onboarding/pay/training; agency-side console at `agency/people/_PeopleCommand.tsx`, staff-side at `portal/team/`) vs the **agency-hr plugin** `Staff` (roles/permissions/departments/client-assignments; pages at `agency/agency-hr/*` via `built-ins/modules/agency-hr`). **They share no key.** The Staff & Team plan makes **`PeopleEmployee` canonical** (the Staff Command builds on it; agency-hr `Staff` to be reconciled/retired in a later phase). Do **not** add a third staff surface — extend the People console.
 - **Finance navigation — ONE source, one visible sidebar entry (was sprawling).** Finance sections are defined once in `built-ins/modules/agency-finance/src/lib/sections.ts` (`FINANCE_SECTIONS`); both the in-page tab bar (`components/FinanceNav.tsx`) and the plugin manifest `navItems` (`index.ts`) derive from it — they used to be two hand-kept lists that had drifted (Reports/Revenue, Operations/Finance operations, Overview/Finance overview). **The visible sidebar "Finance" is the single hardcoded `finance` item in `lib/chrome/sidebarLayout.ts`** — the plugin's `agency-finance.*` navItems are filtered out of the canonical agency sidebar by the AquaOasis-Web `canonicalMainIds` allow-list, so they never render there. Don't add a third registration. (The `DISCOVERED_PANEL_LABELS["agency-finance"]` label is dead — it names a panel the override discards; a foundation-owned cleanup candidate.) The founder dashboard mounts **once** at the plugin root (`""`); the old `/founder` duplicate route is gone (the `agency/[...rest]` catch-all redirects stale `/founder` links → root).
 - **Payment channel: `channels.ts` is the single source; the stored value stays `PaymentMethod`.** Canonical channels are `bank-transfer | stripe | cash | other` (`PAYMENT_CHANNELS`, `built-ins/modules/agency-finance/src/lib/channels.ts`). Records still store `PaymentMethod` (which also carries a legacy `"manual"`); `normaliseChannel()` folds `"manual"` (and anything unknown) onto `"other"` for display + the money-in-by-channel breakdown. Don't reintroduce `"manual"` as a channel or add a parallel channel enum — extend `channels.ts`. The unified "money in" view lives in `components/IncomeSheet.tsx` + `lib/moneyIn.ts` (`summariseMoneyInByChannel`); it record+surfaces only — the app never holds funds.
-- **Finance Stripe adapter mirrors ecommerce's — intentional, per-plugin.** `agency-finance/src/lib/stripe.ts` lifts the proven wrapper from `ecommerce/src/lib/stripe/server.ts` (this codebase vendors utilities per-plugin, so a shared copy isn't used) and adds refunds + an injectable client. Change one, consider the other. **The finance Stripe webhook is a `public: true` plugin route** resolving the agency from `?agencyId=` (Stripe has no session) — **note ecommerce's own `stripe/webhook` is NOT `public`, so it would not actually receive live Stripe calls**; the finance one is done right. **Keys are Ed's (install config), never hardcoded/logged; the app never holds funds.** Refund/chargeback surface via finance events + activity only — a `finance:refund`/`finance:chargeback` operational alert is a follow-up in `operationalAlerts.ts` (the client-health worker's file).
+- **Finance Stripe adapter mirrors ecommerce's — intentional, per-plugin.** `agency-finance/src/lib/stripe.ts` lifts the proven wrapper from `ecommerce/src/lib/stripe/server.ts` (this codebase vendors utilities per-plugin, so a shared copy isn't used) and adds refunds + an injectable client. Change one, consider the other. **The finance Stripe webhook is a `public: true` plugin route** resolving the agency from `?agencyId=` (Stripe has no session) — **note ecommerce's own `stripe/webhook` is NOT `public`, so it would not actually receive live Stripe calls**; the finance one is done right. **Keys are Ed's, in the ENCRYPTED INTEGRATIONS VAULT — corrected 2026-08-22, they are NOT on `install.config`.** That record is handed to page props and reaches the browser, so a secret on it is a secret in the client. Both plugins declare `secretVault: { provider: "stripe", field }` on the manifest field and read back through `lib/server/plugins/pluginSecretConfig.ts` `installConfigWithSecrets()`, which merges the vault's values under the manifest ids — so the pure `readStripeKeysFromInstall(config)` readers keep their shape and neither plugin learns about the vault. **Do not "simplify" that back to a direct `install.config` read.** Never hardcoded/logged; the app never holds funds. Refund/chargeback surface via finance events + activity only — a `finance:refund`/`finance:chargeback` operational alert is a follow-up in `operationalAlerts.ts` (the client-health worker's file).
 - **Money-CREATE idempotency: ONE shared mechanism — don't add a per-path scheme.** Every finance money-create dedups a double-submit through the single helper `built-ins/modules/agency-finance/src/lib/idempotency.ts` (`deriveRecordId(prefix, idempotencyKey?)`): a client-supplied one-time key derives a **deterministic record id**, so a resubmit overwrites the same slot instead of minting a duplicate (parallel-double-click-safe; a plain "seen this key?" map is NOT — it races). Used by `payments.record`, `income.create`, `plans.create`, `invoices.create`, `operations.createCompensationPayment`, and `lib/server/closeDeal.ts` (derives the contract id + passes the key to `invoices.create`). It generalises the Stripe path's stable-reference dedup (`PaymentService.findByExternalRef` on the PaymentIntent) and the delight wire's `reference: delight:<id>` — **reuse `deriveRecordId`, don't invent a parallel `processedKeys` set or a time-window guard.** **Preserve the nuance:** multiple payments per invoice are legitimate (partial payments) — dedup only ever collapses a resubmit of the *same* key; a genuine second payment carries a new key. The id is only deterministic *with* a key — no key → `makeId(prefix)`, unchanged; so dedup is opt-in from the client (the finance modals + close-deal callers mint a `crypto.randomUUID()` per intent).
 - **Finance list reads are `index ∪ row-scan` — the index is a fast path, NEVER the source of truth.** Every finance store keeps an `<area>/index` array beside its `<area>/by-id/<id>` rows, and appending to that array is a **read-modify-write**: two records created concurrently both read the same array and the second write wins, so an id is lost and its row — stored perfectly well — becomes invisible to `list()`. For money that is a payment or invoice silently **off the books** (an under-count, the mirror of a double-count — and it can *mask* one, since three duplicate writes surface as a single row). Every list now goes through the one shared helper `built-ins/modules/agency-finance/src/server/rowIndex.ts` (`listRowIds(storage, indexKey, prefix)`), which unions the index with a prefix scan of the rows: `payments` · `invoices` · `income` · `plans` · `expenses` · `budgets` · `categories` · `operations.listRows`. **Don't add a new store that lists straight off its index array, and don't "optimise" the scan away.** Scope is unaffected — plugin storage is namespaced per install (`state.pluginData[installId]`, runtime `makeStorage`), so the scan sees exactly the keyspace the index did.
 - **No write-only secondary indexes in finance — they were removed, twice.** `payments/by-invoice/`, `payments/by-client/`, `expenses/by-category/` and `expenses/by-staff/` were all maintained on every create (and every re-category/re-assign) and read by **nothing** — `listForInvoice`/`listForClient`/`listForCategory` all filter through `list()` instead. That's storage ops and extra racy read-modify-writes bought for queries that don't exist. If you need a "by X" view, add a field to the store's `Filter` type and go through `list()`; a secondary index is only worth it with a measured read problem, and then it needs the same union treatment as the primary. Stragglers left in existing stores are inert (unread keys in the plugin's own slice).
@@ -152,7 +328,7 @@ as "the intended long-term mechanism". There are no recovery codes.
 
 ## ⚪ Dead / stale / alias (don't mistake for live code)
 
-- **`lib/server/editing/adapters.ts`** — **zero importers**, orphaned. The live editor uses `lib/server/siteEditor/*`. Deletion candidate. (Careful: `lib/editing/{leases,modes}.ts` ARE used by `components/editing/*`.)
+- **`lib/server/editing/adapters.ts`** — **no app importers** (only `scripts/smoke-editor-adapters.test.ts`), orphaned. Deletion candidate. ⚠ **Paths here were stale, corrected 2026-08-21:** there is no `lib/server/siteEditor/*` any more, and no `lib/editing/`. The live editor is **`src/engines/editor/DevEditor.tsx`** (one universal editor, mounted by `agency/portals/editor` and `dev-team/editor/studio`), riding `src/engines/editor/editing/{engine,leases,modes}.ts` + `src/engines/editor/server/*`. `engines/editor/editing/{leases,modes}.ts` ARE used by `components/editing/*` — don't sweep those.
 - **`agency/sops/page.tsx`** — dead redirect to `/agency`. Canonical SOPs = `agency/sop-library/_SopLibrary`.
 - **Alias route trees (edit the source, not these):**
   - `agency/fulfilment/technical/*` → re-export `agency/development/*`.
@@ -177,22 +353,26 @@ as "the intended long-term mechanism". There are no recovery codes.
 - **Guess, then human-confirm** for matching/classification — never auto-commit suggested work.
 - Talk to Ed plainly and simply.
 
-## Roadmap vs phases.md vs the board (2026-08-20)
+## Roadmap vs phases.md vs the board (2026-08-20; phases.md archived 2026-08-21)
 Three things describe "what's next", and only one is canonical now:
 - **`docs/development/roadmap.md` — CANONICAL.** Outcomes with horizons + target dates, edited
   from the Dev Console (`/portal/dev-team/roadmap`, `lib/server/devTeamRoadmap.ts`). Progress is
   derived from each item's plans → phases → tasks, so it cannot drift.
-- **`docs/development/phases.md` — superseded**, kept for history. Do not add items.
+- **`phases.md` — superseded**, and since 2026-08-21 it is off the live tree entirely: [context/archive/phases.md](../context/archive/phases.md). Do not add items.
 - **The board** (`devTeamBoard.ts`) is a different altitude: it shows
   PLANS and WORKERS in flight, not outcomes. It is not a duplicate — do not merge them.
   It now lives at **`/portal/dev-team/roadmap?view=now`**; `/portal/dev-team/working` is a
   redirect stub onto it (see below).
 
 ## 🟠 The Dev Console moved (2026-08-20) — old routes are stubs, not deletions
-Twelve sidebar items became **six sections with `?view=` tabs**
-(`app/portal/dev-team/layout.tsx:68-75`): Home · Roadmap · Findings · Library ·
-Tools · Notes. **Every old route still exists as a one-line `redirect()`**, so a
-bookmark or a doc link still lands:
+Twelve sidebar items became six sections with `?view=` tabs, and are now **seven**
+(Editor became a first-class row 2026-08-21). The nav items are
+`app/portal/dev-team/layout.tsx:74-89`, in order: Home · Roadmap · Findings ·
+Library · Tools · **Editor** · Notes. **Team chat is NOT a row** — `layout.tsx`
+contains zero occurrences of "chat"; `dev-team/chat/page.tsx` still exists and
+still renders `TeamChat`, it is just unlinked from the nav. **Every old route
+still exists as a one-line `redirect()`**, so a bookmark or a doc link still
+lands (`/editor` is the exception — see the table):
 
 | Old route | Now |
 | --- | --- |
@@ -200,7 +380,7 @@ bookmark or a doc link still lands:
 | `/portal/dev-team/logs` | `library?view=logs` |
 | `/portal/dev-team/updates` | `library?view=updates` |
 | `/portal/dev-team/inspector` | `tools` (its default view) |
-| `/portal/dev-team/editor` | `tools?view=editor` |
+| ~~`/portal/dev-team/editor`~~ | **NO LONGER A STUB (2026-08-21).** It is the Dev Editor PROJECTS workspace (`editor/page.tsx`, renders `setup/_DevEditorSetup`); the canvas is `editor/studio/page.tsx`. The separate app-config editor still lives at `tools?view=editor` (`editor/_Section.tsx` + `_AppConfigEditor.tsx`). Edit the real files, not a stub that no longer exists. |
 | `/portal/dev-team/api` | `tools?view=api` |
 | `/portal/dev-team/working` | `roadmap?view=now` |
 | `/portal/dev-team/tasks` | `roadmap?view=tasks` |
@@ -220,3 +400,43 @@ import the wrong one. The server halves are now suffixed `Service`:
 `commandIntelligenceService` · `advisorSkillsService` · `brandPortfolioService`.
 Rule going forward: a server counterpart of a client-safe module carries the
 `Service` suffix, never the bare twin name.
+
+## Who decides the tenant on a plugin API call — SETTLED 2026-08-22
+
+`/api/portal/[module]/[...rest]` used to let the URL name the tenant. R032 added
+a "peek" so a `public: true` route (a Stripe webhook, the funnel capture) could
+resolve its agency from `?agencyId=` when there is no session to resolve it
+from — and the peek was then reused as the authoritative resolution for *every*
+route. An agency-owner in agency A POSTing
+`/api/portal/agency-hr/staff?agencyId=B` got `201 { agencyId: "B" }`, read it
+back with the same parameter, and saw their own agency list empty. Role gating
+never noticed: it answers *who* may call a route, not *whose data* they land in.
+
+**The rule now lives in one place — `src/lib/server/portal/apiTenantScope.ts`.**
+A query-supplied `agencyId` is authoritative ONLY on a genuinely public route.
+The instant a session exists the SESSION decides the tenant, and a query naming
+someone else is a 403, never a silent change of scope. `clientId` gets the same
+treatment: client-side roles are pinned to their own client, agency-side roles
+may only name a client their own agency owns. R025 master users may still name
+any agency inside their own `agencyIds[]` — that is the Topbar switcher.
+
+Two things to know before touching it:
+
+- **Public routes on CLIENT-scoped plugins need `?clientId=` as well as
+  `?agencyId=`** (`memberships/stripe/webhook`, `affiliates/webhooks/stripe`).
+  The peek can only discover `public: true` by resolving the route, and
+  resolving needs an install — a client-scoped plugin has no agency-scoped one,
+  so `?agencyId=` alone falls through to `requireSession` and 401s. Pre-existing,
+  pinned in `scripts/smoke-plugin-api-tenancy.test.ts`.
+- **A public route is not re-gated by a session that happens to be present.**
+  Deliberate: it answers anonymous callers by definition, so refusing the same
+  call because the caller holds a cookie protects nothing and breaks a signed-in
+  `lead` (sentinel tenant) completing a real agency's funnel form.
+
+Same class, one layer up: `applyPhaseToClient` took `clientId` and `phaseId`
+from a request body and only checked the two ids agreed *with each other*, so
+naming a client AND a phase both belonging to agency B applied it. It now takes
+the caller's `agencyId` as a required third parameter. Guards:
+`scripts/smoke-plugin-api-tenancy.test.ts` (the dispatcher, two real agencies)
+and `scripts/smoke-app-route-tenancy.test.ts` (the 133 non-plugin app routes,
+`phases/apply`, and the marketing-page/campaigns-manifest agreement).

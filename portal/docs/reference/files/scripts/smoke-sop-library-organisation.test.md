@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/server/sops.ts`](../src/server/sops.md)
+- [`src/engines/sop/server/sops.ts`](../src/engines/sop/server/sops.md)
 - [`src/server/storage.ts`](../src/server/storage.md)
 
 ## Used by

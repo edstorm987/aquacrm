@@ -19,5 +19,5 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/inbox/page.tsx`](../../app/portal/agency/inbox/page.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
 - [`src/app/portal/customer/_portalData.ts`](../../app/portal/customer/_portalData.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../server/radar/clientRadarService.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../../engines/data/server/radar/clientRadarService.md)
 

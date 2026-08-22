@@ -8,7 +8,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `default async ClientsList({ searchParams }: { searchParams: Promise<{ view?: string }> })`
 
-## Depends on (47)
+## Depends on (48)
 
 - [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](../agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.md)
 - [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](./_JourneyCommercialWorkspace.md)
@@ -37,6 +37,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/lib/server/auth/auth.ts`](../../../lib/server/auth/auth.md)
 - [`src/lib/server/auth/effectiveRole.ts`](../../../lib/server/auth/effectiveRole.md)
 - [`src/lib/server/dev/devDocs.ts`](../../../lib/server/dev/devDocs.md)
+- [`src/lib/server/devIconPreference.ts`](../../../lib/server/devIconPreference.md)
 - [`src/lib/server/identityResolution.ts`](../../../lib/server/identityResolution.md)
 - [`src/lib/server/inbox/inboxService.ts`](../../../lib/server/inbox/inboxService.md)
 - [`src/lib/server/inbox/inboxStore.ts`](../../../lib/server/inbox/inboxStore.md)

@@ -61,26 +61,30 @@ export function MasterTagPanel({ view }: { view: MasterTagView }) {
         </p>
         <Link
           href="/portal/agency/fulfilment?view=tags"
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 text-xs font-medium text-[color:var(--dev-accent)] transition-colors hover:border-[color:var(--dt-line)]"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)] px-3 text-xs font-medium text-[color:var(--dev-accent)] transition-colors hover:border-[color:var(--dev-accent-line)] hover:bg-[color:var(--dt-raised)]"
         >
           Detect, route &amp; configure
           <ArrowUpRight size={13} />
         </Link>
       </div>
 
-      <div className="mt-4 rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dev-ink)] p-4">
+      {/* An inverted well, not "the ink colour as a background": --dev-ink is a
+          TEXT token and flips to cream in the forge, which put white-on-cream
+          at 1.19:1 — the snippet you are meant to copy vanished. --dev-inverse
+          stays dark in both modes (11.8:1 / 16.1:1 for the snippet). */}
+      <div className="mt-4 rounded-xl border border-[color:var(--dt-line)] bg-[color:var(--dev-inverse)] p-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">Paste into every site</span>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-[color:var(--dev-inverse-muted)]">Paste into every site</span>
           <button
             type="button"
             onClick={() => copy(view.snippet, "snippet")}
-            className="inline-flex items-center gap-1.5 rounded-md bg-[color:var(--dt-surface)]/10 px-2.5 py-1 text-[11px] font-medium text-white/90 hover:bg-[color:var(--dt-surface)]/15"
+            className="inline-flex items-center gap-1.5 rounded-md bg-[color:var(--dev-inverse-film)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--dev-inverse-ink)] transition-colors hover:bg-[color:var(--dev-inverse-film-hover)]"
           >
             {copied === "snippet" ? <Check size={12} /> : <Clipboard size={12} />}
             {copied === "snippet" ? "Copied" : "Copy snippet"}
           </button>
         </div>
-        <code className="mt-2 block break-all font-mono text-[11px] leading-5 text-white/85">{view.snippet}</code>
+        <code className="mt-2 block break-all font-mono text-[11px] leading-5 text-[color:var(--dev-inverse-ink)]">{view.snippet}</code>
       </div>
 
       {view.originIsFallback ? (

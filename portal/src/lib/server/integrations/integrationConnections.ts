@@ -219,7 +219,11 @@ export async function testIntegrationConnection(
     message = await testProvider(connection.provider, values, fetchImpl, controller.signal);
     passed = true;
   } catch (error) {
-    message = safeTestMessage(error);
+    // Every decrypted secret this test just used, so the scrubber can remove
+    // the exact values as well as the recognisable shapes.
+    message = safeTestMessage(error, Object.keys(connection.encryptedSecrets)
+      .map(key => values[key] ?? "")
+      .filter(Boolean));
   } finally {
     clearTimeout(timeout);
   }
@@ -308,6 +312,15 @@ function environmentValues(provider: IntegrationProvider): Record<string, string
     github: { token: process.env.GITHUB_TOKEN, owner: process.env.GITHUB_OWNER },
     vercel: { token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID },
     openai: { apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_ASSISTANT_MODEL },
+    // Deliberately EMPTY. Aqua Editor AI's whole point is a key Ed supplies
+    // per project; inheriting `OPENAI_API_KEY` here would silently give every
+    // project the agency assistant's credential and make "its own token"
+    // untrue on the one path nobody would think to check. It is also never
+    // reached in practice — the editor resolves by connection id
+    // (`resolveIntegrationConnectionValues`), which has no environment
+    // fallback at all — so this entry exists to satisfy the exhaustive map and
+    // to say out loud that the omission is the intent.
+    "aqua-editor-ai": {},
     "google-search-console": {
       siteUrl: process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL,
       propertyId: process.env.GOOGLE_SEARCH_CONSOLE_PROPERTY_ID,
@@ -392,6 +405,15 @@ async function testProvider(
   if (provider === "google-search-console") {
     return testGoogleSearchConsole(values, fetchImpl, signal);
   }
+  if (provider === "aqua-editor-ai") {
+    // Same wire call as `openai` — a different CREDENTIAL, not a different
+    // API. Written out rather than left to the fallthrough so the sentence
+    // names the right assistant: an operator reading "OpenAI connected" after
+    // pasting the editor's key would reasonably conclude they had just
+    // configured the Advisor.
+    await request("https://api.openai.com/v1/models", `Bearer ${values.apiKey}`);
+    return `Aqua Editor AI connected using ${values.model || "the default model"}. This key is used only by the editor, for the project it is bound to.`;
+  }
   await request("https://api.openai.com/v1/models", `Bearer ${values.apiKey}`);
   return `OpenAI connected using ${values.model || "the default model"}.`;
 }
@@ -432,10 +454,43 @@ function cleanLabel(value?: string): string {
   return typeof value === "string" ? value.trim().slice(0, 120) : "";
 }
 
-function safeTestMessage(error: unknown): string {
+/**
+ * THE SECRET SCRUBBER. Remove secret values and secret-shaped text from a
+ * sentence that is about to be stored or shown.
+ *
+ * Exported because a provider error is not unique to connection tests: Aqua
+ * Editor AI's reply path receives OpenAI's error text — which echoes the key
+ * on a 401 — and must clean it with the SAME rules rather than a second,
+ * slightly different set that drifts. One scrubber, two callers.
+ */
+export function scrubSecrets(message: string, secrets: string[] = []): string {
+  // The caller's own secret VALUES first, longest first. This is the net
+  // under the patterns below: an SMTP password, a Vercel token or a Twilio
+  // auth token has no prefix a pattern could ever catch, but the caller knows
+  // exactly what was decrypted for the request that failed.
+  let scrubbed = message;
+  for (const secret of [...secrets].sort((a, b) => b.length - a.length)) {
+    if (secret.length >= 4) scrubbed = scrubbed.split(secret).join("[redacted]");
+  }
+  return scrubbed
+    // PEM blocks — a Google service-account JSON echoed back is mostly key.
+    .replace(/-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END[A-Z ]*PRIVATE KEY-----|$)/g, "[redacted]")
+    // Prefixed keys, HYPHEN OR UNDERSCORE after the prefix. OpenAI keys are
+    // sk-proj-… / sk-… while Stripe's are sk_live_… / rk_live_…; the old
+    // pattern demanded an underscore, so the hyphenated OpenAI format — the
+    // exact format the editor's own assistant runs on — sailed through.
+    .replace(/\b(?:sk|rk)[-_][A-Za-z0-9_-]+/g, "[redacted]")
+    // Underscore-prefixed families from the rest of the catalog: Resend,
+    // Stripe webhook secrets, GitHub fine-grained and classic tokens.
+    .replace(/\b(?:re|whsec|github_pat|gh[opsur])_[A-Za-z0-9_-]+/g, "[redacted]")
+    // Long bare hex — Twilio auth tokens and Meta app secrets have no prefix.
+    .replace(/\b[0-9a-f]{32,}\b/gi, "[redacted]");
+}
+
+function safeTestMessage(error: unknown, secrets: string[] = []): string {
   if (error instanceof Error && error.name === "AbortError") return "Connection test timed out after 15 seconds.";
   const message = error instanceof Error ? error.message : "Provider rejected the connection.";
-  return message.replace(/(?:sk|re|whsec|github_pat)_[A-Za-z0-9_-]+/g, "[redacted]").slice(0, 300);
+  return scrubSecrets(message, secrets).slice(0, 300);
 }
 
 export const MANAGED_INTEGRATION_PROVIDERS = INTEGRATION_CATALOG.map(item => item.id);

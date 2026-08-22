@@ -293,7 +293,7 @@ export function AppConfigEditor({
               type="button"
               disabled={busy || preview.changes.length === 0 || preview.rejected.length > 0}
               onClick={() => void send(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[color:var(--dev-accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[color:var(--dev-accent)] px-3 py-1.5 text-sm font-medium text-[color:var(--dev-on-accent)] transition hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Check size={14} />
               {busy ? "Applying…" : `Apply ${preview.changes.length} change${preview.changes.length === 1 ? "" : "s"}`}
@@ -383,7 +383,7 @@ export function AppConfigEditor({
           type="button"
           disabled={busy || dirty.length === 0 || preview !== null}
           onClick={() => void send(false)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[color:var(--dev-accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[color:var(--dev-accent)] px-3 py-1.5 text-sm font-medium text-[color:var(--dev-on-accent)] transition hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Eye size={14} />
           {busy && !preview ? "Checking…" : "Preview changes"}

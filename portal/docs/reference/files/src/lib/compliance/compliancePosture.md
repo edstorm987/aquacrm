@@ -26,10 +26,13 @@
 - `buildCompliancePosture(input: ComplianceEvidenceInput): CompliancePosture`
 - `assertPostureHonesty(posture: CompliancePosture): string[]`
 
-## Used by (4)
+## Used by (7)
 
 - [`scripts/smoke-compliance-posture.test.ts`](../../../scripts/smoke-compliance-posture.test.md)
 - [`src/app/api/portal/compliance/posture/route.ts`](../../app/api/portal/compliance/posture/route.md)
+- [`src/app/api/portal/governance/hipaa/route.ts`](../../app/api/portal/governance/hipaa/route.md)
 - [`src/app/portal/agency/company/_CompliancePosturePanel.tsx`](../../app/portal/agency/company/_CompliancePosturePanel.md)
+- [`src/app/portal/agency/governance/_GovernanceWorkspace.tsx`](../../app/portal/agency/governance/_GovernanceWorkspace.md)
+- [`src/app/portal/agency/governance/_governanceData.ts`](../../app/portal/agency/governance/_governanceData.md)
 - [`src/lib/server/compliancePostureSource.ts`](../server/compliancePostureSource.md)
 

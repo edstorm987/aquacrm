@@ -1,14 +1,15 @@
 // DEV EDITOR ENGINE — the rename + the "editor is wrong" fix.
 //
 // Two promises this pins:
-//  1. The Dev Team "Editor" route is the REAL code + git engine now, not the
-//     app-config redirect. It mounts `CodeWorkspace`, and it is founder + Dev
-//     Mode gated like every other dev-team surface.
+//  1. The Dev Team "Editor" route mounts the FULL engine UI — the Portal Studio
+//     (live canvas, depth selector, and the Builder/Content/Pages/Brand/Code/
+//     Repo/Versions inspectors) — through the shared engine loader, and it is
+//     founder + Dev Mode gated like every other dev-team surface.
+//     It previously mounted `CodeWorkspace`: a read-only repository tree, which
+//     is one inspector's worth of the engine. The repository browser still
+//     exists — it is the studio's Repo tab — so this is a superset, not a swap.
 //  2. Every user-facing "Aqua Engine" label became "Dev Editor Engine". The one
 //     editor has one name, and it is the new one.
-//
-// Both assertions fail against the pre-change tree: the page was a bare
-// `redirect(...)` with no `CodeWorkspace`, and the labels all said "Aqua Engine".
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -24,24 +25,35 @@ function read(...parts: string[]): string {
 }
 
 describe("dev editor engine — the dev-team editor points at the real engine", () => {
-  it("mounts CodeWorkspace instead of redirecting to the app-config editor", () => {
-    const page = read("src", "app", "portal", "dev-team", "editor", "page.tsx");
+  it("mounts the full Portal Studio through the shared engine loader", () => {
+    const page = read("src", "app", "portal", "dev-team", "editor", "studio", "page.tsx");
 
-    // It imports and renders the existing git-backed engine, wholesale.
-    assert.match(page, /import\s*\{\s*CodeWorkspace\s*\}\s*from\s*["']\.\.\/\.\.\/agency\/development\/code\/_CodeWorkspace["']/);
-    assert.match(page, /<CodeWorkspace\b/);
+    // The engine's UI, wholesale — the same studio the portals route mounts.
+    assert.match(page, /import\s*\{\s*DevEditor\s*\}\s*from\s*["']@\/engines\/editor\/DevEditor["']/);
+    assert.match(page, /<DevEditor\b/);
+    // …fed by the engine loader, so the two doors cannot drift apart.
+    assert.match(page, /loadPortalStudioProps/);
+    assert.match(page, /@\/engines\/editor\/server\/portalStudio/);
 
     // It is no longer the bare redirect it used to be.
     assert.ok(!/redirect\(["']\/portal\/dev-team\/tools\?view=editor["']\)/.test(page),
       "the editor page still redirects to the app-config editor");
 
-    // It carries the shipyard header under the new name.
-    assert.match(page, /title="Dev Editor Engine"/);
-    assert.ok(page.includes("PageHeader"), "the page should mount a dev-team PageHeader");
+    // The way back into Dev Team survives the full-screen studio.
+    // Leaving the editor returns to the PROJECTS workspace, which is what
+    // makes working across several projects at once workable.
+    assert.match(page, /backHref="\/portal\/dev-team\/editor"/);
+  });
+
+  it("keeps the repository browser reachable — it is the studio's Repo tab", () => {
+    const studio = read("src", "engines", "editor", "DevEditor.tsx");
+    // The read-only tree the Dev Team editor used to mount directly still
+    // exists inside the engine, so nothing was lost by mounting the studio.
+    assert.match(studio, /RepositoryPanel/);
   });
 
   it("is founder + Dev Mode gated, the same layered gate as the rest of dev-team", () => {
-    const page = read("src", "app", "portal", "dev-team", "editor", "page.tsx");
+    const page = read("src", "app", "portal", "dev-team", "editor", "studio", "page.tsx");
     assert.match(page, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/);
     assert.match(page, /devDocsAccessible\(session\)/);
     assert.match(page, /notFound\(\)/);
@@ -59,7 +71,7 @@ describe("dev editor engine — the rename is complete", () => {
     ["src", "app", "portal", "agency", "products", "[productId]", "_ProductRolloutCentre.tsx"],
     ["src", "app", "portal", "agency", "inbox", "_WebsiteSourcesConfig.tsx"],
     ["src", "app", "portal", "agency", "portals", "_PortalsWorkspace.tsx"],
-    ["src", "app", "portal", "agency", "portals", "editor", "_ClientPortalStudio.tsx"],
+    ["src", "engines", "editor", "DevEditor.tsx"],
     ["src", "app", "portal", "customer", "_PortalPageComposition.tsx"],
     ["src", "app", "portal", "dev-team", "editor", "_Section.tsx"],
   ];

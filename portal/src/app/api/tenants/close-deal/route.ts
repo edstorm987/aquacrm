@@ -16,6 +16,7 @@ import { normaliseCurrency } from "@/built-ins/modules/agency-finance/src/lib/cu
 import type { Invoice } from "@/built-ins/modules/agency-finance/src/lib/domain";
 import { normaliseChannel } from "@/built-ins/modules/agency-finance/src/lib/channels";
 import { createInvoiceCheckout, readStripeKeysFromInstall, stripeConfigured } from "@/built-ins/modules/agency-finance/src/lib/stripe";
+import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
 import type { ClientContract } from "@/lib/clients/clientContracts";
 import { closeDealForClient } from "@/lib/server/closeDeal";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -75,9 +76,12 @@ export async function POST(request: Request) {
   const existingContracts = (client.metadata?.contracts as ClientContract[] | undefined) ?? [];
 
   const origin = new URL(request.url).origin;
-  const createPayLink = stripeConfigured(install.config)
+  // The keys live in the encrypted vault, not on the client-visible install
+  // record — merge them back under their manifest ids before asking.
+  const stripeConfig = installConfigWithSecrets("agency-finance", { agencyId: install.agencyId }, install.config);
+  const createPayLink = stripeConfigured(stripeConfig)
     ? async (invoice: Invoice): Promise<string> => {
-        const keys = readStripeKeysFromInstall(install.config);
+        const keys = readStripeKeysFromInstall(stripeConfig);
         const out = await createInvoiceCheckout(keys, {
           invoiceId: invoice.id,
           invoiceNumber: invoice.number,

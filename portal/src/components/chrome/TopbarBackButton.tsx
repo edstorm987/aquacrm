@@ -31,7 +31,7 @@ export function TopbarBackButton() {
         }
         router.push(topbarBackFallback(currentPath));
       }}
-      className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/65 transition hover:bg-black/[0.04] hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/25"
+      className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-black/65 transition hover:bg-black/[0.04] hover:text-black"
     >
       <ArrowLeft size={17} strokeWidth={1.8} aria-hidden />
     </button>

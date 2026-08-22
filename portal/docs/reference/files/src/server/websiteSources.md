@@ -26,11 +26,13 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/tradingCompanies.ts`](./tradingCompanies.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (13)
+## Used by (15)
 
+- [`scripts/smoke-dev-editor-aqua-tag.test.ts`](../../scripts/smoke-dev-editor-aqua-tag.test.md)
 - [`scripts/verify-marketing-runtime.ts`](../../scripts/verify-marketing-runtime.md)
 - [`src/app/api/auth/signup/route.ts`](../app/api/auth/signup/route.md)
 - [`src/app/api/portal/aqua-tags/detect/route.ts`](../app/api/portal/aqua-tags/detect/route.md)
+- [`src/app/api/portal/dev/projects/route.ts`](../app/api/portal/dev/projects/route.md)
 - [`src/app/api/portal/website-injections/route.ts`](../app/api/portal/website-injections/route.md)
 - [`src/app/api/portal/website-sources/route.ts`](../app/api/portal/website-sources/route.md)
 - [`src/app/api/public/aqua-tag-config/route.ts`](../app/api/public/aqua-tag-config/route.md)

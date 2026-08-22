@@ -159,7 +159,7 @@ export function McpConnectPanel({ view }: { view: McpConnectView }) {
               type="button"
               onClick={downloadSetup}
               disabled={!selected}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[color:var(--dev-accent)] px-3 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:opacity-40"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[color:var(--dev-accent)] px-3 text-xs font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:opacity-40"
             >
               <Download size={13} />
               Setup document

@@ -10,7 +10,7 @@ import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { resolveCustomerPluginPage } from "@/built-ins/runtime/_routeResolver";
 import { FOUNDATION_SERVICES } from "@/built-ins/runtime/foundation-adapters";
-import { pluginPageAllowedRoles } from "@/built-ins/runtime/_types";
+import { pageAllowsRoleAt } from "@/built-ins/runtime/_pageScope";
 import type { PluginPageProps } from "@/built-ins/runtime/_types";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
@@ -49,10 +49,13 @@ export default async function CustomerPluginCatchAll({ params, searchParams }: R
     rest,
   });
   if (!resolved) notFound();
-  const { page, install, segments } = resolved;
+  const { plugin, page, install, segments } = resolved;
 
-  const allowed = pluginPageAllowedRoles(page);
-  if (allowed && !allowed.includes(session.role)) notFound();
+  // One gate for all three hosts — see `_pageScope.ts`. The resolver already
+  // refuses anything that is not a declared `/portal/customer/...` page, so
+  // this is belt-and-braces rather than the load-bearing part; it stays so
+  // that adding a fourth host cannot forget the check.
+  if (!pageAllowsRoleAt(plugin, page, "customer", session.role)) notFound();
 
   const mod = await page.component();
   const Component = mod.default;

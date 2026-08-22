@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the Radar dossier](../workspace/radar.md)
 
-The complete enumeration of the Radar catalogue: **172 signal families × 12 lenses = 2064 rules**. Generated from `src/lib/radar/radarRuleCatalog.ts` by `scripts/generate-radar-rules-reference.ts` — re-run after editing the catalogue.
+The complete enumeration of the Radar catalogue: **172 signal families × 12 lenses = 2064 rules**. Generated from `src/engines/data/radar/radarRuleCatalog.ts` by `scripts/generate-radar-rules-reference.ts` — re-run after editing the catalogue.
 
 Rule id = `radar:{domain}:{family}:{lens}`. Each family below lists all 12 of its lens rules; the [Radar dossier](../workspace/radar.md) explains how each lens actually evaluates (the shared logic is identical across families).
 

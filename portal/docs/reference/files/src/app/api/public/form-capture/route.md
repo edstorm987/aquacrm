@@ -9,13 +9,15 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `OPTIONS(req: NextRequest)`
 - `async POST(req: NextRequest)`
 
-## Depends on (6)
+## Depends on (8)
 
 - [`src/lib/enquiries/formCapture.ts`](../../../../lib/enquiries/formCapture.md)
 - [`src/lib/public/publicSites.ts`](../../../../lib/public/publicSites.md)
 - [`src/lib/server/clients/clientRecordLedger.ts`](../../../../lib/server/clients/clientRecordLedger.md)
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
 - [`src/lib/supabase/admin.ts`](../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/enquiryAgencyColumn.ts`](../../../../lib/supabase/enquiryAgencyColumn.md)
+- [`src/lib/supabase/ownedEnquiry.ts`](../../../../lib/supabase/ownedEnquiry.md)
 - [`src/server/websiteSources.ts`](../../../../server/websiteSources.md)
 
 ## Used by

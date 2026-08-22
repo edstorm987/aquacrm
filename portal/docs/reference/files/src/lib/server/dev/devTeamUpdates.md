@@ -24,9 +24,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `buildUpdateEntry(input: NewUpdateInput, nowMs: number = Date.now()): DevUpdateEntry`
 - `async appendUpdateEntry(input: NewUpdateInput, nowMs: number = Date.now()): Promise<DevUpdateEntry>`
 
-## Depends on (1)
+## Depends on (2)
 
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 
 ## Used by (2)
 

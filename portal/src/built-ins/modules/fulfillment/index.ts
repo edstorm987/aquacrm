@@ -61,40 +61,64 @@ const fulfillmentPlugin: AquaPlugin = {
     },
   ],
 
+  // fulfillment has NO `scopePolicy`, i.e. "either" — and it means it: the
+  // agency pages below and the client-side `checklist` genuinely live on
+  // different surfaces. So the surface rule in `_pageScope.ts` cannot settle
+  // this plugin on its own, and every page here declares its own audience.
+  // EVERY page below is an orphan to the nav-vs-page walk: the agency nav
+  // entry's href is `/portal/agency/fulfilment` (one L — an app route, not
+  // this plugin's mount) and the client nav entry's is
+  // `/portal/clients/[clientId]/checklist` (no plugin id in the URL), so
+  // `pluginPageForNavHref` answers null for both and nothing here was gated.
   pages: [
     {
       // Index — agency-side fulfillment landing.
       path: "",
       title: "Fulfillment",
+      // Agency-side: this lists the AGENCY's whole client roster. Being
+      // "either"-scoped, it also answered at
+      // /portal/clients/<id>/fulfillment — one client's people reading the
+      // names of all the others.
+      visibleToRoles: ["agency-owner", "agency-manager", "agency-staff"],
       component: () => import("./src/pages/ClientsPage"),
     },
     {
       path: "clients",
       title: "Clients",
+      visibleToRoles: ["agency-owner", "agency-manager", "agency-staff"],
       component: () => import("./src/pages/ClientsPage"),
     },
     {
       // Per-client phase board: `[clientId]` becomes `segments[0]`.
       path: ":clientId",
       title: "Phase board",
+      visibleToRoles: ["agency-owner", "agency-manager", "agency-staff"],
       component: () => import("./src/pages/PhaseBoardPage"),
     },
     {
       path: "phases",
       title: "Phases",
+      // Admin-only in the nav, so admin-only at the door too — see the note on
+      // `PluginPage.visibleToRoles`.
+      visibleToRoles: ["agency-owner", "agency-manager"],
       component: () => import("./src/pages/PhasesPage"),
     },
     {
       path: "marketplace",
       title: "Plugin marketplace",
+      // Installing and removing the agency's plugins is not a client's call.
+      visibleToRoles: ["agency-owner", "agency-manager", "agency-staff"],
       component: () => import("./src/pages/MarketplacePage"),
     },
     {
       // Client-side: rendered at `/portal/clients/[clientId]/checklist`.
       // Foundation routes namespace by plugin id, so this lands as the
       // fulfillment plugin's contribution to the per-client surface.
+      // The nav entry offers it to the client's own team; the agency roles are
+      // here because they preview every client surface.
       path: "checklist",
       title: "Your checklist",
+      visibleToRoles: ["agency-owner", "agency-manager", "agency-staff", "client-owner", "client-staff"],
       component: () => import("./src/pages/ChecklistPage"),
     },
   ],

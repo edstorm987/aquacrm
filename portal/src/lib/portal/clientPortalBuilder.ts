@@ -15,6 +15,10 @@ import type {
   ClientPortalSectionId,
 } from "@/server/types";
 import { PORTAL_ELEMENT_PAIRINGS, createPortalBlockRecord } from "@/engines/editor/elements/portalElements";
+// Per-page SEO on a custom page (phase 9). `storedPageSeo` returns undefined
+// when nothing is filled in, so a page nobody has touched carries no `seo`
+// key and normalises to exactly the bytes it did before the field existed.
+import { storedPageSeo } from "@/engines/editor/editing/pageSeo";
 
 /**
  * The portal palette — 16 placeable things, in palette order.
@@ -26,7 +30,7 @@ import { PORTAL_ELEMENT_PAIRINGS, createPortalBlockRecord } from "@/engines/edit
  * which shared element it is a name for, so there is one vocabulary rather than
  * two that happen to agree.
  *
- * The exported shape and order are unchanged — `_ClientPortalStudio` renders
+ * The exported shape and order are unchanged — `DevEditor` renders
  * this array directly and was not touched.
  */
 export const CLIENT_PORTAL_BLOCK_REGISTRY: Array<{
@@ -118,6 +122,8 @@ export function normalisePortalBuilder(
       label,
       visible: typeof page.visible === "boolean" ? page.visible : true,
       blocks: normaliseBlocks(page.blocks, false, `custom-${index + 1}`),
+      // Spread rather than assigned: an untouched page must keep NO `seo` key.
+      ...(storedPageSeo(page.seo) ? { seo: storedPageSeo(page.seo) } : {}),
     }];
   });
   return { pages, customPages };

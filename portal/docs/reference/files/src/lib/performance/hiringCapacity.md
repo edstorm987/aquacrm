@@ -29,6 +29,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/_BattleTableWorkspace.tsx`](../../app/portal/agency/_BattleTableWorkspace.md)
 - [`src/app/portal/agency/_battleWarRoom.ts`](../../app/portal/agency/_battleWarRoom.md)
 - [`src/app/portal/agency/page.tsx`](../../app/portal/agency/page.md)
-- [`src/lib/server/radar/radarObservations.ts`](../server/radar/radarObservations.md)
+- [`src/engines/data/server/radar/radarObservations.ts`](../../engines/data/server/radar/radarObservations.md)
 - [`src/server/company.ts`](../../server/company.md)
 

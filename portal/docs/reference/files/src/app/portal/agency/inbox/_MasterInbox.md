@@ -6,7 +6,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Exports (1)
 
-- `MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients }…`
+- `MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsError, conversations, socialInbox, socialInboxError, metaReadiness, currentUserId, communicationReadiness, clientProfiles, updates, canErase, canManageChannels, channelClients, …`
 
 ## Depends on (15)
 

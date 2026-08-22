@@ -2,7 +2,7 @@
 
 ← [todo.md](../todo.md) · [development.md](../../development.md) · supersedes/absorbs [dev-team-hub.md](dev-team-hub.md) + [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md) + the built dev-docs work
 
-**Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](dev-console-topbar.md).**
+**Status: ✅ BUILT — core shipped + browser-verified (2026-08-19), then RESHAPED to six sections (2026-08-20). Finishing work tracked in [dev-team-finish.md](dev-team-finish.md); the topbar entry point in [dev-console-topbar.md](archive/dev-console-topbar.md).**
 
 > ⚠ **The section list below is the ORIGINAL twelve-item shape and is no longer what ships.** Corrected 2026-08-20 after this status kept briefing workers on sidebar rows that are now redirect stubs.
 >
@@ -18,6 +18,14 @@
 > | `/portal/dev-team/inspector` | `/portal/dev-team/tools` |
 > | `/portal/dev-team/editor` | `/portal/dev-team/tools?view=editor` |
 > | `/portal/dev-team/api` | `/portal/dev-team/tools?view=api` |
+>
+> ⚠ **FURTHER CORRECTED 2026-08-21 — the 2026-08-20 correction above is itself now out of date; it is kept as written, but do not brief from it.** Counted at source today in [`src/app/portal/dev-team/layout.tsx:74-89`](../../../src/app/portal/dev-team/layout.tsx) (the `68–75` citation above is stale too — the items moved down the file):
+>
+> - **SEVEN sidebar sections, not six:** **Home** · **Roadmap** · **Findings** · **Library** · **Tools** · **Editor** · **Notes**. **Editor** was promoted to a first-class row rather than staying a Tools tab.
+> - **`/portal/dev-team/editor` is NOT a redirect stub** — the row for it in the table above is wrong. It is a **real page** rendering the Dev Editor **projects workspace** (`editor/setup/_DevEditorSetup`); the editor itself opens from there at `editor/studio`. Its only `redirect()` is the auth-failure branch. The app-config edit→preview→publish loop is the different, smaller thing still at Tools → Editor (`editor/_Section.tsx`).
+> - So **seven** old routes are stubs, not eight: `working`, `tasks`, `auditor`, `logs`, `updates`, `inspector`, `api`.
+> - "← Leave Dev Team" is gone from the nav (the way out is the topbar's role-aware "Back to home"); "My profile" is real but lives in a separate Settings panel, not among the seven.
+> - There is **no Team chat row**. `dev-team/chat/page.tsx` still exists and still renders `TeamChat` — it is just unlinked from the nav.
 >
 > There is **no Profiles section** — the POV switcher lives at Tools → Inspector (see [dev-mode-demo-profiles.md](dev-mode-demo-profiles.md)). The Working-on board, live worker panel, plan composer and the 4th Command Centre station all still exist; they just live inside the six. Reuse-heavy — recon (4 parallel read-only agents, 2026-08-19)
 confirms ~80% is already built; the real new work is one AI retrieval bridge + one

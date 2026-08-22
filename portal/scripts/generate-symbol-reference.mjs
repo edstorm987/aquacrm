@@ -176,6 +176,10 @@ function renderFile(relPath, syms) {
 
 // Bucket files by top-level area
 const BUCKETS = [
+  // Engines first: they are the app's power systems, and burying them in
+  // "Other src/" is how the reference stopped describing the real shape after
+  // the src/engines/ move.
+  { file: "engines.md", title: "Engines — `src/engines/`", match: (r) => r.startsWith("src/engines/") },
   { file: "server.md", title: "State layer — `src/server/`", match: (r) => r.startsWith("src/server/") },
   { file: "lib.md", title: "Shared logic — `src/lib/`", match: (r) => r.startsWith("src/lib/") },
   { file: "components.md", title: "Shared components — `src/components/`", match: (r) => r.startsWith("src/components/") },

@@ -9,11 +9,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `runtime`
 - `async POST(request: Request)`
 
-## Depends on (5)
+## Depends on (6)
 
 - [`src/lib/server/auth/auth.ts`](../../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/privateUploadStorage.ts`](../../../../../../lib/server/privateUploadStorage.md)
-- [`src/lib/supabase/admin.ts`](../../../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/ownedEnquiry.ts`](../../../../../../lib/supabase/ownedEnquiry.md)
+- [`src/lib/supabase/scoped.ts`](../../../../../../lib/supabase/scoped.md)
 - [`src/server/activity.ts`](../../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../../server/storage.md)
 

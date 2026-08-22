@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 ## Depends on (3)
 
 - [`src/app/portal/dev-team/_ui.tsx`](../_ui.md)
-- [`src/lib/editing/engine.ts`](../../../../lib/editing/engine.md)
+- [`src/engines/editor/editing/engine.ts`](../../../../engines/editor/editing/engine.md)
 - [`src/lib/server/editing/appConfigAdapter.ts`](../../../../lib/server/editing/appConfigAdapter.md)
 
 ## Used by (1)

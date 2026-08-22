@@ -17,16 +17,18 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `portalCustomCode(document: ClientPortalDesignDocument): ClientPortalCustomCode`
 - `formatPortalCopy(value: string, tokens: Record<string, string>): string`
 
-## Depends on (2)
+## Depends on (3)
 
+- [`src/engines/editor/editing/pageSeo.ts`](../../engines/editor/editing/pageSeo.md)
 - [`src/lib/portal/clientPortalBuilder.ts`](./clientPortalBuilder.md)
 - [`src/server/types.ts`](../../server/types.md)
 
-## Used by (5)
+## Used by (6)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](../../app/portal/agency/portals/editor/_ClientPortalStudio.md)
+- [`scripts/smoke-editor-surface-modes.test.ts`](../../../scripts/smoke-editor-surface-modes.test.md)
 - [`src/app/portal/customer/_CustomerPortalChrome.tsx`](../../app/portal/customer/_CustomerPortalChrome.md)
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../../app/portal/customer/_CustomerPortalViews.md)
 - [`src/app/portal/customer/_PortalPageComposition.tsx`](../../app/portal/customer/_PortalPageComposition.md)
+- [`src/engines/editor/DevEditor.tsx`](../../engines/editor/DevEditor.md)
 - [`src/server/clientPortalDesigns.ts`](../../server/clientPortalDesigns.md)
 

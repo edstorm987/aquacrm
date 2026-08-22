@@ -2,9 +2,14 @@
 //
 // SAFETY: money moves client → Ed's own Stripe account directly. These handlers
 // create the pay-link, verify the signed webhook, and issue refunds against
-// Ed's account. The app never holds funds. Keys are Ed's, read from the install
-// config — never logged. The reconciliation logic lives in
+// Ed's account. The app never holds funds. The reconciliation logic lives in
 // `server/stripeReconcile.ts` (unit-tested); these are the thin HTTP edges.
+//
+// Keys are Ed's, and they are NOT on `install.config` — that record reaches the
+// browser through page props. They live in the encrypted integrations vault and
+// are merged back in here by `installConfigWithSecrets`, so the pure readers
+// below (`stripeConfigured` / `readStripeKeysFromInstall`) keep their shape.
+// Never logged.
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
@@ -17,6 +22,7 @@ import {
   type StripeEvent,
 } from "../lib/stripe";
 import { reconcileStripeEventOnce } from "../server/stripeReconcile";
+import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -27,6 +33,10 @@ const methodNotAllowed = (): Response => json({ ok: false, error: "method_not_al
 
 async function safeJson<T>(req: Request): Promise<T | null> {
   try { return (await req.json()) as T; } catch { return null; }
+}
+// `install.config` plus the vault-held Stripe keys, under their manifest ids.
+function stripeConfig(ctx: PluginCtx): Record<string, unknown> {
+  return installConfigWithSecrets(ctx.install.pluginId, { agencyId: ctx.agencyId, clientId: ctx.clientId }, ctx.install.config);
 }
 function build(ctx: PluginCtx) {
   return containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, install: ctx.install });
@@ -41,7 +51,7 @@ const errorMessage = (err: unknown, fallback: string): string => (err instanceof
 // The webhook reconciles by the invoiceId stamped into the session metadata.
 export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
-  if (!stripeConfigured(ctx.install.config)) return json({ ok: false, error: "stripe_not_configured" }, 400);
+  if (!stripeConfigured(stripeConfig(ctx))) return json({ ok: false, error: "stripe_not_configured" }, 400);
   const body = await safeJson<{ invoiceId?: string; customerEmail?: string }>(req);
   if (!body?.invoiceId) return badRequest("invoiceId is required");
   const c = build(ctx);
@@ -49,7 +59,7 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
   if (!invoice) return notFound("invoice not found");
   if (invoice.status === "paid") return json({ ok: false, error: "already_paid" }, 400);
   try {
-    const keys = readStripeKeysFromInstall(ctx.install.config);
+    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     const cfg = ctx.install.config as Record<string, string>;
     const origin = getOrigin(req);
     const successUrl = cfg.successUrl || `${origin}/portal/agency/agency-finance/invoices/${invoice.id}?paid=1`;
@@ -91,7 +101,7 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
 
   let event: StripeEvent;
   try {
-    const keys = readStripeKeysFromInstall(ctx.install.config);
+    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     event = (await verifyStripeWebhook(keys, rawBody, signature)) as StripeEvent;
   } catch (err) {
     // A signature mismatch or bad payload — refuse. Never leak key material.
@@ -111,7 +121,7 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
 // invoice (single source of truth), so this just calls Stripe.
 export async function stripeRefundHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
-  if (!stripeConfigured(ctx.install.config)) return json({ ok: false, error: "stripe_not_configured" }, 400);
+  if (!stripeConfigured(stripeConfig(ctx))) return json({ ok: false, error: "stripe_not_configured" }, 400);
   const body = await safeJson<{ paymentId?: string; amountCents?: number; reason?: string }>(req);
   if (!body?.paymentId) return badRequest("paymentId is required");
   const c = build(ctx);
@@ -121,7 +131,7 @@ export async function stripeRefundHandler(req: Request, ctx: PluginCtx): Promise
     return json({ ok: false, error: "not_a_stripe_payment" }, 400);
   }
   try {
-    const keys = readStripeKeysFromInstall(ctx.install.config);
+    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     const refund = await createStripeRefund(keys, {
       paymentIntentId: payment.externalRef,
       amountCents: body.amountCents,

@@ -34,7 +34,7 @@
 - [`src/app/portal/customer/_portalData.ts`](../../../../../app/portal/customer/_portalData.md)
 - [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](./foundationAdapter.md)
 - [`src/built-ins/modules/agency-finance/src/server/stripeReconcile.ts`](./stripeReconcile.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../../../../../engines/data/server/radar/clientRadarService.md)
 - [`src/lib/server/clients/clientDelightExpense.ts`](../../../../../lib/server/clients/clientDelightExpense.md)
 - [`src/lib/server/closeDeal.ts`](../../../../../lib/server/closeDeal.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../../../../../lib/server/radar/clientRadarService.md)
 

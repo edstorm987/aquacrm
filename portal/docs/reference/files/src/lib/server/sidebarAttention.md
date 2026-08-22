@@ -15,8 +15,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/lib/intelligence/operationalAttention.ts`](../intelligence/operationalAttention.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](./inbox/operationalAlerts.md)
 
-## Used by (2)
+## Used by (3)
 
+- [`scripts/smoke-operations-attention-rollup.test.ts`](../../../scripts/smoke-operations-attention-rollup.test.md)
 - [`src/app/portal/agency/layout.tsx`](../../app/portal/agency/layout.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
 

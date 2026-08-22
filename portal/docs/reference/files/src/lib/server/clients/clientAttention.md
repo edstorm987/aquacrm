@@ -11,7 +11,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (2)
 
-- [`src/lib/server/radar/clientRadarService.ts`](../radar/clientRadarService.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../../../engines/data/server/radar/clientRadarService.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)
 
 ## Used by (3)

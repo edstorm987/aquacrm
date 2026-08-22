@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/editing/leases.ts`](../src/lib/editing/leases.md)
+- [`src/engines/editor/editing/leases.ts`](../src/engines/editor/editing/leases.md)
 
 ## Used by
 

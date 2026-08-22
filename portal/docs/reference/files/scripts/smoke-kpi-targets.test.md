@@ -8,9 +8,9 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (4)
 
+- [`src/engines/data/server/kpi/customKpis.ts`](../src/engines/data/server/kpi/customKpis.md)
+- [`src/engines/data/server/kpi/kpiTargets.ts`](../src/engines/data/server/kpi/kpiTargets.md)
 - [`src/lib/performance/kpiRegistry.ts`](../src/lib/performance/kpiRegistry.md)
-- [`src/lib/server/kpi/customKpis.ts`](../src/lib/server/kpi/customKpis.md)
-- [`src/lib/server/kpi/kpiTargets.ts`](../src/lib/server/kpi/kpiTargets.md)
 - [`src/server/storage.ts`](../src/server/storage.md)
 
 ## Used by

@@ -22,6 +22,7 @@ import {
   type ClientTelemetryEvent,
   type ClientTelemetrySnapshot,
 } from "@/lib/clients/clientTelemetry";
+import { measuredCountLabel } from "@/lib/performance/telemetryDisplay";
 
 interface SystemProperty {
   id: string;
@@ -221,8 +222,22 @@ export function ClientSystemsWorkspace({
           </div>
         </div>
         <div className="grid border-t border-white/10 sm:grid-cols-2 xl:grid-cols-4">
-          <DarkMetric label="Views · 24 hours" value={summary.pageviews24h} />
-          <DarkMetric label="Errors · 24 hours" value={summary.errors24h} alert={summary.errors24h > 0} />
+          {/* THE SAME GATE the marketing tile and the two sibling workspaces
+              already use: a count nothing has reported is "—", never 0. This
+              panel prints "Waiting for first signal" three lines above these
+              tiles and then printed a measured-looking zero into them — it
+              KNEW the tag had never spoken. `lastSeenAt` is the watermark;
+              `summarizeClientTelemetry` has no idea whether its zeroes were
+              measured, which is exactly why the gate lives at the display
+              edge. Average load already told the truth (it is `undefined`
+              until something reports), and deployments are not telemetry —
+              they come from the deployment feed, not the tag. */}
+          <DarkMetric label="Views · 24 hours" value={measuredCountLabel(summary.pageviews24h, telemetry?.lastSeenAt)} />
+          <DarkMetric
+            label="Errors · 24 hours"
+            value={measuredCountLabel(summary.errors24h, telemetry?.lastSeenAt)}
+            alert={Boolean(telemetry?.lastSeenAt) && summary.errors24h > 0}
+          />
           <DarkMetric label="Average load" value={summary.averageLoadMs === undefined ? "—" : `${summary.averageLoadMs} ms`} />
           <DarkMetric label="Deployments · 30 days" value={summary.deployments30d} />
         </div>

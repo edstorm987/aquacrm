@@ -71,6 +71,242 @@ Shipped-but-not-yet-audited, oldest first (audit in this order):
 
 _Verdicts below, newest first (insert new ones directly under the pending-queue snapshot above)._
 
+## 2026-08-22 — ✅ PASS (verified source + EXECUTION, applying the corrective) — "The API behind the closed pages + client-record workspace"
+
+Audited the API-level access-control fix — the counterpart to tick-180's page fix, closing **exactly the gap I flagged at tick 183** ("these API routes do not yet have such a guard"). This time I applied the tick-182 corrective in full: whole-class + trust-boundary + ran-the-guard.
+- **The hole (real, severe):** the plugin API dispatcher (`api/portal/[module]/[...rest]/route.ts`) had NO surface rule — its only gate was `route.visibleToRoles ?? route.roles`, and **undefined = "anyone with a session" for 133 of 312 routes**. A gated page whose API still answers is not gated. Plus the **client-record workspace** (`/portal/clients/[clientId]`) gated on `requireRoleForClient([...ALL_ROLES])` (tenancy, not ownership) → an `end-customer` attached to the client opened finance/contracts/notes.
+- **Fix [1] — API ceiling, source-verified:** `_pageScope.ts:227-233` extends the same ceiling model to routes — "a route must never be wider than the page it backs," undeclared inherits the ceiling, declared intersects, `public:true` untouched. The 133 undeclared routes now capped. end-customer reachability 146→20 (public webhooks + `me/*`), lead 134→7. ✓
+- **Fix [2] — client workspace, source-verified:** `layout.tsx:65` now `requireRoleForClient([...SURFACE_ROLE_CEILING.client], clientId)` (was ALL_ROLES) + `redirect("/portal")` (`:67`), both page + layout; `requireRoleForClient` still enforces tenancy on top. end-customer/lead excluded. ✓
+- **Fix [3] — the default-allow bug (`:124`), source-verified:** `scopePolicySurfaces` (`:153`) is now exhaustive with `const unreachable: never = policy` (`:161`) — an unknown `scopePolicy` resolves to **no surface** (default-deny) instead of the old `["agency","client"]` (default-allow in a default-deny file); tsc catches unhandled union members. ✓
+- **Execution evidence (my corrective, not just trusting the guard):** `smoke-plugin-api-host-gates.test.ts` uses `issueSession` for REAL sessions (`:56`), drives the REAL dispatcher over every route × method × all 8 roles (`:21-29`) + synthetic-manifest mutation checks + negative control — **ran it in isolation: 22/22 pass.** ✓
+
+**Verdict: ✅ PASS.** The access-control class is now closed the durable way in all three places it lived (pages tick-180, API + workspace here), each execution-tested with a negative control. **Note:** my tick-183 proactive flag ("API routes lack the page guard") was correct and is now closed — the concern was real, the fix landed the next tick. This is the corrective working end-to-end: I flagged the class gap, and verified the closure by source + execution.
+
+## 2026-08-22 — 🟢 Proactive class-level re-check (applying the tick-182 corrective) — governance/compliance routes all gated
+
+Quiet tick; applied corrective #1 (enumerate the WHOLE class, not the named cases) to my own tick-79 governance audit — where I'd named only four routes. Enumerated **every** governance/compliance/erasure API route (6 total) and gate-checked each:
+- `governance/route.ts`, `hipaa`, `legal`, `erasure/preview` — the four I named at tick 79 (all `requireRole` agency-roles + `session.agencyId`). ✓
+- **`compliance/frameworks`** and **`compliance/posture`** — **two I never named**, found by enumeration: frameworks (POST, mutates) `requireRole(["agency-owner","agency-manager"])` admin-only + agency-scoped; posture (GET, read-only) agency-roles-incl-staff + agency-scoped. Sensible read/mutate split. ✓
+
+No ungated route in the class; none reachable by client/customer/lead. **Clean** — but the point is I found the 2 un-named routes by grepping the class, not by trusting my earlier list. This is the corrective working. (Note: still grep-level, not execution-level; a full application would drive each as an untrusted role — the plugin-page host-gates guard already does this for pages, these API routes do not yet have such a guard.)
+
+## 2026-08-22 — ✅ PASS (+ honest accounting of MY blind spots) — "Eleven verifier-proven defects across phases 8/9 + truthfulness"
+
+Audited the second-pass fix of 11 defects. Verified the fixes are real — and **three of them were in areas I PASSED**, which is worth recording plainly.
+- **Navigator origin (my tick-176 PASS):** I verified the *tag's* same-origin filter and passed it. The defect: the editor **trusted the tag** (code running inside an untrusted page) to filter, and picking a row moved the frame's trusted `src`. Fixed: `pageNavigator.ts:285` `pageLinkDestinations(links, allowedOrigin)` enforces origin **in the editor**, **fails closed** with no origin (`:300`), `navigatorHref` refuses again at use. I checked one layer; the trust boundary was the bug. ✓ now closed.
+- **SEO "bytes outside markers unchanged" (my tick-178 PASS):** I took it as pinned by the 73-test suite. It was **false for CRLF files** — split `/\r?\n/` + join `"\n"` rewrote every line (170→233 bytes, a whole-file diff). Fixed: terminators travel beside the text (`pageSeo.ts:606-608`). The suite didn't cover CRLF; I trusted the coverage. ✓ now closed.
+- **Truthful surfaces (my tick-174 PASS):** I verified the helper + the *named* surfaces. Left live: the tax clamp on **Overview** (`FounderDashboardPage.tsx:75` now `taxPosition()`), a **3rd** ungated sibling (`_ClientSystemsWorkspace`), and a **4th** no report had named. Fixed + pins made **class-level** — "that is what found the fourth." ✓ now closed.
+- Other fixes verified in passing: twitter:card inert-field rule, `.js/.mjs` App Router heads, `governingLayout` reachable, `public/*.html` extension, SEO-discard confirm, and `portalTarget` no longer reading `projectKind` (now `!projectId`).
+
+**Verdict: ✅ PASS.** But the pattern across ticks 174/176/178 (and 180) is now unmistakable and it is MINE: **I verify the mechanism and the named cases; the defects live in the un-named consumers, the edge inputs, and the trust boundary.** The team's independent verifiers — execution-based, class-level, adversarial — keep finding what inspection of the declared cases misses. **Corrective I'm adopting:** when auditing a "fixed X" claim, (1) grep/enumerate the WHOLE class of X, not the named instances; (2) test the edge input (CRLF, empty, legacy record), not the happy path; (3) drive the trust boundary as the untrusted side, don't assume a lower layer's filter. Credit where due: this build's verifier discipline is genuinely strong.
+
+## 2026-08-22 — ✅ PASS — "Client/customer-portal access hole closed STRUCTURALLY" — the most important security fix of the session
+
+Audited the client-portal-hole claim. This is a **critical, broad** access-control hole — worse than the tick-174 finance one — and it's fixed **structurally** (safe-by-default), verified hard in source.
+
+**The hole (real, severe):** an `end-customer` (a shopper) could open `/portal/clients/<id>/agency-hr/staff`, `/…/contacts`, and on the customer host `/portal/customer/memberships/subscribers`, `affiliates/payouts`, `client-crm/contacts`, `agency-hr/staff`. Root cause: the client host gate was `requireRoleForClient(ALL_ROLES, clientId)` (tenancy, not surface ownership) and `pluginPageAllowedRoles` was **undefined for 69 of 90 pages** → fell back to the wide-open door. Violates CLAUDE.md "internal records stay internal."
+
+**The fix is the right kind — structural, not per-page declaration:**
+- **Surface role ceiling no manifest can widen** (`_pageScope.ts:77-81`): `agency: AGENCY_ROLES`, `client: AGENCY_ROLES ∪ CLIENT_ROLES`, `customer: ["end-customer"]`. The client ceiling **excludes `end-customer`/`lead`**.
+- **`effectivePageRoles` (`:146-152`) is the whole gate**, called by all three hosts (single source of truth): wrong surface → `[]`; **undeclared page → inherits the ceiling** (`[...ceiling]`, NOT the door); declared → `ceiling.filter(r => declared.includes(r))` — **intersect, never union**, so a declaration can only narrow. Even the 69 undeclared pages are now safe, and a shopper reaches **zero** client-host pages by construction.
+- The comment (`:69-75`) correctly separates **tenancy** (the host `requireRoleForClient` gate) from **surface ownership** (the ceiling) — the exact conceptual bug. `resolveCustomerPluginPage`'s relative-prefix branch (the customer leak, which also shadowed real customer pages) is removed.
+- **Guard proven by EXECUTION:** `smoke-plugin-page-host-gates.test.ts` drives REAL host routes with REAL signed sessions for all 8 roles across every URL, vs `effectivePageRoles`; mutation checks register **synthetic manifests declaring nothing** (proving the rule on the 91st page, not just existing ones); negative control (revert → hundreds of violations). Reachability client 856→372, customer 52→3, end-customer/lead → **0** on the client host.
+
+**Verdict: ✅ PASS** — a critical hole closed the durable way (safe-by-default ceiling + single gate + execution-proven), superseding the fragile "every page must declare" model.
+
+**↳ Honest note on my tick-174 verdict:** I passed the finance/agency access-control fix (correct for what it covered — the agency host + nav-narrowing guard), but this **broader client/customer-host class** (undeclared pages + wrong-surface resolution + `pickInstall` agency fallback) was a separate, larger hole my tick-174 audit did **not** surface. The team's execution-based sweep (all roles × all hosts × all URLs) found what inspection of the declared cases missed. Lesson logged: for access control, drive the real routes as the untrusted role — don't verify only that the declared pages declare.
+
+## 2026-08-22 — ✅ PASS (source/test; browser-unverified per team's note) — "Phase 9: surface modes + per-page SEO in source"
+
+Audited the phase-9 claim (the SEO/surfaces work whose landing caused ticks 177's 6 reds — now settled green + logged). The higher-risk part is **writing SEO into page source**; verified it's built on the audited-safe write path:
+- **SEO-write reuses the repo-write safety:** `seo-read`/`seo-write` are actions on the **existing** `/api/portal/dev/repo-write` (`route.ts:56,290,300`) — no new endpoint, no SEO store. `seo-write` is preview-first → confirm-with-**fingerprint** ("a page that changed in between refuses instead of writing") → `saveRepoFile` → draft branch → PR. Same lost-update/traversal guards I verified tick 161. ✓
+- **"Own a marked block, refuse everything else":** `repoWrite.ts:89-90` makes "this file has no head I can write" and "this page **already writes its own head**" distinct refusals — it won't clobber a page with `generateMetadata`/existing `metadata`/a hand-written `<title>`/`"use client"`. `read(emit(x))===x` both ways + bytes-outside-markers-unchanged pinned by the 73-test suite. ✓
+- **Conservative surface derivation:** `surfaces.ts` defaults to **Normal**; promotes to **Website** only on evidence (tag answering AND http(s) address), else Normal *with a sentence naming the missing half*. `projectKind` deliberately **excluded** from the logic (only in the "AND NOT projectKind" comment `:25-27`) — a derivation that invents "puts an SEO panel over somebody's game." Operator's explicit choice always wins + persists; only explicit choices stored. ✓
+- **`inspectorTabsFor` now takes a REQUIRED `surface`** — tsc-enforced so the SEO tab can't be "built and never mounted"; gated on `surface === "website"` before the ladder, orthogonal to depth. (This required-arg change is what surfaced ticks 168/177's transient inspectorTabsFor reds as the feature landed.) ✓
+
+Full suite green (3516 / 0). **Verdict: ✅ PASS on what's source-verifiable** — SEO-in-source rides the safe write path with real "don't clobber existing SEO" refusals; the surface default is honest (Normal unless proven Website). **Caveat (team's own):** not browser-rendered. **↳ tick-177's 6 reds RESOLVED** — heavy-landing churn (5/6 phantoms + 1 that also settled), green at stable 3516.
+
+## 2026-08-22 — ✅ PASS (source/test; browser-unverified per team's note) — "Phase 8: the navigator + tag reports its links"
+
+Audited the navigator claim (fixes Ed's "if i put in a website id get stuck" — the browser could load one address but reach no other page). Honestly flagged "not verified in a browser" + phase-9 switcher not built. Verified the source-checkable logic:
+- **Route-derivation safety** (`pageNavigator.ts`): a dynamic route (`[slug]`) is **listed but not openable** (`:20,:57-59`) — you can't blindly open a route needing a value; private/slot/intercept routes handled (`:131`); static `.html` at root/`public/` (`:112-117`). ✓
+- **Tag link protocol is well-scoped:** `aquaTagSource.ts:375` `if (url.origin !== location.origin) continue` — **same-origin filter** (won't surface arbitrary cross-origin links the page happens to contain), `:376` strips query/hash, `:378` deduplicates. New `aqua-explorer:links`/`links-found` pair, cap 60 + 2s timeout per the entry. ✓
+- **Portal-only select replaced:** `PageNavigator.tsx` mounted in `DevEditor.tsx` (grep = 2); `aria-label="Portal page"` **gone** (grep = 0). The stale pin in `smoke-client-portal-studio.test.ts` was rewritten to assert the navigator is mounted + the old label absent (not just text-match, which a leftover comment would have satisfied). ✓
+- **No new endpoint** — reuses repo-write `insert-targets`; drift guard 27/27.
+
+Full suite green (3443 / 0). **Verdict: ✅ PASS on what's source-verifiable** — careful route logic, good same-origin scoping. **Caveat (team's own, echoed):** nothing has rendered; the navigator UX + link-picking need a live-browser pass. Queue clean.
+
+## 2026-08-22 — ✅ PASS — "Three app-audit findings closed at the class level" — incl. a HIGH access-control fix, verified
+
+Audited the closure of three findings from the 22-Aug app audit. Security-significant, so I verified each in source; **all genuinely fixed, and the HIGH one is generalized:**
+- **Finding 1 — HIGH access control, CLOSED + class-level:** `agency-staff` could open finance `/budgets,/operations,/planning,/settings` by URL (Operations shipped compensation + payments in SSR props) because the manifest declared no roles → host gate fell back to all of `AGENCY_ROLES`. Now every finance page declares `visibleToRoles: financePageRoles(path)` (`agency-finance/index.ts:55-59`), derived from `FINANCE_SECTIONS`; the four sensitive pages are `FINANCE_ADMIN_ROLES` = owner/manager only (`sections.ts:47-52`), **staff excluded** (`:31`), host **404s before importing the component** (fail-closed). **The sweep closed 4 more instances of the same hole** — verified agency-hr "Employees" now `AGENCY_ADMINS` (`agency-hr/index.ts:66`) — and added a **generic guard over EVERY plugin** (`smoke-finance-section-gates.test.ts`, with a mutation check + real host route driven as staff → 404). ✓
+- **Finding 2 — Stripe secret handling, CLOSED:** password fields → encrypted integrations vault via `secretVault`; **a password field with no vault target is refused by both the settings surface and the registry validator** (`pluginSettingsSurface.ts:22`) — secrets can't reach the browser-visible `install.config`, aren't echoed, aren't logged. Generic surface (`pluginSettingsSurface.ts` + `PluginSettingsPanel.tsx` + `api/portal/plugins/settings`). ✓
+- **Finding 3 — truthful surfaces, CLOSED:** `telemetryDisplay.ts:20` `UNMEASURED = "—"`, gated on the telemetry watermark (`:25`) — unmeasured shows "—", never a fabricated 0; `taxPosition()` replaces `Math.max(0, …)` so a reclaim reads as a reclaim; currency + client-name/`cli_…` formatting fixed. The exact "unmeasured → null, never 0" honesty contract. ✓
+
+Full suite green (3402 / 0). **Verdict: ✅ PASS** — a real HIGH privilege-escalation hole (staff → compensation/payments) closed **at the class level** with a plugin-wide guard, plus a secret-leak-prevention and an honesty fix. This is exactly how a finding should be closed: fix the class, not the instance, and leave a guard that catches the next one.
+
+## 2026-08-22 — ✅ PASS — "Dev Editor writes, publishes and merges; 13/18 phases" — milestone roll-up; new merge path is safe
+
+Audited the milestone claim. Most of it summarizes work I've **independently audited & passed** over the burst (dead-snippet · repo-write · AI-reply · throttle · nesting · device-sizing · modes; and the lost-update / `sk-proj-` scrubber / apostrophe / editor-AI-isolation fixes it lists as verifier-found) — the summary matches my prior verdicts. Focused on the **new** capability + the honesty:
+- **Merge + revert (phase 14) is safe:** `publish.ts:146` squash-merge via GitHub's API (**not force**); `repoWrite.ts:485` requires `confirm === true` (not coerced); `:501` a conflict/branch-protection → refusal (never forced); merging is a **separate** decision from save/publish (`:387`) and the code is explicit "merging here IS the production deploy" (`sourceEdit.ts:367`). Scoped to the **client** repo — the "`+` writing into AquaCRM's own tree" defect was fixed, so this is not a risk to AquaCRM's own production. ✓
+- **Honest "not done":** phases 8/9/17/18 explicitly unshipped; **Ed's live client tag still points at localhost** (needs `NEXT_PUBLIC_PORTAL_BASE_URL` + re-paste) — the same localhost issue from the dead-snippet audit, correctly flagged as still open, not hidden. ✓
+- **External claim (taken on report, not independently verifiable):** real commits `780eb08`/`4da8b29` + PR #1 on the live repo `edstorm987/Beast-marks`. I can't verify external GitHub state from here, but it's consistent with the write path I verified at tick 161 (branch-tip reads, fingerprint guard).
+
+Full suite green (3361 / 0). **Verdict: ✅ PASS** — accurate milestone; the new merge path carries the same safety discipline as the write path (explicit confirm, no force, respects protections), and the incomplete phases + the outstanding localhost tag are disclosed honestly. **13/18 shipped, cross-confirmed against my own burst of verdicts.**
+
+## 2026-08-22 — ✅ PASS (partial delivery, honestly scoped) — "Network throttling: tag wraps fetch/XHR + wifi control"
+
+Audited the throttle claim (deferred from tick 169 while I investigated a suite red — see the resolution note below). Verified the core; **all holds, and the honesty is the standout:**
+- **Tag wraps fetch/XHR — lazy + exact restore:** `aquaTagSource.ts:358-361` saves `throttleOriginalFetch`/`throttleOriginalXhrSend`; wrap engages only when throttled (native untouched otherwise), clear restores the saved originals. Real latency + bandwidth pacing (chunk-proportional stream delay, `:377-387`) + offline (`TypeError("Failed to fetch")`, `:364`). ✓
+- **No overclaim (in the code itself):** `:354` — "only DevTools can throttle those [cross-origin iframe resource loads] — so it never pretends to." The feature throttles the page's own fetch/XHR, and says so. ✓
+- **Capabilities `networkThrottle`:** advertised (`aquaTagBridge.ts:307`), **lenient parse** `=== true` (`:535`) so a cached pre-throttle tag still handshakes. ✓
+- **Honest partial delivery:** `NetworkThrottleControl.tsx` exists + is tested, but is **NOT mounted in DevEditor** (`grep -c` = 0) — held back because a concurrent workflow owns `DevEditor.tsx`, exactly as the entry states. So the control isn't reachable in the editor yet; that's disclosed, not hidden.
+- Test VM-executes the real tag source (sandboxing the fetch-wrap from the runner's own globals) — good isolation.
+
+Full suite green (3355 / 0). **Verdict: ✅ PASS** — careful, honestly-scoped work; the lazy-wrap/exact-restore design is right, and the "can't throttle the iframe, only page fetch/XHR" + "not yet mounted" caveats are stated plainly. When the control is mounted, a browser pass would confirm the end-to-end UX.
+
+**↳ Resolution of the tick-169 "the endpoint" red:** RESOLVED. It was a **full-suite-only cross-file/concurrency artifact** of that tick's heavy +56 landing — the endpoint code passed in isolation (repo-write 44/0, words-publish 64/0) and co-run with the throttle files (123/0); it failed only in the full concurrent suite, and cleared to green (3355/0) once the landing settled. **Not a code defect.** (If a green-alone-red-in-suite endpoint recurs when the tree is quiet, that's a real test-isolation weakness to bisect — noted, not currently reproducing.)
+
+## 2026-08-22 — ✅ PASS (source/test only; browser-unverified by the team's own note) — "Real device sizing in the editor (phase 10)"
+
+Audited the device-sizing claim (lower-risk UI/preview). The entry itself flags "NOT verified in a live browser" — honest, and I can't browser-verify either (spinning a dev server would clobber the shared sandbox, which the brief forbids). So I verified the **source-checkable** structural + anti-duplication claims; all hold:
+- **`BreakpointControl.tsx` deleted; `DeviceControl.tsx` present.** ✓
+- **Device maths reused, not forked** (the codebase's "don't build it twice" rule): `DeviceControl.tsx:15` imports from `@built-ins/…/website-editor/src/lib/devicePresets`; `:32` "The MATHS is imported, never forked." ✓
+- **Engine boundary held:** `DevEditor.tsx` has **zero** built-ins imports (grep empty) — `DeviceControl` is the single door isolating that dependency. ✓
+- **Exact pixels:** `PreviewFrame` lost `maxWidth:100%` and the silent `1440` cap (grep empty). ✓
+- **Drag clamp** `clampDeviceSize` with min 240×320 (`DeviceControl.tsx:58-59,:63`), used in the drag handler (`:117`). ✓
+
+21-test suite pins the logic; full suite green (3297 / 0). **Verdict: ✅ PASS on what's source-verifiable** — clean, reuses shared maths, respects the engine/built-ins boundary. **Caveat (the team's own, echoed):** pixel-exactness + drag behaviour are **not** browser-confirmed; that verification stays open for a live-browser pass. Queue clean.
+
+## 2026-08-22 — ✅ PASS — "Nested projects: two levels, enforced in the store" — cycle inexpressible, tenant-safe, delete-safe
+
+Audited the nesting claim (higher-risk: store invariants + tenant scope + cascade delete). Verified the integrity/tenant/safety core at source; **all correct:**
+- **`parentProjectId?` optional** (`types.ts:2900`) → old records parse as top-level. ✓
+- **Tenant-first parent validation, no existence oracle:** `devProjects.ts:224` `getDevProject(input.agencyId, requested)` (agency-scoped) → `:225` throws `parent_project_not_found` if absent. A foreign parent id (another agency's) returns null → **same error an invented id gets** — you can't probe another agency's projects by trying to nest under one. ✓
+- **Cycle made *inexpressible*, not just forbidden:** self-containment `:222` (`project_cannot_contain_itself`), parent-can't-be-a-child `:226` (no 3rd level down), project-with-children-can't-nest `:227-228` (no 3rd level up). The comment's proof (`:208-210`) is sound: any ≥2 cycle needs a parent that's also a child (refused by 2&3); the length-1 cycle is rule 4. ✓
+- **Omission carries the parent** `:217-219` (a rename can't silently flatten a child); explicit clear via ""/null. ✓
+- **Delete refuses BEFORE destructive cleanup (safety ordering):** `route.ts:139-140` `devProjectDeleteRefusal` → 400 naming the children, **before** `forgetEditorAiHistoryForProject` (`:155`). A refused parent-delete leaves the AI history intact — the comment states exactly this reasoning. Agency-scoped throughout. ✓
+
+33-case test covers the rule from every direction (store + route), tenant isolation, old-record tolerance. Full suite green (3264 / 0). **Verdict: ✅ PASS** — careful data-model work; the cycle-inexpressibility argument and the refuse-before-destroy ordering are the standouts. _Still pending in queue: "Real device sizing (phase 10)" — next tick._
+
+## 2026-08-22 — ✅ PASS — "Four editing modes become three: 'Just the words' merged into Visual" — clean, migration correct
+
+Audited the mode-merge claim (Ed's call: "combine it into visual mode as it's the same"). Low-risk UI consolidation; verified the core:
+- **`EDITING_MODES` is now 3** (`modes.ts`): `assist`/"Just tell it", `visual`/"Visual builder", `developer`/"Dev". The `simple` id is deleted from the ladder. ✓
+- **Migration is explicit & correct (the part that could bite):** `modes.ts:190` `if (id === "simple") id = "visual"` — a stale "simple" (old URL / stored pref) is mapped to visual **by name, ahead of** the unknown-id default, so it lands on the intended depth, not a fallback. ✓
+- **`selectionRouting.ts` simple branch removed** (grep empty) — as claimed, pure deletion since visual already routed to the element panel with words editable. ✓
+- **No capability-gating rode in** (consistent with Ed's 2026-08-21 "clients get the whole editor" decision) — the merge deletes a rung, adds no gate; suite green.
+
+Full suite green (3209 / 0). **Verdict: ✅ PASS** — reconciles the mode-ladder churn I tracked at ticks 132/140: the `simple` rung is now deliberately gone, with stale-value migration handled by name. Queue clean.
+
+## 2026-08-22 — ✅ PASS — "Aqua Editor AI replies now — model call on the project's own key" — key isolation genuinely enforced
+
+Audited the AI-reply wiring (the pending queue item from tick 161). Focused on the isolation/injection edges; **confirmed at source:**
+- **No-fallback key resolution (the standout, decisive):** `editorAiReply.ts` uses **only** `resolveEditorAiToken(agencyId, projectId)` — the project's own vault key. The negative proof: grepping the module for `getIntegrationConnection` / `agencyOpenai` / `OPENAI_API_KEY` / an agency-openai path returns **empty** — there is no code path to the agency `openai` connection or env. A keyless project → `not_configured` sentence, **zero model calls** (`:38-40,:92`). A project's AI genuinely can't spend agency-wide credentials or cross the tenant boundary. ✓
+- **Untrusted-framing (prompt-injection defense):** the client's editor context (clicked words / source focus) is documented and handled as "UNTRUSTED page text: handed to the model as data," not instructions (`:142-146`). ✓
+- **Route gate:** `requireRole` founder/manager (`route.ts:78`) → Dev-Mode 403 (`:79`) → CSRF origin (`:82`) → tenant-scoped 404s with no existence oracle (`:56,:59`); status map not_configured→409 / timeout→504 / upstream→502. ✓
+- **Coheres with the tick-157 audits:** this is the server-side author the history route's `role:"assistant"` refusal defers to (assistant reply appended server-side, never from a browser body), and it reuses the `scrubSecrets` scrubber for provider error text with the exact key removed — one coherent security design across the editor-AI subsystem (project-scoped keys · no forged assistant messages · secrets scrubbed · cross-project isolation).
+
+Also confirmed: ≤24-message char-capped context with newest-never-dropped (`:118-130`), reuses the Advisor transport (`:4`), test tripwire throws on any real network call. Full suite green (3189 / 0). **Verdict: ✅ PASS.** Queue clean — both tick-161 claims now audited.
+
+## 2026-08-22 — ✅ PASS — "Repo write path: create/save/publish for repo-backed projects" — git-write safety verified
+
+Audited the repo-write-path claim (fixes Ed's live blocker: "not letting me add new files… publishing [doesn't] work"). This is the **highest-risk claim of the burst** — it *writes to GitHub repos* — so I focused on the data-loss and secret-leak edges. **All handled correctly:**
+- **Lost-update prevention (the critical one):** `repoWrite.ts:199-203` re-hashes the current branch-tip contents at save time and compares to the read-time `fingerprint`; mismatch → `stale-fingerprint` refusal ("someone else changed this"), **never a silent overwrite**. ✓
+- **No force-push:** zero `force:true` in `repoWrite.ts`; reuses the words-editor `publishEdits`/`openPullRequest` machinery (whose `force:false` I verified tick 156) — a non-fast-forward becomes a refusal, not a clobber. Draft branch `aqua-editor/<projectId>`, never the default branch. ✓
+- **Dry-run default:** commits only when `confirm === true` (`:143`); per-branch in-process write lock for the check-then-commit window (`:102-107`). ✓
+- **Traversal/secret refusals:** `normalizeRepoPath` + `.env`/hidden-path refusals, same as the local write path (`:85`). ✓
+- **Secret never in the body (security):** route reads repo/ref/**token** only off the agency-scoped `DevProject` record + encrypted vault (`route.ts:34-37`), never the request body, never echoed. Full gate: `requireRole` founder/manager (`:95`) → Dev-Mode 403 (`:96`) → CSRF origin 403 (`:99`) → `getDevProject(session.agencyId, …)` (`:109`). POST-only. ✓
+- Test design is sound: `smoke-repo-write.test.ts` (44) uses a stateful fake that tracks **contents-per-commit** (so it can catch a silent revert) + fast-forward enforcement + PR reuse.
+
+Verified the git-write **safety core + route security**; did not individually re-verify `createRepoPath`/PR-reuse/draft-first GET/UI (covered by the 44-test green suite). Full suite green (3184 / 0). **Verdict: ✅ PASS** — safe git writes done right (the hard part — lost-update + force-push — is correct). _Still pending in queue: "Aqua Editor AI replies now" (next tick)._
+
+## 2026-08-22 — ✅ PASS — "Dead-snippet tag state + file-tree re-fetch" — a real trust bug (tag 'verified' but dead for visitors), fixed correctly
+
+Audited the two-phase claim. This one matters: **Phase 1a fixes a real correctness/trust bug** found testing the tag on a real page — the snippet pointed at `http://localhost:3032/aqua-tag.js` (present, right key, **dead in every visitor's browser**) yet "Check It" reported **verified** because it read the HTML server-side. Verified the fix at source:
+- **The semantic of "verified" is corrected** — `aquaTagIdFromCheck:377`: `verified = tagPresent && keyMatches && detectedSiteKey && **!scriptUnloadableReason**`. A tag is no longer verified just for being in the HTML; if its script won't load for a visitor, it isn't verified. ✓
+- **`dead-snippet` = proper 8th state:** union member (`types.ts:2768`), derived from `scriptUnloadableReason` (`devProjects.ts:260`), evidence prints the reason verbatim (`:330`), UI warning tone (`_DevEditorSetup.tsx:475`). ✓
+- **Definitive-negative revoke:** a dead-snippet is reachable-but-unverified → `:381 if (tag?.reachable) return undefined` → earned id **revoked** on re-check. (Extends the revoke logic I verified tick 156 — it now catches dead snippets too.) ✓
+- **Backward-compat:** both new fields optional (`types.ts:2726,2736`) → old records parse as *unassessed*, never dead. ✓
+- **Phase 1b (the file-tree/GitHub-connect fix — this resolved the code-mode red I flagged tick 159):** old "Company → Connections" wording **gone**; `RepositoryPanel`/`EditorCodeCanvas` listen for `DEV_PROJECTS_CHANGED_EVENT` to re-fetch; `smoke-code-mode.test.ts:254-260` deliberately flipped to assert `/Connect GitHub in the editor's Settings tab/`. That was the mid-flip test I watched go red → now green. ✓
+
+Full suite green (3125 / 0). **Verdict: ✅ PASS** — a genuinely important trust fix (a tag falsely reporting "live" is exactly the kind of thing that burns an agency), implemented thoroughly with backward-compat. Retro-confirms my tick-159 in-flight read.
+
+## 2026-08-21 — ✅ PASS — "Aqua Editor AI hardening: six defects from the own-assistant split" — incl. a real plaintext-key-leak fix
+
+Audited the six-defect fix-pass. Verified **4 of 6 at source**, prioritising the three security-relevant ones; all confirmed real, not test-weakening:
+- **Defect 1 — SECURITY, plaintext API-key leak (the big one), CONFIRMED FIXED:** `integrationConnections.ts` `safeTestMessage` — the scrubber was underscore-only (`sk_`), so an OpenAI `sk-proj-…` key echoed in a provider 401 reached `lastTestMessage` → state blob → integrations GET → settings panel **in plaintext**. Now `:474` `/(?:sk|rk)[-_][A-Za-z0-9_-]+/` (**hyphen OR underscore** — the precise fix), plus PEM blocks (`:469`), `re_/whsec_/github_pat_/gh[opsur]_` (`:477`), long bare hex (`:479`), AND exact-removal of the connection's own decrypted secret values (`:465`) as the net for prefix-less secrets (Vercel/SMTP). Thorough. ✓
+- **Defect 4 — history route refuses a forged `assistant` role (security), CONFIRMED:** `editor-ai/history/route.ts:123-128` refuses `body.role !== "user"` with 400 "Only your own messages can be added here" — "a request body claiming to be the assistant is a forged transcript line, refused out loud rather than coerced quietly." Route also role-gated (`:86`), Dev-Mode-gated (`:87`), CSRF origin-checked (`:90`), agency-scoped with **no existence oracle** (`:106-108`, foreign project → 404 "same answer an invented id gets"). ✓
+- **Defect 6 — cross-project credential isolation (security), CONFIRMED:** real render harness `smoke-aqua-editor-ai-stale-key-panel.harness.tsx` exists; `AquaEditorAIKey.tsx:79` `unread = status?.projectId !== projectId` gates model/instructions/`configured`/render (`:82,:83,:117,:152`) — project B never wears project A's credential facts. ✓
+- **Defect 2 — history writes key on the cleaned agency/project id:** `editorAiHistory.ts:132-133` cleans both; write paths thread `project.id` (`:369,:418`). ✓
+- (Defects 3 "delete on never-chatted project mints no record" and 5 "60-msg cap counts evictions" — lower-risk correctness, not source-verified individually; covered by the green suite.)
+
+Full suite green (3057 / 0), `tsc` clean per the entry. **Verdict: ✅ PASS** — a genuine security-hardening pass; the plaintext-key-leak fix is real and comprehensive. Queue clean.
+
+## 2026-08-21 — ✅ PASS — "Dev Editor fix pass: four tag/words defects + save-body tag unlock" — fixes real in source, not test-weakening
+
+Audited the fix-pass claim (the DevEditor tag/words build I watched go red→green over ticks 153-154, now logged). Verified **at the source** that each fix is genuinely implemented — the key test being whether they fixed the code or just made tests green. **Confirmed real:**
+- **Defect 1 (editor learns a just-verified tag):** `DEV_PROJECTS_CHANGED_EVENT = "aqua:dev-projects-changed"` dispatched by `_DevEditorSetup.tsx:33`, listened + cleaned up in `DevEditor.tsx:462/465`. ✓
+- **Defect 2 (revoke a dead tag):** `aquaTagIdFromCheck` (`engines/editor/server/devProjects.ts`) — not-verified + `tag?.reachable` → `return undefined` (definitive absent/foreign → **revoke**); else `return existing` (unreachable → **keep**). Matches the claimed "revoke on definitive negative, keep on indeterminate" exactly. ✓
+- **Defect 4 (apostrophe context inversion):** `contextAt(lineText, at, file)` (`sourceMatch.ts:268`) derives context from file type and **refuses with `unknown-context`** (`:423`) rather than guessing. ✓
+- **Defect 6 (save-body tag unlock) — security-relevant, CONFIRMED:** the projects route **refuses a body-supplied `aquaTagId` with 400** (`route.ts:274-276`, "connected by Map or Check it, never by a save") and preserves the **earned** id server-side via `getDevProject(session.agencyId, body.id)` (`:292`, agency-scoped). A save genuinely can't self-grant the browser gate — real privilege-escalation prevention. ✓
+- (Defect 3, words-publish 422 → build from edit-branch tip: not source-verified individually; covered by the now-stateful `smoke-editor-words-publish` in the green suite.)
+
+**Test rewrites are legitimate, not weakening:** the old "never revoke" and "a save carries the value through" pins were rewritten to pin the *opposite* — but the new rules (revoke a definitively-dead tag; a save can't plant the gate) are the **correct** ones; the old pins were the bug. Full suite green (3048 / 0). **Verdict: ✅ PASS.** Queue clean.
+
+## 2026-08-21 — ✅ PASS — "Doc prune: 11 records archived, three 'where we stand' files → one" — moves real, nothing lost
+
+Audited the newly-logged doc-prune claim. Verified the load-bearing, most-falsifiable points; **all hold:**
+- **11 records genuinely moved** to `docs/context/archive/` (present + README). The dir has 15 files, but 4 (`staff-worker-handoff`, `erasure-worker-handoff`, `kpi-worker-handoff`, `handoff-inbox-chat`) are **pre-existing** archive residents (the tick-142 editor-move entry already cited `archive/staff-worker-handoff.md`) — the 11 *new* moves reconcile exactly.
+- **Moved, not copied** — all 5 sampled old paths (`WHERE-WE-ARE.md`, `development/WHERE-WE-STAND.md`, `SESSION-HANDOFF-2026-08-18.md`, `development/phases.md`, `website-editor-and-migration.md`) are **gone** from source. No duplication left behind, which was the stated goal. ✓
+- **`development/handoffs/` dir removed** (held only the one moved file), as claimed. ✓
+- **`super-editor.md` confirmed never existed** (`find` empty) — the dangling ref cited from 3 places was resolved honestly, not by inventing the file. ✓
+- **Nothing load-bearing broke:** full suite green (2765 / 0) — validates the claim's "no test needed editing" and the in-process parser re-runs (roadmap %s unchanged). ✓
+- **Honesty:** the entry *disclosed* its one suite fail (`smoke-editor-write-path`, another agent editing `dev/files/route.ts`) rather than hiding it; my current run is green, so it has since resolved — confirming it was unrelated to the prune.
+
+**Scope note:** did not independently reproduce the full "68 links repointed / 9→10 broken" link-check (disproportionate for a doc pass with the integrity checks all green); verified the structural moves + no-loss + no-test-breakage instead. **Verdict: ✅ PASS** — an archive-not-delete pass that keeps every dated record and collapses the three "where do we stand" files to one, exactly as claimed. Queue clean.
+
+## 2026-08-21 — ✅ PASS — "Dev Team editor split + universal-editor copy fix + nine doc defects" — verified, unusually accurate
+
+Audited the second newly-logged editor claim (the split I flagged unlogged at tick 132, now logged — honestly marked "logged late"). Tested its most falsifiable assertions; **every one holds, including the subtle traps:**
+- **The split:** `editor/page.tsx` is a real page (`DevEditorProjectsPage`, `:27`) rendering the projects workspace; only `redirect()` is the auth branch (`:33`) — **not a stub**. `editor/studio/page.tsx` mounts `DevEditor.tsx` (verified tick 133). ✓
+- **Sidebar = exactly SEVEN** (`layout.tsx:74-89`): Home · Roadmap · Findings · Library · Tools · Editor · Notes, exact order. **Zero `chat`** in `layout.tsx`; `dev-team/chat/page.tsx` still exists + renders `TeamChat` (`:8,:23`), unlinked. ✓
+- **Six portal→universal copy strings** in `DevEditor.tsx`: all six OLD strings **gone**; new ones present (`Loading...` `:364`, "…before opening the editor on this project" `:463`, `Inspector` FAB). ✓
+- **The honesty trap passes:** `"Loading portal design"` remains **exactly once** (`grep -c` = 1) — the ungated notice became "Loading…", but the portal-design-*fetch* point keeps it, precisely as the entry claims. Portal-doc-branch copy (`Portal template`/`Publish portal`/`Portal CSS`/`Add a portal component`) kept. ✓
+- **Doc defects (spot-checked 2 of 9):** `portal-ui.md:162` now "Sections — SEVEN" (was SIX); `components/editing/` is **exactly 10 files** (claim: "10, not 3"). ✓
+- **Suite green:** 2709 pass / 0 fail / 1 skip — matches the claimed baseline exactly.
+
+**Verdict: ✅ PASS.** A model entry — specific, self-aware about being logged late (the process gap I'd flagged for ~10 ticks, now owned), explicit about what was deliberately kept and why, and it even documents **restoring** dated prose the doc-sweep had overwritten (rejecting "rewrite history to match the present"). Both editor claims now audited & cleared; queue clean.
+
+## 2026-08-21 — ✅ PASS — "Editor moved out of the portals route (`_ClientPortalStudio` → `DevEditor.tsx`)" — verified clean
+
+Audited the newly-**logged** claim (top of `updates.md` — the editor's move out of the portals route). It's the first new claim in a long while, and after ~30 ticks of the underlying work shipping unlogged, it landed as a clear, confident entry. **It holds on every checkable point:**
+- **Move done:** `src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx` is **gone**; `src/engines/editor/DevEditor.tsx` exists and exports `DevEditor` (`:136`). Component `ClientPortalStudio` → `DevEditor` as claimed.
+- **Grepped clean (code):** **zero functional references** to the old name/path anywhere in `src/` + `scripts/` — the only hits are two self-documenting provenance comments inside the new file (`DevEditor.tsx:11,20`). All 7 named tests are clean. (I watched the last three test files' old-name refs disappear **mid-audit** — the worker was finishing the cleanup live; a re-grep confirmed clean. Live-tree reminder.)
+- **"Deliberately NOT renamed" items intact:** `src/engines/editor/server/portalStudio.ts` + `loadPortalStudioProps` / `PortalStudioClient` / `PortalStudioTemplate` all present, exactly as the entry says.
+- **Suite green:** 2710 tests, **2709 pass / 0 fail / 1 skip** — matches the claimed count exactly. Behaviour-preservation is covered by the editor contract tests (mode ladder, assistant wiring, both doors, target-awareness, client-portal-studio) all passing.
+- **Docs:** `docs/reference/` regenerated **grep-clean**. Sampled 4 of the 7 prose docs that still name the old path (`CURRENT-IMPLEMENTATION.md`, `portal-ui.md`, `website-editor-and-migration.md`, plan `dev-editor-engine.md`) — each names it only as an honest **dated migration note** ("used to live at X … moved out 2026-08-21 → DevEditor.tsx"), not a stale current-fact. Correct practice, matching the entry's own stated philosophy about dated records.
+
+**Verdict: ✅ PASS.** A clean, thorough, honestly-documented structural move — no dangling references, contracts preserved, counts truthful, docs migration-aware. This also retro-confirms my tick-132/140 reads: those earlier editor reds were exactly this refactor landing in stages, each self-resolving as the worker finished + updated tests.
+
+## 2026-08-21 — 🟡 SUITE RED (2 fails) — stale tests after an unlogged dev-editor split; behavior PRESERVED, tests need re-pointing
+
+> **✅ RESOLVED next tick (2026-08-21):** both tests were **re-pointed to the `studio/` route** (now reference `studio` — 9× in `smoke-dev-editor-engine`, 3× in `smoke-aqua-editor-ai`); both files pass **15/15**, full suite **green again (2686 / 0)**. Fix matched the routing note exactly. Left below as the record.
+
+**Full suite is red: 2685 tests, 2 fail** (both reproduce in isolation — not phantoms). Traced both to **one root cause**: the **dev-team editor was split (unlogged) into two routes**, and two source tests still pin the pre-split file.
+
+**The refactor:**
+- `src/app/portal/dev-team/editor/page.tsx` → now a **project-picker / setup** screen (`DevEditorSetup`), with an "Open editor" link.
+- `src/app/portal/dev-team/editor/studio/page.tsx` (**new**) → the **real editor**: imports `ClientPortalStudio` from `_ClientPortalStudio` (`:11`), mounts it (`:50`), loads `loadEditorAssistant` (`:8,:47`), passes `assistant={assistant}` (`:61`).
+
+**The two reds — both stale:**
+- `smoke-dev-editor-engine.test.ts:29-33` ("mounts the full Portal Studio…") greps **`dev-team/editor/page.tsx`** for the `ClientPortalStudio` import — which legitimately **moved to `studio/page.tsx`**.
+- `smoke-aqua-editor-ai.test.ts:75-84` ("is wired into both editor doors") greps **`dev-team/editor/page.tsx`** for `loadEditorAssistant` + `assistant={assistant}` — both **moved to `studio/page.tsx`**. (Editing-mode order `assist/simple/visual/developer` is unchanged — those subtests pass.)
+
+**Verdict: behavior PRESERVED, tests STALE.** Verified both guarded contracts still hold at the new studio route — the dev door still mounts the real engine and still wires the assistant. Neither is a product defect. This is the same class as the cinematicMode / dev-tasks-parse stale-pins.
+
+**⚠ → Commander:** **the suite is RED again** (banner's "green" is now stale). Fix is source (I'm read-only): re-point both assertions from `…/dev-team/editor/page.tsx` to `…/dev-team/editor/studio/page.tsx` (for the "both doors" loop, either swap the dev entry to the `studio/` path or add it). Also: **the dev-editor split is unlogged** — please add the `updates.md` entry. Watching next tick; if it clears (tests re-pointed) I'll confirm green.
+
 ## 2026-08-21 — 🟢 Banner's one "observed red" is RESOLVED — `smoke-dev-tasks-parse.test.ts` now 13/13
 
 The top banner (written 2026-08-20) flags one red observed after its count was taken: `smoke-dev-tasks-parse.test.ts` failing **12 pass / 1 fail** in isolation, from a stale `/BLOCKED on Ed/i` assertion pinning a plan phase that had since shipped ("✅ Cohere — SHIPPED"). **That red no longer reproduces.** Re-ran the file alone today: the same **13 tests → 13 pass / 0 fail** (the one stale assertion was corrected, not deleted — count unchanged, the fail is gone), and it's likewise clean in the full suite.

@@ -14,7 +14,8 @@
 - [`src/built-ins/modules/agency-hr/src/lib/aquaPluginTypes.ts`](./src/lib/aquaPluginTypes.md)
 - [`src/built-ins/modules/agency-hr/src/server/foundationAdapter.ts`](./src/server/foundationAdapter.md)
 
-## Used by (1)
+## Used by (2)
 
 - [`scripts/smoke-nav-audit.test.ts`](../../../../scripts/smoke-nav-audit.test.md)
+- [`scripts/smoke-tools-directory.test.ts`](../../../../scripts/smoke-tools-directory.test.md)
 

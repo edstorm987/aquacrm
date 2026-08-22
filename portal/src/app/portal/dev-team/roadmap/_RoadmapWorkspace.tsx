@@ -299,7 +299,7 @@ function ItemCard({ item, hue }: { item: RoadmapItemView; hue: string }) {
                   />
                   <button
                     type="button" onClick={save} disabled={busy}
-                    className="inline-flex items-center gap-1 rounded-full bg-[color:var(--dev-success)] px-3 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[color:var(--dev-success)] disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-full bg-[color:var(--dev-success)] px-3 py-1 text-[11px] font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-success-hover)] disabled:opacity-50"
                   >
                     {busy ? <LoaderCircle size={11} className="animate-spin" /> : <Check size={11} />}
                     Save
@@ -434,7 +434,7 @@ function AddItem({ planNames }: { planNames: string[] }) {
         <div className="flex items-center gap-2">
           <button
             type="button" onClick={add} disabled={busy || !title.trim()}
-            className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-success)] px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-success)] disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-success)] px-4 py-1.5 text-xs font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-success-hover)] disabled:opacity-50"
           >
             {busy ? <LoaderCircle size={12} className="animate-spin" /> : <FilePlus2 size={12} />}
             {busy ? "Adding…" : "Add to roadmap"}

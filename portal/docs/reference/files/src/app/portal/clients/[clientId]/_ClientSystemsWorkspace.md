@@ -8,9 +8,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `ClientSystemsWorkspace({ clientId, clientName, properties, }: { clientId: string; clientName: string; properties: SystemProperty[]; })`
 
-## Depends on (1)
+## Depends on (2)
 
 - [`src/lib/clients/clientTelemetry.ts`](../../../../lib/clients/clientTelemetry.md)
+- [`src/lib/performance/telemetryDisplay.ts`](../../../../lib/performance/telemetryDisplay.md)
 
 ## Used by (1)
 

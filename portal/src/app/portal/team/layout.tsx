@@ -53,6 +53,7 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
         <Sidebar panels={panels} tenantLabel={`${agency.name} Team`} currentPath={currentPath} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
+            inspecting={Boolean(session.previewReturnUserId)}
             title={`${agency.name} Team`}
             subtitle={employee ? `${employee.title}${employee.department ? ` · ${employee.department}` : ""}` : "Employee workspace"}
             role={session.role}

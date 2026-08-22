@@ -142,7 +142,7 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/lib/chrome/sidebarLayout.ts`
 
 - `buildSidebar(input: BuildSidebarInput): NavPanel[]`
-- `interface NavPanel (4 members)`
+- `interface NavPanel (5 members)`
 - `interface BuildSidebarInput (7 members)`
 
 ### `src/lib/chrome/workspaces.ts`
@@ -466,16 +466,16 @@ Every exported function, class, type and const in this area, with its real signa
 - `isAquaExplorerReadyMessage(value: unknown): value is AquaExplorerReadyMessage`
 - `isAquaExplorerDiagnosticsMessage(value: unknown): value is AquaExplorerDiagnosticsMessage`
 - `isAquaExplorerSelectedMessage(value: unknown): value is AquaExplorerSelectedMessage`
-- `explorerTargetOrigin(url: string): string`
-- `AQUA_EXPLORER_PROTOCOL_VERSION = 1 as const`
-- `AQUA_EXPLORER_MESSAGES = {`
-- `interface AquaExplorerCapabilities (3 members)`
-- `interface AquaExplorerElement (8 members)`
-- `interface AquaExplorerPatch (4 members)`
-- `interface AquaExplorerReadyMessage (7 members)`
-- `interface AquaExplorerDiagnostics (9 members)`
-- `interface AquaExplorerDiagnosticsMessage (4 members)`
-- `interface AquaExplorerSelectedMessage (3 members)`
+- `explorerTargetOrigin(url: string): string` — now occupies the frame. Use `aquaTagOrigin`, which returns null instead and leaves the caller to do the only safe thing with an unknown origin: not send. Kept unchanged only so th…
+- `AQUA_EXPLORER_PROTOCOL_VERSION = AQUA_TAG_PROTOCOL_VERSION`
+- `AQUA_EXPLORER_MESSAGES = AQUA_TAG_MESSAGES`
+- `type AquaExplorerCapabilities = AquaTagCapabilities`
+- `type AquaExplorerElement = AquaTagElement`
+- `type AquaExplorerPatch = AquaTagPatch`
+- `type AquaExplorerReadyMessage = AquaTagReadyMessage`
+- `type AquaExplorerDiagnostics = AquaTagDiagnostics`
+- `type AquaExplorerDiagnosticsMessage = AquaTagDiagnosticsMessage`
+- `type AquaExplorerSelectedMessage = AquaTagSelectedMessage`
 
 ### `src/lib/integrations/aquaTagSource.ts`
 
@@ -486,7 +486,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `integrationDefinition(provider: IntegrationProvider): IntegrationDefinition`
 - `INTEGRATION_CATALOG: IntegrationDefinition[]`
-- `type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "google-search-console"`
+- `type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "aqua-editor-ai" | "google-search-console"`
 - `type IntegrationFieldKind = "text" | "email" | "url" | "password"`
 - `interface IntegrationFieldDefinition (7 members)`
 - `interface IntegrationDefinition (8 members)`
@@ -668,6 +668,12 @@ Every exported function, class, type and const in this area, with its real signa
 - `type MonthlyPerformanceReportStatus = "draft" | "published"`
 - `interface MonthlyPerformanceReport (11 members)`
 
+### `src/lib/performance/telemetryDisplay.ts`
+
+- `measuredCount(value: number, lastSeenAt: number | null | undefined): number | null` — A count that only counts if something actually reported it. `lastSeenAt` is the telemetry watermark (`telemetryLastSeenAt` / `summary.lastSeenAt`). Falsy — never seen — means the …
+- `measuredCountLabel(value: number, lastSeenAt: number | null | undefined): string` — `measuredCount`, formatted: a real reading, or the dash.
+- `UNMEASURED = "—"` — The dash every honest surface in this codebase uses for "no reading".
+
 
 ## `src/lib/portal/`
 
@@ -844,135 +850,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `isLocalDevelopmentUrl(value: string): boolean`
 
 
-## `src/lib/radar/`
-
-### `src/lib/radar/businessRadar.ts`
-
-- `radarDigest(radar: BusinessIssueRadar): AdvisorRadarDigest`
-- `type AdvisorDomain = | "company" | "sales" | "inbox" | "clients" | "finance" | "delivery" | "marketing" | "operations" | "compliance" | "development" | "team" | "systems"`
-- `type BusinessIssueSeverity = "critical" | "warning" | "watch"`
-- `type BusinessSignalStatus = BusinessIssueSeverity | "healthy" | "unknown"`
-- `type AdvisorCoverageStatus = "connected" | "empty" | "disconnected" | "unavailable"`
-- `type RadarCheckStatus = "pass" | BusinessIssueSeverity | "blind" | "learning" | "inactive"`
-- `type RadarCheckScope = "kpi" | "source" | "property" | "synthetic" | "history" | "watchdog" | "infra"`
-- `type RadarCheckTier = "instant" | "probe" | "rollup"` — Which sweep refreshes a check (radar upgrade Stage 2). `instant` = in-state derivation the Pulse assembles live; `probe` = a network/DB round-trip run by the Deep/Infra sweeps; `r…
-- `type RadarDataDependency = "in-state" | "derived" | "external"` — What a check's answer depends on. `in-state` = current PortalState only; `derived` = needs retained evidence history or another derived signal; `external` = needs data from outsid…
-- `type RadarFindingGroup = | "infrastructure" | "commercial" | "compliance" | "delivery" | "reliability" | "people"` — Top-level "what kind of problem" bucket above the {domain}:{category} grouping (radar upgrade Stage 5). The operator sees the kind of problem before drilling into domain detail. D…
-- `type RadarEntityType = "client" | "product" | "property"`
-- `type RadarCoverageEntityType = | "client" | "product" | "property" | "integration" | "portal-connection" | "trading-company"` — Entity types with a declared radar detector-pack template.
-- `type RadarCoverageState = "calibrating" | "active"` — `calibrating` = seeded but still accruing evidence; `active` = evidence-backed.
-- `type RadarInfraBackend = "file" | "memory" | "postgres" | "supabase" | "unknown"` — ─── Infra health (radar upgrade Stage 4 — DB & storage health) ─────────────
-- `type RadarInfraProbeStatus = "connected" | "down" | "untested"`
-- `type RadarRuleLens = | "connection" | "freshness" | "threshold" | "trend" | "anomaly" | "integrity" | "continuity" | "baseline" | "confidence" | "forecast" | "volatility" | "resilience"`
-- `type RadarSourceDatasetStatus = "available" | "empty" | "unavailable"`
-- `type AdvisorRadarDigest = BusinessIssueRadar["summary"] & { generatedAt: number; speedToLead: SpeedToLeadRadar; commercial: CommercialLifecycleSnapshot; topIssues: BusinessRadarIssue[]; topIncidents: BusinessRadarIncide…`
-- `interface RadarCoverageManifestEntry (6 members)`
-- `interface RadarCoverageManifest (6 members)` — Proof that every monitorable entity resolves to a radar pack (Part E).
-- `interface RadarInfraDatabaseHealth (8 members)` — One database's reachability + latency (+ row counts for the primary).
-- `interface RadarInfraStorageHealth (4 members)` — Storage health. Total Supabase Storage bytes is NOT available from the service-role client, so `measurable` is false and `bucketBytes` is null — shown honestly as "not available i…
-- `interface RadarInfraHealthSnapshot (4 members)` — The Infra sweep's latest snapshot; written to `radarInfraHealth`, read by the Pulse.
-- `interface BusinessRadarIssue (10 members)`
-- `interface RadarEntityReference (4 members)`
-- `interface BusinessMetricSignal (11 members)`
-- `interface AdvisorCoverageSource (7 members)`
-- `interface BusinessRadarCheck (28 members)`
-- `interface ClientRadarPackSummary (11 members)`
-- `interface ClientRadarSnapshot (13 members)`
-- `interface RadarDomainSummary (16 members)`
-- `interface BusinessRadarIncident (4 members)`
-- `interface RadarFindingGroupSummary (6 members)` — Per-bucket incident roll-up (radar upgrade Stage 5) — "what kind of problem" at a glance.
-- `interface BusinessRadarConclusion (6 members)`
-- `interface BusinessRadarAdaptiveState (11 members)`
-- `interface SpeedToLeadRadar (12 members)`
-- `interface RadarMemoryPoint (5 members)`
-- `interface RadarMemoryDigest (19 members)`
-- `interface RadarEvidenceMovement (8 members)`
-- `interface RadarEvidenceDigest (9 members)`
-- `interface RadarEvidenceSeriesSummary (16 members)`
-- `interface RadarEvidenceInspectionIndex (5 members)`
-- `interface RadarEvidenceSeriesInspection (2 members)`
-- `interface RadarSourceDatasetSummary (11 members)`
-- `interface RadarSourceDataIndex (6 members)`
-- `interface RadarSourceDatasetInspection (5 members)`
-- `interface BusinessIssueRadar (16 members)`
-
-### `src/lib/radar/clientRadar.ts`
-
-- `buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSnapshot`
-- `interface ClientRadarProductInput (6 members)`
-- `interface ClientRadarPropertyInput (8 members)`
-- `interface ClientRadarMilestoneInput (5 members)`
-- `interface ClientRadarAlertInput (6 members)`
-- `interface ClientRadarInput (17 members)`
-
-### `src/lib/radar/radarCheckEngine.ts`
-
-- `buildRadarCheckMatrix(observations: readonly RadarObservation[], coverage: readonly AdvisorCoverageSource[], now = Date.now()): { checks: BusinessRadarCheck[]; domains: RadarDomainSummary[] }`
-- `summarizeRadarChecks(checks: readonly BusinessRadarCheck[], coverage: readonly AdvisorCoverageSource[]): RadarDomainSummary[]`
-- `interface RadarObservation (22 members)`
-
-### `src/lib/radar/radarClassification.ts`
-
-- `radarCheckTier(scope: RadarCheckScope): RadarCheckTier`
-- `radarDataDependency(check: RadarClassifiable): RadarDataDependency`
-- `classifyRadarCheck(check: RadarClassifiable): RadarClassification`
-- `radarFindingGroup(input: { domain: AdvisorDomain; id: string }): RadarFindingGroup` — Classify a finding (issue or incident) into its top-level problem bucket. Reliability and Infrastructure are cross-domain overrides applied first (a blind spot or a DB outage is t…
-- `RADAR_TIER_BY_SCOPE: Record<RadarCheckScope, RadarCheckTier>` — Scope → tier. Scope is the authoritative record of how a check is produced.
-- `RADAR_FINDING_GROUP_LABELS: Record<RadarFindingGroup, string>` — Human labels for the finding groups.
-- `interface RadarClassifiable (2 members)` — The shape needed to classify — every RadarCheck and catalogue rule has these.
-- `interface RadarClassification (2 members)`
-
-### `src/lib/radar/radarCorrelations.ts`
-
-- `buildRadarCorrelationIssues(observations: readonly RadarObservation[], checks: readonly BusinessRadarCheck[], now: number): BusinessRadarIssue[]`
-
-### `src/lib/radar/radarCoverageRegistry.ts`
-
-- `coverageTemplateFor(type: string): RadarCoverageTemplate` — Resolve an entity type to its template, falling back to the generic pack.
-- `resolveRadarCoverage(entities: readonly RadarCoverageInputEntity[]): RadarCoverageManifest` — Resolve every entity to its pack, producing the coverage manifest the watchdog uses to prove seeding worked. Unknown types resolve to the generic fallback (never a gap); a `gap` o…
-- `RADAR_COVERAGE_TEMPLATES: Record<RadarCoverageEntityType | "generic", RadarCoverageTemplate>`
-- `interface RadarCoverageTemplate (6 members)` — Radar coverage registry + seeder (radar upgrade Stage 6, Part E). A declarative **detector-pack template per entity type** plus a **generic fallback**, so every monitorable entity…
-- `interface RadarCoverageInputEntity (4 members)`
-
-### `src/lib/radar/radarInfraChecks.ts`
-
-- `buildInfraHealthChecks(snapshot: RadarInfraHealthSnapshot | undefined, now: number): BusinessRadarCheck[]` — Build the infra-scope checks from the latest Infra sweep snapshot. With no snapshot yet (sweep hasn't run), emit a single honest `learning` check rather than silence, so uninstrum…
-
-### `src/lib/radar/radarPolicyEngine.ts`
-
-- `resolveRadarPolicy(configuration: RadarPolicyConfiguration, domain: AdvisorDomain, familyId?: string, checkId?: string): ResolvedRadarPolicy`
-- `applyAdaptiveRadarPolicy(input: AdaptiveRadarInput): AdaptiveRadarResult`
-- `interface RadarBusinessContext (8 members)`
-- `interface AdaptiveRadarResult (5 members)`
-- `interface ResolvedRadarPolicy (10 members)`
-
-### `src/lib/radar/radarRuleCatalog.ts`
-
-- `radarRulesForDomain(domain: AdvisorDomain): readonly BusinessRadarRuleDefinition[]`
-- `RADAR_RULE_LENSES: ReadonlyArray<{ id: RadarRuleLens; label: string; description: string }>`
-- `RADAR_SIGNAL_FAMILIES = DOMAIN_SIGNAL_FAMILIES`
-- `BUSINESS_RADAR_RULE_CATALOG: readonly BusinessRadarRuleDefinition[]`
-- `RADAR_CHECKS_PER_DOMAIN = RADAR_RULE_LENSES.length * 12`
-- `interface RadarSignalFamilyDefinition (3 members)`
-- `interface BusinessRadarRuleDefinition (9 members)`
-
-### `src/lib/radar/radarSentinels.ts`
-
-- `buildSourceSentinelChecks(coverage: readonly AdvisorCoverageSource[], now: number): BusinessRadarCheck[]`
-- `buildPropertySentinelChecks(telemetry: RadarTelemetrySnapshot, now: number): BusinessRadarCheck[]`
-- `buildRadarWatchdogChecks(input: { checks: readonly BusinessRadarCheck[]; coverage: readonly AdvisorCoverageSource[]; telemetry: RadarTelemetrySnapshot; correlationIssues: readonly BusinessRadarIssue[]; evidence?: RadarE…`
-
-### `src/lib/radar/radarSyntheticChecks.ts`
-
-- `buildSyntheticCanaryChecks(telemetry: RadarTelemetrySnapshot, probes: Record<string, RadarSyntheticProbeResult>, now: number): BusinessRadarCheck[]`
-- `buildSyntheticCanaryIssues(telemetry: RadarTelemetrySnapshot, probes: Record<string, RadarSyntheticProbeResult>, now: number): BusinessRadarIssue[]`
-
-### `src/lib/radar/radarSyntheticSafety.ts`
-
-- `isReservedSyntheticHostname(hostname: string): boolean`
-- `isUnsafeSyntheticAddress(address: string): boolean`
-
-
 ## `src/lib/resources/`
 
 ### `src/lib/resources/catalog.ts`
@@ -1093,8 +970,10 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `isAssistantConfigured(agencyId?: string)`
 - `assistantModel(agencyId?: string)`
+- `extractOutputText(payload: unknown): string` — The Responses API's answer, as plain text. Exported for the editor's reply path, which parses the same wire shape on a different credential.
 - `async askMilesymediaAssistant(input: { agencyId: string; userName: string; memories: AssistantMemory[]; history: AssistantMessage[]; businessContext: string; contextTruncated: boolean; question: string; skill: AdvisorSk…`
 - `async suggestAdvisorActions(input: { agencyId: string; businessContext: string; alerts: OperationalAlert[]; radarIssues: BusinessRadarIssue[]; recommendedActions?: AdvisorActionSuggestion[]; existingTaskTitles: string[]…`
+- `OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"` — The one wire the assistants speak on. Exported so Aqua Editor AI's reply path (`engines/editor/server/editorAiReply.ts`) calls the SAME endpoint with the same idiom rather than gr…
 
 
 ## `src/lib/server/auth/`
@@ -1528,8 +1407,9 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `readersOf(t: Thought): string[]` — Who has picked a thought up, oldest read first.
 - `isRead(t: Thought): boolean`
-- `async addThought(input: { text: string; author: string; taskId?: string; planName?: string; worker?: string; }): Promise<Thought>`
+- `async addThought(input: { text: string; author: string; taskId?: string; planName?: string; worker?: string; projectId?: string; }): Promise<Thought>`
 - `async listThoughts(limit = 100): Promise<Thought[]>`
+- `async listThoughtsForProject(projectId: string, limit = 100): Promise<Thought[]>` — One project's notes, newest first — the editor's Notes tab (phase 14). Filtered by the first-class `projectId` tag, so a project's notes and the worker-thought traffic share a led…
 - `async thoughtsByTask(): Promise<Record<string, Thought[]>>` — Thoughts grouped by the task they're attached to, for inline display.
 - `async unreadFor(worker: string): Promise<Thought[]>` — What a given worker still hasn't picked up — its own, plus general notes. "Unread" is per reader: another worker acknowledging a general note does not consume it for this one.
 - `async acknowledge(ids: string[], worker: string): Promise<number>` — Mark `ids` as picked up BY `worker`. Other readers are left as they were.
@@ -1537,7 +1417,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `async ledgerPressure(): Promise<{ rows: number; unread: number; max: number; full: boolean }>` — How close the ledger is to its cap, and how much of it is undeliverable backlog. Unread rows are never evicted, so a ledger that stays over the cap is a signal that nobody is runn…
 - `class ThoughtLedgerUnreadableError` — The ledger exists but could not be parsed — never silently overwrite it.
     - `constructor(public readonly file: string)`
-- `interface Thought (8 members)`
+- `interface Thought (9 members)`
 
 ### `src/lib/server/dev/devTeamUpdates.ts`
 
@@ -1572,6 +1452,25 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface ActiveFile (3 members)`
 - `interface WorkerSignals (5 members)`
 - `interface AreaActivity (4 members)`
+
+### `src/lib/server/dev/fileFinding.ts`
+
+- `queryTerms(query: string): string[]` — Free words → lowercase terms. Dots and slashes survive (people paste filenames and paths); question-shaped filler ("where is the…"), trailing punctuation and one-character fragmen…
+- `parseReferencePage(markdown: string): ReferenceEntry[]` — Parse one generated reference page into greppable entries. Two shapes exist and both are handled: the bucket pages (` ### `path` ` headings over ``- `symbol(...)` — summary`` line…
+- `async findFiles(input: FindFilesInput, deps: FileFindingDeps = {}): Promise<FileFindingResult>` — Answer "where is X / what exists about X" for one agency, optionally scoped to one of its projects. Tenant first, then project — a foreign or unknown `projectId` throws `project_n…
+- `async fileFindingWorld(agencyId: string, deps: FileFindingDeps = {}): Promise<FileFindingWorld>` — The skill's view of the world for one agency, with no question asked yet — what a consumer briefs FROM before its first find. This is what replaced the Librarian's business-snapsh…
+- `fileFindingBrief(result: FileFindingResult): string` — The result as deterministic plain text, for dropping into any assistant's context. One shape for every consumer, so the Librarian and the editor AI describe the same finding the s…
+- `type FileFindingSource = "repo" | "reference" | "docs"` — ─── Shapes ──────────────────────────────────────────────────────────────────
+- `type FileFindingReasonKind = "path" | "symbol" | "doc-title" | "content"` — Why a hit matched — the four kinds phase 15 names.
+- `type FileFindingRepoStatus = | "full-tree" /** The local working tree walked — a blank-repository project. */ | "workspace" /** Only the recorded map's top-level directories — no token resolved, so no network. */ | "map…` — Which of the four levels the repository half answered from.
+- `type FileFindingWorldRepo = | "github" /** A blank-repository project — the local working tree answers. */ | "workspace" /** The last Map failed; only docs and the reference would answer. */ | "map-error" /** Never mapp…` — What one project's RECORDED map says its repository half would be. No network.
+- `interface FileFindingReason (3 members)`
+- `interface FileFindingHit (6 members)`
+- `interface FileFindingResult (8 members)`
+- `interface FindFilesInput (4 members)`
+- `interface FileFindingDeps (6 members)` — Test seams, `SourceEditDeps`-style. Production passes none: without these a GitHub-mapped project cannot be driven in-process except by planting a real encrypted connection, and t…
+- `interface FileFindingWorldProject (3 members)`
+- `interface FileFindingWorld (3 members)`
 
 
 ## `src/lib/server/`
@@ -1756,10 +1655,10 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `scanFormsInHtml(html: string): AquaTagScanForms` — Count forms the way the tag decides what to capture, from static HTML. A form is capturable when the site explicitly marked it (`data-aqua-form` / `data-aqua-capture`) or it plain…
 - `scanFormSchemasInHtml(html: string): AquaFormSchema[]` — Extract each form's field layout from static HTML — the schema behind the "Import forms" step (plan Phase 2). Mirrors `scanFormsInHtml`'s form + capturable heuristic so "these 3 f…
-- `analyzeAquaTagHtml(html: string, masterSiteKey: string): AquaTagAnalysis` — Read a page's HTML for the tag and its forms. Pure — no network.
+- `analyzeAquaTagHtml(html: string, masterSiteKey: string, pageUrl?: string): AquaTagAnalysis` — PRESENCE IS NOT EXECUTION. This reads the served HTML, so it can prove the snippet is on the page with the right key — and nothing more. Found live on the first real client run (2…
 - `async detectAquaTag(input: { rawUrl: string; masterSiteKey: string }): Promise<AquaTagDetection>` — Fetch a domain and report whether the master tag is live and how many forms it would capture. Network failures come back as a reachable:false result with a plain reason, not a thr…
 - `interface AquaTagScanForms (2 members)` — Prove the Aqua Tag is live on a domain, and count what it will capture. This is the first tangible step of the setup wizard: paste the tag on a site, then we fetch that site the w…
-- `interface AquaTagAnalysis (4 members)`
+- `interface AquaTagAnalysis (6 members)`
 - `interface AquaTagDetection (5 members)`
 
 ### `src/lib/server/integrations/githubProjectPublisher.ts`
@@ -1807,6 +1706,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `markIntegrationConnectionSynced(agencyId: string, connectionId: string, syncedAt = Date.now()): PublicIntegrationConnection`
 - `async testIntegrationConnection(agencyId: string, connectionId: string, actor: { userId: string; email?: string }, fetchImpl: typeof fetch = fetch): Promise<PublicIntegrationConnection>`
 - `publicIntegrationConnection(connection: IntegrationConnection): PublicIntegrationConnection`
+- `scrubSecrets(message: string, secrets: string[] = []): string` — THE SECRET SCRUBBER. Remove secret values and secret-shaped text from a sentence that is about to be stored or shown. Exported because a provider error is not unique to connection…
 - `MANAGED_INTEGRATION_PROVIDERS = INTEGRATION_CATALOG.map(item => item.id)`
 
 ### `src/lib/server/integrations/metaMessaging.ts`
@@ -1867,42 +1767,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `async deployProjectPreviewToVercel(input: { agencyId?: string; clientId?: string; localPath: string; projectSlug: string; config?: VercelDeploymentConfig; }, dependencies: DeployDependencies = {}): Promise<VercelPreview…`
 - `interface VercelDeploymentConfig (2 members)`
 - `interface VercelPreviewDeployment (6 members)`
-
-
-## `src/lib/server/kpi/`
-
-### `src/lib/server/kpi/companyHealthSnapshot.ts`
-
-- `async buildCompanyHealthSnapshot(agencyId: string, now = Date.now())`
-- `getRequestCompanyHealth = cache(` — collapses them to one build. The raw function below is unchanged.
-- `interface CompanyHealthActuals (13 members)`
-- `interface CompanyRevenueGrowthPoint (2 members)`
-
-### `src/lib/server/kpi/customKpis.ts`
-
-- `listCustomKpis(agencyId: string): CustomKpiDefinition[]`
-- `createCustomKpi(agencyId: string, input: CreateCustomKpiInput, opts: { actorUserId: string; now?: number }): CustomKpiDefinition` — Create a custom KPI. Throws on an unknown op or a missing numerator id.
-- `deleteCustomKpi(agencyId: string, id: string, opts: { actorUserId: string }): CustomKpiDefinition[]` — Delete a custom KPI by id.
-- `interface CreateCustomKpiInput (6 members)`
-
-### `src/lib/server/kpi/kpiRegistryService.ts`
-
-- `async buildKpiRegistry(input: KpiRegistryInput): Promise<KpiDescriptor[]>` — Build the KPI registry for an agency: run the command-intelligence snapshot and project its KPIs into descriptors. Phase 1 registers the 20 command KPIs; every descriptor carries …
-- `buildEvidenceDescriptors(agencyId: string): KpiDescriptor[]` — Register every retained radar-evidence series for an agency as an evidence-kind descriptor. This is the vault-backed series provider the plan anticipated — it reads the durable ti…
-- `type KpiRegistryInput = Parameters<typeof buildCommandIntelligenceSnapshot>[0]` — Same inputs as the command-intelligence builder (radar + evidence + scope).
-
-### `src/lib/server/kpi/kpiSavedViews.ts`
-
-- `listSharedKpiViews(agencyId: string): SharedKpiComparisonView[]` — The agency's shared saved KPI views, newest last (save order).
-- `saveSharedKpiView(agencyId: string, input: SaveSharedKpiViewInput, opts: { actorUserId: string; now?: number }): SharedKpiComparisonView` — Save (or replace, by case-insensitive name — the same replace-on-same-name semantics the private browser half applies) one shared view. Throws on a missing name or an empty KPI se…
-- `deleteSharedKpiView(agencyId: string, id: string, opts: { actorUserId: string }): SharedKpiComparisonView[]` — Delete one shared view by id. Returns the remaining views.
-- `interface SaveSharedKpiViewInput (6 members)`
-
-### `src/lib/server/kpi/kpiTargets.ts`
-
-- `getKpiTargetsConfig(agencyId: string): KpiTargetsConfig` — The agency's persisted KPI targets config (empty if none set).
-- `setKpiTarget(agencyId: string, kpiId: string, patch: { baselineValue?: number | null; targetValue?: number | null }, opts: { companyId?: string; actorUserId: string; now?: number }): KpiTargetsConfig` — Set (or update) a KPI target/baseline override, versioned. Returns the new config.
-- `clearKpiTarget(agencyId: string, kpiId: string, opts: { companyId?: string; actorUserId: string; now?: number }): KpiTargetsConfig` — Clear a KPI override at the agency or company level. Returns the new config.
 
 
 ## `src/lib/server/`
@@ -1988,7 +1852,37 @@ Every exported function, class, type and const in this area, with its real signa
 - `makePluginStorage(installId: string): PluginStorage`
 
 
+## `src/lib/server/plugins/`
+
+### `src/lib/server/plugins/pluginSecretConfig.ts`
+
+- `pluginSettingsFields(pluginId: string): SettingsField[]` — Every settings field of a plugin, flattened, in declaration order.
+- `vaultTargetOf(field: SettingsField): { provider: IntegrationProvider; field: string } | null` — A field routed to the vault, with a provider the catalogue actually knows.
+- `installConfigWithSecrets(pluginId: string, scope: PluginSecretScope, config: Record<string, unknown> | undefined | null): Record<string, unknown>` — `install.config` with the plugin's vault-held secrets merged in under their manifest field ids. The vault WINS over a same-named entry on the config record. That is deliberate: `i…
+- `interface PluginSecretScope (2 members)`
+
+### `src/lib/server/plugins/pluginSettingsSurface.ts`
+
+- `describePluginSettings(pluginId: string, scope: PluginSecretScope): PluginSettingsView | null` — ─── Read ─────────────────────────────────────────────────────────────────
+- `writePluginSettings(input: WritePluginSettingsInput): WritePluginSettingsResult`
+- `class PluginSettingsError`
+- `type PluginSettingsValue = string | number | boolean | null`
+- `interface PluginSettingsFieldView (10 members)`
+- `interface PluginSettingsGroupView (4 members)`
+- `interface PluginSettingsView (4 members)`
+- `interface WritePluginSettingsInput (5 members)` — ─── Write ────────────────────────────────────────────────────────────────
+- `interface WritePluginSettingsResult (2 members)`
+
+
 ## `src/lib/server/portal/`
+
+### `src/lib/server/portal/apiTenantScope.ts`
+
+- `resolveApiTenantScope(input: ApiTenantScopeInput): ApiTenantScope`
+- `tenantScopeSession(session: SessionPayload): TenantScopeSession` — Narrow a full `SessionPayload` to the shape above.
+- `type ApiTenantScope = | { ok: true; agencyId: string; clientId?: string } | { ok: false; status: 403; error: "tenant_scope_mismatch" | "forbidden" }`
+- `interface TenantScopeSession (4 members)` — Just the parts of a session this decision reads.
+- `interface ApiTenantScopeInput (5 members)`
 
 ### `src/lib/server/portal/portalConnections.ts`
 
@@ -2073,89 +1967,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `type AllowedPublicUploadContentType = (typeof ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES)[number]`
 - `interface StorePublicUploadInput (5 members)`
 - `interface StoredPublicUpload (3 members)`
-
-
-## `src/lib/server/radar/`
-
-### `src/lib/server/radar/businessIssueRadar.ts`
-
-- `invalidateBusinessIssueRadarCache(agencyId: string): void`
-- `getCachedBusinessIssueRadar(agencyId: string, now = Date.now()): Promise<BusinessIssueRadar>`
-- `async buildBusinessIssueRadar(agencyId: string, now = Date.now(), inputs: RadarInputs = {}): Promise<BusinessIssueRadar>`
-
-### `src/lib/server/radar/clientRadarService.ts`
-
-- `async buildClientRadarFleet(agencyId: string, options: ClientRadarFleetOptions = {}): Promise<ClientRadarSnapshot[]>`
-- `async buildClientRadar(agencyId: string, clientId: string, options: Omit<ClientRadarFleetOptions, "clients"> = {}): Promise<ClientRadarSnapshot | null>`
-
-### `src/lib/server/radar/radarEvidenceVault.ts`
-
-- `applyRadarEvidenceBaselines(agencyId: string, observations: readonly RadarObservation[]): RadarObservation[]`
-- `buildRadarEvidenceLayer(agencyId: string, observations: readonly RadarObservation[], now: number, policy?: RadarPolicyConfiguration): RadarEvidenceLayer`
-- `recordRadarEvidence(agencyId: string, radar: BusinessIssueRadar): void`
-- `inspectRadarEvidence(agencyId: string): RadarEvidenceInspectionIndex`
-- `inspectRadarEvidenceSeries(agencyId: string, id: string): RadarEvidenceSeriesInspection | null` — A retained series, found by its own id or by the source it measures. The map is keyed by `series.id`, but a series also records the `sourceId` it was measured from, and for most o…
-- `interface RadarEvidenceLayer (3 members)`
-
-### `src/lib/server/radar/radarMemory.ts`
-
-- `buildRadarMemoryDigest(agencyId: string, radar: RadarWithoutMemory, now = radar.generatedAt, includeCurrentSweep = false): RadarMemoryDigest`
-- `recordRadarSweep(agencyId: string, radar: BusinessIssueRadar): RadarMemoryDigest`
-- `getRadarMemoryState(agencyId: string): RadarMemoryState | null`
-- `buildRadarMemoryIssues(memory: RadarMemoryDigest, now: number): BusinessRadarIssue[]`
-
-### `src/lib/server/radar/radarObservations.ts`
-
-- `buildRadarObservations(input: RadarObservationInputs): RadarObservation[]`
-- `interface RadarObservationInputs (15 members)`
-
-### `src/lib/server/radar/radarSeeding.ts`
-
-- `ensureRadarSeedingRegistered(): void`
-
-### `src/lib/server/radar/radarSourceInspection.ts`
-
-- `async inspectRadarSourceData(agencyId: string): Promise<RadarSourceDataIndex>`
-- `async listRadarSourceSearchDatasets(agencyId: string): Promise<RadarSourceSearchDataset[]>`
-- `async inspectRadarSourceDataset(agencyId: string, datasetId: string, offset = 0, limit = 100): Promise<RadarSourceDatasetInspection | null>`
-- `async exportRadarSourceData(agencyId: string, datasetId?: string): Promise<unknown>`
-- `invalidateRadarSourceInspection(agencyId: string): void`
-- `interface RadarSourceSearchDataset (1 members)`
-
-### `src/lib/server/radar/radarSweeps.ts`
-
-- `radarSweepForTier(tier: RadarCheckTier): RadarSweepType`
-- `async runRadarDeepSweep(agencyId: string, options: { force?: boolean; now?: number } = {}): Promise<RadarSyntheticProbeResult[]>` — Deep / Synthetic sweep — run the network canaries. `force` runs every target now (the full-scan path); without it, the probe layer respects its own cadence and reuses recent resul…
-- `async runRadarInfraSweep(now = Date.now()): Promise<RadarInfraHealthSnapshot>` — Infra sweep — probe database reachability + latency (primary + external targets) and storage health, and persist the snapshot to `radarInfraHealth` for the Pulse to read. App-wide…
-- `runRadarEvidenceRollup(agencyId: string, radar: BusinessIssueRadar): RadarMemoryDigest` — Evidence rollup — persist temporal memory + the durable evidence vault from a freshly built radar. Returns the memory digest so callers can fold it back into the response (as the …
-- `async runRadarFullSweep(agencyId: string, options: RadarSweepRunOptions = {}): Promise<RadarFullSweepResult>` — Full scan — the explicit "run everything now" path (the scan route's POST). Forces the Deep sweep, rebuilds the Pulse against the fresh probes, reconciles tasks, rolls up evidence…
-- `async runRadarScheduledSweep(agencyId: string, options: RadarSweepRunOptions = {}): Promise<RadarScheduledSweepResult>` — Scheduled sweep — the background cadence path (the `cron/inbox` loop, one call per active agency). Runs the Deep sweep at its own cadence (no force), rebuilds the Pulse, rolls up …
-- `async runRadarProbeRefresh(agencyId: string, options: RadarSweepRunOptions = {}): Promise<RadarProbeRefreshResult>` — Fast probe refresh for one agency (dedicated probe cadence, `cron/radar-probes`). Runs only the Deep sweep (synthetic canaries, respecting their own cadence) and invalidates the P…
-- `RADAR_SWEEP_DEFINITIONS: Record<RadarSweepType, RadarSweepDefinition>` — The sweep taxonomy. This is descriptive metadata today; Stage 2 wires the `tier` classification to it and Stage 4 gives `infra` a real probe. The `pulse` sweep never does I/O — it…
-- `RADAR_TIER_TO_SWEEP: Record<RadarCheckTier, RadarSweepType>` — Tier → the primary sweep responsible for refreshing checks of that tier (radar upgrade Stage 2). Total over every tier, so the scheduler can always resolve "which sweep produces t…
-- `type RadarSweepType = "pulse" | "deep" | "infra" | "evidence" | "compliance"` — The named kinds of Radar sweep, split by cost + cadence + data source.
-- `type RadarSweepCost = "cheap" | "medium" | "expensive"` — Rough cost band — cheap in-state CPU vs. a real network / DB round-trip.
-- `interface RadarSweepDefinition (8 members)`
-- `interface RadarSweepRunOptions (1 members)`
-- `interface RadarFullSweepResult (2 members)`
-- `interface RadarScheduledSweepResult (5 members)`
-- `interface RadarProbeRefreshResult (4 members)`
-
-### `src/lib/server/radar/radarSyntheticProbes.ts`
-
-- `async runAgencySyntheticProbes(agencyId: string, options: { force?: boolean; now?: number } = {}): Promise<RadarSyntheticProbeResult[]>`
-- `listAgencySyntheticProbes(agencyId: string): RadarSyntheticProbeResult[]`
-- `discoverRadarSyntheticTargets(agencyId: string): RadarSyntheticTarget[]`
-- `interface RadarSyntheticTarget (3 members)`
-
-### `src/lib/server/radar/radarTelemetry.ts`
-
-- `buildRadarTelemetrySnapshot(agencyWebsite: AgencyWebsiteProject | undefined, clients: Client[], syntheticProbes: Record<string, RadarSyntheticProbeResult> = {}, now = Date.now()): RadarTelemetrySnapshot`
-- `interface RadarTelemetryProperty (22 members)`
-- `interface RadarTelemetrySnapshot (3 members)`
-
-
-## `src/lib/server/`
 
 ### `src/lib/server/rateLimit.ts`
 
@@ -2335,6 +2146,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `type AvatarValidation = AvatarValidationOk | AvatarValidationFail`
 - `interface AvatarValidationOk (3 members)`
 - `interface AvatarValidationFail (2 members)`
+
+### `src/lib/shared/devProjectGrouping.ts`
+
+- `groupDevProjects<T extends DevProjectGroupable>(projects: T[]): DevProjectGroup<T>[]` — Arrange a flat project list as [parent, ...its children] groups. Tolerant by design — display code must never make a record unreachable: - a child whose parent is NOT in the list …
+- `devProjectDoorFamily<T extends DevProjectGroupable>(projects: T[], doorProjectId: string): T[]` — The projects an editor door is allowed to switch between. The door is the project named by the URL when the editor opened. A top-level door may see itself and its direct children;…
+- `interface DevProjectGroupable (2 members)` — through the projects GET and the grouping happens where it renders.
+- `interface DevProjectGroup<T extends DevProjectGroupable> (2 members)`
 
 ### `src/lib/shared/formatDateTime.ts`
 

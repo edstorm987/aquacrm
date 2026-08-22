@@ -11,9 +11,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (5)
 
+- [`src/engines/data/radar/businessRadar.ts`](../../../engines/data/radar/businessRadar.md)
 - [`src/lib/advisor/advisorActions.ts`](../../advisor/advisorActions.md)
 - [`src/lib/intelligence/operationalAttention.ts`](../../intelligence/operationalAttention.md)
-- [`src/lib/radar/businessRadar.ts`](../../radar/businessRadar.md)
 - [`src/lib/server/assistants/advisorContext.ts`](./advisorContext.md)
 - [`src/lib/server/assistants/externalAssistantApi.ts`](./externalAssistantApi.md)
 

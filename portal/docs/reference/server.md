@@ -173,7 +173,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `collectionsWithDisposition(disposition: PromotionDisposition): Array<keyof Required<PortalState>>`
 - `collectionsNeedingConfirmation(): Array<keyof Required<PortalState>>` — Collections whose disposition is a proposal a human must confirm.
 - `PROMOTION_DISPOSITION = {` — THE MAP. Order deliberately follows `PortalState` so the two can be read side by side. Nothing calls this to move a record yet — phase 1 is the map and its guard, and nothing else.
-- `PROMOTION_COLLECTION_COUNT = 79` — How many collections `PortalState` had when this map was written. The map's own length is checked against `PortalState` by the types above; this constant is the human-readable hal…
+- `PROMOTION_COLLECTION_COUNT = 82` — How many collections `PortalState` had when this map was written. The map's own length is checked against `PortalState` by the types above; this constant is the human-readable hal…
 - `PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<` — Every classified collection name, in `PortalState` order.
 - `type PromotionDisposition = "move" | "rekey" | "seed" | "closure" | "leave" | "na"` — What a promotion does with a collection. - `move` the records leave the origin tenant and arrive in the new one. One record, one tenant, ever — never a copy (see the erasure invar…
 - `type PromotionOwnership = | "company-single" /** `record.companyIds[]` — exclusive to this company, shared, or unset. */ | "company-multi" /** No company field; follows a client that is moving. */ | "client" /** Belongs…` — How a record in this collection is tied to a company — i.e. which field the preview may read to decide whether a record belongs to the promoted brand. This is the honest statement…
@@ -475,7 +475,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/server/phaseApplier.ts`
 
-- `async applyPhaseToClient(clientId: string, phaseId: string): Promise<ApplyResult | ApplyError>`
+- `async applyPhaseToClient(clientId: string, phaseId: string, agencyId: string): Promise<ApplyResult | ApplyError>` — Apply a phase to a client, on behalf of `agencyId`. `agencyId` is REQUIRED and is the caller's own tenant — it is not derived from the client, and it is not optional. Both ids in …
 - `interface ApplyResult (6 members)`
 - `interface ApplyError (2 members)`
 
@@ -565,32 +565,6 @@ Every exported function, class, type and const in this area, with its real signa
 - `clientProductWorkspaces(client: Client): PortalProductWorkspace[]`
 - `saveClientProductWorkspaces(client: Client, workspaces: PortalProductWorkspace[]): Client | null`
 - `reconcileClientProductWorkspaces(client: Client, products: PortalProductSelection[], stage: PortalProductMode): Record<string, unknown>`
-
-### `src/server/sopGuides.ts`
-
-- `listSopGuides(agencyId: string): SopGuide[]`
-- `getSopGuide(agencyId: string, id: string): SopGuide | null`
-- `createSopGuide(input: CreateSopGuideInput): SopGuide`
-- `updateSopGuide(agencyId: string, id: string, patch: UpdateSopGuidePatch, actorUserId: string): SopGuide | null`
-- `deleteSopGuide(agencyId: string, id: string): SopGuide | null`
-- `interface CreateSopGuideInput (7 members)`
-- `interface UpdateSopGuidePatch (5 members)`
-
-### `src/server/sops.ts`
-
-- `listSops(agencyId: string): SopDocument[]`
-- `listSopCategories(agencyId: string): string[]`
-- `createSopCategory(agencyId: string, category: string, actorUserId: string): string`
-- `getSop(agencyId: string, id: string): SopDocument | null`
-- `createWrittenSop(input: { agencyId: string; title: string; content: string; category?: string; categories?: string[]; tags?: string[]; actorUserId: string }): SopDocument`
-- `validateSopBlockTree(blocks: BlockTreeJSON): SopBlockProblem[]` — Validate an interactive SOP's block tree by COMPOSING the element engine's own validators — never re-implementing them. Structural integrity (a string id, a string type, unique id…
-- `createInteractiveSop(input: { agencyId: string; title: string; blocks: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[]; resourceType?: SopDocument["resourceType"]; actorUserId: string }): SopDoc…`
-- `createFileSop(input: Omit<SopDocument, "createdAt" | "updatedAt" | "updatedBy" | "kind" | "tags" | "categories"> & { tags?: string[]; categories?: string[] }): SopDocument`
-- `updateSop(agencyId: string, id: string, patch: { title?: string; content?: string; blocks?: BlockTreeJSON; category?: string; categories?: string[]; tags?: string[] }, actorUserId: string): SopDocument | null`
-- `deleteSopRecord(agencyId: string, id: string): SopDocument | null`
-- `deleteSopCategory(agencyId: string, category: string, replacementCategory: string | undefined, actorUserId: string): DeleteSopCategoryResult | null`
-- `interface SopBlockProblem (4 members)`
-- `interface DeleteSopCategoryResult (4 members)`
 
 ### `src/server/staffCapacity.ts`
 
@@ -795,6 +769,8 @@ Every exported function, class, type and const in this area, with its real signa
 - `type DevelopmentResourceVisibility = "team" | "private"`
 - `type AgencyWebsiteReleaseStatus = "live" | "gated" | "maintenance"`
 - `type AgencyWebsitePageStatus = "live" | "updating"`
+- `type DevProjectKind = "software" | "website" | "portal"` — Retained so stored records keep loading. It no longer decides anything. It USED to: "software is code-only" gated the browser off every project Ed creates (everything defaults to …
+- `type DevProjectTagState = | "none" /** There is something to check, but no check has run yet. */ | "unchecked" /** We tried to read the page and could not. */ | "unreachable" /** The page read fine; our snippet is not o…` — Where a project's Aqua Tag actually stands, as one word. "Tagged / not tagged" was never enough to tell somebody what to DO next. A page that cannot be read, a page with no snippe…
 - `type PeopleApplicationStage = | "applied" | "under-review" | "interview" | "shortlisted" | "offer" | "accepted" | "onboarding" | "declined" | "withdrawn"` — ─── People ──────────────────────────────────────────────────────────────
 - `type PeopleEmploymentType = | "full-time" | "part-time" | "contractor" | "freelancer" | "intern" | "volunteer"`
 - `type PeopleWorkspaceStationId = | "my-day" | "actions" | "calendar" | "onboarding" | "leave" | "training" | "pay" | "notes" | "progression" | "chat"`
@@ -900,13 +876,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PortalFormFieldDefinition (9 members)`
 - `interface PortalFormEditorState (3 members)`
 - `interface ClientPortalStagePresentation (6 members)`
-- `interface ClientPortalPagePresentation (5 members)`
+- `interface ClientPortalPagePresentation (6 members)`
 - `interface ClientPortalCustomCode (8 members)`
 - `interface ClientPortalBlockResponsive (4 members)`
 - `interface ClientPortalBlockMedia (5 members)`
 - `interface ClientPortalBlockItem (5 members)`
 - `interface ClientPortalPageBlock (21 members)`
-- `interface ClientPortalCustomPage (5 members)`
+- `interface ClientPortalCustomPage (6 members)`
 - `interface ClientPortalBuilderDocument (2 members)`
 - `interface ClientPortalDesignDocument (8 members)`
 - `interface ClientPortalDesignVersion (6 members)`
@@ -939,6 +915,17 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface AgencyWebsiteTelemetryEvent (29 members)`
 - `interface AgencyWebsiteProject (17 members)`
 - `interface IntegrationConnection (15 members)`
+- `interface DevProjectRepoMap (10 members)` — What pressing MAP found in the repository. Recorded so the editor knows the shape of a project without re-walking it on every open — a GitHub tree is a network round trip and the …
+- `interface DevProjectTagMap (10 members)` — What pressing MAP found at the project's address — is the tag really there? "Connected" is not a checkbox somebody ticks. The tag either answers on the page or it does not, and th…
+- `interface DevProjectMapStatus (8 members)` — What is connected, what is mapped, and what is still missing — in words. Computed by `devProjectMapStatus` and sent to the screen, so the rule that decides whether the browser run…
+- `interface DevProjectMasterTagView (5 members)` — The agency's Aqua Tag as the setup screen needs to show it. Public by design — the site key ships inside the HTML of every page the tag is installed on, which is exactly why it is…
+- `interface DevProjectMap (4 members)` — The record of the last MAP run — both halves, and when it happened.
+- `interface DevProject (18 members)` — A Dev Editor Engine project — the binding that was missing. Everything it points at already existed but was scattered: the repo/branch were typed ad-hoc into the code workspace, G…
+- `interface EditorAiConfig (10 members)` — AQUA EDITOR AI — one project's own assistant, configured per project. Ed's call, verbatim: "aqua editor ai needs to be its only thing… needs a seperate tocken please to configure……
+- `interface EditorAiStatus (7 members)` — The same configuration as the CLIENT is allowed to see it. The one shape that may cross to the browser. It carries whether a token is set and — at most — a masked tail so Ed can t…
+- `interface EditorAiMessage (7 members)` — One message in a project's Aqua Editor AI conversation.
+- `interface EditorAiThread (5 members)`
+- `interface EditorAiConversation (6 members)` — ONE project's whole chat history. Nothing else is in here. Keyed `${agencyId}|${projectId}` in `PortalState.editorAiConversations`, and the agency is checked BEFORE the project on…
 - `interface RadarMemoryIssueState (11 members)`
 - `interface RadarMemoryCheckState (7 members)`
 - `interface RadarMemorySourceState (10 members)`
@@ -976,7 +963,7 @@ Every exported function, class, type and const in this area, with its real signa
 - `interface PeopleFeedback (8 members)` — channel (the fuller two-way conversation is the internal-chat phase).
 - `interface PeopleRecognition (8 members)` — "You Deserve It" clientDelight system, which this can later feed.
 - `interface CustomKpiDefinition (9 members)` — A guided custom KPI (Phase 6 — KPI intelligence): combine a numerator base metric with an optional denominator via an op. Not a formula language — safe and honest by construction …
-- `interface PortalState (79 members)`
+- `interface PortalState (82 members)`
 
 ### `src/server/userSchemaMigration.ts`
 

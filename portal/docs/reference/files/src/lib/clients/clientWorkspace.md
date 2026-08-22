@@ -32,11 +32,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/clients/[clientId]/layout.tsx`](../../app/portal/clients/[clientId]/layout.md)
 - [`src/app/portal/clients/[clientId]/page.tsx`](../../app/portal/clients/[clientId]/page.md)
 - [`src/components/chrome/ClientRadarQuickLookButton.tsx`](../../components/chrome/ClientRadarQuickLookButton.md)
+- [`src/engines/data/server/radar/radarSyntheticProbes.ts`](../../engines/data/server/radar/radarSyntheticProbes.md)
+- [`src/engines/data/server/radar/radarTelemetry.ts`](../../engines/data/server/radar/radarTelemetry.md)
 - [`src/lib/server/assistants/advisorSkillContext.ts`](../server/assistants/advisorSkillContext.md)
 - [`src/lib/server/assistants/externalAssistantApi.ts`](../server/assistants/externalAssistantApi.md)
 - [`src/lib/server/commandIntelligenceService.ts`](../server/commandIntelligenceService.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../server/inbox/operationalAlerts.md)
-- [`src/lib/server/radar/radarSyntheticProbes.ts`](../server/radar/radarSyntheticProbes.md)
-- [`src/lib/server/radar/radarTelemetry.ts`](../server/radar/radarTelemetry.md)
 - [`src/lib/server/resolutionPlans.ts`](../server/resolutionPlans.md)
 

@@ -2,13 +2,13 @@
 
 ← [File index](../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
 
-**What it is:** R039 — Element schema migration runner.  Implementation moved to `src/lib/elements/blockSchemaMigrations.ts` in P1, so a portal or stage tree can be migrated by the same runner. Re-exported here verbatim.
+**What it is:** R039 — Element schema migration runner.  Implementation moved to `src/engines/editor/elements/blockSchemaMigrations.ts` in P1, so a portal or stage tree can be migrated by the same runner. Re-exported here verbatim.
 
 _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/elements/blockSchemaMigrations.ts`](../../../../../lib/elements/blockSchemaMigrations.md)
+- [`src/engines/editor/elements/blockSchemaMigrations.ts`](../../../../../engines/editor/elements/blockSchemaMigrations.md)
 
 ## Used by (2)
 

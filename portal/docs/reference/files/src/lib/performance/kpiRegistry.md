@@ -27,8 +27,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (3)
 
+- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
 - [`src/lib/intelligence/commandIntelligence.ts`](../intelligence/commandIntelligence.md)
-- [`src/lib/radar/businessRadar.ts`](../radar/businessRadar.md)
 - [`src/server/types.ts`](../../server/types.md)
 
 ## Used by (6)
@@ -36,7 +36,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`scripts/smoke-kpi-registry.test.ts`](../../../scripts/smoke-kpi-registry.test.md)
 - [`scripts/smoke-kpi-targets.test.ts`](../../../scripts/smoke-kpi-targets.test.md)
 - [`src/app/portal/agency/_CommandIntelligenceWorkspace.tsx`](../../app/portal/agency/_CommandIntelligenceWorkspace.md)
-- [`src/lib/server/kpi/kpiRegistryService.ts`](../server/kpi/kpiRegistryService.md)
-- [`src/lib/server/kpi/kpiTargets.ts`](../server/kpi/kpiTargets.md)
+- [`src/engines/data/server/kpi/kpiRegistryService.ts`](../../engines/data/server/kpi/kpiRegistryService.md)
+- [`src/engines/data/server/kpi/kpiTargets.ts`](../../engines/data/server/kpi/kpiTargets.md)
 - [`src/lib/server/marketingIntelligence.ts`](../server/marketingIntelligence.md)
 

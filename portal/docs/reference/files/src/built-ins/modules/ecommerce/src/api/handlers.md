@@ -34,7 +34,7 @@
 - `async listCollectionsHandler(_req: Request, ctx: PluginCtx): Promise<Response>`
 - `async saveCollectionsHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 
-## Depends on (10)
+## Depends on (11)
 
 - [`src/built-ins/modules/ecommerce/src/lib/admin/collections.ts`](../lib/admin/collections.md)
 - [`src/built-ins/modules/ecommerce/src/lib/admin/shipping.ts`](../lib/admin/shipping.md)
@@ -46,6 +46,7 @@
 - [`src/built-ins/modules/ecommerce/src/server/foundationAdapter.ts`](../server/foundationAdapter.md)
 - [`src/built-ins/modules/ecommerce/src/server/giftCards.ts`](../server/giftCards.md)
 - [`src/built-ins/modules/ecommerce/src/server/orders.ts`](../server/orders.md)
+- [`src/lib/server/plugins/pluginSecretConfig.ts`](../../../../../lib/server/plugins/pluginSecretConfig.md)
 
 ## Used by (1)
 

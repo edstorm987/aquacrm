@@ -8,7 +8,7 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 - `NotificationAttentionProvider({ initialAlerts, children, clientId, }: { initialAlerts: OperationalAlertView[]; children: ReactNode; clientId?: string; })`
 - `useNotificationAttention(): AttentionContextValue | null`
-- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: string[]; categories?: OperationalAlertCat…`
+- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], destinations = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: string[]; categories?: …`
 - `useUnresolvedAttentionMatches({ navId, clientId, }: { navId: string; clientId?: string; }): OperationalAlertView[]`
 - `AttentionDot({ href, hrefs, prefixHref, prefixHrefs, categories, all, className = "", }: { href?: string; hrefs?: string[]; prefixHref?: string; prefixHrefs?: string[]; categories?: OperationalAlertCategory[]; all?: boolean; className?: st…`
 - `attentionTitle(alerts: OperationalAlertView[]): string`

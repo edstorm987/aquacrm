@@ -15,6 +15,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 ## Depends on (16)
 
 - [`src/built-ins/runtime/_runtime.ts`](../../../built-ins/runtime/_runtime.md)
+- [`src/engines/sop/server/sops.ts`](../../../engines/sop/server/sops.md)
 - [`src/lib/clients/clientTelemetry.ts`](../../clients/clientTelemetry.md)
 - [`src/lib/server/pluginStorage.ts`](../pluginStorage.md)
 - [`src/server/agencyBootstrap.ts`](../../../server/agencyBootstrap.md)
@@ -25,7 +26,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/server/performanceExperiments.ts`](../../../server/performanceExperiments.md)
 - [`src/server/pipelines.ts`](../../../server/pipelines.md)
 - [`src/server/pluginInstalls.ts`](../../../server/pluginInstalls.md)
-- [`src/server/sops.ts`](../../../server/sops.md)
 - [`src/server/storage.ts`](../../../server/storage.md)
 - [`src/server/tasks.ts`](../../../server/tasks.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

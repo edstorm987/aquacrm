@@ -39,17 +39,36 @@ describe("what can be opened", () => {
     }
   });
 
-  it("refuses binaries, and says why rather than hiding them", () => {
-    // A file that simply vanishes from the tree reads as a bug in the editor.
+  it("shows an image rather than refusing it", () => {
+    // READABLE and EDITABLE are different questions. Answering one "no" used
+    // to mean the pane rendered nothing, which is why most of the repository
+    // looked invisible.
     const file = describeFile("public/logo.png");
-    assert.equal(file.editable, false);
+    assert.equal(file.kind, "image");
+    assert.equal(file.readable, true, "an image is shown as a preview");
+    assert.equal(file.editable, false, "but not edited as characters");
+  });
+
+  it("refuses only genuine binaries, and says why rather than hiding them", () => {
+    const file = describeFile("public/font.woff2");
+    assert.equal(file.kind, "binary");
+    assert.equal(file.readable, false);
     assert.match(file.reason ?? "", /not a text file/);
   });
 
-  it("refuses a file too large to edit in a browser", () => {
+  it("still READS a file too large to edit, rather than showing an empty pane", () => {
     const file = describeFile("data/dump.json", MAX_EDITABLE_BYTES + 1);
-    assert.equal(file.editable, false);
-    assert.match(file.reason ?? "", /Too large/);
+    assert.equal(file.readable, true, "a big file is still worth reading");
+    assert.equal(file.editable, false, "it just cannot be edited here");
+    assert.match(file.reason ?? "", /read-only/);
+  });
+
+  it("opens the file types the old web-only list refused", () => {
+    // .npmrc, Dockerfile, a Python script and a lockfile all reported "not a
+    // text file" and rendered nothing.
+    for (const path of [".npmrc", "Dockerfile", "scripts/deploy.py", "pnpm-lock.yaml", ".gitignore"]) {
+      assert.equal(describeFile(path).readable, true, `${path} should open`);
+    }
   });
 });
 
@@ -110,7 +129,9 @@ describe("code mode is the same loop as the visual editor", () => {
       assert.equal(document.targets.length, 2);
       const binary = document.targets.find(target => target.id.endsWith(".png"));
       assert.equal(binary?.kind, "indirect");
-      assert.match(binary?.definedAt ?? "", /not a text file/);
+      // A .png is no longer "refused as binary" — it is previewable, so the
+      // reason it carries is now about HOW it opens, not that it cannot.
+      assert.match(binary?.definedAt ?? "", /preview|not a text file/);
     });
   });
 
@@ -230,8 +251,13 @@ describe("reading a repository from GitHub", () => {
     assert.equal(calls.length, 0, "it must not even ask GitHub for it");
   });
 
-  it("says what to do when GitHub is not connected", async () => {
+  it("says what to do when GitHub is not connected — in the EDITOR, not Company", async () => {
+    // Reworded 2026-08-21: the editor now carries its own inline Connect
+    // GitHub panel (Settings → _DevEditorSetup), and Ed's rule is that
+    // everything editor-wise lives in the editor. This used to pin
+    // "Connect GitHub in Company" — that wording is now a regression.
     const error = new github.GitHubNotConfigured();
-    assert.match(error.message, /Connect GitHub in Company/);
+    assert.match(error.message, /Connect GitHub in the editor's Settings tab/);
+    assert.doesNotMatch(error.message, /Company/);
   });
 });

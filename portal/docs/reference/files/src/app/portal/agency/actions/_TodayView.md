@@ -6,10 +6,12 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Exports (1)
 
-- `TodayView({ tasks, entries, busyId, onComplete, onPostpone, onOpenCalendar, }: { tasks: AgencyTask[]; entries: CommandCalendarEntry[]; busyId: string | null; onComplete: (task: AgencyTask) => void; onPostpone: (task: AgencyTask, until: num…`
+- `TodayView({ tasks, entries, attentionActions = [], busyId, onComplete, onPostpone, onAttentionAction, onMarkAttentionDone, onOpenCalendar, }: { tasks: AgencyTask[]; entries: CommandCalendarEntry[]; /** * Needs-attention alerts that want th…`
 
-## Depends on (2)
+## Depends on (4)
 
+- [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](./_ActionsWorkspace.md)
+- [`src/components/attention/AttentionControls.tsx`](../../../../components/attention/AttentionControls.md)
 - [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

@@ -676,6 +676,70 @@ Every exported function, class, type and const in this area, with its real signa
 - `dynamic = "force-dynamic"` — Dev Mode only, same gate as the portal.
 
 
+## `src/app/api/portal/dev/editor-activity/`
+
+### `src/app/api/portal/dev/editor-activity/route.ts`
+
+- `async GET()`
+
+
+## `src/app/api/portal/dev/editor-ai/history/`
+
+### `src/app/api/portal/dev/editor-ai/history/route.ts`
+
+- `async POST(request: Request)`
+
+
+## `src/app/api/portal/dev/editor-ai/reply/`
+
+### `src/app/api/portal/dev/editor-ai/reply/route.ts`
+
+- `async POST(request: Request)`
+
+
+## `src/app/api/portal/dev/editor-ai/`
+
+### `src/app/api/portal/dev/editor-ai/route.ts`
+
+- `async POST(request: Request)`
+
+
+## `src/app/api/portal/dev/librarian/`
+
+### `src/app/api/portal/dev/librarian/route.ts`
+
+- `async POST(request: Request)`
+
+
+## `src/app/api/portal/dev/lifecycle/`
+
+### `src/app/api/portal/dev/lifecycle/route.ts`
+
+- `async POST(request: NextRequest)`
+
+
+## `src/app/api/portal/dev/projects/`
+
+### `src/app/api/portal/dev/projects/route.ts`
+
+- `async GET(request?: NextRequest)`
+- `async POST(request: Request)`
+
+
+## `src/app/api/portal/dev/repo-write/`
+
+### `src/app/api/portal/dev/repo-write/route.ts`
+
+- `async POST(request: NextRequest)`
+
+
+## `src/app/api/portal/dev/source-edit/`
+
+### `src/app/api/portal/dev/source-edit/route.ts`
+
+- `async POST(request: NextRequest)`
+
+
 ## `src/app/api/portal/development/content/`
 
 ### `src/app/api/portal/development/content/route.ts`
@@ -1024,6 +1088,14 @@ Every exported function, class, type and const in this area, with its real signa
 - `async POST(req: Request)`
 
 
+## `src/app/api/portal/plugins/settings/`
+
+### `src/app/api/portal/plugins/settings/route.ts`
+
+- `async GET(request: NextRequest)`
+- `async POST(request: NextRequest)`
+
+
 ## `src/app/api/portal/products/rollout/`
 
 ### `src/app/api/portal/products/rollout/route.ts`
@@ -1093,6 +1165,7 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/app/api/portal/site-editor/files/route.ts`
 
 - `async GET(request: NextRequest)`
+- `async POST(request: NextRequest)` — Write a file back. This is the one genuinely dangerous thing the editor does, so every guard is deliberate: • FOUNDER + DEV MODE only. Reading the repository is an agency-role con…
 
 
 ## `src/app/api/portal/sop-guides/`
@@ -2619,6 +2692,13 @@ Every exported function, class, type and const in this area, with its real signa
 - `default async NotepadPage({ searchParams }: { searchParams: Promise<{ note?: string }> })`
 
 
+## `src/app/portal/agency/operations/`
+
+### `src/app/portal/agency/operations/page.tsx`
+
+- `default OperationsPage()`
+
+
 ## `src/app/portal/agency/`
 
 ### `src/app/portal/agency/page.tsx`
@@ -2744,15 +2824,9 @@ Every exported function, class, type and const in this area, with its real signa
 
 ## `src/app/portal/agency/portals/editor/`
 
-### `src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`
-
-- `ClientPortalStudio({ clients, templates, initialClientId, initialTemplateId, initialScope, initialMode, initialSection, canManage, backHref = "/portal/agency/portals?view=templates", backLabel = "Back to portals", lockT…`
-- `type PortalStudioClient = { id: string; name: string; built: boolean; mode: ClientPortalMode; }`
-- `type PortalStudioTemplate = { id: string; name: string; productId?: string; baseTemplateVersionId?: string; latestMasterVersionId: string; active: boolean; }`
-
 ### `src/app/portal/agency/portals/editor/page.tsx`
 
-- `default async ClientPortalEditorPage({ searchParams, }: { searchParams: Promise<{ clientId?: string; productId?: string; templateId?: string; scope?: string; mode?: string; section?: string; context?: string }>; })`
+- `default async ClientPortalEditorPage({ searchParams, }: { searchParams: Promise<PortalStudioQuery>; })` — editor mounts the SAME studio with the same data — one engine, two doors.
 
 
 ## `src/app/portal/agency/portals/forms/`
@@ -3374,8 +3448,25 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/app/portal/dev-team/editor/page.tsx`
 
-- `default async DevTeamEditorPage()`
-- `dynamic = "force-dynamic"` — guard, not the write's.
+- `default async DevEditorProjectsPage()`
+- `dynamic = "force-dynamic"` — Founder + Dev Mode only — role first, then `devDocsAccessible`.
+
+
+## `src/app/portal/dev-team/editor/setup/`
+
+### `src/app/portal/dev-team/editor/setup/_DevEditorSetup.tsx`
+
+- `DevEditorSetup()`
+- `DevEditorProjectSettings({ projectId, aiConfigured, }: { /** The project this editor is open ON. Empty = a door with no project. */ projectId: string; /** Whether the Aqua Editor AI holds a key for this project — never …` — around this panel re-derives its browser without a reload.
+- `DEV_PROJECTS_CHANGED_EVENT = "aqua:dev-projects-changed"` — Fired on `window` after any mutation here SUCCEEDS (save, delete, map, check-tag). This panel is rendered inside the editor's inspector, but the editor fetched its own copy of the…
+
+
+## `src/app/portal/dev-team/editor/studio/`
+
+### `src/app/portal/dev-team/editor/studio/page.tsx`
+
+- `default async DevEditorStudioPage({ searchParams, }: { searchParams: Promise<PortalStudioQuery & { project?: string }>; })`
+- `dynamic = "force-dynamic"` — own API routes assert their scope again.
 
 
 ## `src/app/portal/dev-team/findings/`

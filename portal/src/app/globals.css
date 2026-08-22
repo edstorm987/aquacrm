@@ -977,6 +977,34 @@ html[data-color-mode="dark"] .mm-portal-root [class*="ring-black"] {
   --tw-ring-color: rgb(255 255 255 / 0.12) !important;
 }
 
+/* The twin of the rule above, which was never written. `ring-2 ring-white` is
+   the house separator around an attention dot/badge — it exists to punch the
+   badge out of the surface BEHIND it, and that surface is white only in light
+   mode. Left alone it draws a bright white halo on every dark sidebar and
+   topbar (7 chrome components, incl. the Dev Team nav). Re-point it at the
+   dark surface so it goes on doing its job instead of glowing. */
+html[data-color-mode="dark"] .mm-portal-root [class~="ring-white"] {
+  --tw-ring-color: var(--mm-badge-ring, #1A1B18) !important;
+}
+
+/* The two pressed toggles in the quick-note window were the pair the dark pass
+   missed, and they missed it in OPPOSITE directions: `bg-[#f4e4bb]` matched the
+   blanket `bg-[#f…]` sweep and went near-black under its dark-olive label
+   (2.15:1 — pressed was the LESS readable state), while `bg-[#e7f3f1]` begins
+   with an `e`, matched nothing, and stayed a bright mint chip on a dark panel.
+   State both explicitly, each keeping its own hue: 10.3:1 and 9.6:1. */
+html[data-color-mode="dark"] .mm-portal-root .mm-quick-note [class*="bg-[#f4e4bb]"] {
+  border-color: rgb(212 184 136 / 0.55) !important;
+  background-color: #3a2f18 !important;
+  color: #f3e2b4 !important;
+}
+
+html[data-color-mode="dark"] .mm-portal-root .mm-quick-note [class*="bg-[#e7f3f1]"] {
+  border-color: rgb(123 181 175 / 0.5) !important;
+  background-color: #15302c !important;
+  color: #a8ded6 !important;
+}
+
 html[data-color-mode="dark"] .mm-portal-root input,
 html[data-color-mode="dark"] .mm-portal-root select,
 html[data-color-mode="dark"] .mm-portal-root textarea {
@@ -3345,6 +3373,20 @@ html[data-color-mode="dark"] .mm-dev-mode-switcher-persona[data-active="true"] {
   box-shadow: 0 3px 8px color-mix(in srgb, var(--nav-tone) 22%, transparent);
 }
 
+/* …and the glyph itself. `color` above is NOT enough: lucide renders its
+   `color` prop as a `stroke` PRESENTATION ATTRIBUTE on the <svg>, and an
+   attribute on the element is not touched by `color` on the parent — so any
+   nav whose icons are handed an explicit colour (Dev Team does exactly that,
+   one hue per section) painted a section-coloured glyph on the solid tone
+   tile: #2f7d4a on #68717c is 1.02:1, i.e. invisible, which is the "icon gets
+   downed out" report. `stroke` is a real property here, so it reaches the
+   glyph and the tile's foreground wins on the active row — 4.1:1–5.1:1 across
+   every tone, in both colour modes. Non-active rows are untouched: they keep
+   their section hue on the 10% chip (3.7:1+). */
+.mm-sidebar-link.is-active .mm-sidebar-link-icon > svg {
+  stroke: currentColor;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .mm-sidebar-link:hover {
     color: color-mix(in srgb, var(--nav-tone) 88%, black);
@@ -3354,13 +3396,18 @@ html[data-color-mode="dark"] .mm-dev-mode-switcher-persona[data-active="true"] {
 
   /* Active row = the icon sits on a solid, high-contrast tile. Without an
      explicit hover rule the icon tile gets no hover response and reads as flat
-     / "downed out" when you mouse over it. Give it a real, contrast-preserving
-     lift (brighten + scale + deeper glow) so hovering the active/on-contrast
-     icon always brightens — never dulls. */
+     / "downed out" when you mouse over it.
+     The lift DEEPENS the tile rather than brightening it: the glyph on this
+     tile is white, so brightening the tile (the previous `brightness(1.09)`)
+     moved the two colours TOWARDS each other — 4.94:1 → 4.29:1 on the default
+     tone — which is the wash-out it was meant to cure. Mixing the tone 88%
+     with black is the same move `.is-active`'s label already makes, is
+     theme-agnostic (--nav-tone does not flip with colour mode), and only ever
+     raises contrast: 4.94 → 6.05 on slate, 4.08 → 5.03 on amber. */
   .mm-sidebar-link.is-active:hover .mm-sidebar-link-icon {
-    filter: brightness(1.09) saturate(1.05);
+    background: color-mix(in srgb, var(--nav-tone) 88%, black);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--nav-tone) 34%, transparent);
     transform: scale(1.07);
-    box-shadow: 0 5px 14px color-mix(in srgb, var(--nav-tone) 36%, transparent);
   }
 }
 
@@ -5836,6 +5883,10 @@ html[data-portal-shell="command"] .mm-private-sidebar .mm-sidebar-link.is-active
 
 html[data-portal-shell="command"] .mm-private-sidebar .mm-sidebar-link:is(:focus-visible, .is-active) .mm-sidebar-link-icon svg {
   color: currentColor !important;
+  /* `color` alone cannot reach a lucide glyph: the component writes its colour
+     out as a `stroke` presentation attribute on this <svg>. Restate it as the
+     property so the tile's foreground actually paints the icon. */
+  stroke: currentColor !important;
   transform: scale(1.04);
 }
 
@@ -5891,6 +5942,7 @@ html[data-portal-shell="command"] .mm-private-sidebar .mm-sidebar-link:is(:focus
 
   html[data-portal-shell="command"] .mm-private-sidebar .mm-sidebar-link:hover .mm-sidebar-link-icon svg {
     color: currentColor !important;
+    stroke: currentColor !important;
     transform: scale(1.08);
   }
 }

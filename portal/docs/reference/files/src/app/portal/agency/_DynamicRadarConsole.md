@@ -14,7 +14,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - [`src/app/portal/agency/_CommandDeckPopup.tsx`](./_CommandDeckPopup.md)
 - [`src/app/portal/agency/_RadarScanControl.tsx`](./_RadarScanControl.md)
-- [`src/lib/radar/businessRadar.ts`](../../../lib/radar/businessRadar.md)
+- [`src/engines/data/radar/businessRadar.ts`](../../../engines/data/radar/businessRadar.md)
 
 ## Used by (1)
 

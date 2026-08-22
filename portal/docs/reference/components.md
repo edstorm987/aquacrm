@@ -115,11 +115,15 @@ Every exported function, class, type and const in this area, with its real signa
 
 ### `src/components/chrome/GlobalAdvisorDrawer.tsx`
 
-- `GlobalAdvisorDrawer({ initialWorkspace, configured, model, userName, coverage, // ── Reskin seam ────────────────────────────────────────────────────────── // The drawer machinery (portal, transitions, lazy chat, notice…`
+- `GlobalAdvisorDrawer({ initialWorkspace, configured = false, model = "", userName = "", coverage, // ── Reskin seam ────────────────────────────────────────────────────────── // The drawer machinery (portal, transitions,…`
+
+### `src/components/chrome/InspectorModeControl.tsx`
+
+- `InspectorModeControl({ label = "Inspecting" }: { label?: string })` — where the muscle memory already is.
 
 ### `src/components/chrome/LibrarianDrawerControl.tsx`
 
-- `async LibrarianDrawerControl({ agencyId, userId, userName, }: { agencyId: string; userId: string; userName: string; })` — records) is a follow-up — see docs/development/plans/dev-team-librarian-and-assistants.md.
+- `async LibrarianDrawerControl({ agencyId, }: { agencyId: string; /** Accepted so the layout's call keeps working; the find tool is not per-person. */ userId?: string; userName?: string; })` — lives.
 
 ### `src/components/chrome/MobileNav.tsx`
 
@@ -135,7 +139,7 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `NotificationAttentionProvider({ initialAlerts, children, clientId, }: { initialAlerts: OperationalAlertView[]; children: ReactNode; clientId?: string; })`
 - `useNotificationAttention(): AttentionContextValue | null`
-- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: string[]; categories?:…`
+- `useAttentionMatches({ hrefs = [], prefixHrefs = [], categories = [], clientCategories = [], destinations = [], clientId, allForClient = false, navId, all = false, pool = "focus", }: { hrefs?: string[]; prefixHrefs?: str…`
 - `useUnresolvedAttentionMatches({ navId, clientId, }: { navId: string; clientId?: string; }): OperationalAlertView[]`
 - `AttentionDot({ href, hrefs, prefixHref, prefixHrefs, categories, all, className = "", }: { href?: string; hrefs?: string[]; prefixHref?: string; prefixHrefs?: string[]; categories?: OperationalAlertCategory[]; all?: boo…`
 - `attentionTitle(alerts: OperationalAlertView[]): string`
@@ -151,6 +155,12 @@ Every exported function, class, type and const in this area, with its real signa
 ### `src/components/chrome/PageReveal.tsx`
 
 - `PageReveal()`
+
+### `src/components/chrome/PinnedTabs.tsx`
+
+- `PinCurrentControl({ label }: { label: string })` — The ★ control in the topbar. Clicking the star quick-pins the current page to the topbar (the fast back-and-forth strip); the ▾ opens a menu to pin/keep it in the sidebar instead,…
+- `PinnedTabsBar()` — The topbar strip — quick back-and-forth pins.
+- `SidebarPinnedTabs()` — The sidebar section — longer-term pins, rendered at the bottom of the nav (under Tools). Styled with the same nav-row primitives as the rest of the sidebar (mm-sidebar-* classes) …
 
 ### `src/components/chrome/PortalRouteCanvas.tsx`
 
@@ -243,6 +253,21 @@ Every exported function, class, type and const in this area, with its real signa
 - `type ConsoleStatus = DevConsoleStatus & { activeWorkers?: number }` — The full read, plus the uncapped worker total the route counts alongside the (deliberately sliced) `workers` list. Optional because a server mid-deploy may still answer without it…
 - `interface ConsoleLoadSinks (6 members)` — Everywhere a load writes to. Named so a test can watch each one.
 
+### `src/components/chrome/pinnedTabsStore.ts`
+
+- `findPin(pins: PinnedTab[], href: string): PinnedTab | undefined` — ─── Pure helpers (no storage) ───────────────────────────────────────────────
+- `isPinned(pins: PinnedTab[], href: string): boolean`
+- `pinsAt(pins: PinnedTab[], location: PinLocation): PinnedTab[]`
+- `setPin(pins: PinnedTab[], entry: { href: string; label: string }, location: PinLocation): PinnedTab[]` — Set (or move) a pin to a location. Deduped by href; capped per location.
+- `removePin(pins: PinnedTab[], href: string): PinnedTab[]`
+- `togglePin(pins: PinnedTab[], entry: { href: string; label: string }, location: PinLocation): PinnedTab[]` — Toggle a pin at a location: pin there if absent/elsewhere, unpin if already there.
+- `clearAll(): PinnedTab[]`
+- `normalizePins(value: unknown): PinnedTab[]` — Coerce arbitrary parsed JSON into a clean PinnedTab[] (defensive on load).
+- `usePinnedTabs(): { pins: PinnedTab[]; pin: (entry: { href: string; label: string }, location: PinLocation) => void; toggle: (entry: { href: string; label: string }, location: PinLocation) => void; remove: (href: string)…` — ─── React hook ──────────────────────────────────────────────────────────────
+- `MAX_PINS_PER_LOCATION = 12` — Keep each strip a working set, not an archive. Oldest drop off, per location.
+- `type PinLocation = "topbar" | "sidebar"` — thin, SSR-guarded client layer.
+- `interface PinnedTab (3 members)`
+
 ### `src/components/chrome/sidebarCollapseState.ts`
 
 - `SIDEBAR_COLLAPSED_KEY = "mm-sidebar-collapsed"`
@@ -250,6 +275,40 @@ Every exported function, class, type and const in this area, with its real signa
 
 
 ## `src/components/editing/`
+
+### `src/components/editing/AddMenu.tsx`
+
+- `AddMenu({ options, label = "Add", title = "Add to this page", align = "start", }: { options: AddOption[]; label?: string; title?: string; align?: "start" | "end"; })`
+- `fileAddOptions(onCreate?: (kind: "file" | "folder") => void, unavailableReason?: string): AddOption[]` — The code-view options. `onCreate` receives what to make. Both targets have a live path now: the local workspace writes to disk through the files route, and a repository- backed pr…
+- `interface AddOption (7 members)` — it — do not fork the component, and do not default the editor to light.
+
+### `src/components/editing/AquaEditorAI.tsx`
+
+- `AquaEditorAI({ projectId = "", projectName = "", initialConversation = null, historyLimits = null, editorAi = null, reason = "", configured, model, userName, context, picking, onPickElement, }: { /** * The project this …`
+- `interface EditorAIContext (4 members)` — It PROPOSES. Applying a change is still a person's click.
+- `interface Attachment (4 members)`
+
+### `src/components/editing/AquaEditorAIKey.tsx`
+
+- `AquaEditorAIKey({ projectId, projectName, status, reason, vaultAvailable, onChanged, }: { projectId: string; projectName: string; status: EditorAiStatus | null; /** Why it is off, in the server's words. Empty when it is…` — somewhere this code cannot see.
+
+### `src/components/editing/AquaEditorAIThread.tsx`
+
+- `AquaEditorAIThread({ projectId, projectName, configured, model, userName, initialConversation, initialLimits, prefill, contextText, composerTools, onConfigure, }: { projectId: string; projectName: string; /** Whether TH…`
+
+### `src/components/editing/CodeSurface.tsx`
+
+- `CodeSurface({ path, value, editable, onChange, onSave, }: { path: string; value: string; editable: boolean; onChange: (next: string) => void; /** ⌘S / Ctrl+S. */ onSave: () => void; })`
+
+### `src/components/editing/DeviceControl.tsx`
+
+- `clampDeviceSize(width: number, height: number): { width: number; height: number }` — ONE clamp for every way a custom size is set — typed, dragged, or nudged by key.
+- `deviceLabel(state: DeviceState): string` — The size label, in TRUE device CSS pixels — never the on-screen size. Zoom scales what you see, not what the page lays out at, so it is stated separately rather than multiplied in…
+- `DeviceControl({ value, onChange, }: { value: DeviceState; onChange: (next: DeviceState) => void; })`
+- `DEVICE_MIN_WIDTH = 240` — The bounds a device box may be dragged or typed to, in CSS pixels.
+- `DEVICE_MIN_HEIGHT = 320`
+- `DEVICE_MAX_SIZE = 4000`
+- `{ DEFAULT_DEVICE_STATE, DEVICE_PRESETS, effectiveViewport, getDevicePreset, loadDeviceState, saveDeviceState, DeviceState }`
 
 ### `src/components/editing/EditingNotice.tsx`
 
@@ -259,9 +318,113 @@ Every exported function, class, type and const in this area, with its real signa
 
 - `EditingOverlay({ status, clientId, onDismiss, }: { status: LeaseStatus; clientId: string; /** Offered once a request is sent, so they are not trapped on the page. */ onDismiss?: () => void; })` — What a client sees while Aqua is working on their portal. A blocking overlay rather than the agency's banner, because the two situations differ. An agency user seeing a colleague'…
 
+### `src/components/editing/EditorCodeCanvas.tsx`
+
+- `EditorCodeCanvas({ projectId, repository, focus, onOpenFile, }: { /** A Dev project — the server resolves repo, ref and token from it. */ projectId?: string; /** Or a typed owner/repo. Blank means this workspace. */ rep…`
+
+### `src/components/editing/EditorModeSwitch.tsx`
+
+- `modeSkin(mode: EditingMode): ModeSkin`
+- `EditorModeSwitch({ mode, onChange, available, }: { mode: EditingMode; onChange: (next: EditingMode) => void; /** * Optional narrowing. Deliberately unused by the editor: it is a UNIVERSAL * editor, and hiding modes base…`
+- `MODE_SKINS: Record<EditingMode, ModeSkin>` — One skin per depth. Ordered as the ladder is: shallowest first.
+- `interface ModeSkin (6 members)` — rather than inventing a second animation system.
+
+### `src/components/editing/ElementInsertPanel.tsx`
+
+- `ElementInsertPanel({ projectId, repository, elementType, sourceFocus }: { projectId: string; repository: string; /** The palette entry being looked at — `getElementDefinition`'s key. */ elementType: string; /** The sele…`
+
+### `src/components/editing/LibrarianPanel.tsx`
+
+- `LibrarianPanel({ projectId = "", projectName = "", projects, world = null, onOpenFile, }: { /** The project this panel is fixed to (the editor mount). Wins over the picker. */ projectId?: string; /** Its name, for the s…`
+
+### `src/components/editing/NetworkThrottleControl.tsx`
+
+- `throttleProfileLabel(profile: AquaTagThrottleProfile | null): string` — "Slow 3G" when the numbers match a preset, otherwise the numbers themselves.
+- `NetworkThrottleControl({ send, active, onChange, }: { /** DevEditor's `sendToTag`: posts one message to the tagged page, or returns false. */ send: (payload: object) => boolean; /** The profile the TAG confirmed is in f…`
+- `THROTTLE_PRESETS: ThrottlePreset[]`
+- `THROTTLE_SCOPE_NOTE = "Throttles what this page's scripts request — fetch and XHR get real latency, paced responses and offline failures. " +` — The scope, said plainly. Shown in the panel every time it opens — this is the sentence that keeps the whole feature honest, so it is exported and pinned by test rather than living…
+- `interface ThrottlePreset (4 members)` — One named speed. The numbers follow the DevTools presets people already know.
+
+### `src/components/editing/PageNavigator.tsx`
+
+- `PageNavigator({ plan, value, onPick, disabled, }: { plan: NavigatorPlan; /** The destination id currently showing, or "" when the address is unlisted. */ value: string; onPick: (destination: NavigatorDestination) => voi…` — on it.
+
+### `src/components/editing/PageSeoPanel.tsx`
+
+- `PageSeoPanel({ target, portalSeo, onPortalSeoChange, onDirtyChange, canManage, }: { target: PageSeoTarget; /** A portal page's stored values — the portal document IS its source. */ portalSeo?: PageSeo; /** Writes back i…`
+- `type PageSeoTarget = | { kind: "repository"; /** The page file whose head is written — `app/about/page.tsx`. */ path: string; /** What the operator calls this page — the navigator's label. */ label: string; projectId: s…` — What the panel is pointed at. The caller resolves this; the panel never guesses.
+
 ### `src/components/editing/RepositoryPanel.tsx`
 
-- `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope }: { repository: string; onRepositoryChange: (value: string) => void; /** A file and line to open, set by clicking an element in the…` — The site's source, inside the editor rather than beside it. Code mode began as its own page, which was the wrong shape: somebody wanting the code is already looking at the thing t…
+- `RepositoryPanel({ repository, onRepositoryChange, focus, onPickElement, picking, scope, projectId }: { repository: string; onRepositoryChange: (value: string) => void; /** * A Dev Editor Engine project. When set, the SE…` — The site's source, inside the editor rather than beside it. Code mode began as its own page, which was the wrong shape: somebody wanting the code is already looking at the thing t…
+
+### `src/components/editing/SurfaceSwitch.tsx`
+
+- `SurfaceSwitch({ resolved, onChange, disabled, }: { /** `resolveSurface(...)` — the surface in force, plus the sentence for it. */ resolved: ResolvedSurface; onChange: (next: EditorSurface) => void; disabled?: boolean; })`
+
+### `src/components/editing/WorkLifecyclePanel.tsx`
+
+- `DraftsPanel({ projectId, onOpenFile }: { projectId: string; /** The editor's open-a-file mechanism — resume means SEEING the file again. */ onOpenFile?: (path: string) => void; })`
+- `HistoryPanel({ projectId }: { projectId: string })` — ─── HISTORY — one feed, two honest sources ──────────────────────────────────
+- `NotesPanel({ projectId }: { projectId: string })` — ─── NOTES — per project, riding the thoughts ledger ─────────────────────────
+- `interface DraftStatusView (10 members)` — The shapes the lifecycle route answers with (`workLifecycle.ts`).
+
+### `src/components/editing/codeTheme.ts`
+
+- `fileColour(path: string): string` — The icon tint for a path — Seti-ish, and consistent across tree and tabs.
+
+### `src/components/editing/editorAiClient.ts`
+
+- `async readEditorAiStatus(projectId: string): Promise<EditorAiConfigResult>` — Read the gate without a GET on a route that knows about credentials.
+- `async setEditorAiKey(input: { projectId: string; apiKey: string; model?: string; instructions?: string; }): Promise<EditorAiConfigResult>` — Paste a key for ONE project. The only place `apiKey` appears in this file. The response has nowhere to put it back — not even as a confirmation, which is exactly the moment a valu…
+- `async clearEditorAiKey(projectId: string): Promise<EditorAiConfigResult>` — Remove this project's key. The model and the brief are kept.
+- `async saveEditorAiSettings(input: { projectId: string; model: string; instructions: string; }): Promise<EditorAiConfigResult>` — Model and brief only. A key is not sent here even if one is to hand: the route ignores `apiKey` on this action on purpose, and mirroring that refusal on the client means the panel…
+- `async readEditorAiHistory(projectId: string): Promise<EditorAiHistoryResult>` — projects is the shape Ed asked to have removed.
+- `async appendEditorAiMessage(input: { projectId: string; threadId?: string; message: string; }): Promise<EditorAiHistoryResult>`
+- `async startEditorAiThread(projectId: string, title?: string): Promise<EditorAiHistoryResult>`
+- `async renameEditorAiThread(input: { projectId: string; threadId: string; title: string; }): Promise<EditorAiHistoryResult>`
+- `async deleteEditorAiThread(input: { projectId: string; threadId: string; }): Promise<EditorAiHistoryResult>`
+- `async clearEditorAiHistory(projectId: string): Promise<EditorAiHistoryResult>` — Wipe ONE project's history. It cannot reach the Aqua Advisor's conversations: that is a different collection behind a different endpoint, and this call names a project rather than…
+- `async requestEditorAiReply(input: { projectId: string; threadId: string; /** The exact saved user message to answer. */ messageId: string; /** What the editor is pointing at — target, clicked words, source focus. */ con…` — Ask the server to answer the latest message in one project's thread. NOT routed through `post()`, and it does not throw: a reply can honestly fail — no key on the project, the pro…
+- `EDITOR_AI_ENDPOINT = "/api/portal/dev/editor-ai"`
+- `EDITOR_AI_HISTORY_ENDPOINT = "/api/portal/dev/editor-ai/history"`
+- `EDITOR_AI_REPLY_ENDPOINT = "/api/portal/dev/editor-ai/reply"`
+- `type EditorAiReplyFailureCode = "not_configured" | "timeout" | "network" | "provider" | "empty" | "stale"` — Why a reply failed, machine-readably. Declared here as well as in `engines/editor/server/editorAiReply.ts` for the same reason as `EditorAiHistoryLimits` above: that module is `se…
+- `type EditorAiReplyResult = | { ok: true; /** The assistant's message — already in the project's thread, server-side. */ message: EditorAiMessage; threadId: string; conversation: EditorAiConversation | null; limits: Edit…`
+- `interface EditorAiHistoryLimits (4 members)` — The history cap, as the server reports it. Structurally the same as `EDITOR_AI_HISTORY_LIMITS` in `engines/editor/server/editorAiHistory.ts`, declared again here because that modu…
+- `interface EditorAiConfigResult (3 members)`
+- `interface EditorAiHistoryResult (4 members)`
+
+### `src/components/editing/editorAiSkin.ts`
+
+- `ACCENT_VAR = "--aqua-ai-accent"`
+- `accentStyle = { [ACCENT_VAR]: "var(--mode-accent, #67e8f9)" } as CSSProperties` — Put this on the panel root. Everything below reads from it.
+- `ACCENT_TEXT = "text-[color:var(--aqua-ai-accent)]"`
+- `ACCENT_BG = "bg-[color:var(--aqua-ai-accent)]"`
+- `ACCENT_BORDER = "border-[color:var(--aqua-ai-accent)]"`
+- `FOCUS_RING = "outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--aqua-ai-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#141614]"` — A visible keyboard focus state, on every interactive element. `outline-none` alone is how a keyboard user loses the caret entirely, so it is never used here without a ring replaci…
+- `MUTED = "text-white/58"` — Text colours, floored at AA on the editor's panel ground. Measured against `#141614`, the inspector's background. White at 45% alpha composites to roughly 4.4:1 — under the 4.5:1 …
+- `BODY = "text-white/72"`
+- `STRONG = "text-white/88"`
+- `PANEL = "rounded-lg border border-white/10 bg-black/30"` — The panel's own ground, so a child panel matches the inspector behind it.
+- `FIELD = "w-full rounded-md border border-white/12 bg-black/30 px-2.5 py-2 text-xs text-white/88 placeholder:text-white/55"`
+- `ICON_BUTTON = "grid size-8 shrink-0 place-items-center rounded-md border border-white/12 bg-white/[0.05] text-white/72 transition hover:bg-white/10 hover:text-white disabled:opacity-40"` — A small square control — icon only. `min-h`/`min-w` keeps the tap target.
+- `CHIP_BUTTON = "inline-flex min-h-8 items-center gap-1.5 rounded-md border border-white/12 bg-white/[0.05] px-2.5 text-[11px] font-semibold text-white/72 transition hover:bg-white/10 hover:text-white disabled:opacity-40"` — A small labelled control.
+- `PRIMARY_BUTTON = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-3 text-[11px] font-bold text-[#0d120f] transition hover:brightness-110 disabled:opacity-40"` — The one filled control on a surface: send, save. Dark ink on the accent.
+- `DANGER_BUTTON = "inline-flex min-h-8 items-center gap-1.5 rounded-md border border-red-300/30 bg-red-300/[0.08] px-2.5 text-[11px] font-semibold text-red-200 transition hover:bg-red-300/15 disabled:opacity-40"` — Something has gone wrong, or is about to. Red on dark, still readable.
+
+### `src/components/editing/librarianClient.ts`
+
+- `async findViaLibrarian(input: { query: string; projectId?: string; limit?: number; }): Promise<LibrarianFindResponse>` — Ask the Librarian. Network and shape failures come back as `ok: false` with a sentence, so the panel always has something honest to render.
+- `LIBRARIAN_ENDPOINT = "/api/portal/dev/librarian"` — shape.
+- `type LibrarianSource = "repo" | "reference" | "docs"`
+- `type LibrarianReasonKind = "path" | "symbol" | "doc-title" | "content"` — Why a hit matched — the WHY the panel must show, never swallow.
+- `type LibrarianRepoStatus = "full-tree" | "workspace" | "map-only" | "none"` — Which of the four levels the repository half answered from.
+- `type LibrarianFindResponse = | { ok: true; result: LibrarianFindResult } | { ok: false; error: string }`
+- `interface LibrarianReason (3 members)`
+- `interface LibrarianHit (6 members)`
+- `interface LibrarianSearched (3 members)`
+- `interface LibrarianFindResult (8 members)`
 
 
 ## `src/components/marketing/`
@@ -340,6 +503,13 @@ Every exported function, class, type and const in this area, with its real signa
 
 
 ## `src/components/workspaces/`
+
+### `src/components/workspaces/PluginSettingsPanel.tsx`
+
+- `PluginSettingsPanel({ initial, clientId }: { initial: PluginSettingsView; clientId?: string })`
+- `interface PluginSettingsFieldView (10 members)`
+- `interface PluginSettingsGroupView (4 members)`
+- `interface PluginSettingsView (4 members)`
 
 ### `src/components/workspaces/PluginWorkspaceNav.tsx`
 

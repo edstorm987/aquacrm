@@ -9,7 +9,13 @@ import type { AssistantMemory, AssistantMessage } from "@/server/types";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { advisorSkillInstruction } from "@/lib/server/assistants/advisorSkillsService";
 
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+/**
+ * The one wire the assistants speak on. Exported so Aqua Editor AI's reply
+ * path (`engines/editor/server/editorAiReply.ts`) calls the SAME endpoint with
+ * the same idiom rather than growing a second HTTP shape — what differs there
+ * is only the credential (the project's own key, never the agency connection).
+ */
+export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 export function isAssistantConfigured(agencyId?: string) {
   return agencyId
@@ -23,7 +29,11 @@ export function assistantModel(agencyId?: string) {
     || "gpt-5-mini";
 }
 
-function extractOutputText(payload: unknown): string {
+/**
+ * The Responses API's answer, as plain text. Exported for the editor's reply
+ * path, which parses the same wire shape on a different credential.
+ */
+export function extractOutputText(payload: unknown): string {
   if (!payload || typeof payload !== "object") return "";
   const record = payload as Record<string, unknown>;
   if (typeof record.output_text === "string") return record.output_text.trim();

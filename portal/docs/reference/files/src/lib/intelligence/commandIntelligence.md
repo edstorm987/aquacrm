@@ -38,9 +38,9 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (1)
 
-- [`src/lib/radar/businessRadar.ts`](../radar/businessRadar.md)
+- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
 
-## Used by (13)
+## Used by (14)
 
 - [`scripts/smoke-kpi-registry.test.ts`](../../../scripts/smoke-kpi-registry.test.md)
 - [`src/app/api/portal/search/route.ts`](../../app/api/portal/search/route.md)
@@ -51,6 +51,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/agency/_DashboardCommandCenter.tsx`](../../app/portal/agency/_DashboardCommandCenter.md)
 - [`src/app/portal/agency/_DayCommandSensorPanel.tsx`](../../app/portal/agency/_DayCommandSensorPanel.md)
 - [`src/app/portal/agency/_DayKpiIntelligencePanel.tsx`](../../app/portal/agency/_DayKpiIntelligencePanel.md)
+- [`src/app/portal/agency/commandPerformance.ts`](../../app/portal/agency/commandPerformance.md)
 - [`src/lib/intelligence/commercialIntelligence.ts`](./commercialIntelligence.md)
 - [`src/lib/performance/kpiRegistry.ts`](../performance/kpiRegistry.md)
 - [`src/lib/server/commandIntelligenceService.ts`](../server/commandIntelligenceService.md)

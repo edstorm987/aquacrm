@@ -8,12 +8,13 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `async POST(request: Request)`
 
-## Depends on (6)
+## Depends on (7)
 
 - [`src/lib/brands/tradingBrands.ts`](../../../../../lib/brands/tradingBrands.md)
 - [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
 - [`src/lib/server/email/transactionalEmail.ts`](../../../../../lib/server/email/transactionalEmail.md)
-- [`src/lib/supabase/admin.ts`](../../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/ownedEnquiry.ts`](../../../../../lib/supabase/ownedEnquiry.md)
+- [`src/lib/supabase/scoped.ts`](../../../../../lib/supabase/scoped.md)
 - [`src/server/activity.ts`](../../../../../server/activity.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
 

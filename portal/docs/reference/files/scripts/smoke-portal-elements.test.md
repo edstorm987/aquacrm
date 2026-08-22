@@ -9,9 +9,9 @@ _No exported symbols (side-effect / internal module)._
 ## Depends on (6)
 
 - [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](../src/built-ins/modules/website-editor/src/components/blockRegistry.md)
-- [`src/lib/elements/portalElements.ts`](../src/lib/elements/portalElements.md)
-- [`src/lib/elements/registry.ts`](../src/lib/elements/registry.md)
-- [`src/lib/elements/schema.ts`](../src/lib/elements/schema.md)
+- [`src/engines/editor/elements/portalElements.ts`](../src/engines/editor/elements/portalElements.md)
+- [`src/engines/editor/elements/registry.ts`](../src/engines/editor/elements/registry.md)
+- [`src/engines/editor/elements/schema.ts`](../src/engines/editor/elements/schema.md)
 - [`src/lib/portal/clientPortalBuilder.ts`](../src/lib/portal/clientPortalBuilder.md)
 - [`src/server/types.ts`](../src/server/types.md)
 

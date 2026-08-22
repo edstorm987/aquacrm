@@ -1,7 +1,17 @@
 # AquaCRM Current Implementation
 
-Last updated: 18 August 2026
-Baseline commit: `b46d8ae` plus uncommitted working-tree changes
+> **What this file is: the inventory of what systems EXIST.** It is not the
+> "where do we stand" doc — that is **[development/checklist.md](development/checklist.md)**, and it
+> is the only one. Two other files used to compete for that job; both were
+> archived 2026-08-21 to the [history shelf](context/archive/README.md). Read this
+> to find out whether a capability is built; read the checklist to find out
+> whether it is finished, and [status.md](development/status.md) to find out whether it
+> actually works.
+
+Last updated: 21 August 2026
+Baseline commit: `28bafd5` on branch `work/2026-08-20-parallel-session` (pushed to
+origin; NOT merged to `main` — merging is what deploys production).
+The previous baseline `b46d8ae` is 57 commits behind and no longer describes the tree.
 
 ## Current Release Summary
 
@@ -137,13 +147,19 @@ integration, or navigation contract.
   operational records remain isolated.
 - Client workspace entry/exit transitions respect Performance Mode.
 
-### Portals And Portal Studio
+### Portals And The Editor
 
 - Master templates and product-specific portal seeds exist.
 - Client portal instances and design versions are persisted.
-- Portal Studio supports stage and portal selection, pages, blocks, responsive
-  settings, data sources, visibility rules, media, custom pages, and controlled
-  custom code.
+- There is **one universal editor**, `src/engines/editor/DevEditor.tsx`. It is not a
+  portal feature and there is no separate "Portal Studio", website editor or code
+  editor; a client portal is one of the targets it can be pointed at. Two routes
+  open it — `/portal/agency/portals/editor` and `/portal/dev-team/editor/studio` —
+  and both mount the same component. (It lived at
+  `app/portal/agency/portals/editor/_ClientPortalStudio.tsx` until 2026-08-21.)
+- Pointed at a client portal, the editor supports stage and portal selection,
+  pages, blocks, responsive settings, data sources, visibility rules, media,
+  custom pages, and controlled custom code.
 - Product modules compose into a portal while preserving a usable standalone
   experience for a single product.
 - Assigned trading company controls the provider brand shown to the customer.
@@ -188,6 +204,10 @@ provider setup.
 Values/setup still required per environment may include:
 
 - Supabase URL, anon key, service-role key, and storage buckets;
+- `GITHUB_TOKEN` and `GITHUB_OWNER` — required by the Dev Editor's repository
+  path and by `openPullRequest()` / `mergePullRequest()`
+  (`src/lib/server/env.ts:74-75`, `.env.example:167-168`). Without them the
+  editor reads only the local working tree;
 - Resend/SMTP email credentials and verified senders;
 - Stripe secret and webhook configuration;
 - OpenAI API key and model;
@@ -202,9 +222,10 @@ Do not turn a configured-but-empty source into a healthy pass.
 
 ## Recent Update Log
 
-### Uncommitted - Canonical people, resolvable actions
+### Canonical people, resolvable actions — SHIPPED
 
-Working tree only; not yet committed. Baseline `b46d8ae`.
+Committed and pushed. This section previously read "Working tree only; not yet
+committed" against baseline `b46d8ae`; that work is now 57 commits in the past.
 
 **New persisted aggregates** in `PortalState` (all optional in parsed blobs;
 the storage parser injects empty records, so existing state loads unchanged):
@@ -322,3 +343,54 @@ Add a dated section when a change introduces any of the following:
 - a new operational safety contract.
 
 Do not list cosmetic changes unless they alter interaction or accessibility.
+
+
+## 21 August 2026 — the Dev Editor becomes the one editor
+
+Branch `work/2026-08-20-parallel-session`, HEAD `28bafd5`. Not merged to `main`.
+
+- **One editor, not several.** There is no separate portal editor, website
+  editor or code editor: one Dev Editor that adapts to what it is pointed at.
+  `/portal/dev-team/editor` is the PROJECTS workspace; the canvas is
+  `editor/studio?project=<id>`, and exiting returns to the list.
+- **`DevProject`** binds repository + branch + the GitHub/Vercel CONNECTION IDS
+  + an Aqua Tag. Secrets stay in the integrations vault and are resolved at call
+  time; a cross-agency connection id is rejected. There is no project "type" —
+  "what is it?" is free text, because a project is often several things at once.
+- **The editor surface**: CodeMirror 6 with the real VS Code Dark+ theme and
+  language grammars, file-type icon tints, multiple files open at once, session
+  resume per project, and a mode switch (Just tell it / Visual builder / Dev —
+  "Just the words" merged into Visual 2026-08-22; a saved `simple` migrates to
+  `visual` by name) with a per-mode accent and cutscene.
+- **The browser renders at REAL device sizes** *(2026-08-22, phase 10)*:
+  `DeviceControl` mounts the module's 26-preset device system (custom W×H,
+  rotate, zoom) in place of the width-only `BreakpointControl` (deleted); the
+  iframe lays out at exact device CSS pixels (no `maxWidth` squash), the pane
+  scrolls at 1:1 with zoom as an explicit transform, the Responsive BOX has
+  pointer-captured drag handles whose size becomes the custom dimensions, and
+  the choice persists per project. A resize never remounts the iframe. Pinned
+  by `smoke-editor-device-sizing`.
+- **Reading was broken and is fixed**: `readable` and `editable` were the same
+  question, so anything outside a narrow list rendered blank.
+- **Writing exists and is hardened.** POST on `/api/portal/site-editor/files`,
+  founder + Dev Mode only. An adversarial review found five real defects — a
+  race where two saves both won, a truncate-in-place write, a fingerprint not
+  bound to its path, `.data/` being writable, and a symlink escape — all fixed
+  and pinned in `smoke-editor-write-path`. Creating files and folders uses the
+  same guards.
+- **Presence** marks files that moved under you, reusing the Dev Team's existing
+  check-ins and mtime scan. Advisory; the fingerprint is the real protection.
+- **Aqua Editor AI** is a reskin of the SAME assistant engine as the Advisor and
+  the Librarian. It proposes; a person applies.
+- **PR management**: commit to a branch, then `openPullRequest()` and
+  `mergePullRequest()` — two steps, so a preview exists before anything reaches
+  main.
+- **Also**: `src/engines/{editor,sop,data}/` is real; Operations and Tools are
+  single flat sidebar rows onto hub pages; pinned pages ship as chrome; the
+  cross-tenant `brand_enquiries` read is closed.
+
+Known gaps, deliberately: binary upload, saved components, the env "are you
+sure" overlay, the funnel/client-side editor convergence
+(Phase 6 of `docs/development/plans/dev-editor-checklist.md` — the
+`super-editor.md` this used to name was never written), and a React hydration failure on
+`/portal/agency/portals/editor` that breaks interactivity on that route.

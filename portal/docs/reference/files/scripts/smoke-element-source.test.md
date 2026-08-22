@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/editing/elementSource.ts`](../src/lib/editing/elementSource.md)
+- [`src/engines/editor/editing/elementSource.ts`](../src/engines/editor/editing/elementSource.md)
 
 ## Used by
 

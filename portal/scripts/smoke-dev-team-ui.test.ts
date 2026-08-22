@@ -72,12 +72,56 @@ test("the shipyard token block defines every key token in BOTH light and dark", 
 
   // The palette actually flips: mill values light, forge values dark.
   assert.match(lightBlock, /--dev-bg:\s*#efe3cd/, "light bg = planed pine");
-  assert.match(lightBlock, /--dev-accent:\s*#1f7a6e/, "light accent = boat-paint teal");
+  assert.match(lightBlock, /--dev-accent:\s*#1c7167/, "light accent = boat-paint teal");
   assert.match(darkBlock, /--dev-bg:\s*#15110d/, "dark bg = wrought iron");
   assert.match(darkBlock, /--dev-accent:\s*#ff7a2f/, "dark accent = hot-iron ember");
 
   // The muted body tone is darkened past #7c6a52 (which fails WCAG AA on pine).
   assert.doesNotMatch(lightBlock, /--dev-ink-muted:\s*#7c6a52/, "muted body tone must be darkened past #7c6a52");
+
+  // ...and neither may --dev-faint, which is the token that ACTUALLY carries
+  // Panel titles, Panel hints, PageHeader meta and EmptyState. It sat at
+  // #7c6a52 (4.09:1 on --dt-bg) in the mill and #8a765f (3.78:1 on --dt-raised)
+  // in the forge; both missed AA at the 12px the size normaliser forces.
+  assert.doesNotMatch(lightBlock, /--dev-faint:\s*#7c6a52/, "mill --dev-faint must clear AA on planed pine");
+  assert.doesNotMatch(darkBlock, /--dev-faint:\s*#8a765f/, "forge --dev-faint must clear AA on the raised forge surface");
+
+  // The INVERTED WELL stays dark in BOTH modes. --dev-ink is a TEXT token and
+  // flips to cream in the forge, so anything that fills with it and writes light
+  // text on top vanishes (white on #f3e7d6 is 1.22:1). This pair exists so the
+  // master-tag snippet and the remove-attachment dot never inherit that flip.
+  for (const token of ["--dev-inverse", "--dev-inverse-ink", "--dev-inverse-muted"]) {
+    assert.match(lightBlock, new RegExp(`${token}\\s*:`), `light block must define ${token}`);
+    assert.match(darkBlock, new RegExp(`${token}\\s*:`), `dark block must define ${token}`);
+  }
+});
+
+test("no dev-team surface fills itself with a TEXT token", () => {
+  // --dev-ink / --dt-ink invert with the colour mode. Used as a background they
+  // take whatever foreground was written for the light mill and destroy it in
+  // the forge. --dev-inverse is the token for a deliberately dark panel.
+  const offenders: string[] = [];
+  for (const file of walkTsx(DEV_TEAM_DIR)) {
+    if (file === LAYOUT) continue;
+    for (const [i, line] of read(file).split("\n").entries()) {
+      if (/bg-\[color:var\(--(dev|dt)-ink\)\]/.test(line)) offenders.push(`${file}:${i + 1}`);
+    }
+  }
+  assert.deepEqual(offenders, [], "fill with --dev-inverse, not with the ink token");
+});
+
+test("filled tone chips carry --dev-on-accent, never a hardcoded white", () => {
+  // White reads on the mill's deep tones and drowns on the forge's embers:
+  // #ffffff on --dev-accent is 5.8:1 light but 2.6:1 dark, and its hover makes
+  // that WORSE (2.2:1). --dev-on-accent already flips with the mode.
+  const offenders: string[] = [];
+  for (const file of walkTsx(DEV_TEAM_DIR)) {
+    for (const [i, line] of read(file).split("\n").entries()) {
+      if (!/text-white\b/.test(line)) continue;
+      if (/bg-\[color:var\(--dev-(accent|success|danger|warning|info)\)\]/.test(line)) offenders.push(`${file}:${i + 1}`);
+    }
+  }
+  assert.deepEqual(offenders, [], "use text-[color:var(--dev-on-accent)] on a filled tone");
 });
 
 test("the historical --dt-* names remain as aliases so existing markup keeps resolving", () => {

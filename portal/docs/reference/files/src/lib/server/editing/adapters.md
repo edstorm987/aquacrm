@@ -13,7 +13,7 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (5)
 
-- [`src/lib/editing/engine.ts`](../../editing/engine.md)
+- [`src/engines/editor/editing/engine.ts`](../../../engines/editor/editing/engine.md)
 - [`src/server/agencyWebsite.ts`](../../../server/agencyWebsite.md)
 - [`src/server/portalEditor.ts`](../../../server/portalEditor.md)
 - [`src/server/tenants.ts`](../../../server/tenants.md)

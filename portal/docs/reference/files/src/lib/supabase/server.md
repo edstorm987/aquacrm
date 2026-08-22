@@ -13,7 +13,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 - [`src/lib/supabase/config.ts`](./config.md)
 
-## Used by (1)
+## Used by (2)
 
 - [`src/lib/server/auth/auth.ts`](../server/auth/auth.md)
+- [`src/lib/supabase/scoped.ts`](./scoped.md)
 

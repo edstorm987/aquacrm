@@ -12,10 +12,11 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - `renderPlanMarkdown(input: NewPlanInput, now = Date.now()): string`
 - `async createPlan(input: NewPlanInput, now = Date.now()): Promise<NewPlanResult>`
 
-## Depends on (2)
+## Depends on (3)
 
 - [`src/lib/server/dev/devDocs.ts`](./devDocs.md)
 - [`src/lib/server/dev/devLocalTime.ts`](./devLocalTime.md)
+- [`src/lib/server/dev/devMarkdownCache.ts`](./devMarkdownCache.md)
 
 ## Used by (3)
 

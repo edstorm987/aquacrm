@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (2)
 
-- [`src/lib/radar/radarInfraChecks.ts`](../src/lib/radar/radarInfraChecks.md)
+- [`src/engines/data/radar/radarInfraChecks.ts`](../src/engines/data/radar/radarInfraChecks.md)
 - [`src/lib/server/databaseStorageHealth.ts`](../src/lib/server/databaseStorageHealth.md)
 
 ## Used by

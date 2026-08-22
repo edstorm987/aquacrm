@@ -219,7 +219,7 @@ export function InspectorClient({
                       "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-colors " +
                       (isCurrent
                         ? "cursor-default bg-[color:var(--dt-hairline)] text-[color:var(--dt-muted)]"
-                        : "bg-[color:var(--dev-accent)] text-white hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-default disabled:opacity-60")
+                        : "bg-[color:var(--dev-accent)] text-[color:var(--dev-on-accent)] hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-default disabled:opacity-60")
                     }
                   >
                     {isBusy ? (

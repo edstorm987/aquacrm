@@ -15,9 +15,10 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (14)
+## Used by (16)
 
 - [`scripts/smoke-dev-team-editor.test.ts`](../../scripts/smoke-dev-team-editor.test.md)
+- [`scripts/smoke-kpi-shared-views.test.ts`](../../scripts/smoke-kpi-shared-views.test.md)
 - [`src/app/api/portal/advisor/radar/route.ts`](../app/api/portal/advisor/radar/route.md)
 - [`src/app/api/portal/settings/route.ts`](../app/api/portal/settings/route.md)
 - [`src/app/portal/agency/company/page.tsx`](../app/portal/agency/company/page.md)
@@ -26,9 +27,10 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/portal/agency/settings/page.tsx`](../app/portal/agency/settings/page.md)
 - [`src/app/portal/agency/you-deserve-it/page.tsx`](../app/portal/agency/you-deserve-it/page.md)
 - [`src/app/portal/clients/page.tsx`](../app/portal/clients/page.md)
+- [`src/engines/data/server/kpi/kpiSavedViews.ts`](../engines/data/server/kpi/kpiSavedViews.md)
+- [`src/engines/data/server/kpi/kpiTargets.ts`](../engines/data/server/kpi/kpiTargets.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../engines/data/server/radar/businessIssueRadar.md)
 - [`src/lib/server/assistants/advisorSkillsService.ts`](../lib/server/assistants/advisorSkillsService.md)
 - [`src/lib/server/editing/appConfigAdapter.ts`](../lib/server/editing/appConfigAdapter.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../lib/server/inbox/operationalAlerts.md)
-- [`src/lib/server/kpi/kpiTargets.ts`](../lib/server/kpi/kpiTargets.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../lib/server/radar/businessIssueRadar.md)
 

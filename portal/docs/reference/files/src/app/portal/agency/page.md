@@ -6,9 +6,9 @@
 
 ## Exports (1)
 
-- `default async AgencyHome()`
+- `default async AgencyHome({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> })`
 
-## Depends on (44)
+## Depends on (46)
 
 - [`src/app/portal/agency/_BattleTableWorkspace.tsx`](./_BattleTableWorkspace.md)
 - [`src/app/portal/agency/_BrandPortfolioInstrument.tsx`](./_BrandPortfolioInstrument.md)
@@ -19,11 +19,15 @@
 - [`src/app/portal/agency/_NewClientButton.tsx`](./_NewClientButton.md)
 - [`src/app/portal/agency/actions/_ActionsPage.tsx`](./actions/_ActionsPage.md)
 - [`src/app/portal/agency/assistant/AssistantWorkspace.tsx`](./assistant/AssistantWorkspace.md)
+- [`src/app/portal/agency/commandPerformance.ts`](./commandPerformance.md)
+- [`src/engines/data/radar/businessRadar.ts`](../../../engines/data/radar/businessRadar.md)
+- [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](../../../engines/data/server/kpi/companyHealthSnapshot.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../../engines/data/server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/radarEvidenceVault.ts`](../../../engines/data/server/radar/radarEvidenceVault.md)
 - [`src/lib/brands/brandPortfolio.ts`](../../../lib/brands/brandPortfolio.md)
 - [`src/lib/intelligence/businessRecommendedActions.ts`](../../../lib/intelligence/businessRecommendedActions.md)
 - [`src/lib/performance/companyHealth.ts`](../../../lib/performance/companyHealth.md)
 - [`src/lib/performance/hiringCapacity.ts`](../../../lib/performance/hiringCapacity.md)
-- [`src/lib/radar/businessRadar.ts`](../../../lib/radar/businessRadar.md)
 - [`src/lib/server/assistants/assistantBusinessContext.ts`](../../../lib/server/assistants/assistantBusinessContext.md)
 - [`src/lib/server/assistants/assistantStore.ts`](../../../lib/server/assistants/assistantStore.md)
 - [`src/lib/server/assistants/openaiAssistant.ts`](../../../lib/server/assistants/openaiAssistant.md)
@@ -35,9 +39,7 @@
 - [`src/lib/server/dev/devTeamBoard.ts`](../../../lib/server/dev/devTeamBoard.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../../../lib/server/inbox/operationalAlerts.md)
 - [`src/lib/server/integrations/googleCalendar.ts`](../../../lib/server/integrations/googleCalendar.md)
-- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../../../lib/server/kpi/companyHealthSnapshot.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../../../lib/server/radar/businessIssueRadar.md)
-- [`src/lib/server/radar/radarEvidenceVault.ts`](../../../lib/server/radar/radarEvidenceVault.md)
+- [`src/lib/server/performanceMode.ts`](../../../lib/server/performanceMode.md)
 - [`src/lib/shared/formatDateTime.ts`](../../../lib/shared/formatDateTime.md)
 - [`src/lib/shared/internalWorkspace.ts`](../../../lib/shared/internalWorkspace.md)
 - [`src/server/agencyProducts.ts`](../../../server/agencyProducts.md)

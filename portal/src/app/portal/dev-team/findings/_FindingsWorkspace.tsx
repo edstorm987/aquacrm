@@ -209,7 +209,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
           }`}
         >
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)]">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)]">
               <Upload size={13} />
               Add screenshots
               <input
@@ -234,7 +234,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
                   <img src={src} alt={`Attachment ${i + 1}`} className="h-24 w-auto rounded-lg border border-[color:var(--dt-line)] bg-[color:var(--dt-surface)]" />
                   <button type="button" onClick={() => setShots(prev => prev.filter((_, n) => n !== i))}
                     aria-label={`Remove attachment ${i + 1}`}
-                    className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-[color:var(--dev-ink)] text-white transition-transform hover:scale-110">
+                    className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[color:var(--dev-inverse)] text-[color:var(--dev-inverse-ink)] transition-colors hover:bg-[color:var(--dev-inverse-ink)] hover:text-[color:var(--dev-inverse)]">
                     <X size={11} />
                   </button>
                 </div>
@@ -257,7 +257,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
         ) : null}
 
         <button type="button" onClick={save} disabled={busy || !title.trim()}
-          className="mt-3 inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+          className="mt-3 inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-4 py-2 text-sm font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50">
           {busy ? <LoaderCircle size={15} className="animate-spin" /> : null}
           {busy ? "Saving…" : "Save finding"}
         </button>
@@ -271,7 +271,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
             <p className="mt-0.5 text-xs text-[color:var(--dt-faint)]">Tick the ones that belong together, then turn them into a plan.</p>
           </div>
           <button type="button" onClick={makePlan} disabled={planning || picked.size === 0}
-            className="inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40">
+            className="inline-flex items-center gap-2 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40">
             {planning ? <LoaderCircle size={13} className="animate-spin" /> : null}
             {planning ? "Creating…" : `Make a plan${picked.size ? ` (${picked.size})` : ""}`}
           </button>

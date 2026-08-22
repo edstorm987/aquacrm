@@ -144,7 +144,7 @@ function TaskRow({
               <div className="mt-1.5 flex items-center gap-2">
                 <button
                   type="button" onClick={send} disabled={busy || !text.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--dev-accent)] px-3 py-1.5 text-xs font-medium text-[color:var(--dev-on-accent)] transition-colors hover:bg-[color:var(--dev-accent-hover)] disabled:opacity-50"
                 >
                   {busy ? <LoaderCircle size={12} className="animate-spin" /> : <Send size={12} />}
                   {busy ? "Sending…" : "Send"}

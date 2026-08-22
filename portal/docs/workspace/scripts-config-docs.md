@@ -54,11 +54,20 @@ website/editor/domains · fulfilment/delivery/dev-ops · platform/storage/perf/r
 
 ## `docs/`
 
-The prose docs (this file map is the structural companion to them):
+The prose docs (this file map is the structural companion to them). **Re-counted
+2026-08-21 after the doc prune** — 11 dated records moved to
+[`context/archive/`](../context/archive/README.md) and are listed there, not here.
+- `development.md` — **the entry point.** The catalogue everything else hangs from.
 - `PRODUCT-ARCHITECTURE.md` — domain ownership + the macro/micro workspace model.
-- `CURRENT-IMPLEMENTATION.md` — what's built + integration-truth boundaries.
-- `DEVELOPMENT-HANDOFF.md` — repo workflow (persistence, testing, git safety, deploy).
-- `WHERE-WE-ARE.md` — honest plain-language state-of-the-app map.
-- `SESSION-HANDOFF-2026-08-19.md` — latest resume point (single entry for a fresh chat); `-2026-08-18.md` = prior day.
+- `CURRENT-IMPLEMENTATION.md` — the inventory of what systems **exist** (not a status report).
+- `DEVELOPMENT-HANDOFF.md` — the **environment runbook**: repo, ports, persistence, testing, deploy. Not a session handoff.
+- `architecture-noobie.md` — the whole system in plain English.
 - `WORKSPACE-FILE-TREE.md` — the **contents page** for this map; `workspace/` — its chapters (you are here).
-- Feature docs: `portal-tiers-and-fractal-fulfilment`, `website-editor-and-migration`, `meta-master-inbox`, `external-assistant-api`, `development-workspace-cleanup`, `zimante-brand-architecture`.
+- Feature docs: `portal-tiers-and-fractal-fulfilment`, `meta-master-inbox`, `external-assistant-api`, `development-workspace-cleanup`, `zimante-brand-architecture`.
+- 🗄 `context/archive/` — the history shelf. Dated, superseded, never current.
+
+**Where the one-question-one-file rule bites:** "where do we stand" is
+[`development/checklist.md`](../development/checklist.md) and nothing else;
+"what changed" is [`development/updates.md`](../development/updates.md) and
+nothing else. Three files used to answer the first and two of them are now
+archived — do not re-create them.

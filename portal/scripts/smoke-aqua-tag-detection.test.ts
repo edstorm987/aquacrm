@@ -91,6 +91,48 @@ describe("reading the tag off a page", () => {
   });
 });
 
+describe("presence is not execution — could a visitor LOAD the script?", () => {
+  // The first real client run, 2026-08-21: the snippet was on the live page
+  // with the right key, pointing at http://localhost:3032/aqua-tag.js. Every
+  // visitor's browser refused the fetch, the tag never executed, and the
+  // server-side check still said "verified" because the HTML did carry it.
+  // These pin the half that sees the difference.
+  const localSnippet = `<script src="http://localhost:3032/aqua-tag.js" data-site-key="${MASTER}" defer></script>`;
+
+  it("records the src the snippet points at", () => {
+    const analysis = detection.analyzeAquaTagHtml(`<body>${tagScript(MASTER)}</body>`, MASTER, "https://client.example/");
+    assert.equal(analysis.scriptSrc, "https://portal.aqua.test/aqua-tag.js");
+  });
+
+  it("a localhost src on a live page is NOT loadable, and the reason names the env fix", () => {
+    const analysis = detection.analyzeAquaTagHtml(`<body>${localSnippet}</body>`, MASTER, "https://beast-marks.example/");
+    assert.equal(analysis.tagPresent, true);
+    assert.equal(analysis.keyMatches, true, "this is exactly the trap: present, key matches, and still dead");
+    assert.equal(analysis.scriptSrc, "http://localhost:3032/aqua-tag.js");
+    assert.equal(analysis.scriptLoadable?.ok, false);
+    assert.match(analysis.scriptLoadable?.reason ?? "", /only exists on the machine that generated it/);
+    assert.match(analysis.scriptLoadable?.reason ?? "", /NEXT_PUBLIC_PORTAL_BASE_URL/, "the reason IS the fix — it must name it");
+  });
+
+  it("an http script on an https page is blocked as mixed content", () => {
+    const html = `<body><script src="http://cdn.aqua-public.example/aqua-tag.js" data-site-key="${MASTER}"></script></body>`;
+    const analysis = detection.analyzeAquaTagHtml(html, MASTER, "https://client.example/");
+    assert.equal(analysis.scriptLoadable?.ok, false);
+    assert.match(analysis.scriptLoadable?.reason ?? "", /mixed content/i);
+  });
+
+  it("an https script on a public host is presumed loadable", () => {
+    const analysis = detection.analyzeAquaTagHtml(`<body>${tagScript(MASTER)}</body>`, MASTER, "https://client.example/");
+    assert.deepEqual(analysis.scriptLoadable, { ok: true });
+  });
+
+  it("no tag, no verdict — both fields stay absent rather than guessing", () => {
+    const analysis = detection.analyzeAquaTagHtml("<p>Just a page</p>", MASTER, "https://client.example/");
+    assert.equal(analysis.scriptSrc, undefined);
+    assert.equal(analysis.scriptLoadable, undefined);
+  });
+});
+
 describe("the fetch stays SSRF-safe", () => {
   it("normalises a bare domain to https", () => {
     assert.equal(safeFetch.normalizeSiteUrl("cedar-dental.com").toString(), "https://cedar-dental.com/");

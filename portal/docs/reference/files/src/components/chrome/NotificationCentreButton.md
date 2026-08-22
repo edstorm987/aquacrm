@@ -15,10 +15,11 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 - [`src/lib/projects/releases.ts`](../../lib/projects/releases.md)
 - [`src/lib/shared/formatDateTime.ts`](../../lib/shared/formatDateTime.md)
 
-## Used by (4)
+## Used by (5)
 
 - [`src/app/portal/agency/layout.tsx`](../../app/portal/agency/layout.md)
 - [`src/app/portal/clients/[clientId]/layout.tsx`](../../app/portal/clients/[clientId]/layout.md)
 - [`src/app/portal/clients/page.tsx`](../../app/portal/clients/page.md)
+- [`src/app/portal/dev-team/layout.tsx`](../../app/portal/dev-team/layout.md)
 - [`src/components/chrome/NotificationBell.tsx`](./NotificationBell.md)
 

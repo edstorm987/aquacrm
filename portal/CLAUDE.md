@@ -114,8 +114,29 @@ session context and re-exploration. After a change:
 - **Update the relevant chapter** in `docs/workspace/` when you add, move, or
   retire a file or feature — and `docs/workspace/feature-index.md` if it's a new
   cross-layer concern.
-- **Regenerate the symbol reference** so signatures stay exact:
-  `node scripts/generate-symbol-reference.mjs` (writes `docs/reference/`).
+- **Regenerate the reference** so signatures stay exact. There are **TWO**
+  generators and **NEITHER PRUNES** — they only add — so a file MOVE silently
+  leaves orphaned pages behind that describe paths which no longer exist.
+  That is exactly what happened after the `src/engines/` move: 137 pages still
+  documented `src/lib/server/radar/` while the new location had none.
+
+  **If you moved or deleted any file, clear the mirror first:**
+
+  ```bash
+  rm -rf docs/reference/files          # only needed after a move/delete
+  node scripts/generate-file-docs.mjs        # per-file pages (the mirror)
+  node scripts/generate-symbol-reference.mjs # symbol map + buckets
+  ```
+
+  Then PROVE it, rather than assuming — grep `docs/` for each old path and
+  expect zero hits:
+
+  ```bash
+  grep -rl "src/lib/server/radar" docs/ | wc -l   # must be 0
+  ```
+
+  New top-level area under `src/`? Add a bucket to `BUCKETS` in
+  `generate-symbol-reference.mjs`, or every file in it lands in "Other src/".
 - **Added an endpoint?** Add its row to `docs/workspace/api-reference.md`.
 - **Had to add a duplicate, alias, or dead path?** Log it in
   `docs/workspace/hazards-and-duplication.md` so it isn't mistaken for canonical.

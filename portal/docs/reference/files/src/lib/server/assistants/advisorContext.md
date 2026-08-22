@@ -10,10 +10,10 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (6)
 
+- [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](../../../engines/data/server/kpi/companyHealthSnapshot.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../../engines/data/server/radar/businessIssueRadar.md)
 - [`src/lib/intelligence/businessRecommendedActions.ts`](../../intelligence/businessRecommendedActions.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../inbox/operationalAlerts.md)
-- [`src/lib/server/kpi/companyHealthSnapshot.ts`](../kpi/companyHealthSnapshot.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](../radar/businessIssueRadar.md)
 - [`src/server/dashboardPlanning.ts`](../../../server/dashboardPlanning.md)
 - [`src/server/tasks.ts`](../../../server/tasks.md)
 

@@ -4,8 +4,10 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { FinanceNav } from "../components/FinanceNav";
 import { buildBudgetPotSnapshots } from "../lib/budgetHealth";
+import { taxPosition } from "../lib/taxPosition";
 import { formatUkDate } from "../lib/safeDate";
 import { listAgencyCampaignBudgetRecords } from "@/lib/server/finance/financeBudgetCampaigns";
+import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import { cleanClientPaymentPlans, summariseClientPaymentPosition } from "@/lib/clients/clientPaymentPlans";
 import { summariseClientServiceExpansion } from "@/lib/clients/clientCommercialIntelligence";
 import { cleanClientProductProcessState, longestActiveClientProductStage } from "@/lib/clients/clientProductProcess";
@@ -35,7 +37,13 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
     c.operations.listCompensationPayments(),
   ]);
 
-  const currency = invoices[0]?.currency ?? expenses[0]?.currency ?? plans[0]?.currency ?? "gbp";
+  // The agency's CONFIGURED default, not "whatever record happened to sort
+  // first". The old line was `invoices[0]?.currency ?? expenses[0]?.currency ??
+  // plans[0]?.currency ?? "gbp"`, and since every aggregate below filters to
+  // this value, one stray USD invoice sorting first flipped the whole dashboard
+  // to USD and silently dropped every GBP figure with no indicator at all.
+  // Reports / Operations / Settings already resolve it this way.
+  const currency = resolveFinanceDefaultCurrency(props.agencyId, props.install.config.defaultCurrency);
   const paidExpenses = expenses.filter(expense => expense.status === "reimbursed" && expense.currency === currency);
   const paymentInvoiceIds = new Set(payments.map(payment => payment.invoiceId));
   const legacyPaidInvoices = invoices.filter(invoice =>
@@ -55,6 +63,16 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
     (sum, expense) => sum + (expense.taxDeductible === false ? 0 : (expense.taxCents ?? 0)),
     0,
   );
+  // The SIGNED position, in the direction it actually points.
+  //
+  // This row rendered `Math.max(0, outputTaxCents - inputTaxCents)`. When
+  // recoverable tax exceeds tax charged — money owed BACK — the clamp printed
+  // "£0.00" and the operator had no way to know a reclaim existed. Reports was
+  // fixed with `taxPosition()`; Overview was named in the same finding and was
+  // missed, so it went on saying the same untrue thing on the screen that gets
+  // looked at most. One helper, both surfaces, and the label moves with the
+  // direction rather than staying "balance" for a refund.
+  const tax = taxPosition(outputTaxCents, inputTaxCents);
   const taxReserveRate = Number(props.install.config.taxReserveRate ?? 20);
   const indicativeTaxReserveCents = Math.max(0, Math.round(netCents * taxReserveRate / 100));
   const outstandingCents = invoices
@@ -243,7 +261,7 @@ export default async function FounderDashboardPage(props: PluginPageProps) {
           <dl className="mt-4 divide-y divide-black/10 border-y border-black/10 text-sm">
             <Row label="Tax charged on paid invoices" value={money(outputTaxCents, currency)} />
             <Row label="Recoverable tax on costs" value={money(inputTaxCents, currency)} />
-            <Row label="Recorded balance" value={money(Math.max(0, outputTaxCents - inputTaxCents), currency)} strong />
+            <Row label={tax.recordedLabel} value={money(tax.displayCents, currency)} strong />
           </dl>
           <a href="/portal/agency/agency-finance/reports" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-black/70 hover:text-black">
             Open tax and P&amp;L report <ArrowRight size={15} aria-hidden />

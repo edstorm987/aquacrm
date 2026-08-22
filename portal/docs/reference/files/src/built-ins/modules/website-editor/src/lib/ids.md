@@ -2,7 +2,7 @@
 
 ← [File index](../../../../../../../files-index.md) · Area: Plugins — src/built-ins/
 
-**What it is:** Lightweight id generator. Mirrors T2's pattern; avoids a runtime dep on `nanoid` so the plugin keeps its `dependencies` empty.  `makeId`/`slugify` moved to `src/lib/elements/ids.ts` in P1 — the migration runner needs them and no longer lives in this plugin. Re-exported here so every call site is unchanged; the domain-specific helpers below stay put.
+**What it is:** Lightweight id generator. Mirrors T2's pattern; avoids a runtime dep on `nanoid` so the plugin keeps its `dependencies` empty.  `makeId`/`slugify` moved to `src/engines/editor/elements/ids.ts` in P1 — the migration runner needs them and no longer lives in this plugin. Re-exported here so every call site is unchanged; the domain-specific helpers below stay put.
 
 ## Exports (6)
 
@@ -15,7 +15,7 @@
 
 ## Depends on (1)
 
-- [`src/lib/elements/ids.ts`](../../../../../lib/elements/ids.md)
+- [`src/engines/editor/elements/ids.ts`](../../../../../engines/editor/elements/ids.md)
 
 ## Used by (9)
 

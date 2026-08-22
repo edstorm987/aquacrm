@@ -101,15 +101,25 @@ const manifest: AquaPlugin = {
   ],
 
   pages: [
-    { path: "", component: () => import("./src/pages/PlansPage") },
-    { path: "plans", component: () => import("./src/pages/PlansPage") },
-    { path: "subscribers", component: () => import("./src/pages/SubscribersPage") },
-    { path: "subscribers/:userId", component: () => import("./src/pages/SubscriberDetailPage") },
-    { path: "benefits", component: () => import("./src/pages/BenefitsPage") },
-    { path: "reports", component: () => import("./src/pages/ReportsPage") },
-    { path: "settings", component: () => import("./src/pages/SettingsPage") },
-    // Customer-side
-    { path: "/portal/customer/memberships", component: () => import("./src/pages/MyMembershipPage") },
+    // Operator pages, all of them. `plans` and `subscribers/:userId` are
+    // ORPHANS — no nav entry resolves to either — so until now nothing in the
+    // manifest said who a subscriber's detail record is for.
+    { path: "", component: () => import("./src/pages/PlansPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "plans", component: () => import("./src/pages/PlansPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "subscribers", component: () => import("./src/pages/SubscribersPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "subscribers/:userId", component: () => import("./src/pages/SubscriberDetailPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "benefits", component: () => import("./src/pages/BenefitsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "reports", component: () => import("./src/pages/ReportsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    // Admin-only in the nav, so admin-only at the door too: the host gates on
+    // this, and without it the page was reachable by URL to any role the scope
+    // check let in (the agency-finance class bug, 22 Aug 2026).
+    { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...ADMIN_ROLES] },
+    // Customer-side. The full URL is the ONLY way onto that surface — see
+    // `resolveCustomerPluginPage`. Until 22 Aug 2026 the relative pages above
+    // also answered under /portal/customer/memberships/..., which handed a
+    // shopper the operator's subscriber list, and the bare
+    // /portal/customer/memberships matched the "" index BEFORE this page.
+    { path: "/portal/customer/memberships", component: () => import("./src/pages/MyMembershipPage"), visibleToRoles: [...END_CUSTOMER] },
   ],
 
   api: ROUTES,

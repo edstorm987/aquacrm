@@ -92,14 +92,21 @@ const manifest: AquaPlugin = {
   ],
 
   pages: [
-    { path: "", component: () => import("./src/pages/AffiliatesPage") },
-    { path: "affiliates", component: () => import("./src/pages/AffiliatesPage") },
-    { path: "codes", component: () => import("./src/pages/CodesPage") },
-    { path: "attributions", component: () => import("./src/pages/AttributionsPage") },
-    { path: "payouts", component: () => import("./src/pages/PayoutsPage") },
-    { path: "settings", component: () => import("./src/pages/SettingsPage") },
-    // Customer page (full URL — T3-style convention)
-    { path: "/portal/customer/affiliates", component: () => import("./src/pages/MyAffiliatePage") },
+    // Operator pages. `affiliates` is an ORPHAN (the nav "Affiliates" entry
+    // names the bare mount, which resolves to "" above).
+    { path: "", component: () => import("./src/pages/AffiliatesPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "affiliates", component: () => import("./src/pages/AffiliatesPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "codes", component: () => import("./src/pages/CodesPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "attributions", component: () => import("./src/pages/AttributionsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    { path: "payouts", component: () => import("./src/pages/PayoutsPage"), visibleToRoles: [...ADMIN_VIEWERS] },
+    // Admin-only in the nav, so admin-only at the door too: the host gates on
+    // this, and without it the page was reachable by URL to any role the scope
+    // check let in (the agency-finance class bug, 22 Aug 2026).
+    { path: "settings", component: () => import("./src/pages/SettingsPage"), visibleToRoles: [...ADMIN_ROLES] },
+    // Customer page (full URL — the only way onto that surface). Until
+    // 22 Aug 2026 the operator pages above also answered under
+    // /portal/customer/affiliates/..., including every affiliate's payouts.
+    { path: "/portal/customer/affiliates", component: () => import("./src/pages/MyAffiliatePage"), visibleToRoles: [...END_CUSTOMER] },
   ],
 
   api: ROUTES,

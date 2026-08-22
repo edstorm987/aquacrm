@@ -18,8 +18,9 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/server/storage.ts`](./storage.md)
 - [`src/server/types.ts`](./types.md)
 
-## Used by (19)
+## Used by (20)
 
+- [`scripts/smoke-app-route-tenancy.test.ts`](../../scripts/smoke-app-route-tenancy.test.md)
 - [`src/app/api/auth/preview-as-client-at-phase/route.ts`](../app/api/auth/preview-as-client-at-phase/route.md)
 - [`src/app/api/portal/phases/delete/route.ts`](../app/api/portal/phases/delete/route.md)
 - [`src/app/api/portal/phases/upsert/route.ts`](../app/api/portal/phases/upsert/route.md)

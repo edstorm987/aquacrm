@@ -14,7 +14,8 @@
 
 - [`src/built-ins/runtime/_types.ts`](./_types.md)
 
-## Used by (1)
+## Used by (2)
 
+- [`scripts/smoke-plugin-settings-surface.test.ts`](../../../scripts/smoke-plugin-settings-surface.test.md)
 - [`src/built-ins/runtime/_registry.ts`](./_registry.md)
 

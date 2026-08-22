@@ -18,8 +18,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (7)
 
-- [`src/lib/editing/engine.ts`](../../editing/engine.md)
-- [`src/lib/elements/definition.ts`](../../elements/definition.md)
+- [`src/engines/editor/editing/engine.ts`](../../../engines/editor/editing/engine.md)
+- [`src/engines/editor/elements/definition.ts`](../../../engines/editor/elements/definition.md)
 - [`src/lib/server/editing/adapters.ts`](./adapters.md)
 - [`src/server/activity.ts`](../../../server/activity.md)
 - [`src/server/agencySettings.ts`](../../../server/agencySettings.md)

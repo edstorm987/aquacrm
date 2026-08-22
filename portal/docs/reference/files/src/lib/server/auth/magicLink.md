@@ -22,9 +22,10 @@
 - [`src/lib/server/auth/nonceStore.ts`](./nonceStore.md)
 - [`src/lib/server/email/transactionalEmail.ts`](../email/transactionalEmail.md)
 
-## Used by (4)
+## Used by (5)
 
 - [`scripts/smoke-auth-magic.test.ts`](../../../../scripts/smoke-auth-magic.test.md)
+- [`scripts/smoke-mfa-doors.test.ts`](../../../../scripts/smoke-mfa-doors.test.md)
 - [`src/app/api/auth/magic/request/route.ts`](../../../app/api/auth/magic/request/route.md)
 - [`src/app/api/auth/magic/verify/route.ts`](../../../app/api/auth/magic/verify/route.md)
 - [`src/app/api/tenants/customer-portal-control/route.ts`](../../../app/api/tenants/customer-portal-control/route.md)

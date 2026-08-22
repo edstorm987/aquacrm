@@ -465,7 +465,7 @@ describe("client portal design versions", () => {
 describe("client portal studio surface", () => {
   it("edits the real preview with lifecycle, page, device, brand, and version controls", async () => {
     const [studio, editorPage, preview, portalData, chrome, extension, composition, interactions, builder, views, customerRoute, workspace, route, setup] = await Promise.all([
-      readFile(new URL("../src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../src/engines/editor/DevEditor.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/agency/portals/editor/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/client-preview/[clientId]/page.tsx", import.meta.url), "utf8"),
       readFile(new URL("../src/app/portal/customer/_portalData.ts", import.meta.url), "utf8"),
@@ -480,10 +480,37 @@ describe("client portal studio surface", () => {
       readFile(new URL("../src/app/api/portal/client-portal-design/route.ts", import.meta.url), "utf8"),
       readFile(new URL("../src/server/clientPortalSetup.ts", import.meta.url), "utf8"),
     ]);
+    // The studio's data loader moved into the editor engine so the Dev Team
+    // editor can mount the SAME studio. The contract is unchanged — it is just
+    // no longer inline in the route — so assert it where it now lives.
+    const studioLoader = await readFile(new URL("../src/engines/editor/server/portalStudio.ts", import.meta.url), "utf8");
 
-    for (const label of ["Portal studio", "Template", "Client", "Lifecycle stage", "Portal page", "Builder", "Content", "Pages", "Brand", "Code", "Versions", "Visual composition", "Add a portal component", "Custom portal layer", "Portal CSS", "JavaScript", "Save draft", "Publish"]) {
+    // Rebranded 2026-08-21: the surface is the Dev Editor, not a portal-only
+    // studio — it now edits portals, websites and repositories.
+    for (const label of ["Dev Editor", "Template", "Client", "Lifecycle stage", "Builder", "Content", "Pages", "Brand", "Code", "Versions", "Visual composition", "Add a portal component", "Custom portal layer", "Portal CSS", "JavaScript", "Save draft", "Publish"]) {
       assert.match(studio, new RegExp(label));
     }
+    // PIN REWRITTEN LOUDLY 2026-08-22 (dev-editor-finish phase 8). "Portal
+    // page" was in the list above and is deliberately gone: the portal-only
+    // `aria-label="Portal page"` select in the header's second row was
+    // REPLACED by the universal navigator, which lists a portal's own pages
+    // beside a repository's routes and the links the Aqua Tag can see —
+    // because the old control existed only for portals, which is exactly how
+    // a repository-backed project ended up able to load one address and go
+    // nowhere ("if i put in a website id get stuck").
+    //
+    // The contract is unchanged — a portal's pages are switchable from the
+    // header — so it is asserted through the control that now provides it,
+    // and deliberately NOT as a bare `/Portal page/` text match, which the
+    // explanatory comment left behind in the editor would satisfy on its own.
+    assert.match(studio, /<PageNavigator plan=\{pageNavigator\} value=\{navigatorValue\} onPick=\{goToPage\}/);
+    assert.equal(/aria-label="Portal page"/.test(studio), false,
+      "the portal-only page select is gone — the navigator replaced it");
+    // …and the portal's own pages are what feeds it: core sections with the
+    // document's own labels, plus whatever custom pages the operator added.
+    assert.match(studio, /sections: CLIENT_PORTAL_SECTIONS\.map/);
+    assert.match(studio, /portalDocument\?\.pages\[item\]\.label \|\| SECTION_LABELS\[item\]/);
+    assert.match(studio, /customPages: portalDocument/);
     assert.match(studio, /\/client-preview\/\$\{clientId\}/);
     assert.match(studio, /portalDraft: "1"/);
     assert.match(studio, /target="_blank"/);
@@ -495,8 +522,11 @@ describe("client portal studio surface", () => {
     assert.match(studio, /Refresh draft from master/);
     assert.match(studio, /row-start-2/);
     assert.match(studio, /aria-live="polite"/);
-    assert.match(editorPage, /ensureProductPortalTemplates/);
-    assert.match(editorPage, /query\.productId/);
+    assert.match(studioLoader, /ensureProductPortalTemplates/);
+    assert.match(studioLoader, /query\.productId/);
+    // …and the route still mounts the studio through that loader.
+    assert.match(editorPage, /loadPortalStudioProps/);
+    assert.match(editorPage, /<DevEditor/);
     assert.match(preview, /portalScope/);
     assert.match(preview, /portalMode/);
     assert.match(portalData, /resolveClientPortalDesign/);

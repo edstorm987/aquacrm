@@ -10,8 +10,8 @@ _No file-level doc-comment. Purpose inferred from its path (Components — src/c
 
 ## Depends on (2)
 
+- [`src/lib/chrome/cinematicMode.ts`](../../lib/chrome/cinematicMode.md)
 - [`src/lib/chrome/devModeLoadIn.ts`](../../lib/chrome/devModeLoadIn.md)
-- [`src/lib/chrome/performanceMode.ts`](../../lib/chrome/performanceMode.md)
 
 ## Used by (1)
 

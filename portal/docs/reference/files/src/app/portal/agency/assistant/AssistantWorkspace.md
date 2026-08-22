@@ -10,9 +10,9 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Depends on (5)
 
+- [`src/engines/data/radar/businessRadar.ts`](../../../../engines/data/radar/businessRadar.md)
 - [`src/lib/advisor/advisorSkills.ts`](../../../../lib/advisor/advisorSkills.md)
 - [`src/lib/enquiries/leadTiming.ts`](../../../../lib/enquiries/leadTiming.md)
-- [`src/lib/radar/businessRadar.ts`](../../../../lib/radar/businessRadar.md)
 - [`src/lib/shared/formatDateTime.ts`](../../../../lib/shared/formatDateTime.md)
 - [`src/server/types.ts`](../../../../server/types.md)
 

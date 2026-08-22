@@ -14,6 +14,7 @@ import { SidebarFooter } from "./SidebarFooter";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { WORKSPACES } from "@/lib/chrome/workspaces";
 import { SidebarNavLink } from "./SidebarNavLink";
+import { SidebarPinnedTabs } from "./PinnedTabs";
 
 function workspacesForPanel(panelId: string): string {
   return WORKSPACES.filter(w => w.panels.includes(panelId)).map(w => w.id).join(" ");
@@ -138,7 +139,7 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             >
               <summary
                 id={headingId}
-                className="mm-sidebar-heading flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/50 hover:bg-black/[0.03]"
+                className="mm-sidebar-heading flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/60 hover:bg-black/[0.03]"
               >
                 <svg
                   aria-hidden
@@ -159,6 +160,9 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             </details>
           );
         })}
+        {/* Longer-term pinned pages sit at the bottom of the nav, under Tools
+            (self-hides when none are pinned to the sidebar). */}
+        <SidebarPinnedTabs />
       </nav>
       {extra && <div className="mt-6 mm-sidebar-extra" data-workspaces="aqua-hq">{extra}</div>}
 

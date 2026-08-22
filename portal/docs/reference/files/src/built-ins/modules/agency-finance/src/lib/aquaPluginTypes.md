@@ -4,7 +4,7 @@
 
 **What it is:** Vendored AquaPlugin contract.
 
-## Exports (20)
+## Exports (21)
 
 - `type PluginCategory`
 - `type PluginStatus`
@@ -17,12 +17,13 @@
 - `interface NavGroup (3 members)`
 - `type PluginRoleVisibility`
 - `interface NavItem (11 members)`
-- `interface PluginPage (4 members)`
+- `interface PluginPage (6 members)`
 - `interface PluginPageProps (8 members)`
 - `interface PluginApiRoute (6 members)`
 - `interface SettingsSchema (2 members)`
 - `interface SettingsGroup (4 members)`
-- `interface SettingsField (7 members)`
+- `interface SettingsFieldVaultTarget (2 members)`
+- `interface SettingsField (8 members)`
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
 - `interface AquaPlugin (26 members)`

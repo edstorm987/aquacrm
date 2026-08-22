@@ -8,9 +8,10 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 - `WebsiteWorkspace({ initialWebsite, initialSummary, canManage, }: { initialWebsite: AgencyWebsiteProject; initialSummary: ClientTelemetrySummary; canManage: boolean; })`
 
-## Depends on (2)
+## Depends on (3)
 
 - [`src/lib/clients/clientTelemetry.ts`](../../../../../lib/clients/clientTelemetry.md)
+- [`src/lib/performance/telemetryDisplay.ts`](../../../../../lib/performance/telemetryDisplay.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 
 ## Used by (1)

@@ -8,7 +8,7 @@
 
 - `default async AgencyLayout({ children }: { children: ReactNode })`
 
-## Depends on (26)
+## Depends on (28)
 
 - [`src/built-ins/runtime/_runtime.ts`](../../../built-ins/runtime/_runtime.md)
 - [`src/components/attention/ResolutionBanner.tsx`](../../../components/attention/ResolutionBanner.md)
@@ -27,8 +27,10 @@
 - [`src/lib/server/auth/effectiveRole.ts`](../../../lib/server/auth/effectiveRole.md)
 - [`src/lib/server/dev/devDocs.ts`](../../../lib/server/dev/devDocs.md)
 - [`src/lib/server/dev/devModeAccess.ts`](../../../lib/server/dev/devModeAccess.md)
+- [`src/lib/server/devIconPreference.ts`](../../../lib/server/devIconPreference.md)
 - [`src/lib/server/inbox/operationalAlertPreferences.ts`](../../../lib/server/inbox/operationalAlertPreferences.md)
 - [`src/lib/server/inbox/operationalAlerts.ts`](../../../lib/server/inbox/operationalAlerts.md)
+- [`src/lib/server/performanceMode.ts`](../../../lib/server/performanceMode.md)
 - [`src/lib/server/sidebarAttention.ts`](../../../lib/server/sidebarAttention.md)
 - [`src/lib/shared/internalWorkspace.ts`](../../../lib/shared/internalWorkspace.md)
 - [`src/server/pluginInstalls.ts`](../../../server/pluginInstalls.md)

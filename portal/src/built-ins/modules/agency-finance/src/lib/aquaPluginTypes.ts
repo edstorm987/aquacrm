@@ -86,6 +86,14 @@ export interface PluginPage {
   component: () => Promise<{ default: ComponentType<PluginPageProps> }>;
   requiresFeature?: string;
   title?: string;
+  // ACCESS CONTROL, not decoration. The host reads this through
+  // `pluginPageAllowedRoles(page)` and 404s before the component is even
+  // imported — so a page left undeclared is reachable by URL to anyone the
+  // scope gate lets in, whatever the sidebar shows. Declare it on every page
+  // whose nav entry is narrower than the plugin's widest nav entry;
+  // `smoke-finance-section-gates.test.ts` fails the build otherwise.
+  visibleToRoles?: PluginRoleVisibility[];
+  roles?: PluginRoleVisibility[];
 }
 export interface PluginPageProps {
   agencyId: AgencyId;
@@ -114,6 +122,14 @@ export interface SettingsGroup {
   description?: string;
   fields: SettingsField[];
 }
+export interface SettingsFieldVaultTarget {
+  // An integrations-catalogue provider id (e.g. "stripe"). Plain string so this
+  // vendored copy stays standalone-tsc-clean; the host validates it for real.
+  provider: string;
+  // The catalogue field id the value is stored under (e.g. "secretKey").
+  field: string;
+}
+
 export interface SettingsField {
   id: string;
   label: string;
@@ -122,6 +138,10 @@ export interface SettingsField {
   options?: { value: string; label: string }[];
   helpText?: string;
   placeholder?: string;
+  // WHERE a `password` field's value is stored. Required for every password
+  // field — `install.config` reaches the browser through page props, so a
+  // secret must go to the encrypted integrations vault instead.
+  secretVault?: SettingsFieldVaultTarget;
 }
 export interface PluginFeature {
   id: string;

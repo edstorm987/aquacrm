@@ -18,7 +18,8 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/server/storage.ts`](../../server/storage.md)
 - [`src/server/tradingCompanies.ts`](../../server/tradingCompanies.md)
 
-## Used by (1)
+## Used by (2)
 
 - [`src/app/api/portal/compliance/posture/route.ts`](../../app/api/portal/compliance/posture/route.md)
+- [`src/app/portal/agency/governance/_governanceData.ts`](../../app/portal/agency/governance/_governanceData.md)
 

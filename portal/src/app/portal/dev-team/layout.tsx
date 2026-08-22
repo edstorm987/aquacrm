@@ -6,7 +6,6 @@ import {
   ScanEye,
   Wrench,
   Library,
-  MessagesSquare,
   NotebookPen,
   Route,
   SquarePen,
@@ -20,6 +19,7 @@ import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { Sidebar } from "@/components/chrome/Sidebar";
 import { ThemeInjector } from "@/components/chrome/ThemeInjector";
 import { Topbar } from "@/components/chrome/Topbar";
+import { NotificationCentreButton } from "@/components/chrome/NotificationCentreButton";
 import { requireRole } from "@/lib/server/auth/auth";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import type { NavPanel } from "@/lib/chrome/sidebarLayout";
@@ -77,13 +77,14 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
       { id: "findings", label: "Findings", href: "/portal/dev-team/findings", icon: ico(ScanEye, "findings"), panelId: "main" as const, order: 5 },
       { id: "library", label: "Library", href: "/portal/dev-team/library", icon: ico(Library, "library"), panelId: "main" as const, order: 20 },
       { id: "tools", label: "Tools", href: "/portal/dev-team/tools", icon: ico(Wrench, "tools"), panelId: "main" as const, order: 30 },
-      // The editor (currently the app-config edit→preview→publish loop; the
-      // route is slated to grow into the full Dev Editor Engine) is a
-      // first-class sidebar item now, not buried under Tools.
+      // The editor is a first-class sidebar item now, not buried under Tools.
+      // This route is the Dev Editor PROJECTS workspace (`editor/page.tsx` →
+      // `editor/setup/_DevEditorSetup`); the editor itself opens from there at
+      // `editor/studio`, mounting `src/engines/editor/DevEditor.tsx` — the ONE
+      // universal editor, which adapts to whatever it is pointed at. The
+      // app-config edit→preview→publish loop is a different, smaller thing and
+      // still lives at Tools → Editor (`editor/_Section.tsx`).
       { id: "editor", label: "Editor", href: "/portal/dev-team/editor", icon: ico(SquarePen, "editor"), panelId: "main" as const, order: 40 },
-      // Team chat — the Dev Team's comms. v1 surfaces the existing TeamChat
-      // (staff↔founder). v2: AI workers post into it; v3: staff-portal bridge.
-      { id: "chat", label: "Team chat", href: "/portal/dev-team/chat", icon: ico(MessagesSquare, "working"), panelId: "main" as const, order: 50 },
       { id: "notes", label: "Notes", href: "/portal/dev-team/notes", icon: ico(NotebookPen, "notes"), panelId: "main" as const, order: 70 },
       // The way OUT is now the topbar's role-dependent "Back to home" (it lands
       // on the operator's own portal, unlike the old hardcoded /portal/agency
@@ -113,38 +114,139 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
            Turbopack dropped these custom-property definitions when they lived in
            globals.css (the compiled sheet carried no .mm-dev-team-shell{--dev-*}
            rule, so the whole workspace fell back to app defaults). A server
-           <style> ships raw and bypasses that pipeline, exactly as the --dt-*
+           The inline style element ships raw and bypasses that pipeline, exactly as the --dt-*
            tokens always did. LIGHT = timber MILL; html[data-color-mode="dark"]
            forges the FORGE. --dt-* are thin aliases so existing markup resolves. */
         .mm-dev-team-shell {
           --dev-bg: #efe3cd; --dev-surface: #f7efdd; --dev-surface-raised: #fdf9f0;
-          --dev-ink: #3a2c1e; --dev-ink-muted: #6a5942; --dev-faint: #7c6a52;
+          /* --dev-faint carries Panel titles, Panel hints, PageHeader meta and
+             EmptyState — real reading copy, and the 10px/11px normaliser in
+             globals.css puts all of it at 12px, so AA's 4.5:1 applies. The old
+             #7c6a52 measured 4.13:1 on --dt-bg; #74624b clears every dev
+             surface (4.65 bg / 5.16 surface / 5.62 raised). */
+          --dev-ink: #3a2c1e; --dev-ink-muted: #6a5942; --dev-faint: #74624b;
           --dev-line: #d9c7a5; --dev-hairline: #e6d8bd; --dev-hover: rgba(58,44,30,0.06);
-          --dev-accent: #1f7a6e; --dev-accent-hover: #17635a; --dev-accent-soft: #dcebe6;
+          /* The five tone foregrounds are each ~4% deeper than they were. They
+             sit on their own -soft chip in Pill (and inline in Inspector /
+             the update composer), where the old pairs measured 4.09–4.20:1 —
+             under AA at the 11px→12px the Pill actually renders. Deepening the
+             foreground rather than washing out the chip keeps the chip legible
+             as a chip, and every other use of these tokens (icon on a 15% tile,
+             text on a dev surface, white on a filled button) only gains. */
+          --dev-accent: #1c7167; --dev-accent-hover: #17635a; --dev-accent-soft: #dcebe6;
           --dev-accent-line: #b9d8d1; --dev-on-accent: #ffffff;
-          --dev-success: #2f7d4a; --dev-success-soft: #dcebdd; --dev-success-line: #b7d4bb;
-          --dev-danger: #b8442f; --dev-danger-soft: #f2ddd6; --dev-danger-line: #e0b6a9;
-          --dev-warning: #9e5f14; --dev-warning-soft: #f1e6c9; --dev-warning-line: #ddc794;
+          --dev-success: #2b7444; --dev-success-hover: #245f38; --dev-success-soft: #dcebdd; --dev-success-line: #b7d4bb;
+          --dev-danger: #ad3d29; --dev-danger-soft: #f2ddd6; --dev-danger-line: #e0b6a9;
+          --dev-warning: #94580f; --dev-warning-soft: #f1e6c9; --dev-warning-line: #ddc794;
           --dev-info: #2f6f8f; --dev-info-soft: #d9e6ec; --dev-info-line: #b3ccd6;
           --dev-violet: #6d4aa8; --dev-purple: #8a3f86; --dev-indigo: #3f51a8;
           --dev-cyan: #0e7490; --dev-slate: #4a5c6a; --dev-glow: rgba(31,122,110,0.30);
+          /* The INVERTED WELL — a deliberately dark panel (the master-tag
+             snippet, the remove-attachment dot) that must stay dark in BOTH
+             modes so its light foreground stays readable. It used to borrow
+             --dev-ink, which is a TEXT token and therefore flips to cream in
+             the forge, dropping white-on-cream to 1.19:1. */
+          --dev-inverse: #3a2c1e; --dev-inverse-ink: #f7efdd; --dev-inverse-muted: #c9b79b;
+          --dev-inverse-film: rgba(247,239,221,0.12); --dev-inverse-film-hover: rgba(247,239,221,0.24);
           --dt-bg: var(--dev-bg); --dt-surface: var(--dev-surface); --dt-raised: var(--dev-surface-raised);
           --dt-ink: var(--dev-ink); --dt-muted: var(--dev-ink-muted); --dt-faint: var(--dev-faint);
           --dt-line: var(--dev-line); --dt-hairline: var(--dev-hairline); --dt-hover: var(--dev-hover);
         }
         html[data-color-mode="dark"] .mm-dev-team-shell {
           --dev-bg: #15110d; --dev-surface: #1e1813; --dev-surface-raised: #261e17;
-          --dev-ink: #f3e7d6; --dev-ink-muted: #a8937c; --dev-faint: #8a765f;
+          /* Same story in the forge, the other way up: #8a765f was 3.78:1 on
+             --dt-raised. #9a856b clears all three (4.66 raised / 4.99 surface
+             / 5.33 bg). */
+          --dev-ink: #f3e7d6; --dev-ink-muted: #a8937c; --dev-faint: #9a856b;
           --dev-line: #3a2e22; --dev-hairline: #2a2118; --dev-hover: rgba(255,122,47,0.09);
           --dev-accent: #ff7a2f; --dev-accent-hover: #ff9354; --dev-accent-soft: #3a2214;
           --dev-accent-line: #5c3a20; --dev-on-accent: #1a1109;
-          --dev-success: #4fae6b; --dev-success-soft: #1f2d21; --dev-success-line: #2f4a34;
-          --dev-danger: #e5482f; --dev-danger-soft: #331810; --dev-danger-line: #5c2c1e;
+          --dev-success: #4fae6b; --dev-success-hover: #66c483; --dev-success-soft: #1f2d21; --dev-success-line: #2f4a34;
+          /* #e5482f on --dev-danger-soft was 4.13:1 — the one forge tone that
+             missed AA in Pill. #f05a3e reads 4.86:1 on the same chip. */
+          --dev-danger: #f05a3e; --dev-danger-soft: #331810; --dev-danger-line: #5c2c1e;
           --dev-warning: #e0a63a; --dev-warning-soft: #2f2510; --dev-warning-line: #574016;
           --dev-info: #6f97ad; --dev-info-soft: #1a232a; --dev-info-line: #33454f;
           --dev-violet: #b79ae6; --dev-purple: #cf8ac9; --dev-indigo: #8f9ee8;
           --dev-cyan: #4bb6d4; --dev-slate: #93a7b5; --dev-glow: rgba(255,122,47,0.5);
+          /* Still a dark well, now sunk BELOW the forge surface rather than
+             inverted against it — 16.1:1 for the snippet, 9.1:1 for its label. */
+          --dev-inverse: #0e0b08; --dev-inverse-ink: #f3e7d6; --dev-inverse-muted: #bfae97;
+          --dev-inverse-film: rgba(243,231,214,0.10); --dev-inverse-film-hover: rgba(243,231,214,0.22);
         }
+        /* The CHROME adopts the workspace theme.
+           Command Centre already does this — its shell themes the topbar and
+           sidebar to match the station. Dev Team themed only its main content,
+           so a plain white topbar and sidebar sat around a mill-yard (or forge)
+           workspace and the shell stopped at the content edge.
+           Marked important for the same reason as the hover rules below: the
+           themed chrome is selected at html[data-color-mode][data-portal-shell]
+           strength, which outranks any class selector here. Scoped to this
+           shell, so no other workspace changes. Popovers (profile, notification
+           centre, radar, search, dev console) are excluded — they carry their
+           own surfaces. */
+        .mm-dev-team-shell .mm-portal-topbar {
+          background: var(--dt-surface) !important;
+          border-bottom-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar .mm-private-chrome > p:first-child {
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar .mm-private-chrome > p:last-child {
+          color: var(--dt-muted) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar
+          :is(button, a):not(.mm-profile-menu :is(button, a)):not(.mm-notification-centre :is(button, a)):not(.mm-radar-popover :is(button, a)):not(#aqua-workspace-search :is(button, a)):not(.mm-dev-console-panel :is(button, a)):not(.mm-pinned-menu :is(button, a)):not(.mm-inspector-control :is(button, a)) {
+          background: var(--dt-raised) !important;
+          border-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-portal-topbar
+          :is(button, a):not(.mm-profile-menu :is(button, a)):not(.mm-notification-centre :is(button, a)):not(.mm-radar-popover :is(button, a)):not(#aqua-workspace-search :is(button, a)):not(.mm-dev-console-panel :is(button, a)):not(.mm-pinned-menu :is(button, a)):not(.mm-inspector-control :is(button, a)):hover {
+          background: var(--dt-hover) !important;
+          border-color: var(--dev-accent-line) !important;
+        }
+        .mm-dev-team-shell .mm-private-sidebar {
+          background: var(--dt-surface) !important;
+          border-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+        }
+        .mm-dev-team-shell .mm-private-sidebar .mm-sidebar-tenant {
+          background: var(--dt-surface) !important;
+        }
+        /* Dark (the forge). The generic dark theme sets the chrome surface at
+           html[data-color-mode="dark"] strength — higher specificity than the
+           class-only rules above, so in dark mode it won and the chrome sat on
+           the neutral #1A1B18 instead of the forge's warm #1e1813. Re-state the
+           same intent at matching specificity so the forge wins in its own
+           workspace. */
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-portal-topbar,
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-private-sidebar,
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-private-sidebar .mm-sidebar-tenant {
+          background: var(--dt-surface) !important;
+          background-color: var(--dt-surface) !important;
+          border-color: var(--dt-line) !important;
+          color: var(--dt-ink) !important;
+          /* The attention badges punch themselves out of the chrome with a
+             ring the colour of the surface behind them (globals.css re-points
+             ring-white in dark). Here that surface is the forge, not the
+             generic #1A1B18. */
+          --mm-badge-ring: var(--dt-surface);
+        }
+        html[data-color-mode="dark"] .mm-dev-team-shell .mm-pinned-bar {
+          background: var(--dt-bg) !important;
+          background-color: var(--dt-bg) !important;
+        }
+        /* The pinned strip rides directly under the topbar — same surface. */
+        .mm-dev-team-shell .mm-pinned-bar {
+          background: var(--dt-bg) !important;
+          border-bottom-color: var(--dt-hairline) !important;
+        }
+        .mm-dev-team-shell .mm-pinned-bar .mm-pinned-bar-label {
+          color: var(--dt-faint) !important;
+        }
+
         /* This workspace carries more nav items than any other scope, so at a
            laptop height the list overflowed and collided with the pinned
            footer — "My profile" printed straight over "Leave Dev Team". Give
@@ -181,11 +283,18 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
           background-color: var(--dt-hover) !important;
         }
         .mm-dev-team-shell .mm-private-sidebar .mm-sidebar-link .mm-sidebar-link-icon {
-          transition: transform 160ms ease, filter 160ms ease;
+          transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
         }
+        /* The lift is scale + a tone ring, NOT a filter. filter: saturate(1.4)
+           re-tints the glyph and its chip together, and in the mill it moved
+           them towards each other — the section icon on its own 10% chip fell
+           from 3.70:1 to 3.44:1 on hover, i.e. the icon washed out at exactly
+           the moment you pointed at it. A ring adds an affordance without
+           touching either colour, so contrast is identical resting and hovered,
+           in both the mill and the forge. */
         .mm-dev-team-shell .mm-private-sidebar .mm-sidebar-link:hover .mm-sidebar-link-icon {
           transform: scale(1.18) !important;
-          filter: saturate(1.4) !important;
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--nav-tone) 45%, transparent) !important;
         }
         .mm-dev-team-shell .mm-private-sidebar .mm-sidebar-link.is-active .mm-sidebar-link-icon {
           transform: scale(1.08);
@@ -202,6 +311,17 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
             transform: none !important;
           }
         }
+        /* The keyboard focus ring is the one emphasis in this workspace that was still
+           painted in the TENANT accent (globals.css falls back to --brand-accent, set on
+           :root, so it does not flip with colour mode). At the shipped default #F97316
+           that ring measures 2.45:1 on the mill's surfaces — under the 3:1 WCAG asks of
+           a non-text indicator, and the mill is the lightest surface we ship. Point it
+           at the workspace's own accent, which DOES flip: 4.59-5.55:1 in the mill,
+           6.30-7.22:1 in the forge, and it now matches every other emphasis here. */
+        .mm-dev-team-shell :where(a, button, input, select, textarea, [tabindex]:not([tabindex='-1'])):focus-visible {
+          outline-color: var(--dev-accent);
+        }
+
         /* Cutscene + card CSS relocated from globals.css: Tailwind v4 + Turbopack
            dropped the appended dev-team block (verified: getComputedStyle empty,
            fresh build unchanged), which would break production. Inline ships raw. */
@@ -567,6 +687,8 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
         <Sidebar panels={panels} tenantLabel="Dev Team" currentPath={currentPath} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
+            inspecting={Boolean(session.previewReturnUserId)}
+            notifications={<NotificationCentreButton />}
             title="Dev Team"
             subtitle="Internal workspace"
             role={session.role}
@@ -577,10 +699,11 @@ html[data-cinematic-mode="false"] .mm-dev-transition { display: none !important;
             tenantLabel="Dev Team"
             currentPath={currentPath}
             searchRecordsEnabled={false}
-            // The Dev Team's assistant is the LIBRARIAN — a reskin of the agency
-            // Advisor over the SAME side-panel drawer. Passing it here stops the
-            // Topbar falling through to the full-page /portal/agency/assistant
-            // link (the "full page + glitches back to agency" bug).
+            // The Dev Team's assistant is the LIBRARIAN — its own find surface
+            // (the file-finding skill) over the SAME side-panel drawer. Passing
+            // it here stops the Topbar falling through to the full-page
+            // /portal/agency/assistant link (the "full page + glitches back to
+            // agency" bug).
             advisorControl={<LibrarianDrawerControl agencyId={session.agencyId} userId={session.userId} userName={user?.name ?? session.email} />}
             // Role-dependent way out: land on the operator's OWN portal home
             // (owner → agency, hired staff → their staff portal), never the

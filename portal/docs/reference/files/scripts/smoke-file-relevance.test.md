@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/editing/fileRelevance.ts`](../src/lib/editing/fileRelevance.md)
+- [`src/engines/editor/editing/fileRelevance.ts`](../src/engines/editor/editing/fileRelevance.md)
 
 ## Used by
 

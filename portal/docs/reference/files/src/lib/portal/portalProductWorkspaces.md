@@ -42,6 +42,6 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 - [`src/app/portal/customer/_CustomerPortalViews.tsx`](../../app/portal/customer/_CustomerPortalViews.md)
 - [`src/app/portal/customer/_ProductWorkspaceApplication.tsx`](../../app/portal/customer/_ProductWorkspaceApplication.md)
 - [`src/app/portal/customer/_portalData.ts`](../../app/portal/customer/_portalData.md)
-- [`src/lib/server/radar/clientRadarService.ts`](../server/radar/clientRadarService.md)
+- [`src/engines/data/server/radar/clientRadarService.ts`](../../engines/data/server/radar/clientRadarService.md)
 - [`src/server/productWorkspaces.ts`](../../server/productWorkspaces.md)
 

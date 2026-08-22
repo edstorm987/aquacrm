@@ -66,10 +66,16 @@ const manifest: AquaPlugin = {
     // Mounted under the foundation's own /portal/agency/pipelines/leads
     // route by T1's pipeline view; the path here is the *plugin's* page
     // path (T1's catch-all dispatcher prepends panelId).
-    { path: "", component: () => import("./src/pages/ContactsPage") },
-    { path: "contacts", component: () => import("./src/pages/ContactsPage") },
-    { path: "campaigns", component: () => import("./src/pages/CampaignsPage") },
-    { path: "board", component: () => import("./src/pages/LeadsBoardPage") },
+    { path: "", component: () => import("./src/pages/ContactsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    { path: "contacts", component: () => import("./src/pages/ContactsPage"), visibleToRoles: [...AGENCY_VIEWERS] },
+    // Admin-only in the nav ("Campaigns", `leads-pipeline.campaigns`) — and
+    // invisible to the nav-vs-page guard, because that nav entry's href is an
+    // APP route (`/portal/agency/marketing`), not this plugin's mount point,
+    // so `pluginPageForNavHref` answers null and the page looked like it had
+    // no nav claim at all. `agency-staff` could open the campaign composer at
+    // /portal/agency/leads-pipeline/campaigns while the tab was hidden.
+    { path: "campaigns", component: () => import("./src/pages/CampaignsPage"), visibleToRoles: [...AGENCY_ADMINS] },
+    { path: "board", component: () => import("./src/pages/LeadsBoardPage"), visibleToRoles: [...AGENCY_VIEWERS] },
   ],
 
   api: ROUTES,

@@ -72,7 +72,15 @@ agency→`/agency`, client→`/clients/<id>`, end-customer→`/customer`),
 - `aqua-tags/page.tsx` + `_AquaTagsWorkspace.tsx` **[new]** — master-tag generator + live domain detect/form-scan + the setup wizard *(steps 1–3 live, 4–6 planned; overlaps `performance/_AquaTagDashboard` — see hazards). Full feature dossier: [aqua-tag.md](aqua-tag.md).*
 
 **Portals — `portals/`**
-- `page.tsx` (+ `_PortalsWorkspace`, `_portalWorkspaceData`), `editor/_ClientPortalStudio.tsx` (1266L — the client-portal builder), `forms/page.tsx`, `demo/[template]/page.tsx`.
+- `page.tsx` (+ `_PortalsWorkspace`, `_portalWorkspaceData`), `editor/page.tsx`, `forms/page.tsx`, `demo/[template]/page.tsx`.
+- ⚠ **`editor/page.tsx` is a DOOR, not the editor.** The editor itself is
+  [`src/engines/editor/DevEditor.tsx`](../../src/engines/editor/DevEditor.tsx) — **one universal
+  editor**, not a client-portal builder. This route is a thin server page: it loads props via
+  `loadPortalStudioProps` (`engines/editor/server/portalStudio.ts`) + `loadEditorAssistant`, then
+  mounts `<DevEditor>`. The other door is `dev-team/editor/studio/page.tsx`, and it mounts the
+  same component. It used to live here as `editor/_ClientPortalStudio.tsx`; it was moved out on
+  **2026-08-21** because sitting inside the portals route kept leaking portal-specific copy at
+  people editing a repository. **Edit the engine file, not this page** — and do not re-home it here.
 
 **Products — `products/`**
 - `page.tsx` (→ `fulfilment?view=services`) + `_ProductsWorkspace.tsx` (635L); `[productId]/` `_ProductDetailWorkspace.tsx` + `_ProductRolloutCentre.tsx`.
@@ -151,8 +159,13 @@ of this chapter and never existed under that name on disk).
   with the page header.
 - `_ui.tsx` — the shared kit every section uses: `PageHeader` / `Panel` /
   `NavCard` / `Pill` / `EmptyState` + the light palette tokens.
-- **Sections — SIX, with `?view=` tabs (re-shaped 2026-08-20; it was twelve
-  sidebar items).** The nav is `layout.tsx:68-75`:
+- **Sections — SEVEN, with `?view=` tabs (re-shaped 2026-08-20; it was twelve
+  sidebar items — Editor became a first-class row 2026-08-21, which is why the
+  table below has seven).** The nav items are `layout.tsx:74-89`, in sidebar
+  order Home · Roadmap · Findings · Library · Tools · Editor · Notes.
+  **Team chat is NOT one of them** — `layout.tsx` contains zero occurrences of
+  "chat". `dev-team/chat/page.tsx` still exists and still renders `TeamChat`; it
+  is simply unlinked from the nav:
 
   | Section | Route | Views (`?view=`) | The real code |
   | --- | --- | --- | --- |
@@ -162,13 +175,23 @@ of this chapter and never existed under that name on disk).
   | **Library** | `/library` | `docs` (default) · `logs` · `updates` | `library/{_LibraryIndex,_LibraryTree,_LibraryDocViewer,_Section,_paths}`, `logs/{_Section,_changesLabel}`, `updates/{_Section,_UpdateComposer}` |
   | **Tools** | `/tools` | `inspector` (default) · `editor` · `api` | `inspector/{_Section,InspectorClient}.tsx`, `editor/{_Section,_AppConfigEditor}.tsx`, `api/{_Section,_MasterTagPanel,_McpConnectPanel}.tsx` |
   | **Notes** | `/notes` | — | reuses the agency notepad wholesale — the one section with no `PageHeader`, because that workspace brings its own `<h1>` |
+  | **Editor** | `/editor` | — | `editor/page.tsx` → `setup/_DevEditorSetup.tsx` (the **projects workspace**); `editor/studio/page.tsx` mounts the editor itself. Since 2026-08-22 `_DevEditorSetup.tsx` also exports **`DevEditorProjectSettings`** — the project-scoped, editor-skinned panel the Dev Editor's Settings tab mounts (never the whole workspace screen); shared panels (Aqua Tag / Map report / GitHub connect) take a `skin` prop (`SETUP_SKINS`), do not fork them |
 
   Plus `plans/new/` (writes a real plan file) and `docs/`.
 
-  **The eight old routes are one-line `redirect()` stubs, kept so every bookmark
+  ⚠ **`/portal/dev-team/editor` is NOT a redirect stub any more (2026-08-21).** It is the Dev
+  Editor **projects workspace** — what you have, what each project points at — and "Open editor"
+  goes to `editor/studio?project=<id>`, which mounts
+  [`src/engines/editor/DevEditor.tsx`](../../src/engines/editor/DevEditor.tsx): the **one
+  universal editor**, the same component the agency `portals/editor` door mounts. There is no
+  separate portal editor / website editor / code editor. The **app-config** editor is a different,
+  smaller thing and still lives at `tools?view=editor` (`editor/_Section.tsx` +
+  `editor/_AppConfigEditor.tsx`, in the same directory — don't confuse the two).
+
+  **The old routes are one-line `redirect()` stubs, kept so every bookmark
   and doc link still lands:** `/auditor`→`findings?view=auditor` ·
   `/logs`→`library?view=logs` · `/updates`→`library?view=updates` ·
-  `/inspector`→`tools` · `/editor`→`tools?view=editor` · `/api`→`tools?view=api` ·
+  `/inspector`→`tools` · `/api`→`tools?view=api` ·
   `/working`→`roadmap?view=now` · `/tasks`→`roadmap?view=tasks`.
   ⚠ **Only `page.tsx` became a stub** — the `_Section.tsx` and workspace files in
   those directories are still the live implementations, imported by the new

@@ -1,5 +1,9 @@
 # Handoff — Public bucket (`aquacrm-public`)
 
+> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `public-bucket` stands, read [public-bucket.md](public-bucket.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+>
+> *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
+
 ← [plan](public-bucket.md) · [updates.md](../updates.md) · [status.md](../status.md) · [database.md §3](../../workspace/database.md)
 
 **One-liner:** `aquacrm-public` went from *declared-but-dead* → **wired end-to-end**.

@@ -8,7 +8,7 @@ _No exported symbols (side-effect / internal module)._
 
 ## Depends on (1)
 
-- [`src/lib/editing/engine.ts`](../src/lib/editing/engine.md)
+- [`src/engines/editor/editing/engine.ts`](../src/engines/editor/editing/engine.md)
 
 ## Used by
 

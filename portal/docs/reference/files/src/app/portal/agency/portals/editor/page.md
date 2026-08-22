@@ -6,17 +6,16 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 
 ## Exports (1)
 
-- `default async ClientPortalEditorPage({ searchParams, }: { searchParams: Promise<{ clientId?: string; productId?: string; templateId?: string; scope?: string; mode?: string; section?: string; context?: string }>; })`
+- `default async ClientPortalEditorPage({ searchParams, }: { searchParams: Promise<PortalStudioQuery>; })`
 
-## Depends on (8)
+## Depends on (7)
 
-- [`src/app/portal/agency/portals/editor/_ClientPortalStudio.tsx`](./_ClientPortalStudio.md)
+- [`src/engines/editor/DevEditor.tsx`](../../../../../engines/editor/DevEditor.md)
+- [`src/engines/editor/server/editorAssistant.ts`](../../../../../engines/editor/server/editorAssistant.md)
+- [`src/engines/editor/server/portalStudio.ts`](../../../../../engines/editor/server/portalStudio.md)
 - [`src/lib/clients/clientWorkspace.ts`](../../../../../lib/clients/clientWorkspace.md)
 - [`src/lib/server/auth/auth.ts`](../../../../../lib/server/auth/auth.md)
-- [`src/server/agencyProducts.ts`](../../../../../server/agencyProducts.md)
-- [`src/server/clientPortalDesigns.ts`](../../../../../server/clientPortalDesigns.md)
 - [`src/server/storage.ts`](../../../../../server/storage.md)
-- [`src/server/tenants.ts`](../../../../../server/tenants.md)
 - [`src/server/types.ts`](../../../../../server/types.md)
 
 ## Used by

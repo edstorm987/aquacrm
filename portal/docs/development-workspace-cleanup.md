@@ -1,5 +1,20 @@
 # Development Workspace Cleanup
 
+> **Kept live on purpose (reviewed 2026-08-21).** This reads like history — it is
+> dated 6 August 2026, verified 27 July, describes the *outer* workspace rather
+> than `portal/`, and its command line is stale. It stays because its
+> **"Catalogued In Development"** section below is the only human documentation of
+> the six roots that `scanWorkspace` still walks
+> (`src/app/api/portal/development/route.ts`), behind the live npm script
+> `catalogue:development` (`package.json`). Filing this under history would bury
+> the spec for shipped code.
+>
+> ⚠ **Corrections to the text below, flagged not overwritten:** the invocation is
+> **`npm run catalogue:development`** — this repo is npm-managed and `pnpm` will
+> corrupt the shared `node_modules`; and the port it names (3030) is not the
+> portal's (`3032`, see [DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)). The
+> 27 July verification figures are a dated record and are left exactly as written.
+
 This inventory separates material that is now catalogued in the Development workspace from generated files and historical working material. Source folders still require the review gate below; generated output already proven inactive can be removed safely.
 
 ## Verified Catalogue

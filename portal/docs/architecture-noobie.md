@@ -116,9 +116,19 @@ same tool pointed at different things. It works the same way everywhere:
                             →  it publishes
 ```
 
-Four things ride it through "adapters": the **website editor**, the **portal
-editor**, **client portals**, and the **app's own settings editor**. They all get
-the dry run, the before/after diff and the explicit-confirm for free.
+Four things ride it through "adapters": a **website**, a **client portal**, a
+**plain code repository**, and the **app's own settings**. They all get the dry
+run, the before/after diff and the explicit-confirm for free. Those are four
+**things you can point the editor at** — they are not four editors.
+
+**And the screen you actually edit in is one file too** (added 2026-08-21):
+`src/engines/editor/DevEditor.tsx`. It deliberately does **not** live inside any
+feature folder. Two routes open it — `/portal/agency/portals/editor` (coming at
+it from a client portal) and `/portal/dev-team/editor` → *Open editor* (coming at
+it from a project) — and both mount the same component. It used to live inside
+the portals route, which meant portal-flavoured wording kept turning up in front
+of somebody editing a website; moving it out is what stops that happening again.
+If you are looking for "the editor", that file is it.
 
 **What is not yet shared is the vocabulary.** The website editor has ~78 block
 types; client portals have their own ~48. About 87% of them are the same idea
@@ -156,11 +166,18 @@ agents editing one file destroys work permanently.
 ## 6. The Dev Console
 
 `/portal/dev-team` — your own workspace for building the thing, founder-only, and
-invisible unless Dev Mode is on. Six sections:
+invisible unless Dev Mode is on. Seven sections (counted 2026-08-21 in
+`src/app/portal/dev-team/layout.tsx:74-89`; this used to say "Six" and then list
+only five, missing Home and Editor):
 
+**Home** (the dashboard — what's in flight, what's done, what's blocked) ·
 **Roadmap** (what's coming · what's moving · every task) · **Findings** (what you
 spotted · what the auditor spotted) · **Library** (docs · logs · updates) ·
-**Tools** (inspector · editor · API & MCP) · **Notes**.
+**Tools** (inspector · editor · API & MCP) · **Editor** (the Dev Editor projects
+workspace, and the door into the editor itself) · **Notes**.
+
+("My profile" is there too, but it sits in a separate Settings panel at the
+bottom rather than being one of the seven.)
 
 Entering it does **not** change who you are — you stay you, on your real data.
 Identity only changes in **Inspector**, and leaving restores exactly the person

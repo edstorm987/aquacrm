@@ -1,6 +1,8 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
+import { describePluginSettings } from "@/lib/server/plugins/pluginSettingsSurface";
+import { PluginSettingsPanel } from "@/components/workspaces/PluginSettingsPanel";
 import { FinanceNav } from "../components/FinanceNav";
 
 export default async function SettingsPage(props: PluginPageProps) {
@@ -11,6 +13,12 @@ export default async function SettingsPage(props: PluginPageProps) {
     c.invoices.list(),
     c.expenses.list(),
   ]);
+  // The manifest's own `settings.groups`, rendered generically. Until 22 Aug
+  // 2026 nothing rendered them at all, so `stripeSecretKey` was undeclarable
+  // and `stripeConfigured()` was permanently false — while `closeDeal.ts` and
+  // `stripe.ts` both told the operator to "Set up Stripe in Finance settings".
+  // This is that control.
+  const declaredSettings = describePluginSettings(props.install.pluginId, { agencyId: props.agencyId });
   const draftInvoices = invoices.filter(i => i.status === "draft").length;
   const sentInvoices = invoices.filter(i => i.status === "sent").length;
   const pendingExpenses = expenses.filter(e => e.status === "pending").length;
@@ -31,6 +39,8 @@ export default async function SettingsPage(props: PluginPageProps) {
           <li key={c.id}>{c.name} {c.isDefault ? "(default)" : ""} · {c.status}</li>
         ))}
       </ul>
+      {declaredSettings ? <PluginSettingsPanel initial={declaredSettings} /> : null}
+
       <h2>Install</h2>
       <dl className="finance-settings-grid">
         <div><dt>Default currency</dt><dd>{defaultCurrency.toUpperCase()}</dd></div>

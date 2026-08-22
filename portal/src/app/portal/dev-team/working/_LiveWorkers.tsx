@@ -121,7 +121,7 @@ export function LiveWorkers() {
                     <li key={worker.name} className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
                       <CircleDot
                         size={13}
-                        className={`mt-0.5 shrink-0 ${active ? "text-[color:var(--dev-success)]" : "text-[color:var(--dev-line)]"}`}
+                        className={`mt-0.5 shrink-0 ${active ? "text-[color:var(--dev-success)]" : "text-[color:var(--dt-faint)]"}`}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">

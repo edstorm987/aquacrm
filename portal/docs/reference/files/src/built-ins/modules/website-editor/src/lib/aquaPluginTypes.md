@@ -37,7 +37,7 @@
 
 - [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](./tenancy.md)
 - [`src/built-ins/modules/website-editor/src/server/ports.ts`](../server/ports.md)
-- [`src/lib/elements/definition.ts`](../../../../../lib/elements/definition.md)
+- [`src/engines/editor/elements/definition.ts`](../../../../../engines/editor/elements/definition.md)
 
 ## Used by (64)
 

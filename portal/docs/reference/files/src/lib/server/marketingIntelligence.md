@@ -41,13 +41,13 @@ _No file-level doc-comment. Purpose inferred from its path (Shared logic — src
 
 ## Depends on (9)
 
+- [`src/engines/data/radar/businessRadar.ts`](../../engines/data/radar/businessRadar.md)
+- [`src/engines/data/server/radar/businessIssueRadar.ts`](../../engines/data/server/radar/businessIssueRadar.md)
+- [`src/engines/data/server/radar/radarEvidenceVault.ts`](../../engines/data/server/radar/radarEvidenceVault.md)
 - [`src/lib/intelligence/commandIntelligence.ts`](../intelligence/commandIntelligence.md)
 - [`src/lib/performance/kpiRegistry.ts`](../performance/kpiRegistry.md)
-- [`src/lib/radar/businessRadar.ts`](../radar/businessRadar.md)
 - [`src/lib/server/commandIntelligenceService.ts`](./commandIntelligenceService.md)
 - [`src/lib/server/integrations/integrationConnections.ts`](./integrations/integrationConnections.md)
-- [`src/lib/server/radar/businessIssueRadar.ts`](./radar/businessIssueRadar.md)
-- [`src/lib/server/radar/radarEvidenceVault.ts`](./radar/radarEvidenceVault.md)
 - [`src/server/websiteInjections.ts`](../../server/websiteInjections.md)
 - [`src/server/websiteSources.ts`](../../server/websiteSources.md)
 

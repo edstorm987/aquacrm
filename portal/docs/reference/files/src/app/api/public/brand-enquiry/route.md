@@ -9,7 +9,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - `OPTIONS(req: NextRequest)`
 - `async POST(req: NextRequest)`
 
-## Depends on (18)
+## Depends on (19)
 
 - [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](../../../../built-ins/runtime/foundation-adapters/leadsPipelineFoundation.md)
 - [`src/lib/brands/tradingBrands.ts`](../../../../lib/brands/tradingBrands.md)
@@ -21,6 +21,7 @@ _No file-level doc-comment. Purpose inferred from its path (App routes & UI — 
 - [`src/lib/server/rateLimit.ts`](../../../../lib/server/rateLimit.md)
 - [`src/lib/server/seeds/founderSeed.ts`](../../../../lib/server/seeds/founderSeed.md)
 - [`src/lib/supabase/admin.ts`](../../../../lib/supabase/admin.md)
+- [`src/lib/supabase/enquiryAgencyColumn.ts`](../../../../lib/supabase/enquiryAgencyColumn.md)
 - [`src/server/activity.ts`](../../../../server/activity.md)
 - [`src/server/automations.ts`](../../../../server/automations.md)
 - [`src/server/pluginInstalls.ts`](../../../../server/pluginInstalls.md)

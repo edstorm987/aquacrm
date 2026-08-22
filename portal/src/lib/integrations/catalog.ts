@@ -1,4 +1,4 @@
-export type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "google-search-console";
+export type IntegrationProvider = "resend" | "smtp" | "twilio" | "meta" | "stripe" | "github" | "vercel" | "openai" | "aqua-editor-ai" | "google-search-console";
 
 export type IntegrationFieldKind = "text" | "email" | "url" | "password";
 
@@ -154,6 +154,39 @@ export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
     fields: [
       { id: "apiKey", label: "API key", kind: "password", secret: true, required: true, placeholder: "sk-...", help: "Create a project API key in the OpenAI Platform and paste it here." },
       { id: "model", label: "Model", kind: "text", required: true, placeholder: "gpt-5-mini", help: "The model used by the private AquaCRM assistant." },
+    ],
+  },
+  {
+    // ─── AQUA EDITOR AI ────────────────────────────────────────────────────
+    //
+    // Deliberately a SEPARATE provider kind from `openai`, not a second
+    // `openai` connection. Ed's call: "aqua editor ai needs to be its only
+    // thing… needs a seperate tocken please to configure."
+    //
+    // Two things follow from the separation, and both are the point:
+    //   • `resolveIntegrationValues(agencyId, "openai")` — how the Aqua
+    //     Advisor and the Dev Team Librarian find their key — can never
+    //     return this one, and this one can never return theirs. Spending the
+    //     agency's assistant budget from the editor, or vice versa, stops
+    //     being possible rather than being a convention;
+    //   • a connection of this kind is bound to ONE dev project by id
+    //     (`EditorAiConfig.connectionId`), so "saved per project" is a real
+    //     scope and not a label.
+    //
+    // A workspace-scoped connection of this kind resolves nothing — the
+    // editor only ever resolves the connection its project names. Ed adds the
+    // key from the project's own screen; this card exists so it is visible
+    // and revocable beside every other credential.
+    id: "aqua-editor-ai",
+    name: "Aqua Editor AI",
+    category: "Intelligence",
+    description: "The editor's own assistant, with its own key and its own model, configured per dev project.",
+    setupUrl: "https://platform.openai.com/api-keys",
+    setupLabel: "Create an API key",
+    outcome: "Aqua Editor AI answers inside the editor for ONE project, on this key. It is never used by the Aqua Advisor, and the Advisor's key is never used by it.",
+    fields: [
+      { id: "apiKey", label: "API key", kind: "password", secret: true, required: true, placeholder: "sk-...", help: "This project's own key. AquaCRM encrypts it in the vault and never shows it again." },
+      { id: "model", label: "Model", kind: "text", required: true, placeholder: "gpt-5-mini", help: "The model Aqua Editor AI runs on for this project." },
     ],
   },
 ];

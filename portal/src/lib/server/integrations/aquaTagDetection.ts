@@ -26,6 +26,10 @@ export interface AquaTagScanForms {
 }
 
 export interface AquaTagAnalysis {
+  /** The src the snippet points at, when one is present. */
+  scriptSrc?: string;
+  /** Whether a visitor's browser could actually FETCH that src from this page. */
+  scriptLoadable?: { ok: boolean; reason?: string };
   /** An `/aqua-tag.js` script is present on the page. */
   tagPresent: boolean;
   /** ...and it carries this agency's master key. */
@@ -177,17 +181,70 @@ export function scanFormSchemasInHtml(html: string): AquaFormSchema[] {
   return schemas;
 }
 
-/** Read a page's HTML for the tag and its forms. Pure — no network. */
-export function analyzeAquaTagHtml(html: string, masterSiteKey: string): AquaTagAnalysis {
+/**
+ * PRESENCE IS NOT EXECUTION. This reads the served HTML, so it can prove the
+ * snippet is on the page with the right key — and nothing more. Found live on
+ * the first real client run (2026-08-21): the snippet pointed at
+ * `http://localhost:3032/aqua-tag.js`, every browser refused to load it
+ * (mixed content / private origin on a public https page), the editor's modes
+ * got no elements — and this check still said "verified", because the tag WAS
+ * present. `scriptSrc`/`scriptLoadable` exist so the caller can say the truth:
+ * a snippet whose source a live page cannot fetch is installed but dead.
+ */
+export function analyzeAquaTagHtml(html: string, masterSiteKey: string, pageUrl?: string): AquaTagAnalysis {
   const detectedSiteKey = siteKeyFromScripts(html);
   const tagPresent = AQUA_TAG_SCRIPT.test(html);
   AQUA_TAG_SCRIPT.lastIndex = 0; // the regex is global; reset after a .test()
+  const scriptSrc = tagPresent ? tagScriptSrc(html) : undefined;
   return {
     tagPresent,
     keyMatches: tagPresent && Boolean(detectedSiteKey) && detectedSiteKey === masterSiteKey,
     detectedSiteKey,
+    scriptSrc,
+    scriptLoadable: scriptSrc ? scriptSrcLoadableFrom(scriptSrc, pageUrl) : undefined,
     forms: scanFormsInHtml(html),
   };
+}
+
+/** The src of whichever aqua-tag script is on the page. */
+function tagScriptSrc(html: string): string | undefined {
+  const match = /<script\b[^>]*\bsrc\s*=\s*("([^"]*aqua-tag\.js[^"]*)"|'([^']*aqua-tag\.js[^']*)')/i.exec(html);
+  return match ? (match[2] ?? match[3]) : undefined;
+}
+
+/**
+ * Would a visitor's browser actually fetch this script from that page?
+ *
+ * Two refusals cover the real-world failure: a loopback/private host is only
+ * reachable from the developer's own machine, and an http script on an https
+ * page is blocked as mixed content. Everything else is presumed loadable —
+ * this is a warning surface, not a promise.
+ */
+function scriptSrcLoadableFrom(src: string, pageUrl?: string): { ok: boolean; reason?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(src, pageUrl ?? "https://example.com/");
+  } catch {
+    return { ok: false, reason: "The snippet's script address could not be parsed." };
+  }
+  const host = parsed.hostname.toLowerCase();
+  const isPrivate = host === "localhost" || host === "127.0.0.1" || host === "::1"
+    || host.endsWith(".local") || host.endsWith(".localhost")
+    || /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  if (isPrivate) {
+    return {
+      ok: false,
+      reason: `The snippet loads its script from ${parsed.origin}, which only exists on the machine that generated it — a visitor's browser cannot reach it. Set NEXT_PUBLIC_PORTAL_BASE_URL to the public portal address and paste a regenerated snippet.`,
+    };
+  }
+  const pageIsHttps = (pageUrl ?? "").startsWith("https:");
+  if (pageIsHttps && parsed.protocol === "http:") {
+    return {
+      ok: false,
+      reason: `The page is https but the snippet's script is http (${parsed.origin}) — browsers block that as mixed content. Regenerate the snippet with an https address.`,
+    };
+  }
+  return { ok: true };
 }
 
 /**
@@ -207,7 +264,7 @@ export async function detectAquaTag(input: { rawUrl: string; masterSiteKey: stri
     throw error;
   }
 
-  const analysis = analyzeAquaTagHtml(page.html, input.masterSiteKey);
+  const analysis = analyzeAquaTagHtml(page.html, input.masterSiteKey, page.finalUrl);
   const ok = page.statusCode >= 200 && page.statusCode < 400;
   return {
     ...analysis,

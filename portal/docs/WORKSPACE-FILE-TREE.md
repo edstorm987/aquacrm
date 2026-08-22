@@ -33,6 +33,7 @@ The owning layer, by kind of change:
 | Logic / services / engines | `src/lib/<domain>/`, `src/lib/server/<family>/` — foldered by domain 2026-08-20, see chapter head | [Shared logic](workspace/shared-logic.md) |
 | An HTTP endpoint | `src/app/api/**/route.ts` | [API & routes](workspace/api-and-routes.md) |
 | A screen | `src/app/portal/**/page.tsx` + `_Component.tsx` | [Portal UI](workspace/portal-ui.md) |
+| **The editor** (there is only ONE) | `src/engines/editor/` — `DevEditor.tsx` is the whole editor surface, `editing/` the plan→confirm→publish loop, `elements/` the block vocabulary, `server/` its loaders. It is **route-independent**: `agency/portals/editor` and `dev-team/editor/studio` are doors that mount it. No portal/website/code editors as separate things. Moved out of the portals route 2026-08-21. | [Feature index](workspace/feature-index.md) · [Portal UI](workspace/portal-ui.md) |
 | A whole feature/module | `src/built-ins/modules/<plugin>/` | [Plugins](workspace/plugins.md) |
 | Shared UI (shell, primitives) | `src/components/` | [Components](workspace/components.md) |
 | Config / tests / docs | root, `scripts/`, `docs/` | [Scripts, config & docs](workspace/scripts-config-docs.md) |
@@ -56,7 +57,7 @@ The owning layer, by kind of change:
 ## The chapters
 
 1. **[State layer](workspace/state-layer.md)** — `src/server/` (57 files). The `PortalState` store and every CRUD/domain function over it. Start here to understand the data.
-2. **[Shared logic](workspace/shared-logic.md)** — `src/lib/` + `src/lib/server/` (256). Services, the Radar engine, integrations, auth, the Aqua Tag, editing, and **`lib/elements/` — the block vocabulary, moved out of the website-editor plugin 2026-08-20**. The client-safe vs server-only split.
+2. **[Shared logic](workspace/shared-logic.md)** — `src/lib/` + `src/lib/server/` (256). Services, integrations, auth, the Aqua Tag. The client-safe vs server-only split. ⚠ **The engines moved out of `src/lib/` and now live in `src/engines/`** (no chapter of their own yet): `src/engines/{editor,data,sop}/`. The editor is `src/engines/editor/**` (incl. `elements/` — the block vocabulary, which left the website-editor plugin 2026-08-20 and is **not** at `lib/elements/`); Radar is `src/engines/data/radar/**`.
 3. **[Portal UI](workspace/portal-ui.md)** — `src/app/portal/` (agency / clients / customer / team). Every screen, its tabs, and the load-bearing components.
 4. **[API & routes](workspace/api-and-routes.md)** — `src/app/api/**` + the non-portal routes, grouped by area with the **live-Supabase** ones flagged. For the exhaustive one-row-per-endpoint version (path · methods · purpose · scope · live), see the **[full API reference](workspace/api-reference.md)**.
 5. **[Plugins](workspace/plugins.md)** — `src/built-ins/` (720). The 13 feature modules and the runtime that installs them, mapped internally.
@@ -64,7 +65,7 @@ The owning layer, by kind of change:
 7. **[Scripts, config & docs](workspace/scripts-config-docs.md)** — root config, the 242 test scripts, and the prose docs. Includes the canonical full-suite command.
 8. **[Feature → files index](workspace/feature-index.md)** — the conflict-avoider: "where does X live?" across all layers, per feature.
 9. **[Hazards & duplication](workspace/hazards-and-duplication.md)** — live-data risks, confirmed duplicates, drift-prone twins, dead/alias code, and the standing rules. **Read before editing.**
-10. **[Recent changes (Aug 2026)](workspace/session-changelog-2026-08.md)** — what the latest session built and where it landed.
+10. ~~Recent changes (Aug 2026)~~ — **archived 2026-08-21**; it was a dated session narrative, not a chapter of the map. The running record of every change is **[updates.md](development/updates.md)** (the one log); the file itself is on the [history shelf](context/archive/README.md).
 
 **Feature dossiers** (a whole subsystem pulled into one verified page — read from source, omega detail):
 - **[Radar](workspace/radar.md)** — the 2,064-rule catalogue, the check engine, the health/evidence/readiness contract, policy, correlations, sentinels, the scan flow, the in-app/off-system/judgement action model, and the full test inventory.

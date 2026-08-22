@@ -17,7 +17,8 @@
 - [`src/built-ins/modules/agency-finance/src/api/handlers.ts`](./handlers.md)
 - [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](../lib/aquaPluginTypes.md)
 
-## Used by (1)
+## Used by (2)
 
+- [`scripts/smoke-finance-section-gates.test.ts`](../../../../../../scripts/smoke-finance-section-gates.test.md)
 - [`src/built-ins/modules/agency-finance/index.ts`](../../index.md)
 

@@ -42,8 +42,8 @@ _No file-level doc-comment. Purpose inferred from its path (State layer — src/
 - [`src/app/api/portal/products/route.ts`](../app/api/portal/products/route.md)
 - [`src/app/api/tenants/customer-portal-control/route.ts`](../app/api/tenants/customer-portal-control/route.md)
 - [`src/app/portal/agency/portals/_portalWorkspaceData.ts`](../app/portal/agency/portals/_portalWorkspaceData.md)
-- [`src/app/portal/agency/portals/editor/page.tsx`](../app/portal/agency/portals/editor/page.md)
 - [`src/app/portal/agency/products/[productId]/page.tsx`](../app/portal/agency/products/[productId]/page.md)
 - [`src/app/portal/customer/_portalData.ts`](../app/portal/customer/_portalData.md)
+- [`src/engines/editor/server/portalStudio.ts`](../engines/editor/server/portalStudio.md)
 - [`src/server/clientPortalSetup.ts`](./clientPortalSetup.md)
 
